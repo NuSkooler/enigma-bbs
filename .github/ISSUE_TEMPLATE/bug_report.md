@@ -22,7 +22,7 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Environment**
-* [ ] I am using Node.js v12.x LTS or higher
+* [ ] I am using Node.js v14.x LTS or higher
 * [ ] `npm install` or `yarn` reports success
 * Actual Node.js version (`node --version`):
 * Operating system (`uname -a` on *nix systems):

@@ -2,78 +2,81 @@
 'use strict';
 
 //  ENiGMA½
-const Config            = require('./config.js').get;
-const Errors            = require('./enig_error.js').Errors;
-const sortAreasOrConfs  = require('./conf_area_util.js').sortAreasOrConfs;
-const FileEntry         = require('./file_entry.js');
-const FileDb            = require('./database.js').dbs.file;
-const ArchiveUtil       = require('./archive_util.js');
-const CRC32             = require('./crc.js').CRC32;
-const Log               = require('./logger.js').log;
-const resolveMimeType   = require('./mime_util.js').resolveMimeType;
-const stringFormat      = require('./string_format.js');
-const wordWrapText      = require('./word_wrap.js').wordWrapText;
-const StatLog           = require('./stat_log.js');
-const UserProps         = require('./user_property.js');
-const SysProps          = require('./system_property.js');
-const SAUCE             = require('./sauce.js');
+const Config = require('./config.js').get;
+const Errors = require('./enig_error.js').Errors;
+const sortAreasOrConfs = require('./conf_area_util.js').sortAreasOrConfs;
+const FileEntry = require('./file_entry.js');
+const FileDb = require('./database.js').dbs.file;
+const ArchiveUtil = require('./archive_util.js');
+const CRC32 = require('./crc.js').CRC32;
+const Log = require('./logger.js').log;
+const resolveMimeType = require('./mime_util.js').resolveMimeType;
+const stringFormat = require('./string_format.js');
+const wordWrapText = require('./word_wrap.js').wordWrapText;
+const StatLog = require('./stat_log.js');
+const UserProps = require('./user_property.js');
+const SysProps = require('./system_property.js');
+const SAUCE = require('./sauce.js');
 const { wildcardMatch } = require('./string_util');
 
 //  deps
-const _             = require('lodash');
-const async         = require('async');
-const fs            = require('graceful-fs');
-const crypto        = require('crypto');
-const paths         = require('path');
-const temptmp       = require('temptmp').createTrackedSession('file_area');
-const iconv         = require('iconv-lite');
-const execFile      = require('child_process').execFile;
-const moment        = require('moment');
+const _ = require('lodash');
+const async = require('async');
+const fs = require('graceful-fs');
+const crypto = require('crypto');
+const paths = require('path');
+const temptmp = require('temptmp').createTrackedSession('file_area');
+const iconv = require('iconv-lite');
+const execFile = require('child_process').execFile;
+const moment = require('moment');
 
-exports.startup                         = startup;
-exports.isInternalArea                  = isInternalArea;
-exports.getAvailableFileAreas           = getAvailableFileAreas;
-exports.getAvailableFileAreaTags        = getAvailableFileAreaTags;
-exports.getSortedAvailableFileAreas     = getSortedAvailableFileAreas;
-exports.isValidStorageTag               = isValidStorageTag;
-exports.getAreaStorageDirectoryByTag    = getAreaStorageDirectoryByTag;
-exports.getAreaDefaultStorageDirectory  = getAreaDefaultStorageDirectory;
-exports.getAreaStorageLocations         = getAreaStorageLocations;
-exports.getDefaultFileAreaTag           = getDefaultFileAreaTag;
-exports.getFileAreaByTag                = getFileAreaByTag;
-exports.getFileAreasByTagWildcardRule   = getFileAreasByTagWildcardRule;
-exports.getFileEntryPath                = getFileEntryPath;
-exports.changeFileAreaWithOptions       = changeFileAreaWithOptions;
-exports.scanFile                        = scanFile;
+exports.startup = startup;
+exports.isInternalArea = isInternalArea;
+exports.getAvailableFileAreas = getAvailableFileAreas;
+exports.getAvailableFileAreaTags = getAvailableFileAreaTags;
+exports.getSortedAvailableFileAreas = getSortedAvailableFileAreas;
+exports.isValidStorageTag = isValidStorageTag;
+exports.getAreaStorageDirectoryByTag = getAreaStorageDirectoryByTag;
+exports.getAreaDefaultStorageDirectory = getAreaDefaultStorageDirectory;
+exports.getAreaStorageLocations = getAreaStorageLocations;
+exports.getDefaultFileAreaTag = getDefaultFileAreaTag;
+exports.getFileAreaByTag = getFileAreaByTag;
+exports.getFileAreasByTagWildcardRule = getFileAreasByTagWildcardRule;
+exports.getFileEntryPath = getFileEntryPath;
+exports.changeFileAreaWithOptions = changeFileAreaWithOptions;
+exports.scanFile = scanFile;
 //exports.scanFileAreaForChanges          = scanFileAreaForChanges;
-exports.getDescFromFileName             = getDescFromFileName;
-exports.getAreaStats                    = getAreaStats;
-exports.cleanUpTempSessionItems         = cleanUpTempSessionItems;
+exports.getDescFromFileName = getDescFromFileName;
+exports.getAreaStats = getAreaStats;
+exports.cleanUpTempSessionItems = cleanUpTempSessionItems;
 
 //  for scheduler:
-exports.updateAreaStatsScheduledEvent   = updateAreaStatsScheduledEvent;
+exports.updateAreaStatsScheduledEvent = updateAreaStatsScheduledEvent;
 
-const WellKnownAreaTags                 = exports.WellKnownAreaTags = {
-    Invalid             : '',
-    MessageAreaAttach   : 'system_message_attachment',
-    TempDownloads       : 'system_temporary_download',
-};
+const WellKnownAreaTags = (exports.WellKnownAreaTags = {
+    Invalid: '',
+    MessageAreaAttach: 'system_message_attachment',
+    TempDownloads: 'system_temporary_download',
+});
 
 function startup(cb) {
     async.series(
         [
-            (callback) => {
+            callback => {
                 return cleanUpTempSessionItems(callback);
             },
-            (callback) => {
-                getAreaStats( (err, stats) => {
-                    if(!err) {
-                        StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
+            callback => {
+                getAreaStats((err, stats) => {
+                    if (!err) {
+                        StatLog.setNonPersistentSystemStat(
+                            SysProps.FileBaseAreaStats,
+                            stats
+                        );
                     }
 
                     return callback(null);
                 });
-            }
+            },
         ],
         err => {
             return cb(err);
@@ -82,26 +85,31 @@ function startup(cb) {
 }
 
 function isInternalArea(areaTag) {
-    return [ WellKnownAreaTags.MessageAreaAttach, WellKnownAreaTags.TempDownloads ].includes(areaTag);
+    return [
+        WellKnownAreaTags.MessageAreaAttach,
+        WellKnownAreaTags.TempDownloads,
+    ].includes(areaTag);
 }
 
 function getAvailableFileAreas(client, options) {
-    options = options || { };
+    options = options || {};
 
     //  perform ACS check per conf & omit internal if desired
-    const allAreas = _.map(Config().fileBase.areas, (areaInfo, areaTag) => Object.assign(areaInfo, { areaTag : areaTag } ));
+    const allAreas = _.map(Config().fileBase.areas, (areaInfo, areaTag) =>
+        Object.assign(areaInfo, { areaTag: areaTag })
+    );
 
     return _.omitBy(allAreas, areaInfo => {
-        if(!options.includeSystemInternal && isInternalArea(areaInfo.areaTag)) {
+        if (!options.includeSystemInternal && isInternalArea(areaInfo.areaTag)) {
             return true;
         }
 
-        if(options.skipAcsCheck) {
-            return false;   //  no ACS checks (below)
+        if (options.skipAcsCheck) {
+            return false; //  no ACS checks (below)
         }
 
-        if(options.writeAcs && !client.acs.hasFileAreaWrite(areaInfo)) {
-            return true;    //  omit
+        if (options.writeAcs && !client.acs.hasFileAreaWrite(areaInfo)) {
+            return true; //  omit
         }
 
         return !client.acs.hasFileAreaRead(areaInfo);
@@ -121,16 +129,19 @@ function getSortedAvailableFileAreas(client, options) {
 function getDefaultFileAreaTag(client, disableAcsCheck) {
     const config = Config();
     let defaultArea = _.findKey(config.fileBase, o => o.default);
-    if(defaultArea) {
+    if (defaultArea) {
         const area = config.fileBase.areas[defaultArea];
-        if(true === disableAcsCheck || client.acs.hasFileAreaRead(area)) {
+        if (true === disableAcsCheck || client.acs.hasFileAreaRead(area)) {
             return defaultArea;
         }
     }
 
     //  just use anything we can
     defaultArea = _.findKey(config.fileBase.areas, (area, areaTag) => {
-        return WellKnownAreaTags.MessageAreaAttach !== areaTag && (true === disableAcsCheck || client.acs.hasFileAreaRead(area));
+        return (
+            WellKnownAreaTags.MessageAreaAttach !== areaTag &&
+            (true === disableAcsCheck || client.acs.hasFileAreaRead(area))
+        );
     });
 
     return defaultArea;
@@ -138,7 +149,7 @@ function getDefaultFileAreaTag(client, disableAcsCheck) {
 
 function getFileAreaByTag(areaTag) {
     const areaInfo = Config().fileBase.areas[areaTag];
-    if(areaInfo) {
+    if (areaInfo) {
         //  normalize |hashTags|
         if (_.isString(areaInfo.hashTags)) {
             areaInfo.hashTags = areaInfo.hashTags.trim().split(',');
@@ -146,17 +157,16 @@ function getFileAreaByTag(areaTag) {
         if (Array.isArray(areaInfo.hashTags)) {
             areaInfo.hashTags = new Set(areaInfo.hashTags.map(t => t.trim()));
         }
-        areaInfo.areaTag    = areaTag;  //  convenience!
-        areaInfo.storage    = getAreaStorageLocations(areaInfo);
+        areaInfo.areaTag = areaTag; //  convenience!
+        areaInfo.storage = getAreaStorageLocations(areaInfo);
         return areaInfo;
     }
 }
 
 function getFileAreasByTagWildcardRule(rule) {
-    const areaTags = Object.keys(Config().fileBase.areas)
-        .filter(areaTag => {
-            return !isInternalArea(areaTag) && wildcardMatch(areaTag, rule);
-        });
+    const areaTags = Object.keys(Config().fileBase.areas).filter(areaTag => {
+        return !isInternalArea(areaTag) && wildcardMatch(areaTag, rule);
+    });
 
     return areaTags.map(areaTag => getFileAreaByTag(areaTag));
 }
@@ -166,15 +176,18 @@ function changeFileAreaWithOptions(client, areaTag, options, cb) {
         [
             function getArea(callback) {
                 const area = getFileAreaByTag(areaTag);
-                return callback(area ? null : Errors.Invalid('Invalid file areaTag'), area);
+                return callback(
+                    area ? null : Errors.Invalid('Invalid file areaTag'),
+                    area
+                );
             },
             function validateAccess(area, callback) {
-                if(!client.acs.hasFileAreaRead(area)) {
+                if (!client.acs.hasFileAreaRead(area)) {
                     return callback(Errors.AccessDenied('No access to this area'));
                 }
             },
             function changeArea(area, callback) {
-                if(true === options.persist) {
+                if (true === options.persist) {
                     client.user.persistProperty(UserProps.FileAreaTag, areaTag, err => {
                         return callback(err, area);
                     });
@@ -182,13 +195,19 @@ function changeFileAreaWithOptions(client, areaTag, options, cb) {
                     client.user.properties[UserProps.FileAreaTag] = areaTag;
                     return callback(null, area);
                 }
-            }
+            },
         ],
         (err, area) => {
-            if(!err) {
-                client.log.info( { areaTag : areaTag, area : area }, 'Current file area changed');
+            if (!err) {
+                client.log.info(
+                    { areaTag: areaTag, area: area },
+                    'Current file area changed'
+                );
             } else {
-                client.log.warn( { areaTag : areaTag, area : area, error : err.message }, 'Could not change file area');
+                client.log.warn(
+                    { areaTag: areaTag, area: area, error: err.message },
+                    'Could not change file area'
+                );
             }
 
             return cb(err);
@@ -202,7 +221,7 @@ function isValidStorageTag(storageTag) {
 
 function getAreaStorageDirectoryByTag(storageTag) {
     const config = Config();
-    const storageLocation = (storageTag && config.fileBase.storageTags[storageTag]);
+    const storageLocation = storageTag && config.fileBase.storageTags[storageTag];
 
     return paths.resolve(config.fileBase.areaStoragePrefix, storageLocation || '');
 }
@@ -212,26 +231,27 @@ function getAreaDefaultStorageDirectory(areaInfo) {
 }
 
 function getAreaStorageLocations(areaInfo) {
-
-    const storageTags = Array.isArray(areaInfo.storageTags) ?
-        areaInfo.storageTags :
-        [ areaInfo.storageTags || '' ];
+    const storageTags = Array.isArray(areaInfo.storageTags)
+        ? areaInfo.storageTags
+        : [areaInfo.storageTags || ''];
 
     const avail = Config().fileBase.storageTags;
 
-    return _.compact(storageTags.map(storageTag => {
-        if(avail[storageTag]) {
-            return {
-                storageTag  : storageTag,
-                dir         : getAreaStorageDirectoryByTag(storageTag),
-            };
-        }
-    }));
+    return _.compact(
+        storageTags.map(storageTag => {
+            if (avail[storageTag]) {
+                return {
+                    storageTag: storageTag,
+                    dir: getAreaStorageDirectoryByTag(storageTag),
+                };
+            }
+        })
+    );
 }
 
 function getFileEntryPath(fileEntry) {
     const areaInfo = getFileAreaByTag(fileEntry.areaTag);
-    if(areaInfo) {
+    if (areaInfo) {
         return paths.join(areaInfo.storageDirectory, fileEntry.fileName);
     }
 }
@@ -243,12 +263,12 @@ function getExistingFileEntriesBySha256(sha256, cb) {
         `SELECT file_id, area_tag
         FROM file
         WHERE file_sha256=?;`,
-        [ sha256 ],
+        [sha256],
         (err, fileRow) => {
-            if(fileRow) {
+            if (fileRow) {
                 entries.push({
-                    fileId  : fileRow.file_id,
-                    areaTag : fileRow.area_tag,
+                    fileId: fileRow.file_id,
+                    areaTag: fileRow.area_tag,
                 });
             }
         },
@@ -260,11 +280,11 @@ function getExistingFileEntriesBySha256(sha256, cb) {
 
 //  :TODO: This is basically sliceAtEOF() from art.js .... DRY!
 function sliceAtSauceMarker(data) {
-    let eof         = data.length;
-    const stopPos   = Math.max(data.length - (256), 0); //  256 = 2 * sizeof(SAUCE)
+    let eof = data.length;
+    const stopPos = Math.max(data.length - 256, 0); //  256 = 2 * sizeof(SAUCE)
 
-    for(let i = eof - 1; i > stopPos; i--) {
-        if(0x1a === data[i]) {
+    for (let i = eof - 1; i > stopPos; i--) {
+        if (0x1a === data[i]) {
             eof = i;
             break;
         }
@@ -274,14 +294,14 @@ function sliceAtSauceMarker(data) {
 
 function attemptSetEstimatedReleaseDate(fileEntry) {
     //  :TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
-    const patterns  = Config().fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
+    const patterns = Config().fileBase.yearEstPatterns.map(p => new RegExp(p, 'gmi'));
 
     function getMatch(input) {
-        if(input) {
+        if (input) {
             let m;
-            for(let i = 0; i < patterns.length; ++i) {
+            for (let i = 0; i < patterns.length; ++i) {
                 m = patterns[i].exec(input);
-                if(m) {
+                if (m) {
                     return m;
                 }
             }
@@ -297,12 +317,12 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
     const maxYear = moment().add(2, 'year').year();
     const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
 
-    if(match && match[1]) {
+    if (match && match[1]) {
         let year;
-        if(2 === match[1].length) {
+        if (2 === match[1].length) {
             year = parseInt(match[1]);
-            if(year) {
-                if(year > 70) {
+            if (year) {
+                if (year > 70) {
                     year += 1900;
                 } else {
                     year += 2000;
@@ -312,7 +332,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
             year = parseInt(match[1]);
         }
 
-        if(year && year <= maxYear) {
+        if (year && year <= maxYear) {
             fileEntry.meta.est_release_year = year;
         }
     }
@@ -320,10 +340,10 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 
 //  a simple log proxy for when we call from oputil.js
 const maybeLog = (obj, msg, level) => {
-    if(Log) {
+    if (Log) {
         Log[level](obj, msg);
     } else if ('error' === level) {
-        console.error(`${msg}: ${JSON.stringify(obj)}`);    //  eslint-disable-line no-console
+        console.error(`${msg}: ${JSON.stringify(obj)}`); //  eslint-disable-line no-console
     }
 };
 
@@ -340,99 +360,139 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                 const config = Config();
                 const extractList = [];
 
-                const shortDescFile = archiveEntries.find( e => {
-                    return config.fileBase.fileNamePatterns.desc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+                const shortDescFile = archiveEntries.find(e => {
+                    return config.fileBase.fileNamePatterns.desc.find(pat =>
+                        new RegExp(pat, 'i').test(e.fileName)
+                    );
                 });
 
-                if(shortDescFile) {
+                if (shortDescFile) {
                     extractList.push(shortDescFile.fileName);
                 }
 
-                const longDescFile = archiveEntries.find( e => {
-                    return config.fileBase.fileNamePatterns.descLong.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+                const longDescFile = archiveEntries.find(e => {
+                    return config.fileBase.fileNamePatterns.descLong.find(pat =>
+                        new RegExp(pat, 'i').test(e.fileName)
+                    );
                 });
 
-                if(longDescFile) {
+                if (longDescFile) {
                     extractList.push(longDescFile.fileName);
                 }
 
-                if(0 === extractList.length) {
-                    return callback(null, [] );
+                if (0 === extractList.length) {
+                    return callback(null, []);
                 }
 
-                temptmp.mkdir( { prefix : 'enigextract-' }, (err, tempDir) => {
-                    if(err) {
+                temptmp.mkdir({ prefix: 'enigextract-' }, (err, tempDir) => {
+                    if (err) {
                         return callback(err);
                     }
 
                     const archiveUtil = ArchiveUtil.getInstance();
-                    archiveUtil.extractTo(filePath, tempDir, fileEntry.meta.archive_type, extractList, err => {
-                        if(err) {
-                            return callback(err);
+                    archiveUtil.extractTo(
+                        filePath,
+                        tempDir,
+                        fileEntry.meta.archive_type,
+                        extractList,
+                        err => {
+                            if (err) {
+                                return callback(err);
+                            }
+
+                            const descFiles = {
+                                desc: shortDescFile
+                                    ? paths.join(
+                                          tempDir,
+                                          paths.basename(shortDescFile.fileName)
+                                      )
+                                    : null,
+                                descLong: longDescFile
+                                    ? paths.join(
+                                          tempDir,
+                                          paths.basename(longDescFile.fileName)
+                                      )
+                                    : null,
+                            };
+
+                            return callback(null, descFiles);
                         }
-
-                        const descFiles = {
-                            desc        : shortDescFile ? paths.join(tempDir, paths.basename(shortDescFile.fileName)) : null,
-                            descLong    : longDescFile ? paths.join(tempDir, paths.basename(longDescFile.fileName)) : null,
-                        };
-
-                        return callback(null, descFiles);
-                    });
+                    );
                 });
             },
             function readDescFiles(descFiles, callback) {
                 const config = Config();
-                async.each(Object.keys(descFiles), (descType, next) => {
-                    const path = descFiles[descType];
-                    if(!path) {
-                        return next(null);
-                    }
-
-                    fs.stat(path, (err, stats) => {
-                        if(err) {
+                async.each(
+                    Object.keys(descFiles),
+                    (descType, next) => {
+                        const path = descFiles[descType];
+                        if (!path) {
                             return next(null);
                         }
 
-                        //  skip entries that are too large
-                        const maxFileSizeKey = `max${_.upperFirst(descType)}FileByteSize`;
-                        if(config.fileBase[maxFileSizeKey] && stats.size > config.fileBase[maxFileSizeKey]) {
-                            logDebug( { byteSize : stats.size, maxByteSize : config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
-                            return next(null);
-                        }
-
-                        fs.readFile(path, (err, data) => {
-                            if(err || !data) {
+                        fs.stat(path, (err, stats) => {
+                            if (err) {
                                 return next(null);
                             }
 
-                            SAUCE.readSAUCE(data, (err, sauce) => {
-                                if(sauce) {
-                                    //  if we have SAUCE, this information will be kept as well,
-                                    //  but separate/pre-parsed.
-                                    const metaKey = `desc${'descLong' === descType ? '_long' : ''}_sauce`;
-                                    fileEntry.meta[metaKey] = JSON.stringify(sauce);
+                            //  skip entries that are too large
+                            const maxFileSizeKey = `max${_.upperFirst(
+                                descType
+                            )}FileByteSize`;
+                            if (
+                                config.fileBase[maxFileSizeKey] &&
+                                stats.size > config.fileBase[maxFileSizeKey]
+                            ) {
+                                logDebug(
+                                    {
+                                        byteSize: stats.size,
+                                        maxByteSize: config.fileBase[maxFileSizeKey],
+                                    },
+                                    `Skipping "${descType}"; Too large`
+                                );
+                                return next(null);
+                            }
+
+                            fs.readFile(path, (err, data) => {
+                                if (err || !data) {
+                                    return next(null);
                                 }
 
-                                //
-                                //  Assume FILE_ID.DIZ, NFO files, etc. are CP437; we need
-                                //  to decode to a native format for storage
-                                //
-                                //  :TODO: This isn't really always the case - how to handle this? We could do a quick detection...
-                                const decodedData           = iconv.decode(data, 'cp437');
-                                fileEntry[descType]         = sliceAtSauceMarker(decodedData);
-                                fileEntry[`${descType}Src`] = 'descFile';
-                                return next(null);
+                                SAUCE.readSAUCE(data, (err, sauce) => {
+                                    if (sauce) {
+                                        //  if we have SAUCE, this information will be kept as well,
+                                        //  but separate/pre-parsed.
+                                        const metaKey = `desc${
+                                            'descLong' === descType ? '_long' : ''
+                                        }_sauce`;
+                                        fileEntry.meta[metaKey] = JSON.stringify(sauce);
+                                    }
+
+                                    //
+                                    //  Assume FILE_ID.DIZ, NFO files, etc. are CP437; we need
+                                    //  to decode to a native format for storage
+                                    //
+                                    //  :TODO: This isn't really always the case - how to handle this? We could do a quick detection...
+                                    const decodedData = iconv.decode(data, 'cp437');
+                                    fileEntry[descType] = sliceAtSauceMarker(decodedData);
+                                    fileEntry[`${descType}Src`] = 'descFile';
+                                    return next(null);
+                                });
                             });
                         });
-                    });
-                }, () => {
-                    //  cleanup but don't wait
-                    temptmp.cleanup( paths => {
-                        //  note: don't use client logger here - may not be avail
-                        logTrace( { paths : paths, sessionId : temptmp.sessionId }, 'Cleaned up temporary files' );
-                    });
-                    return callback(null);
-                });
+                    },
+                    () => {
+                        //  cleanup but don't wait
+                        temptmp.cleanup(paths => {
+                            //  note: don't use client logger here - may not be avail
+                            logTrace(
+                                { paths: paths, sessionId: temptmp.sessionId },
+                                'Cleaned up temporary files'
+                            );
+                        });
+                        return callback(null);
+                    }
+                );
             },
         ],
         err => {
@@ -442,39 +502,46 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 }
 
 function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries, cb) {
-
     async.waterfall(
         [
             function extractToTemp(callback) {
                 //  :TODO: we may want to skip this if the compressed file is too large...
-                temptmp.mkdir( { prefix : 'enigextract-' }, (err, tempDir) => {
-                    if(err) {
+                temptmp.mkdir({ prefix: 'enigextract-' }, (err, tempDir) => {
+                    if (err) {
                         return callback(err);
                     }
 
                     const archiveUtil = ArchiveUtil.getInstance();
 
                     //  ensure we only extract one - there should only be one anyway -- we also just need the fileName
-                    const extractList = archiveEntries.slice(0, 1).map(entry => entry.fileName);
+                    const extractList = archiveEntries
+                        .slice(0, 1)
+                        .map(entry => entry.fileName);
 
-                    archiveUtil.extractTo(filePath, tempDir, fileEntry.meta.archive_type, extractList, err => {
-                        if(err) {
-                            return callback(err);
+                    archiveUtil.extractTo(
+                        filePath,
+                        tempDir,
+                        fileEntry.meta.archive_type,
+                        extractList,
+                        err => {
+                            if (err) {
+                                return callback(err);
+                            }
+
+                            return callback(null, paths.join(tempDir, extractList[0]));
                         }
-
-                        return callback(null, paths.join(tempDir, extractList[0]));
-                    });
+                    );
                 });
             },
             function processSingleExtractedFile(extractedFile, callback) {
                 populateFileEntryInfoFromFile(fileEntry, extractedFile, err => {
-                    if(!fileEntry.desc) {
-                        fileEntry.desc      = getDescFromFileName(filePath);
-                        fileEntry.descSrc   = 'fileName';
+                    if (!fileEntry.desc) {
+                        fileEntry.desc = getDescFromFileName(filePath);
+                        fileEntry.descSrc = 'fileName';
                     }
                     return callback(err);
                 });
-            }
+            },
         ],
         err => {
             return cb(err);
@@ -483,8 +550,8 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
 }
 
 function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, cb) {
-    const archiveUtil   = ArchiveUtil.getInstance();
-    const archiveType   = fileEntry.meta.archive_type;  //  we set this previous to populateFileEntryWithArchive()
+    const archiveUtil = ArchiveUtil.getInstance();
+    const archiveType = fileEntry.meta.archive_type; //  we set this previous to populateFileEntryWithArchive()
 
     async.waterfall(
         [
@@ -492,12 +559,12 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
                 stepInfo.step = 'archive_list_start';
 
                 iterator(err => {
-                    if(err) {
+                    if (err) {
                         return callback(err);
                     }
 
                     archiveUtil.listEntries(filePath, archiveType, (err, entries) => {
-                        if(err) {
+                        if (err) {
                             stepInfo.step = 'archive_list_failed';
                         } else {
                             stepInfo.step = 'archive_list_finish';
@@ -505,7 +572,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
                         }
 
                         iterator(iterErr => {
-                            return callback( iterErr, entries || [] );  //  ignore original |err| here
+                            return callback(iterErr, entries || []); //  ignore original |err| here
                         });
                     });
                 });
@@ -525,7 +592,10 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
                 //  Otherwise, try to find particular desc files such as FILE_ID.DIZ
                 //  and README.1ST
                 //
-                const archDescHandler = (1 === entries.length) ? extractAndProcessSingleArchiveEntry : extractAndProcessDescFiles;
+                const archDescHandler =
+                    1 === entries.length
+                        ? extractAndProcessSingleArchiveEntry
+                        : extractAndProcessDescFiles;
                 archDescHandler(fileEntry, filePath, entries, err => {
                     return callback(err);
                 });
@@ -547,24 +617,24 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 
 function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
     const config = Config();
-    let fileType = _.get(config, [ 'fileTypes', mimeType ] );
+    let fileType = _.get(config, ['fileTypes', mimeType]);
 
-    if(Array.isArray(fileType)) {
+    if (Array.isArray(fileType)) {
         //  further refine by extention
         fileType = fileType.find(ft => paths.extname(filePath) === ft.ext);
     }
 
-    if(!_.isObject(fileType)) {
+    if (!_.isObject(fileType)) {
         return;
     }
 
     let util = _.get(fileType, `${descType}DescUtil`);
-    if(!_.isString(util)) {
+    if (!_.isString(util)) {
         return;
     }
 
-    util = _.get(config, [ 'infoExtractUtils', util ]);
-    if(!util || !_.isString(util.cmd)) {
+    util = _.get(config, ['infoExtractUtils', util]);
+    if (!util || !_.isString(util.cmd)) {
         return;
     }
 
@@ -573,54 +643,61 @@ function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
 
 function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
     const mimeType = resolveMimeType(filePath);
-    if(!mimeType) {
+    if (!mimeType) {
         return cb(null);
     }
 
-    async.eachSeries( [ 'short', 'long' ], (descType, nextDesc) => {
-        const util = getInfoExtractUtilForDesc(mimeType, filePath, descType);
-        if(!util) {
-            return nextDesc(null);
-        }
-
-        const args = (util.args || [ '{filePath}'] ).map( arg => stringFormat(arg, { filePath : filePath } ) );
-
-        execFile(util.cmd, args, { timeout : 1000 * 30 }, (err, stdout) => {
-            if(err || !stdout) {
-                const reason = err ? err.message : 'No description produced';
-                logDebug(
-                    { reason : reason, cmd : util.cmd, args : args },
-                    `${_.upperFirst(descType)} description command failed`
-                );
-            } else {
-                stdout = stdout.trim();
-                if(stdout.length > 0) {
-                    const key = 'short' === descType ? 'desc' : 'descLong';
-                    if('desc' === key) {
-                        //
-                        //  Word wrap short descriptions to FILE_ID.DIZ spec
-                        //
-                        //  "...no more than 45 characters long"
-                        //
-                        //  See http://www.textfiles.com/computers/fileid.txt
-                        //
-                        stdout = (wordWrapText( stdout, { width : 45 } ).wrapped || []).join('\n');
-                    }
-
-                    fileEntry[key]          = stdout;
-                    fileEntry[`${key}Src`]  = 'infoTool';
-                }
+    async.eachSeries(
+        ['short', 'long'],
+        (descType, nextDesc) => {
+            const util = getInfoExtractUtilForDesc(mimeType, filePath, descType);
+            if (!util) {
+                return nextDesc(null);
             }
 
-            return nextDesc(null);
-        });
-    }, () => {
-        return cb(null);
-    });
+            const args = (util.args || ['{filePath}']).map(arg =>
+                stringFormat(arg, { filePath: filePath })
+            );
+
+            execFile(util.cmd, args, { timeout: 1000 * 30 }, (err, stdout) => {
+                if (err || !stdout) {
+                    const reason = err ? err.message : 'No description produced';
+                    logDebug(
+                        { reason: reason, cmd: util.cmd, args: args },
+                        `${_.upperFirst(descType)} description command failed`
+                    );
+                } else {
+                    stdout = stdout.trim();
+                    if (stdout.length > 0) {
+                        const key = 'short' === descType ? 'desc' : 'descLong';
+                        if ('desc' === key) {
+                            //
+                            //  Word wrap short descriptions to FILE_ID.DIZ spec
+                            //
+                            //  "...no more than 45 characters long"
+                            //
+                            //  See http://www.textfiles.com/computers/fileid.txt
+                            //
+                            stdout = (
+                                wordWrapText(stdout, { width: 45 }).wrapped || []
+                            ).join('\n');
+                        }
+
+                        fileEntry[key] = stdout;
+                        fileEntry[`${key}Src`] = 'infoTool';
+                    }
+                }
+
+                return nextDesc(null);
+            });
+        },
+        () => {
+            return cb(null);
+        }
+    );
 }
 
 function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb) {
-
     async.series(
         [
             function processDescFilesStart(callback) {
@@ -629,9 +706,9 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
             },
             function getDescriptions(callback) {
                 populateFileEntryInfoFromFile(fileEntry, filePath, err => {
-                    if(!fileEntry.desc) {
-                        fileEntry.desc      = getDescFromFileName(filePath);
-                        fileEntry.descSrc   = 'fileName';
+                    if (!fileEntry.desc) {
+                        fileEntry.desc = getDescFromFileName(filePath);
+                        fileEntry.descSrc = 'fileName';
                     }
                     return callback(err);
                 });
@@ -654,7 +731,7 @@ function addNewFileEntry(fileEntry, filePath, cb) {
         [
             function addNewDbRecord(callback) {
                 return fileEntry.persist(callback);
-            }
+            },
         ],
         err => {
             return cb(err);
@@ -662,42 +739,41 @@ function addNewFileEntry(fileEntry, filePath, cb) {
     );
 }
 
-const HASH_NAMES =  [ 'sha1', 'sha256', 'md5', 'crc32' ];
+const HASH_NAMES = ['sha1', 'sha256', 'md5', 'crc32'];
 
 function scanFile(filePath, options, iterator, cb) {
-
-    if(3 === arguments.length && _.isFunction(iterator)) {
-        cb          = iterator;
-        iterator    = null;
-    } else if(2 === arguments.length && _.isFunction(options)) {
-        cb          = options;
-        iterator    = null;
-        options     = {};
+    if (3 === arguments.length && _.isFunction(iterator)) {
+        cb = iterator;
+        iterator = null;
+    } else if (2 === arguments.length && _.isFunction(options)) {
+        cb = options;
+        iterator = null;
+        options = {};
     }
 
     const fileEntry = new FileEntry({
-        areaTag     : options.areaTag,
-        meta        : options.meta,
-        hashTags    : options.hashTags, //  Set() or Array
-        fileName    : paths.basename(filePath),
-        storageTag  : options.storageTag,
-        fileSha256  : options.sha256,   //  caller may know this already
+        areaTag: options.areaTag,
+        meta: options.meta,
+        hashTags: options.hashTags, //  Set() or Array
+        fileName: paths.basename(filePath),
+        storageTag: options.storageTag,
+        fileSha256: options.sha256, //  caller may know this already
     });
 
     const stepInfo = {
-        filePath    : filePath,
-        fileName    : paths.basename(filePath),
+        filePath: filePath,
+        fileName: paths.basename(filePath),
     };
 
-    const callIter = (next) => {
+    const callIter = next => {
         return iterator ? iterator(stepInfo, next) : next(null);
     };
 
     const readErrorCallIter = (origError, next) => {
-        stepInfo.step   = 'read_error';
-        stepInfo.error  = origError.message;
+        stepInfo.step = 'read_error';
+        stepInfo.error = origError.message;
 
-        callIter( () => {
+        callIter(() => {
             return next(origError);
         });
     };
@@ -705,12 +781,12 @@ function scanFile(filePath, options, iterator, cb) {
     let lastCalcHashPercent;
 
     //  don't re-calc hashes for any we already have in |options|
-    const hashesToCalc = HASH_NAMES.filter(hn =>  {
-        if('sha256' === hn && fileEntry.fileSha256) {
+    const hashesToCalc = HASH_NAMES.filter(hn => {
+        if ('sha256' === hn && fileEntry.fileSha256) {
             return false;
         }
 
-        if(`file_${hn}` in fileEntry.meta) {
+        if (`file_${hn}` in fileEntry.meta) {
             return false;
         }
 
@@ -721,12 +797,12 @@ function scanFile(filePath, options, iterator, cb) {
         [
             function startScan(callback) {
                 fs.stat(filePath, (err, stats) => {
-                    if(err) {
+                    if (err) {
                         return readErrorCallIter(err, callback);
                     }
 
-                    stepInfo.step       = 'start';
-                    stepInfo.byteSize   = fileEntry.meta.byte_size = stats.size;
+                    stepInfo.step = 'start';
+                    stepInfo.byteSize = fileEntry.meta.byte_size = stats.size;
 
                     return callIter(callback);
                 });
@@ -736,15 +812,15 @@ function scanFile(filePath, options, iterator, cb) {
 
                 const hashes = {};
                 hashesToCalc.forEach(hashName => {
-                    if('crc32' === hashName) {
-                        hashes.crc32 = new CRC32;
+                    if ('crc32' === hashName) {
+                        hashes.crc32 = new CRC32();
                     } else {
                         hashes[hashName] = crypto.createHash(hashName);
                     }
                 });
 
-                const updateHashes = (data) => {
-                    for(let i = 0; i < hashesToCalc.length; ++i) {
+                const updateHashes = data => {
+                    for (let i = 0; i < hashesToCalc.length; ++i) {
                         hashes[hashesToCalc[i]].update(data);
                     }
                 };
@@ -758,61 +834,82 @@ function scanFile(filePath, options, iterator, cb) {
                 const buffer = Buffer.allocUnsafe(chunkSize);
 
                 fs.open(filePath, 'r', (err, fd) => {
-                    if(err) {
+                    if (err) {
                         return readErrorCallIter(err, callback);
                     }
 
                     const nextChunk = () => {
                         fs.read(fd, buffer, 0, chunkSize, null, (err, bytesRead) => {
-                            if(err) {
+                            if (err) {
                                 return fs.close(fd, closeErr => {
-                                    if(closeErr) {
-                                        logError( { filePath, error : err.message }, 'Failed to close file');
+                                    if (closeErr) {
+                                        logError(
+                                            { filePath, error: err.message },
+                                            'Failed to close file'
+                                        );
                                     }
                                     return readErrorCallIter(err, callback);
                                 });
                             }
 
-                            if(0 === bytesRead) {
+                            if (0 === bytesRead) {
                                 //  done - finalize
                                 fileEntry.meta.byte_size = stepInfo.bytesProcessed;
 
-                                for(let i = 0; i < hashesToCalc.length; ++i) {
+                                for (let i = 0; i < hashesToCalc.length; ++i) {
                                     const hashName = hashesToCalc[i];
-                                    if('sha256' === hashName) {
-                                        stepInfo.sha256 = fileEntry.fileSha256 = hashes.sha256.digest('hex');
-                                    } else if('sha1' === hashName || 'md5' === hashName) {
-                                        stepInfo[hashName] = fileEntry.meta[`file_${hashName}`] = hashes[hashName].digest('hex');
-                                    } else if('crc32' === hashName) {
-                                        stepInfo.crc32 = fileEntry.meta.file_crc32 = hashes.crc32.finalize().toString(16);
+                                    if ('sha256' === hashName) {
+                                        stepInfo.sha256 = fileEntry.fileSha256 =
+                                            hashes.sha256.digest('hex');
+                                    } else if (
+                                        'sha1' === hashName ||
+                                        'md5' === hashName
+                                    ) {
+                                        stepInfo[hashName] = fileEntry.meta[
+                                            `file_${hashName}`
+                                        ] = hashes[hashName].digest('hex');
+                                    } else if ('crc32' === hashName) {
+                                        stepInfo.crc32 = fileEntry.meta.file_crc32 =
+                                            hashes.crc32.finalize().toString(16);
                                     }
                                 }
 
                                 stepInfo.step = 'hash_finish';
                                 return fs.close(fd, closeErr => {
-                                    if(closeErr) {
-                                        logError( { filePath, error : err.message }, 'Failed to close file');
+                                    if (closeErr) {
+                                        logError(
+                                            { filePath, error: err.message },
+                                            'Failed to close file'
+                                        );
                                     }
                                     return callIter(callback);
                                 });
                             }
 
-                            stepInfo.bytesProcessed     += bytesRead;
-                            stepInfo.calcHashPercent    = Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100));
+                            stepInfo.bytesProcessed += bytesRead;
+                            stepInfo.calcHashPercent = Math.round(
+                                (stepInfo.bytesProcessed / stepInfo.byteSize) * 100
+                            );
 
                             //
                             //  Only send 'hash_update' step update if we have a noticeable percentage change in progress
                             //
-                            const data = bytesRead < chunkSize ? buffer.slice(0, bytesRead) : buffer;
-                            if(!iterator || stepInfo.calcHashPercent === lastCalcHashPercent) {
+                            const data =
+                                bytesRead < chunkSize
+                                    ? buffer.slice(0, bytesRead)
+                                    : buffer;
+                            if (
+                                !iterator ||
+                                stepInfo.calcHashPercent === lastCalcHashPercent
+                            ) {
                                 updateHashes(data);
                                 return nextChunk();
                             } else {
                                 lastCalcHashPercent = stepInfo.calcHashPercent;
-                                stepInfo.step       = 'hash_update';
+                                stepInfo.step = 'hash_update';
 
                                 callIter(err => {
-                                    if(err) {
+                                    if (err) {
                                         return callback(err);
                                     }
 
@@ -830,46 +927,73 @@ function scanFile(filePath, options, iterator, cb) {
                 const archiveUtil = ArchiveUtil.getInstance();
 
                 archiveUtil.detectType(filePath, (err, archiveType) => {
-                    if(archiveType) {
+                    if (archiveType) {
                         //  save this off
                         fileEntry.meta.archive_type = archiveType;
 
-                        populateFileEntryWithArchive(fileEntry, filePath, stepInfo, callIter, err => {
-                            if(err) {
-                                populateFileEntryNonArchive(fileEntry, filePath, stepInfo, callIter, err => {
-                                    if(err) {
-                                        logDebug( { error : err.message }, 'Non-archive file entry population failed');
-                                    }
-                                    return callback(null);  //  ignore err
-                                });
-                            } else {
-                                return callback(null);
+                        populateFileEntryWithArchive(
+                            fileEntry,
+                            filePath,
+                            stepInfo,
+                            callIter,
+                            err => {
+                                if (err) {
+                                    populateFileEntryNonArchive(
+                                        fileEntry,
+                                        filePath,
+                                        stepInfo,
+                                        callIter,
+                                        err => {
+                                            if (err) {
+                                                logDebug(
+                                                    { error: err.message },
+                                                    'Non-archive file entry population failed'
+                                                );
+                                            }
+                                            return callback(null); //  ignore err
+                                        }
+                                    );
+                                } else {
+                                    return callback(null);
+                                }
                             }
-                        });
+                        );
                     } else {
-                        populateFileEntryNonArchive(fileEntry, filePath, stepInfo, callIter, err => {
-                            if(err) {
-                                logDebug( { error : err.message }, 'Non-archive file entry population failed');
+                        populateFileEntryNonArchive(
+                            fileEntry,
+                            filePath,
+                            stepInfo,
+                            callIter,
+                            err => {
+                                if (err) {
+                                    logDebug(
+                                        { error: err.message },
+                                        'Non-archive file entry population failed'
+                                    );
+                                }
+                                return callback(null); //  ignore err
                             }
-                            return callback(null);  //  ignore err
-                        });
+                        );
                     }
                 });
             },
             function fetchExistingEntry(callback) {
-                getExistingFileEntriesBySha256(fileEntry.fileSha256, (err, dupeEntries) => {
-                    return callback(err, dupeEntries);
-                });
+                getExistingFileEntriesBySha256(
+                    fileEntry.fileSha256,
+                    (err, dupeEntries) => {
+                        return callback(err, dupeEntries);
+                    }
+                );
             },
             function finished(dupeEntries, callback) {
                 stepInfo.step = 'finished';
-                callIter( () => {
+                callIter(() => {
                     return callback(null, dupeEntries);
                 });
-            }
+            },
         ],
         (err, dupeEntries) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
@@ -980,11 +1104,12 @@ function getDescFromFileName(fileName) {
     //  * https://scenerules.org/
     //
 
-    const ext       = paths.extname(fileName);
-    const name      = paths.basename(fileName, ext);
-    const asIsRe    = /([vV]?(?:[0-9]{1,4})(?:\.[0-9]{1,4})+[-+]?(?:[a-z]{1,4})?)|(Incl\.)|(READ\.NFO)/g;
+    const ext = paths.extname(fileName);
+    const name = paths.basename(fileName, ext);
+    const asIsRe =
+        /([vV]?(?:[0-9]{1,4})(?:\.[0-9]{1,4})+[-+]?(?:[a-z]{1,4})?)|(Incl\.)|(READ\.NFO)/g;
 
-    const normalize = (s) => {
+    const normalize = s => {
         return _.upperFirst(s.replace(/[-_.+]/g, ' ').replace(/\s+/g, ' '));
     };
 
@@ -994,15 +1119,15 @@ function getDescFromFileName(fileName) {
     do {
         pos = asIsRe.lastIndex;
         m = asIsRe.exec(name);
-        if(m) {
-            if(m.index > pos) {
+        if (m) {
+            if (m.index > pos) {
                 out += normalize(name.slice(pos, m.index));
             }
-            out += m[0];    //  as-is
+            out += m[0]; //  as-is
         }
-    } while(0 != asIsRe.lastIndex);
+    } while (0 != asIsRe.lastIndex);
 
-    if(pos < name.length) {
+    if (pos < name.length) {
         out += normalize(name.slice(pos));
     }
 
@@ -1031,25 +1156,25 @@ function getAreaStats(cb) {
         WHERE f.file_id = m.file_id AND m.meta_name='byte_size'
         GROUP BY f.area_tag;`,
         (err, statRows) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
-            if(!statRows || 0 === statRows.length) {
+            if (!statRows || 0 === statRows.length) {
                 return cb(Errors.DoesNotExist('No file areas to acquire stats from'));
             }
 
             return cb(
                 null,
-                statRows.reduce( (stats, v) => {
+                statRows.reduce((stats, v) => {
                     stats.totalFiles = (stats.totalFiles || 0) + v.total_files;
                     stats.totalBytes = (stats.totalBytes || 0) + v.total_byte_size;
 
                     stats.areas = stats.areas || {};
 
                     stats.areas[v.area_tag] = {
-                        files   : v.total_files,
-                        bytes   : v.total_byte_size,
+                        files: v.total_files,
+                        bytes: v.total_byte_size,
                     };
                     return stats;
                 }, {})
@@ -1060,8 +1185,8 @@ function getAreaStats(cb) {
 
 //  method exposed for event scheduler
 function updateAreaStatsScheduledEvent(args, cb) {
-    getAreaStats( (err, stats) => {
-        if(!err) {
+    getAreaStats((err, stats) => {
+        if (!err) {
             StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
         }
 
@@ -1072,37 +1197,50 @@ function updateAreaStatsScheduledEvent(args, cb) {
 function cleanUpTempSessionItems(cb) {
     //  find (old) temporary session items and nuke 'em
     const filter = {
-        areaTag     : WellKnownAreaTags.TempDownloads,
-        metaPairs   : [
+        areaTag: WellKnownAreaTags.TempDownloads,
+        metaPairs: [
             {
-                name    : 'session_temp_dl',
-                value   : 1
-            }
-        ]
+                name: 'session_temp_dl',
+                value: 1,
+            },
+        ],
     };
 
     FileEntry.findFiles(filter, (err, fileIds) => {
-        if(err) {
+        if (err) {
             return cb(err);
         }
 
-        async.each(fileIds, (fileId, nextFileId) => {
-            const fileEntry = new FileEntry();
-            fileEntry.load(fileId, err => {
-                if(err) {
-                    Log.warn( { fileId }, 'Failed loading temporary session download item for cleanup');
-                    return nextFileId(null);
-                }
-
-                FileEntry.removeEntry(fileEntry, { removePhysFile : true }, err => {
-                    if(err) {
-                        Log.warn( { fileId : fileEntry.fileId, filePath : fileEntry.filePath }, 'Failed to clean up temporary session download item');
+        async.each(
+            fileIds,
+            (fileId, nextFileId) => {
+                const fileEntry = new FileEntry();
+                fileEntry.load(fileId, err => {
+                    if (err) {
+                        Log.warn(
+                            { fileId },
+                            'Failed loading temporary session download item for cleanup'
+                        );
+                        return nextFileId(null);
                     }
-                    return nextFileId(null);
+
+                    FileEntry.removeEntry(fileEntry, { removePhysFile: true }, err => {
+                        if (err) {
+                            Log.warn(
+                                {
+                                    fileId: fileEntry.fileId,
+                                    filePath: fileEntry.filePath,
+                                },
+                                'Failed to clean up temporary session download item'
+                            );
+                        }
+                        return nextFileId(null);
+                    });
                 });
-            });
-        }, () => {
-            return cb(null);
-        });
+            },
+            () => {
+                return cb(null);
+            }
+        );
     });
 }

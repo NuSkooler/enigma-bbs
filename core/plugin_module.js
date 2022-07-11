@@ -1,7 +1,6 @@
 /* jslint node: true */
 'use strict';
 
-exports.PluginModule    = PluginModule;
+exports.PluginModule = PluginModule;
 
-function PluginModule(/*options*/) {
-}
+function PluginModule(/*options*/) {}

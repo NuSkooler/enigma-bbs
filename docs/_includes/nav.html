@@ -1,0 +1,70 @@
+<ul>
+{% for doc in site.docs %}
+  {% assign pathparts = doc.path | split: '/' %}
+  {% assign dir = pathparts[1] %}
+
+  {% if pathparts.size > 3 %}
+    {% assign subdir = pathparts[2] %}
+    {% unless site.data.sections[subdir] %}
+      {% assign subsection = subdir %}
+    {% else %}
+      {% assign subsection = site.data.sections[subdir].title %}
+    {% endunless %}
+  {% else %}
+    {% assign subdir = "NONE" %}
+  {% endif %}
+
+  {% assign section = site.data.sections[dir].title %}
+  {% unless section %}
+    {% assign section = dir %}
+  {% endunless %}
+
+  {% if doc.previous %}
+    {% assign prevpathparts = doc.previous.path | split: '/' %}
+    {% assign prevdir = prevpathparts[1] %}
+
+    {% if prevpathparts.size > 3 %}
+      {% assign prevsubdir = prevpathparts[2] %}
+    {% else %}
+      {% assign prevsubdir = "NONE" %}
+    {% endif %}
+  {% else %}
+    {% assign prevdir = "NONE" %}
+    {% assign prevsubdir = "NONE" %}
+  {% endif %}
+
+  {% if subdir != prevsubdir and prevsubdir != "NONE" %}
+    </ul>
+  {% endif %}
+
+  {% if dir != prevdir %}
+    {% if prevdir != "NONE" %}
+      </ul>
+    {% endif %}
+  <li>{{section}}</li>
+  <ul>
+
+  {% endif %}
+
+    {% if subdir != "NONE" and subdir != prevsubdir %}
+      <li>{{subsection}}</li>
+      <ul>
+    {% endif %}
+
+
+    {% if doc.url != page.url %}
+    <li><a href="{{site.baseurl}}{{doc.url}}">{{doc.title}}</a></li>
+    {% else %}
+      <li class="active-nav">{{doc.title}}</li>
+    {% endif %}
+
+
+  
+  {% unless doc.next %}
+    </ul>
+    {% if prevsubdir != "NONE" %}
+      </ul>
+    {% endif %}
+  {% endunless %}
+{% endfor %}
+</ul>

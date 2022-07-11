@@ -2,26 +2,26 @@
 'use strict';
 
 //  ENiGMA½
-const Config            = require('./config.js').get;
-const stringFormat      = require('./string_format.js');
-const Errors            = require('./enig_error.js').Errors;
-const resolveMimeType   = require('./mime_util.js').resolveMimeType;
-const Events            = require('./events.js');
+const Config = require('./config.js').get;
+const stringFormat = require('./string_format.js');
+const Errors = require('./enig_error.js').Errors;
+const resolveMimeType = require('./mime_util.js').resolveMimeType;
+const Events = require('./events.js');
 
 //  base/modules
-const fs        = require('graceful-fs');
-const _         = require('lodash');
-const pty       = require('node-pty');
-const paths     = require('path');
+const fs = require('graceful-fs');
+const _ = require('lodash');
+const pty = require('node-pty');
+const paths = require('path');
 
 let archiveUtil;
 
 class Archiver {
     constructor(config) {
-        this.compress   = config.compress;
+        this.compress = config.compress;
         this.decompress = config.decompress;
-        this.list       = config.list;
-        this.extract    = config.extract;
+        this.list = config.list;
+        this.extract = config.extract;
     }
 
     ok() {
@@ -29,21 +29,32 @@ class Archiver {
     }
 
     can(what) {
-        if(!_.has(this, [ what, 'cmd' ]) || !_.has(this, [ what, 'args' ])) {
+        if (!_.has(this, [what, 'cmd']) || !_.has(this, [what, 'args'])) {
             return false;
         }
 
-        return _.isString(this[what].cmd) && Array.isArray(this[what].args) && this[what].args.length > 0;
+        return (
+            _.isString(this[what].cmd) &&
+            Array.isArray(this[what].args) &&
+            this[what].args.length > 0
+        );
     }
 
-    canCompress() { return this.can('compress'); }
-    canDecompress() { return this.can('decompress'); }
-    canList() { return this.can('list'); }  //  :TODO: validate entryMatch
-    canExtract() { return this.can('extract'); }
+    canCompress() {
+        return this.can('compress');
+    }
+    canDecompress() {
+        return this.can('decompress');
+    }
+    canList() {
+        return this.can('list');
+    } //  :TODO: validate entryMatch
+    canExtract() {
+        return this.can('extract');
+    }
 }
 
 module.exports = class ArchiveUtil {
-
     constructor() {
         this.archivers = {};
         this.longestSignature = 0;
@@ -51,7 +62,7 @@ module.exports = class ArchiveUtil {
 
     //  singleton access
     static getInstance(hotReload = true) {
-        if(!archiveUtil) {
+        if (!archiveUtil) {
             archiveUtil = new ArchiveUtil();
             archiveUtil.init(hotReload);
         }
@@ -60,7 +71,7 @@ module.exports = class ArchiveUtil {
 
     init(hotReload = true) {
         this.reloadConfig();
-        if(hotReload) {
+        if (hotReload) {
             Events.on(Events.getSystemEvents().ConfigChanged, () => {
                 this.reloadConfig();
             });
@@ -69,13 +80,12 @@ module.exports = class ArchiveUtil {
 
     reloadConfig() {
         const config = Config();
-        if(_.has(config, 'archives.archivers')) {
+        if (_.has(config, 'archives.archivers')) {
             Object.keys(config.archives.archivers).forEach(archKey => {
+                const archConfig = config.archives.archivers[archKey];
+                const archiver = new Archiver(archConfig);
 
-                const archConfig    = config.archives.archivers[archKey];
-                const archiver      = new Archiver(archConfig);
-
-                if(!archiver.ok()) {
+                if (!archiver.ok()) {
                     //  :TODO: Log warning - bad archiver/config
                 }
 
@@ -83,27 +93,27 @@ module.exports = class ArchiveUtil {
             });
         }
 
-        if(_.isObject(config.fileTypes)) {
-            const updateSig = (ft) => {
-                ft.sig      = Buffer.from(ft.sig, 'hex');
-                ft.offset   = ft.offset || 0;
+        if (_.isObject(config.fileTypes)) {
+            const updateSig = ft => {
+                ft.sig = Buffer.from(ft.sig, 'hex');
+                ft.offset = ft.offset || 0;
 
                 //  :TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
                 const sigLen = ft.offset + ft.sig.length;
-                if(sigLen > this.longestSignature) {
+                if (sigLen > this.longestSignature) {
                     this.longestSignature = sigLen;
                 }
             };
 
             Object.keys(config.fileTypes).forEach(mimeType => {
                 const fileType = config.fileTypes[mimeType];
-                if(Array.isArray(fileType)) {
+                if (Array.isArray(fileType)) {
                     fileType.forEach(ft => {
-                        if(ft.sig) {
+                        if (ft.sig) {
                             updateSig(ft);
                         }
                     });
-                } else if(fileType.sig) {
+                } else if (fileType.sig) {
                     updateSig(fileType);
                 }
             });
@@ -113,15 +123,16 @@ module.exports = class ArchiveUtil {
     getArchiver(mimeTypeOrExtension, justExtention) {
         const mimeType = resolveMimeType(mimeTypeOrExtension);
 
-        if(!mimeType) { //  lookup returns false on failure
+        if (!mimeType) {
+            //  lookup returns false on failure
             return;
         }
 
         const config = Config();
-        let fileType = _.get(config, [ 'fileTypes', mimeType ] );
+        let fileType = _.get(config, ['fileTypes', mimeType]);
 
-        if(Array.isArray(fileType)) {
-            if(!justExtention) {
+        if (Array.isArray(fileType)) {
+            if (!justExtention) {
                 //  need extention for lookup; ambiguous as-is :(
                 return;
             }
@@ -129,12 +140,12 @@ module.exports = class ArchiveUtil {
             fileType = fileType.find(ft => justExtention === ft.ext);
         }
 
-        if(!_.isObject(fileType)) {
+        if (!_.isObject(fileType)) {
             return;
         }
 
-        if(fileType.archiveHandler) {
-            return _.get( config, [ 'archives', 'archivers', fileType.archiveHandler ] );
+        if (fileType.archiveHandler) {
+            return _.get(config, ['archives', 'archivers', fileType.archiveHandler]);
         }
     }
 
@@ -149,37 +160,41 @@ module.exports = class ArchiveUtil {
     */
 
     detectType(path, cb) {
-        const closeFile = (fd) => {
-            fs.close(fd, () => { /* sadface */ });
+        const closeFile = fd => {
+            fs.close(fd, () => {
+                /* sadface */
+            });
         };
 
         fs.open(path, 'r', (err, fd) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
             const buf = Buffer.alloc(this.longestSignature);
             fs.read(fd, buf, 0, buf.length, 0, (err, bytesRead) => {
-                if(err) {
+                if (err) {
                     closeFile(fd);
                     return cb(err);
                 }
 
                 const archFormat = _.findKey(Config().fileTypes, fileTypeInfo => {
-                    const fileTypeInfos = Array.isArray(fileTypeInfo) ? fileTypeInfo : [ fileTypeInfo ];
+                    const fileTypeInfos = Array.isArray(fileTypeInfo)
+                        ? fileTypeInfo
+                        : [fileTypeInfo];
                     return fileTypeInfos.find(fti => {
-                        if(!fti.sig || !fti.archiveHandler) {
+                        if (!fti.sig || !fti.archiveHandler) {
                             return false;
                         }
 
                         const lenNeeded = fti.offset + fti.sig.length;
 
-                        if(bytesRead < lenNeeded) {
+                        if (bytesRead < lenNeeded) {
                             return false;
                         }
 
                         const comp = buf.slice(fti.offset, fti.offset + fti.sig.length);
-                        return (fti.sig.equals(comp));
+                        return fti.sig.equals(comp);
                     });
                 });
 
@@ -194,20 +209,26 @@ module.exports = class ArchiveUtil {
         //  so we have this horrible, horrible hack:
         let err;
         proc.once('data', d => {
-            if(_.isString(d) && d.startsWith('execvp(3) failed.')) {
+            if (_.isString(d) && d.startsWith('execvp(3) failed.')) {
                 err = Errors.ExternalProcess(`${action} failed: ${d.trim()}`);
             }
         });
 
         proc.once('exit', exitCode => {
-            return cb(exitCode ? Errors.ExternalProcess(`${action} failed with exit code: ${exitCode}`) : err);
+            return cb(
+                exitCode
+                    ? Errors.ExternalProcess(
+                          `${action} failed with exit code: ${exitCode}`
+                      )
+                    : err
+            );
         });
     }
 
     compressTo(archType, archivePath, files, workDir, cb) {
         const archiver = this.getArchiver(archType, paths.extname(archivePath));
 
-        if(!archiver) {
+        if (!archiver) {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
@@ -217,17 +238,17 @@ module.exports = class ArchiveUtil {
         }
 
         const fmtObj = {
-            archivePath : archivePath,
-            fileList    : files.join(' '),  //  :TODO: probably need same hack as extractTo here!
+            archivePath: archivePath,
+            fileList: files.join(' '), //  :TODO: probably need same hack as extractTo here!
         };
 
         //  :TODO: DRY with extractTo()
-        const args = archiver.compress.args.map( arg => {
+        const args = archiver.compress.args.map(arg => {
             return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
         });
 
         const fileListPos = args.indexOf('{fileList}');
-        if(fileListPos > -1) {
+        if (fileListPos > -1) {
             //  replace {fileList} with 0:n sep file list arguments
             args.splice.apply(args, [fileListPos, 1].concat(files));
         }
@@ -235,9 +256,13 @@ module.exports = class ArchiveUtil {
         let proc;
         try {
             proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts(workDir));
-        } catch(e) {
-            return cb(Errors.ExternalProcess(
-                `Error spawning archiver process "${archiver.compress.cmd}" with args "${args.join(' ')}": ${e.message}`)
+        } catch (e) {
+            return cb(
+                Errors.ExternalProcess(
+                    `Error spawning archiver process "${
+                        archiver.compress.cmd
+                    }" with args "${args.join(' ')}": ${e.message}`
+                )
             );
         }
 
@@ -247,7 +272,7 @@ module.exports = class ArchiveUtil {
     extractTo(archivePath, extractPath, archType, fileList, cb) {
         let haveFileList;
 
-        if(!cb && _.isFunction(fileList)) {
+        if (!cb && _.isFunction(fileList)) {
             cb = fileList;
             fileList = [];
             haveFileList = false;
@@ -257,29 +282,29 @@ module.exports = class ArchiveUtil {
 
         const archiver = this.getArchiver(archType, paths.extname(archivePath));
 
-        if(!archiver) {
+        if (!archiver) {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
         const fmtObj = {
-            archivePath     : archivePath,
-            extractPath     : extractPath,
+            archivePath: archivePath,
+            extractPath: extractPath,
         };
 
         let action = haveFileList ? 'extract' : 'decompress';
-        if('extract' === action && !_.isObject(archiver[action])) {
+        if ('extract' === action && !_.isObject(archiver[action])) {
             //  we're forced to do a full decompress
             action = 'decompress';
             haveFileList = false;
         }
 
         //  we need to treat {fileList} special in that it should be broken up to 0:n args
-        const args = archiver[action].args.map( arg => {
+        const args = archiver[action].args.map(arg => {
             return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
         });
 
         const fileListPos = args.indexOf('{fileList}');
-        if(fileListPos > -1) {
+        if (fileListPos > -1) {
             //  replace {fileList} with 0:n sep file list arguments
             args.splice.apply(args, [fileListPos, 1].concat(fileList));
         }
@@ -287,34 +312,42 @@ module.exports = class ArchiveUtil {
         let proc;
         try {
             proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts(extractPath));
-        } catch(e) {
-            return cb(Errors.ExternalProcess(
-                `Error spawning archiver process "${archiver[action].cmd}" with args "${args.join(' ')}": ${e.message}`)
+        } catch (e) {
+            return cb(
+                Errors.ExternalProcess(
+                    `Error spawning archiver process "${
+                        archiver[action].cmd
+                    }" with args "${args.join(' ')}": ${e.message}`
+                )
             );
         }
 
-        return this.spawnHandler(proc, (haveFileList ? 'Extraction' : 'Decompression'), cb);
+        return this.spawnHandler(proc, haveFileList ? 'Extraction' : 'Decompression', cb);
     }
 
     listEntries(archivePath, archType, cb) {
         const archiver = this.getArchiver(archType, paths.extname(archivePath));
 
-        if(!archiver) {
+        if (!archiver) {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
         const fmtObj = {
-            archivePath     : archivePath,
+            archivePath: archivePath,
         };
 
-        const args  = archiver.list.args.map( arg => stringFormat(arg, fmtObj) );
+        const args = archiver.list.args.map(arg => stringFormat(arg, fmtObj));
 
         let proc;
         try {
             proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
-        } catch(e) {
-            return cb(Errors.ExternalProcess(
-                `Error spawning archiver process "${archiver.list.cmd}" with args "${args.join(' ')}": ${e.message}`)
+        } catch (e) {
+            return cb(
+                Errors.ExternalProcess(
+                    `Error spawning archiver process "${
+                        archiver.list.cmd
+                    }" with args "${args.join(' ')}": ${e.message}`
+                )
             );
         }
 
@@ -326,19 +359,24 @@ module.exports = class ArchiveUtil {
         });
 
         proc.once('exit', exitCode => {
-            if(exitCode) {
-                return cb(Errors.ExternalProcess(`List failed with exit code: ${exitCode}`));
+            if (exitCode) {
+                return cb(
+                    Errors.ExternalProcess(`List failed with exit code: ${exitCode}`)
+                );
             }
 
-            const entryGroupOrder = archiver.list.entryGroupOrder || { byteSize : 1, fileName : 2 };
+            const entryGroupOrder = archiver.list.entryGroupOrder || {
+                byteSize: 1,
+                fileName: 2,
+            };
 
             const entries = [];
             const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
             let m;
-            while((m = entryMatchRe.exec(output))) {
+            while ((m = entryMatchRe.exec(output))) {
                 entries.push({
-                    byteSize    : parseInt(m[entryGroupOrder.byteSize]),
-                    fileName    : m[entryGroupOrder.fileName].trim(),
+                    byteSize: parseInt(m[entryGroupOrder.byteSize]),
+                    fileName: m[entryGroupOrder.fileName].trim(),
                 });
             }
 
@@ -348,12 +386,12 @@ module.exports = class ArchiveUtil {
 
     getPtyOpts(cwd) {
         const opts = {
-            name    : 'enigma-archiver',
-            cols    : 80,
-            rows    : 24,
-            env     : process.env,
+            name: 'enigma-archiver',
+            cols: 80,
+            rows: 24,
+            env: process.env,
         };
-        if(cwd) {
+        if (cwd) {
             opts.cwd = cwd;
         }
         //  :TODO: set cwd to supplied temp path if not sepcific extract

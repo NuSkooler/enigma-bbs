@@ -46,7 +46,7 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 ## Support
 * See [Discussions](https://github.com/NuSkooler/enigma-bbs/discussions) and [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
-* IRC: **#enigma-bbs** on **chat.freenode.net** ([webchat](https://webchat.freenode.net/?channels=enigma-bbs))
+* IRC: **#enigma-bbs** on **irc.libera.chat:6697(TLS)** ([webchat](https://web.libera.chat/gamja/?channels=#enigma-bbs))
 * FSX_ENG on [fsxNet](http://bbs.geek.nz/#fsxNet) or ARK_ENIG on [ArakNet](https://www.araknet.xyz/) available on many fine boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
@@ -66,6 +66,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
 
 ## Special Thanks
+(in no particular order)
 * [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) and [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
@@ -82,13 +83,14 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?
 * Al's Geek Lab for the [installation video](https://youtu.be/WnN-ucVi3ZU) and of course the [Back to the BBS - Part one: The return to being online](https://www.youtube.com/watch?reload=9&v=n0OwGSX2IiQ) documentary!
 * Alpha for the [FTN-style configuration guide](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d)!
+* Huge shout out to [cognitivegears ](https://github.com/cognitivegears) for the various fixes, improvements, and **removing the need for cursor position reports** providing a much better terminal experience!
 
 ...and so many others! This project would be nothing without the BBS and artscene communities!
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
 
-Copyright (c) 2015-2021, Bryan D. Ashby
+Copyright (c) 2015-2022, Bryan D. Ashby
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

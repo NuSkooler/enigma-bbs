@@ -9,17 +9,17 @@ const { Errors } = require('../../enig_error');
 const net = require('net');
 const {
     TelnetSocket,
-    TelnetSpec: { Options, Commands }
+    TelnetSpec: { Options, Commands },
 } = require('telnet-socket');
 const { inherits } = require('util');
 
-const ModuleInfo = exports.moduleInfo = {
-    name        : 'Telnet',
-    desc        : 'Telnet Server v2',
-    author      : 'NuSkooler',
-    isSecure    : false,
-    packageName : 'codes.l33t.enigma.telnet.server.v2',
-};
+const ModuleInfo = (exports.moduleInfo = {
+    name: 'Telnet',
+    desc: 'Telnet Server v2',
+    author: 'NuSkooler',
+    isSecure: false,
+    packageName: 'codes.l33t.enigma.telnet.server.v2',
+});
 
 class TelnetClient {
     constructor(socket) {
@@ -36,14 +36,14 @@ class TelnetClient {
             this._clientReady();
         }, 3000);
 
-        this.dataHandler = function(data) {
+        this.dataHandler = function (data) {
             this.emit('data', data);
         }.bind(this);
 
         this.socket.on('data', this.dataHandler);
 
         this.socket.on('error', err => {
-            this._logDebug({ error : err.message }, 'Socket error');
+            this._logDebug({ error: err.message }, 'Socket error');
             return this.emit('end');
         });
 
@@ -52,7 +52,7 @@ class TelnetClient {
         });
 
         this.socket.on('command error', (command, err) => {
-            this._logDebug({ command, error : err.message }, 'Command error');
+            this._logDebug({ command, error: err.message }, 'Command error');
         });
 
         this.socket.on('DO', command => {
@@ -61,12 +61,12 @@ class TelnetClient {
                 //  the banner - some terminals will ask over and over
                 //  if we respond to a DO with a WILL, so just don't
                 //  do anything...
-                case Options.SGA :
-                case Options.ECHO :
-                case Options.TRANSMIT_BINARY :
+                case Options.SGA:
+                case Options.ECHO:
+                case Options.TRANSMIT_BINARY:
                     break;
 
-                default :
+                default:
                     return this.socket.command(Commands.WONT, command.option);
             }
         });
@@ -77,15 +77,18 @@ class TelnetClient {
 
         this.socket.on('WILL', command => {
             switch (command.option) {
-                case Options.TTYPE :
+                case Options.TTYPE:
                     return this.socket.sb.send.ttype();
 
-                case Options.NEW_ENVIRON :
-                    return this.socket.sb.send.new_environ(
-                        [ 'ROWS', 'COLUMNS', 'TERM', 'TERM_PROGRAM' ]
-                    );
+                case Options.NEW_ENVIRON:
+                    return this.socket.sb.send.new_environ([
+                        'ROWS',
+                        'COLUMNS',
+                        'TERM',
+                        'TERM_PROGRAM',
+                    ]);
 
-                default :
+                default:
                     break;
             }
         });
@@ -96,23 +99,29 @@ class TelnetClient {
 
         this.socket.on('SB', command => {
             switch (command.option) {
-                case Options.TTYPE :
+                case Options.TTYPE:
                     this.setTermType(command.optionData.ttype);
                     return this._clientReady();
 
-                case Options.NEW_ENVIRON :
+                case Options.NEW_ENVIRON:
                     {
                         this._logDebug(
-                            { vars : command.optionData.vars, uservars : command.optionData.uservars },
+                            {
+                                vars: command.optionData.vars,
+                                uservars: command.optionData.uservars,
+                            },
                             'New environment received'
                         );
 
                         //  get a value from vars with fallback of user vars
-                        const getValue = (name) => {
-                            return command.optionData.vars &&
+                        const getValue = name => {
+                            return (
+                                command.optionData.vars &&
                                 (command.optionData.vars.find(nv => nv.name === name) ||
-                                command.optionData.uservars.find(nv => nv.name === name)
-                                );
+                                    command.optionData.uservars.find(
+                                        nv => nv.name === name
+                                    ))
+                            );
                         };
 
                         if ('unknown' === this.term.termType) {
@@ -124,13 +133,15 @@ class TelnetClient {
                         }
 
                         if (0 === this.term.termHeight || 0 === this.term.termWidth) {
-                            const updateTermSize = (what) => {
+                            const updateTermSize = what => {
                                 const value = parseInt(getValue(what));
                                 if (value) {
-                                    this.term[what === 'ROWS' ? 'termHeight' : 'termWidth'] = value;
-                                    this.clearMciCache();
+                                    this.term[
+                                        what === 'ROWS' ? 'termHeight' : 'termWidth'
+                                    ] = value;
+
                                     this._logDebug(
-                                        { [ what ] : value, source : 'NEW-ENVIRON' },
+                                        { [what]: value, source: 'NEW-ENVIRON' },
                                         'Window size updated'
                                     );
                                 }
@@ -142,12 +153,12 @@ class TelnetClient {
                     }
                     break;
 
-                case Options.NAWS :
+                case Options.NAWS:
                     {
                         const { width, height } = command.optionData;
 
-                        this.term.termWidth     = width;
-                        this.term.termHeight    = height;
+                        this.term.termWidth = width;
+                        this.term.termHeight = height;
 
                         if (width) {
                             this.term.env.COLUMNS = width;
@@ -157,16 +168,14 @@ class TelnetClient {
                             this.term.env.ROWS = height;
                         }
 
-                        this.clearMciCache();
-
                         this._logDebug(
-                            { width, height, source : 'NAWS' },
+                            { width, height, source: 'NAWS' },
                             'Windows size updated'
                         );
                     }
                     break;
 
-                default :
+                default:
                     return this._logTrace(command, 'SB');
             }
         });
@@ -199,8 +208,8 @@ class TelnetClient {
     }
 
     banner() {
-        this.socket.dont.echo();    //  don't echo characters
-        this.socket.will.echo();    //  ...we'll echo them back
+        this.socket.dont.echo(); //  don't echo characters
+        this.socket.will.echo(); //  ...we'll echo them back
 
         this.socket.will.sga();
         this.socket.do.sga();
@@ -231,7 +240,7 @@ class TelnetClient {
         }
 
         this.clientReadyHandled = true;
-        this.emit('ready', { firstMenu : Config().loginServers.telnet.firstMenu } );
+        this.emit('ready', { firstMenu: Config().loginServers.telnet.firstMenu });
     }
 }
 
@@ -243,14 +252,14 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
     }
 
     createServer(cb) {
-        this.server = net.createServer( socket => {
+        this.server = net.createServer(socket => {
             const client = new TelnetClient(socket);
-            client.banner();    //  start negotiations
+            client.banner(); //  start negotiations
             this.handleNewClient(client, socket, ModuleInfo);
         });
 
         this.server.on('error', err => {
-            Log.info( { error : err.message }, 'Telnet server error');
+            Log.info({ error: err.message }, 'Telnet server error');
         });
 
         return cb(null);
@@ -259,18 +268,24 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
     listen(cb) {
         const config = Config();
         const port = parseInt(config.loginServers.telnet.port);
-        if(isNaN(port)) {
-            Log.error( { server : ModuleInfo.name, port : config.loginServers.telnet.port }, 'Cannot load server (invalid port)' );
+        if (isNaN(port)) {
+            Log.error(
+                { server: ModuleInfo.name, port: config.loginServers.telnet.port },
+                'Cannot load server (invalid port)'
+            );
             return cb(Errors.Invalid(`Invalid port: ${config.loginServers.telnet.port}`));
         }
 
         this.server.listen(port, config.loginServers.telnet.address, err => {
-            if(!err) {
-                Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
+            if (!err) {
+                Log.info(
+                    { server: ModuleInfo.name, port: port },
+                    'Listening for connections'
+                );
             }
             return cb(err);
         });
     }
 };
 
-exports.TelnetClient = TelnetClient;    //  WebSockets is a wrapper on top of this
+exports.TelnetClient = TelnetClient; //  WebSockets is a wrapper on top of this

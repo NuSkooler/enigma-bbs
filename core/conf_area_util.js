@@ -2,9 +2,9 @@
 'use strict';
 
 //  deps
-const _         = require('lodash');
+const _ = require('lodash');
 
-exports.sortAreasOrConfs    = sortAreasOrConfs;
+exports.sortAreasOrConfs = sortAreasOrConfs;
 
 //
 //  Method for sorting message, file, etc. areas and confs
@@ -19,12 +19,12 @@ function sortAreasOrConfs(areasOrConfs, type) {
         entryA = type ? a[type] : a;
         entryB = type ? b[type] : b;
 
-        if(_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
+        if (_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
             return entryA.sort - entryB.sort;
         } else {
             const keyA = entryA.sort ? entryA.sort.toString() : entryA.name;
             const keyB = entryB.sort ? entryB.sort.toString() : entryB.name;
-            return keyA.localeCompare(keyB, { sensitivity : false, numeric : true } );  //  "natural" compare
+            return keyA.localeCompare(keyB, { sensitivity: false, numeric: true }); //  "natural" compare
         }
     });
 }

@@ -12,29 +12,26 @@ const {
     writeConfig,
 } = require('./oputil_common.js');
 
-const getHelpFor	= require('./oputil_help.js').getHelpFor;
-const Address		= require('../ftn_address.js');
-const Errors	    = require('../enig_error.js').Errors;
+const getHelpFor = require('./oputil_help.js').getHelpFor;
+const Address = require('../ftn_address.js');
+const Errors = require('../enig_error.js').Errors;
 
 //	deps
-const async		= require('async');
-const paths     = require('path');
-const fs        = require('fs');
-const hjson     = require('hjson');
-const _         = require('lodash');
-const moment    = require('moment');
+const async = require('async');
+const paths = require('path');
+const fs = require('fs');
+const hjson = require('hjson');
+const _ = require('lodash');
+const moment = require('moment');
 
-exports.handleMessageBaseCommand	= handleMessageBaseCommand;
+exports.handleMessageBaseCommand = handleMessageBaseCommand;
 
 function areaFix() {
     //
     //	oputil mb areafix CMD1 CMD2 ... ADDR [--password PASS]
     //
-    if(argv._.length < 3) {
-        return printUsageAndSetExitCode(
-            getHelpFor('MessageBase'),
-            ExitCodes.ERROR
-        );
+    if (argv._.length < 3) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
     }
 
     async.waterfall(
@@ -46,8 +43,10 @@ function areaFix() {
                 const addrArg = argv._.slice(-1)[0];
                 const ftnAddr = Address.fromString(addrArg);
 
-                if(!ftnAddr) {
-                    return callback(Errors.Invalid(`"${addrArg}" is not a valid FTN address`));
+                if (!ftnAddr) {
+                    return callback(
+                        Errors.Invalid(`"${addrArg}" is not a valid FTN address`)
+                    );
                 }
 
                 //
@@ -65,9 +64,9 @@ function areaFix() {
                 //
                 const User = require('../user.js');
 
-                if(argv.from) {
+                if (argv.from) {
                     User.getUserIdAndNameByLookup(argv.from, (err, userId, fromName) => {
-                        if(err) {
+                        if (err) {
                             return callback(null, ftnAddr, argv.from, 0);
                         }
 
@@ -76,7 +75,12 @@ function areaFix() {
                     });
                 } else {
                     User.getUserName(User.RootUserID, (err, fromName) => {
-                        return callback(null, ftnAddr, fromName || 'SysOp', err ? 0 : User.RootUserID);
+                        return callback(
+                            null,
+                            ftnAddr,
+                            fromName || 'SysOp',
+                            err ? 0 : User.RootUserID
+                        );
                     });
                 }
             },
@@ -88,27 +92,31 @@ function areaFix() {
                 //	in the case of e.g. removing an area: "-SOME_AREA" would end
                 //	up confusing minimist, therefor they must be quoted: "'-SOME_AREA'"
                 //
-                const messageBody = argv._.slice(2, -1).map(arg => {
-                    return arg.replace(/["']/g, '');
-                }).join('\r\n') + '\n';
+                const messageBody =
+                    argv._.slice(2, -1)
+                        .map(arg => {
+                            return arg.replace(/["']/g, '');
+                        })
+                        .join('\r\n') + '\n';
 
                 const Message = require('../message.js');
 
                 const message = new Message({
-                    toUserName		: argv.to || 'AreaFix',
-                    fromUserName	: fromName,
-                    subject			: argv.password || '',
-                    message			: messageBody,
-                    areaTag			: Message.WellKnownAreaTags.Private,	//	mark private
-                    meta			: {
-                        System		: {
-                            [ Message.SystemMetaNames.RemoteToUser ]	: ftnAddr.toString(),			//	where to send it
-                            [ Message.SystemMetaNames.ExternalFlavor ]	: Message.AddressFlavor.FTN,	//	on FTN-style network
-                        }
-                    }
+                    toUserName: argv.to || 'AreaFix',
+                    fromUserName: fromName,
+                    subject: argv.password || '',
+                    message: messageBody,
+                    areaTag: Message.WellKnownAreaTags.Private, //	mark private
+                    meta: {
+                        System: {
+                            [Message.SystemMetaNames.RemoteToUser]: ftnAddr.toString(), //	where to send it
+                            [Message.SystemMetaNames.ExternalFlavor]:
+                                Message.AddressFlavor.FTN, //	on FTN-style network
+                        },
+                    },
                 });
 
-                if(0 !== fromUserId) {
+                if (0 !== fromUserId) {
                     message.setLocalFromUserId(fromUserId);
                 }
 
@@ -116,15 +124,17 @@ function areaFix() {
             },
             function persistMessage(message, callback) {
                 message.persist(err => {
-                    if(!err) {
-                        console.log('AreaFix message persisted and will be exported at next scheduled scan');
+                    if (!err) {
+                        console.log(
+                            'AreaFix message persisted and will be exported at next scheduled scan'
+                        );
                     }
                     return callback(err);
                 });
-            }
+            },
         ],
         err => {
-            if(err) {
+            if (err) {
                 process.exitCode = ExitCodes.ERROR;
                 console.error(`${err.message}${err.reason ? ': ' + err.reason : ''}`);
             }
@@ -142,7 +152,7 @@ function validateUplinks(uplinks) {
 }
 
 function getMsgAreaImportType(path) {
-    if(argv.type) {
+    if (argv.type) {
         return argv.type.toLowerCase();
     }
 
@@ -151,20 +161,20 @@ function getMsgAreaImportType(path) {
 
 function importAreas() {
     const importPath = argv._[argv._.length - 1];
-    if(argv._.length < 3 || !importPath || 0 === importPath.length) {
+    if (argv._.length < 3 || !importPath || 0 === importPath.length) {
         return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
     }
 
     const importType = getMsgAreaImportType(importPath);
-    if('na' !== importType && 'bbs' !== importType) {
+    if ('na' !== importType && 'bbs' !== importType) {
         return console.error(`"${importType}" is not a recognized import file type`);
     }
 
     //	optional data - we'll prompt if for anything not found
-    let confTag		= argv.conf;
-    let networkName	= argv.network;
-    let uplinks		= argv.uplinks;
-    if(uplinks) {
+    let confTag = argv.conf;
+    let networkName = argv.network;
+    let uplinks = argv.uplinks;
+    if (uplinks) {
         uplinks = uplinks.split(/[\s,]+/);
     }
 
@@ -174,24 +184,24 @@ function importAreas() {
         [
             function readImportFile(callback) {
                 fs.readFile(importPath, 'utf8', (err, importData) => {
-                    if(err) {
+                    if (err) {
                         return callback(err);
                     }
 
                     importEntries = getImportEntries(importType, importData);
-                    if(0 === importEntries.length) {
+                    if (0 === importEntries.length) {
                         return callback(Errors.Invalid('Invalid or empty import file'));
                     }
 
                     //	We should have enough to validate uplinks
-                    if('bbs' === importType) {
-                        for(let i = 0; i < importEntries.length; ++i) {
-                            if(!validateUplinks(importEntries[i].uplinks)) {
+                    if ('bbs' === importType) {
+                        for (let i = 0; i < importEntries.length; ++i) {
+                            if (!validateUplinks(importEntries[i].uplinks)) {
                                 return callback(Errors.Invalid('Invalid uplink(s)'));
                             }
                         }
                     } else {
-                        if(!validateUplinks(uplinks || [])) {
+                        if (!validateUplinks(uplinks || [])) {
                             return callback(Errors.Invalid('Invalid uplink(s)'));
                         }
                     }
@@ -203,184 +213,222 @@ function importAreas() {
                 return initConfigAndDatabases(callback);
             },
             function validateAndCollectInput(callback) {
-                const msgArea	= require('../../core/message_area.js');
-                const sysConfig	= require('../../core/config.js').get();
+                const msgArea = require('../../core/message_area.js');
+                const sysConfig = require('../../core/config.js').get();
 
-                let msgConfs = msgArea.getSortedAvailMessageConferences(null, { noClient : true } );
-                if(!msgConfs) {
-                    return callback(Errors.DoesNotExist('No conferences exist in your configuration'));
+                let msgConfs = msgArea.getSortedAvailMessageConferences(null, {
+                    noClient: true,
+                });
+                if (!msgConfs) {
+                    return callback(
+                        Errors.DoesNotExist('No conferences exist in your configuration')
+                    );
                 }
 
                 msgConfs = msgConfs.map(mc => {
                     return {
-                        name	: mc.conf.name,
-                        value	: mc.confTag,
+                        name: mc.conf.name,
+                        value: mc.confTag,
                     };
                 });
 
-                if(confTag && !msgConfs.find(mc => {
-                    return confTag === mc.value;
-                }))
-                {
-                    return callback(Errors.DoesNotExist(`Conference "${confTag}" does not exist`));
+                if (
+                    confTag &&
+                    !msgConfs.find(mc => {
+                        return confTag === mc.value;
+                    })
+                ) {
+                    return callback(
+                        Errors.DoesNotExist(`Conference "${confTag}" does not exist`)
+                    );
                 }
 
-                const existingNetworkNames = Object.keys(_.get(sysConfig, 'messageNetworks.ftn.networks', {}));
+                const existingNetworkNames = Object.keys(
+                    _.get(sysConfig, 'messageNetworks.ftn.networks', {})
+                );
 
-                if(networkName && !existingNetworkNames.find(net => networkName === net)) {
-                    return callback(Errors.DoesNotExist(`FTN style Network "${networkName}" does not exist`));
+                if (
+                    networkName &&
+                    !existingNetworkNames.find(net => networkName === net)
+                ) {
+                    return callback(
+                        Errors.DoesNotExist(
+                            `FTN style Network "${networkName}" does not exist`
+                        )
+                    );
                 }
 
                 //  can't use --uplinks without a network
-                if(!networkName && 0 === existingNetworkNames.length && uplinks) {
-                    return callback(Errors.Invalid('Cannot use --uplinks without an FTN network to import to'));
+                if (!networkName && 0 === existingNetworkNames.length && uplinks) {
+                    return callback(
+                        Errors.Invalid(
+                            'Cannot use --uplinks without an FTN network to import to'
+                        )
+                    );
                 }
 
-                getAnswers([
-                    {
-                        name		: 'confTag',
-                        message		: 'Message conference:',
-                        type		: 'list',
-                        choices		: msgConfs,
-                        pageSize	: 10,
-                        when		: !confTag,
-                    },
-                    {
-                        name		: 'networkName',
-                        message		: 'FTN network name:',
-                        type		: 'list',
-                        choices		: [ '-None-' ].concat(existingNetworkNames),
-                        pageSize    : 10,
-                        when		: !networkName && existingNetworkNames.length > 0,
-                        filter	    : (choice) => {
-                            return '-None-' === choice ? undefined : choice;
-                        }
-                    },
-                ],
-                answers => {
-                    confTag			= confTag || answers.confTag;
-                    networkName		= networkName || answers.networkName;
-                    uplinks			= uplinks || answers.uplinks;
+                getAnswers(
+                    [
+                        {
+                            name: 'confTag',
+                            message: 'Message conference:',
+                            type: 'list',
+                            choices: msgConfs,
+                            pageSize: 10,
+                            when: !confTag,
+                        },
+                        {
+                            name: 'networkName',
+                            message: 'FTN network name:',
+                            type: 'list',
+                            choices: ['-None-'].concat(existingNetworkNames),
+                            pageSize: 10,
+                            when: !networkName && existingNetworkNames.length > 0,
+                            filter: choice => {
+                                return '-None-' === choice ? undefined : choice;
+                            },
+                        },
+                    ],
+                    answers => {
+                        confTag = confTag || answers.confTag;
+                        networkName = networkName || answers.networkName;
+                        uplinks = uplinks || answers.uplinks;
 
-                    importEntries.forEach(ie => {
-                        ie.areaTag = ie.ftnTag.toLowerCase();
-                    });
+                        importEntries.forEach(ie => {
+                            ie.areaTag = ie.ftnTag.toLowerCase();
+                        });
 
-                    return callback(null);
-                });
+                        return callback(null);
+                    }
+                );
             },
             function collectUplinks(callback) {
-                if(!networkName || uplinks || 'bbs' === importType) {
+                if (!networkName || uplinks || 'bbs' === importType) {
                     return callback(null);
                 }
 
-                getAnswers([
-                    {
-                        name		: 'uplinks',
-                        message		: 'Uplink(s) (comma separated):',
-                        type		: 'input',
-                        validate	: (input) => {
-                            const inputUplinks = input.split(/[\s,]+/);
-                            return validateUplinks(inputUplinks) ? true : 'Invalid uplink(s)';
+                getAnswers(
+                    [
+                        {
+                            name: 'uplinks',
+                            message: 'Uplink(s) (comma separated):',
+                            type: 'input',
+                            validate: input => {
+                                const inputUplinks = input.split(/[\s,]+/);
+                                return validateUplinks(inputUplinks)
+                                    ? true
+                                    : 'Invalid uplink(s)';
+                            },
                         },
+                    ],
+                    answers => {
+                        uplinks = answers.uplinks;
+                        return callback(null);
                     }
-                ],
-                answers => {
-                    uplinks = answers.uplinks;
-                    return callback(null);
-                });
+                );
             },
             function confirmWithUser(callback) {
-                const sysConfig	= require('../../core/config.js').get();
+                const sysConfig = require('../../core/config.js').get();
 
                 console.info(`Importing the following for "${confTag}"`);
-                console.info(`(${sysConfig.messageConferences[confTag].name} - ${sysConfig.messageConferences[confTag].desc})`);
+                console.info(
+                    `(${sysConfig.messageConferences[confTag].name} - ${sysConfig.messageConferences[confTag].desc})`
+                );
                 console.info('');
                 importEntries.forEach(ie => {
                     console.info(`  ${ie.ftnTag} - ${ie.name}`);
                 });
 
-                if(networkName) {
+                if (networkName) {
                     console.info('');
                     console.info(`For FTN network: ${networkName}`);
                     console.info(`Uplinks: ${uplinks}`);
                     console.info('');
-                    console.info('Importing will NOT create required FTN network configurations.');
-                    console.info('If you have not yet done this, you will need to complete additional steps after importing.');
+                    console.info(
+                        'Importing will NOT create required FTN network configurations.'
+                    );
+                    console.info(
+                        'If you have not yet done this, you will need to complete additional steps after importing.'
+                    );
                     console.info('See Message Networks docs for details.');
                     console.info('');
                 }
 
-                getAnswers([
-                    {
-                        name	: 'proceed',
-                        message	: 'Proceed?',
-                        type	: 'confirm',
+                getAnswers(
+                    [
+                        {
+                            name: 'proceed',
+                            message: 'Proceed?',
+                            type: 'confirm',
+                        },
+                    ],
+                    answers => {
+                        return callback(
+                            answers.proceed ? null : Errors.General('User canceled')
+                        );
                     }
-                ],
-                answers => {
-                    return callback(answers.proceed ? null : Errors.General('User canceled'));
-                });
-
+                );
             },
             function loadConfigHjson(callback) {
                 const configPath = getConfigPath();
                 fs.readFile(configPath, 'utf8', (err, confData) => {
-                    if(err) {
+                    if (err) {
                         return callback(err);
                     }
 
                     let config;
                     try {
-                        config = hjson.parse(confData, { keepWsc : true } );
-                    } catch(e) {
+                        config = hjson.parse(confData, { keepWsc: true });
+                    } catch (e) {
                         return callback(e);
                     }
                     return callback(null, config);
-
                 });
             },
             function performImport(config, callback) {
-                const confAreas = { messageConferences : {} };
-                confAreas.messageConferences[confTag] = { areas : {} };
+                const confAreas = { messageConferences: {} };
+                confAreas.messageConferences[confTag] = { areas: {} };
 
-                const msgNetworks = { messageNetworks : { ftn : { areas : {} } } };
+                const msgNetworks = { messageNetworks: { ftn: { areas: {} } } };
 
                 importEntries.forEach(ie => {
-                    const specificUplinks = ie.uplinks || uplinks;	//	AREAS.BBS has specific uplinks per area
+                    const specificUplinks = ie.uplinks || uplinks; //	AREAS.BBS has specific uplinks per area
 
                     confAreas.messageConferences[confTag].areas[ie.areaTag] = {
-                        name : ie.name,
-                        desc : ie.name,
+                        name: ie.name,
+                        desc: ie.name,
                     };
 
-                    if(networkName) {
+                    if (networkName) {
                         msgNetworks.messageNetworks.ftn.areas[ie.areaTag] = {
-                            network	: networkName,
-                            tag		: ie.ftnTag,
-                            uplinks	: specificUplinks
+                            network: networkName,
+                            tag: ie.ftnTag,
+                            uplinks: specificUplinks,
                         };
                     }
                 });
 
-
                 const newConfig = _.defaultsDeep(config, confAreas, msgNetworks);
                 const configPath = getConfigPath();
 
-                if(!writeConfig(newConfig, configPath)) {
-                    return callback(Errors.UnexpectedState('Failed writing configuration'));
+                if (!writeConfig(newConfig, configPath)) {
+                    return callback(
+                        Errors.UnexpectedState('Failed writing configuration')
+                    );
                 }
 
                 return callback(null);
-            }
+            },
         ],
         err => {
-            if(err) {
+            if (err) {
                 console.error(err.reason ? err.reason : err.message);
             } else {
                 const addFieldUpd = 'bbs' === importType ? '"name" and "desc"' : '"desc"';
                 console.info('Import complete.');
-                console.info(`You may wish to validate changes made to ${getConfigPath()}`);
+                console.info(
+                    `You may wish to validate changes made to ${getConfigPath()}`
+                );
                 console.info(`as well as update ${addFieldUpd} fields, sorting, etc.`);
                 console.info('');
             }
@@ -391,7 +439,7 @@ function importAreas() {
 function getImportEntries(importType, importData) {
     let importEntries = [];
 
-    if('na' === importType) {
+    if ('na' === importType) {
         //
         //	parse out
         //	TAG		DESC
@@ -399,10 +447,10 @@ function getImportEntries(importType, importData) {
         const re = /^([^\s]+)\s+([^\r\n]+)/gm;
         let m;
 
-        while( (m = re.exec(importData) )) {
+        while ((m = re.exec(importData))) {
             importEntries.push({
-                ftnTag		: m[1].trim(),
-                name		: m[2].trim(),
+                ftnTag: m[1].trim(),
+                name: m[2].trim(),
             });
         }
     } else if ('bbs' === importType) {
@@ -422,13 +470,13 @@ function getImportEntries(importType, importData) {
         //
         const re = /^[^\s]+\s+([^\s]+)\s+([^\n]+)$/gm;
         let m;
-        while ( (m = re.exec(importData) )) {
+        while ((m = re.exec(importData))) {
             const tag = m[1].trim();
 
             importEntries.push({
-                ftnTag		: tag,
-                name		: `Area: ${tag}`,
-                uplinks		: m[2].trim().split(/[\s,]+/),
+                ftnTag: tag,
+                name: `Area: ${tag}`,
+                uplinks: m[2].trim().split(/[\s,]+/),
             });
         }
     }
@@ -438,16 +486,16 @@ function getImportEntries(importType, importData) {
 
 function dumpQWKPacket() {
     const packetPath = argv._[argv._.length - 1];
-    if(argv._.length < 3 || !packetPath || 0 === packetPath.length) {
+    if (argv._.length < 3 || !packetPath || 0 === packetPath.length) {
         return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
     }
 
     async.waterfall(
         [
-            (callback) => {
+            callback => {
                 return initConfigAndDatabases(callback);
             },
-            (callback) => {
+            callback => {
                 const { QWKPacketReader } = require('../qwk_mail_packet');
                 const reader = new QWKPacketReader(packetPath);
 
@@ -477,7 +525,7 @@ function dumpQWKPacket() {
                 });
 
                 reader.read();
-            }
+            },
         ],
         err => {
             if (err) {
@@ -489,7 +537,7 @@ function dumpQWKPacket() {
 
 function exportQWKPacket() {
     let packetPath = argv._[argv._.length - 1];
-    if(argv._.length < 3 || !packetPath || 0 === packetPath.length) {
+    if (argv._.length < 3 || !packetPath || 0 === packetPath.length) {
         return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
     }
 
@@ -524,19 +572,19 @@ function exportQWKPacket() {
     const userName = argv.user || '-';
 
     const writerOptions = {
-        enableQWKE              : !(false === argv.qwke),
-        enableHeadersExtension  : !(false === argv.synchronet),
-        enableAtKludges         : !(false === argv.synchronet),
-        archiveFormat           : argv.format || 'application/zip'
+        enableQWKE: !(false === argv.qwke),
+        enableHeadersExtension: !(false === argv.synchronet),
+        enableAtKludges: !(false === argv.synchronet),
+        archiveFormat: argv.format || 'application/zip',
     };
 
     let totalExported = 0;
     async.waterfall(
         [
-            (callback) => {
+            callback => {
                 return initConfigAndDatabases(callback);
             },
-            (callback) => {
+            callback => {
                 const User = require('../../core/user.js');
 
                 User.getUserIdAndName(userName, (err, userId) => {
@@ -555,7 +603,7 @@ function exportQWKPacket() {
                 //  if they were not explicitly supplied
                 if (!areaTags.length) {
                     const {
-                        getAllAvailableMessageAreaTags
+                        getAllAvailableMessageAreaTags,
                     } = require('../../core/message_area');
 
                     areaTags = getAllAvailableMessageAreaTags();
@@ -566,8 +614,8 @@ function exportQWKPacket() {
                 const Message = require('../message');
 
                 const filter = {
-                    resultType  : 'id',
-                    areaTag     : areaTags,
+                    resultType: 'id',
+                    areaTag: areaTags,
                     newerThanTimestamp,
                 };
 
@@ -581,34 +629,46 @@ function exportQWKPacket() {
                     filter.privateTagUserId = user.userId;
 
                     Message.findMessages(filter, (err, privateMessageIds) => {
-                        return callback(err, user, Message, privateMessageIds.concat(publicMessageIds));
+                        return callback(
+                            err,
+                            user,
+                            Message,
+                            privateMessageIds.concat(publicMessageIds)
+                        );
                     });
                 });
             },
             (user, Message, messageIds, callback) => {
                 const { QWKPacketWriter } = require('../qwk_mail_packet');
-                const writer = new QWKPacketWriter(Object.assign(writerOptions, {
-                    bbsID,
-                    user,
-                }));
+                const writer = new QWKPacketWriter(
+                    Object.assign(writerOptions, {
+                        bbsID,
+                        user,
+                    })
+                );
 
                 writer.on('ready', () => {
-                    async.eachSeries(messageIds, (messageId, nextMessageId) => {
-                        const message = new Message();
-                        message.load( { messageId }, err => {
-                            if (!err) {
-                                writer.appendMessage(message);
-                                ++totalExported;
+                    async.eachSeries(
+                        messageIds,
+                        (messageId, nextMessageId) => {
+                            const message = new Message();
+                            message.load({ messageId }, err => {
+                                if (!err) {
+                                    writer.appendMessage(message);
+                                    ++totalExported;
+                                }
+                                return nextMessageId(err);
+                            });
+                        },
+                        err => {
+                            writer.finish(packetPath);
+                            if (err) {
+                                console.error(
+                                    `Failed to write one or more messages: ${err.message}`
+                                );
                             }
-                            return nextMessageId(err);
-                        });
-                    },
-                    (err) => {
-                        writer.finish(packetPath);
-                        if (err) {
-                            console.error(`Failed to write one or more messages: ${err.message}`);
                         }
-                    });
+                    );
                 });
 
                 writer.on('warning', err => {
@@ -620,10 +680,10 @@ function exportQWKPacket() {
                 });
 
                 writer.init();
-            }
+            },
         ],
         err => {
-            if(err) {
+            if (err) {
                 return console.error(err.reason ? err.reason : err.message);
             }
 
@@ -633,24 +693,22 @@ function exportQWKPacket() {
 }
 
 function handleMessageBaseCommand() {
-
     function errUsage() {
-        return printUsageAndSetExitCode(
-            getHelpFor('MessageBase'),
-            ExitCodes.ERROR
-        );
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
     }
 
-    if(true === argv.help) {
+    if (true === argv.help) {
         return errUsage();
     }
 
     const action = argv._[1];
 
-    return({
-        areafix	        : areaFix,
-        'import-areas'  : importAreas,
-        'qwk-dump'      : dumpQWKPacket,
-        'qwk-export'    : exportQWKPacket,
-    }[action] || errUsage)();
+    return (
+        {
+            areafix: areaFix,
+            'import-areas': importAreas,
+            'qwk-dump': dumpQWKPacket,
+            'qwk-export': exportQWKPacket,
+        }[action] || errUsage
+    )();
 }

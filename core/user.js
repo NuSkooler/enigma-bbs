@@ -2,36 +2,35 @@
 'use strict';
 
 //  ENiGMA½
-const userDb        = require('./database.js').dbs.user;
-const Config        = require('./config.js').get;
-const userGroup     = require('./user_group.js');
-const {
-    Errors,
-    ErrorReasons
-}                   = require('./enig_error.js');
-const Events        = require('./events.js');
-const UserProps     = require('./user_property.js');
-const Log           = require('./logger.js').log;
-const StatLog       = require('./stat_log.js');
+const userDb = require('./database.js').dbs.user;
+const Config = require('./config.js').get;
+const userGroup = require('./user_group.js');
+const { Errors, ErrorReasons } = require('./enig_error.js');
+const Events = require('./events.js');
+const UserProps = require('./user_property.js');
+const Log = require('./logger.js').log;
+const StatLog = require('./stat_log.js');
 
 //  deps
-const crypto            = require('crypto');
-const assert            = require('assert');
-const async             = require('async');
-const _                 = require('lodash');
-const moment            = require('moment');
-const sanatizeFilename  = require('sanitize-filename');
-const ssh2              = require('ssh2');
+const crypto = require('crypto');
+const assert = require('assert');
+const async = require('async');
+const _ = require('lodash');
+const moment = require('moment');
+const sanatizeFilename = require('sanitize-filename');
+const ssh2 = require('ssh2');
 
-exports.isRootUserId = function(id) { return 1 === id; };
+exports.isRootUserId = function (id) {
+    return 1 === id;
+};
 
 module.exports = class User {
     constructor() {
-        this.userId         = 0;
-        this.username       = '';
-        this.properties     = {};   //  name:value
-        this.groups         = [];   //  group membership(s)
-        this.authFactor     = User.AuthFactors.None;
+        this.userId = 0;
+        this.username = '';
+        this.properties = {}; //  name:value
+        this.groups = []; //  group membership(s)
+        this.authFactor = User.AuthFactors.None;
     }
 
     //  static property accessors
@@ -41,24 +40,25 @@ module.exports = class User {
 
     static get AuthFactors() {
         return {
-            None    : 0,    //  Not yet authenticated in any way
-            Factor1 : 1,    //  username + password/pubkey/etc. checked out
-            Factor2 : 2,    //  validated with 2FA of some sort such as OTP
+            None: 0, //  Not yet authenticated in any way
+            Factor1: 1, //  username + password/pubkey/etc. checked out
+            Factor2: 2, //  validated with 2FA of some sort such as OTP
         };
     }
 
     static get PBKDF2() {
         return {
-            iterations  : 1000,
-            keyLen      : 128,
-            saltLen     : 32,
+            iterations: 1000,
+            keyLen: 128,
+            saltLen: 32,
         };
     }
 
     static get StandardPropertyGroups() {
         return {
-            auth : [
-                UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk,
+            auth: [
+                UserProps.PassPbkdf2Salt,
+                UserProps.PassPbkdf2Dk,
                 UserProps.AuthPubKey,
             ],
         };
@@ -66,10 +66,10 @@ module.exports = class User {
 
     static get AccountStatus() {
         return {
-            disabled    : 0,    //  +op disabled
-            inactive    : 1,    //  inactive, aka requires +op approval/activation
-            active      : 2,    //  standard, active
-            locked      : 3,    //  locked out (too many bad login attempts, etc.)
+            disabled: 0, //  +op disabled
+            inactive: 1, //  inactive, aka requires +op approval/activation
+            active: 2, //  standard, active
+            locked: 3, //  locked out (too many bad login attempts, etc.)
         };
     }
 
@@ -78,7 +78,7 @@ module.exports = class User {
     }
 
     isValid() {
-        if(this.userId <= 0 || this.username.length < Config().users.usernameMin) {
+        if (this.userId <= 0 || this.username.length < Config().users.usernameMin) {
             return false;
         }
 
@@ -86,13 +86,15 @@ module.exports = class User {
     }
 
     hasValidPasswordProperties() {
-        const salt  = this.getProperty(UserProps.PassPbkdf2Salt);
-        const dk    = this.getProperty(UserProps.PassPbkdf2Dk);
+        const salt = this.getProperty(UserProps.PassPbkdf2Salt);
+        const dk = this.getProperty(UserProps.PassPbkdf2Dk);
 
-        if(!salt || !dk ||
-            (salt.length !== User.PBKDF2.saltLen * 2) ||
-            (dk.length !== User.PBKDF2.keyLen * 2))
-        {
+        if (
+            !salt ||
+            !dk ||
+            salt.length !== User.PBKDF2.saltLen * 2 ||
+            dk.length !== User.PBKDF2.keyLen * 2
+        ) {
             return false;
         }
 
@@ -103,40 +105,42 @@ module.exports = class User {
         return User.isRootUserId(this.userId);
     }
 
-    isSysOp() { //  alias to isRoot()
+    isSysOp() {
+        //  alias to isRoot()
         return this.isRoot();
     }
 
     isGroupMember(groupNames) {
-        if(_.isString(groupNames)) {
-            groupNames = [ groupNames ];
+        if (_.isString(groupNames)) {
+            groupNames = [groupNames];
         }
 
-        const isMember = groupNames.some(gn => (-1 !== this.groups.indexOf(gn)));
+        const isMember = groupNames.some(gn => -1 !== this.groups.indexOf(gn));
         return isMember;
     }
 
-    getSanitizedName(type='username') {
-        const name = 'real' === type ? this.getProperty(UserProps.RealName) : this.username;
+    getSanitizedName(type = 'username') {
+        const name =
+            'real' === type ? this.getProperty(UserProps.RealName) : this.username;
         return sanatizeFilename(name) || `user${this.userId.toString()}`;
     }
 
     getLegacySecurityLevel() {
-        if(this.isRoot() || this.isGroupMember('sysops')) {
+        if (this.isRoot() || this.isGroupMember('sysops')) {
             return 100;
         }
 
-        if(this.isGroupMember('users')) {
+        if (this.isGroupMember('users')) {
             return 30;
         }
 
-        return 10;  //  :TODO: Is this what we want?
+        return 10; //  :TODO: Is this what we want?
     }
 
     processFailedLogin(userId, cb) {
         async.waterfall(
             [
-                (callback) => {
+                callback => {
                     return User.getUser(userId, callback);
                 },
                 (tempUser, callback) => {
@@ -151,20 +155,26 @@ module.exports = class User {
                 },
                 (tempUser, failedAttempts, callback) => {
                     const lockAccount = _.get(Config(), 'users.failedLogin.lockAccount');
-                    if(lockAccount > 0 && failedAttempts >= lockAccount) {
+                    if (lockAccount > 0 && failedAttempts >= lockAccount) {
                         const props = {
-                            [ UserProps.AccountStatus ]     : User.AccountStatus.locked,
-                            [ UserProps.AccountLockedTs ]   : StatLog.now,
+                            [UserProps.AccountStatus]: User.AccountStatus.locked,
+                            [UserProps.AccountLockedTs]: StatLog.now,
                         };
-                        if(!_.has(tempUser.properties, UserProps.AccountLockedPrevStatus)) {
-                            props[UserProps.AccountLockedPrevStatus] = tempUser.getProperty(UserProps.AccountStatus);
+                        if (
+                            !_.has(tempUser.properties, UserProps.AccountLockedPrevStatus)
+                        ) {
+                            props[UserProps.AccountLockedPrevStatus] =
+                                tempUser.getProperty(UserProps.AccountStatus);
                         }
-                        Log.info( { userId, failedAttempts }, '(Re)setting account to locked due to failed logins');
+                        Log.info(
+                            { userId, failedAttempts },
+                            '(Re)setting account to locked due to failed logins'
+                        );
                         return tempUser.persistProperties(props, callback);
                     }
 
                     return cb(null);
-                }
+                },
             ],
             err => {
                 return cb(err);
@@ -174,24 +184,27 @@ module.exports = class User {
 
     unlockAccount(cb) {
         const prevStatus = this.getProperty(UserProps.AccountLockedPrevStatus);
-        if(!prevStatus) {
-            return cb(null);    //  nothing to do
+        if (!prevStatus) {
+            return cb(null); //  nothing to do
         }
 
         this.persistProperty(UserProps.AccountStatus, prevStatus, err => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
-            return this.removeProperties( [ UserProps.AccountLockedPrevStatus, UserProps.AccountLockedTs ], cb);
+            return this.removeProperties(
+                [UserProps.AccountLockedPrevStatus, UserProps.AccountLockedTs],
+                cb
+            );
         });
     }
 
     static get AuthFactor1Types() {
         return {
-            SSHPubKey   : 'sshPubKey',
-            Password    : 'password',
-            TLSClient   : 'tlsClientAuth',
+            SSHPubKey: 'sshPubKey',
+            Password: 'password',
+            TLSClient: 'tlsClientAuth',
         };
     }
 
@@ -201,33 +214,42 @@ module.exports = class User {
         const tempAuthInfo = {};
 
         const validatePassword = (props, callback) => {
-            User.generatePasswordDerivedKey(authInfo.password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
-                if(err) {
-                    return callback(err);
+            User.generatePasswordDerivedKey(
+                authInfo.password,
+                props[UserProps.PassPbkdf2Salt],
+                (err, dk) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    //
+                    //  Use constant time comparison here for security feel-goods
+                    //
+                    const passDkBuf = Buffer.from(dk, 'hex');
+                    const propsDkBuf = Buffer.from(props[UserProps.PassPbkdf2Dk], 'hex');
+
+                    return callback(
+                        crypto.timingSafeEqual(passDkBuf, propsDkBuf)
+                            ? null
+                            : Errors.AccessDenied('Invalid password')
+                    );
                 }
-
-                //
-                //  Use constant time comparison here for security feel-goods
-                //
-                const passDkBuf     = Buffer.from(dk, 'hex');
-                const propsDkBuf    = Buffer.from(props[UserProps.PassPbkdf2Dk], 'hex');
-
-                return callback(crypto.timingSafeEqual(passDkBuf, propsDkBuf) ?
-                    null :
-                    Errors.AccessDenied('Invalid password')
-                );
-            });
+            );
         };
 
         const validatePubKey = (props, callback) => {
             const pubKeyActual = ssh2.utils.parseKey(props[UserProps.AuthPubKey]);
-            if(!pubKeyActual) {
+            if (!pubKeyActual) {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
 
-            if(authInfo.pubKey.key.algo != pubKeyActual.type ||
-                !crypto.timingSafeEqual(authInfo.pubKey.key.data, pubKeyActual.getPublicSSH()))
-            {
+            if (
+                authInfo.pubKey.key.algo != pubKeyActual.type ||
+                !crypto.timingSafeEqual(
+                    authInfo.pubKey.key.data,
+                    pubKeyActual.getPublicSSH()
+                )
+            ) {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
 
@@ -239,7 +261,7 @@ module.exports = class User {
                 function fetchUserId(callback) {
                     //  get user ID
                     User.getUserIdAndName(username, (err, uid, un) => {
-                        tempAuthInfo.userId   = uid;
+                        tempAuthInfo.userId = uid;
                         tempAuthInfo.username = un;
 
                         return callback(err);
@@ -247,19 +269,23 @@ module.exports = class User {
                 },
                 function getRequiredAuthProperties(callback) {
                     //  fetch properties required for authentication
-                    User.loadProperties(tempAuthInfo.userId, { names : User.StandardPropertyGroups.auth }, (err, props) => {
-                        return callback(err, props);
-                    });
+                    User.loadProperties(
+                        tempAuthInfo.userId,
+                        { names: User.StandardPropertyGroups.auth },
+                        (err, props) => {
+                            return callback(err, props);
+                        }
+                    );
                 },
                 function validatePassOrPubKey(props, callback) {
-                    if(User.AuthFactor1Types.SSHPubKey === authInfo.type) {
+                    if (User.AuthFactor1Types.SSHPubKey === authInfo.type) {
                         return validatePubKey(props, callback);
                     }
                     return validatePassword(props, callback);
                 },
                 function initProps(callback) {
                     User.loadProperties(tempAuthInfo.userId, (err, allProps) => {
-                        if(!err) {
+                        if (!err) {
                             tempAuthInfo.properties = allProps;
                         }
 
@@ -267,33 +293,51 @@ module.exports = class User {
                     });
                 },
                 function checkAccountStatus(callback) {
-                    const accountStatus = parseInt(tempAuthInfo.properties[UserProps.AccountStatus], 10);
-                    if(User.AccountStatus.disabled === accountStatus) {
-                        return callback(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+                    const accountStatus = parseInt(
+                        tempAuthInfo.properties[UserProps.AccountStatus],
+                        10
+                    );
+                    if (User.AccountStatus.disabled === accountStatus) {
+                        return callback(
+                            Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
+                        );
                     }
-                    if(User.AccountStatus.inactive === accountStatus) {
-                        return callback(Errors.AccessDenied('Account inactive', ErrorReasons.Inactive));
+                    if (User.AccountStatus.inactive === accountStatus) {
+                        return callback(
+                            Errors.AccessDenied('Account inactive', ErrorReasons.Inactive)
+                        );
                     }
 
-                    if(User.AccountStatus.locked === accountStatus) {
-                        const autoUnlockMinutes = _.get(Config(), 'users.failedLogin.autoUnlockMinutes');
-                        const lockedTs          = moment(tempAuthInfo.properties[UserProps.AccountLockedTs]);
-                        if(autoUnlockMinutes && lockedTs.isValid()) {
+                    if (User.AccountStatus.locked === accountStatus) {
+                        const autoUnlockMinutes = _.get(
+                            Config(),
+                            'users.failedLogin.autoUnlockMinutes'
+                        );
+                        const lockedTs = moment(
+                            tempAuthInfo.properties[UserProps.AccountLockedTs]
+                        );
+                        if (autoUnlockMinutes && lockedTs.isValid()) {
                             const minutesSinceLocked = moment().diff(lockedTs, 'minutes');
-                            if(minutesSinceLocked >= autoUnlockMinutes) {
+                            if (minutesSinceLocked >= autoUnlockMinutes) {
                                 //  allow the login - we will clear any lock there
                                 Log.info(
-                                    { username, userId : tempAuthInfo.userId, lockedAt : lockedTs.format() },
+                                    {
+                                        username,
+                                        userId: tempAuthInfo.userId,
+                                        lockedAt: lockedTs.format(),
+                                    },
                                     'Locked account will now be unlocked due to auto-unlock minutes policy'
                                 );
                                 return callback(null);
                             }
                         }
-                        return callback(Errors.AccessDenied('Account is locked', ErrorReasons.Locked));
+                        return callback(
+                            Errors.AccessDenied('Account is locked', ErrorReasons.Locked)
+                        );
                     }
 
                     //  anything else besides active is still not allowed
-                    if(User.AccountStatus.active !== accountStatus) {
+                    if (User.AccountStatus.active !== accountStatus) {
                         return callback(Errors.AccessDenied('Account is not active'));
                     }
 
@@ -301,26 +345,34 @@ module.exports = class User {
                 },
                 function initGroups(callback) {
                     userGroup.getGroupsForUser(tempAuthInfo.userId, (err, groups) => {
-                        if(!err) {
+                        if (!err) {
                             tempAuthInfo.groups = groups;
                         }
 
                         return callback(err);
                     });
-                }
+                },
             ],
             err => {
-                if(err) {
+                if (err) {
                     //
                     //  If we failed login due to something besides an inactive or disabled account,
                     //  we need to update failure status and possibly lock the account.
                     //
                     //  If locked already, update the lock timestamp -- ie, extend the lockout period.
                     //
-                    if(![ErrorReasons.Disabled, ErrorReasons.Inactive].includes(err.reasonCode) && tempAuthInfo.userId) {
+                    if (
+                        ![ErrorReasons.Disabled, ErrorReasons.Inactive].includes(
+                            err.reasonCode
+                        ) &&
+                        tempAuthInfo.userId
+                    ) {
                         self.processFailedLogin(tempAuthInfo.userId, persistErr => {
-                            if(persistErr) {
-                                Log.warn( { error : persistErr.message }, 'Failed to persist failed login information');
+                            if (persistErr) {
+                                Log.warn(
+                                    { error: persistErr.message },
+                                    'Failed to persist failed login information'
+                                );
                             }
                             return cb(err); //  pass along original error
                         });
@@ -329,16 +381,18 @@ module.exports = class User {
                     }
                 } else {
                     //  everything checks out - load up info
-                    self.userId         = tempAuthInfo.userId;
-                    self.username       = tempAuthInfo.username;
-                    self.properties     = tempAuthInfo.properties;
-                    self.groups         = tempAuthInfo.groups;
-                    self.authFactor      = User.AuthFactors.Factor1;
+                    self.userId = tempAuthInfo.userId;
+                    self.username = tempAuthInfo.username;
+                    self.properties = tempAuthInfo.properties;
+                    self.groups = tempAuthInfo.groups;
+                    self.authFactor = User.AuthFactors.Factor1;
 
                     //
                     //  If 2FA/OTP is required, this user is not quite authenticated yet.
                     //
-                    self.authenticated = !(self.getProperty(UserProps.AuthFactor2OTP) ? true : false);
+                    self.authenticated = !(self.getProperty(UserProps.AuthFactor2OTP)
+                        ? true
+                        : false);
 
                     self.removeProperty(UserProps.FailedLoginAttempts);
 
@@ -347,8 +401,11 @@ module.exports = class User {
                     //  the user's previous status & clean up props.
                     //
                     self.unlockAccount(unlockErr => {
-                        if(unlockErr) {
-                            Log.warn( { error : unlockErr.message }, 'Failed to unlock account');
+                        if (unlockErr) {
+                            Log.warn(
+                                { error: unlockErr.message },
+                                'Failed to unlock account'
+                            );
                         }
                         return cb(null);
                     });
@@ -357,18 +414,23 @@ module.exports = class User {
         );
     }
 
-    create(createUserInfo , cb) {
+    create(createUserInfo, cb) {
         assert(0 === this.userId);
         const config = Config();
 
-        if(this.username.length < config.users.usernameMin || this.username.length > config.users.usernameMax) {
+        if (
+            this.username.length < config.users.usernameMin ||
+            this.username.length > config.users.usernameMax
+        ) {
             return cb(Errors.Invalid('Invalid username length'));
         }
 
         const self = this;
 
         //  :TODO: set various defaults, e.g. default activation status, etc.
-        self.properties[UserProps.AccountStatus] = config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
+        self.properties[UserProps.AccountStatus] = config.users.requireActivation
+            ? User.AccountStatus.inactive
+            : User.AccountStatus.active;
 
         async.waterfall(
             [
@@ -379,17 +441,19 @@ module.exports = class User {
                     trans.run(
                         `INSERT INTO user (user_name)
                         VALUES (?);`,
-                        [ self.username ],
-                        function inserted(err) {    //  use classic function for |this|
-                            if(err) {
+                        [self.username],
+                        function inserted(err) {
+                            //  use classic function for |this|
+                            if (err) {
                                 return callback(err);
                             }
 
                             self.userId = this.lastID;
 
                             //  Do not require activation for userId 1 (root/admin)
-                            if(User.RootUserID === self.userId) {
-                                self.properties[UserProps.AccountStatus] = User.AccountStatus.active;
+                            if (User.RootUserID === self.userId) {
+                                self.properties[UserProps.AccountStatus] =
+                                    User.AccountStatus.active;
                             }
 
                             return callback(null, trans);
@@ -397,21 +461,25 @@ module.exports = class User {
                     );
                 },
                 function genAuthCredentials(trans, callback) {
-                    User.generatePasswordDerivedKeyAndSalt(createUserInfo.password, (err, info) => {
-                        if(err) {
-                            return callback(err);
-                        }
+                    User.generatePasswordDerivedKeyAndSalt(
+                        createUserInfo.password,
+                        (err, info) => {
+                            if (err) {
+                                return callback(err);
+                            }
 
-                        self.properties[UserProps.PassPbkdf2Salt]   = info.salt;
-                        self.properties[UserProps.PassPbkdf2Dk]     = info.dk;
-                        return callback(null, trans);
-                    });
+                            self.properties[UserProps.PassPbkdf2Salt] = info.salt;
+                            self.properties[UserProps.PassPbkdf2Dk] = info.dk;
+                            return callback(null, trans);
+                        }
+                    );
                 },
                 function setInitialGroupMembership(trans, callback) {
                     //  Assign initial groups. Must perform a clone: #235 - All users are sysops (and I can't un-sysop them)
                     self.groups = [...config.users.defaultGroups];
 
-                    if(User.RootUserID === self.userId) {   //  root/SysOp?
+                    if (User.RootUserID === self.userId) {
+                        //  root/SysOp?
                         self.groups.push('sysops');
                     }
 
@@ -423,17 +491,16 @@ module.exports = class User {
                     });
                 },
                 function sendEvent(trans, callback) {
-                    Events.emit(
-                        Events.getSystemEvents().NewUser,
-                        {
-                            user : Object.assign({}, self, { sessionId : createUserInfo.sessionId } )
-                        }
-                    );
+                    Events.emit(Events.getSystemEvents().NewUser, {
+                        user: Object.assign({}, self, {
+                            sessionId: createUserInfo.sessionId,
+                        }),
+                    });
                     return callback(null, trans);
-                }
+                },
             ],
             (err, trans) => {
-                if(trans) {
+                if (trans) {
                     trans[err ? 'rollback' : 'commit'](transErr => {
                         return cb(err ? err : transErr);
                     });
@@ -460,7 +527,7 @@ module.exports = class User {
                     userGroup.addUserToGroups(self.userId, self.groups, trans, err => {
                         return callback(err);
                     });
-                }
+                },
             ],
             err => {
                 return cb(err);
@@ -472,9 +539,9 @@ module.exports = class User {
         userDb.run(
             `REPLACE INTO user_property (user_id, prop_name, prop_value)
             VALUES (?, ?, ?);`,
-            [ userId, propName, propValue ],
+            [userId, propName, propValue],
             err => {
-                if(cb) {
+                if (cb) {
                     return cb(err, propValue);
                 }
             }
@@ -488,7 +555,7 @@ module.exports = class User {
     incrementProperty(propName, incrementBy) {
         incrementBy = incrementBy || 1;
         let newValue = parseInt(this.getProperty(propName));
-        if(newValue) {
+        if (newValue) {
             newValue += incrementBy;
         } else {
             newValue = incrementBy;
@@ -519,9 +586,9 @@ module.exports = class User {
         userDb.run(
             `DELETE FROM user_property
             WHERE user_id = ? AND prop_name = ?;`,
-            [ this.userId, propName ],
+            [this.userId, propName],
             err => {
-                if(cb) {
+                if (cb) {
                     return cb(err);
                 }
             }
@@ -529,18 +596,21 @@ module.exports = class User {
     }
 
     removeProperties(propNames, cb) {
-        async.each(propNames, (name, next) => {
-            return this.removeProperty(name, next);
-        },
-        err => {
-            if(cb) {
-                return cb(err);
+        async.each(
+            propNames,
+            (name, next) => {
+                return this.removeProperty(name, next);
+            },
+            err => {
+                if (cb) {
+                    return cb(err);
+                }
             }
-        });
+        );
     }
 
     persistProperties(properties, transOrDb, cb) {
-        if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+        if (!_.isFunction(cb) && _.isFunction(transOrDb)) {
             cb = transOrDb;
             transOrDb = userDb;
         }
@@ -555,31 +625,34 @@ module.exports = class User {
             VALUES (?, ?, ?);`
         );
 
-        async.each(Object.keys(properties), (propName, nextProp) => {
-            stmt.run(self.userId, propName, properties[propName], err => {
-                return nextProp(err);
-            });
-        },
-        err => {
-            if(err) {
-                return cb(err);
-            }
+        async.each(
+            Object.keys(properties),
+            (propName, nextProp) => {
+                stmt.run(self.userId, propName, properties[propName], err => {
+                    return nextProp(err);
+                });
+            },
+            err => {
+                if (err) {
+                    return cb(err);
+                }
 
-            stmt.finalize( () => {
-                return cb(null);
-            });
-        });
+                stmt.finalize(() => {
+                    return cb(null);
+                });
+            }
+        );
     }
 
     setNewAuthCredentials(password, cb) {
         User.generatePasswordDerivedKeyAndSalt(password, (err, info) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
             const newProperties = {
-                [ UserProps.PassPbkdf2Salt ]    : info.salt,
-                [ UserProps.PassPbkdf2Dk ]      : info.dk,
+                [UserProps.PassPbkdf2Salt]: info.salt,
+                [UserProps.PassPbkdf2Dk]: info.dk,
             };
 
             this.persistProperties(newProperties, err => {
@@ -590,7 +663,7 @@ module.exports = class User {
 
     getAge() {
         const birthdate = this.getProperty(UserProps.Birthdate);
-        if(birthdate) {
+        if (birthdate) {
             return moment().diff(birthdate, 'years');
         }
     }
@@ -612,18 +685,18 @@ module.exports = class User {
                     userGroup.getGroupsForUser(userId, (err, groups) => {
                         return callback(null, userName, properties, groups);
                     });
-                }
+                },
             ],
             (err, userName, properties, groups) => {
                 const user = new User();
-                user.userId         = userId;
-                user.username       = userName;
-                user.properties     = properties;
-                user.groups         = groups;
+                user.userId = userId;
+                user.username = userName;
+                user.properties = properties;
+                user.groups = groups;
 
                 //  explicitly NOT an authenticated user!
-                user.authenticated  = false;
-                user.authFactor     = User.AuthFactors.None;
+                user.authenticated = false;
+                user.authFactor = User.AuthFactors.None;
 
                 return cb(err, user);
             }
@@ -631,7 +704,7 @@ module.exports = class User {
     }
 
     static isRootUserId(userId) {
-        return (User.RootUserID === userId);
+        return User.RootUserID === userId;
     }
 
     static getUserIdAndName(username, cb) {
@@ -639,13 +712,13 @@ module.exports = class User {
             `SELECT id, user_name
             FROM user
             WHERE user_name LIKE ?;`,
-            [ username ],
+            [username],
             (err, row) => {
-                if(err) {
+                if (err) {
                     return cb(err);
                 }
 
-                if(row) {
+                if (row) {
                     return cb(null, row.id, row.user_name);
                 }
 
@@ -663,13 +736,13 @@ module.exports = class User {
                 FROM user_property
                 WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
             );`,
-            [ realName ],
+            [realName],
             (err, row) => {
-                if(err) {
+                if (err) {
                     return cb(err);
                 }
 
-                if(row) {
+                if (row) {
                     return cb(null, row.id, row.user_name);
                 }
 
@@ -680,7 +753,7 @@ module.exports = class User {
 
     static getUserIdAndNameByLookup(lookup, cb) {
         User.getUserIdAndName(lookup, (err, userId, userName) => {
-            if(err) {
+            if (err) {
                 User.getUserIdAndNameByRealName(lookup, (err, userId, userName) => {
                     return cb(err, userId, userName);
                 });
@@ -695,13 +768,13 @@ module.exports = class User {
             `SELECT user_name
             FROM user
             WHERE id = ?;`,
-            [ userId ],
+            [userId],
             (err, row) => {
-                if(err) {
+                if (err) {
                     return cb(err);
                 }
 
-                if(row) {
+                if (row) {
                     return cb(null, row.user_name);
                 }
 
@@ -711,31 +784,35 @@ module.exports = class User {
     }
 
     static loadProperties(userId, options, cb) {
-        if(!cb && _.isFunction(options)) {
+        if (!cb && _.isFunction(options)) {
             cb = options;
             options = {};
         }
 
-        let sql =
-            `SELECT prop_name, prop_value
+        let sql = `SELECT prop_name, prop_value
             FROM user_property
             WHERE user_id = ?`;
 
-        if(options.names) {
+        if (options.names) {
             sql += ` AND prop_name IN("${options.names.join('","')}");`;
         } else {
             sql += ';';
         }
 
         let properties = {};
-        userDb.each(sql, [ userId ], (err, row) => {
-            if(err) {
-                return cb(err);
+        userDb.each(
+            sql,
+            [userId],
+            (err, row) => {
+                if (err) {
+                    return cb(err);
+                }
+                properties[row.prop_name] = row.prop_value;
+            },
+            err => {
+                return cb(err, err ? null : properties);
             }
-            properties[row.prop_name] = row.prop_value;
-        }, (err) => {
-            return cb(err, err ? null : properties);
-        });
+        );
     }
 
     //  :TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
@@ -746,9 +823,9 @@ module.exports = class User {
             `SELECT user_id
             FROM user_property
             WHERE prop_name = ? AND prop_value = ?;`,
-            [ propName, propValue ],
+            [propName, propValue],
             (err, row) => {
-                if(row) {
+                if (row) {
                     userIds.push(row.user_id);
                 }
             },
@@ -761,7 +838,7 @@ module.exports = class User {
     static getUserList(options, cb) {
         const userList = [];
 
-        options.properties = options.properties || [ UserProps.RealName ];
+        options.properties = options.properties || [UserProps.RealName];
 
         const asList = [];
         const joinList = [];
@@ -769,7 +846,9 @@ module.exports = class User {
             const dbProp = options.properties[i];
             const propName = options.propsCamelCase ? _.camelCase(dbProp) : dbProp;
             asList.push(`p${i}.prop_value AS ${propName}`);
-            joinList.push(`LEFT OUTER JOIN user_property p${i} ON p${i}.user_id = u.id AND p${i}.prop_name = '${dbProp}'`);
+            joinList.push(
+                `LEFT OUTER JOIN user_property p${i} ON p${i}.user_id = u.id AND p${i}.prop_name = '${dbProp}'`
+            );
         }
 
         userDb.each(
@@ -792,7 +871,7 @@ module.exports = class User {
         async.waterfall(
             [
                 function getSalt(callback) {
-                    User.generatePasswordDerivedKeySalt( (err, salt) => {
+                    User.generatePasswordDerivedKeySalt((err, salt) => {
                         return callback(err, salt);
                     });
                 },
@@ -800,17 +879,17 @@ module.exports = class User {
                     User.generatePasswordDerivedKey(password, salt, (err, dk) => {
                         return callback(err, salt, dk);
                     });
-                }
+                },
             ],
             (err, salt, dk) => {
-                return cb(err, { salt : salt, dk : dk } );
+                return cb(err, { salt: salt, dk: dk });
             }
         );
     }
 
     static generatePasswordDerivedKeySalt(cb) {
         crypto.randomBytes(User.PBKDF2.saltLen, (err, salt) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
             return cb(null, salt.toString('hex'));
@@ -820,12 +899,19 @@ module.exports = class User {
     static generatePasswordDerivedKey(password, salt, cb) {
         password = Buffer.from(password).toString('hex');
 
-        crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, 'sha1', (err, dk) => {
-            if(err) {
-                return cb(err);
-            }
+        crypto.pbkdf2(
+            password,
+            salt,
+            User.PBKDF2.iterations,
+            User.PBKDF2.keyLen,
+            'sha1',
+            (err, dk) => {
+                if (err) {
+                    return cb(err);
+                }
 
-            return cb(null, dk.toString('hex'));
-        });
+                return cb(null, dk.toString('hex'));
+            }
+        );
     }
 };

@@ -28,6 +28,33 @@ npm install # or simply 'yarn'
 Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
 
+
+# 0.0.12-beta to 0.0.13-beta
+* :exclamation: The SSH server's `ssh2` module has gone through a major upgrade. Existing users will need to comment out two SSH KEX algorithms from their `config.hjson` if present else clients such as NetRunner will not be able to connect over SSH. Comment out `diffie-hellman-group-exchange-sha256` and `diffie-hellman-group-exchange-sha1`
+* All features and changes are backwards compatible. There are a few new configuration options in a new `term` section in the configuration. These are all optional, but include the following options in case you use them:
+
+```hjson
+{ 
+
+  term: {
+    // checkUtf8Encoding requires the use of cursor position reports, which are not supported on all terminals.
+    // Using this with a terminal that does not support cursor position reports results in a 2 second delay
+    // during the connect process, but provides better autoconfiguration of utf-8
+    checkUtf8Encoding: true
+
+
+    // Checking the ANSI home position also requires the use of cursor position reports, which are not
+    // supported on all terminals. Using this with a terminal that does not support cursor position reports
+    // results in a 3 second delay during the connect process, but works around positioning problems with
+    // non-standard terminals.
+    checkAnsiHomePosition: true
+  }
+}
+
+```
+
+In addition to these, there are also new options for `term.cp437TermList` and `term.utf8TermList`. Under most circumstances these should not need to be changed. If you want to customize these lists, more information is available in `config_default.js`
+
 # 0.0.11-beta to 0.0.12-beta
 * Be aware that `master` is now mainline! This means all `git pull`'s will yield the latest version. See [WHATSNEW](WHATSNEW.md) for more information.
 * **BREAKING CHANGE** There is no longer a `prompt.hjson` file. Prompts are now simply part of the menu set in the `prompts` section. If you have an existing system you will need to add your `prompt.hjson` to your `menu.hjson`'s `includes` section at a minimum. Example:

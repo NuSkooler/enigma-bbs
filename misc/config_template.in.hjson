@@ -67,6 +67,21 @@
         description     : 'Yet another awesome ENiGMA½ BBS'
     }
 
+    term: {
+            // checkUtf8Encoding requires the use of cursor position reports, which are not supported on all terminals.
+            // Using this with a terminal that does not support cursor position reports results in a 2 second delay
+            // during the connect process, but provides better autoconfiguration of utf-8
+            checkUtf8Encoding : true
+
+            // Checking the ANSI home position also requires the use of cursor position reports, which are not
+            // supported on all terminals. Using this with a terminal that does not support cursor position reports
+            // results in a 3 second delay during the connect process, but works around positioning problems with
+            // non-standard terminals.
+            checkAnsiHomePosition: true
+
+            // other options here include cp437TermList and utf8TermList, see config_default.js for more information
+    }
+
     paths: {
         //
         //  Other paths can also be configured as well,

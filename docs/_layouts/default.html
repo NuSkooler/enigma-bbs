@@ -4,26 +4,55 @@
     <meta charset='utf-8'>
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ '/assets/images/favicon-16x16.png' | relative_url }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ '/assets/images/favicon-32x32.png' | relative_url }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ '/assets/images/favicon-32x32.png' | relative_url }}">
     <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
     {% seo %}
   </head>
 
   <body>
-      <a href="https://github.com/NuSkooler/enigma-bbs"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png"></a>
+    {% if page.include-banner %}
+      <a href="https://github.com/NuSkooler/enigma-bbs/"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png"></a>
+    {% endif %}
+    <div id="container">
         <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide" />
             <div class="container">
-                <a href="{{ site.baseurl }}"><img src="{{ '/assets/images/enigma-logo.png' | relative_url }}" class="logo" /></a>
+          <a href="{% link index.md %}"><img src="{{ '/assets/images/enigma-logo.png' | relative_url }}" class="logo" alt="Enigma logo" /></a>
             </div>
-            {% capture nav_include %}{% include nav.md %}{% endcapture %}
+            {% capture nav_include %}{% include nav.html %}{% endcapture %}
             {{ nav_include | markdownify }}
         </div>
-    <div class="main_area">
-        <div class="container">
+        <div class="main_area">
+          <div class="container">
             <section id="main_content">
+              <div class="PageNavigation">
+              {% if page.previous %}
+              <a class="btn" style="float:left;margin-right: 20px;" href="{{page.previous.url | relative_url }}">&laquo; {{page.previous.title}}</a>
+              {% endif %}
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              {% if page.next %}
+              <a class="btn" style="float: right;margin-left: 20px" href="{{page.next.url | relative_url }}">{{page.next.title}} &raquo;</a>
+              {% endif %}
+              <br clear="both" />
+              </div>
+
                 {{ content }}
+
+              <div class="PageNavigation">
+              {% if page.previous %}
+              <a class="btn" style="float:left;margin-right: 20px;" href="{{page.previous.url | relative_url }}">&laquo; {{page.previous.title}}</a>
+              {% endif %}
+              {% if page.next %}
+              <a class="btn" style="float: right;margin-left: 20px" href="{{page.next.url | relative_url }}">{{page.next.title}} &raquo;</a>
+              {% endif %}
+              <br clear="both" />
+              </div>
             </section>
+          </div>
         </div>
-    </div>
+      </div>
 
     {% if site.google_analytics %}
       <script type="text/javascript">
