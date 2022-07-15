@@ -56,11 +56,10 @@ function ClientTerminal(output) {
         set: function (ttype) {
             termType = ttype.toLowerCase();
 
-            if (this.isANSI()) {
-                this.outputEncoding = 'cp437';
-            } else {
-                //  :TODO: See how x84 does this -- only set if local/remote are binary
+            if (this.isNixTerm()) {
                 this.outputEncoding = 'utf8';
+            } else {
+                this.outputEncoding = 'cp437';
             }
 
             //  :TODO: according to this: http://mud-dev.wikidot.com/article:telnet-client-identification
