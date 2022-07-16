@@ -40,13 +40,13 @@ if you make any changes to your host config folder they will persist, and you ca
 
 ```docker restart ENiGMABBS```
 
-:bulb: Configuration will be stored in `$(pwd)/enigma-bbs/config`.
+> :bulb: Configuration will be stored in `$(pwd)/enigma-bbs/config`.
 
-:bulb: Windows users - you'll need to switch out `$(pwd)/enigma-bbs/config` for a Windows-style path.
+> :bulb: Windows users - you'll need to switch out `$(pwd)/enigma-bbs/config` for a Windows-style path.
 
 ## Volumes
 
-Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs 
+Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs
 to be stored outside of the running container. As such, the following volumes are mountable:
 
 | Volume                  | Usage                                                                |

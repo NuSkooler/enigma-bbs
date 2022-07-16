@@ -7,7 +7,7 @@ The main system configuration file, `config.hjson` both overrides defaults and p
 
 The default path is `/enigma-bbs/config/config.hjson` though this can be overridden using the `--config` parameter when invoking `main.js`.
 
-:information_source: See also [Configuration Files](config-files.md). Additionally [HJSON General Information](hjson.md) may be helpful for more information on the HJSON format.
+> :information_source: See also [Configuration Files](config-files.md). Additionally [HJSON General Information](hjson.md) may be helpful for more information on the HJSON format.
 
 ### Creating a Configuration
 Your initial configuration skeleton should be created using the `oputil.js` command line utility. From your enigma-bbs root directory:

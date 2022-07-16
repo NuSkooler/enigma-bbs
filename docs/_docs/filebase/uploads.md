@@ -19,6 +19,6 @@ uploads: {
 }
 ````
 
-:information_source: Remember that uploads in a particular area are stored **using the first storage tag defined in that area.**
+> :information_source: Remember that uploads in a particular area are stored **using the first storage tag defined in that area.**
 
-:bulb: Any ACS checks are allowed. See [ACS](../configuration/acs.md)
+> :bulb: Any ACS checks are allowed. See [ACS](../configuration/acs.md)

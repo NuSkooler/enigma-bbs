@@ -15,7 +15,7 @@ Enabling Two-Factor Authentication via One-Time-Password (2FA/OTP) on an account
 * One or more secure servers enabled such as [SSH](../servers/ssh.md) or secure [WebSockets](../servers/websocket.md) (that is, WebSockets over a secure connection such as TLS).
 * The [web server](../servers/web-server.md) enabled and exposed over TLS (HTTPS).
 
-:information_source: For WebSockets and the web server, ENiGMA½ _may_ listen on insecure channels if behind a secure web proxy.
+> :information_source: For WebSockets and the web server, ENiGMA½ _may_ listen on insecure channels if behind a secure web proxy.
 
 ### User Registration Flow
 Due to the nature of 2FA/OTP, even if enabled on your system, users must opt-in and enable this feature on their account. Users must also have a valid email address such that a registration link can be sent to them. To opt-in, users must enable the option, which will cause the system to email them a registration link. Following the link provides the following:
@@ -24,9 +24,9 @@ Due to the nature of 2FA/OTP, even if enabled on your system, users must opt-in 
 2. If applicable, a scannable QR code for easy device entry (e.g. Google Authenticator)
 3. A confirmation prompt in which the user must enter a OTP code. If entered correctly, this validates everything is set up properly and 2FA/OTP will be enabled for the account. Backup codes will also be provided at this time. Future logins will now prompt the user for their OTP after they enter their standard password.
 
-:warning: Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is **highly** discouraged!
+> :warning: Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is **highly** discouraged!
 
-:memo: +ops can also manually enable or disable 2FA/OTP for a user using [oputil](../admin/oputil.md), but this is generally discouraged.
+> :memo: +ops can also manually enable or disable 2FA/OTP for a user using [oputil](../admin/oputil.md), but this is generally discouraged.
 
 #### Recovery
 In the situation that a user loses their 2FA/OTP device (such as a lost phone with Google Auth), there are some options:

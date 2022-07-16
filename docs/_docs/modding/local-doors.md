@@ -5,7 +5,7 @@ title: Local Doors
 ## Local Doors
 ENiGMA½ has many ways to add doors to your system. In addition to the [many built in door server modules](door-servers.md), local doors are of course also supported using the ! The `abracadabra` module!
 
-:information_source: See also [Let’s add a DOS door to Enigma½ BBS](https://medium.com/retro-future/lets-add-a-dos-game-to-enigma-1-2-41f257deaa3c) by Robbie Whiting for a great writeup on adding doors!
+> :information_source: See also [Let’s add a DOS door to Enigma½ BBS](https://medium.com/retro-future/lets-add-a-dos-game-to-enigma-1-2-41f257deaa3c) by Robbie Whiting for a great writeup on adding doors!
 
 ## The abracadabra Module
 The `abracadabra` module provides a generic and flexible solution for many door types. Through this module you can execute native processes & scripts directly, and perform I/O through standard I/O (stdio) or a temporary TCP server.

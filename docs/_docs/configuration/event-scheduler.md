@@ -26,7 +26,7 @@ As mentioned above, `schedule` may contain a [Later style](https://bunkat.github
 
 An `@watch` clause monitors a specified file for changes and takes the following form: `@watch:<path>` where `<path>` is a fully qualified path.
 
-:bulb: If you would like to have a schedule **and** watch a file for changes, place the `@watch` clause second and separated with the word `or`. For example: `every 24 hours or @watch:/path/to/somefile.txt`.
+> :bulb: If you would like to have a schedule **and** watch a file for changes, place the `@watch` clause second and separated with the word `or`. For example: `every 24 hours or @watch:/path/to/somefile.txt`.
 
 ### Actions
 Events can kick off actions by calling a method (function) provided by the system or custom module in addition to executing arbritary binaries or scripts.

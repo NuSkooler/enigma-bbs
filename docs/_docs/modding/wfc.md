@@ -16,7 +16,7 @@ The system allows any user with the proper security to access the WFC / system o
 3. User ID of 1 (root/admin)
 4. The user belongs to the `wfc` group.
 
-> :information_source: Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group.
+> :information_source: Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group. See also [Security](../configuration/security.md) for more information on keeping your system secure!
 
 To change the ACS required, specify a alternative `acs` in the `config` block. For example:
 ```hjson
@@ -28,7 +28,7 @@ mainMenuWaitingForCaller: {
 }
 ```
 
-> :notebook: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
+> :lock: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
 
 ## Theming
 The following MCI codes are available:

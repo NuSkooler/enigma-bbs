@@ -7,9 +7,9 @@ An edit text view supports editing form values on a screen. This can be for new 
 
 ## General Information
 
-:information_source: An edit text view is defined with a percent (%) and the characters ET, followed by the view number. For example: `%ET1`. This is generally used on a form in order to allow a user to enter or edit a text value.
+> :information_source: An edit text view is defined with a percent (%) and the characters ET, followed by the view number. For example: `%ET1`. This is generally used on a form in order to allow a user to enter or edit a text value.
 
-:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 

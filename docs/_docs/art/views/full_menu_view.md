@@ -9,9 +9,9 @@ A full menu view supports displaying a list of times on a screen in a very confi
 
 Items can be selected on a menu via the cursor keys, Page Up, Page Down, Home, and End, or by selecting them via a `hotKey` - see ***Hot Keys*** below.
 
-:information_source: A full menu view is defined with a percent (%) and the characters FM, followed by the view number. For example: `%FM1`
+> :information_source: A full menu view is defined with a percent (%) and the characters FM, followed by the view number. For example: `%FM1`
 
-:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
@@ -76,11 +76,11 @@ If the list is for display only (there is no form action associated with it) you
 
 The `textOverflow` option is used to specify what happens when a text string is too long to fit in the `width` defined. Note, because columns are automatically calculated, this can only occur when the text is too long to fit the `width` using a single column.
 
-:information_source: If `textOverflow` is not specified at all, a menu can become wider than the `width` if needed to display a single column.
+> :information_source: If `textOverflow` is not specified at all, a menu can become wider than the `width` if needed to display a single column.
 
-:information_source: Setting `textOverflow` to an empty string `textOverflow: ""` will cause the item to be truncated if necessary without any characters displayed
+> :information_source: Setting `textOverflow` to an empty string `textOverflow: ""` will cause the item to be truncated if necessary without any characters displayed
 
-:information_source: Otherwise, setting `textOverflow` to one or more characters will truncate the value if necessary and display those characters at the end. i.e. `textOverflow: ...`
+> :information_source: Otherwise, setting `textOverflow` to one or more characters will truncate the value if necessary and display those characters at the end. i.e. `textOverflow: ...`
 
 ## Examples
 

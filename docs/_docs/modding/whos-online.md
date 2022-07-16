@@ -19,5 +19,5 @@ The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
 * `isSecure`: Is the client securely connected?
 * `serverName`: Name of connected server such as "Telnet" or "SSH".
 
-:information_source: These properties are available via the `client_connections.js` `getActiveConnectionList()` API.
+> :information_source: These properties are available via the `client_connections.js` `getActiveConnectionList()` API.
 
