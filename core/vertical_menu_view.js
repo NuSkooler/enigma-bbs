@@ -100,7 +100,7 @@ function VerticalMenuView(options) {
         }
 
         text = `${sgr}${strUtil.pad(
-            text,
+            `${text}${this.styleSGR1}`,
             this.dimens.width,
             this.fillChar,
             this.justify
