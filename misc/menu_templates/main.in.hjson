@@ -1078,6 +1078,20 @@
             ]
         }
 
+        // WFC
+        confirmKickNodePrompt: {
+            art: wfckicknodeprompt
+            mci: {
+                TM1: {
+                    argName: promptValue
+                    items: [ "yes", "no" ]
+                    focus: true
+                    hotKeys: { Y: 0, N: 1 }
+                    hotKeySubmit: true
+                }
+            }
+        }
+
         ////////////////////////////////////////////////////////////////////////
         //  These entries are required by the system and must exist.
         //  You can still modify/theme them, however.
