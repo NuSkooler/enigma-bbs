@@ -154,6 +154,10 @@
                     action: @menu:mrc
                 }
                 {
+                    value: { command: "!WFC" }
+                    action: @menu:mainMenuWaitingForCaller
+                }
+                {
                     value: { command: "2FA" }
                     action: [
                         {
@@ -192,6 +196,76 @@
                 }
             }
         }
+
+        mainMenuWaitingForCaller: {
+			desc: -WFC-
+			module: wfc
+
+			config: {
+                art: {
+                    main: wfc
+                    help: wfchelp
+                }
+			}
+
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+						}
+						VM2: {
+							focus: false
+                            acceptsFocus: false
+                            acceptsInput: false
+						}
+					}
+
+					actionKeys: [
+                        {
+                            keys: [ "a", "shift + a" ]
+                            action: @method:toggleAvailable
+                        }
+                        {
+                            keys: [ "v", "shift + v" ]
+                            action: @method:toggleVisible
+                        }
+                        {
+                            keys: [ "?", "h", "shift + h" ]
+                            action: @method:displayHelp
+                        }
+                        {
+                            keys: [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+                            action: @method:setNodeStatusSelection
+                        }
+                        {
+                            keys: [ "k", "shift + k" ]
+                            action: @method:kickSelectedNode
+                        }
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+
+                // confirmKickNodePrompt
+                3: {
+                    submit: {
+                        *: [
+                            {
+                                value: { promptValue: 0 }
+                                action: @method:kickNodeYes
+                            }
+                            {
+                                value: { promptValue: 1 }
+                                action: @method:kickNodeNo
+                            }
+                        ]
+                    }
+                }
+			}
+		}
 
         mrc: {
             desc: MRC Chat

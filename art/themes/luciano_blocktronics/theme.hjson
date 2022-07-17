@@ -250,7 +250,7 @@
 				config: {
 					// formats
 					quickLogTimestampFormat: "|01|02MM|08/|02DD hh:mm:ssa"
-					nowDateTimeFormat: "|00|11ddd|08, |11MMMM Do YYYY|08, |11h|08:|11mm|08:|11ss|03a"
+					nowDateTimeFormat: "|00|11ddd|08, |11MMMM Do YYYY|08, |11h|08:|11mm|03a"
 					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
 
 					// header
