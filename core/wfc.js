@@ -14,6 +14,9 @@ const UserProps = require('./user_property');
 const Log = require('./logger');
 const Config = require('./config.js').get;
 const { Errors } = require('./enig_error');
+const { pipeToAnsi } = require('./color_codes');
+const MultiLineEditTextView =
+    require('./multi_line_edit_text_view').MultiLineEditTextView;
 
 //  deps
 const async = require('async');
@@ -112,7 +115,6 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 return this._confirmKickSelectedNode(cb);
             },
             kickNodeYes: (formData, extraArgs, cb) => {
-                //this._startRefreshing();
                 return this._kickSelectedNode(cb);
             },
             kickNodeNo: (formData, extraArgs, cb) => {
@@ -232,9 +234,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (item) {
             const nodeStatusSelectionFormat =
                 this.config.nodeStatusSelectionFormat || '{text}';
-            nodeStatusSelectionView.setText(
-                stringFormat(nodeStatusSelectionFormat, item)
-            );
+
+            const s = stringFormat(nodeStatusSelectionFormat, item);
+
+            if (nodeStatusSelectionView instanceof MultiLineEditTextView) {
+                nodeStatusSelectionView.setAnsi(pipeToAnsi(s, this.client));
+            } else {
+                nodeStatusSelectionView.setText(s);
+            }
         }
     }
 

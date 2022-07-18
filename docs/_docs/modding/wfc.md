@@ -92,7 +92,7 @@ The following MCI codes are available:
     * `freeMemoryBytes`: Free system memory in bytes.
     * `systemAvgLoad`: System average load.
     * `systemCurrentLoad`: System current load.
-    * `newPrivateMail`: Number of new **privae** mail for current user.
+    * `newPrivateMail`: Number of new **private** mail for current user.
     * `newMessagesAddrTo`: Number of new messages **addressed to the current user**.
     * `availIndicator`: Is the current user availalbe? Displayed via `statusAvailableIndicators` or system theme. See also [Themes](../art/themes.md).
     * `visIndicator`: Is the current user visible? Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).

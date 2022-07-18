@@ -297,7 +297,7 @@
 					statusAvailableIndicators: [ "N", "Y" ]
 					statusVisibleIndicators: [ "N", "Y" ]
 
-					nodeStatusSelectionFormat: "|00|10{realName}"
+					nodeStatusSelectionFormat: "|00|10{realName}\n{serverName}"
 				}
 				0: {
 					mci: {
@@ -321,6 +321,13 @@
 							height: 5
 							width: 73
 							itemFormat: "|00|07{nodeId} {levelIndicator} |02{timestamp} {message:<51.50}"
+						}
+
+						MT3: {
+							mode: preview
+							autoScroll: false
+							height: 5
+							width: 12
 						}
 					}
 				}
