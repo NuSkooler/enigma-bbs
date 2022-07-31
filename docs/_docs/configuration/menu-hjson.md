@@ -76,7 +76,7 @@ Menus may also support more than one layout type by using a *MCI key*. A MCI key
 For more information on views and associated MCI codes, see [MCI Codes](../art/mci.md).
 
 ## Submit Handlers
-When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed.
+When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed. Note: Setting the value explicitly to null matches against any value.
 
 ### Submit Actions
 Submit actions are declared using the `action` member of a submit handler block. Actions can be kick off system/global or local-to-module methods, launch other menus, etc.
@@ -368,7 +368,7 @@ newUserApplicationPre: {
 
 Enigma½ tries to automatically determine the proper encoding for a client when it connects. Unfortunately, there are cases where the wrong encoding can be selected, resulting in terminal programs that are not supported. If your user base contains users that would like to connect with unsupported clients, one solution is to offer manual encoding selection.
 
-A new system method has been added to support this, @systemMethod:setClientEncoding.
+This can be accomplished with the system method `@systemMethod:setClientEncoding`.
 
 ### Simple example
 
@@ -385,7 +385,6 @@ telnetConnected: {
 clientSelectEncoding: {
     art: CLTSEL.ASC
     next: matrix
-    config: { interrupt: realtime }
     form: {
         0: {
             mci: {
@@ -410,11 +409,7 @@ clientSelectEncoding: {
             submit: {
               *: [
                 {
-                  value: { encoding: "utf-8" }
-                  action: @systemMethod:setClientEncoding
-                }
-                {
-                  value: { encoding: "cp437" }
+                  value: { encoding: null }
                   action: @systemMethod:setClientEncoding
                 }
               ]
@@ -458,9 +453,7 @@ telnetConnected: {
 clientSelectUTF8: {
     art: CLTSEL.ASC
     next: matrix
-    config: { font: utf-8
-              interrupt: realtime
-            }
+    config: { font: utf-8 }
     form: {
         0: {
             mci: {
@@ -486,11 +479,7 @@ clientSelectUTF8: {
             submit: {
               *: [
                 {
-                  value: { encoding: "utf-8" }
-                  action: @systemMethod:setClientEncoding
-                }
-                {
-                  value: { encoding: "cp437" }
+                  value: { encoding: null }
                   action: @systemMethod:setClientEncoding
                 }
               ]
@@ -502,9 +491,7 @@ clientSelectUTF8: {
 clientSelectCP437: {
     art: CLTSEL.ASC
     next: matrix
-    config: { font: cp437
-              interrupt: realtime
-            }
+    config: { font: cp437 }
     form: {
         0: {
             mci: {
@@ -530,11 +517,7 @@ clientSelectCP437: {
             submit: {
               *: [
                 {
-                  value: { encoding: "utf-8" }
-                  action: @systemMethod:setClientEncoding
-                }
-                {
-                  value: { encoding: "cp437" }
+                  value: { encoding: null }
                   action: @systemMethod:setClientEncoding
                 }
               ]
