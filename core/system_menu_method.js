@@ -247,13 +247,6 @@ function setClientEncoding(callingMenu, formData, extraArgs, cb) {
     const client = callingMenu.client;
     let encoding = formData.value.encoding;
 
-    client.log.info(
-        { encoding: encoding, currentEncoding: client.term.outputEncoding },
-        'Setting client encoding.'
-    );
-
-    encoding = encoding || client.term.outputEncoding;
-
     client.term.outputEncoding = encoding;
 
     return callingMenu.nextMenu(cb);
