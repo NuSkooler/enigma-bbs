@@ -125,7 +125,7 @@ Many built in global/system methods exist. Below are a few. See [system_menu_met
 | `nextConf` | Sets the users message conference to the next available. |
 | `prevArea` | Sets the users message area to the previous available. |
 | `nextArea` | Sets the users message area to the next available. |
-| `setClientEncoding` | Sets the client encoding to either cp437 or utf-8. |
+| `setClientEncoding` | Sets the client encoding (such as cp437 and utf-8.) |
 
 ## Example
 Let's look a couple basic menu entries:
