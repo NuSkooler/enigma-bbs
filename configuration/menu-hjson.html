@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-07-12T05:19:33+00:00" />
+<meta property="article:published_time" content="2022-08-01T21:06:07+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu HSJON" />
 <script type="application/ld+json">
-{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","headline":"Menu HSJON","dateModified":"2022-07-12T05:19:33+00:00","datePublished":"2022-07-12T05:19:33+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu HSJON","dateModified":"2022-08-01T21:06:07+00:00","datePublished":"2022-08-01T21:06:07+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2420,7 +2420,7 @@
 <p>For more information on views and associated MCI codes, see <a href="/enigma-bbs/art/mci.html">MCI Codes</a>.</p>
 
 <h2 id="submit-handlers">Submit Handlers</h2>
-<p>When a form is submitted, it’s data is matched against a <em>submit handler</em>. When a match is found, it’s <em>action</em> is performed.</p>
+<p>When a form is submitted, it’s data is matched against a <em>submit handler</em>. When a match is found, it’s <em>action</em> is performed. Note: Setting the value explicitly to null matches against any value.</p>
 
 <h3 id="submit-actions">Submit Actions</h3>
 <p>Submit actions are declared using the <code class="language-plaintext highlighter-rouge">action</code> member of a submit handler block. Actions can be kick off system/global or local-to-module methods, launch other menus, etc.</p>
@@ -2522,6 +2522,10 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">nextArea</code></td>
       <td>Sets the users message area to the next available.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">setClientEncoding</code></td>
+      <td>Sets the client encoding (such as cp437 and utf-8.)</td>
     </tr>
   </tbody>
 </table>
@@ -2756,6 +2760,169 @@
     // note that the rest of this menu is omitted for clarity
 }
 </code></pre>
+
+<h2 id="case-study-manual-encoding-selection">Case Study: Manual Encoding Selection</h2>
+
+<p>Enigma½ tries to automatically determine the proper encoding for a client when it connects. Unfortunately, there are cases where the wrong encoding can be selected, resulting in terminal programs that are not supported. If your user base contains users that would like to connect with unsupported clients, one solution is to offer manual encoding selection.</p>
+
+<p>This can be accomplished with the system method <code class="language-plaintext highlighter-rouge">@systemMethod:setClientEncoding</code>.</p>
+
+<h3 id="simple-example">Simple example</h3>
+
+<p>A basic config to use this could look something like the following:</p>
+
+<pre><code class="language-hjson">telnetConnected: {
+    art: CONNECT
+    next: clientSelectEncoding
+    config: { nextTimeout: 1500 }
+}
+
+clientSelectEncoding: {
+    art: CLTSEL.ASC
+    next: matrix
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>The artfile for this should not contain extended characters, a simple file list 
+the following should work:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Choose your encoding:
+
+%HM1
+</code></pre></div></div>
+
+<h3 id="auto-selection-example">Auto selection example</h3>
+
+<p>The above example can be further extended to default to the automatically detected encoding by using a slightly more complicated menu system:</p>
+
+<p>```hjson</p>
+
+<p>telnetConnected: {
+    art: CONNECT
+    next: [
+      {
+        acs: EC0
+        next: clientSelectCP437
+      }
+      {
+        next: clientSelectUTF8
+      }
+    ]
+    config: { nextTimeout: 1500 }
+}</p>
+
+<p>clientSelectUTF8: {
+    art: CLTSEL.ASC
+    next: matrix
+    config: { font: utf-8 }
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    focusItemIndex: 0
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}</p>
+
+<p>clientSelectCP437: {
+    art: CLTSEL.ASC
+    next: matrix
+    config: { font: cp437 }
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    focusItemIndex: 1
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}</p>
+
+<p>Use the same artfile as the previous example.</p>
+
+<p><em>Note</em>: This example can be shortened by using @reference sections if desired.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">acs:</code> sections above will send the user to a different menu depending on whether they have encoding CP437 using <code class="language-plaintext highlighter-rouge">EC0</code> or anything else sent to the UTF8 menu. From there <code class="language-plaintext highlighter-rouge">focusItemIndex</code> chooses the default item.</p>
 
 </div>
 
