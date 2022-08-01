@@ -16,6 +16,7 @@ const iconv = require('iconv-lite');
 
 exports.login = login;
 exports.login2FA_OTP = login2FA_OTP;
+exports.setClientEncoding = setClientEncoding;
 exports.logoff = logoff;
 exports.prevMenu = prevMenu;
 exports.nextMenu = nextMenu;
@@ -239,6 +240,16 @@ function nextArea(callingMenu, formData, extraArgs, cb) {
             return reloadMenu(callingMenu, cb);
         }
     );
+}
+
+function setClientEncoding(callingMenu, formData, extraArgs, cb) {
+    // TODO: Also add other encoding types
+    const client = callingMenu.client;
+    let encoding = formData.value.encoding;
+
+    client.term.outputEncoding = encoding;
+
+    return callingMenu.nextMenu(cb);
 }
 
 function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
