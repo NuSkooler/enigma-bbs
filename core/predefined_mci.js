@@ -385,6 +385,19 @@ const PREDEFINED_MCI_GENERATORS = {
         return StatLog.getSystemStat(SysProps.LoginsToday).toLocaleString();
     },
 
+    PI: function processBytesIngress() {
+        const stats = StatLog.getSystemStat(SysProps.ProcessTrafficStats) || {
+            ingress: 0,
+        };
+        return stats.ingress.toLocaleString();
+    },
+    PE: function processBytesEgress() {
+        const stats = StatLog.getSystemStat(SysProps.ProcessTrafficStats) || {
+            egress: 0,
+        };
+        return stats.ingress.toLocaleString();
+    },
+
     RR: function randomRumor() {
         //  start the process of picking another random one
         setNextRandomRumor();

@@ -7,6 +7,7 @@ const Errors = require('./enig_error.js');
 const SysProps = require('./system_property.js');
 const UserProps = require('./user_property');
 const Message = require('./message');
+const { getActiveConnections, AllConnections } = require('./client_connections');
 
 //  deps
 const _ = require('lodash');
@@ -360,6 +361,9 @@ class StatLog {
             case SysProps.SystemLoadStats:
             case SysProps.SystemMemoryStats:
                 return this._refreshSysInfoStats();
+
+            case SysProps.ProcessTrafficStats:
+                return this._refreshProcessTrafficStats();
         }
     }
 
@@ -400,6 +404,19 @@ class StatLog {
             .catch(err => {
                 //  :TODO: log me
             });
+    }
+
+    _refreshProcessTrafficStats() {
+        const trafficStats = getActiveConnections(AllConnections).reduce(
+            (stats, conn) => {
+                stats.ingress += conn.rawSocket.bytesRead;
+                stats.egress += conn.rawSocket.bytesWritten;
+                return stats;
+            },
+            { ingress: 0, egress: 0 }
+        );
+
+        this.setNonPersistentSystemStat(SysProps.ProcessTrafficStats, trafficStats);
     }
 
     _refreshUserStat(client, statName, ttlSeconds) {

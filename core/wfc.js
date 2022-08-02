@@ -413,6 +413,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const sysMemStats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || {};
         const sysLoadStats = StatLog.getSystemStat(SysProps.SystemLoadStats) || {};
         const lastLoginStats = StatLog.getSystemStat(SysProps.LastLogin);
+        const processTrafficStats =
+            StatLog.getSystemStat(SysProps.ProcessTrafficStats) || {};
 
         const now = moment();
 
@@ -479,6 +481,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 UserProps.NewAddressedToMessageCount,
                 MailCountTTLSeconds
             ),
+            processBytesIngress: processTrafficStats.ingress || 0,
+            processBytesEgress: processTrafficStats.egress || 0,
         };
 
         return cb(null);

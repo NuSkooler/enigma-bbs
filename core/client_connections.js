@@ -122,6 +122,15 @@ function addNewClient(client, clientSock) {
         moment().valueOf(),
     ]);
 
+    // kludge to refresh process update stats at first client
+    if (clientConnections.length < 1) {
+        setTimeout(() => {
+            const StatLog = require('./stat_log');
+            const SysProps = require('./system_property');
+            StatLog.getSystemStat(SysProps.ProcessTrafficStats);
+        }, 3000); // slight pause to wait for updates
+    }
+
     clientConnections.push(client);
     clientConnections.sort((c1, c2) => c1.session.id - c2.session.id);
 

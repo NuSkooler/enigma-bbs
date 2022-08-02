@@ -52,6 +52,7 @@ module.exports = class LoginServerModule extends ServerModule {
             client.session = {};
         }
 
+        client.rawSocket = clientSock;
         client.session.serverName = modInfo.name;
         client.session.isSecure = _.isBoolean(client.isSecure)
             ? client.isSecure

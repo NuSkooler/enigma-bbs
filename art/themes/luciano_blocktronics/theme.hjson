@@ -276,6 +276,8 @@
 					mainInfoFormat21: "|00|10{totalPosts:>7}"
 					mainInfoFormat22: "|00|10{totalUsers:>5}"
 					mainInfoFormat23: "|00|10{totalFiles:>4} |08/ |10{totalFileBytes!sizeWithoutAbbr:>4} |02{totalFileBytes!sizeAbbr}"
+					mainInfoFormat24: "|00|10{processBytesIngress!sizeWithoutAbbr:>5} |02{processBytesIngress!sizeAbbr}"
+					mainInfoFormat25: "|00|10{processBytesEgress!sizeWithoutAbbr:>5} |02{processBytesEgress!sizeAbbr}"
 
 					quickLogLevel: info
 					quickLogLevelIndicators: {

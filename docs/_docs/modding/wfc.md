@@ -96,6 +96,8 @@ The following MCI codes are available:
     * `newMessagesAddrTo`: Number of new messages **addressed to the current user**.
     * `availIndicator`: Is the current user availalbe? Displayed via `statusAvailableIndicators` or system theme. See also [Themes](../art/themes.md).
     * `visIndicator`: Is the current user visible? Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).
+    * `processBytesIngress`: Ingress bytes since ENiGMA started.
+    * `processBytesEgress`: Egress bytes since ENiGMA started.
 
 
 > :information_source: While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** refresh. For values that may change over time, please use the custom format values above.

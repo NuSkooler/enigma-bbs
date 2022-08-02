@@ -37,6 +37,7 @@ module.exports = {
 
     SystemMemoryStats: 'system_memory_stats', // object { totalBytes, freeBytes }; non-persistent
     SystemLoadStats: 'system_load_stats', // object { average, current }; non-persistent
+    ProcessTrafficStats: 'system_traffic_bytes_ingress', // object { ingress, egress }; non-persistent
 
     TotalUserCount: 'user_total_count', //  non-persistent
     NewUsersTodayCount: 'user_new_today_count', //  non-persistent
