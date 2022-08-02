@@ -10,6 +10,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Many new system statistics available via the StatLog such as current and average load, memory, etc.
 * Many new MCI codes: `MB`, `MF`, `LA`, `CL`, `UU`, `FT`, `DD`, `FB`, `DB`, `LC`, `LT`, `LD`, and more. See [MCI](./docs/art/mci.md).
 * SyncTERM style font support detection.
+* Added a system method to support setting the client encoding from menus, `@systemMethod:setClientEncoding`.
 * Many additional backward-compatible bug fixes since the first release of 0.0.12-beta. See the [project repository](https://github.com/NuSkooler/enigma-bbs) for more information.
 
 ## 0.0.12-beta

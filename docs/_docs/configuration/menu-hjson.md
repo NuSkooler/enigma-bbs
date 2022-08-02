@@ -76,7 +76,7 @@ Menus may also support more than one layout type by using a *MCI key*. A MCI key
 For more information on views and associated MCI codes, see [MCI Codes](../art/mci.md).
 
 ## Submit Handlers
-When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed.
+When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed. Note: Setting the value explicitly to null matches against any value.
 
 ### Submit Actions
 Submit actions are declared using the `action` member of a submit handler block. Actions can be kick off system/global or local-to-module methods, launch other menus, etc.
@@ -125,6 +125,7 @@ Many built in global/system methods exist. Below are a few. See [system_menu_met
 | `nextConf` | Sets the users message conference to the next available. |
 | `prevArea` | Sets the users message area to the previous available. |
 | `nextArea` | Sets the users message area to the next available. |
+| `setClientEncoding` | Sets the client encoding (such as cp437 and utf-8.) |
 
 ## Example
 Let's look a couple basic menu entries:
@@ -362,3 +363,171 @@ newUserApplicationPre: {
     // note that the rest of this menu is omitted for clarity
 }
 ```
+
+## Case Study: Manual Encoding Selection
+
+Enigma½ tries to automatically determine the proper encoding for a client when it connects. Unfortunately, there are cases where the wrong encoding can be selected, resulting in terminal programs that are not supported. If your user base contains users that would like to connect with unsupported clients, one solution is to offer manual encoding selection.
+
+This can be accomplished with the system method `@systemMethod:setClientEncoding`.
+
+### Simple example
+
+A basic config to use this could look something like the following:
+
+
+```hjson
+telnetConnected: {
+    art: CONNECT
+    next: clientSelectEncoding
+    config: { nextTimeout: 1500 }
+}
+
+clientSelectEncoding: {
+    art: CLTSEL.ASC
+    next: matrix
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}
+```
+
+The artfile for this should not contain extended characters, a simple file list 
+the following should work:
+
+```
+Choose your encoding:
+
+%HM1
+```
+
+### Auto selection example
+
+The above example can be further extended to default to the automatically detected encoding by using a slightly more complicated menu system:
+
+
+
+```hjson
+
+telnetConnected: {
+    art: CONNECT
+    next: [
+      {
+        acs: EC0
+        next: clientSelectCP437
+      }
+      {
+        next: clientSelectUTF8
+      }
+    ]
+    config: { nextTimeout: 1500 }
+}
+
+clientSelectUTF8: {
+    art: CLTSEL.ASC
+    next: matrix
+    config: { font: utf-8 }
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    focusItemIndex: 0
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}
+
+clientSelectCP437: {
+    art: CLTSEL.ASC
+    next: matrix
+    config: { font: cp437 }
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    focusItemIndex: 1
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}
+
+Use the same artfile as the previous example.
+
+*Note*: This example can be shortened by using @reference sections if desired.
+
+The `acs:` sections above will send the user to a different menu depending on whether they have encoding CP437 using `EC0` or anything else sent to the UTF8 menu. From there `focusItemIndex` chooses the default item.

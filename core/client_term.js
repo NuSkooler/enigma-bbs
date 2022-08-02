@@ -42,6 +42,10 @@ function ClientTerminal(output) {
         },
         set: function (enc) {
             if (iconv.encodingExists(enc)) {
+                Log.info(
+                    { encoding: enc, currentEncoding: outputEncoding },
+                    'Setting client encoding.'
+                );
                 outputEncoding = enc;
             } else {
                 Log.warn({ encoding: enc }, 'Unknown encoding');
