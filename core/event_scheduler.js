@@ -114,7 +114,7 @@ class ScheduledEvent {
     executeAction(reason, cb) {
         Log.info(
             { eventName: this.name, action: this.action, reason: reason },
-            'Executing scheduled event action...'
+            `Executing scheduled event "${this.name}"...`
         );
 
         if ('method' === this.action.type) {

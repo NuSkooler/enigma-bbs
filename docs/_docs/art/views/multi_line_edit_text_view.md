@@ -7,9 +7,9 @@ A text display / editor designed to edit or display a message.
 
 ## General Information
 
-:information_source: A multi line edit text view is defined with a percent (%) and the characters MT, followed by the view number. For example: `%MT1`
+> :information_source: A multi line edit text view is defined with a percent (%) and the characters MT, followed by the view number. For example: `%MT1`
 
-:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
@@ -31,9 +31,9 @@ The mode of a multi line edit text view controls how the view behaves. The follo
 | preview | preview the text, including scrolling |
 | read-only | No scrolling or editing the view |
 
-:information_source: If `mode` is not set, the default mode is "edit"
+> :information_source: If `mode` is not set, the default mode is "edit"
 
-:information_source: With mode preview, scrolling the contents is allowed, but is not with read-only.
+> :information_source: With mode preview, scrolling the contents is allowed, but is not with read-only.
 
 ## Example
 

@@ -5,9 +5,9 @@ title: Menu HSJON
 ## Menu HJSON
 The core of a ENiGMA½ based BBS is it's menus driven by what will be referred to as `menu.hjson`. Throughout ENiGMA½ documentation, when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format.
 
-:information_source: See also [HJSON General Information](hjson.md) for more information on the HJSON file format.
+> :information_source: See also [HJSON General Information](hjson.md) for more information on the HJSON file format.
 
-:bulb: Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
+> :bulb: Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
 
 * Classical navigation and menus such as Main, Messages, and Files.
 * Art file display.
@@ -24,7 +24,7 @@ showSomeArt: {
 ```
 As you can see a menu can be very simple.
 
-:information_source: Remember that the top level menu may include additional files using the `includes` directive. See [Configuration Files](config-files.md) for more information on this.
+> :information_source: Remember that the top level menu may include additional files using the `includes` directive. See [Configuration Files](config-files.md) for more information on this.
 
 ## Common Menu Entry Members
 Below is a table of **common** menu entry members. These members apply to most entries, though entries that are backed by a specialized module (ie: `module: bbs_list`) may differ. Menus that use their own module contain a `module` declaration:

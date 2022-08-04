@@ -21,31 +21,72 @@ exports.getConnectionByNodeId = getConnectionByNodeId;
 const clientConnections = [];
 exports.clientConnections = clientConnections;
 
-function getActiveConnections(authUsersOnly = false) {
+const AllConnections = { authUsersOnly: false, visibleOnly: false, availOnly: false };
+exports.AllConnections = AllConnections;
+
+const UserVisibleConnections = {
+    authUsersOnly: false,
+    visibleOnly: true,
+    availOnly: false,
+};
+exports.UserVisibleConnections = UserVisibleConnections;
+
+const UserMessageableConnections = {
+    authUsersOnly: true,
+    visibleOnly: true,
+    availOnly: true,
+};
+exports.UserMessageableConnections = UserMessageableConnections;
+
+function getActiveConnections(
+    options = { authUsersOnly: true, visibleOnly: true, availOnly: false }
+) {
     return clientConnections.filter(conn => {
-        return (authUsersOnly && conn.user.isAuthenticated()) || !authUsersOnly;
+        if (options.authUsersOnly && !conn.user.isAuthenticated()) {
+            return false;
+        }
+        if (options.visibleOnly && !conn.user.isVisible()) {
+            return false;
+        }
+        if (options.availOnly && !conn.user.isAvailable()) {
+            return false;
+        }
+
+        return true;
     });
 }
 
-function getActiveConnectionList(authUsersOnly) {
-    if (!_.isBoolean(authUsersOnly)) {
-        authUsersOnly = true;
-    }
-
+function getActiveConnectionList(
+    options = { authUsersOnly: true, visibleOnly: true, availOnly: false }
+) {
     const now = moment();
 
-    return _.map(getActiveConnections(authUsersOnly), ac => {
+    return _.map(getActiveConnections(options), ac => {
+        let action;
+        try {
+            //  attempting to fetch a bad menu stack item can blow up/assert
+            action = _.get(ac, 'currentMenuModule.menuConfig.desc', 'Unknown');
+        } catch (e) {
+            action = 'Unknown';
+        }
+
         const entry = {
             node: ac.node,
             authenticated: ac.user.isAuthenticated(),
             userId: ac.user.userId,
-            action: _.get(ac, 'currentMenuModule.menuConfig.desc', 'Unknown'),
+            action: action,
+            serverName: ac.session.serverName,
+            isSecure: ac.session.isSecure,
+            isVisible: ac.user.isVisible(),
+            isAvailable: ac.user.isAvailable(),
+            remoteAddress: ac.friendlyRemoteAddress(),
         };
 
         //
         //  There may be a connection, but not a logged in user as of yet
         //
         if (ac.user.isAuthenticated()) {
+            entry.text = ac.user.username;
             entry.userName = ac.user.username;
             entry.realName = ac.user.properties[UserProps.RealName];
             entry.location = ac.user.properties[UserProps.Location];
@@ -57,6 +98,7 @@ function getActiveConnectionList(authUsersOnly) {
             );
             entry.timeOn = moment.duration(diff, 'minutes');
         }
+
         return entry;
     });
 }
@@ -81,6 +123,15 @@ function addNewClient(client, clientSock) {
         moment().valueOf(),
     ]);
 
+    // kludge to refresh process update stats at first client
+    if (clientConnections.length < 1) {
+        setTimeout(() => {
+            const StatLog = require('./stat_log');
+            const SysProps = require('./system_property');
+            StatLog.getSystemStat(SysProps.ProcessTrafficStats);
+        }, 3000); // slight pause to wait for updates
+    }
+
     clientConnections.push(client);
     clientConnections.sort((c1, c2) => c1.session.id - c2.session.id);
 
@@ -90,6 +141,7 @@ function addNewClient(client, clientSock) {
 
     const connInfo = {
         remoteAddress: remoteAddress,
+        friendlyRemoteAddress: client.friendlyRemoteAddress(),
         serverName: client.session.serverName,
         isSecure: client.session.isSecure,
     };
@@ -99,7 +151,10 @@ function addNewClient(client, clientSock) {
         connInfo.family = clientSock.localFamily;
     }
 
-    client.log.info(connInfo, 'Client connected');
+    client.log.info(
+        connInfo,
+        `Client connected (${connInfo.serverName}/${connInfo.port})`
+    );
 
     Events.emit(Events.getSystemEvents().ClientConnected, {
         client: client,
@@ -143,9 +198,9 @@ function removeClient(client) {
 }
 
 function getConnectionByUserId(userId) {
-    return getActiveConnections().find(ac => userId === ac.user.userId);
+    return getActiveConnections(AllConnections).find(ac => userId === ac.user.userId);
 }
 
 function getConnectionByNodeId(nodeId) {
-    return getActiveConnections().find(ac => nodeId == ac.node);
+    return getActiveConnections(AllConnections).find(ac => nodeId == ac.node);
 }

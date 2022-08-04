@@ -15,7 +15,7 @@ Getting a fully running FTN enabled system requires a few configuration points:
 2. `messageNetworks.ftn.areas`: Establishes local area mappings (ENiGMA½ to/from FTN area tags) and per-area specific configurations.
 3. `scannerTossers.ftn_bso`: General configuration for the scanner/tosser (import/export) process. This is also where we configure per-node (uplink) settings.
 
-:information_source: ENiGMA½'s `ftn_bso` module is **not a mailer** and makes **no attempts** to perform packet transport! An external utility such as Binkd is required for this task.
+> :information_source: ENiGMA½'s `ftn_bso` module is **not a mailer** and makes **no attempts** to perform packet transport! An external utility such as Binkd is required for this task.
 
 #### Networks
 The `networks` block is a per-network configuration where each entry's ID (or "key") may be referenced elsewhere in `config.hjson`. For example, consider two networks: ArakNet (`araknet`) and fsxNet (`fsxnet`):
@@ -70,7 +70,7 @@ Example:
 }
 ```
 
-:bulb: You can import `AREAS.BBS` or FTN style `.NA` files using [oputil](../admin/oputil.md)!
+> :bulb: You can import `AREAS.BBS` or FTN style `.NA` files using [oputil](../admin/oputil.md)!
 
 #### A More Complete Example
 Below is a more complete *example* illustrating some of the concepts above:
@@ -101,7 +101,7 @@ Below is a more complete *example* illustrating some of the concepts above:
 }
 ```
 
-:information_source: Remember for a complete FTN experience, you'll probably also want to configure [FTN/BSO scanner/tosser](bso-import-export.md) settings.
+> :information_source: Remember for a complete FTN experience, you'll probably also want to configure [FTN/BSO scanner/tosser](bso-import-export.md) settings.
 
 #### FTN/BSO Scanner Tosser
 Please see the [FTN/BSO Scanner/Tosser](bso-import-export.md) documentation for information on this area.

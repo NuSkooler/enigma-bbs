@@ -73,8 +73,8 @@
 
     menus: {
         mainMenu: {
-            art: MMENU
             desc: Main Menu
+            art: MMENU
             prompt: menuCommand
             config: {
                 font: cp437
@@ -154,6 +154,10 @@
                     action: @menu:mrc
                 }
                 {
+                    value: { command: "!WFC" }
+                    action: @menu:mainMenuWaitingForCaller
+                }
+                {
                     value: { command: "2FA" }
                     action: [
                         {
@@ -192,6 +196,76 @@
                 }
             }
         }
+
+        mainMenuWaitingForCaller: {
+			desc: -WFC-
+			module: wfc
+
+			config: {
+                art: {
+                    main: wfc
+                    help: wfchelp
+                }
+			}
+
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+						}
+						VM2: {
+							focus: false
+                            acceptsFocus: false
+                            acceptsInput: false
+						}
+					}
+
+					actionKeys: [
+                        {
+                            keys: [ "a", "shift + a" ]
+                            action: @method:toggleAvailable
+                        }
+                        {
+                            keys: [ "v", "shift + v" ]
+                            action: @method:toggleVisible
+                        }
+                        {
+                            keys: [ "?", "h", "shift + h" ]
+                            action: @method:displayHelp
+                        }
+                        {
+                            keys: [ "1", "2", "3", "4", "5", "6", "7", "8", "9" ]
+                            action: @method:setNodeStatusSelection
+                        }
+                        {
+                            keys: [ "k", "shift + k" ]
+                            action: @method:kickSelectedNode
+                        }
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+
+                // confirmKickNodePrompt
+                3: {
+                    submit: {
+                        *: [
+                            {
+                                value: { promptValue: 0 }
+                                action: @method:kickNodeYes
+                            }
+                            {
+                                value: { promptValue: 1 }
+                                action: @method:kickNodeNo
+                            }
+                        ]
+                    }
+                }
+			}
+		}
 
         mrc: {
             desc: MRC Chat
@@ -414,6 +488,7 @@
         }
 
         mainMenuUserConfig: {
+            desc: User Config
             module: user_config
             art: CONFSCR
             form: {
@@ -504,7 +579,7 @@
         }
 
         mainMenuGlobalNewScan: {
-            desc: Performing New Scan
+            desc: New Scan
             module: new_scan
             art: NEWSCAN
             config: {
@@ -513,7 +588,7 @@
         }
 
         mainMenuFeedbackToSysOp: {
-            desc: Feedback to SysOp
+            desc: SysOp Feedback
             module: msg_area_post_fse
             config: {
                 art: {
@@ -802,7 +877,7 @@
         }
 
         bbsList: {
-            desc: Viewing BBS List
+            desc: BBS List
             module: bbs_list
             config: {
                 cls: true
@@ -920,8 +995,8 @@
         }
 
         fullLogoffSequencePreAd: {
-            art: PRELOGAD
             desc: Logging Off
+            art: PRELOGAD
             next: fullLogoffSequenceRandomBoardAd
             config: {
                 cls: true
@@ -930,8 +1005,8 @@
         }
 
         fullLogoffSequenceRandomBoardAd: {
-            art: OTHRBBS
             desc: Logging Off
+            art: OTHRBBS
             next: logoff
             config: {
                 baudRate: 57600
@@ -941,8 +1016,8 @@
         }
 
         logoff: {
-            art: LOGOFF
             desc: Logging Off
+            art: LOGOFF
             next: @systemMethod:logoff
         }
 
@@ -1001,6 +1076,20 @@
                     action: @systemMethod:prevMenu
                 }
             ]
+        }
+
+        // WFC
+        confirmKickNodePrompt: {
+            art: wfckicknodeprompt
+            mci: {
+                TM1: {
+                    argName: promptValue
+                    items: [ "yes", "no" ]
+                    focus: true
+                    hotKeys: { Y: 0, N: 1 }
+                    hotKeySubmit: true
+                }
+            }
         }
 
         ////////////////////////////////////////////////////////////////////////

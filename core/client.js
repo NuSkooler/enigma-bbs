@@ -97,7 +97,12 @@ function Client(/*input, output*/) {
     Object.defineProperty(this, 'currentTheme', {
         get: () => {
             if (this.currentThemeConfig) {
-                return this.currentThemeConfig.get();
+                // :TODO: clean this up: We have a ugly transition state in which we have a pure raw config vs a ConfigLoader in which get() must be called
+                try {
+                    return this.currentThemeConfig.get();
+                } catch (e) {
+                    return this.currentThemeConfig;
+                }
             } else {
                 return {
                     info: {
@@ -590,6 +595,11 @@ Client.prototype.waitForKeyPress = function (cb) {
 Client.prototype.isLocal = function () {
     //  :TODO: Handle ipv6 better
     return ['127.0.0.1', '::ffff:127.0.0.1'].includes(this.remoteAddress);
+};
+
+Client.prototype.friendlyRemoteAddress = function () {
+    //  convert any :ffff: IPv4's to 32bit version
+    return this.remoteAddress.replace(/^::ffff:/, '').replace(/^::1$/, 'localhost');
 };
 
 ///////////////////////////////////////////////////////////////////////////////

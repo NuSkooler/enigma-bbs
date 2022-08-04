@@ -108,7 +108,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                                 name: self.config.name,
                                 activeCount: activeDoorNodeInstances[self.config.name],
                             },
-                            'Too many active instances'
+                            `Too many active instances of door "${self.config.name}"`
                         );
 
                         if (_.isString(self.config.tooManyArt)) {
@@ -179,6 +179,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         this.client.term.write(ansi.resetScreen());
 
         const exeInfo = {
+            name: this.config.name,
             cmd: this.config.cmd,
             cwd: this.config.cwd || paths.dirname(this.config.cmd),
             args: this.config.args,

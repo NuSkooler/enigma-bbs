@@ -23,9 +23,9 @@ npm install # or 'yarn'
 5. If there are updates to the `art/themes/luciano_blocktronics/theme.hjson` file and you have a custom theme, you may want to look at them as well.
 6. Finally, restart your running ENiGMA½ instance.
 
-:information_source: Visual diff tools such as [DiffMerge](https://www.sourcegear.com/diffmerge/downloads.php) (free, works on all major platforms) can be very helpful for the tasks outlined above!
+> :information_source: Visual diff tools such as [DiffMerge](https://www.sourcegear.com/diffmerge/downloads.php) (free, works on all major platforms) can be very helpful for the tasks outlined above!
 
-:bulb: It is recommended to [monitor logs](../troubleshooting/monitoring-logs.md) and poke around a bit after an update!
+> :bulb: It is recommended to [monitor logs](../troubleshooting/monitoring-logs.md) and poke around a bit after an update!
 
 
 

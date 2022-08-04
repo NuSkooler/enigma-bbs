@@ -4,6 +4,7 @@
         //  Send telnet connections to matrix where users can login, apply, etc.
         //
         telnetConnected: {
+            desc: Telnet Connect
             art: CONNECT
             next: matrix
             config: { nextTimeout: 1500 }
@@ -15,6 +16,7 @@
         //  depending on user ACS.
         //
         sshConnected: {
+            desc: SSH Connect
             art: CONNECT
             next: [
                 {
@@ -34,6 +36,7 @@
         //  application process.
         //
         sshConnectedNewUser: {
+            desc: SSH Connect
             art: CONNECT
             next: newUserApplicationPreSsh
             config: { nextTimeout: 1500 }
@@ -41,6 +44,7 @@
 
 		//  Ye ol' standard matrix
         matrix: {
+            desc: Login Matrix
             art: matrix
             form: {
                 0: {
@@ -106,6 +110,7 @@
         }
 
 		login: {
+            desc: Login
             art: USERLOG
             next: [
                 {
@@ -156,6 +161,7 @@
         }
 
         loginAttemptTooNode: {
+            desc: Already Logged In
             art: TOONODE
             config: {
                 cls: true
@@ -165,6 +171,7 @@
         }
 
         loginAttemptAccountLocked: {
+            desc: Account Locked
             art: ACCOUNTLOCKED
             config: {
                 cls: true
@@ -174,6 +181,7 @@
         }
 
         loginAttemptAccountDisabled: {
+            desc: Account Disabled
             art: ACCOUNTDISABLED
             config: {
                 cls: true
@@ -183,6 +191,7 @@
         }
 
         loginAttemptAccountInactive: {
+            desc: Inactive Account
             art: ACCOUNTINACTIVE
             config: {
                 cls: true
@@ -192,7 +201,7 @@
         }
 
         forgotPassword: {
-            desc: Forgot password
+            desc: Forgot Password
             prompt: forgotPasswordPrompt
             submit: [
                 {
@@ -204,7 +213,7 @@
         }
 
         forgotPasswordSubmitted: {
-            desc: Forgot password
+            desc: Forgot Password
             art: FORGOTPWSENT
             config: {
                 cls: true
@@ -240,7 +249,7 @@
         }
 
         fullLoginSequenceOnelinerz: {
-            desc: Viewing Onelinerz
+            desc: Onelinerz
             module: onelinerz
             next: [
                 {
@@ -350,7 +359,7 @@
         }
 
         fullLoginSequenceNewScan: {
-            desc: Performing New Scan
+            desc: New Scan
             module: new_scan
             art: NEWSCAN
             next: fullLoginSequenceSysStats
@@ -360,7 +369,7 @@
         }
 
         newScanMessageList: {
-            desc: New Messages
+            desc: New Message List
             module: msg_list
             art: NEWMSGS
             config: {
@@ -403,8 +412,8 @@
         }
 
         newScanFileBaseList: {
-            module: file_area_list
             desc: New Files
+            module: file_area_list
             config: {
                 art: {
                     browse: FNEWBRWSE
@@ -557,6 +566,7 @@
         }
 
         loginTwoFactorAuthOTP: {
+            desc: 2FA
             art: 2FAOTP
             next: fullLoginSequenceLoginArt
             form: {

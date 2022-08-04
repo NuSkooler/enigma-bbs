@@ -12,6 +12,7 @@ const MultiLineEditTextView =
     require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 const Errors = require('../core/enig_error.js').Errors;
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
+const EnigAssert = require('./enigma_assert');
 
 //  deps
 const async = require('async');
@@ -574,8 +575,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
             }
         }
 
-        //let artHeight;
+        const originalSubmitNotify = options.submitNotify;
+
         options.submitNotify = () => {
+            if (_.isFunction(originalSubmitNotify)) {
+                originalSubmitNotify();
+            }
+
             if (prevVc) {
                 prevVc.setFocus(true);
             }
@@ -596,6 +602,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
         options.viewController.setFocus(true);
 
         this.optionalMoveToPosition(position);
+        if (!options.position) {
+            options.position = position;
+        }
         theme.displayThemedPrompt(promptName, this.client, options, (err, artInfo) => {
             /*
             if(artInfo) {
@@ -606,6 +615,69 @@ exports.MenuModule = class MenuModule extends PluginModule {
         });
     }
 
+    displayArtAndPrepViewController(name, formId, options, cb) {
+        const config = this.menuConfig.config;
+        EnigAssert(_.isObject(config));
+
+        async.waterfall(
+            [
+                callback => {
+                    if (options.clearScreen) {
+                        this.client.term.rawWrite(ansi.resetScreen());
+                    }
+
+                    theme.displayThemedAsset(
+                        config.art[name],
+                        this.client,
+                        { font: this.menuConfig.font, trailingLF: false },
+                        (err, artData) => {
+                            return callback(err, artData);
+                        }
+                    );
+                },
+                (artData, callback) => {
+                    if (_.isUndefined(this.viewControllers[name])) {
+                        const vcOpts = {
+                            client: this.client,
+                            formId: formId,
+                        };
+
+                        if (!_.isUndefined(options.noInput)) {
+                            vcOpts.noInput = options.noInput;
+                        }
+
+                        const vc = this.addViewController(
+                            name,
+                            new ViewController(vcOpts)
+                        );
+
+                        if (_.isFunction(options.artDataPrep)) {
+                            try {
+                                options.artDataPrep(name, artData, vc);
+                            } catch (e) {
+                                return callback(e);
+                            }
+                        }
+
+                        const loadOpts = {
+                            callingMenu: this,
+                            mciMap: artData.mciMap,
+                            formId: formId,
+                        };
+
+                        return vc.loadFromMenuConfig(loadOpts, callback);
+                    }
+
+                    this.viewControllers[name].setFocus(true);
+                    return callback(null);
+                },
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
     setViewText(formName, mciId, text, appendMultiLine) {
         const view = this.getView(formName, mciId);
         if (!view) {
@@ -613,7 +685,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
 
         if (appendMultiLine && view instanceof MultiLineEditTextView) {
-            view.addText(text);
+            view.setAnsi(text);
         } else {
             view.setText(text);
         }
@@ -650,7 +722,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     textView instanceof MultiLineEditTextView
                 ) {
                     textView.addText(text);
-                } else {
+                } else if (textView.getData() != text) {
                     textView.setText(text);
                 }
             }
@@ -750,6 +822,28 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 : Errors.Invalid(
                       `Invalid or missing config option "${firstBadKey}" (${badReason})`
                   )
+        );
+    }
+
+    //  Various common helpers
+    getDateFormat(defaultStyle = 'short') {
+        return (
+            this.config.dateFormat ||
+            this.client.currentTheme.helpers.getDateFormat(defaultStyle)
+        );
+    }
+
+    getTimeFormat(defaultStyle = 'short') {
+        return (
+            this.config.timeFormat ||
+            this.client.currentTheme.helpers.getTimeFormat(defaultStyle)
+        );
+    }
+
+    getDateTimeFormat(defaultStyle = 'short') {
+        return (
+            this.config.dateTimeFormat ||
+            this.client.currentTheme.helpers.getDateTimeFormat(defaultStyle)
         );
     }
 };

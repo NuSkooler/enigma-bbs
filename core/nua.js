@@ -130,7 +130,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 };
                 newUser.create(createUserInfo, err => {
                     if (err) {
-                        self.client.log.info(
+                        self.client.log.warn(
                             { error: err, username: formData.value.username },
                             'New user creation failed'
                         );
@@ -144,7 +144,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                     } else {
                         self.client.log.info(
                             { username: formData.value.username, userId: newUser.userId },
-                            'New user created'
+                            `New user "${formData.value.username}" created`
                         );
 
                         //  Cache SysOp information now

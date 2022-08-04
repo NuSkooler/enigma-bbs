@@ -51,7 +51,7 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
                                 subject: msg.subject,
                                 uuid: msg.messageUuid,
                             },
-                            'Message persisted'
+                            `User "${self.client.user.username}" posted message to "${msg.toUserName}" (${msg.areaTag})`
                         );
                     }
 

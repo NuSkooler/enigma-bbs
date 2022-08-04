@@ -19,14 +19,30 @@ const packageJson = require('../package.json');
 const os = require('os');
 const _ = require('lodash');
 const moment = require('moment');
+const async = require('async');
 
 exports.getPredefinedMCIValue = getPredefinedMCIValue;
 exports.init = init;
 
 function init(cb) {
-    setNextRandomRumor(cb);
+    async.series(
+        [
+            callback => {
+                return setNextRandomRumor(callback);
+            },
+            callback => {
+                //  by fetching a memory or load we'll force a refresh now
+                StatLog.getSystemStat(SysProps.SystemMemoryStats);
+                return callback(null);
+            },
+        ],
+        err => {
+            return cb(err);
+        }
+    );
 }
 
+//  :TODO: move this to stat_log.js like system memory is handled
 function setNextRandomRumor(cb) {
     StatLog.getSystemLogEntries(
         SysLogKeys.UserAddedRumorz,
@@ -65,10 +81,6 @@ function userStatAsCountString(client, statName, defaultValue) {
     return toNumberWithCommas(value);
 }
 
-function sysStatAsString(statName, defaultValue) {
-    return (StatLog.getSystemStat(statName) || defaultValue).toLocaleString();
-}
-
 const PREDEFINED_MCI_GENERATORS = {
     //
     //  Board
@@ -104,7 +116,6 @@ const PREDEFINED_MCI_GENERATORS = {
     SE: function opEmail() {
         return StatLog.getSystemStat(SysProps.SysOpEmailAddress);
     },
-    //  :TODO: op age, web, ?????
 
     //
     //  Current user / session
@@ -162,8 +173,8 @@ const PREDEFINED_MCI_GENERATORS = {
         return client.node.toString();
     },
     IP: function clientIpAddress(client) {
-        return client.remoteAddress.replace(/^::ffff:/, '');
-    }, //  convert any :ffff: IPv4's to 32bit version
+        return client.friendlyRemoteAddress();
+    },
     ST: function serverName(client) {
         return client.session.serverName;
     },
@@ -272,6 +283,23 @@ const PREDEFINED_MCI_GENERATORS = {
         const minutes = client.user.properties[UserProps.MinutesOnlineTotalCount] || 0;
         return moment.duration(minutes, 'minutes').humanize();
     },
+    NM: function userNewMessagesAddressedToCount(client) {
+        return StatLog.getUserStatNumByClient(
+            client,
+            UserProps.NewAddressedToMessageCount
+        );
+    },
+    NP: function userNewPrivateMailCount(client) {
+        return StatLog.getUserStatNumByClient(client, UserProps.NewPrivateMailCount);
+    },
+    IA: function userStatusAvailableIndicator(client) {
+        const indicators = client.currentTheme.helpers.getStatusAvailIndicators();
+        return client.user.isAvailable() ? indicators[0] || 'Y' : indicators[1] || 'N';
+    },
+    IV: function userStatusVisibleIndicator(client) {
+        const indicators = client.currentTheme.helpers.getStatusVisibleIndicators();
+        return client.user.isVisible() ? indicators[0] || 'Y' : indicators[1] || 'N';
+    },
 
     //
     //  Date/Time
@@ -318,15 +346,36 @@ const PREDEFINED_MCI_GENERATORS = {
             .trim();
     },
 
-    //  :TODO: MCI for core count, e.g. os.cpus().length
-
-    //  :TODO: cpu load average (over N seconds): http://stackoverflow.com/questions/9565912/convert-the-output-of-os-cpus-in-node-js-to-percentage
+    MB: function totalMemoryBytes() {
+        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || {
+            totalBytes: 0,
+        };
+        return formatByteSize(stats.totalBytes, true); //  true=withAbbr
+    },
+    MF: function totalMemoryFreeBytes() {
+        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || {
+            freeBytes: 0,
+        };
+        return formatByteSize(stats.freeBytes, true); //  true=withAbbr
+    },
+    LA: function systemLoadAverage() {
+        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { average: 0.0 };
+        return stats.average.toLocaleString();
+    },
+    CL: function systemCurrentLoad() {
+        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { current: 0 };
+        return `${stats.current}%`;
+    },
+    UU: function systemUptime() {
+        return moment.duration(process.uptime(), 'seconds').humanize();
+    },
     NV: function nodeVersion() {
         return process.version;
     },
-
     AN: function activeNodes() {
-        return clientConnections.getActiveConnections().length.toString();
+        return clientConnections
+            .getActiveConnections(clientConnections.UserVisibleConnections)
+            .length.toString();
     },
 
     TC: function totalCalls() {
@@ -334,6 +383,19 @@ const PREDEFINED_MCI_GENERATORS = {
     },
     TT: function totalCallsToday() {
         return StatLog.getSystemStat(SysProps.LoginsToday).toLocaleString();
+    },
+
+    PI: function processBytesIngress() {
+        const stats = StatLog.getSystemStat(SysProps.ProcessTrafficStats) || {
+            ingress: 0,
+        };
+        return stats.ingress.toLocaleString();
+    },
+    PE: function processBytesEgress() {
+        const stats = StatLog.getSystemStat(SysProps.ProcessTrafficStats) || {
+            egress: 0,
+        };
+        return stats.ingress.toLocaleString();
     },
 
     RR: function randomRumor() {
@@ -346,17 +408,15 @@ const PREDEFINED_MCI_GENERATORS = {
     //
     //  System File Base, Up/Download Info
     //
-    //  :TODO: DD - Today's # of downloads (iNiQUiTY)
-    //
     SD: function systemNumDownloads() {
-        return sysStatAsString(SysProps.FileDlTotalCount, 0);
+        return StatLog.getFriendlySystemStat(SysProps.FileDlTotalCount, 0);
     },
     SO: function systemByteDownload() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTotalBytes);
         return formatByteSize(byteSize, true); //  true=withAbbr
     },
     SU: function systemNumUploads() {
-        return sysStatAsString(SysProps.FileUlTotalCount, 0);
+        return StatLog.getFriendlySystemStat(SysProps.FileUlTotalCount, 0);
     },
     SP: function systemByteUpload() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileUlTotalBytes);
@@ -373,18 +433,59 @@ const PREDEFINED_MCI_GENERATORS = {
     },
     PT: function messagesPostedToday() {
         //  Obv/2
-        return sysStatAsString(SysProps.MessagesToday, 0);
+        return StatLog.getFriendlySystemStat(SysProps.MessagesToday, 0);
     },
     TP: function totalMessagesOnSystem() {
         //  Obv/2
-        return sysStatAsString(SysProps.MessageTotalCount, 0);
+        return StatLog.getFriendlySystemStat(SysProps.MessageTotalCount, 0);
+    },
+    FT: function totalUploadsToday() {
+        //  Obv/2
+        return StatLog.getFriendlySystemStat(SysProps.FileUlTodayCount, 0);
+    },
+    FB: function totalUploadBytesToday() {
+        const byteSize = StatLog.getSystemStatNum(SysProps.FileUlTodayBytes);
+        return formatByteSize(byteSize, true); //  true=withAbbr
+    },
+    DD: function totalDownloadsToday() {
+        //  iNiQUiTY
+        return StatLog.getFriendlySystemStat(SysProps.FileDlTodayCount, 0);
+    },
+    DB: function totalDownloadBytesToday() {
+        const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTodayBytes);
+        return formatByteSize(byteSize, true); //  true=withAbbr
+    },
+    NT: function totalNewUsersToday() {
+        // Obv/2
+        return StatLog.getSystemStatNum(SysProps.NewUsersTodayCount);
     },
 
-    //  :TODO: NT - New users today (Obv/2)
-    //  :TODO: FT - Files uploaded/added *today* (Obv/2)
-    //  :TODO: DD - Files downloaded *today* (iNiQUiTY)
-    //  :TODO: LC - name of last caller to system (Obv/2)
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
+    //  :TODO: ?? - Total users on system
+
+    TU: function totalSystemUsers() {
+        return StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1;
+    },
+
+    LC: function lastCallerUserName() {
+        //  Obv/2
+        const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
+        return lastLogin.userName || 'N/A';
+    },
+    LD: function lastCallerDate(client) {
+        const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
+        if (!lastLogin.timestamp) {
+            return 'N/A';
+        }
+        return lastLogin.timestamp.format(client.currentTheme.helpers.getDateFormat());
+    },
+    LT: function lastCallerTime(client) {
+        const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
+        if (!lastLogin.timestamp) {
+            return 'N/A';
+        }
+        return lastLogin.timestamp.format(client.currentTheme.helpers.getTimeFormat());
+    },
 
     //
     //  Special handling for XY
@@ -424,7 +525,7 @@ function getPredefinedMCIValue(client, code, extra) {
         } catch (e) {
             Log.error(
                 { code: code, exception: e.message },
-                'Exception caught generating predefined MCI value'
+                `Failed generating predefined MCI value (${code})`
             );
         }
 

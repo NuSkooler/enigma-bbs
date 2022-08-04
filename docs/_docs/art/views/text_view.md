@@ -7,9 +7,9 @@ A text label view supports displaying simple text on a screen.
 
 ## General Information
 
-:information_source: A text label view is defined with a percent (%) and the characters TL, followed by the view number. For example: `%TL1`
+> :information_source: A text label view is defined with a percent (%) and the characters TL, followed by the view number. For example: `%TL1`
 
-:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
@@ -26,11 +26,11 @@ A text label view supports displaying simple text on a screen.
 
 The `textOverflow` option is used to specify what happens when a text string is too long to fit in the `width` defined.
 
-:information_source: If `textOverflow` is not specified at all, a text label can become wider than the `width` if needed to display the text value.
+> :information_source: If `textOverflow` is not specified at all, a text label can become wider than the `width` if needed to display the text value.
 
-:information_source: Setting `textOverflow` to an empty string `textOverflow: ""` will cause the item to be truncated if necessary without any characters displayed
+> :information_source: Setting `textOverflow` to an empty string `textOverflow: ""` will cause the item to be truncated if necessary without any characters displayed
 
-:information_source: Otherwise, setting `textOverflow` to one or more characters will truncate the value if necessary and display those characters at the end. i.e. `textOverflow: ...`
+> :information_source: Otherwise, setting `textOverflow` to one or more characters will truncate the value if necessary and display those characters at the end. i.e. `textOverflow: ...`
 
 ## Example
 

@@ -11,12 +11,14 @@ const pipeToAnsi = require('./color_codes.js').pipeToAnsi;
 //  deps
 const util = require('util');
 const _ = require('lodash');
+const { throws } = require('assert');
 
 exports.VerticalMenuView = VerticalMenuView;
 
 function VerticalMenuView(options) {
     options.cursor = options.cursor || 'hide';
     options.justify = options.justify || 'left';
+    this.focusItemAtTop = true;
 
     MenuView.call(this, options);
 
@@ -48,13 +50,11 @@ function VerticalMenuView(options) {
     this.updateViewVisibleItems = function () {
         self.maxVisibleItems = Math.ceil(self.dimens.height / (self.itemSpacing + 1));
 
+        const topIndex = (this.focusItemAtTop ? throws.focusedItemIndex : 0) || 0;
+
         self.viewWindow = {
-            top: self.focusedItemIndex,
-            bottom:
-                Math.min(
-                    self.focusedItemIndex + self.maxVisibleItems,
-                    self.items.length
-                ) - 1,
+            top: topIndex,
+            bottom: Math.min(topIndex + self.maxVisibleItems, self.items.length) - 1,
         };
     };
 
@@ -100,13 +100,25 @@ function VerticalMenuView(options) {
         }
 
         text = `${sgr}${strUtil.pad(
-            text,
+            `${text}${this.styleSGR1}`,
             this.dimens.width,
             this.fillChar,
             this.justify
         )}`;
         self.client.term.write(`${ansi.goto(item.row, self.position.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);
+    };
+
+    this.drawRemovedItem = function (index) {
+        if (index <= this.items.length - 1) {
+            return;
+        }
+        const row = this.position.row + index;
+        this.client.term.rawWrite(
+            `${ansi.goto(row, this.position.col)}${ansi.normal()}${this.fillChar.repeat(
+                this.dimens.width
+            )}`
+        );
     };
 }
 
@@ -150,6 +162,11 @@ VerticalMenuView.prototype.redraw = function () {
             this.drawItem(i);
         }
     }
+
+    const remain = Math.max(0, this.dimens.height - this.items.length);
+    for (let i = this.items.length; i < remain; ++i) {
+        this.drawRemovedItem(i);
+    }
 };
 
 VerticalMenuView.prototype.setHeight = function (height) {
@@ -174,15 +191,15 @@ VerticalMenuView.prototype.setFocus = function (focused) {
 VerticalMenuView.prototype.setFocusItemIndex = function (index) {
     VerticalMenuView.super_.prototype.setFocusItemIndex.call(this, index); //  sets this.focusedItemIndex
 
-    const remainAfterFocus = this.items.length - index;
+    const remainAfterFocus = this.focusItemAtTop
+        ? this.items.length - index
+        : this.items.length;
     if (remainAfterFocus >= this.maxVisibleItems) {
+        const topIndex = (this.focusItemAtTop ? throws.focusedItemIndex : 0) || 0;
+
         this.viewWindow = {
-            top: this.focusedItemIndex,
-            bottom:
-                Math.min(
-                    this.focusedItemIndex + this.maxVisibleItems,
-                    this.items.length
-                ) - 1,
+            top: topIndex,
+            bottom: Math.min(topIndex + this.maxVisibleItems, this.items.length) - 1,
         };
 
         this.positionCacheExpired = false; //  skip standard behavior
@@ -214,6 +231,9 @@ VerticalMenuView.prototype.onKeyPress = function (ch, key) {
 
 VerticalMenuView.prototype.getData = function () {
     const item = this.getItem(this.focusedItemIndex);
+    if (!item) {
+        return this.focusedItemIndex;
+    }
     return _.isString(item.data) ? item.data : this.focusedItemIndex;
 };
 
@@ -391,4 +411,12 @@ VerticalMenuView.prototype.setItemSpacing = function (itemSpacing) {
     VerticalMenuView.super_.prototype.setItemSpacing.call(this, itemSpacing);
 
     this.positionCacheExpired = true;
+};
+
+VerticalMenuView.prototype.setPropertyValue = function (propName, value) {
+    if (propName === 'focusItemAtTop' && _.isBoolean(value)) {
+        this.focusItemAtTop = value;
+    }
+
+    VerticalMenuView.super_.prototype.setPropertyValue.call(this, propName, value);
 };

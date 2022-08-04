@@ -198,6 +198,10 @@ MenuView.prototype.getItems = function () {
 };
 
 MenuView.prototype.getItem = function (index) {
+    if (index > this.items.length - 1) {
+        return null;
+    }
+
     if (this.complexItems) {
         return this.items[index];
     }
@@ -231,6 +235,10 @@ MenuView.prototype.focusLast = function () {
 
 MenuView.prototype.setFocusItemIndex = function (index) {
     this.focusedItemIndex = index;
+};
+
+MenuView.prototype.getFocusItemIndex = function () {
+    return this.focusedItemIndex;
 };
 
 MenuView.prototype.onKeyPress = function (ch, key) {

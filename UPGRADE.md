@@ -1,6 +1,8 @@
 # Introduction
 This document covers basic upgrade notes for major ENiGMA½ version updates.
 
+> :information_source: Be sure to read the version-to-version upgrade notes below for each upgrade!
+
 # Before Upgrading
 * Always back up your system! (See [Administration](./docs/admin/administration.md))
 * Seriously, always back up your system!
@@ -30,11 +32,12 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 
 
 # 0.0.12-beta to 0.0.13-beta
+* To enable the new Waiting for Caller (WFC) support, please see [WFC](docs/modding/wfc.md).
 * :exclamation: The SSH server's `ssh2` module has gone through a major upgrade. Existing users will need to comment out two SSH KEX algorithms from their `config.hjson` if present else clients such as NetRunner will not be able to connect over SSH. Comment out `diffie-hellman-group-exchange-sha256` and `diffie-hellman-group-exchange-sha1`
 * All features and changes are backwards compatible. There are a few new configuration options in a new `term` section in the configuration. These are all optional, but include the following options in case you use them:
 
 ```hjson
-{ 
+{
 
   term: {
     // checkUtf8Encoding requires the use of cursor position reports, which are not supported on all terminals.

@@ -32,7 +32,7 @@ module.exports = class Door {
             });
 
             conn.once('error', err => {
-                this.client.log.info(
+                this.client.log.warn(
                     { error: err.message },
                     'Door socket server connection'
                 );
@@ -77,7 +77,7 @@ module.exports = class Door {
 
         this.client.log.info(
             { cmd: exeInfo.cmd, args, io: this.io },
-            'Executing external door process'
+            `Executing external door (${exeInfo.name})`
         );
 
         try {

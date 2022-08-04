@@ -223,7 +223,7 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
                         );
 
                         if (err) {
-                            self.client.log.info(
+                            self.client.log.warn(
                                 `Telnet bridge connection error: ${err.message}`
                             );
                         }

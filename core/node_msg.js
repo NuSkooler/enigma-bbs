@@ -6,6 +6,7 @@ const { MenuModule } = require('./menu_module.js');
 const {
     getActiveConnectionList,
     getConnectionByNodeId,
+    UserMessageableConnections,
 } = require('./client_connections.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
 const { getThemeArt } = require('./theme.js');
@@ -236,7 +237,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             },
         ]
             .concat(
-                getActiveConnectionList(true).map(node =>
+                getActiveConnectionList(UserMessageableConnections).map(node =>
                     Object.assign(node, {
                         text: -1 == node.node ? '-ALL-' : node.node.toString(),
                     })

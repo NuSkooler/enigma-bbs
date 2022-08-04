@@ -194,6 +194,7 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
                 function prepArtAndViewController(callback) {
                     return self.displayArtAndPrepViewController(
                         'queueManager',
+                        FormIds.queueManager,
                         { clearScreen: clearScreen },
                         callback
                     );
@@ -206,61 +207,6 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
                 if (cb) {
                     return cb(err);
                 }
-            }
-        );
-    }
-
-    displayArtAndPrepViewController(name, options, cb) {
-        const self = this;
-        const config = this.menuConfig.config;
-
-        async.waterfall(
-            [
-                function readyAndDisplayArt(callback) {
-                    if (options.clearScreen) {
-                        self.client.term.rawWrite(ansi.resetScreen());
-                    }
-
-                    theme.displayThemedAsset(
-                        config.art[name],
-                        self.client,
-                        { font: self.menuConfig.font, trailingLF: false },
-                        (err, artData) => {
-                            return callback(err, artData);
-                        }
-                    );
-                },
-                function prepeareViewController(artData, callback) {
-                    if (_.isUndefined(self.viewControllers[name])) {
-                        const vcOpts = {
-                            client: self.client,
-                            formId: FormIds[name],
-                        };
-
-                        if (!_.isUndefined(options.noInput)) {
-                            vcOpts.noInput = options.noInput;
-                        }
-
-                        const vc = self.addViewController(
-                            name,
-                            new ViewController(vcOpts)
-                        );
-
-                        const loadOpts = {
-                            callingMenu: self,
-                            mciMap: artData.mciMap,
-                            formId: FormIds[name],
-                        };
-
-                        return vc.loadFromMenuConfig(loadOpts, callback);
-                    }
-
-                    self.viewControllers[name].setFocus(true);
-                    return callback(null);
-                },
-            ],
-            err => {
-                return cb(err);
             }
         );
     }

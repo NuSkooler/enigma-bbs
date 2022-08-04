@@ -22,9 +22,9 @@ Below is a table of pre-configured archivers. Remember that you can override set
 | `TarGz` | .tar.gz, .gzip | [Wikipedia](https://en.wikipedia.org/wiki/Gzip) | `tar` | `tar` | [TAR.EXE](https://ss64.com/nt/tar.html)
 
 
-:information_source: For more information see `core/config_default.js`
+> :information_source: For more information see `core/config_default.js`
 
-:information_source: For information on changing configuration or adding more archivers see [Archivers](archivers.md).
+> :information_source: For information on changing configuration or adding more archivers see [Archivers](archivers.md).
 
 ## File Transfer Protocols
 Handlers for legacy file transfer protocols such as Z-Modem and Y-Modem.

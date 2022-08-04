@@ -3,6 +3,7 @@
 
 const Events = require('./events.js');
 const LogNames = require('./user_log_name.js');
+const SysProps = require('./system_property.js');
 
 const DefaultKeepForDays = 365;
 
@@ -30,6 +31,7 @@ module.exports = function systemEventUserLogInit(statLog) {
         const detailHandler = {
             [systemEvents.NewUser]: e => {
                 append(e, LogNames.NewUser, 1);
+                statLog.incrementNonPersistentSystemStat(SysProps.NewUsersTodayCount, 1);
             },
             [systemEvents.UserLogin]: e => {
                 append(e, LogNames.Login, 1);

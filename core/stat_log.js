@@ -4,10 +4,15 @@
 const sysDb = require('./database.js').dbs.system;
 const { getISOTimestampString } = require('./database.js');
 const Errors = require('./enig_error.js');
+const SysProps = require('./system_property.js');
+const UserProps = require('./user_property');
+const Message = require('./message');
+const { getActiveConnections, AllConnections } = require('./client_connections');
 
 //  deps
 const _ = require('lodash');
 const moment = require('moment');
+const SysInfo = require('systeminformation');
 
 /*
     System Event Log & Stats
@@ -24,6 +29,7 @@ const moment = require('moment');
 class StatLog {
     constructor() {
         this.systemStats = {};
+        this.lastSysInfoStatsRefresh = 0;
     }
 
     init(cb) {
@@ -106,7 +112,17 @@ class StatLog {
     }
 
     getSystemStat(statName) {
-        return this.systemStats[statName];
+        const stat = this.systemStats[statName];
+
+        //  Some stats are refreshed periodically when they are
+        //  being accessed (e.g. "looked at"). This is handled async.
+        this._refreshSystemStat(statName);
+
+        return stat;
+    }
+
+    getFriendlySystemStat(statName, defaultValue) {
+        return (this.getSystemStat(statName) || defaultValue).toLocaleString();
     }
 
     getSystemStatNum(statName) {
@@ -141,11 +157,23 @@ class StatLog {
     }
 
     getUserStat(user, statName) {
-        return user.properties[statName];
+        return user.getProperty(statName);
+    }
+
+    getUserStatByClient(client, statName) {
+        const stat = this.getUserStat(client.user, statName);
+        this._refreshUserStat(client, statName);
+        return stat;
     }
 
     getUserStatNum(user, statName) {
         return parseInt(this.getUserStat(user, statName)) || 0;
+    }
+
+    getUserStatNumByClient(client, statName, ttlSeconds = 10) {
+        const stat = this.getUserStatNum(client.user, statName);
+        this._refreshUserStat(client, statName, ttlSeconds);
+        return stat;
     }
 
     incrementUserStat(user, statName, incrementBy, cb) {
@@ -215,7 +243,7 @@ class StatLog {
                         sysDb.run(
                             `DELETE FROM system_event_log
                             WHERE id IN(
-                                SELECT id 
+                                SELECT id
                                 FROM system_event_log
                                 WHERE log_name = ?
                                 ORDER BY id DESC
@@ -239,75 +267,18 @@ class StatLog {
         );
     }
 
-    /*
-        Find System Log entries by |filter|:
-
-        filter.logName (required)
-        filter.resultType = (obj) | count
-            where obj contains timestamp and log_value
-        filter.limit
-        filter.date - exact date to filter against
-        filter.order = (timestamp) | timestamp_asc | timestamp_desc | random
-    */
+    //
+    //  Find System Log entry(s) by |filter|:
+    //
+    //  - logName: Name of log (required)
+    //  - resultType: 'obj' | 'count' (default='obj')
+    //  - limit: Limit returned results
+    //  - date: exact date to filter against
+    //  - order: 'timestamp' | 'timestamp_asc' | 'timestamp_desc' | 'random'
+    //           (default='timestamp')
+    //
     findSystemLogEntries(filter, cb) {
-        filter = filter || {};
-        if (!_.isString(filter.logName)) {
-            return cb(Errors.MissingParam('filter.logName is required'));
-        }
-
-        filter.resultType = filter.resultType || 'obj';
-        filter.order = filter.order || 'timestamp';
-
-        let sql;
-        if ('count' === filter.resultType) {
-            sql = `SELECT COUNT() AS count
-                FROM system_event_log`;
-        } else {
-            sql = `SELECT timestamp, log_value
-                FROM system_event_log`;
-        }
-
-        sql += ' WHERE log_name = ?';
-
-        if (filter.date) {
-            filter.date = moment(filter.date);
-            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format(
-                'YYYY-MM-DD'
-            )}")`;
-        }
-
-        if ('count' !== filter.resultType) {
-            switch (filter.order) {
-                case 'timestamp':
-                case 'timestamp_asc':
-                    sql += ' ORDER BY timestamp ASC';
-                    break;
-
-                case 'timestamp_desc':
-                    sql += ' ORDER BY timestamp DESC';
-                    break;
-
-                case 'random':
-                    sql += ' ORDER BY RANDOM()';
-                    break;
-            }
-        }
-
-        if (_.isNumber(filter.limit) && 0 !== filter.limit) {
-            sql += ` LIMIT ${filter.limit}`;
-        }
-
-        sql += ';';
-
-        if ('count' === filter.resultType) {
-            sysDb.get(sql, [filter.logName], (err, row) => {
-                return cb(err, row ? row.count : 0);
-            });
-        } else {
-            sysDb.all(sql, [filter.logName], (err, rows) => {
-                return cb(err, rows);
-            });
-        }
+        return this._findLogEntries('system_event_log', filter, cb);
     }
 
     getSystemLogEntries(logName, order, limit, cb) {
@@ -367,6 +338,211 @@ class StatLog {
         const systemEventUserLogInit = require('./sys_event_user_log.js');
         systemEventUserLogInit(this);
         return cb(null);
+    }
+
+    //
+    //  Find User Log entry(s) by |filter|:
+    //
+    //  - logName: Name of log (required)
+    //  - userId: User ID in which to restrict entries to (missing=all)
+    //  - sessionId: Session ID in which to restrict entries to (missing=any)
+    //  - resultType: 'obj' | 'count' (default='obj')
+    //  - limit: Limit returned results
+    //  - date: exact date to filter against
+    //  - order: 'timestamp' | 'timestamp_asc' | 'timestamp_desc' | 'random'
+    //           (default='timestamp')
+    //
+    findUserLogEntries(filter, cb) {
+        return this._findLogEntries('user_event_log', filter, cb);
+    }
+
+    _refreshSystemStat(statName) {
+        switch (statName) {
+            case SysProps.SystemLoadStats:
+            case SysProps.SystemMemoryStats:
+                return this._refreshSysInfoStats();
+
+            case SysProps.ProcessTrafficStats:
+                return this._refreshProcessTrafficStats();
+        }
+    }
+
+    _refreshSysInfoStats() {
+        const now = Math.floor(Date.now() / 1000);
+        if (now < this.lastSysInfoStatsRefresh + 5) {
+            return;
+        }
+
+        this.lastSysInfoStatsRefresh = now;
+
+        const basicSysInfo = {
+            mem: 'total, free',
+            currentLoad: 'avgLoad, currentLoad',
+        };
+
+        SysInfo.get(basicSysInfo)
+            .then(sysInfo => {
+                const memStats = {
+                    totalBytes: sysInfo.mem.total,
+                    freeBytes: sysInfo.mem.free,
+                };
+
+                this.setNonPersistentSystemStat(SysProps.SystemMemoryStats, memStats);
+
+                const loadStats = {
+                    //  Not avail on BSD, yet.
+                    average: parseFloat(
+                        _.get(sysInfo, 'currentLoad.avgLoad', 0).toFixed(2)
+                    ),
+                    current: parseFloat(
+                        _.get(sysInfo, 'currentLoad.currentLoad', 0).toFixed(2)
+                    ),
+                };
+
+                this.setNonPersistentSystemStat(SysProps.SystemLoadStats, loadStats);
+            })
+            .catch(err => {
+                //  :TODO: log me
+            });
+    }
+
+    _refreshProcessTrafficStats() {
+        const trafficStats = getActiveConnections(AllConnections).reduce(
+            (stats, conn) => {
+                stats.ingress += conn.rawSocket.bytesRead;
+                stats.egress += conn.rawSocket.bytesWritten;
+                return stats;
+            },
+            { ingress: 0, egress: 0 }
+        );
+
+        this.setNonPersistentSystemStat(SysProps.ProcessTrafficStats, trafficStats);
+    }
+
+    _refreshUserStat(client, statName, ttlSeconds) {
+        switch (statName) {
+            case UserProps.NewPrivateMailCount:
+                this._wrapUserRefreshWithCachedTTL(
+                    client,
+                    statName,
+                    this._refreshUserPrivateMailCount,
+                    ttlSeconds
+                );
+                break;
+
+            case UserProps.NewAddressedToMessageCount:
+                this._wrapUserRefreshWithCachedTTL(
+                    client,
+                    statName,
+                    this._refreshUserNewAddressedToMessageCount,
+                    ttlSeconds
+                );
+                break;
+        }
+    }
+
+    _wrapUserRefreshWithCachedTTL(client, statName, updateMethod, ttlSeconds) {
+        client.statLogRefreshCache = client.statLogRefreshCache || new Map();
+
+        const now = Math.floor(Date.now() / 1000);
+        const old = client.statLogRefreshCache.get(statName) || 0;
+        if (now < old + ttlSeconds) {
+            return;
+        }
+
+        updateMethod(client);
+        client.statLogRefreshCache.set(statName, now);
+    }
+
+    _refreshUserPrivateMailCount(client) {
+        const MsgArea = require('./message_area');
+        MsgArea.getNewMessageCountInAreaForUser(
+            client.user.userId,
+            Message.WellKnownAreaTags.Private,
+            (err, count) => {
+                if (!err) {
+                    client.user.setProperty(UserProps.NewPrivateMailCount, count);
+                }
+            }
+        );
+    }
+
+    _refreshUserNewAddressedToMessageCount(client) {
+        const MsgArea = require('./message_area');
+        MsgArea.getNewMessageCountAddressedToUser(client, (err, count) => {
+            if (!err) {
+                client.user.setProperty(UserProps.NewAddressedToMessageCount, count);
+            }
+        });
+    }
+
+    _findLogEntries(logTable, filter, cb) {
+        filter = filter || {};
+        if (!_.isString(filter.logName)) {
+            return cb(Errors.MissingParam('filter.logName is required'));
+        }
+
+        filter.resultType = filter.resultType || 'obj';
+        filter.order = filter.order || 'timestamp';
+
+        let sql;
+        if ('count' === filter.resultType) {
+            sql = `SELECT COUNT() AS count
+                FROM ${logTable}`;
+        } else {
+            sql = `SELECT timestamp, log_value
+                FROM ${logTable}`;
+        }
+
+        sql += ' WHERE log_name = ?';
+
+        if (_.isNumber(filter.userId)) {
+            sql += ` AND user_id = ${filter.userId}`;
+        }
+
+        if (filter.sessionId) {
+            sql += ` AND session_id = ${filter.sessionId}`;
+        }
+
+        if (filter.date) {
+            filter.date = moment(filter.date);
+            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format(
+                'YYYY-MM-DD'
+            )}")`;
+        }
+
+        if ('count' !== filter.resultType) {
+            switch (filter.order) {
+                case 'timestamp':
+                case 'timestamp_asc':
+                    sql += ' ORDER BY timestamp ASC';
+                    break;
+
+                case 'timestamp_desc':
+                    sql += ' ORDER BY timestamp DESC';
+                    break;
+
+                case 'random':
+                    sql += ' ORDER BY RANDOM()';
+                    break;
+            }
+        }
+
+        if (_.isNumber(filter.limit) && 0 !== filter.limit) {
+            sql += ` LIMIT ${filter.limit}`;
+        }
+
+        sql += ';';
+
+        if ('count' === filter.resultType) {
+            sysDb.get(sql, [filter.logName], (err, row) => {
+                return cb(err, row ? row.count : 0);
+            });
+        } else {
+            sysDb.all(sql, [filter.logName], (err, rows) => {
+                return cb(err, rows);
+            });
+        }
     }
 }
 

@@ -139,11 +139,14 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         //  :TODO: warn end user!
                         return self.prevMenu(cb);
                     }
+
+                    self.client.log.info(
+                        `User "${self.client.user.username}" updated configuration`
+                    );
+
                     //
                     //  New password if it's not empty
                     //
-                    self.client.log.info('User updated properties');
-
                     if (formData.value.password.length > 0) {
                         self.client.user.setNewAuthCredentials(
                             formData.value.password,
@@ -155,7 +158,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                                     );
                                 } else {
                                     self.client.log.info(
-                                        'User changed authentication credentials'
+                                        `User "${self.client.user.username}" updated authentication credentials`
                                     );
                                 }
                                 return self.prevMenu(cb);
