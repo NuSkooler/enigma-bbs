@@ -61,9 +61,19 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             extraArgs: options.extraArgs,
         });
 
-        this.config.acs = this.config.acs || DefaultACS;
-        if (!this.config.acs.includes('SC')) {
+        //
+        //  Enforce that we have at least a secure connection in our ACS check
+        //
+        this.config.acs = this.config.acs;
+        if (!this.config.acs) {
+            this.config.acs = DefaultACS;
+        } else if (!this.config.acs.includes('SC')) {
             this.config.acs = 'SC' + this.config.acs; //  secure connection at the very least
+        }
+
+        // ensure the menu instance has this setting
+        if (!_.has(options, 'menuConfig.config.acs')) {
+            _.set(options, 'menuConfig.config.acs', this.config.acs);
         }
 
         this.selectedNodeStatusIndex = -1; // no selection
