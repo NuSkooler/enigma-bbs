@@ -79,6 +79,7 @@ function getActiveConnectionList(
             isSecure: ac.session.isSecure,
             isVisible: ac.user.isVisible(),
             isAvailable: ac.user.isAvailable(),
+            remoteAddress: ac.friendlyRemoteAddress(),
         };
 
         //

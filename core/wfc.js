@@ -439,11 +439,6 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             totalFiles: fileAreaStats.totalFiles || 0,
             totalFileBytes: fileAreaStats.totalFileBytes || 0,
 
-            // totalUploads            :
-            // totalUploadBytes        :
-            // totalDownloads          :
-            // totalDownloadBytes      :
-
             //  Today's Stats
             callsToday: StatLog.getSystemStatNum(SysProps.LoginsToday),
             postsToday: StatLog.getSystemStatNum(SysProps.MessagesToday),
@@ -532,9 +527,24 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 });
             });
 
+        // If this is our first pass, we'll also update the selection
+        const firstStatusRefresh = nodeStatusView.getCount() === 0;
+
         //  :TODO: Currently this always redraws due to setItems(). We really need painters alg.; The alternative now is to compare items... yuk.
         nodeStatusView.setItems(nodeStatusItems);
         this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex); // redraws
+
+        if (firstStatusRefresh) {
+            const nodeStatusSelectionView = this.getView(
+                'main',
+                MciViewIds.main.selectedNodeStatusInfo
+            );
+            if (nodeStatusSelectionView) {
+                const item = nodeStatusView.getItems()[0];
+                this._updateNodeStatusSelection(nodeStatusSelectionView, item);
+            }
+        }
+
         return cb(null);
     }
 

@@ -5,6 +5,8 @@ title: Waiting For Caller (WFC)
 ## The Waiting For Caller (WFC) Module
 The `wfc.js` module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.
 
+![WFC](../../assets/images/wfc.png)<br/>
+
 ## Accessing the WFC
 By default, the WFC may be accessed via the `!WFC` main menu command when connected over a secure connection via a user with the proper [ACS](../configuration/acs.md). This can be configured as per any other menu in the system. Note that ENiGMA½ does not expose the WFC as a standalone application as this would be much less flexible. To connect locally, simply use your favorite terminal or for example: `ssh -l yourname localhost 8889`. See **Security** below for more information.
 

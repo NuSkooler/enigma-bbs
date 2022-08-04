@@ -300,23 +300,23 @@
 					statusAvailableIndicators: [ "N", "Y" ]
 					statusVisibleIndicators: [ "N", "Y" ]
 
-					nodeStatusSelectionFormat: "|00|11{realName}\n{serverName}"
+					nodeStatusSelectionFormat: "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}"
 				}
 				0: {
 					mci: {
 						TL16: {
 							fillChar: .
 						}
-						TL17: { width: 23 }
-						TL18: { width: 23 }
-						TL19: { width: 14 }
+						TL20: { width: 30 }
+						TL22: { width: 30 }
+						TL24: { width: 30 }
 
 						// node status
 						VM1: {
 							height: 5
 							width: 37
-							itemFormat:      "|00  |11{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
-							focusItemFormat: "|00|15> |11{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							itemFormat:      "|00  |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							focusItemFormat: "|00|10> |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
 							focusItemAtTop: false
 						}
 						// quick log

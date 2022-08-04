@@ -57,7 +57,9 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
                             .map(oe =>
                                 Object.assign(oe, {
                                     text: oe.userName,
-                                    timeOn: _.upperFirst(oe.timeOn.humanize()),
+                                    timeOn: oe.timeOn
+                                        ? _.upperFirst(oe.timeOn.humanize())
+                                        : 0, //  :TODO: fix me. We can always track time...
                                 })
                             );
 

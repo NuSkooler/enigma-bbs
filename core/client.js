@@ -100,7 +100,7 @@ function Client(/*input, output*/) {
                 // :TODO: clean this up: We have a ugly transition state in which we have a pure raw config vs a ConfigLoader in which get() must be called
                 try {
                     return this.currentThemeConfig.get();
-                } catch(e) {
+                } catch (e) {
                     return this.currentThemeConfig;
                 }
             } else {
