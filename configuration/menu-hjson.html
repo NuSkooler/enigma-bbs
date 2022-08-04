@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-01T21:06:07+00:00" />
+<meta property="article:published_time" content="2022-08-04T18:38:35+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu HSJON" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu HSJON","dateModified":"2022-08-01T21:06:07+00:00","datePublished":"2022-08-01T21:06:07+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu HSJON","dateModified":"2022-08-04T18:38:35+00:00","datePublished":"2022-08-04T18:38:35+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2249,6 +2249,38 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2275,9 +2307,13 @@
     <h2 id="menu-hjson">Menu HJSON</h2>
 <p>The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as <code class="language-plaintext highlighter-rouge">menu.hjson</code>. Throughout ENiGMA½ documentation, when <code class="language-plaintext highlighter-rouge">menu.hjson</code> is referenced, we’re actually talking about <code class="language-plaintext highlighter-rouge">config/menus/yourboardname-*.hjson</code>. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in <a href="https://hjson.org/">HJSON</a> format.</p>
 
-<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See also <a href="/enigma-bbs/configuration/hjson.html">HJSON General Information</a> for more information on the HJSON file format.</p>
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See also <a href="/enigma-bbs/configuration/hjson.html">HJSON General Information</a> for more information on the HJSON file format.</p>
+</blockquote>
 
-<p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Entries in <code class="language-plaintext highlighter-rouge">menu.hjson</code> are often referred to as <em>blocks</em> or <em>sections</em>. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:</p>
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Entries in <code class="language-plaintext highlighter-rouge">menu.hjson</code> are often referred to as <em>blocks</em> or <em>sections</em>. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:</p>
+</blockquote>
 
 <ul>
   <li>Classical navigation and menus such as Main, Messages, and Files.</li>
@@ -2295,7 +2331,9 @@
 </code></pre>
 <p>As you can see a menu can be very simple.</p>
 
-<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Remember that the top level menu may include additional files using the <code class="language-plaintext highlighter-rouge">includes</code> directive. See <a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a> for more information on this.</p>
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Remember that the top level menu may include additional files using the <code class="language-plaintext highlighter-rouge">includes</code> directive. See <a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a> for more information on this.</p>
+</blockquote>
 
 <h2 id="common-menu-entry-members">Common Menu Entry Members</h2>
 <p>Below is a table of <strong>common</strong> menu entry members. These members apply to most entries, though entries that are backed by a specialized module (ie: <code class="language-plaintext highlighter-rouge">module: bbs_list</code>) may differ. Menus that use their own module contain a <code class="language-plaintext highlighter-rouge">module</code> declaration:</p>

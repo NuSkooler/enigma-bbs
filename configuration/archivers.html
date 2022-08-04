@@ -17,11 +17,11 @@
 <meta property="og:description" content="Archivers ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The archives section of config.hjson is used to override defaults, add new handlers, and so on." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-01T21:06:07+00:00" />
+<meta property="article:published_time" content="2022-08-04T18:38:35+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Archivers" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/archivers.html"},"description":"Archivers ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The archives section of config.hjson is used to override defaults, add new handlers, and so on.","url":"/enigma-bbs/configuration/archivers.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Archivers","dateModified":"2022-08-01T21:06:07+00:00","datePublished":"2022-08-01T21:06:07+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/archivers.html"},"description":"Archivers ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The archives section of config.hjson is used to override defaults, add new handlers, and so on.","url":"/enigma-bbs/configuration/archivers.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Archivers","dateModified":"2022-08-04T18:38:35+00:00","datePublished":"2022-08-04T18:38:35+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2249,6 +2249,38 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2277,7 +2309,9 @@
 
 <p>Archivers are manged via the <code class="language-plaintext highlighter-rouge">archives:archivers</code> configuration block of <code class="language-plaintext highlighter-rouge">config.hjson</code>. Each entry in this section defines an <strong>external archiver</strong> that can be referenced in other sections of <code class="language-plaintext highlighter-rouge">config.hjson</code> as and in code. Entries define how to <code class="language-plaintext highlighter-rouge">compress</code>, <code class="language-plaintext highlighter-rouge">decompress</code> (a full archive), <code class="language-plaintext highlighter-rouge">list</code>, and <code class="language-plaintext highlighter-rouge">extract</code> (specific files from an archive).</p>
 
-<p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Generally you do not need to anything beyond installing supporting binaries. No <code class="language-plaintext highlighter-rouge">config.hjson</code> editing necessary; Please see <a href="/enigma-bbs/configuration/external-binaries.html">External Binaries</a>!</p>
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Generally you do not need to anything beyond installing supporting binaries. No <code class="language-plaintext highlighter-rouge">config.hjson</code> editing necessary; Please see <a href="/enigma-bbs/configuration/external-binaries.html">External Binaries</a>!</p>
+</blockquote>
 
 <h3 id="archiver-configuration">Archiver Configuration</h3>
 <p>Archiver entries in <code class="language-plaintext highlighter-rouge">config.hjson</code> are mostly self explanatory with the exception of <code class="language-plaintext highlighter-rouge">list</code> commands that require some additional information. The <code class="language-plaintext highlighter-rouge">args</code> member for an entry is an array of arguments to pass to <code class="language-plaintext highlighter-rouge">cmd</code>. Some variables are available to <code class="language-plaintext highlighter-rouge">args</code> that will be expanded by the system:</p>

@@ -17,11 +17,11 @@
 <meta property="og:description" content="Security Unlike in the golden era of BBSing, modern Internet-connected systems are prone to hacking attempts, eavesdropping, etc. While plain-text passwords, insecure data over Plain Old Telephone Service (POTS), and so on was good enough then, modern systems must employ protections against attacks. ENiGMA½ comes with many security features that help keep the system and your users secure — not limited to: Passwords are never stored in plain-text, but instead are stored using Password-Based Key Derivation Function 2 (PBKDF2). Even the system operator can never know your password! Alternatives to insecure Telnet logins are built in: SSH and secure WebSockets for example. A built in web server with TLS support (aka HTTPS). Optional Two-Factor Authentication (2FA) via One-Time-Password (OTP) for users, supporting Google Authenticator, Time-Based One-Time Password Algorithm (TOTP, RFC-6238), and HMAC-Based One-Time Password Algorithm (HOTP, RFC-4266)." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-01T21:06:07+00:00" />
+<meta property="article:published_time" content="2022-08-04T18:38:35+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Security" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/security.html"},"description":"Security Unlike in the golden era of BBSing, modern Internet-connected systems are prone to hacking attempts, eavesdropping, etc. While plain-text passwords, insecure data over Plain Old Telephone Service (POTS), and so on was good enough then, modern systems must employ protections against attacks. ENiGMA½ comes with many security features that help keep the system and your users secure — not limited to: Passwords are never stored in plain-text, but instead are stored using Password-Based Key Derivation Function 2 (PBKDF2). Even the system operator can never know your password! Alternatives to insecure Telnet logins are built in: SSH and secure WebSockets for example. A built in web server with TLS support (aka HTTPS). Optional Two-Factor Authentication (2FA) via One-Time-Password (OTP) for users, supporting Google Authenticator, Time-Based One-Time Password Algorithm (TOTP, RFC-6238), and HMAC-Based One-Time Password Algorithm (HOTP, RFC-4266).","url":"/enigma-bbs/configuration/security.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Security","dateModified":"2022-08-01T21:06:07+00:00","datePublished":"2022-08-01T21:06:07+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/security.html"},"description":"Security Unlike in the golden era of BBSing, modern Internet-connected systems are prone to hacking attempts, eavesdropping, etc. While plain-text passwords, insecure data over Plain Old Telephone Service (POTS), and so on was good enough then, modern systems must employ protections against attacks. ENiGMA½ comes with many security features that help keep the system and your users secure — not limited to: Passwords are never stored in plain-text, but instead are stored using Password-Based Key Derivation Function 2 (PBKDF2). Even the system operator can never know your password! Alternatives to insecure Telnet logins are built in: SSH and secure WebSockets for example. A built in web server with TLS support (aka HTTPS). Optional Two-Factor Authentication (2FA) via One-Time-Password (OTP) for users, supporting Google Authenticator, Time-Based One-Time Password Algorithm (TOTP, RFC-6238), and HMAC-Based One-Time Password Algorithm (HOTP, RFC-4266).","url":"/enigma-bbs/configuration/security.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Security","dateModified":"2022-08-04T18:38:35+00:00","datePublished":"2022-08-04T18:38:35+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2249,6 +2249,38 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2290,7 +2322,9 @@
   <li>The <a href="../servers/web-server.md">web server</a> enabled and exposed over TLS (HTTPS).</li>
 </ul>
 
-<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> For WebSockets and the web server, ENiGMA½ <em>may</em> listen on insecure channels if behind a secure web proxy.</p>
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> For WebSockets and the web server, ENiGMA½ <em>may</em> listen on insecure channels if behind a secure web proxy.</p>
+</blockquote>
 
 <h3 id="user-registration-flow">User Registration Flow</h3>
 <p>Due to the nature of 2FA/OTP, even if enabled on your system, users must opt-in and enable this feature on their account. Users must also have a valid email address such that a registration link can be sent to them. To opt-in, users must enable the option, which will cause the system to email them a registration link. Following the link provides the following:</p>
@@ -2301,9 +2335,13 @@
   <li>A confirmation prompt in which the user must enter a OTP code. If entered correctly, this validates everything is set up properly and 2FA/OTP will be enabled for the account. Backup codes will also be provided at this time. Future logins will now prompt the user for their OTP after they enter their standard password.</li>
 </ol>
 
-<p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is <strong>highly</strong> discouraged!</p>
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is <strong>highly</strong> discouraged!</p>
+</blockquote>
 
-<p><img class="emoji" title=":memo:" alt=":memo:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4dd.png" height="20" width="20"> +ops can also manually enable or disable 2FA/OTP for a user using <a href="/enigma-bbs/admin/oputil.html">oputil</a>, but this is generally discouraged.</p>
+<blockquote>
+  <p><img class="emoji" title=":memo:" alt=":memo:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4dd.png" height="20" width="20"> +ops can also manually enable or disable 2FA/OTP for a user using <a href="/enigma-bbs/admin/oputil.html">oputil</a>, but this is generally discouraged.</p>
+</blockquote>
 
 <h4 id="recovery">Recovery</h4>
 <p>In the situation that a user loses their 2FA/OTP device (such as a lost phone with Google Auth), there are some options:</p>

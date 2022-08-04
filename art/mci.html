@@ -17,11 +17,11 @@
 <meta property="og:description" content="MCI Codes ENiGMA½ supports a variety of MCI codes. Some predefined codes produce information about the current user, system, or other statistics while others are used to instantiate a View." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-01T21:06:07+00:00" />
+<meta property="article:published_time" content="2022-08-04T18:38:35+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="MCI Codes" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/mci.html"},"description":"MCI Codes ENiGMA½ supports a variety of MCI codes. Some predefined codes produce information about the current user, system, or other statistics while others are used to instantiate a View.","url":"/enigma-bbs/art/mci.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"MCI Codes","dateModified":"2022-08-01T21:06:07+00:00","datePublished":"2022-08-01T21:06:07+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/mci.html"},"description":"MCI Codes ENiGMA½ supports a variety of MCI codes. Some predefined codes produce information about the current user, system, or other statistics while others are used to instantiate a View.","url":"/enigma-bbs/art/mci.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"MCI Codes","dateModified":"2022-08-04T18:38:35+00:00","datePublished":"2022-08-04T18:38:35+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2249,6 +2249,38 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2278,9 +2310,13 @@
 <h2 id="general-information">General Information</h2>
 <p>MCI codes are composed of two characters and are prefixed with a percent (%) symbol.</p>
 
-<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: <code class="language-plaintext highlighter-rouge">%BN1</code>.</p>
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: <code class="language-plaintext highlighter-rouge">%BN1</code>.</p>
+</blockquote>
 
-<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:</p>
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:</p>
+</blockquote>
 
 <p><img src="../assets/images/mci-example1.png" alt="Example" title="MCI Colors"></p>
 
@@ -2554,7 +2590,7 @@
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">TB</code></td>
-      <td>Total amount of files on the system (formatted to appropriate bytes/megs/gigs/etc.)</td>
+      <td>Total file base size (formatted to appropriate bytes/megs/gigs/etc.)</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">TP</code></td>
@@ -2565,6 +2601,91 @@
       <td><code class="language-plaintext highlighter-rouge">PT</code></td>
       <td>Total messages posted/imported to the system <em>today</em>
 </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">FT</code></td>
+      <td>Total number of uploads to the system <em>today</em>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">FB</code></td>
+      <td>Total upload amount <em>today</em> (formatted to appropriate bytes/megs/etc. )</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DD</code></td>
+      <td>Total number of downloads from the system <em>today</em>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DB</code></td>
+      <td>Total download amount <em>today</em> (formatted to appropriate bytes/megs/etc. )</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">MB</code></td>
+      <td>System memory</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">MF</code></td>
+      <td>System <em>free</em> memory</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LA</code></td>
+      <td>System load average (e.g. 0.25)<br>(May not be available on some platforms)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CL</code></td>
+      <td>System current load percentage<br>(May not be available on some platforms)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UU</code></td>
+      <td>System uptime in friendly format</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LC</code></td>
+      <td>Last caller to the system (username)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LT</code></td>
+      <td>Time of last caller</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LD</code></td>
+      <td>Date of last caller</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">TU</code></td>
+      <td>Total number of users on the system</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">NT</code></td>
+      <td>Total <em>new</em> users <em>today</em>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">NM</code></td>
+      <td>Count of new messages <strong>address to the current user</strong> across all message areas in which they have access</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">NP</code></td>
+      <td>Count of new private mail to the current user</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">IA</code></td>
+      <td>Indicator as to rather the current user is <strong>available</strong> or not. See also <code class="language-plaintext highlighter-rouge">getStatusAvailIndicators()</code> in <a href="/enigma-bbs/art/themes.html">Themes</a>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">IV</code></td>
+      <td>Indicator as to rather the curent user is <strong>visible</strong> or not. See also <code class="language-plaintext highlighter-rouge">getStatusVisibleIndicators()</code> in <a href="/enigma-bbs/art/themes.html">Themes</a>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PI</code></td>
+      <td>Ingress bytes for the current process (since ENiGMA started up)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PE</code></td>
+      <td>Egress bytes for the current process (since ENiGMA started up)</td>
     </tr>
   </tbody>
 </table>
@@ -2602,9 +2723,11 @@
   </tbody>
 </table>
 
-<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> More are added all
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> More are added all
 the time so also check out <a href="https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js">core/predefined_mci.js</a>
 for a full listing.</p>
+</blockquote>
 
 <p><img class="emoji" title=":memo:" alt=":memo:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4dd.png" height="20" width="20"> Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.</p>
 
@@ -2708,7 +2831,9 @@ a Vertical Menu (<code class="language-plaintext highlighter-rouge">%VM</code>):
   </tbody>
 </table>
 
-<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Peek at <a href="https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js">/core/mci_view_factory.js</a> to see additional information.</p>
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Peek at <a href="https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js">/core/mci_view_factory.js</a> to see additional information.</p>
+</blockquote>
 
 <h3 id="mask-edits">Mask Edits</h3>
 <p>Mask Edits (<code class="language-plaintext highlighter-rouge">%ME</code>) use the special <code class="language-plaintext highlighter-rouge">maskPattern</code> property to control a <em>mask</em>. This can be useful for gathering dates, phone numbers, so on.</p>
@@ -2980,7 +3105,9 @@ a Vertical Menu (<code class="language-plaintext highlighter-rouge">%VM</code>):
 
 <p><img src="../assets/images/text-format-example1.png" alt="Example" title="Text Format"></p>
 
-<p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Remember that a Python <a href="https://docs.python.org/3/library/string.html#format-specification-mini-language">string format mini language</a> style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: <code class="language-plaintext highlighter-rouge">{byteSize:,}</code> may yield “1,123,456”.</p>
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Remember that a Python <a href="https://docs.python.org/3/library/string.html#format-specification-mini-language">string format mini language</a> style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: <code class="language-plaintext highlighter-rouge">{byteSize:,}</code> may yield “1,123,456”.</p>
+</blockquote>
 
 </div>
 

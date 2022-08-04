@@ -17,11 +17,11 @@
 <meta property="og:description" content="You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-01T21:06:07+00:00" />
+<meta property="article:published_time" content="2022-08-04T18:38:35+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Docker" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/docker.html"},"description":"You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website.","url":"/enigma-bbs/installation/docker.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Docker","dateModified":"2022-08-01T21:06:07+00:00","datePublished":"2022-08-01T21:06:07+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/docker.html"},"description":"You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website.","url":"/enigma-bbs/installation/docker.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Docker","dateModified":"2022-08-04T18:38:35+00:00","datePublished":"2022-08-04T18:38:35+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2249,6 +2249,38 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2314,13 +2346,17 @@ if you make any changes to your host config folder they will persist, and you ca
 
 <p><code class="language-plaintext highlighter-rouge">docker restart ENiGMABBS</code></p>
 
-<p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Configuration will be stored in <code class="language-plaintext highlighter-rouge">$(pwd)/enigma-bbs/config</code>.</p>
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Configuration will be stored in <code class="language-plaintext highlighter-rouge">$(pwd)/enigma-bbs/config</code>.</p>
+</blockquote>
 
-<p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Windows users - you’ll need to switch out <code class="language-plaintext highlighter-rouge">$(pwd)/enigma-bbs/config</code> for a Windows-style path.</p>
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Windows users - you’ll need to switch out <code class="language-plaintext highlighter-rouge">$(pwd)/enigma-bbs/config</code> for a Windows-style path.</p>
+</blockquote>
 
 <h2 id="volumes">Volumes</h2>
 
-<p>Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs 
+<p>Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs
 to be stored outside of the running container. As such, the following volumes are mountable:</p>
 
 <table>

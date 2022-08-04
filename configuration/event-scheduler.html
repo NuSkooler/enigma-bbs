@@ -17,11 +17,11 @@
 <meta property="og:description" content="Event Scheduler The ENiGMA½ scheduler allows system operators to configure arbitrary events that can can fire based on date and/or time, or by watching for changes in a file. Events can kick off internal handlers, custom modules, or binaries &amp; scripts." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-01T21:06:07+00:00" />
+<meta property="article:published_time" content="2022-08-04T18:38:35+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Event Scheduler" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/event-scheduler.html"},"description":"Event Scheduler The ENiGMA½ scheduler allows system operators to configure arbitrary events that can can fire based on date and/or time, or by watching for changes in a file. Events can kick off internal handlers, custom modules, or binaries &amp; scripts.","url":"/enigma-bbs/configuration/event-scheduler.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Event Scheduler","dateModified":"2022-08-01T21:06:07+00:00","datePublished":"2022-08-01T21:06:07+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/event-scheduler.html"},"description":"Event Scheduler The ENiGMA½ scheduler allows system operators to configure arbitrary events that can can fire based on date and/or time, or by watching for changes in a file. Events can kick off internal handlers, custom modules, or binaries &amp; scripts.","url":"/enigma-bbs/configuration/event-scheduler.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Event Scheduler","dateModified":"2022-08-04T18:38:35+00:00","datePublished":"2022-08-04T18:38:35+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2249,6 +2249,38 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2319,7 +2351,9 @@
 
 <p>An <code class="language-plaintext highlighter-rouge">@watch</code> clause monitors a specified file for changes and takes the following form: <code class="language-plaintext highlighter-rouge">@watch:&lt;path&gt;</code> where <code class="language-plaintext highlighter-rouge">&lt;path&gt;</code> is a fully qualified path.</p>
 
-<p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> If you would like to have a schedule <strong>and</strong> watch a file for changes, place the <code class="language-plaintext highlighter-rouge">@watch</code> clause second and separated with the word <code class="language-plaintext highlighter-rouge">or</code>. For example: <code class="language-plaintext highlighter-rouge">every 24 hours or @watch:/path/to/somefile.txt</code>.</p>
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> If you would like to have a schedule <strong>and</strong> watch a file for changes, place the <code class="language-plaintext highlighter-rouge">@watch</code> clause second and separated with the word <code class="language-plaintext highlighter-rouge">or</code>. For example: <code class="language-plaintext highlighter-rouge">every 24 hours or @watch:/path/to/somefile.txt</code>.</p>
+</blockquote>
 
 <h3 id="actions">Actions</h3>
 <p>Events can kick off actions by calling a method (function) provided by the system or custom module in addition to executing arbritary binaries or scripts.</p>
