@@ -30,7 +30,7 @@
         "deepdash": "^5.3.9",
         "exiftool": "^0.0.3",
         "fs-extra": "10.1.0",
-        "glob": "^7.2.0",
+        "glob": "8.0.3",
         "graceful-fs": "^4.2.10",
         "hashids": "^2.2.10",
         "hjson": "3.2.2",
