@@ -54,7 +54,7 @@
         "sqlite3-trans": "^1.2.2",
         "ssh2": "1.11.0",
         "systeminformation": "5.12.3",
-        "telnet-socket": "^0.2.3",
+        "telnet-socket": "0.2.4",
         "temptmp": "^1.1.0",
         "uuid": "8.3.2",
         "uuid-parse": "1.1.0",
