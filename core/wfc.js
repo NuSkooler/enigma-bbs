@@ -407,7 +407,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _getStatusStrings(isAvailable, isVisible) {
         const availIndicators = Array.isArray(this.config.statusAvailableIndicators)
             ? this.config.statusAvailableIndicators
-            : this.client.currentTheme.helpers.getStatusAvailableIndicators();
+            : this.client.currentTheme.helpers.getStatusAvailIndicators();
         const visIndicators = Array.isArray(this.config.statusVisibleIndicators)
             ? this.config.statusVisibleIndicators
             : this.client.currentTheme.helpers.getStatusVisibleIndicators();
