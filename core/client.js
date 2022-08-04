@@ -97,7 +97,12 @@ function Client(/*input, output*/) {
     Object.defineProperty(this, 'currentTheme', {
         get: () => {
             if (this.currentThemeConfig) {
-                return this.currentThemeConfig.get();
+                // :TODO: clean this up: We have a ugly transition state in which we have a pure raw config vs a ConfigLoader in which get() must be called
+                try {
+                    return this.currentThemeConfig.get();
+                } catch(e) {
+                    return this.currentThemeConfig;
+                }
             } else {
                 return {
                     info: {
