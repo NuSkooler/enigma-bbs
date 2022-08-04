@@ -51,6 +51,7 @@ The following MCI codes are available:
     * `userId`: User ID of authenticated node, or 0 if not yet authenticated.
     * `userName`: User name of authenticated user or "*Pre Auth*"
     * `visIndicator`: Indicator of visibility. Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).
+    * `remoteAddress`: A friendly formatted remote address such as a IPv4 or IPv6 address.
 * `VM2`: Quick log with the following format keys available:
     * `timestamp`: Log entry timestamp in `quickLogTimestampFormat` format.
     * `level`: Log entry level from Bunyan.
