@@ -249,35 +249,36 @@
 			mainMenuWaitingForCaller: {
 				config: {
 					// formats
-					quickLogTimestampFormat: "|01|02MM|08/|02DD hh:mm:ssa"
-					nowDateTimeFormat: "|00|11ddd|08, |11MMMM Do YYYY|08, |11h|08:|11mm|03a"
+					quickLogTimestampFormat: "|01|03MM|08/|03DD hh:mm:ssa"
+					nowDateTimeFormat: "|00|10ddd|08, |10MMMM Do YYYY|08, |10h|08:|10mm|02a"
 					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
 
 					// header
-					mainInfoFormat10: "|00|11{now}    {currentUserName} |08- |03Prv|08:|11{newPrivateMail} |03Addr|08:|11{newMessagesAddrTo} |08- |03Avail|08:|11{availIndicator} |03Vis|08:|11{visIndicator}"
+					mainInfoFormat10: "|00|10{now}    |10{currentUserName} |08- |02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo} |08- |02Avail|08:|10{availIndicator} |02Vis|07:|10{visIndicator}"
 
 					// today
-					mainInfoFormat11: "|00|10{callsToday:>5}"
-					mainInfoFormat12: "|00|10{postsToday:>5}"
-					mainInfoFormat13: "|00|10{uploadsToday:>2} |08/ |10{uploadBytesToday!sizeWithoutAbbr:>3} |02{uploadBytesToday!sizeAbbr}"
-					mainInfoFormat14: "|00|10{downloadsToday:>2} |08/ |10{downloadBytesToday!sizeWithoutAbbr:>3} |02{downloadBytesToday!sizeAbbr}"
-					mainInfoFormat16: "|00|10{newUsersToday:>5}"
+					mainInfoFormat11: "|00|15{callsToday:>5}"
+					mainInfoFormat12: "|00|15{postsToday:>5}"
+					mainInfoFormat13: "|00|15{newUsersToday:>5}"
+					mainInfoFormat14: "|00|15{uploadsToday:<4}"
+					mainInfoFormat15: "|00|15{downloadsToday:<4}"
+					mainInfoFormat16: "|00|15{uploadBytesToday!sizeWithoutAbbr:<5} |07{uploadBytesToday!sizeAbbr}"
+					mainInfoFormat17: "|00|15{downloadBytesToday!sizeWithoutAbbr:<5} |07{downloadBytesToday!sizeAbbr}"
+
 
 					// last login
-					mainInfoFormat15: "|00|10{lastLoginUserName:<26} |02{lastLogin}"
+					mainInfoFormat18: "|00|15{lastLoginUserName:<26} |07{lastLogin}"
 
 					// system stats
-					mainInfoFormat17: "|00|10{freeMemoryBytes!sizeWithoutAbbr} |02{freeMemoryBytes!sizeAbbr} free |08/ |10{totalMemoryBytes!sizeWithoutAbbr} |02{totalMemoryBytes!sizeAbbr}"
-					mainInfoFormat18: "|00|10{systemCurrentLoad} |02% |08/ |10{systemAvgLoad} |02load avg|08."
-					mainInfoFormat19: "|00|10{processUptimeSeconds!durationSeconds}"
+					mainInfoFormat20: "|00|15{freeMemoryBytes!sizeWithoutAbbr} |07{freeMemoryBytes!sizeAbbr} free |08/ |15{totalMemoryBytes!sizeWithoutAbbr} |07{totalMemoryBytes!sizeAbbr}"
+					mainInfoFormat22: "|00|15{systemCurrentLoad} |07% |08/ |15{systemAvgLoad} |07load avg|08."
+					mainInfoFormat24: "|00|15{processUptimeSeconds!durationSeconds} |08/ |15{processBytesIngress!sizeWithoutAbbr:>4} |07{processBytesIngress!sizeAbbr}|08/|15{processBytesEgress!sizeWithoutAbbr:>4} |07{processBytesEgress!sizeAbbr}"
 
 					// totals
-					mainInfoFormat20: "|00|10{totalCalls:>5}"
-					mainInfoFormat21: "|00|10{totalPosts:>7}"
-					mainInfoFormat22: "|00|10{totalUsers:>5}"
-					mainInfoFormat23: "|00|10{totalFiles:>4} |08/ |10{totalFileBytes!sizeWithoutAbbr:>4} |02{totalFileBytes!sizeAbbr}"
-					mainInfoFormat24: "|00|10{processBytesIngress!sizeWithoutAbbr:>5} |02{processBytesIngress!sizeAbbr}"
-					mainInfoFormat25: "|00|10{processBytesEgress!sizeWithoutAbbr:>5} |02{processBytesEgress!sizeAbbr}"
+					mainInfoFormat19: "|00|15{totalCalls:>5}"
+					mainInfoFormat21: "|00|15{totalPosts:>7}"
+					mainInfoFormat23: "|00|15{totalUsers:>5}"
+					mainInfoFormat25: "|00|15{totalFiles:>4} |08/ |15{totalFileBytes!sizeWithoutAbbr:>4} |07{totalFileBytes!sizeAbbr}"
 
 					quickLogLevel: info
 					quickLogLevelIndicators: {
@@ -299,7 +300,7 @@
 					statusAvailableIndicators: [ "N", "Y" ]
 					statusVisibleIndicators: [ "N", "Y" ]
 
-					nodeStatusSelectionFormat: "|00|10{realName}\n{serverName}"
+					nodeStatusSelectionFormat: "|00|11{realName}\n{serverName}"
 				}
 				0: {
 					mci: {
@@ -314,8 +315,8 @@
 						VM1: {
 							height: 5
 							width: 37
-							itemFormat:      "|00  |11{node:<3.2} |10{userName:<12} |02{action:<14.13} |14{serverName}"
-							focusItemFormat: "|00|15> |11{node:<3.2} |10{userName:<12} |02{action:<14.13} |14{serverName}"
+							itemFormat:      "|00  |11{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							focusItemFormat: "|00|15> |11{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
 							focusItemAtTop: false
 						}
 						// quick log
