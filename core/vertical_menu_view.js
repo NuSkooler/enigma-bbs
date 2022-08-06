@@ -50,7 +50,7 @@ function VerticalMenuView(options) {
     this.updateViewVisibleItems = function () {
         self.maxVisibleItems = Math.ceil(self.dimens.height / (self.itemSpacing + 1));
 
-        const topIndex = (this.focusItemAtTop ? throws.focusedItemIndex : 0) || 0;
+        const topIndex = (this.focusItemAtTop ? this.focusedItemIndex : 0) || 0;
 
         self.viewWindow = {
             top: topIndex,
@@ -195,7 +195,7 @@ VerticalMenuView.prototype.setFocusItemIndex = function (index) {
         ? this.items.length - index
         : this.items.length;
     if (remainAfterFocus >= this.maxVisibleItems) {
-        const topIndex = (this.focusItemAtTop ? throws.focusedItemIndex : 0) || 0;
+        const topIndex = (this.focusItemAtTop ? this.focusedItemIndex : 0) || 0;
 
         this.viewWindow = {
             top: topIndex,
