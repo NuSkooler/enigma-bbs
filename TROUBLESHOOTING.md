@@ -28,4 +28,4 @@ env CC=gcc CXX=gcc npm rebuild --build-from-source node-pty
 ### Missing Menu & Theme Entries
 One thing to be sure and check after an update is your menu/prompt HJSON configurations as well as your theme(s). The default templates are updated alongside features, but you may need to merge in fragments missing from your own.
 
-See also [Updating](./docs/admin/updating.md).
+See also [Updating](./docs/_docs/admin/updating.md)
