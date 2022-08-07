@@ -4,10 +4,11 @@
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
-## Features Available Now
- * Multi platform: Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
+## Features
+Below are just some of the features ENiGMA½ supports out of the box:
+ * **Multi platform** — Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
  * Unlimited multi node support (for all those BBS "callers"!)
- * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based [mods](docs/modding/existing-mods.md)
+ * **Highly customizable** via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based [mods](docs/modding/existing-mods.md)
  * [MCI support](docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
@@ -16,14 +17,15 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Renegade style [pipe color codes](./docs/configuration/colour-codes.md).
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
- * Support for 2-Factor Authentication with One-Time-Passwords
+ * Support for **2-Factor Authentication** with One-Time-Passwords
  * [Door support](docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), [Exodus](https://oddnetwork.org/exodus/) and [CombatNet](http://combatnet.us/) support!
- * [Bunyan](https://github.com/trentm/node-bunyan) logging!
+ * Structured [Bunyan](https://github.com/trentm/node-bunyan) logging!
  * [Message networks](docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be exposed via [Gopher](docs/servers/gopher.md), or [NNTP](docs/servers/nntp.md)!
  * [Gazelle](https://github.com/WhatCD/Gazelle) inspired File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](docs/servers/web-server.md). Legacy X/Y/Z modem also supported!
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
  * ANSI support in the Full Screen Editor (FSE), file descriptions, etc.
- * A built in achievement system. BBSing gamified!
+ * Expandable **achievement system** — BBSing gamified!
+ * A remote accessible Waiting For Caller (WFC)!
 
  ...and much much more. Please check out [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features!
 
@@ -32,7 +34,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 
 ## Installation
 On most *nix systems simply run the following from your terminal:
-```
+```bash
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
@@ -47,7 +49,7 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 * See [Discussions](https://github.com/NuSkooler/enigma-bbs/discussions) and [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
 * IRC: **#enigma-bbs** on **irc.libera.chat:6697(TLS)** ([webchat](https://web.libera.chat/gamja/?channels=#enigma-bbs))
-* FSX_ENG on [fsxNet](http://bbs.geek.nz/#fsxNet) or ARK_ENIG on [ArakNet](https://www.araknet.xyz/) available on many fine boards
+* `FSX_ENG` on [fsxNet](http://bbs.geek.nz/#fsxNet) or `ARK_ENIG` on [ArakNet](https://www.araknet.xyz/) available on many fine boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
 
