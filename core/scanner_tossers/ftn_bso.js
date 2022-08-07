@@ -2801,10 +2801,13 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                     //
                     fse.exists(importSchedule.watchFile, exists => {
                         if (exists) {
-                            tryImportNow(makeImportMsg('exists', eventPath), {
-                                eventPath: importSchedule.watchFile,
-                                event: 'exists',
-                            });
+                            tryImportNow(
+                                makeImportMsg('exists', importSchedule.watchFile),
+                                {
+                                    eventPath: importSchedule.watchFile,
+                                    event: 'exists',
+                                }
+                            );
                         }
                     });
                 }
