@@ -1639,10 +1639,10 @@ function FTNMessageScanTossModule() {
                             //
                             //  No local area configured for this import
                             //
-                            //  :TODO: Handle the "catch all" area bucket case if configured
+                            //  :TODO: Handle the "catch all" area bucket case if configured -> email with area info/etc.? catchAll: enabled, areaTag, prefixMsg
                             Log.warn(
                                 { areaTag: areaTag },
-                                'No local area configured for this packet file!'
+                                `No local message area for "${areaTag}"`
                             );
 
                             //  bump generic failure
@@ -2738,6 +2738,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
             const importSchedule = this.parseScheduleString(
                 this.moduleConfig.schedule.import
             );
+
             if (importSchedule) {
                 Log.debug(
                     {
@@ -2766,6 +2767,19 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                         glob: `**/${paths.basename(importSchedule.watchFile)}`,
                     });
 
+                    const makeImportMsg = (e, path) => {
+                        const indicator =
+                            {
+                                change: '~',
+                                add: '+',
+                                delete: '-',
+                                exists: '=',
+                            }[e] || '';
+                        return `Import/toss due to @watch (${indicator}): ${paths.basename(
+                            path
+                        )}`;
+                    };
+
                     ['change', 'add', 'delete'].forEach(event => {
                         watcher.on(event, (fileName, fileRoot) => {
                             const eventPath = paths.join(fileRoot, fileName);
@@ -2773,7 +2787,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                                 paths.join(fileRoot, fileName) ===
                                 importSchedule.watchFile
                             ) {
-                                tryImportNow('Performing import/toss due to @watch', {
+                                tryImportNow(makeImportMsg(event, eventPath), {
                                     eventPath,
                                     event,
                                 });
@@ -2787,9 +2801,9 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                     //
                     fse.exists(importSchedule.watchFile, exists => {
                         if (exists) {
-                            tryImportNow('Performing import/toss due to @watch', {
+                            tryImportNow(makeImportMsg(event, eventPath), {
                                 eventPath: importSchedule.watchFile,
-                                event: 'initial exists',
+                                event: 'exists',
                             });
                         }
                     });
