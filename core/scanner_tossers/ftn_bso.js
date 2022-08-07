@@ -2801,7 +2801,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                     //
                     fse.exists(importSchedule.watchFile, exists => {
                         if (exists) {
-                            tryImportNow(makeImportMsg(event, eventPath), {
+                            tryImportNow(makeImportMsg('exists', eventPath), {
                                 eventPath: importSchedule.watchFile,
                                 event: 'exists',
                             });
