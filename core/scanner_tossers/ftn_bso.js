@@ -2775,7 +2775,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                                 delete: '-',
                                 exists: '=',
                             }[e] || '';
-                        return `Import/toss due to @watch (${indicator}): ${paths.basename(
+                        return `Import/toss due to @watch [${indicator}]: ${paths.basename(
                             path
                         )}`;
                     };
