@@ -9,6 +9,6 @@ Menu entries found within `menu.hjson` are backed by *menu modules*.
 TODO
 
 ### Lifecycle
-TODO
+![Basic Menu Lifecycle](../../assets/images/basic_menu_lifecycle.png)
 
 
