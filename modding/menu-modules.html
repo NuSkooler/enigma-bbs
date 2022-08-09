@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.1" />
 <meta property="og:title" content="Menu Modules" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Menu Modules All menu entries found within menu.hjson are backed by menu modules. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from MenuModule. More on this below." />
-<meta property="og:description" content="Menu Modules All menu entries found within menu.hjson are backed by menu modules. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from MenuModule. More on this below." />
+<meta name="description" content="Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below." />
+<meta property="og:description" content="Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-09T02:15:50+00:00" />
+<meta property="article:published_time" content="2022-08-09T04:19:44+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu Modules" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"description":"Menu Modules All menu entries found within menu.hjson are backed by menu modules. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from MenuModule. More on this below.","url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu Modules","dateModified":"2022-08-09T02:15:50+00:00","datePublished":"2022-08-09T02:15:50+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"description":"Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below.","url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu Modules","dateModified":"2022-08-09T04:19:44+00:00","datePublished":"2022-08-09T04:19:44+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2305,10 +2305,14 @@
                 <div class="page">
     <h1 class="page-title">Menu Modules</h1>
     <h2 id="menu-modules">Menu Modules</h2>
-<p>All menu entries found within <code class="language-plaintext highlighter-rouge">menu.hjson</code> are backed by <em>menu modules</em>. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from <code class="language-plaintext highlighter-rouge">MenuModule</code>. More on this below.</p>
+<p>From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within <code class="language-plaintext highlighter-rouge">menu.hjson</code> are backed by <em>Menu Modules</em>. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from <code class="language-plaintext highlighter-rouge">MenuModule</code>. More on this below.</p>
 
 <blockquote>
   <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Remember that ENiGMA does not impose any stucture to your system! The “flow” of all <code class="language-plaintext highlighter-rouge">menu.hjson</code> entries is up to you!</p>
+</blockquote>
+
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> If the <code class="language-plaintext highlighter-rouge">module</code> entry is not present in a <code class="language-plaintext highlighter-rouge">menu.hjson</code> entry, the system automatically uses <a href="/core/standard_menu.js">standard_menu.js</a>.</p>
 </blockquote>
 
 <h2 id="creating-a-new-module">Creating a New Module</h2>
@@ -2319,6 +2323,37 @@
   <span class="kd">constructor</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span> <span class="p">{</span>
     <span class="k">super</span><span class="p">(</span><span class="nx">options</span><span class="p">);</span>
   <span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<p>Next, override the appropriate methods to add some functionality! Below is an example fragment overriding just <code class="language-plaintext highlighter-rouge">initSequence()</code>:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">initSequence</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">async</span><span class="p">.</span><span class="nx">series</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="nx">callback</span> <span class="o">=&gt;</span> <span class="p">{</span>
+                <span class="c1">// call base method</span>
+                <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nx">beforeArt</span><span class="p">(</span><span class="nx">callback</span><span class="p">);</span>
+            <span class="p">},</span>
+            <span class="nx">callback</span> <span class="o">=&gt;</span> <span class="p">{</span>
+                <span class="c1">// a private method to display a main "page"</span>
+                <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nx">_displayMainPage</span><span class="p">(</span><span class="kc">false</span><span class="p">,</span> <span class="nx">callback</span><span class="p">);</span>
+            <span class="p">},</span>
+        <span class="p">],</span>
+        <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="k">this</span><span class="p">.</span><span class="nx">finishedLoading</span><span class="p">();</span>
+        <span class="p">}</span>
+    <span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="moduleinfo">ModuleInfo</h2>
+<p>To register your module with the system, include a <code class="language-plaintext highlighter-rouge">ModuleInfo</code> declaration in your exports:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">exports</span><span class="p">.</span><span class="nx">ModuleInfo</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Super Dope Mod</span><span class="dl">'</span><span class="p">,</span>
+  <span class="na">desc</span><span class="p">:</span> <span class="dl">'</span><span class="s1">...a super dope mod, duh.</span><span class="dl">'</span><span class="p">,</span>
+  <span class="na">author</span><span class="p">:</span> <span class="dl">'</span><span class="s1">You!</span><span class="dl">'</span><span class="p">,</span>
 <span class="p">};</span>
 </code></pre></div></div>
 
@@ -2363,9 +2398,42 @@
   <li><code class="language-plaintext highlighter-rouge">promptForInput()</code></li>
 </ul>
 
+<p><code class="language-plaintext highlighter-rouge">standardMCIReadyHandler()</code>: This is a standard and commonly used <code class="language-plaintext highlighter-rouge">mciReady()</code> implemenation:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">mciReady</span><span class="p">(</span><span class="nx">mciData</span><span class="p">,</span> <span class="nx">cb</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nx">standardMCIReadyHandler</span><span class="p">(</span><span class="nx">mciData</span><span class="p">,</span> <span class="nx">cb</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
 <blockquote>
   <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Search the code for the above methods to see how they are used in the base system!</p>
 </blockquote>
+
+<h2 id="menu-methods">Menu Methods</h2>
+<p>Form handler methods specified by <code class="language-plaintext highlighter-rouge">@method:someName</code> in your <code class="language-plaintext highlighter-rouge">menu.hjson</code> entries map to those found in your module’s <code class="language-plaintext highlighter-rouge">menuMethods</code> object. That is, <code class="language-plaintext highlighter-rouge">this.menuMethods</code> and have the following signature <code class="language-plaintext highlighter-rouge">(formData, extraArgs, cb)</code>. For example, consider the following <code class="language-plaintext highlighter-rouge">menu.hjson</code> fragment:</p>
+
+<pre><code class="language-hjson">actionKeys: [
+  {
+    keys: [ "a", "shift + a" ]
+    action: @method:toggleAvailable
+  }
+]
+</code></pre>
+
+<p>We can handle this in our module as such:</p>
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">exports</span><span class="p">.</span><span class="nx">getModule</span> <span class="o">=</span> <span class="kd">class</span> <span class="nx">MyFancyModule</span> <span class="kd">extends</span> <span class="nx">MenuModule</span> <span class="p">{</span>
+  <span class="kd">constructor</span><span class="p">(</span><span class="nx">options</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">super</span><span class="p">(</span><span class="nx">options</span><span class="p">);</span>
+
+    <span class="k">this</span><span class="p">.</span><span class="nx">menuMethods</span> <span class="o">=</span> <span class="p">{</span>
+      <span class="na">toggleAvailable</span><span class="p">:</span> <span class="p">(</span><span class="nx">formData</span><span class="p">,</span> <span class="nx">extraArgs</span><span class="p">,</span> <span class="nx">cb</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="c1">// ...do something fancy...</span>
+        <span class="k">return</span> <span class="nx">cb</span><span class="p">(</span><span class="kc">null</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">};</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
 
 </div>
 
