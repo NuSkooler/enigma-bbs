@@ -3,9 +3,11 @@ layout: page
 title: Menu Modules
 ---
 ## Menu Modules
-All menu entries found within `menu.hjson` are backed by *menu modules*. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from `MenuModule`. More on this below.
+From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within `menu.hjson` are backed by *Menu Modules*. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from `MenuModule`. More on this below.
 
 > :information_source: Remember that ENiGMA does not impose any stucture to your system! The "flow" of all `menu.hjson` entries is up to you!
+
+> :bulb: If the `module` entry is not present in a `menu.hjson` entry, the system automatically uses [standard_menu.js](/core/standard_menu.js).
 
 ## Creating a New Module
 At the highest level, to create a new custom menu or mod, inherit from `MenuModule` and expose it via the `getModule` exported method:
@@ -16,6 +18,39 @@ exports.getModule = class MyFancyModule extends MenuModule {
   constructor(options) {
     super(options);
   }
+};
+```
+
+Next, override the appropriate methods to add some functionality! Below is an example fragment overriding just `initSequence()`:
+
+```javascript
+initSequence() {
+    async.series(
+        [
+            callback => {
+                // call base method
+                return this.beforeArt(callback);
+            },
+            callback => {
+                // a private method to display a main "page"
+                return this._displayMainPage(false, callback);
+            },
+        ],
+        () => {
+            this.finishedLoading();
+        }
+    );
+}
+```
+
+## ModuleInfo
+To register your module with the system, include a `ModuleInfo` declaration in your exports:
+
+```javascript
+exports.ModuleInfo = {
+  name: 'Super Dope Mod',
+  desc: '...a super dope mod, duh.',
+  author: 'You!',
 };
 ```
 
@@ -53,4 +88,40 @@ The following methods take a single input to specify style, defaulting to `short
 * `promptForInput()`
 
 
+`standardMCIReadyHandler()`: This is a standard and commonly used `mciReady()` implemenation:
+
+```javascript
+mciReady(mciData, cb) {
+  return this.standardMCIReadyHandler(mciData, cb);
+}
+```
+
 > :information_source: Search the code for the above methods to see how they are used in the base system!
+
+## Menu Methods
+Form handler methods specified by `@method:someName` in your `menu.hjson` entries map to those found in your module's `menuMethods` object. That is, `this.menuMethods` and have the following signature `(formData, extraArgs, cb)`. For example, consider the following `menu.hjson` fragment:
+
+```hjson
+actionKeys: [
+  {
+    keys: [ "a", "shift + a" ]
+    action: @method:toggleAvailable
+  }
+]
+```
+
+We can handle this in our module as such:
+```javascript
+exports.getModule = class MyFancyModule extends MenuModule {
+  constructor(options) {
+    super(options);
+
+    this.menuMethods = {
+      toggleAvailable: (formData, extraArgs, cb) => {
+        // ...do something fancy...
+        return cb(null);
+      }
+    };
+  }
+}
+```
