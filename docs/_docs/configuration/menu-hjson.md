@@ -419,8 +419,7 @@ clientSelectEncoding: {
 }
 ```
 
-The artfile for this should not contain extended characters, a simple file list 
-the following should work:
+The artfile for this should not contain extended characters, a simple file list the following should work:
 
 ```
 Choose your encoding:
@@ -429,13 +428,10 @@ Choose your encoding:
 ```
 
 ### Auto selection example
-
 The above example can be further extended to default to the automatically detected encoding by using a slightly more complicated menu system:
 
 
-
 ```hjson
-
 telnetConnected: {
     art: CONNECT
     next: [
@@ -525,7 +521,7 @@ clientSelectCP437: {
         }
     }
 }
-
+```
 Use the same artfile as the previous example.
 
 *Note*: This example can be shortened by using @reference sections if desired.
