@@ -29,19 +29,28 @@ Methods indicated above with `()` in their name such as `enter()` are overridabl
 ## MenuModule Helper Methods
 Many helper methods exist and are available to code inheriting from `MenuModule`. Below are some examples. Poke around at [menu_module.js](../../../core/menu_module.js) to discover more!
 
+### Views & View Controller
 * `displayAsset()`
 * `prepViewController()`
 * `prepViewControllerWithArt()`
-* `promptForInput()`
 * `displayArtAndPrepViewController()`
 * `setViewText()`
 * `getView()`
 * `updateCustomViewTextsWithFilter()`
 * `refreshPredefinedMciViewsByCode()`
+
+### Validation
 * `validateMCIByViewIds()`
 * `validateConfigFields()`
+
+### Date/Time Helpers
+The following methods take a single input to specify style, defaulting to `short`:
 * `getDateFormat()`
 * `getTimeFormat()`
 * `getDateTimeFormat()`
+
+### Misc
+* `promptForInput()`
+
 
 > :information_source: Search the code for the above methods to see how they are used in the base system!
