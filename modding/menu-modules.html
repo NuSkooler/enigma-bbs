@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu Modules All menu entries found within menu.hjson are backed by menu modules. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from MenuModule. More on this below." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-07T19:07:07+00:00" />
+<meta property="article:published_time" content="2022-08-09T02:15:50+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu Modules" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"description":"Menu Modules All menu entries found within menu.hjson are backed by menu modules. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from MenuModule. More on this below.","url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu Modules","dateModified":"2022-08-07T19:07:07+00:00","datePublished":"2022-08-07T19:07:07+00:00","@context":"https://schema.org"}</script>
+{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"description":"Menu Modules All menu entries found within menu.hjson are backed by menu modules. Menus are any screen or sectionin within the system. A main menu, a door launcher, and MRC chat are all examples of menus. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, simply inherit from MenuModule. More on this below.","url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu Modules","dateModified":"2022-08-09T02:15:50+00:00","datePublished":"2022-08-09T02:15:50+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2332,21 +2332,35 @@
 <h2 id="menumodule-helper-methods">MenuModule Helper Methods</h2>
 <p>Many helper methods exist and are available to code inheriting from <code class="language-plaintext highlighter-rouge">MenuModule</code>. Below are some examples. Poke around at <a href="../../../core/menu_module.js">menu_module.js</a> to discover more!</p>
 
+<h3 id="views--view-controller">Views &amp; View Controller</h3>
 <ul>
   <li><code class="language-plaintext highlighter-rouge">displayAsset()</code></li>
   <li><code class="language-plaintext highlighter-rouge">prepViewController()</code></li>
   <li><code class="language-plaintext highlighter-rouge">prepViewControllerWithArt()</code></li>
-  <li><code class="language-plaintext highlighter-rouge">promptForInput()</code></li>
   <li><code class="language-plaintext highlighter-rouge">displayArtAndPrepViewController()</code></li>
   <li><code class="language-plaintext highlighter-rouge">setViewText()</code></li>
   <li><code class="language-plaintext highlighter-rouge">getView()</code></li>
   <li><code class="language-plaintext highlighter-rouge">updateCustomViewTextsWithFilter()</code></li>
   <li><code class="language-plaintext highlighter-rouge">refreshPredefinedMciViewsByCode()</code></li>
+</ul>
+
+<h3 id="validation">Validation</h3>
+<ul>
   <li><code class="language-plaintext highlighter-rouge">validateMCIByViewIds()</code></li>
   <li><code class="language-plaintext highlighter-rouge">validateConfigFields()</code></li>
+</ul>
+
+<h3 id="datetime-helpers">Date/Time Helpers</h3>
+<p>The following methods take a single input to specify style, defaulting to <code class="language-plaintext highlighter-rouge">short</code>:</p>
+<ul>
   <li><code class="language-plaintext highlighter-rouge">getDateFormat()</code></li>
   <li><code class="language-plaintext highlighter-rouge">getTimeFormat()</code></li>
   <li><code class="language-plaintext highlighter-rouge">getDateTimeFormat()</code></li>
+</ul>
+
+<h3 id="misc">Misc</h3>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">promptForInput()</code></li>
 </ul>
 
 <blockquote>
