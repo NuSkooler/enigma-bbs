@@ -120,8 +120,19 @@ Methods indicated above with `()` in their name such as `enter()` are overridabl
 Many helper methods exist and are available to code inheriting from `MenuModule`. Below are some examples. Poke around at [menu_module.js](../../../core/menu_module.js) to discover more!
 
 ### Views & View Controller
-* `displayAsset()`
-* `prepViewController()`
+#### `displayAsset(name | Buffer, options, callback)`:
+Display an asset by `name` or by supplying an `Buffer`.
+`options` is an optional Object with any of the following properties:
+* `clearScreen` (Boolean): Should the screen be cleared first?
+* `encoding` (String): Encoding of `Buffer` if used. Defaults to `cp437`.
+* `font` (String): SyncTERM style font to use.
+* `trailingLF` (Boolean): Should a trailing LF be allowed?
+* `startRow` (Number): Row in which to start drawing at
+
+#### `prepViewController(name, formId, mciMap, callback)`:
+Prepares the menu's View Controller for a form of `name` and `formId` using the supplied `mciMap`. `callback` has the following siguature: `(err, viewController, created)` where `created` is `true` if a new View Controller was made.
+
+
 * `prepViewControllerWithArt()`
 * `displayArtAndPrepViewController()`
 * `setViewText()`

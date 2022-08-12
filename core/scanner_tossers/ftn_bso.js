@@ -1129,7 +1129,10 @@ function FTNMessageScanTossModule() {
                     ],
                     err => {
                         if (err) {
-                            Log.warn({ error: err.message }, 'Error exporting message');
+                            Log.warn(
+                                { error: err.message },
+                                `Error exporting message: ${err.message}`
+                            );
                         }
                         return nextMessageOrUuid(null);
                     }
@@ -1699,7 +1702,7 @@ function FTNMessageScanTossModule() {
                                         uuid: message.messageUuid,
                                         MSGID: msgId,
                                     },
-                                    'Not importing non-unique message'
+                                    `Not importing non-unique message "${message.subject}"`
                                 );
 
                                 return next(null);
@@ -1726,6 +1729,7 @@ function FTNMessageScanTossModule() {
 
                     Log.warn(finalStats, 'Import completed with error(s)');
                 } else {
+                    //  :TODO: Output basic stats - total counts - to this message:
                     Log.info(finalStats, 'Import complete');
                 }
 
@@ -1816,7 +1820,9 @@ function FTNMessageScanTossModule() {
                                                 path: paths.join(importDir, packetFile),
                                                 error: err.toString(),
                                             },
-                                            'Failed to import packet file'
+                                            `Failed to import packet file "${paths.basename(
+                                                packetFile
+                                            )}"`
                                         );
 
                                         rejects.push(packetFile);
@@ -2360,7 +2366,9 @@ function FTNMessageScanTossModule() {
                             reason: err.reason,
                             tic: ticFileInfo.filePath,
                         },
-                        'Failed to import/update TIC'
+                        `Failed to import/update TIC for "${paths.basename(
+                            ticFileInfo.filePath
+                        )}"`
                     );
                 } else {
                     Log.info(
@@ -2369,7 +2377,9 @@ function FTNMessageScanTossModule() {
                             file: ticFileInfo.filePath,
                             area: localInfo.areaTag,
                         },
-                        'TIC imported successfully'
+                        `TIC imported "${paths.basename(ticFileInfo.filePath)}" -> ${
+                            localInfo.areaTag
+                        }`
                     );
                 }
                 return cb(err);
