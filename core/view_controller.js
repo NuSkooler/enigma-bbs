@@ -589,7 +589,7 @@ ViewController.prototype.loadFromPromptConfig = function (options, cb) {
                 });
             },
             function applyViewConfiguration(callback) {
-                if (_.isObject(promptConfig.mci)) {
+                if (promptConfig && _.isObject(promptConfig.mci)) {
                     self.applyViewConfig(promptConfig, function configApplied(err, info) {
                         initialFocusId = info.initialFocusId;
                         callback(err);
