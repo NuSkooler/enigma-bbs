@@ -20,6 +20,12 @@ The system allows any user with the proper security to access the WFC / system o
 
 > :information_source: Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group. See also [Security](../configuration/security.md) for more information on keeping your system secure!
 
+Adding your user to the `wfc` group:
+```bash
+# Repalce USERNAME with your leet +op username
+./oputil.js user group USERNAME "+wfc"
+```
+
 To change the ACS required, specify a alternative `acs` in the `config` block. For example:
 ```hjson
 mainMenuWaitingForCaller: {
@@ -29,6 +35,8 @@ mainMenuWaitingForCaller: {
     }
 }
 ```
+
+> :bulb: You can add additional co-ops by adjust the required ACS.
 
 > :lock: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
 

@@ -145,7 +145,7 @@ Prepares the menu's View Controller for a form of `name` and `formId` using the 
 * `validateConfigFields()`
 
 ### Date/Time Helpers
-The following methods take a single input to specify style, defaulting to `short`:
+The following methods take a single input to specify style, defaulting to `short`. If your menu or theme `config` block specifies a cooresponding value such as `dateFormat` or `dateTimeFormat`, that value will be used, else standard fallbacks apply:
 * `getDateFormat()`
 * `getTimeFormat()`
 * `getDateTimeFormat()`
@@ -154,13 +154,21 @@ The following methods take a single input to specify style, defaulting to `short
 * `promptForInput()`
 
 
-`standardMCIReadyHandler()`: This is a standard and commonly used `mciReady()` implemenation:
+`standardMCIReadyHandler()`: This is a standard and commonly used `mciReady()` implementation:
 
 ```javascript
 mciReady(mciData, cb) {
   return this.standardMCIReadyHandler(mciData, cb);
 }
 ```
+
+Where `mciData` is a Object mapping [MCI codes](../art/mci.md) such as `TL2` to their properties:
+* `SGR`: Graphics rendition
+* `focusSGR` (Only present if art contained both, ie: `TL2^[0;mTL2`)
+* `position` (Array of Number): Position in [Row, Column] order
+* `args` (Array): Any arguments to the MCI code
+* `code` (String): The code itself, such as `TL`
+* `id` (Number): The MCI code's ID such as `1`
 
 > :information_source: Search the code for the above methods to see how they are used in the base system!
 

@@ -1,7 +1,7 @@
 # Introduction
 This document covers basic upgrade notes for major ENiGMA½ version updates.
 
-> :information_source: Be sure to read the version-to-version upgrade notes below for each upgrade!
+> :information_source: **Be sure to read the version-to-version upgrade notes below** for each upgrade!
 
 # Before Upgrading
 * Always back up your system! (See [Administration](./docs/admin/administration.md))
@@ -27,9 +27,8 @@ npm install # or simply 'yarn'
 ```
 
 # Problems
-Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
-[file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
-
+1. Check [TROUBLESHOOTING](TROUBLESHOOTING.md) first.
+2. Report your issue on Xibalba BBS, hop in #`enigma-bbs` on FreeNode and chat, or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues) if you believe you've found a bug or missing feature.
 
 # 0.0.12-beta to 0.0.13-beta
 * To enable the new Waiting for Caller (WFC) support, please see [WFC](docs/modding/wfc.md).
@@ -38,22 +37,24 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 
 ```hjson
 {
-
   term: {
-    // checkUtf8Encoding requires the use of cursor position reports, which are not supported on all terminals.
-    // Using this with a terminal that does not support cursor position reports results in a 2 second delay
-    // during the connect process, but provides better autoconfiguration of utf-8
+    // checkUtf8Encoding requires the use of cursor
+    // position reports, which are not supported on all terminals.
+    // Using this with a terminal that does not support cursor
+    // position reports results in a 2 second delay during the
+    // connect process, but provides better autoconfiguration of utf-8
     checkUtf8Encoding: true
 
 
-    // Checking the ANSI home position also requires the use of cursor position reports, which are not
-    // supported on all terminals. Using this with a terminal that does not support cursor position reports
-    // results in a 3 second delay during the connect process, but works around positioning problems with
+    // Checking the ANSI home position also requires the use of
+    // cursor position reports, which are not supported on all
+    /// terminals. Using this with a terminal that does not support
+    // cursor position reports results in a 3 second delay during
+    // the connect process, but works around positioning problems with
     // non-standard terminals.
     checkAnsiHomePosition: true
   }
 }
-
 ```
 
 In addition to these, there are also new options for `term.cp437TermList` and `term.utf8TermList`. Under most circumstances these should not need to be changed. If you want to customize these lists, more information is available in `config_default.js`
