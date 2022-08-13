@@ -2793,10 +2793,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                     ['change', 'add', 'delete'].forEach(event => {
                         watcher.on(event, (fileName, fileRoot) => {
                             const eventPath = paths.join(fileRoot, fileName);
-                            if (
-                                paths.join(fileRoot, fileName) ===
-                                importSchedule.watchFile
-                            ) {
+                            if (eventPath === importSchedule.watchFile) {
                                 tryImportNow(makeImportMsg(event, eventPath), {
                                     eventPath,
                                     event,
