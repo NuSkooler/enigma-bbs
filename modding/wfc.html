@@ -17,11 +17,11 @@
 <meta property="og:description" content="The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-12T20:28:42+00:00" />
+<meta property="article:published_time" content="2022-08-13T01:22:10+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Waiting For Caller (WFC)" />
 <script type="application/ld+json">
-{"description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","url":"/enigma-bbs/modding/wfc.html","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@type":"BlogPosting","headline":"Waiting For Caller (WFC)","dateModified":"2022-08-12T20:28:42+00:00","datePublished":"2022-08-12T20:28:42+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"@context":"https://schema.org"}</script>
+{"description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","url":"/enigma-bbs/modding/wfc.html","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@type":"BlogPosting","headline":"Waiting For Caller (WFC)","dateModified":"2022-08-13T01:22:10+00:00","datePublished":"2022-08-13T01:22:10+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2325,6 +2325,11 @@
   <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Due to the above, the WFC screen is <strong>disabled</strong> by default as at a minimum, you’ll need to add your user to the <code class="language-plaintext highlighter-rouge">wfc</code> group. See also <a href="/enigma-bbs/configuration/security.html">Security</a> for more information on keeping your system secure!</p>
 </blockquote>
 
+<p>Adding your user to the <code class="language-plaintext highlighter-rouge">wfc</code> group:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Repalce USERNAME with your leet +op username</span>
+./oputil.js user group USERNAME <span class="s2">"+wfc"</span>
+</code></pre></div></div>
+
 <p>To change the ACS required, specify a alternative <code class="language-plaintext highlighter-rouge">acs</code> in the <code class="language-plaintext highlighter-rouge">config</code> block. For example:</p>
 <pre><code class="language-hjson">mainMenuWaitingForCaller: {
     config: {
@@ -2333,6 +2338,10 @@
     }
 }
 </code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> You can add additional co-ops by adjust the required ACS.</p>
+</blockquote>
 
 <blockquote>
   <p><img class="emoji" title=":lock:" alt=":lock:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f512.png" height="20" width="20"> ENiGMA½ will enforce ACS of at least <code class="language-plaintext highlighter-rouge">SC</code> (secure connection)</p>
