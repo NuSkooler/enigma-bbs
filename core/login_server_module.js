@@ -10,6 +10,7 @@ const UserProps = require('./user_property.js');
 
 //  deps
 const _ = require('lodash');
+const moment = require('moment');
 
 module.exports = class LoginServerModule extends ServerModule {
     constructor() {
@@ -87,8 +88,12 @@ module.exports = class LoginServerModule extends ServerModule {
             clientConns.removeClient(client);
         });
 
-        client.on('idle timeout', () => {
-            client.log.info('User idle timeout expired');
+        client.on('idle timeout', idleLogoutSeconds => {
+            client.log.info(
+                `Node ${client.node} idle timeout (${moment
+                    .duration(idleLogoutSeconds, 'seconds')
+                    .humanize()}) expired; Kicking`
+            );
 
             client.menuStack.goto('idleLogoff', err => {
                 if (err) {

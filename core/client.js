@@ -513,7 +513,7 @@ Client.prototype.startIdleMonitor = function () {
             idleLogoutSeconds > 0 &&
             nowMs - this.lastActivityTime >= idleLogoutSeconds * 1000
         ) {
-            this.emit('idle timeout');
+            this.emit('idle timeout', idleLogoutSeconds);
         }
     }, 1000 * 60);
 };

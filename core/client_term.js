@@ -44,7 +44,7 @@ function ClientTerminal(output) {
             if (iconv.encodingExists(enc)) {
                 Log.info(
                     { encoding: enc, currentEncoding: outputEncoding },
-                    'Setting client encoding.'
+                    `Output encoding changed to ${enc}`
                 );
                 outputEncoding = enc;
             } else {
