@@ -2778,16 +2778,9 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                     });
 
                     const makeImportMsg = (e, path) => {
-                        const indicator =
-                            {
-                                change: '~',
-                                add: '+',
-                                delete: '-',
-                                exists: '=',
-                            }[e] || '';
-                        return `Import/toss due to @watch [${indicator}]: ${paths.basename(
+                        return `Import/toss due to @watch[${e}] "${paths.basename(
                             path
-                        )}`;
+                        )}"`;
                     };
 
                     ['change', 'add', 'delete'].forEach(event => {
@@ -2806,8 +2799,9 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                     //  If the watch file already exists, kick off now
                     //  https://github.com/NuSkooler/enigma-bbs/issues/122
                     //
-                    fse.exists(importSchedule.watchFile, exists => {
-                        if (exists) {
+                    fse.access(importSchedule.watchFile, fse.constants.R_OK, err => {
+                        if (!err) {
+                            // exists and we can read
                             tryImportNow(
                                 makeImportMsg('exists', importSchedule.watchFile),
                                 {
