@@ -90,9 +90,9 @@ module.exports = class LoginServerModule extends ServerModule {
 
         client.on('idle timeout', idleLogoutSeconds => {
             client.log.info(
-                `Node ${client.node} idle timeout (${moment
+                `Node ${client.node} idle timeout of ${moment
                     .duration(idleLogoutSeconds, 'seconds')
-                    .humanize()}) expired; Kicking`
+                    .humanize()} expired; Kicking`
             );
 
             client.menuStack.goto('idleLogoff', err => {

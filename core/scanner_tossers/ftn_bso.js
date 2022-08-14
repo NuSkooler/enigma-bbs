@@ -1678,9 +1678,7 @@ function FTNMessageScanTossModule() {
 
                     self.appendTearAndOrigin(message);
 
-                    const importConfig = {
-                        localAreaTag: localAreaTag,
-                    };
+                    const importConfig = { localAreaTag };
 
                     self.importMailToArea(importConfig, packetHeader, message, err => {
                         if (err) {
@@ -1702,7 +1700,7 @@ function FTNMessageScanTossModule() {
                                         uuid: message.messageUuid,
                                         MSGID: msgId,
                                     },
-                                    `Not importing non-unique message "${message.subject}"`
+                                    `Not importing non-unique message ${localAreaTag}: "${message.subject}"`
                                 );
 
                                 return next(null);
@@ -1721,16 +1719,32 @@ function FTNMessageScanTossModule() {
                 //
                 //  try to produce something helpful in the log
                 //
+                const makeCount = obj => {
+                    return obj
+                        ? _.reduce(
+                              obj,
+                              (sum, c) => {
+                                  return sum + c;
+                              },
+                              0
+                          )
+                        : 0;
+                };
+
                 const finalStats = Object.assign(importStats, { packetPath: packetPath });
-                if (err || Object.keys(finalStats.areaFail).length > 0) {
+                const totalFail = makeCount(finalStats.areaFail) + finalStats.otherFail;
+
+                if (err || totalFail > 0) {
                     if (err) {
                         Object.assign(finalStats, { error: err.message });
                     }
-
-                    Log.warn(finalStats, 'Import completed with error(s)');
+                    Log.warn(finalStats, `Import completed with ${totalFail} error(s)`);
                 } else {
-                    //  :TODO: Output basic stats - total counts - to this message:
-                    Log.info(finalStats, 'Import complete');
+                    const totalSuccess = makeCount(finalStats.areaSuccess);
+                    Log.info(
+                        finalStats,
+                        `Import completed successfully with ${totalSuccess} messages`
+                    );
                 }
 
                 cb(err);
