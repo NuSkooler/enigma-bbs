@@ -345,7 +345,7 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     displayArtDataPrepCallback(name, artData, viewController) {
-        if (name === details) {
+        if (name === 'details') {
             try {
                 this.detailsInfoArea = {
                     top: artData.mciMap.XY2.position,
