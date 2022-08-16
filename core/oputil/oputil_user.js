@@ -575,7 +575,7 @@ function listUsers() {
                 };
 
                 const sortByTimestamp = prop => (left, right) => {
-                    return moment(left[prop]) - moment(right[prop]);
+                    return moment(right[prop]) - moment(left[prop]);
                 };
 
                 let sorter;
