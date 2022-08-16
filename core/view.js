@@ -49,6 +49,7 @@ function View(options) {
     this.position = { x: 0, y: 0 };
     this.textStyle = options.textStyle || 'normal';
     this.focusTextStyle = options.focusTextStyle || this.textStyle;
+    this.offsetsApplied = false;
 
     if (options.id) {
         this.setId(options.id);

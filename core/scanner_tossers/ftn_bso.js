@@ -1743,7 +1743,7 @@ function FTNMessageScanTossModule() {
                     const totalSuccess = makeCount(finalStats.areaSuccess);
                     Log.info(
                         finalStats,
-                        `Import completed successfully with ${totalSuccess} messages`
+                        `Import completed with ${totalSuccess} new message(s)`
                     );
                 }
 

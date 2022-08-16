@@ -663,6 +663,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                             callingMenu: this,
                             mciMap: artData.mciMap,
                             formId: formId,
+                            viewOffsets: options.viewOffsets,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -696,17 +697,19 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return form && form.getView(id);
     }
 
-    updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
+    getCustomViewsWithFilter(formName, startId, options) {
         options = options || {};
 
-        let textView;
+        const views = [];
+
+        let view;
         let customMciId = startId;
         const config = this.menuConfig.config;
         const endId = options.endId || 99; //  we'll fail to get a view before 99
 
         while (
             customMciId <= endId &&
-            (textView = this.viewControllers[formName].getView(customMciId))
+            (view = this.viewControllers[formName].getView(customMciId))
         ) {
             const key = `${formName}InfoFormat${customMciId}`; //  e.g. "mainInfoFormat10"
             const format = config[key];
@@ -715,20 +718,35 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 format &&
                 (!options.filter || options.filter.find(f => format.indexOf(f) > -1))
             ) {
-                const text = stringFormat(format, fmtObj);
-
-                if (
-                    options.appendMultiLine &&
-                    textView instanceof MultiLineEditTextView
-                ) {
-                    textView.addText(text);
-                } else if (textView.getData() != text) {
-                    textView.setText(text);
-                }
+                view.key = key; // cache
+                views.push(view);
             }
 
             ++customMciId;
         }
+
+        return views;
+    }
+
+    updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
+        options = options || {};
+        const views = this.getCustomViewsWithFilter(formName, startId, options);
+        const config = this.menuConfig.config;
+
+        views.forEach(view => {
+            const format = config[view.key];
+            const text = stringFormat(format, fmtObj);
+
+            if (options.appendMultiLine && view instanceof MultiLineEditTextView) {
+                view.addText(text);
+            } else {
+                if (view.getData() != text) {
+                    view.setText(text);
+                } else {
+                    view.redraw();
+                }
+            }
+        });
     }
 
     refreshPredefinedMciViewsByCode(formName, mciCodes) {

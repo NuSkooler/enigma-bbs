@@ -345,14 +345,16 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     displayArtDataPrepCallback(name, artData, viewController) {
-        if ('details' === name) {
+        if (name === details) {
             try {
                 this.detailsInfoArea = {
                     top: artData.mciMap.XY2.position,
                     bottom: artData.mciMap.XY3.position,
                 };
             } catch (e) {
-                throw Errors.DoesNotExist('Missing XY2 and XY3 position indicators!');
+                throw Errors.DoesNotExist(
+                    'File listing details %XY2 and/or %XY3 MCI position indicators!'
+                );
             }
         }
     }
@@ -734,6 +736,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                             clearScreen: false,
                             noInput: true,
                             artDataPrep: self.displayArtDataPrepCallback.bind(self),
+                            viewOffsets: {
+                                col: 0,
+                                row: self.detailsInfoArea.top[0] - 1,
+                            },
                         },
                         callback
                     );

@@ -150,6 +150,8 @@ function ViewController(options) {
     };
 
     this.createViewsFromMCI = function (mciMap, cb) {
+        const views = [];
+
         async.each(
             Object.keys(mciMap),
             (name, nextItem) => {
@@ -161,6 +163,7 @@ function ViewController(options) {
                         view.on('action', self.viewActionListener);
                     }
 
+                    views.push(view);
                     self.addView(view);
                 }
 
@@ -168,7 +171,7 @@ function ViewController(options) {
             },
             err => {
                 self.setViewOrder();
-                return cb(err);
+                return cb(err, views);
             }
         );
     };
@@ -491,6 +494,27 @@ ViewController.prototype.resetInitialFocus = function () {
     }
 };
 
+ViewController.prototype.applyViewOffsets = function (
+    views,
+    offsetCol,
+    offsetRow,
+    force = false
+) {
+    if (!Array.isArray(views)) {
+        views = [views];
+    }
+
+    views.forEach(view => {
+        if (force || !view.offsetsApplied) {
+            view.offsetsApplied = true;
+            view.setPosition({
+                col: view.position.col + offsetCol,
+                row: view.position.row + offsetRow,
+            });
+        }
+    });
+};
+
 ViewController.prototype.switchFocus = function (id) {
     //
     //  Perform focus switching validation now
@@ -759,7 +783,14 @@ ViewController.prototype.loadFromMenuConfig = function (options, cb) {
                 );
             },
             function createViews(callback) {
-                self.createViewsFromMCI(options.mciMap, function viewsCreated(err) {
+                self.createViewsFromMCI(options.mciMap, (err, views) => {
+                    if (!err && _.isObject(options.viewOffsets)) {
+                        self.applyViewOffsets(
+                            views,
+                            options.viewOffsets.col,
+                            options.viewOffsets.row
+                        );
+                    }
                     callback(err);
                 });
             },

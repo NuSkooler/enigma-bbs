@@ -1299,6 +1299,10 @@ exports.FullScreenEditorModule =
                                 callingMenu: self,
                                 formId: formId,
                                 mciMap: artData.mciMap,
+                                viewOffsets: {
+                                    col: 0,
+                                    row: self.header.height,
+                                },
                             };
 
                             self.addViewController(
