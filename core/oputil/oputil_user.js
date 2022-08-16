@@ -17,6 +17,7 @@ const async = require('async');
 const _ = require('lodash');
 const moment = require('moment');
 const fs = require('fs-extra');
+const Table = require('easy-table');
 
 exports.handleUserCommand = handleUserCommand;
 
@@ -340,7 +341,7 @@ function showUserInfo(user) {
 
     const statusDesc = () => {
         const status = user.properties[UserProps.AccountStatus];
-        return _.invert(User.AccountStatus)[status] || 'unknown';
+        return _.invert(User.AccountStatus)[status] || 'N/A';
     };
 
     const created = () => {
@@ -508,13 +509,14 @@ function listUsers() {
     //  :TODO: --created-since SPEC and --last-called SPEC
     //  --created-since SPEC
     //  SPEC can be TIMESTAMP or e.g. "-1hour" or "-90days"
-    //  :TODO: --sort name|id
     let listWhat;
     if (argv._.length > 2) {
         listWhat = argv._[argv._.length - 1];
     } else {
         listWhat = 'all';
     }
+
+    const sortBy = (argv.sort || 'id').toLowerCase();
 
     const User = require('../../core/user');
     if (!['all'].concat(Object.keys(User.AccountStatus)).includes(listWhat)) {
@@ -527,7 +529,13 @@ function listUsers() {
                 const UserProps = require('../../core/user_property');
 
                 const userListOpts = {
-                    properties: [UserProps.AccountStatus],
+                    properties: [
+                        UserProps.RealName,
+                        UserProps.AccountStatus,
+                        UserProps.AccountCreated,
+                        UserProps.LastLoginTs,
+                        UserProps.LoginCount,
+                    ],
                 };
 
                 User.getUserList(userListOpts, (err, userList) => {
@@ -550,9 +558,93 @@ function listUsers() {
                 });
             },
             (userList, callback) => {
+                // default sort: by ID
+                const sortById = (left, right) => {
+                    return left.userId - right.userId;
+                };
+
+                const sortByLogin = prop => (left, right) => {
+                    return parseInt(right[prop]) - parseInt(left[prop]);
+                };
+
+                const sortByString = prop => (left, right) => {
+                    return left[prop].localeCompare(right[prop], {
+                        sensitivity: false,
+                        numeric: true,
+                    });
+                };
+
+                const sortByTimestamp = prop => (left, right) => {
+                    return moment(left[prop]) - moment(right[prop]);
+                };
+
+                let sorter;
+                switch (sortBy) {
+                    case 'username':
+                        sorter = sortByString('userName');
+                        break;
+                    case 'realname':
+                        sorter = sortByString(UserProps.RealName);
+                        break;
+                    case 'status':
+                        sorter = sortByString(UserProps.AccountStatus);
+                        break;
+                    case 'created':
+                        sorter = sortByTimestamp(UserProps.AccountCreated);
+                        break;
+                    case 'lastlogin':
+                        sorter = sortByTimestamp(UserProps.LastLoginTs);
+                        break;
+                    case 'logins':
+                        sorter = sortByLogin(UserProps.LoginCount);
+                        break;
+
+                    case 'id':
+                    default:
+                        sorter = sortById;
+                        break;
+                }
+
+                userList.sort(sorter);
+
+                const StatusNames = _.invert(User.AccountStatus);
+
+                const propOrNA = (user, prop) => {
+                    return user[prop] || 'N/A';
+                };
+
+                const timestampOrNA = (user, prop, format) => {
+                    let ts = user[prop];
+                    return ts ? moment(ts).format(format) : 'N/A';
+                };
+
+                const makeAccountStatus = status => {
+                    return StatusNames[status] || 'N/A';
+                };
+
+                const table = new Table();
                 userList.forEach(user => {
-                    console.info(`${user.userId}: ${user.userName}`);
+                    table.cell('ID', user.userId);
+                    table.cell('Username', user.userName);
+                    table.cell('Real Name', user[UserProps.RealName]);
+                    table.cell(
+                        'Status',
+                        makeAccountStatus(user[UserProps.AccountStatus])
+                    );
+                    table.cell(
+                        'Created',
+                        timestampOrNA(user, UserProps.AccountCreated, 'YYYY-MM-DD')
+                    );
+                    table.cell(
+                        'Last Login',
+                        timestampOrNA(user, UserProps.LastLoginTs, 'YYYY-MM-DD HH::mm')
+                    );
+                    table.cell('Logins', propOrNA(user, UserProps.LoginCount));
+
+                    table.newRow();
                 });
+
+                console.info(table.toString());
 
                 return callback(null);
             },

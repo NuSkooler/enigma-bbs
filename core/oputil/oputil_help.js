@@ -69,6 +69,18 @@ Actions:
 info arguments:
   --security                   Include security information in output
 
+list arguments:
+  --sort SORT_BY               Specify field to sort by
+
+  Valid SORT_BY values:
+    id        : User ID
+    username  : Username
+    realname  : Real name
+    status    : Account status
+    created   : Account creation date
+    lastlogin : Last login timestamp
+    logins    : Login count
+
 2fa-otp arguments:
   --qr-type TYPE               Specify QR code type
 
