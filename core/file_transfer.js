@@ -150,7 +150,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
                 this.client.log.info(
                     { sentFiles: sentFiles },
-                    `User "${self.client.user.username}" uploaded ${sentFiles.length} file(s)`
+                    `User "${this.client.user.username}" downloaded ${sentFiles.length} file(s)`
                 );
             }
             return cb(err);

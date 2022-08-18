@@ -133,7 +133,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
     getSaveState() {
         //  if no areas, we're falling back due to lack of access/areas avail to upload to
-        if (this.availAreas.length > 0) {
+        if (this.availAreas.length > 0 && this.viewControllers.options) {
             return {
                 uploadType: this.uploadType,
                 tempRecvDirectory: this.tempRecvDirectory,

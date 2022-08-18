@@ -153,7 +153,7 @@ function addNewClient(client, clientSock) {
 
     client.log.info(
         connInfo,
-        `Client connected (${connInfo.serverName}/${connInfo.port})`
+        `Client connected on node ${nodeId} (${connInfo.serverName}/${connInfo.port})`
     );
 
     Events.emit(Events.getSystemEvents().ClientConnected, {
@@ -176,7 +176,7 @@ function removeClient(client) {
                 connectionCount: clientConnections.length,
                 nodeId: client.node,
             },
-            'Client disconnected'
+            `Client disconnected from node ${client.node}`
         );
 
         if (client.user && client.user.isValid()) {
