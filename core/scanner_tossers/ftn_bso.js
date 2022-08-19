@@ -1700,7 +1700,7 @@ function FTNMessageScanTossModule() {
                                         uuid: message.messageUuid,
                                         MSGID: msgId,
                                     },
-                                    `Not importing non-unique message ${localAreaTag}: "${message.subject}"`
+                                    `Not importing non-unique message "${message.subject}" to ${localAreaTag}`
                                 );
 
                                 return next(null);

@@ -2,14 +2,17 @@
 layout: page
 title: Docker
 ---
-**You'll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
+
+> :warning: **You'll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
 for every operating system on the [Docker website](https://docs.docker.com/engine/install/).**
 
 ## Quick Start
-prepare a folder where you are going to save your bbs files.
-- Generate some config for your BBS: \
-you can perform this step from anywhere - but make sure to consistently run it from the same place to retain your config inside the docker guest
-```
+Prepare a folder where you are going to save your bbs files.
+
+1. Generate some config for your BBS: \
+You can perform this step from anywhere - but make sure to consistently run it from the same place to retain your config inside the docker guest.
+
+```bash
 docker run -it -p 8888:8888 \
 --name "ENiGMABBS" \
 -v "$(pwd)/config:/enigma-bbs/config" \
@@ -21,9 +24,10 @@ docker run -it -p 8888:8888 \
 -v "$(pwd)/mail:/mail" \
 enigmabbs/enigma-bbs:latest
 ```
-- Run it: \
-you can use the same command as above, just daemonize and drop interactiveness (we needed it for config but most of the time docker will run in the background)
-````
+2. Run it: \
+You can use the same command as above, just daemonize and drop interactiveness (we needed it for config but most of the time docker will run in the background)
+
+```bash
 docker run -d -p 8888:8888 \
 --name "ENiGMABBS" \
 -v "$(pwd)/config:/enigma-bbs/config" \
@@ -34,9 +38,9 @@ docker run -d -p 8888:8888 \
 -v "$(pwd)/mods:/enigma-bbs/mods" \
 -v "$(pwd)/mail:/mail" \
 enigmabbs/enigma-bbs:latest
-````
-- Restarting and Making changes\
-if you make any changes to your host config folder they will persist, and you can just restart ENiGMABBS container to load any changes you've made.
+```
+### Restarting and Making changes\
+If you make any changes to your host config folder they will persist, and you can just restart ENiGMABBS container to load any changes you've made.
 
 ```docker restart ENiGMABBS```
 
@@ -66,7 +70,6 @@ Customising the Docker image is easy!
 
 1. Clone the ENiGMA-BBS source.
 2. Build the image
-
-   ```
-   docker build -f ./docker/Dockerfile .
-   ```
+```bash
+docker build -f ./docker/Dockerfile .
+```
