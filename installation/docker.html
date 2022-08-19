@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.1" />
 <meta property="og:title" content="Docker" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website." />
-<meta property="og:description" content="You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website." />
+<meta name="description" content=":warning: You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website." />
+<meta property="og:description" content=":warning: You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-18T20:56:23+00:00" />
+<meta property="article:published_time" content="2022-08-19T06:03:56+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Docker" />
 <script type="application/ld+json">
-{"description":"You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website.","url":"/enigma-bbs/installation/docker.html","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@type":"BlogPosting","headline":"Docker","dateModified":"2022-08-18T20:56:23+00:00","datePublished":"2022-08-18T20:56:23+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/docker.html"},"@context":"https://schema.org"}</script>
+{"description":":warning: You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions for every operating system on the Docker website.","url":"/enigma-bbs/installation/docker.html","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@type":"BlogPosting","headline":"Docker","dateModified":"2022-08-19T06:03:56+00:00","datePublished":"2022-08-19T06:03:56+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/docker.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2304,45 +2304,48 @@
 
                 <div class="page">
     <h1 class="page-title">Docker</h1>
-    <p><strong>You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
+    <blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> <strong>You’ll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
 for every operating system on the <a href="https://docs.docker.com/engine/install/">Docker website</a>.</strong></p>
+</blockquote>
 
 <h2 id="quick-start">Quick Start</h2>
-<p>prepare a folder where you are going to save your bbs files.</p>
-<ul>
+<p>Prepare a folder where you are going to save your bbs files.</p>
+
+<ol>
   <li>Generate some config for your BBS: <br>
-you can perform this step from anywhere - but make sure to consistently run it from the same place to retain your config inside the docker guest
-    <div class="language-plaintext highlighter-rouge">
-<div class="highlight"><pre class="highlight"><code>docker run -it -p 8888:8888 \
---name "ENiGMABBS" \
--v "$(pwd)/config:/enigma-bbs/config" \
--v "$(pwd)/db:/enigma-bbs/db" \
--v "$(pwd)/logs:/enigma-bbs/logs" \
--v "$(pwd)/filebase:/enigma-bbs/filebase" \
--v "$(pwd)/art:/enigma-bbs/art" \
--v "$(pwd)/mods:/enigma-bbs/mods" \
--v "$(pwd)/mail:/mail" \
+You can perform this step from anywhere - but make sure to consistently run it from the same place to retain your config inside the docker guest.</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>docker run <span class="nt">-it</span> <span class="nt">-p</span> 8888:8888 <span class="se">\</span>
+<span class="nt">--name</span> <span class="s2">"ENiGMABBS"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/config:/enigma-bbs/config"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/db:/enigma-bbs/db"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/logs:/enigma-bbs/logs"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/filebase:/enigma-bbs/filebase"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/art:/enigma-bbs/art"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/mods:/enigma-bbs/mods"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/mail:/mail"</span> <span class="se">\</span>
 enigmabbs/enigma-bbs:latest
-</code></pre></div>    </div>
-  </li>
+</code></pre></div></div>
+<ol>
   <li>Run it: <br>
-you can use the same command as above, just daemonize and drop interactiveness (we needed it for config but most of the time docker will run in the background)
-    <div class="language-plaintext highlighter-rouge">
-<div class="highlight"><pre class="highlight"><code>docker run -d -p 8888:8888 \
---name "ENiGMABBS" \
--v "$(pwd)/config:/enigma-bbs/config" \
--v "$(pwd)/db:/enigma-bbs/db" \
--v "$(pwd)/logs:/enigma-bbs/logs" \
--v "$(pwd)/filebase:/enigma-bbs/filebase" \
--v "$(pwd)/art:/enigma-bbs/art" \
--v "$(pwd)/mods:/enigma-bbs/mods" \
--v "$(pwd)/mail:/mail" \
+You can use the same command as above, just daemonize and drop interactiveness (we needed it for config but most of the time docker will run in the background)</li>
+</ol>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>docker run <span class="nt">-d</span> <span class="nt">-p</span> 8888:8888 <span class="se">\</span>
+<span class="nt">--name</span> <span class="s2">"ENiGMABBS"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/config:/enigma-bbs/config"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/db:/enigma-bbs/db"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/logs:/enigma-bbs/logs"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/filebase:/enigma-bbs/filebase"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/art:/enigma-bbs/art"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/mods:/enigma-bbs/mods"</span> <span class="se">\</span>
+<span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">/mail:/mail"</span> <span class="se">\</span>
 enigmabbs/enigma-bbs:latest
-</code></pre></div>    </div>
-  </li>
-  <li>Restarting and Making changes<br>
-if you make any changes to your host config folder they will persist, and you can just restart ENiGMABBS container to load any changes you’ve made.</li>
-</ul>
+</code></pre></div></div>
+<h3 id="restarting-and-making-changes">Restarting and Making changes\</h3>
+<p>If you make any changes to your host config folder they will persist, and you can just restart ENiGMABBS container to load any changes you’ve made.</p>
 
 <p><code class="language-plaintext highlighter-rouge">docker restart ENiGMABBS</code></p>
 
@@ -2404,11 +2407,9 @@ to be stored outside of the running container. As such, the following volumes ar
 
 <ol>
   <li>Clone the ENiGMA-BBS source.</li>
-  <li>
-    <p>Build the image</p>
-
-    <div class="language-plaintext highlighter-rouge">
-<div class="highlight"><pre class="highlight"><code>docker build -f ./docker/Dockerfile .
+  <li>Build the image
+    <div class="language-bash highlighter-rouge">
+<div class="highlight"><pre class="highlight"><code>docker build <span class="nt">-f</span> ./docker/Dockerfile <span class="nb">.</span>
 </code></pre></div>    </div>
   </li>
 </ol>
