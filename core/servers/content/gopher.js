@@ -621,7 +621,8 @@ ${msgBody}
                         confTag,
                         areaTag,
                         uuid: message.messageUuid,
-                    }`Gopher serving message "${message.subject}"`
+                    },
+                    `Gopher serving message "${message.subject}"`
                 );
                 return cb(response);
             });
