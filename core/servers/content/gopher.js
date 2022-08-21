@@ -344,7 +344,7 @@ exports.getModule = class GopherModule extends ServerModule {
     }
 
     messageAreaGenerator(selectorMatch, cb) {
-        this.log.debug({ selector: selectorMatch[0] }, 'Serving message area content');
+        this.log.trace({ selector: selectorMatch[0] }, 'Message area request');
         //
         //  Selector should be:
         //  /msgarea - list confs
@@ -395,6 +395,7 @@ exports.getModule = class GopherModule extends ServerModule {
             ),
         ].join('');
 
+        this.log.debug('Gopher serving message conference list');
         return cb(response);
     }
 
@@ -465,6 +466,10 @@ exports.getModule = class GopherModule extends ServerModule {
             ),
         ].join('');
 
+        this.log.debug(
+            { confTag: exposedConf.confTag },
+            'Gopher serving message area list'
+        );
         return cb(response);
     }
 
@@ -565,6 +570,7 @@ exports.getModule = class GopherModule extends ServerModule {
                 ),
             ].join('');
 
+            this.log.debug({ confTag, areaTag }, 'Gopher serving message list');
             return cb(response);
         });
     }
@@ -610,6 +616,13 @@ ID     : ${message.messageUuid} (${message.messageId})
 ${'-'.repeat(70)}
 ${msgBody}
 `;
+                this.log.debug(
+                    {
+                        confTag,
+                        areaTag,
+                        uuid: message.messageUuid,
+                    }`Gopher serving message "${message.subject}"`
+                );
                 return cb(response);
             });
         });
