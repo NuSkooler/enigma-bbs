@@ -245,14 +245,52 @@ exports.getModule = class GopherModule extends ServerModule {
         return cb('Not found');
     }
 
-    isAreaAndConfExposed(confTag, areaTag) {
-        const conf = _.get(Config(), [
+    _getConfigForConferenceTag(confTag) {
+        const sysConfig = Config();
+        let config = _.get(sysConfig, [
             'contentServers',
             'gopher',
-            'messageConferences',
+            'exposedConfAreas',
             confTag,
         ]);
-        return Array.isArray(conf) && conf.includes(areaTag);
+        if (config) {
+            return [config, false]; // new
+        }
+
+        return [
+            _.get(sysConfig, ['contentServers', 'gopher', 'messageConferences', confTag]),
+            true,
+        ];
+    }
+
+    isAreaAndConfExposed(confTag, areaTag) {
+        const [confConfig, isLegacy] = this._getConfigForConferenceTag(confTag);
+
+        if (isLegacy) {
+            return Array.isArray(confConfig) && confConfig.includes(areaTag);
+        }
+
+        if (!Array.isArray(confConfig.include)) {
+            return false;
+        }
+
+        let exposed = false;
+        for (let rule of confConfig.include) {
+            if (wildcardMatch(areaTag, rule)) {
+                exposed = true;
+                break;
+            }
+        }
+
+        // may still be excluded
+        for (let rule of confConfig.exclude || []) {
+            if (wildcardMatch(areaTag, rule)) {
+                exposed = false;
+                break;
+            }
+        }
+
+        return exposed;
     }
 
     prepareMessageBody(body, cb) {
@@ -323,17 +361,17 @@ exports.getModule = class GopherModule extends ServerModule {
             const msgUuid = selectorMatch[3].replace(/\r\n|\//g, '');
             const confTag = selectorMatch[1].substr(1).split('/')[0];
             const areaTag = selectorMatch[2].replace(/\r\n|\//g, '');
-            return this._displayMessage(msgUuid, confTag, areaTag, cb);
+            return this._displayMessage(selectorMatch, msgUuid, confTag, areaTag, cb);
         } else if (selectorMatch[2]) {
             //  conf/area selector -- list messages in area
             const confTag = selectorMatch[1].substr(1).split('/')[0];
             const areaTag = selectorMatch[2].replace(/\r\n|\//g, '');
             const area = getMessageAreaByTag(areaTag);
-            return this._listMessagesInArea(confTag, areaTag, area, cb);
+            return this._listMessagesInArea(selectorMatch, confTag, areaTag, area, cb);
         } else if (selectorMatch[1]) {
             //  message conference selector -- list areas in this conference
             const confTag = selectorMatch[1].replace(/\r\n|\//g, '');
-            return this._listExposedMessageConferenceAreas(confTag, cb);
+            return this._listExposedMessageConferenceAreas(selectorMatch, confTag, cb);
         } else {
             //  message area base selector -- list exposed message conferences
             return this._listExposedMessageConferences(cb);
@@ -430,7 +468,7 @@ exports.getModule = class GopherModule extends ServerModule {
         return cb(response);
     }
 
-    _listExposedMessageConferenceAreas(confTag, cb) {
+    _listExposedMessageConferenceAreas(selectorMatch, confTag, cb) {
         //
         //  New system -- exposedConfAreas:
         //  We have a required array |include| of area tags that may
@@ -440,31 +478,7 @@ exports.getModule = class GopherModule extends ServerModule {
         //  Deprecated -- messageConferences:
         //  The key should point to an array of area tags
         //
-        const sysConfig = Config();
-
-        const getConfConfig = () => {
-            let config = _.get(sysConfig, [
-                'contentServers',
-                'gopher',
-                'exposedConfAreas',
-                confTag,
-            ]);
-            if (config) {
-                return [config, false]; // new
-            }
-
-            return [
-                _.get(sysConfig, [
-                    'contentServers',
-                    'gopher',
-                    'messageConferences',
-                    confTag,
-                ]),
-                true,
-            ];
-        };
-
-        const [confConfig, isLegacy] = getConfConfig();
+        const [confConfig, isLegacy] = this._getConfigForConferenceTag(confTag);
         const messageConference = getMessageConferenceByTag(confTag); // we need the actual conf!
 
         if (!messageConference) {
@@ -512,7 +526,7 @@ exports.getModule = class GopherModule extends ServerModule {
         return this._makeAvailableMessageAreasResponse(messageConference, areas, cb);
     }
 
-    _listMessagesInArea(confTag, areaTag, area, cb) {
+    _listMessagesInArea(selectorMatch, confTag, areaTag, area, cb) {
         if (Message.isPrivateAreaTag(areaTag)) {
             this.log.warn({ areaTag }, `Gopher attempted access to private "${areaTag}"`);
             return cb(this.makeItem(ItemTypes.InfoMessage, 'Area is private'));
@@ -555,7 +569,7 @@ exports.getModule = class GopherModule extends ServerModule {
         });
     }
 
-    _displayMessage(msgUuid, confTag, areaTag, cb) {
+    _displayMessage(selectorMatch, msgUuid, confTag, areaTag, cb) {
         const message = new Message();
 
         return message.load({ uuid: msgUuid }, err => {
