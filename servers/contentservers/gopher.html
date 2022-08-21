@@ -17,11 +17,11 @@
 <meta property="og:description" content="The Gopher Content Server The Gopher content server provides access to publicly exposed message conferences and areas over Gopher (gopher://) as well as any other content you wish to serve in your Gopher Hole!" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-08-19T06:03:56+00:00" />
+<meta property="article:published_time" content="2022-08-21T19:43:26+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Gopher Server" />
 <script type="application/ld+json">
-{"description":"The Gopher Content Server The Gopher content server provides access to publicly exposed message conferences and areas over Gopher (gopher://) as well as any other content you wish to serve in your Gopher Hole!","url":"/enigma-bbs/servers/contentservers/gopher.html","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@type":"BlogPosting","headline":"Gopher Server","dateModified":"2022-08-19T06:03:56+00:00","datePublished":"2022-08-19T06:03:56+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/gopher.html"},"@context":"https://schema.org"}</script>
+{"description":"The Gopher Content Server The Gopher content server provides access to publicly exposed message conferences and areas over Gopher (gopher://) as well as any other content you wish to serve in your Gopher Hole!","url":"/enigma-bbs/servers/contentservers/gopher.html","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@type":"BlogPosting","headline":"Gopher Server","dateModified":"2022-08-21T19:43:26+00:00","datePublished":"2022-08-21T19:43:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/gopher.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2305,7 +2305,7 @@
                 <div class="page">
     <h1 class="page-title">Gopher Server</h1>
     <h2 id="the-gopher-content-server">The Gopher Content Server</h2>
-<p>The Gopher <em>content server</em> provides access to publicly exposed message conferences and areas over Gopher (gopher://) as well as any other content you wish to serve in your Gopher Hole!</p>
+<p>The Gopher <em>content server</em> provides access to publicly exposed message conferences and areas over Gopher (<code class="language-plaintext highlighter-rouge">gopher://</code>) as well as any other content you wish to serve in your Gopher Hole!</p>
 
 <h2 id="configuration">Configuration</h2>
 <p>Gopher configuration is found in <code class="language-plaintext highlighter-rouge">contentServers.gopher</code> in <code class="language-plaintext highlighter-rouge">config.hjson</code>.</p>
@@ -2347,9 +2347,9 @@
       <td>Set the <strong>public</strong> port that Gopher will serve to the outside world.</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">messageConferences</code></td>
+      <td><code class="language-plaintext highlighter-rouge">exposedConfAreas</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>An map of <em>conference tags</em> to <em>area tags</em> that are publicly exposed via Gopher. See example below.</td>
+      <td>An map of <em>conference tags</em> to an object containing <code class="language-plaintext highlighter-rouge">include</code>‘d <em>area tags</em>, and exceptions via <code class="language-plaintext highlighter-rouge">exclude</code>‘d <em>area tags</em>. Area tags may contain wildcards of ‘*’ and ‘?’. Any area tags that match will be exposed to Gopher. See <strong>Example Configuration</strong> below.</td>
     </tr>
   </tbody>
 </table>
@@ -2389,8 +2389,8 @@ The Gopher protocol serves content that contains host/domain and port even when 
 .
 </code></pre></div></div>
 
-<h3 id="example">Example</h3>
-<p>Let’s suppose you are serving Gopher for your BBS at <code class="language-plaintext highlighter-rouge">myfancybbs.com</code>. Your ENiGMA½ system is listening on the default Gopher <code class="language-plaintext highlighter-rouge">port</code> of 8070 but you’re behind a firewall and want port 70 exposed to the public. Lastly, you want to expose some fsxNet areas:</p>
+<h3 id="example-configuration">Example Configuration</h3>
+<p>Let’s suppose you are serving Gopher for your BBS at <code class="language-plaintext highlighter-rouge">myfancybbs.com</code>. Your ENiGMA½ system is listening on the default Gopher <code class="language-plaintext highlighter-rouge">port</code> of 8070 but you’re behind a firewall and want port 70 exposed to the public. Lastly, you want to expose some ArakNet areas:</p>
 
 <pre><code class="language-hjson">contentServers: {
     gopher: {
@@ -2400,9 +2400,12 @@ The Gopher protocol serves content that contains host/domain and port even when 
 
         //  Expose some public message conferences/areas
         messageConferences: {
-            fsxnet: { // fsxNet's conf tag
-                // Areas of fsxNet we want to expose:
-                "fsx_gen", "fsx_bbs"
+            araknet: { // ArakNet's conference tag
+                // start with all areas exposed
+                include: [ "*" ]
+
+                // ...except the +op and Phenom private areas
+                exclude: [ "ark_sysop", "ark_phenom" ]
             }
         }
     }
