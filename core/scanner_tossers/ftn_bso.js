@@ -1603,6 +1603,7 @@ function FTNMessageScanTossModule() {
         const packetOpts = { keepTearAndOrigin: false }; //  needed so we can calc message UUID without these; we'll add later
 
         let importStats = {
+            packetPath,
             areaSuccess: {}, //  areaTag->count
             areaFail: {}, //  areaTag->count
             otherFail: 0,
@@ -1731,19 +1732,21 @@ function FTNMessageScanTossModule() {
                         : 0;
                 };
 
-                const finalStats = Object.assign(importStats, { packetPath: packetPath });
-                const totalFail = makeCount(finalStats.areaFail) + finalStats.otherFail;
-
+                const totalFail = makeCount(importStats.areaFail) + importStats.otherFail;
+                const packetFileName = paths.basename(packetPath);
                 if (err || totalFail > 0) {
                     if (err) {
-                        Object.assign(finalStats, { error: err.message });
+                        Object.assign(importStats, { error: err.message });
                     }
-                    Log.warn(finalStats, `Import completed with ${totalFail} error(s)`);
+                    Log.warn(
+                        importStats,
+                        `Packet ${packetFileName} import reported ${totalFail} error(s)`
+                    );
                 } else {
-                    const totalSuccess = makeCount(finalStats.areaSuccess);
+                    const totalSuccess = makeCount(importStats.areaSuccess);
                     Log.info(
-                        finalStats,
-                        `Import completed with ${totalSuccess} new message(s)`
+                        importStats,
+                        `Packet ${packetFileName} imported with ${totalSuccess} new message(s)`
                     );
                 }
 
