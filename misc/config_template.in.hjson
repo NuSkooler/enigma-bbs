@@ -262,11 +262,19 @@
 
             //
             //  The Gopher Content Server can export message base
-            //  conferences and areas via the "messageConferences" key.
+            //  conferences and areas via the 'exposedConfAreas1 key
+            //  and 'include' and optional 'exclude' directives.
             //
             //  Example:
-            //  messageConferences: {
-            //      some_conf: [ "area_tag1", "area_tag2" ]
+            //  exposedConfAreas: {
+            //      some_conf: {
+            //          include: [ "*" ] // all
+            //          exclude: [ "not_this_one" ] // except...
+            //      }
+            //      another_conf: {
+            //          include: [ "foo", "bar", "baz" ]
+            //          exclude: [ "bazbang*" ]
+            //      }
             //  }
             //
         }
