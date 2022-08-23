@@ -85,13 +85,15 @@ function getActiveConnectionList(
         //
         //  There may be a connection, but not a logged in user as of yet
         //
-        if (ac.user.isAuthenticated()) {
-            entry.text = ac.user.username;
-            entry.userName = ac.user.username;
-            entry.realName = ac.user.properties[UserProps.RealName];
-            entry.location = ac.user.properties[UserProps.Location];
-            entry.affils = entry.affiliation = ac.user.properties[UserProps.Affiliations];
+        entry.text = ac.user?.username || 'N/A';
+        entry.userName = ac.user?.username || 'N/A';
+        entry.realName = ac.user?.getProperty(UserProps.RealName) || 'N/A';
+        entry.location = ac.user?.getProperty(UserProps.Location) || 'N/A';
+        entry.affils = entry.affiliation =
+            ac.user?.getProperty(UserProps.Affiliations) || 'N/A';
 
+        if (ac.user.isAuthenticated()) {
+            // :TODO: track pre-auth time so we can properly track this
             const diff = now.diff(
                 moment(ac.user.properties[UserProps.LastLoginTs]),
                 'minutes'
