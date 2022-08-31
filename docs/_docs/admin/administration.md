@@ -8,8 +8,8 @@ title: Administration
 ## Keeping Up to Date
 See [Updating](updating.md).
 
-## Viewing Logs
-See [Monitoring Logs](../troubleshooting/monitoring-logs.md).
+## Viewing Activity
+Monitor your system via the [Waiting For Caller (WFC)](../modding/wfc.md) screen and learn how to [monitoring logs](../troubleshooting/monitoring-logs.md).
 
 ## Managing Users
 User management is currently handled via the [oputil CLI](oputil.md).
@@ -17,7 +17,7 @@ User management is currently handled via the [oputil CLI](oputil.md).
 ## Backing Up Your System
 It is *highly* recommended to perform **regular backups** of your system. Nothing is worse than spending a lot of time setting up a system only to have to go away unexpectedly!
 
-In general, simply creating a copy/archive of your system is enough for the default configuration. If you have changed default paths to point outside of your main ENiGMA½ installation take special care to ensure these are preserved as well. Database files may be in a state of flux when simply copying files. See **Database Backups** below for details on consistent backups.
+In general, simply creating a copy/archive of your system is enough for the default configuration. If you have changed default paths to point outside of your main ENiGMA½ installation take special care to ensure these are preserved as well. Database files may be in a state of flux when simply copying files. See [Database Backups](#database-backups) below for details on consistent backups.
 
 ### Database Backups
 [SQLite's CLI backup command](https://sqlite.org/cli.html#special_commands_to_sqlite3_dot_commands_) can be used for creating database backup files. This can be performed as an additional step to a full backup to ensure the database is backed up in a consistent state (whereas simply copying the files does not make any guarantees).

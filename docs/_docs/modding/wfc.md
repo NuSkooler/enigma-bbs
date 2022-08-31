@@ -31,12 +31,12 @@ To change the ACS required, specify a alternative `acs` in the `config` block. F
 mainMenuWaitingForCaller: {
     config: {
         // initial +op over secure connection only
-        acs: SCID1GM[sysops]
+        acs: ID1SC
     }
 }
 ```
 
-> :bulb: You can add additional co-ops by adjust the required ACS.
+> :bulb: You can add additional co-ops by adjusting the required ACS and/or adding them to an WFC-able group.
 
 > :lock: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
 
