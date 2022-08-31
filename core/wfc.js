@@ -1,6 +1,7 @@
 //  ENiGMA½
 const { MenuModule } = require('./menu_module');
 const stringFormat = require('./string_format');
+const Events = require('./events');
 
 const {
     getActiveConnectionList,
@@ -77,6 +78,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
 
         this.selectedNodeStatusIndex = -1; // no selection
+        this.refreshing = false;
 
         this.menuMethods = {
             toggleAvailable: (formData, extraArgs, cb) => {
@@ -224,6 +226,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     enter() {
         this.client.stopIdleMonitor();
         this._applyOpVisibility();
+        Events.on(
+            Events.getSystemEvents().ClientDisconnected,
+            this._clientDisconnected.bind(this)
+        );
         super.enter();
     }
 
@@ -231,6 +237,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         _.remove(Log.log.streams, stream => {
             return stream.name === 'wfc-ringbuffer';
         });
+
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            this._clientDisconnected
+        );
 
         this._restoreOpVisibility();
 
@@ -375,7 +386,38 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
     }
 
+    _clientDisconnected() {
+        const nodeStatusSelectionView = this.getView(
+            'main',
+            MciViewIds.main.selectedNodeStatusInfo
+        );
+        if (nodeStatusSelectionView) {
+            nodeStatusSelectionView.setText('');
+        }
+
+        this.selectedNodeStatusIndex = 0; // will select during refresh
+        this._refreshAll();
+
+        // have to update the selection view here
+        if (nodeStatusSelectionView) {
+            const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
+            if (nodeStatusView) {
+                const item = nodeStatusView.getItems()[this.selectedNodeStatusIndex];
+                this._updateNodeStatusSelection(nodeStatusSelectionView, item);
+            }
+        }
+    }
+
     _refreshAll(cb) {
+        if (this.refreshing) {
+            if (cb) {
+                return cb(null);
+            }
+            return;
+        }
+
+        this.refreshing = true;
+
         async.series(
             [
                 callback => {
@@ -397,6 +439,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 },
             ],
             err => {
+                this.refreshing = false;
                 if (cb) {
                     return cb(err);
                 }
