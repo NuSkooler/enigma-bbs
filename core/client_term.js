@@ -60,6 +60,11 @@ function ClientTerminal(output) {
         set: function (ttype) {
             termType = ttype.toLowerCase();
 
+            Log.debug(
+                { encoding: this.outputEncoding },
+                `Terminal type changed to ${termType}; Adjusting output encoding`
+            );
+
             if (this.isNixTerm()) {
                 this.outputEncoding = 'utf8';
             } else {
@@ -69,11 +74,6 @@ function ClientTerminal(output) {
             //  :TODO: according to this: http://mud-dev.wikidot.com/article:telnet-client-identification
             //  Windows telnet will send "VTNT". If so, set termClient='windows'
             //  there are some others on the page as well
-
-            Log.debug(
-                { encoding: this.outputEncoding },
-                'Set output encoding due to terminal type change'
-            );
         },
     });
 
