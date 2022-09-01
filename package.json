@@ -4,8 +4,14 @@
     "description": "ENiGMA½ Bulletin Board System",
     "author": "Bryan Ashby <bryan@l33t.codes>",
     "license": "BSD-2-Clause",
+    "bin": {
+        "enigma-bbs": "./main.js",
+        "oputil": "./oputil.js"
+    },
     "scripts": {
-        "start": "node main.js"
+        "start": "node main.js",
+        "oputil": "node ./oputil.js",
+        "pretty": "npx prettier --write ."
     },
     "repository": {
         "type": "git",
