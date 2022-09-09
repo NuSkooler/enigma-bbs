@@ -196,7 +196,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
         const doorTracking = trackDoorRunBegin(this.client, this.config.name);
 
-        this.doorInstance.run(exeInfo, () => {
+        this.doorInstance.run(exeInfo, err => {
+            if (err) {
+                Log.error(`Error running "${this.config.name}": ${err.message}`);
+            }
+
             trackDoorRunEnd(doorTracking);
             this.decrementActiveDoorNodeInstances();
 

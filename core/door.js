@@ -58,6 +58,8 @@ module.exports = class Door {
 
         if ('socket' === this.io && !this.sockServer) {
             return cb(Errors.UnexpectedState('Socket server is not running'));
+        } else if ('stdio' !== this.io) {
+            return cb(Errors.Invalid(`"${this.io}" is not a valid io type!`));
         }
 
         const cwd = exeInfo.cwd || paths.dirname(exeInfo.cmd);
