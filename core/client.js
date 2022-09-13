@@ -598,6 +598,10 @@ Client.prototype.isLocal = function () {
 };
 
 Client.prototype.friendlyRemoteAddress = function () {
+    if (!this.remoteAddress) {
+        return 'N/A';
+    }
+
     //  convert any :ffff: IPv4's to 32bit version
     return this.remoteAddress.replace(/^::ffff:/, '').replace(/^::1$/, 'localhost');
 };
