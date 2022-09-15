@@ -664,6 +664,14 @@ module.exports = class FileEntry {
             }
         }
 
+        if (_.isString(filter.fileName) && filter.fileName.length > 0) {
+            const caseSensitive = _.get(filter, 'filenameCaseSensitive', false);
+            const collate = caseSensitive ? '' : 'COLLATE NOCASE';
+            appendWhereClause(
+                `(f.file_name = "${sanitizeString(filter.fileName)}" ${collate})`
+            );
+        }
+
         //  handle e.g. 1998 -> "1998"
         if (_.isNumber(filter.tags)) {
             filter.tags = filter.tags.toString();
