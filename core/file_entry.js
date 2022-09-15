@@ -428,32 +428,45 @@ module.exports = class FileEntry {
         return Object.keys(FILE_WELL_KNOWN_META);
     }
 
-    static findBySha(sha, cb) {
+    static getFileIdsBySha(sha, options = {}, cb) {
         //  full or partial SHA-256
+        const limit = _.isNumber(options.limit) ? `LIMIT ${options.limit}` : '';
         fileDb.all(
             `SELECT file_id
             FROM file
-            WHERE file_sha256 LIKE "${sha}%"
-            LIMIT 2;`, //  limit 2 such that we can find if there are dupes
+            WHERE file_sha256 LIKE "${sha}%" ${limit};`,
             (err, fileIdRows) => {
                 if (err) {
                     return cb(err);
                 }
 
-                if (!fileIdRows || 0 === fileIdRows.length) {
-                    return cb(Errors.DoesNotExist('No matches'));
-                }
-
-                if (fileIdRows.length > 1) {
-                    return cb(Errors.Invalid('SHA is ambiguous'));
-                }
-
-                const fileEntry = new FileEntry();
-                return fileEntry.load(fileIdRows[0].file_id, err => {
-                    return cb(err, fileEntry);
-                });
+                return cb(
+                    null,
+                    (fileIdRows || []).map(r => r.file_id)
+                );
             }
         );
+    }
+
+    static findBySha(sha, cb) {
+        FileEntry.getFileIdsBySha(sha, { limit: 2 }, (err, fileIds) => {
+            if (err) {
+                return cb(err);
+            }
+
+            if (!fileIds || 0 === fileIds.length) {
+                return cb(Errors.DoesNotExist('No matches'));
+            }
+
+            if (fileIds.length > 1) {
+                return cb(Errors.Invalid('SHA is ambiguous'));
+            }
+
+            const fileEntry = new FileEntry();
+            return fileEntry.load(fileIds[0], err => {
+                return cb(err, fileEntry);
+            });
+        });
     }
 
     //  Attempt to fine a file by an *existing* full path.
