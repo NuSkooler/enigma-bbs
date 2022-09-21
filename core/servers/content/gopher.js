@@ -492,7 +492,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
         let areas;
         if (isLegacy) {
-            areas = (confConfig || {}).map(areaTag =>
+            areas = (confConfig || []).map(areaTag =>
                 Object.assign({ areaTag }, getMessageAreaByTag(areaTag))
             );
         } else {
