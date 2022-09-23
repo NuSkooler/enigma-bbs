@@ -121,6 +121,7 @@ const Responses = {
 
     SendArticle: '340 send article to be posted',
 
+    PostingNotAllowed: '440 posting not allowed',
     ArticlePostFailed: '441 posting failed',
     AuthRequired: '480 authentication required',
 };
@@ -1258,11 +1259,6 @@ exports.getModule = class NNTPServerModule extends ServerModule {
 
         const config = Config();
 
-        // add in some additional supported commands
-        const commands = Object.assign({}, NNTPServerBase.commands, {
-            POST: PostCommand,
-        });
-
         // :TODO: nntp-server doesn't currently allow posting in a nice way, so this is kludged in. Fork+MR something cleaner at some point
         class ProxySession extends NNTPServerBase.Session {
             constructor(server, stream) {
@@ -1333,11 +1329,18 @@ exports.getModule = class NNTPServerModule extends ServerModule {
         }
 
         const commonOptions = {
-            //requireAuth : true,   //  :TODO: re-enable!
             //  :TODO: How to hook into debugging?!
-            commands,
-            session: ProxySession, // :TODO: only do this is config.postingAllowed is true, else '440 posting not allowed' even if authenticated
         };
+
+        if (true === _.get(config, 'contentServers.nntp.allowPosts')) {
+            // add in some additional supported commands
+            const commands = Object.assign({}, NNTPServerBase.commands, {
+                POST: PostCommand,
+            });
+
+            commonOptions.commands = commands;
+            commonOptions.session = ProxySession;
+        }
 
         if (this.enableNntp) {
             this.nntpServer = new NNTPServer(

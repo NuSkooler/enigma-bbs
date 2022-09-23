@@ -12,6 +12,7 @@ The NNTP *content server* provides access to publicly exposed message conference
 | `nntp` | :-1: | Configuration block for non-secure NNTP. See Non-Secure NNTP Configuration below. |
 | `nntps` | :-1: | Configuration block for secure NNTP. See Secure NNTPS Configuration below. |
 | `publicMessageConferences` | :+1: | A map of *conference tags* to *area tags* that are publicly exposed over NNTP. Anonymous users will get read-only access to these areas. |
+| `postingAllowed` | :-1: | Allow posting from authenticated users. See [Write Access](#write-access).
 
 ### See Non-Secure NNTP Configuration
 Under `contentServers.nntp.nntp` the following configuration is allowed:
@@ -40,10 +41,20 @@ An example of generating your own cert/key pair:
 openssl req -newkey rsa:2048 -nodes -keyout ./config/nntps_key.pem -x509 -days 3050 -out ./config/nntps_cert.pem
 ```
 
-### Example Configuration
+## Write Access
+Authenticated users may write messages to a group given the following are true:
+
+1. They are connected security (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.
+2. The authenticated user has write [ACS](../../configuration/acs.md) to the target message conference and area.
+
+> :warning: Not all [ACS](../../configuration/acs.md) checks can be made over NNTP. Any ACS requiring a "client" will return false (fail), such as `LC` ("is local?").
+
+## Example Configuration
 ```hjson
 contentServers: {
     nntp: {
+        allowPosting: true
+
         publicMessageConferences: {
             fsxnet: [
                 // Expose these areas of fsxNet
