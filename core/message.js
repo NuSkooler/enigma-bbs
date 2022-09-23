@@ -55,6 +55,7 @@ const ADDRESS_FLAVOR = {
     FTN: 'ftn', //  FTN style
     Email: 'email', //  From email
     QWK: 'qwk', //  QWK packet
+    NNTP: 'nntp', // NNTP article POST; often a email address
 };
 
 const STATE_FLAGS0 = {
