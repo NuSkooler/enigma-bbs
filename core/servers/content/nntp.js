@@ -980,6 +980,17 @@ class NNTPServer extends NNTPServerBase {
     }
 
     static _importMessage(session, articleLines, cb) {
+        const tidyFrom = f => {
+            if (f) {
+                // remove quotes around name, if present
+                let m = /^"([^"]+)" <([^>]+)>$/.exec(f);
+                if (m && m[1] && m[2]) {
+                    f = `${m[1]} <${m[2]}>`;
+                }
+            }
+            return f;
+        };
+
         asyncWaterfall(
             [
                 callback => {
@@ -989,8 +1000,10 @@ class NNTPServer extends NNTPServerBase {
                     // gather some initially important bits
                     const subject = parsed.header.get('subject');
                     const to = parsed.header.get('to'); // non-standard, may be missing
-                    const from = parsed.header.get('from');
-                    const date = parsed.header.get('date');
+                    const from = tidyFrom(
+                        parsed.header.get('from') || parsed.header.get('sender')
+                    );
+                    const date = parsed.header.get('date'); // if not present we'll use 'now'
                     const newsgroups = parsed.header
                         .get('newsgroups')
                         .split(',')
@@ -1029,7 +1042,6 @@ class NNTPServer extends NNTPServerBase {
                     if (
                         !_.isString(subject) ||
                         !_.isString(from) ||
-                        !_.isString(date) ||
                         !Array.isArray(newsgroups)
                     ) {
                         return callback(
@@ -1111,7 +1123,7 @@ class NNTPServer extends NNTPServerBase {
                         replyToMsgId: msgData.replyToMsgId || 0,
                         modTimestamp: msgData.date, // moment can generally parse these
                         // :TODO: inspect Content-Type 'charset' if present & attempt to properly decode if not UTF-8
-                        message: msgData.parsed.body.slice(0, -1).join('\n'), // remove trailing blank
+                        message: msgData.parsed.body.join('\n'),
                         areaTag: msgData.newsgroups[0].areaTag,
                     });
 
@@ -1121,6 +1133,11 @@ class NNTPServer extends NNTPServerBase {
                     //  :TODO: investigate JAMNTTP clients/etc.
 
                     persistMessage(message, err => {
+                        if (!err) {
+                            Log.info(
+                                `NNTP post to "${message.areaTag}" by "${session.authUser.username}": "${message.subject}"`
+                            );
+                        }
                         return callback(err);
                     });
                 },
@@ -1181,8 +1198,12 @@ class NNTPServer extends NNTPServerBase {
 
                 // body
                 if (line !== '.') {
-                    // :TODO: de-escape lines that start with ".." -> "."
-                    body.push(line);
+                    // lines consisting of a single '.' are escaped to '..'
+                    if (line.startsWith('..')) {
+                        body.push(line.slice(1));
+                    } else {
+                        body.push(line);
+                    }
                 }
                 return nextLine(null);
             },
@@ -1192,8 +1213,6 @@ class NNTPServer extends NNTPServerBase {
         );
     }
 }
-
-const EndOfPostMarker = ['', '.'];
 
 exports.getModule = class NNTPServerModule extends ServerModule {
     constructor() {
@@ -1277,10 +1296,7 @@ exports.getModule = class NNTPServerModule extends ServerModule {
             receivePostArticleData(data) {
                 this.articleLinesBuffer.push(...data.split(/r?\n/));
 
-                const endOfPost = _.isEqual(
-                    this.articleLinesBuffer.slice(-2),
-                    EndOfPostMarker
-                );
+                const endOfPost = data.length === 1 && data[0] === '.';
                 if (endOfPost) {
                     this.receivingPostArticle = false;
 
@@ -1311,8 +1327,14 @@ exports.getModule = class NNTPServerModule extends ServerModule {
                 return new Promise(resolve => {
                     NNTPServer._importMessage(this.session, this.articleLines, err => {
                         if (err) {
-                            this.rejected_value = Responses.ArticlePostFailed;
+                            this.rejected_value = err; // will be serialized and 403 sent back currently; not really ideal as we want ArticlePostFailed
+                            //  :TODO: tick() needs updated in session.js such that we can write back a proper code
                             this.state = 3; // CMD_REJECTED
+
+                            Log.error(
+                                { error: err.message },
+                                `NNTP post failed: ${err.message}`
+                            );
                         } else {
                             this.resolved_value = Responses.ArticlePostedOk;
                             this.state = 2; // CMD_RESOLVED
