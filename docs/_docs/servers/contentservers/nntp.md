@@ -12,7 +12,7 @@ The NNTP *content server* provides access to publicly exposed message conference
 | `nntp` | :-1: | Configuration block for non-secure NNTP. See Non-Secure NNTP Configuration below. |
 | `nntps` | :-1: | Configuration block for secure NNTP. See Secure NNTPS Configuration below. |
 | `publicMessageConferences` | :+1: | A map of *conference tags* to *area tags* that are publicly exposed over NNTP. Anonymous users will get read-only access to these areas. |
-| `postingAllowed` | :-1: | Allow posting from authenticated users. See [Write Access](#write-access).
+| `allowPosts` | :-1: | Allow posting from authenticated users. See [Write Access](#write-access). Default is `false`.
 
 ### See Non-Secure NNTP Configuration
 Under `contentServers.nntp.nntp` the following configuration is allowed:
@@ -44,8 +44,9 @@ openssl req -newkey rsa:2048 -nodes -keyout ./config/nntps_key.pem -x509 -days 3
 ## Write Access
 Authenticated users may write messages to a group given the following are true:
 
-1. They are connected security (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.
-2. The authenticated user has write [ACS](../../configuration/acs.md) to the target message conference and area.
+1. `allowPosts` is set to `true`
+2. They are connected security (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.
+3. The authenticated user has write [ACS](../../configuration/acs.md) to the target message conference and area.
 
 > :warning: Not all [ACS](../../configuration/acs.md) checks can be made over NNTP. Any ACS requiring a "client" will return false (fail), such as `LC` ("is local?").
 
@@ -53,7 +54,7 @@ Authenticated users may write messages to a group given the following are true:
 ```hjson
 contentServers: {
     nntp: {
-        allowPosting: true
+        allowPosts: true
 
         publicMessageConferences: {
             fsxnet: [
