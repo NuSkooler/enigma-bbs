@@ -273,6 +273,7 @@ class NNTPServer extends NNTPServerBase {
         message.nntpHeaders = {
             From: this.getJAMStyleFrom(message, fromName),
             'X-Comment-To': toName,
+            To: toName, // JAM-ish
             Newsgroups: session.group.name,
             Subject: message.subject,
             Date: this.getMessageDate(message),
@@ -384,7 +385,7 @@ class NNTPServer extends NNTPServerBase {
             messageUuid = msg && msg.messageUuid;
         } else {
             //  <Message-ID> request
-            [, messageUuid] = this.getMessageIdentifierParts(messageId);
+            [, messageUuid] = NNTPServer.getMessageIdentifierParts(messageId);
         }
 
         if (!_.isString(messageUuid)) {
@@ -920,7 +921,7 @@ class NNTPServer extends NNTPServerBase {
         return this.makeMessageIdentifier(message.messageId, message.messageUuid);
     }
 
-    getMessageIdentifierParts(messageId) {
+    static getMessageIdentifierParts(messageId) {
         const m = messageId.match(
             /<([0-9]+)\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@enigma-bbs>/
         );
@@ -999,9 +1000,11 @@ class NNTPServer extends NNTPServerBase {
                 (parsed, callback) => {
                     // gather some initially important bits
                     const subject = parsed.header.get('subject');
-                    const to = parsed.header.get('to'); // non-standard, may be missing
+                    const to = parsed.header.get('to') || parsed.header.get('x-jam-to'); // non-standard, may be missing
                     const from = tidyFrom(
-                        parsed.header.get('from') || parsed.header.get('sender')
+                        parsed.header.get('from') ||
+                            parsed.header.get('sender') ||
+                            parsed.header.get('x-jam-from')
                     );
                     const date = parsed.header.get('date'); // if not present we'll use 'now'
                     const newsgroups = parsed.header
@@ -1085,18 +1088,15 @@ class NNTPServer extends NNTPServerBase {
                         msgData.parsed.header.get('in-reply-to') ||
                         msgData.parsed.header.get('references') ||
                         ''
-                    )
-                        .split(' ')[0]
-                        .replace(/[\<\>]/g, '');
+                    ).split(' ')[0];
 
                     if (parentMessageId) {
-                        let m = /[0-9]+\.([0-9a-f\-]{36})@enigma-bbs/.exec(
-                            parentMessageId
-                        );
-                        if (m && m[1]) {
+                        let [_, messageUuid] =
+                            NNTPServer.getMessageIdentifierParts(parentMessageId);
+                        if (messageUuid) {
                             const filter = {
                                 resultType: 'messageList',
-                                uuids: m[1],
+                                uuids: messageUuid,
                                 limit: 1,
                             };
 
@@ -1131,6 +1131,7 @@ class NNTPServer extends NNTPServerBase {
                         Message.AddressFlavor.NNTP;
 
                     //  :TODO: investigate JAMNTTP clients/etc.
+                    //  :TODO: slurp in various X-XXXX kludges/etc. and bring them in
 
                     persistMessage(message, err => {
                         if (!err) {
