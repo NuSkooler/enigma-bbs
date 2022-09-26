@@ -9,6 +9,7 @@ const { getTransactionDatabase, getModDatabasePath } = require('../../database.j
 const {
     getMessageAreaByTag,
     getMessageConferenceByTag,
+    persistMessage,
 } = require('../../message_area.js');
 const User = require('../../user.js');
 const Errors = require('../../enig_error.js').Errors;
@@ -21,6 +22,7 @@ const {
 } = require('../../string_util.js');
 const AnsiPrep = require('../../ansi_prep.js');
 const { stripMciColorCodes } = require('../../color_codes.js');
+const ACS = require('../../acs');
 
 //  deps
 const NNTPServerBase = require('nntp-server');
@@ -111,6 +113,38 @@ class NNTPDatabase {
 
 let nntpDatabase;
 
+const AuthCommands = 'POST';
+
+// these aren't exported by the NNTP module, unfortunantely
+const Responses = {
+    ArticlePostedOk: '240 article posted ok',
+
+    SendArticle: '340 send article to be posted',
+
+    PostingNotAllowed: '440 posting not allowed',
+    ArticlePostFailed: '441 posting failed',
+    AuthRequired: '480 authentication required',
+};
+
+const PostCommand = {
+    head: 'POST',
+    validate: /^POST$/i,
+
+    run(session, cmd) {
+        if (!session.authenticated) {
+            session.receivingPostArticle = false; // ensure reset
+            return Responses.AuthRequired;
+        }
+
+        session.receivingPostArticle = true;
+        return Responses.SendArticle;
+    },
+
+    capability(session, report) {
+        report.push('POST');
+    },
+};
+
 class NNTPServer extends NNTPServerBase {
     constructor(options, serverName) {
         super(options);
@@ -125,14 +159,26 @@ class NNTPServer extends NNTPServerBase {
     }
 
     _needAuth(session, command) {
+        if (AuthCommands.includes(command)) {
+            return !session.authenticated && !session.authUser;
+        }
+
         return super._needAuth(session, command);
+    }
+
+    _address(session) {
+        const addr = session.in_stream.remoteAddress;
+        return addr ? addr.replace(/^::ffff:/, '').replace(/^::1$/, 'localhost') : 'N/A';
     }
 
     _authenticate(session) {
         const username = session.authinfo_user;
         const password = session.authinfo_pass;
 
-        this.log.trace({ username }, 'Authentication request');
+        this.log.debug(
+            { username, ip: this._address(session) },
+            `NNTP authentication request for "${username}"`
+        );
 
         return new Promise(resolve => {
             const user = new User();
@@ -140,17 +186,19 @@ class NNTPServer extends NNTPServerBase {
                 { type: User.AuthFactor1Types.Password, username, password },
                 err => {
                     if (err) {
-                        //  :TODO: Log IP address
-                        this.log.debug(
-                            { username, reason: err.message },
-                            'Authentication failure'
+                        this.log.warn(
+                            { username, reason: err.message, ip: this._address(session) },
+                            `NNTP authentication failure for "${username}"`
                         );
                         return resolve(false);
                     }
 
                     session.authUser = user;
 
-                    this.log.debug({ username }, 'User authenticated successfully');
+                    this.log.info(
+                        { username, ip: this._address(session) },
+                        `NTTP authentication success for "${username}"`
+                    );
                     return resolve(true);
                 }
             );
@@ -232,6 +280,7 @@ class NNTPServer extends NNTPServerBase {
         message.nntpHeaders = {
             From: this.getJAMStyleFrom(message, fromName),
             'X-Comment-To': toName,
+            To: toName, // JAM-ish
             Newsgroups: session.group.name,
             Subject: message.subject,
             Date: this.getMessageDate(message),
@@ -343,7 +392,7 @@ class NNTPServer extends NNTPServerBase {
             messageUuid = msg && msg.messageUuid;
         } else {
             //  <Message-ID> request
-            [, messageUuid] = this.getMessageIdentifierParts(messageId);
+            [, messageUuid] = NNTPServer.getMessageIdentifierParts(messageId);
         }
 
         if (!_.isString(messageUuid)) {
@@ -394,7 +443,7 @@ class NNTPServer extends NNTPServerBase {
                             )
                         ) {
                             this.log.info(
-                                { messageUuid, messageId },
+                                { messageUuid, messageId, ip: this._address(session) },
                                 'Access denied for message'
                             );
                             return resolve(null);
@@ -592,15 +641,33 @@ class NNTPServer extends NNTPServerBase {
         if (!conf) {
             return false;
         }
-        //  :TODO: validate ACS
 
         const area = getMessageAreaByTag(areaTag, confTag);
         if (!area) {
             return false;
         }
-        //  :TODO: validate ACS
 
-        return false;
+        const acs = new ACS({ client: null, user: session.authUser });
+        return acs.hasMessageConfRead(conf) && acs.hasMessageAreaRead(area);
+    }
+
+    static hasConfAndAreaWriteAccess(session, confTag, areaTag) {
+        if (Message.isPrivateAreaTag(areaTag)) {
+            return false;
+        }
+
+        const conf = getMessageConferenceByTag(confTag);
+        if (!conf) {
+            return false;
+        }
+
+        const area = getMessageAreaByTag(areaTag, confTag);
+        if (!area) {
+            return false;
+        }
+
+        const acs = new ACS({ client: null, user: session.authUser });
+        return acs.hasMessageConfWrite(conf) && acs.hasMessageAreaWrite(area);
     }
 
     getGroup(session, groupName, cb) {
@@ -861,7 +928,7 @@ class NNTPServer extends NNTPServerBase {
         return this.makeMessageIdentifier(message.messageId, message.messageUuid);
     }
 
-    getMessageIdentifierParts(messageId) {
+    static getMessageIdentifierParts(messageId) {
         const m = messageId.match(
             /<([0-9]+)\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@enigma-bbs>/
         );
@@ -918,6 +985,240 @@ class NNTPServer extends NNTPServerBase {
         return `${_.snakeCase(confTag).replace(/\./g, '_')}.${_.snakeCase(
             areaTag
         ).replace(/\./g, '_')}`;
+    }
+
+    static _importMessage(session, articleLines, cb) {
+        const tidyFrom = f => {
+            if (f) {
+                // remove quotes around name, if present
+                let m = /^"([^"]+)" <([^>]+)>$/.exec(f);
+                if (m && m[1] && m[2]) {
+                    f = `${m[1]} <${m[2]}>`;
+                }
+            }
+            return f;
+        };
+
+        asyncWaterfall(
+            [
+                callback => {
+                    return NNTPServer._parseArticleLines(articleLines, callback);
+                },
+                (parsed, callback) => {
+                    // gather some initially important bits
+                    const subject = parsed.header.get('subject');
+                    const to = parsed.header.get('to') || parsed.header.get('x-jam-to'); // non-standard, may be missing
+                    const from = tidyFrom(
+                        parsed.header.get('from') ||
+                            parsed.header.get('sender') ||
+                            parsed.header.get('x-jam-from')
+                    );
+                    const date = parsed.header.get('date'); // if not present we'll use 'now'
+                    const newsgroups = parsed.header
+                        .get('newsgroups')
+                        .split(',')
+                        .map(ng => {
+                            const [confTag, areaTag] = ng.split('.');
+                            return { confTag, areaTag };
+                        });
+
+                    // validate areaTag exists -- currently only a single area/post; no x-posts
+                    //  :TODO: look into x-posting
+                    const area = getMessageAreaByTag(newsgroups[0].areaTag);
+                    if (!area) {
+                        return callback(
+                            Errors.DoesNotExist(
+                                `No area by tag "${newsgroups[0].areaTag}" exists!`
+                            )
+                        );
+                    }
+
+                    //  NOTE: Not all ACS checks work with NNTP since we don't have a standard client;
+                    //  If a particular ACS requires a |client|, it will return false!
+                    if (
+                        !NNTPServer.hasConfAndAreaWriteAccess(
+                            session,
+                            area.confTag,
+                            area.areaTag
+                        )
+                    ) {
+                        return callback(
+                            Errors.AccessDenied(
+                                `No ACS to ${area.confTag}/${area.areaTag}`
+                            )
+                        );
+                    }
+
+                    if (
+                        !_.isString(subject) ||
+                        !_.isString(from) ||
+                        !Array.isArray(newsgroups)
+                    ) {
+                        return callback(
+                            Errors.Invalid('Missing one or more required article fields')
+                        );
+                    }
+
+                    return callback(null, {
+                        subject,
+                        from,
+                        date,
+                        newsgroups,
+                        to,
+                        parsed,
+                    });
+                },
+                (msgData, callback) => {
+                    if (msgData.to) {
+                        return callback(null, msgData);
+                    }
+
+                    //
+                    // We don't have a 'to' field, try to derive if this is a
+                    // response to a message. If not, just fall back 'All'
+                    //
+                    //  'References'
+                    //  - https://www.rfc-editor.org/rfc/rfc5536#section-3.2.10
+                    //  - https://www.rfc-editor.org/rfc/rfc5322.html
+                    //
+                    //  'In-Reply-To'
+                    //  - https://www.rfc-editor.org/rfc/rfc5322.html
+                    //
+                    //  Both may contain 1:N, "optionally" separated by CFWS; by this
+                    //  point in the code, they should be space separated at most.
+                    //
+                    //  Each entry is in msg-id format. That is:
+                    //  "<" id-left "@" id-right ">"
+                    //
+                    msgData.to = 'All'; // fallback
+                    let parentMessageId = (
+                        msgData.parsed.header.get('in-reply-to') ||
+                        msgData.parsed.header.get('references') ||
+                        ''
+                    ).split(' ')[0];
+
+                    if (parentMessageId) {
+                        let [_, messageUuid] =
+                            NNTPServer.getMessageIdentifierParts(parentMessageId);
+                        if (messageUuid) {
+                            const filter = {
+                                resultType: 'messageList',
+                                uuids: messageUuid,
+                                limit: 1,
+                            };
+
+                            return Message.findMessages(filter, (err, messageList) => {
+                                if (err) {
+                                    return callback(err);
+                                }
+
+                                // current message/article is a reply to this message:
+                                msgData.to = messageList[0].fromUserName;
+                                msgData.replyToMsgId = messageList[0].replyToMsgId; // may not be present
+                                return callback(null, msgData);
+                            });
+                        }
+                    }
+
+                    return callback(null, msgData);
+                },
+                (msgData, callback) => {
+                    const message = new Message({
+                        toUserName: msgData.to,
+                        fromUserName: msgData.from,
+                        subject: msgData.subject,
+                        replyToMsgId: msgData.replyToMsgId || 0,
+                        modTimestamp: msgData.date, // moment can generally parse these
+                        // :TODO: inspect Content-Type 'charset' if present & attempt to properly decode if not UTF-8
+                        message: msgData.parsed.body.join('\n'),
+                        areaTag: msgData.newsgroups[0].areaTag,
+                    });
+
+                    message.meta.System[Message.SystemMetaNames.ExternalFlavor] =
+                        Message.AddressFlavor.NNTP;
+
+                    //  :TODO: investigate JAMNTTP clients/etc.
+                    //  :TODO: slurp in various X-XXXX kludges/etc. and bring them in
+
+                    persistMessage(message, err => {
+                        if (!err) {
+                            Log.info(
+                                `NNTP post to "${message.areaTag}" by "${session.authUser.username}": "${message.subject}"`
+                            );
+                        }
+                        return callback(err);
+                    });
+                },
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    static _parseArticleLines(articleLines, cb) {
+        //
+        //  Split articleLines into:
+        //  - Header split into N:V pairs
+        //  - Message Body lines
+        //  -
+        const header = new Map();
+        const body = [];
+        let inHeader = true;
+        let currentHeaderName;
+        forEachSeries(
+            articleLines,
+            (line, nextLine) => {
+                if (inHeader) {
+                    if (line === '.' || line === '') {
+                        inHeader = false;
+                        return nextLine(null);
+                    }
+
+                    const sep = line.indexOf(':');
+                    if (sep < 1) {
+                        // at least a single char name
+                        // entries can split across lines -- they will be prefixed with a single space.
+                        if (
+                            currentHeaderName &&
+                            (line.startsWith(' ') || line.startsWith('\t'))
+                        ) {
+                            let v = header.get(currentHeaderName);
+                            v += line
+                                .replace(/^\t/, ' ') // if we're dealign with a legacy tab
+                                .trimRight();
+                            header.set(currentHeaderName, v);
+                            return nextLine(null);
+                        }
+
+                        return nextLine(
+                            Errors.Invalid(
+                                `"${line}" is not a valid NNTP message header!`
+                            )
+                        );
+                    }
+
+                    currentHeaderName = line.slice(0, sep).trim().toLowerCase();
+                    const value = line.slice(sep + 1).trim();
+                    header.set(currentHeaderName, value);
+                    return nextLine(null);
+                }
+
+                // body
+                if (line !== '.') {
+                    // lines consisting of a single '.' are escaped to '..'
+                    if (line.startsWith('..')) {
+                        body.push(line.slice(1));
+                    } else {
+                        body.push(line);
+                    }
+                }
+                return nextLine(null);
+            },
+            err => {
+                return cb(err, { header, body });
+            }
+        );
     }
 }
 
@@ -985,10 +1286,91 @@ exports.getModule = class NNTPServerModule extends ServerModule {
 
         const config = Config();
 
+        // :TODO: nntp-server doesn't currently allow posting in a nice way, so this is kludged in. Fork+MR something cleaner at some point
+        class ProxySession extends NNTPServerBase.Session {
+            constructor(server, stream) {
+                super(server, stream);
+                this.articleLinesBuffer = [];
+            }
+
+            parse(data) {
+                if (this.receivingPostArticle) {
+                    return this.receivePostArticleData(data);
+                }
+
+                super.parse(data);
+            }
+
+            receivePostArticleData(data) {
+                this.articleLinesBuffer.push(...data.split(/r?\n/));
+
+                const endOfPost = data.length === 1 && data[0] === '.';
+                if (endOfPost) {
+                    this.receivingPostArticle = false;
+
+                    // Command is not exported currently; maybe submit a MR to allow posting in a nicer way...
+                    function Command(runner, articleLines, session) {
+                        this.state = 0; // CMD_WAIT
+                        this.cmd_line = 'POST';
+                        this.resolved_value = null;
+                        this.rejected_value = null;
+                        this.run = runner;
+                        this.articleLines = articleLines;
+                        this.session = session;
+                    }
+
+                    this.pipeline.push(
+                        new Command(
+                            this._processarticleLinesBuffer,
+                            this.articleLinesBuffer,
+                            this
+                        )
+                    );
+                    this.articleLinesBuffer = [];
+                    this.tick();
+                }
+            }
+
+            _processarticleLinesBuffer() {
+                return new Promise(resolve => {
+                    NNTPServer._importMessage(this.session, this.articleLines, err => {
+                        if (err) {
+                            this.rejected_value = err; // will be serialized and 403 sent back currently; not really ideal as we want ArticlePostFailed
+                            //  :TODO: tick() needs updated in session.js such that we can write back a proper code
+                            this.state = 3; // CMD_REJECTED
+
+                            Log.error(
+                                { error: err.message },
+                                `NNTP post failed: ${err.message}`
+                            );
+                        } else {
+                            this.resolved_value = Responses.ArticlePostedOk;
+                            this.state = 2; // CMD_RESOLVED
+                        }
+
+                        return resolve();
+                    });
+                });
+            }
+
+            static create(server, stream) {
+                return new ProxySession(server, stream);
+            }
+        }
+
         const commonOptions = {
-            //requireAuth : true,   //  :TODO: re-enable!
-            //  :TODO: override |session| - use our own debug to Bunyan, etc.
+            //  :TODO: How to hook into debugging?!
         };
+
+        if (true === _.get(config, 'contentServers.nntp.allowPosts')) {
+            // add in some additional supported commands
+            const commands = Object.assign({}, NNTPServerBase.commands, {
+                POST: PostCommand,
+            });
+
+            commonOptions.commands = commands;
+            commonOptions.session = ProxySession;
+        }
 
         if (this.enableNntp) {
             this.nntpServer = new NNTPServer(
