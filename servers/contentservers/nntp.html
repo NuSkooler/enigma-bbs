@@ -17,11 +17,11 @@
 <meta property="og:description" content="The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://)." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-09-21T14:27:23+00:00" />
+<meta property="article:published_time" content="2022-09-26T00:32:50+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="NNTP Server" />
 <script type="application/ld+json">
-{"datePublished":"2022-09-21T14:27:23+00:00","description":"The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/nntp.html"},"url":"/enigma-bbs/servers/contentservers/nntp.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"NNTP Server","dateModified":"2022-09-21T14:27:23+00:00","@context":"https://schema.org"}</script>
+{"datePublished":"2022-09-26T00:32:50+00:00","description":"The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/nntp.html"},"url":"/enigma-bbs/servers/contentservers/nntp.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"NNTP Server","dateModified":"2022-09-26T00:32:50+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2315,6 +2315,7 @@
 <p>The NNTP <em>content server</em> provides access to publicly exposed message conferences and areas over either <strong>secure</strong> NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).</p>
 
 <h2 id="configuration">Configuration</h2>
+<p>The following keys are available within the <code class="language-plaintext highlighter-rouge">contentServers.nntp</code> configuration block:</p>
 
 <table>
   <thead>
@@ -2328,22 +2329,28 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">nntp</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Configuration block for non-secure NNTP. See Non-Secure NNTP Configuration below.</td>
+      <td>Configuration block for non-secure NNTP. See <a href="#non-secure-configuration">Non-Secure NNTP Configuration</a>.</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">nntps</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Configuration block for secure NNTP. See Secure NNTPS Configuration below.</td>
+      <td>Configuration block for secure NNTP. See <a href="#secure-configuration-nntps">Secure Configuration (NNTPS)</a>
+</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">publicMessageConferences</code></td>
       <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>A map of <em>conference tags</em> to <em>area tags</em> that are publicly exposed over NNTP. Anonymous users will get read-only access to these areas.</td>
+      <td>A map of <em>conference tags</em> to <em>area tags</em> that are publicly exposed over NNTP. <u>Anonymous users will gain read-only access to these areas</u>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">allowPosts</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Allow posting from <u>authenticated users</u>. See <a href="#write-access">Write Access</a>. Default is <code class="language-plaintext highlighter-rouge">false</code>.</td>
     </tr>
   </tbody>
 </table>
 
-<h3 id="see-non-secure-nntp-configuration">See Non-Secure NNTP Configuration</h3>
+<h3 id="non-secure-configuration">Non-Secure Configuration</h3>
 <p>Under <code class="language-plaintext highlighter-rouge">contentServers.nntp.nntp</code> the following configuration is allowed:</p>
 
 <table>
@@ -2368,7 +2375,7 @@
   </tbody>
 </table>
 
-<h3 id="secure-nntps-configuration">Secure NNTPS Configuration</h3>
+<h3 id="secure-configuration-nntps">Secure Configuration (NNTPS)</h3>
 <p>Under <code class="language-plaintext highlighter-rouge">contentServers.nntp.nntps</code> the following configuration is allowed:</p>
 
 <table>
@@ -2408,14 +2415,31 @@
 <h4 id="certificates-and-keys">Certificates and Keys</h4>
 <p>In order to use secure NNTPS, a TLS certificate and key pair must be provided. You may generate your own but most clients <strong>will not trust</strong> them. A certificate and key from a trusted Certificate Authority is recommended. <a href="https://letsencrypt.org/">Let’s Encrypt</a> provides free TLS certificates. Certificates and private keys must be in <a href="https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail">PEM format</a>.</p>
 
-<h5 id="generating-your-own">Generating Your Own</h5>
+<h5 id="generating-a-certificate--key-pair">Generating a Certificate &amp; Key Pair</h5>
 <p>An example of generating your own cert/key pair:</p>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-newkey</span> rsa:2048 <span class="nt">-nodes</span> <span class="nt">-keyout</span> ./config/nntps_key.pem <span class="nt">-x509</span> <span class="nt">-days</span> 3050 <span class="nt">-out</span> ./config/nntps_cert.pem
 </code></pre></div></div>
 
-<h3 id="example-configuration">Example Configuration</h3>
+<h2 id="write-access">Write Access</h2>
+<p>Authenticated users may write messages to a group given the following are true:</p>
+
+<ol>
+  <li>
+<code class="language-plaintext highlighter-rouge">allowPosts</code> is set to <code class="language-plaintext highlighter-rouge">true</code>
+</li>
+  <li>They are connected security (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.</li>
+  <li>The authenticated user has write <a href="/enigma-bbs/configuration/acs.html">ACS</a> to the target message conference and area.</li>
+</ol>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Not all <a href="/enigma-bbs/configuration/acs.html">ACS</a> checks can be made over NNTP. Any ACS requiring a “client” will return false (fail), such as <code class="language-plaintext highlighter-rouge">LC</code> (“is local?”).</p>
+</blockquote>
+
+<h2 id="example-configuration">Example Configuration</h2>
 <pre><code class="language-hjson">contentServers: {
     nntp: {
+        allowPosts: true
+
         publicMessageConferences: {
             fsxnet: [
                 // Expose these areas of fsxNet
