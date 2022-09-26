@@ -166,12 +166,19 @@ class NNTPServer extends NNTPServerBase {
         return super._needAuth(session, command);
     }
 
+    _address(session) {
+        const addr = session.in_stream.remoteAddress;
+        return addr ? addr.replace(/^::ffff:/, '').replace(/^::1$/, 'localhost') : 'N/A';
+    }
+
     _authenticate(session) {
         const username = session.authinfo_user;
         const password = session.authinfo_pass;
 
-        //  :TODO: log IP address on these....
-        this.log.debug({ username }, `NNTP authentication request for "${username}"`);
+        this.log.debug(
+            { username, ip: this._address(session) },
+            `NNTP authentication request for "${username}"`
+        );
 
         return new Promise(resolve => {
             const user = new User();
@@ -180,7 +187,7 @@ class NNTPServer extends NNTPServerBase {
                 err => {
                     if (err) {
                         this.log.warn(
-                            { username, reason: err.message },
+                            { username, reason: err.message, ip: this._address(session) },
                             `NNTP authentication failure for "${username}"`
                         );
                         return resolve(false);
@@ -189,7 +196,7 @@ class NNTPServer extends NNTPServerBase {
                     session.authUser = user;
 
                     this.log.info(
-                        { username },
+                        { username, ip: this._address(session) },
                         `NTTP authentication success for "${username}"`
                     );
                     return resolve(true);
@@ -436,7 +443,7 @@ class NNTPServer extends NNTPServerBase {
                             )
                         ) {
                             this.log.info(
-                                { messageUuid, messageId },
+                                { messageUuid, messageId, ip: this._address(session) },
                                 'Access denied for message'
                             );
                             return resolve(null);
