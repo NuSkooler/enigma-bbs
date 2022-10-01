@@ -21,7 +21,7 @@ The `mciMap` `config` block configures MCI code mapping to data sources. Current
 ##### User Event Log (userEventLog)
 When `type` is set to `userEventLog`, entries from the User Event Log can be counted (ie: individual instances of a particular log item) or summed in the case of log items that have numeric values. The default is to sum.
 
-Some current User Event Log `value` examples include `ul_files`, `dl_file_bytes`, or `achievement_earned`. See [user_log_name.js](../../../core/user_log_name.js) for additional information./user_log_name.jsEry:
+Some current User Event Log `value` examples include `ul_files`, `dl_file_bytes`, or `achievement_earned`. See [user_log_name.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/user_log_name.js) for additional information./user_log_name.jsEry:
 ```hjson
 mciMap: {
     1: { //  e.g.: %VM1
@@ -34,7 +34,7 @@ mciMap: {
 ```
 
 #### User Properties (userProp)
-When `type` is set to `userProp`, data is collected from individual user's properties. For example a `value` of `minutes_online_total_count`. See [user_property.js](../../../core/user_property.js) for more information.
+When `type` is set to `userProp`, data is collected from individual user's properties. For example a `value` of `minutes_online_total_count`. See [user_property.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/user_property.js) for more information.
 
 Example `userProp` entry:
 ```hjson
