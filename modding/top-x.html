@@ -17,11 +17,11 @@
 <meta property="og:description" content="The TopX Module The built in top_x module allows for displaying oLDSKOOL (?!) top user stats for the week, month, etc. Ops can configure what stat(s) are displayed and how far back in days the stats are considered." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-10-01T18:15:06+00:00" />
+<meta property="article:published_time" content="2022-10-01T18:21:19+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="TopX" />
 <script type="application/ld+json">
-{"datePublished":"2022-10-01T18:15:06+00:00","description":"The TopX Module The built in top_x module allows for displaying oLDSKOOL (?!) top user stats for the week, month, etc. Ops can configure what stat(s) are displayed and how far back in days the stats are considered.","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/top-x.html"},"url":"/enigma-bbs/modding/top-x.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"TopX","dateModified":"2022-10-01T18:15:06+00:00","@context":"https://schema.org"}</script>
+{"datePublished":"2022-10-01T18:21:19+00:00","description":"The TopX Module The built in top_x module allows for displaying oLDSKOOL (?!) top user stats for the week, month, etc. Ops can configure what stat(s) are displayed and how far back in days the stats are considered.","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/top-x.html"},"url":"/enigma-bbs/modding/top-x.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"TopX","dateModified":"2022-10-01T18:21:19+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2346,7 +2346,7 @@
 <h5 id="user-event-log-usereventlog">User Event Log (userEventLog)</h5>
 <p>When <code class="language-plaintext highlighter-rouge">type</code> is set to <code class="language-plaintext highlighter-rouge">userEventLog</code>, entries from the User Event Log can be counted (ie: individual instances of a particular log item) or summed in the case of log items that have numeric values. The default is to sum.</p>
 
-<p>Some current User Event Log <code class="language-plaintext highlighter-rouge">value</code> examples include <code class="language-plaintext highlighter-rouge">ul_files</code>, <code class="language-plaintext highlighter-rouge">dl_file_bytes</code>, or <code class="language-plaintext highlighter-rouge">achievement_earned</code>. See <a href="../../../core/user_log_name.js">user_log_name.js</a> for additional information./user_log_name.jsEry:</p>
+<p>Some current User Event Log <code class="language-plaintext highlighter-rouge">value</code> examples include <code class="language-plaintext highlighter-rouge">ul_files</code>, <code class="language-plaintext highlighter-rouge">dl_file_bytes</code>, or <code class="language-plaintext highlighter-rouge">achievement_earned</code>. See <a href="https://github.com/NuSkooler/enigma-bbs/blob/master/core/user_log_name.js">user_log_name.js</a> for additional information./user_log_name.jsEry:</p>
 <pre><code class="language-hjson">mciMap: {
     1: { //  e.g.: %VM1
         type: userEventLog
@@ -2358,7 +2358,7 @@
 </code></pre>
 
 <h4 id="user-properties-userprop">User Properties (userProp)</h4>
-<p>When <code class="language-plaintext highlighter-rouge">type</code> is set to <code class="language-plaintext highlighter-rouge">userProp</code>, data is collected from individual user’s properties. For example a <code class="language-plaintext highlighter-rouge">value</code> of <code class="language-plaintext highlighter-rouge">minutes_online_total_count</code>. See <a href="../../../core/user_property.js">user_property.js</a> for more information.</p>
+<p>When <code class="language-plaintext highlighter-rouge">type</code> is set to <code class="language-plaintext highlighter-rouge">userProp</code>, data is collected from individual user’s properties. For example a <code class="language-plaintext highlighter-rouge">value</code> of <code class="language-plaintext highlighter-rouge">minutes_online_total_count</code>. See <a href="https://github.com/NuSkooler/enigma-bbs/blob/master/core/user_property.js">user_property.js</a> for more information.</p>
 
 <p>Example <code class="language-plaintext highlighter-rouge">userProp</code> entry:</p>
 <pre><code class="language-hjson">mciMap: {
