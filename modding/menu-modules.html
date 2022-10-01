@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-10-01T05:56:04+00:00" />
+<meta property="article:published_time" content="2022-10-01T17:44:20+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu Modules" />
 <script type="application/ld+json">
-{"datePublished":"2022-10-01T05:56:04+00:00","description":"Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below.","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu Modules","dateModified":"2022-10-01T05:56:04+00:00","@context":"https://schema.org"}</script>
+{"datePublished":"2022-10-01T17:44:20+00:00","description":"Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below.","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Menu Modules","dateModified":"2022-10-01T17:44:20+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2449,6 +2449,17 @@
 
 <p>Methods indicated above with <code class="language-plaintext highlighter-rouge">()</code> in their name such as <code class="language-plaintext highlighter-rouge">enter()</code> are overridable when inheriting form <code class="language-plaintext highlighter-rouge">MenuModule</code>.</p>
 
+<ul>
+  <li>
+<code class="language-plaintext highlighter-rouge">enter()</code> is the first to be called. There is no callback. The default implementation is to simply call <code class="language-plaintext highlighter-rouge">this.initSequence()</code>.</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">displayQueuedInterruptions(callback)</code> is called, and if interruptions are allowed for this menu, any that may be queued will be displayed first.</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">beforeArt(callback)</code> is called before any art is displayed. The default implementation will set emulated baud rate, and clear the screen if either are requested by the menu’s <code class="language-plaintext highlighter-rouge">config</code> block.</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">mciReady(mciData, callback)</code> is called when art is loaded and MCI codes are initialized. The default implementation of a custom <code class="language-plaintext highlighter-rouge">MenuModule</code> simply continues. See also <a href="#standardmcireadyhandlermcidata-callback">standardMCIReadyHandler</a>.</li>
+</ul>
+
 <h2 id="menumodule-helper-methods">MenuModule Helper Methods</h2>
 <p>Many helper methods exist and are available to code inheriting from <code class="language-plaintext highlighter-rouge">MenuModule</code>. Below are some examples. Poke around at <a href="../../../core/menu_module.js">menu_module.js</a> to discover more!</p>
 
@@ -2502,7 +2513,9 @@
   <li><code class="language-plaintext highlighter-rouge">promptForInput()</code></li>
 </ul>
 
-<p><code class="language-plaintext highlighter-rouge">standardMCIReadyHandler()</code>: This is a standard and commonly used <code class="language-plaintext highlighter-rouge">mciReady()</code> implementation:</p>
+<h4 id="standardmcireadyhandlermcidata-callback">
+<code class="language-plaintext highlighter-rouge">standardMCIReadyHandler(mciData, callback)</code>:</h4>
+<p>This is a standard and commonly used <code class="language-plaintext highlighter-rouge">mciReady()</code> implementation:</p>
 
 <div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">mciReady</span><span class="p">(</span><span class="nx">mciData</span><span class="p">,</span> <span class="nx">cb</span><span class="p">)</span> <span class="p">{</span>
   <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nx">standardMCIReadyHandler</span><span class="p">(</span><span class="nx">mciData</span><span class="p">,</span> <span class="nx">cb</span><span class="p">);</span>
@@ -2535,7 +2548,11 @@
 <p>Most mods will also derive from <code class="language-plaintext highlighter-rouge">MenuModule</code>. Some things to be aware of:</p>
 <ul>
   <li>Custom mods that bring in their own dependencies must also include their own <code class="language-plaintext highlighter-rouge">package.json</code> and other Node requirements</li>
-  <li>Be sure to use <code class="language-plaintext highlighter-rouge">packageName</code> and <code class="language-plaintext highlighter-rouge">getModDatabasePath()</code> for any peristence needs.</li>
+  <li>Be sure to use <code class="language-plaintext highlighter-rouge">packageName</code> and <code class="language-plaintext highlighter-rouge">getModDatabasePath()</code> for any (database) peristence needs.</li>
+  <li>Custom mods in <code class="language-plaintext highlighter-rouge">mods/the_mod_name/</code> and the <code class="language-plaintext highlighter-rouge">MenuModule</code> entry point must be within a file of the same name: <code class="language-plaintext highlighter-rouge">mods/the_mod_name/the_mod_name.js</code>
+</li>
+  <li>To import ENiGMA modules <code class="language-plaintext highlighter-rouge">require()</code> from <code class="language-plaintext highlighter-rouge">../../core/</code>
+</li>
 </ul>
 
 </div>
