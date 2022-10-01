@@ -46,7 +46,7 @@ initSequence() {
 > :bulb: Remember that *all* menus within ENiGMA are created by inheriting from `MenuModule`. Take a look at existing examples such as [WFC](/core/wfc.js), [NUA](/core/nua.js), [MRC](/core/mrc.js) and more!
 
 ### ModuleInfo
-To register your module with the system, include a `ModuleInfo` declaration in your exports. The following members are available:
+To register your module with the system, include a `moduleInfo` declaration in your exports. The following members are available:
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -58,7 +58,7 @@ To register your module with the system, include a `ModuleInfo` declaration in y
 **Example**:
 
 ```javascript
-exports.ModuleInfo = {
+exports.moduleInfo = {
   name: 'Super Dope Mod',
   desc: '...a super dope mod, duh.',
   author: 'You!',
@@ -67,7 +67,7 @@ exports.ModuleInfo = {
 ```
 
 ### Per-Mod Databases
-Custom mods often need their own data persistence. This can be acheived with `getModDatabsePath()` and your `ModuleInfo`'s `packageName`.
+Custom mods often need their own data persistence. This can be acheived with `getModDatabsePath()` and your `moduleInfo`'s `packageName`.
 
 **Example**:
 ```javascript
