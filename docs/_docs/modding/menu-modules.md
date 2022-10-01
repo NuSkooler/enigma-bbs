@@ -116,6 +116,11 @@ Below is a very high level diagram showing the basic lifecycle of a MenuModule.
 
 Methods indicated above with `()` in their name such as `enter()` are overridable when inheriting form `MenuModule`.
 
+* `enter()` is the first to be called. There is no callback. The default implementation is to simply call `this.initSequence()`.
+* `displayQueuedInterruptions(callback)` is called, and if interruptions are allowed for this menu, any that may be queued will be displayed first.
+* `beforeArt(callback)` is called before any art is displayed. The default implementation will set emulated baud rate, and clear the screen if either are requested by the menu's `config` block.
+* `mciReady(mciData, callback)` is called when art is loaded and MCI codes are initialized. The default implementation of a custom `MenuModule` simply continues. See also [standardMCIReadyHandler](#standardmcireadyhandlermcidata-callback).
+
 ## MenuModule Helper Methods
 Many helper methods exist and are available to code inheriting from `MenuModule`. Below are some examples. Poke around at [menu_module.js](../../../core/menu_module.js) to discover more!
 
@@ -154,7 +159,8 @@ The following methods take a single input to specify style, defaulting to `short
 * `promptForInput()`
 
 
-`standardMCIReadyHandler()`: This is a standard and commonly used `mciReady()` implementation:
+#### `standardMCIReadyHandler(mciData, callback)`:
+This is a standard and commonly used `mciReady()` implementation:
 
 ```javascript
 mciReady(mciData, cb) {
@@ -176,4 +182,6 @@ Where `mciData` is a Object mapping [MCI codes](../art/mci.md) such as `TL2` to 
 ## Custom Mods
 Most mods will also derive from `MenuModule`. Some things to be aware of:
 * Custom mods that bring in their own dependencies must also include their own `package.json` and other Node requirements
-* Be sure to use `packageName` and `getModDatabasePath()` for any peristence needs.
+* Be sure to use `packageName` and `getModDatabasePath()` for any (database) peristence needs.
+* Custom mods in `mods/the_mod_name/` and the `MenuModule` entry point must be within a file of the same name: `mods/the_mod_name/the_mod_name.js`
+* To import ENiGMA modules `require()` from `../../core/`
