@@ -40,6 +40,19 @@ mainMenuWaitingForCaller: {
 
 > :lock: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
 
+## Configuration
+### Config Block
+The WFC `config` block allows for the following keys:
+| Key | Required | Description |
+|-----|----------|-------------|
+| `acs` | :+1: | See [Security](#security) above. |
+| `opVisibility` | :-1: | Boolean. Set to `true` or `false` in order to change visbility when entering the WFC |
+| `quickLogLevel` | :-1: | Sets the log level for the quick log view. Defaults to `info`. See also [Monitoring Logs](../troubleshooting/monitoring-logs.md). |
+| `art` | :+1: | An Object containing art information: `main` for the WFC main view itself and `help` for a help screen. |
+| `confirmKickNodePrompt` | :-1: | Override the prompt name used for the "Kick selected node?" prompt. Defaults to `confirmKickNodePrompt` |
+|
+
+
 ## Theming
 The following MCI codes are available:
 * `VM1`: Node status list with the following format items available:
@@ -75,6 +88,8 @@ The following MCI codes are available:
     * `sessionId`: Session ID.
     * `quickLogLevelMessagePrefixes`: A **map** of log level names (see above) to message prefixes. Commonly used for changing message color with pipe codes, such as `|04` for red errors.
     * `message`: Log message.
+* `MT3` or `ET3`: Selected node status information. May be a single or multi line view.
+    * Set `nodeStatusSelectionFormat` to the format desired including `\n` for line feeds in as `MT` view. The availalbe format keys are the same as the node status list above.
 * MCI 10...99: Custom entries with the following format keys available:
     * `nowDate`: Current date in the `dateFormat` style, defaulting to `short`.
     * `nowTime`: Current time in the `timeFormat` style, defaulting to `short`.
