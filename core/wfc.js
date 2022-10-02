@@ -89,6 +89,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             toggleVisible: (formData, extraArgs, cb) => {
                 const visible = this.client.user.isVisible();
                 this.client.user.setVisibility(!visible);
+                this.visibilityToggled = true; // we won't restore it in this case
                 return this._refreshAll(cb);
             },
             displayHelp: (formData, extraArgs, cb) => {
@@ -366,7 +367,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _restoreOpVisibility() {
-        this.client.user.setVisibility(this.restoreUserIsVisible);
+        if (!this.visibilityToggled) {
+            this.client.user.setVisibility(this.restoreUserIsVisible);
+        }
     }
 
     _startRefreshing() {
