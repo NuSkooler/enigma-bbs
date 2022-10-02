@@ -17,11 +17,11 @@
 <meta property="og:description" content="The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-10-01T23:21:36+00:00" />
+<meta property="article:published_time" content="2022-10-02T17:34:08+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Waiting For Caller (WFC)" />
 <script type="application/ld+json">
-{"datePublished":"2022-10-01T23:21:36+00:00","description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"url":"/enigma-bbs/modding/wfc.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Waiting For Caller (WFC)","dateModified":"2022-10-01T23:21:36+00:00","@context":"https://schema.org"}</script>
+{"datePublished":"2022-10-02T17:34:08+00:00","description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"url":"/enigma-bbs/modding/wfc.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Waiting For Caller (WFC)","dateModified":"2022-10-02T17:34:08+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2356,6 +2356,18 @@
   <p><img class="emoji" title=":lock:" alt=":lock:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f512.png" height="20" width="20"> ENiGMA½ will enforce ACS of at least <code class="language-plaintext highlighter-rouge">SC</code> (secure connection)</p>
 </blockquote>
 
+<h2 id="configuration">Configuration</h2>
+<h3 id="config-block">Config Block</h3>
+<p>The WFC <code class="language-plaintext highlighter-rouge">config</code> block allows for the following keys:
+| Key | Required | Description |
+|—–|———-|————-|
+| <code class="language-plaintext highlighter-rouge">acs</code> | <img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"> | See <a href="#security">Security</a> above. |
+| <code class="language-plaintext highlighter-rouge">opVisibility</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Boolean. Set to <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> in order to change visbility when entering the WFC |
+| <code class="language-plaintext highlighter-rouge">quickLogLevel</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Sets the log level for the quick log view. Defaults to <code class="language-plaintext highlighter-rouge">info</code>. See also <a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a>. |
+| <code class="language-plaintext highlighter-rouge">art</code> | <img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"> | An Object containing art information: <code class="language-plaintext highlighter-rouge">main</code> for the WFC main view itself and <code class="language-plaintext highlighter-rouge">help</code> for a help screen. |
+| <code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Override the prompt name used for the “Kick selected node?” prompt. Defaults to <code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code> |
+|</p>
+
 <h2 id="theming">Theming</h2>
 <p>The following MCI codes are available:</p>
 <ul>
@@ -2438,6 +2450,12 @@
 <code class="language-plaintext highlighter-rouge">quickLogLevelMessagePrefixes</code>: A <strong>map</strong> of log level names (see above) to message prefixes. Commonly used for changing message color with pipe codes, such as <code class="language-plaintext highlighter-rouge">|04</code> for red errors.</li>
       <li>
 <code class="language-plaintext highlighter-rouge">message</code>: Log message.</li>
+    </ul>
+  </li>
+  <li>
+<code class="language-plaintext highlighter-rouge">MT3</code> or <code class="language-plaintext highlighter-rouge">ET3</code>: Selected node status information. May be a single or multi line view.
+    <ul>
+      <li>Set <code class="language-plaintext highlighter-rouge">nodeStatusSelectionFormat</code> to the format desired including <code class="language-plaintext highlighter-rouge">\n</code> for line feeds in as <code class="language-plaintext highlighter-rouge">MT</code> view. The availalbe format keys are the same as the node status list above.</li>
     </ul>
   </li>
   <li>MCI 10…99: Custom entries with the following format keys available:
