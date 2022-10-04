@@ -183,21 +183,21 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 
 | Property    | Description  |
 |-------------|--------------|
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** below |
-| `focusTextStyle` | Sets focus text style. See **Text Styles** below. |
+| `textStyle` | Sets the standard (non-focus) text style. See [Text Styles](#text-styles) below |
+| `focusTextStyle` | Sets focus text style. See [Text Styles](#text-styles) below |
 | `itemSpacing` | Used to separate items in menus such as Vertical Menu and Horizontal Menu Views. |
 | `height` | Sets the height of views such as menus that may be > 1 character in height |
 | `width` | Sets the width of a view |
 | `focus` | If set to `true`, establishes initial focus |
 | `text` | (initial) text of a view |
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
-| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** below |
-| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** below |
+| `itemFormat` | Sets the format for a list entry. See [Entry Formatting](#entry-formatting) below |
+| `focusItemFormat` | Sets the format for a focused list entry. See [Entry Formatting](#entry-formatting) below |
 
 These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default `menu.hjson` and `theme.hjson` files!
 
 ### Custom Properties
-Often a module will provide custom properties that receive format objects (See **Entry Formatting** below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
+Often a module will provide custom properties that receive format objects (See [Entry Formatting](#entry-formatting) below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
 
 ### Text Styles
 
