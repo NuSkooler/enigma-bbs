@@ -11,6 +11,9 @@ const renderSubstr = require('./string_util.js').renderSubstr;
 const renderStringLength = require('./string_util.js').renderStringLength;
 const pipeToAnsi = require('./color_codes.js').pipeToAnsi;
 const stripAllLineFeeds = require('./string_util.js').stripAllLineFeeds;
+const getPredefinedMCIFormatObject =
+    require('./predefined_mci').getPredefinedMCIFormatObject;
+const stringFormat = require('./string_format');
 
 //  deps
 const util = require('util');
@@ -151,6 +154,12 @@ TextView.prototype.setText = function (text, redraw) {
     if (!_.isString(text)) {
         //  allow |text| to be numbers/etc.
         text = text.toString();
+    }
+
+    const formatObj = getPredefinedMCIFormatObject(this.client, text);
+    if (formatObj) {
+        // expand before converting
+        text = stringFormat(text, formatObj);
     }
 
     this.text = pipeToAnsi(stripAllLineFeeds(text), this.client); //  expand MCI/etc.

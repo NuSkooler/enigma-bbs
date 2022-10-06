@@ -22,6 +22,7 @@ const moment = require('moment');
 const async = require('async');
 
 exports.getPredefinedMCIValue = getPredefinedMCIValue;
+exports.getPredefinedMCIFormatObject = getPredefinedMCIFormatObject;
 exports.init = init;
 
 function init(cb) {
@@ -531,4 +532,22 @@ function getPredefinedMCIValue(client, code, extra) {
 
         return value;
     }
+}
+
+function getPredefinedMCIFormatObject(client, text) {
+    const re = /\{([A-Z]{2})(?:[!:][^}]+)?\}/g;
+    let m;
+    const formatObj = {};
+    while ((m = re.exec(text))) {
+        const v = getPredefinedMCIValue(client, m[1]);
+        if (v) {
+            if (!isNaN(v)) {
+                formatObj[m[1]] = parseInt(v);
+            } else {
+                formatObj[m[1]] = v;
+            }
+        }
+    }
+
+    return _.isEmpty(formatObj) ? null : formatObj;
 }
