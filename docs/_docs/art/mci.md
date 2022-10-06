@@ -108,7 +108,7 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `NM` | Count of new messages **address to the current user** across all message areas in which they have access |
 | `NP` | Count of new private mail to the current user |
 | `IA` | Indicator as to rather the current user is **available** or not. See also `getStatusAvailIndicators()` in [Themes](themes.md) |
-| `IV` | Indicator as to rather the curent user is **visible** or not. See also `getStatusVisibleIndicators()` in [Themes](themes.md) |
+| `IV` | Indicator as to rather the current user is **visible** or not. See also `getStatusVisibleIndicators()` in [Themes](themes.md) |
 | `PI` | Ingress bytes for the current process (since ENiGMA started up) |
 | `PE` | Egress bytes for the current process (since ENiGMA started up) |
 
@@ -186,7 +186,7 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 | `height` | Sets the height of views such as menus that may be > 1 character in height |
 | `width` | Sets the width of a view |
 | `focus` | If set to `true`, establishes initial focus |
-| `text` | (initial) text of a view. See  |
+| `text` | Set's the view's text if applicable, such as a [TextView](./views/text_view.md) or [EditTextView](./views/edit_text_view.md) amongst others. See [MCI Formatting](#mci-formatting) below for advanced formatting options using the |
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
 | `itemFormat` | Sets the format for a list entry. See [Entry Formatting](#entry-formatting) below |
 | `focusItemFormat` | Sets the format for a focused list entry. See [Entry Formatting](#entry-formatting) below |
@@ -217,10 +217,19 @@ Standard style types available for `textStyle` and `focusTextStyle`:
 Various strings can be formatted using a syntax that allows width & precision specifiers, text styling, etc. Depending on the context, various elements can be referenced by `{name}`. Additional text styles can be supplied as well. The syntax is largely modeled after Python's [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language).
 
 #### MCI Formatting
-For more advanced layouts, you may want to apply formatting to MCI codes. In this case, an alternative syntax is supported similar to standard [Entry Formatting](#entry-formatting). MCI codes can be surrounded by `{` and `}` in the `text` field of your `theme.hjson` for a Text Label (`%TL` aka [Text View](./views/text_view.md)). An example:
-```
+For more advanced layouts, you may want to apply formatting to MCI codes. In this case, an alternative syntax is supported similar to standard [Entry Formatting](#entry-formatting).
+
+MCI codes can be surrounded by `{` and `}` in the `text` field in your `theme.hjson` for a Text Label (`%TL` aka [Text View](./views/text_view.md)). Some examples:
+```hjson
 text: "|00|07{BN!stylel33t}" // render board name in "l33t" text
+
+// MCI codes that produce a number can use appropriate stylers as well
+text: "|00|07{SD:,}"
+// ...or perhaps
+text: "|00:07{SD!countWithAbbr}"
 ```
+
+> :bulb: MCI formatting also applies when programmatically calling [setText()](https://github.com/NuSkooler/enigma-bbs/blob/6710bf8c084487be2ee1d46d72a05d17a7b166f4/core/text_view.js#L148) of [TextView's](./views/text_view.md) and derived views.
 
 ### Additional Text Styles
 Some of the text styles mentioned above are also available in the mini format language:

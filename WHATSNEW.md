@@ -6,13 +6,15 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Removed terminal `cursor position reports` from most locations in the code. This should greatly increase the number of terminal programs that work with Enigma 1/2. For more information, see [Issue #222](https://github.com/NuSkooler/enigma-bbs/issues/222). This may also resolve other issues, such as [Issue #365](https://github.com/NuSkooler/enigma-bbs/issues/365), and [Issue #320](https://github.com/NuSkooler/enigma-bbs/issues/320). Anyone that previously had terminal incompatibilities please re-check and let us know!
 * Bumped up the minimum [Node.js](https://nodejs.org/en/) version to v14. This will allow more expressive Javascript programming syntax with ECMAScript 2020 to improve the development experience.
 * **New Waiting For Caller (WFC)** support via the `wfc.js` module.
-* Added new configuration options for `term.checkUtf8Encoding`, `term.checkAnsiHomePostion`, `term.cp437TermList`, and `term.utf8TermList`. More information on these options is available in [UPGRADE](UPGRADE.md).
+* Added new configuration options for `term.checkUtf8Encoding`, `term.checkAnsiHomePosition`, `term.cp437TermList`, and `term.utf8TermList`. More information on these options is available in [UPGRADE](UPGRADE.md).
 * Many new system statistics available via the StatLog such as current and average load, memory, etc.
 * Many new MCI codes: `MB`, `MF`, `LA`, `CL`, `UU`, `FT`, `DD`, `FB`, `DB`, `LC`, `LT`, `LD`, and more. See [MCI](./docs/art/mci.md).
 * SyncTERM style font support detection.
 * Added a system method to support setting the client encoding from menus, `@systemMethod:setClientEncoding`.
 * Many additional backward-compatible bug fixes since the first release of 0.0.12-beta. See the [project repository](https://github.com/NuSkooler/enigma-bbs) for more information.
 * Deprecated Gopher's `messageConferences` configuration key in favor of a easier to deal with `exposedConfAreas` allowing wildcards and exclusions. See [Gopher](./docs/servers/contentservers/gopher.md).
+* NNTP write (aka POST) access support for authenticated users over TLS.
+* [Advanced MCI formatting](./docs/art/mci.md#mci-formatting)
 
 ## 0.0.12-beta
 * The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
