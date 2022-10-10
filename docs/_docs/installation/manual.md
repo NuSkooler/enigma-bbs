@@ -28,9 +28,9 @@ curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | 
 
 Next, install Node.js with NVM:
 ```bash
-nvm install 12
-nvm use 12
-nvm alias default 12
+nvm install 14
+nvm use 14
+nvm alias default 14
 ```
 
 If the above steps completed without errors, you should now have `nvm`, `node`, and `npm` installed and in your environment.
