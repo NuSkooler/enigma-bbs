@@ -15,7 +15,7 @@ A text label view supports displaying simple text on a screen.
 
 | Property    | Description  |
 |-------------|--------------|
-| `text` | Sets the text to display on the label |
+| `text` | Sets the text to display on the label. See [MCI Formatting](../mci.md#mci-formatting) for information for advanced formatting. |
 | `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
 | `width` | Sets the width of a view to display horizontally (default 15)|
 | `justify` | Sets the justification of the text in the view. Options: left (default), right, center |

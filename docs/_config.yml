@@ -92,7 +92,6 @@ collections:
       - art/views/horizontal_menu_view.md
       - art/views/mask_edit_text_view.md
       - art/views/multi_line_edit_text_view.md
-      - art/views/predefined_label_view.md
       - art/views/spinner_menu_view.md
       - art/views/text_view.md
       - art/views/toggle_menu_view.md

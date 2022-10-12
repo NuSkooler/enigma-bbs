@@ -33,7 +33,6 @@ MCIViewFactory.UserViewCodes = [
     'ET',
     'ME',
     'MT',
-    'PL',
     'BT',
     'VM',
     'HM',
@@ -127,21 +126,6 @@ MCIViewFactory.prototype.createFromMCI = function (mci) {
         case 'MT':
             //  :TODO: apply params
             view = new MultiLineEditTextView(options);
-            break;
-
-        //  Pre-defined Label (Text View)
-        //  :TODO: Currently no real point of PL -- @method replaces this pretty much... probably remove
-        case 'PL':
-            if (mci.args.length > 0) {
-                options.text = getPredefinedMCIValue(this.client, mci.args[0]);
-                if (options.text) {
-                    setOption(1, 'textStyle');
-                    setOption(2, 'justify');
-                    setWidth(3);
-
-                    view = new TextView(options);
-                }
-            }
             break;
 
         //  Button
