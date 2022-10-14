@@ -42,6 +42,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
     }
 
+    setConfigWithExtraArgs(options) {
+        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), {
+            extraArgs: options.extraArgs,
+        });
+    }
+
     static get InterruptTypes() {
         return {
             Never: 'never',
