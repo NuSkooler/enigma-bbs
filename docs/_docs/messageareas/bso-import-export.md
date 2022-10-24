@@ -179,7 +179,7 @@ kill-old-partial-files 86400
 prescan
 
 # fsxNet - Agency HUB
-node 21:1/100@fsxnet -md agency.bbs.nz:24556 SOMEPASS c
+node 21:1/100@fsxnet -md fsxnet.nz:24556 SOMEPASS c
 
 # ArakNet
 node 10:101/0@araknet -md whq.araknet.xyz:24556 SOMEPASS c
