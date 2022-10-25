@@ -16,14 +16,16 @@ The `abracadabra` `config` block can contain the following members:
 | Item | Required | Description |
 |------|----------|-------------|
 | `name` | :+1: | Used as a key for tracking number of clients using a particular door. |
-| `dropFileType` | :-1: | Specifies the type of dropfile to generate (See **Dropfile Types** below). Can be omitted or set to `none`. |
+| `dropFileType` | :-1: | Specifies the type of dropfile to generate (See [Dropfile Types](#dropfile-types) below). Can be omitted or set to `none`. |
 | `cmd` | :+1: | Path to executable to launch. |
-| `args` | :-1: | Array of argument(s) to pass to `cmd`. See **Argument Variables** below for information on variables that can be used here.
+| `args` | :-1: | Array of argument(s) to pass to `cmd`. See [Argument Variables](#argument-variables) below for information on variables that can be utilized here. |
+| `preCmd` | :-1: | Path to a pre-command executable or script to launch. Executes before `cmd`. |
+| `preCmdArgs` | :-1: | Array of argument(s) to pass to `preCmd`. See [Argument Variables](#argument-variables) below for information on variables that can be utilized here. |
 | `cwd` | :-1: | Sets the Current Working Directory (CWD) for `cmd`. Defaults to the directory of `cmd`. |
 | `env` | :-1: | Sets the environment. Supplied in the form of an map: `{ SOME_VAR: "value" }`
 | `nodeMax` | :-1: | Max number of nodes that can access this door at once. Uses `name` as a tracking key. |
 | `tooManyArt` | :-1: | Art spec to display if too many instances are already in use. |
-| `io` | :-1: | How to process input/output (I/O). Can be `stdio` or `socket`. When using `stdio`, I/O is handled via standard stdin/stdout. When using `socket` a temporary socket server is spawned that can be connected back to. The server listens on localhost on `{srvPort}` (See **Argument Variables** below for more information). Default value is `stdio`. |
+| `io` | :-1: | How to process input/output (I/O). Can be `stdio` or `socket`. When using `stdio`, I/O is handled via standard stdin/stdout. When using `socket` a temporary socket server is spawned that can be connected back to. The server listens on localhost on `{srvPort}` (See [Argument Variables](#argument-variables) below for more information). Default value is `stdio`. |
 | `encoding` | :-1: | Sets the **door's** encoding. Defaults to `cp437`. Linux binaries often produce `utf8`. |
 
 #### Dropfile Types
@@ -31,23 +33,28 @@ Dropfile types specified by `dropFileType`:
 
 | Value | Description |
 |-------|-------------|
+| `none` | No door file is needed |
 | `DOOR` | [DOOR.SYS](https://web.archive.org/web/20160325192739/http://goldfndr.home.mindspring.com/dropfile/doorsys.htm)
 | `DOOR32` | [DOOR32.SYS](https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt)
 | `DORINFO` | [DORINFOx.DEF](https://web.archive.org/web/20160321190038/http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm)
 
 #### Argument Variables
-The following variables may be used in `args` entries:
+The following variables may be used in `args` and `preCmdArgs` entries:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `{node}` | Current node number. | `1` |
 | `{dropFile}` | Dropfile _filename_ only. | `DOOR.SYS` |
 | `{dropFilePath}` | Full path to generated dropfile. The system places dropfiles in the path set by `paths.dropFiles` in `config.hjson`. | `C:\enigma-bbs\drop\node1\DOOR.SYS` |
+| `{dropFileDir}` | Full path to **directory** containing the generated dropfile. | `/home/enigma-bbs/drop/node1/` |
+| `{userAreaDir}` | Full path to a **directory** safe for user-specific save files/etc. | `/home/enigma-bbs/drop/node1/NuSkooler/lord/` |
 | `{userId}` | Current user ID. | `420` |
 | `{userName}` | [Sanitized](https://www.npmjs.com/package/sanitize-filename) username. Safe for filenames, etc. If the full username is sanitized away, this will resolve to something like "user_1234". | `izard` |
 | `{userNameRaw}` | _Raw_ username. May not be safe for filenames! | `\/\/izard` |
 | `{srvPort}` | Temporary server port when `io` is set to `socket`. | `1234` |
 | `{cwd}` | Current Working Directory. | `/home/enigma-bbs/doors/foo/` |
+| `{termHeight}` | Current client term height | `25` |
+| `{termWidth}` | Current client term width | `80` |
 
 Example `args` member using some variables described above:
 ```hjson

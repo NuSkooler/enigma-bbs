@@ -14,7 +14,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Many additional backward-compatible bug fixes since the first release of 0.0.12-beta. See the [project repository](https://github.com/NuSkooler/enigma-bbs) for more information.
 * Deprecated Gopher's `messageConferences` configuration key in favor of a easier to deal with `exposedConfAreas` allowing wildcards and exclusions. See [Gopher](./docs/servers/contentservers/gopher.md).
 * NNTP write (aka POST) access support for authenticated users over TLS.
-* [Advanced MCI formatting](./docs/art/mci.md#mci-formatting)
+* [Advanced MCI formatting](./docs/art/mci.md#mci-formatting)!
+* Additional options in the `abracadabra` module for launching doors. See [Local Doors](./docs/modding/local-doors.md)
 
 ## 0.0.12-beta
 * The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
