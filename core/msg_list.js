@@ -70,6 +70,14 @@ exports.getModule = class MessageListModule extends (
 
         this.menuMethods = {
             selectMessage: (formData, extraArgs, cb) => {
+                if (!Array.isArray(this.config?.messageList)) {
+                    this.client.log.error(
+                        { formData },
+                        'No message list is available to select from!'
+                    );
+                    return cb(null);
+                }
+
                 if (MciViewIds.allViews.msgList === formData.submitId) {
                     //  'messageIndex' or older deprecated 'message' member
                     this.initialFocusIndex = _.get(
