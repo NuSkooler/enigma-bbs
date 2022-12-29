@@ -76,7 +76,7 @@ module.exports = class User2FA_OTPWebRegister {
                 (token, textTemplate, htmlTemplate, callback) => {
                     const webServer = getWebServer();
                     const registerUrl = webServer.instance.buildUrl(
-                        `/enable_2fa_otp?token=${token}&otpType=${otpType}`
+                        `/_internal/enable_2fa_otp?token=${token}&otpType=${otpType}`
                     );
 
                     const replaceTokens = s => {
@@ -170,7 +170,7 @@ module.exports = class User2FA_OTPWebRegister {
                     return User2FA_OTPWebRegister.accessDenied(webServer, resp);
                 }
 
-                const postUrl = webServer.instance.buildUrl('/enable_2fa_otp');
+                const postUrl = webServer.instance.buildUrl('/_internal/enable_2fa_otp');
                 const config = Config();
                 return webServer.instance.routeTemplateFilePage(
                     _.get(config, 'users.twoFactorAuth.otp.registerPageTemplate'),
@@ -296,12 +296,12 @@ ${backupCodes}
         [
             {
                 method: 'GET',
-                path: '^\\/enable_2fa_otp\\?token\\=[a-f0-9]+&otpType\\=[a-zA-Z0-9_]+$',
+                path: /^\/_internal\/enable_2fa_otp\?token=[a-f0-9]+&otpType=[a-zA-Z0-9_]+$/,
                 handler: User2FA_OTPWebRegister.routeRegisterGet,
             },
             {
                 method: 'POST',
-                path: '^\\/enable_2fa_otp$',
+                path: /^\/_internal\/enable_2fa_otp$/,
                 handler: User2FA_OTPWebRegister.routeRegisterPost,
             },
         ].forEach(r => {
