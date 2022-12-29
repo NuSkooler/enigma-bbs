@@ -17,11 +17,11 @@
 <meta property="og:description" content="ENiGMA½ comes with a built in content server for supporting both HTTP and HTTPS. Currently the File Bases registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-12-15T03:00:06+00:00" />
+<meta property="article:published_time" content="2022-12-29T08:12:30+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Web Server" />
 <script type="application/ld+json">
-{"mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/web-server.html"},"description":"ENiGMA½ comes with a built in content server for supporting both HTTP and HTTPS. Currently the File Bases registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!","url":"/enigma-bbs/servers/contentservers/web-server.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Web Server","dateModified":"2022-12-15T03:00:06+00:00","datePublished":"2022-12-15T03:00:06+00:00","@context":"https://schema.org"}</script>
+{"datePublished":"2022-12-29T08:12:30+00:00","dateModified":"2022-12-29T08:12:30+00:00","description":"ENiGMA½ comes with a built in content server for supporting both HTTP and HTTPS. Currently the File Bases registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/web-server.html"},"url":"/enigma-bbs/servers/contentservers/web-server.html","@type":"BlogPosting","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"headline":"Web Server","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2292,17 +2292,17 @@
 
 <p>By default the web server is not enabled. To enable it, you will need to at a minimum configure two keys in the <code class="language-plaintext highlighter-rouge">contentServers.web</code> section of <code class="language-plaintext highlighter-rouge">config.hjson</code>:</p>
 
-<pre><code class="language-hjson">contentServers: {
-    web: {
-        domain: bbs.yourdomain.com
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">contentServers</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nl">web</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">domain</span><span class="p">:</span> <span class="nx">bbs</span><span class="p">.</span><span class="nx">yourdomain</span><span class="p">.</span><span class="nx">com</span>
 
-        http: {
-            enabled: true
-            port: 8080
-        }
-    }
-}
-</code></pre>
+        <span class="na">http</span><span class="p">:</span> <span class="p">{</span>
+            <span class="na">enabled</span><span class="p">:</span> <span class="kc">true</span>
+            <span class="na">port</span><span class="p">:</span> <span class="mi">8080</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
 
 <p>The following is a table of all configuration keys available under <code class="language-plaintext highlighter-rouge">contentServers.web</code>:</p>
 
@@ -2414,16 +2414,9 @@
 </blockquote>
 
 <h2 id="static-routes">Static Routes</h2>
-
-<p>Static files live relative to the <code class="language-plaintext highlighter-rouge">contentServers.web.staticRoot</code> path which defaults to <code class="language-plaintext highlighter-rouge">enigma-bbs/www</code>.</p>
-
-<p><code class="language-plaintext highlighter-rouge">index.html, favicon.ico</code>, and any error pages like <code class="language-plaintext highlighter-rouge">404.html</code> are accessible from the route path. Other static assets hosted by the web server must be referenced from <code class="language-plaintext highlighter-rouge">/static/</code>, for example:</p>
-
-<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;a</span> <span class="na">href=</span><span class="s">"/static/about.html"</span><span class="nt">&gt;</span> Example Link
-</code></pre></div></div>
+<p>Static files live relative to the <code class="language-plaintext highlighter-rouge">contentServers.web.staticRoot</code> path which defaults to <code class="language-plaintext highlighter-rouge">enigma-bbs/www</code>. This is also commonly known as your “public root”.</p>
 
 <h2 id="custom-error-pages">Custom Error Pages</h2>
-
 <p>Customized error pages can be created for <a href="https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#4xx_Client_Error">HTTP error codes</a> by providing a <code class="language-plaintext highlighter-rouge">&lt;error_code&gt;.html</code> file in the <em>static routes</em> area. For example: <code class="language-plaintext highlighter-rouge">404.html</code>.</p>
 
 </div>
