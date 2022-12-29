@@ -8,7 +8,7 @@ ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTT
 
 By default the web server is not enabled. To enable it, you will need to at a minimum configure two keys in the `contentServers.web` section of `config.hjson`:
 
-```hjson
+```js
 contentServers: {
     web: {
         domain: bbs.yourdomain.com
@@ -58,15 +58,7 @@ If you don't have a TLS certificate for your domain, a good source for a certifi
 > :information_source: Keep in mind that the SSL certificate provided by Let's Encrypt's Certbot is by default stored in a privileged location; if your ENIGMA instance is not running as root (which it should not be!), you'll need to copy the SSL certificate somewhere else in order for ENIGMA to use it.
 
 ## Static Routes
-
-Static files live relative to the `contentServers.web.staticRoot` path which defaults to `enigma-bbs/www`.
-
-`index.html, favicon.ico`, and any error pages like `404.html` are accessible from the route path. Other static assets hosted by the web server must be referenced from `/static/`, for example:
-
-```html
-<a href="/static/about.html"> Example Link
-```
+Static files live relative to the `contentServers.web.staticRoot` path which defaults to `enigma-bbs/www`. This is also commonly known as your "public root".
 
 ## Custom Error Pages
-
 Customized error pages can be created for [HTTP error codes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#4xx_Client_Error) by providing a `<error_code>.html` file in the *static routes* area. For example: `404.html`.
