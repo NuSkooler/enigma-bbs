@@ -1,6 +1,13 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.14-beta
+* The [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made some possibly breaking changes:
+    * `/static/` prefixes are no longer required. This was a ugly hack.
+    * Some internal routes such as those used for password resets live within `/_internal/`.
+    * Routes for the file base now default to `/_f/` prefixed instead of just `/f/`. If `/f/` is in your `config.hjson` you are encouraged to update it!
+    * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
+
 ## 0.0.13-beta
 * **Note for contributors**: ENiGMA has switched to [Prettier](https://prettier.io) for formatting/style. Please see [CONTRIBUTING](CONTRIBUTING.md) and the Prettier website for more information.
 * Removed terminal `cursor position reports` from most locations in the code. This should greatly increase the number of terminal programs that work with Enigma 1/2. For more information, see [Issue #222](https://github.com/NuSkooler/enigma-bbs/issues/222). This may also resolve other issues, such as [Issue #365](https://github.com/NuSkooler/enigma-bbs/issues/365), and [Issue #320](https://github.com/NuSkooler/enigma-bbs/issues/320). Anyone that previously had terminal incompatibilities please re-check and let us know!
