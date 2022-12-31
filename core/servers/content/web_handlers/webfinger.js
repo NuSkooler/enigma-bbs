@@ -6,7 +6,6 @@ const WebServerPackageName = require('../web').moduleInfo.packageName;
 
 const _ = require('lodash');
 const User = require('../../../user');
-const { result } = require('lodash');
 const Log = require('../../../logger').log;
 
 exports.moduleInfo = {
@@ -64,7 +63,8 @@ exports.getModule = class WebFingerServerModule extends ServerModule {
 
             const body = JSON.stringify({
                 subject: `acct:${accountName}`,
-                links: [this._profilePageLink(user)],
+                aliases: [this._profileUrl(user), this._selfUrl(user)],
+                links: [this._profilePageLink(user), this._selfLink(user), this._subscribeLink()],
             });
 
             const headers = {
@@ -77,8 +77,12 @@ exports.getModule = class WebFingerServerModule extends ServerModule {
         });
     }
 
+    _profileUrl(user) {
+        return this.webServer.instance.buildUrl(`/wf/@${user.username}`);
+    }
+
     _profilePageLink(user) {
-        const href = this.webServer.instance.buildUrl(`/wf/@${user.username}`);
+        const href = this._profileUrl(user);
         return {
             rel: 'http://webfinger.net/rel/profile-page',
             type: 'text/plain',
@@ -86,8 +90,28 @@ exports.getModule = class WebFingerServerModule extends ServerModule {
         };
     }
 
+    _selfUrl(user) {
+        return this.webServer.instance.buildUrl(`/users/${user.username}`);
+    }
+
+    _selfLink(user) {
+        const href = this._selfUrl(user);
+        return {
+            rel: 'self',
+            type: 'application/activity+json',
+            href,
+        };
+    }
+
+    _subscribeLink() {
+        return {
+            rel: 'http://ostatus.org/schema/1.0/subscribe',
+            template: this.webServer.instance.buildUrl('/authorize_interaction?uri={uri}'),
+        };
+    }
+
     _getUser(resource, resp, cb) {
-        // we only handle "acct:NAME" URIs
+    // we only handle "acct:NAME" URIs
 
         const notFound = () => {
             this.webServer.instance.respondWithError(
