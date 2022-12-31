@@ -6,6 +6,7 @@ const logger = require('./logger.js');
 
 //  deps
 const async = require('async');
+const isFunction = require('lodash/isFunction');
 
 const listeningServers = {}; //  packageName -> info
 
@@ -36,24 +37,47 @@ function startListening(cb) {
                 (module, nextModule) => {
                     const moduleInst = new module.getModule();
                     try {
-                        moduleInst.createServer(err => {
-                            if (err) {
-                                return nextModule(err);
-                            }
+                        async.series(
+                            [
+                                callback => {
+                                    return moduleInst.createServer(callback);
+                                },
+                                callback => {
+                                    listeningServers[module.moduleInfo.packageName] = {
+                                        instance: moduleInst,
+                                        info: module.moduleInfo,
+                                    };
 
-                            moduleInst.listen(err => {
+                                    if (!isFunction(moduleInst.beforeListen)) {
+                                        return callback(null);
+                                    }
+                                    moduleInst.beforeListen(err => {
+                                        return callback(err);
+                                    });
+                                },
+                                callback => {
+                                    return moduleInst.listen(callback);
+                                },
+                                callback => {
+                                    if (!isFunction(moduleInst.afterListen)) {
+                                        return callback(null);
+                                    }
+                                    moduleInst.afterListen(err => {
+                                        return callback(err);
+                                    });
+                                },
+                            ],
+                            err => {
                                 if (err) {
+                                    delete listeningServers[
+                                        module.moduleInfo.packageName
+                                    ];
                                     return nextModule(err);
                                 }
 
-                                listeningServers[module.moduleInfo.packageName] = {
-                                    instance: moduleInst,
-                                    info: module.moduleInfo,
-                                };
-
                                 return nextModule(null);
-                            });
-                        });
+                            }
+                        );
                     } catch (e) {
                         logger.log.error(e, 'Exception caught creating server!');
                         return nextModule(e);

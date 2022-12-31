@@ -160,6 +160,7 @@ module.exports = () => {
             mods: paths.join(__dirname, './../mods/'),
             loginServers: paths.join(__dirname, './servers/login/'),
             contentServers: paths.join(__dirname, './servers/content/'),
+            webHandlers: paths.join(__dirname, './servers/content/web_handlers'),
             chatServers: paths.join(__dirname, './servers/chat/'),
 
             scannerTossers: paths.join(__dirname, './scanner_tossers/'),

@@ -17,6 +17,8 @@ const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
 
+const { loadModulesForCategory } = require('../../module_util');
+
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
     desc: 'Web Server',
@@ -136,6 +138,30 @@ exports.getModule = class WebServerModule extends ServerModule {
         }
 
         return cb(null);
+    }
+
+    beforeListen(cb) {
+        if (!this.isEnabled()) {
+            return cb(null);
+        }
+
+        loadModulesForCategory(
+            'webHandlers',
+            (module, nextModule) => {
+                const moduleInst = new module.getModule();
+                try {
+                    moduleInst.init(err => {
+                        return nextModule(err);
+                    });
+                } catch (e) {
+                    logger.log.error(e, 'Exception caught web handler!');
+                    return nextModule(e);
+                }
+            },
+            err => {
+                return cb(err);
+            }
+        );
     }
 
     listen(cb) {
