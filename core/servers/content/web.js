@@ -17,7 +17,7 @@ const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
 
-const { loadModulesForCategory } = require('../../module_util');
+const { loadModulesForCategory, moduleCategories } = require('../../module_util');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
@@ -25,6 +25,11 @@ const ModuleInfo = (exports.moduleInfo = {
     author: 'NuSkooler',
     packageName: 'codes.l33t.enigma.web.server',
 });
+
+exports.WellKnownLocations = {
+    Rfc5785: '/.well-known',
+    Internal: '/_enig',
+};
 
 class Route {
     constructor(route) {
@@ -77,6 +82,17 @@ exports.getModule = class WebServerModule extends ServerModule {
         this.enableHttps = config.contentServers.web.https.enabled || false;
 
         this.routes = {};
+    }
+
+    getDomain() {
+        const config = Config();
+        const overridePrefix = _.get(config.contentServers.web.overrideUrlPrefix);
+        if (_.isString(overridePrefix)) {
+            const url = new URL(overridePrefix);
+            return url.hostname;
+        }
+
+        return config.contentServers.web.domain;
     }
 
     buildUrl(pathAndQuery) {
@@ -146,7 +162,7 @@ exports.getModule = class WebServerModule extends ServerModule {
         }
 
         loadModulesForCategory(
-            'webHandlers',
+            moduleCategories.WebHandlers,
             (module, nextModule) => {
                 const moduleInst = new module.getModule();
                 try {

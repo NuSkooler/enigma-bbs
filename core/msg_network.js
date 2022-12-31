@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const loadModulesForCategory = require('./module_util.js').loadModulesForCategory;
+const { loadModulesForCategory, moduleCategories } = require('./module_util');
 
 //  standard/deps
 const async = require('async');
@@ -18,7 +18,7 @@ function startup(cb) {
         [
             function loadModules(callback) {
                 loadModulesForCategory(
-                    'scannerTossers',
+                    moduleCategories.ScannerTossers,
                     (module, nextModule) => {
                         const modInst = new module.getModule();
 

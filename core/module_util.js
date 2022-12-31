@@ -21,6 +21,14 @@ exports.loadModulesForCategory = loadModulesForCategory;
 exports.getModulePaths = getModulePaths;
 exports.initializeModules = initializeModules;
 
+exports.moduleCategories = {
+    Login: 'login',
+    Content: 'content',
+    Chat: 'chat',
+    ScannerTossers: 'scannerTossers',
+    WebHandlers: 'webHandlers',
+};
+
 function loadModuleEx(options, cb) {
     assert(_.isObject(options));
     assert(_.isString(options.name));

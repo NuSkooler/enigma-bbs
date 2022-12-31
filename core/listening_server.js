@@ -28,9 +28,10 @@ function getServer(packageName) {
 
 function startListening(cb) {
     const moduleUtil = require('./module_util.js'); //  late load so we get Config
+    const cats = moduleUtil.moduleCategories;
 
     async.each(
-        ['login', 'content', 'chat'],
+        [cats.Login, cats.Content, cats.Chat],
         (category, next) => {
             moduleUtil.loadModulesForCategory(
                 `${category}Servers`,
