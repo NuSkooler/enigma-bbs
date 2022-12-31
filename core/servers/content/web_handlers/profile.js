@@ -58,7 +58,10 @@ exports.getModule = class ProfileServerModule extends ServerModule {
         this._getUser(resource, resp, (err, user, accountName) => {
             if (err) {
                 // |resp| already written to
-                return Log.warn({ error: err.message }, `Profile request failed: ${req.url}`);
+                return Log.warn(
+                    { error: err.message },
+                    `Profile request failed: ${req.url}`
+                );
             }
 
             // TODO: More user information here
@@ -77,7 +80,6 @@ exports.getModule = class ProfileServerModule extends ServerModule {
     }
 
     _getUser(resource, resp, cb) {
-
         const notFound = () => {
             this.webServer.instance.respondWithError(
                 resp,

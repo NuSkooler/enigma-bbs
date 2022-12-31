@@ -1,4 +1,4 @@
-const { ServerModule } = require('../../../server_module');
+const WebHandlerModule = require('../../../web_handler_module');
 const Config = require('../../../config').get;
 const { Errors } = require('../../../enig_error');
 
@@ -16,7 +16,7 @@ exports.moduleInfo = {
     packageName: 'codes.l33t.enigma.web.handler.finger',
 };
 
-exports.getModule = class WebFingerServerModule extends ServerModule {
+exports.getModule = class WebFingerServerModule extends WebHandlerModule {
     constructor() {
         super();
     }
