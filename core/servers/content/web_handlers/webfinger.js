@@ -7,13 +7,12 @@ const { WellKnownLocations } = require('../web');
 
 const _ = require('lodash');
 const User = require('../../../user');
-const EnigAssert = require('../../../enigma_assert');
 const Log = require('../../../logger').log;
 
 exports.moduleInfo = {
     name: 'WebFinger',
     desc: 'A simple WebFinger Handler',
-    author: 'NuSkooler',
+    author: 'NuSkooler, CognitiveGears',
     packageName: 'codes.l33t.enigma.web.handler.finger',
 };
 
