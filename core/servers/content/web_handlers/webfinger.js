@@ -11,11 +11,14 @@ const Log = require('../../../logger').log;
 
 exports.moduleInfo = {
     name: 'WebFinger',
-    desc: 'A simple WebFinger Handler',
+    desc: 'A simple WebFinger Handler.',
     author: 'NuSkooler, CognitiveGears',
     packageName: 'codes.l33t.enigma.web.handler.finger',
 };
 
+//
+//  WebFinger: https://www.rfc-editor.org/rfc/rfc7033
+//
 exports.getModule = class WebFingerServerModule extends WebHandlerModule {
     constructor() {
         super();
@@ -44,8 +47,10 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
 
         this.acceptedResourceRegExps = [
             // acct:NAME@our.domain.tld
+            // https://www.rfc-editor.org/rfc/rfc7565
             new RegExp(`^acct:(.+)@${domain}$`),
-            // profile URL
+            // profile page
+            // https://webfinger.net/rel/profile-page/
             new RegExp(`^${ws.buildUrl(WellKnownLocations.Internal + '/wf/@')}(.+)$`),
             // self URL
             new RegExp(

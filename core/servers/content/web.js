@@ -27,8 +27,8 @@ const ModuleInfo = (exports.moduleInfo = {
 });
 
 exports.WellKnownLocations = {
-    Rfc5785: '/.well-known',
-    Internal: '/_enig',
+    Rfc5785: '/.well-known',    //  https://www.rfc-editor.org/rfc/rfc5785
+    Internal: '/_enig',         //  location of most enigma provided routes
 };
 
 class Route {
