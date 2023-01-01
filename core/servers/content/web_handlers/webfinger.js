@@ -7,6 +7,7 @@ const { WellKnownLocations } = require('../web');
 
 const _ = require('lodash');
 const User = require('../../../user');
+const UserProps = require('../../../user_property');
 const Log = require('../../../logger').log;
 
 exports.moduleInfo = {
@@ -110,9 +111,18 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
             }
 
             // TODO: More user information here
-            const body = `
-        User name: ${user.username},
+            let body = `
+User information for: ${user.username}
+
+Real name:    ${user.getProperty(UserProps.RealName)},
+Login Count:  ${user.getProperty(UserProps.LoginCount)},
+Affiliations: ${user.getProperty(UserProps.Affiliations)}`;
+
+            if (user.getProperty(UserProps.AchievementTotalPoints) > 0) {
+                body = body + `,
+Total Points: ${user.getProperty(UserProps.AchievementTotalPoints)}
 `;
+            }
 
             const headers = {
                 'Content-Type': 'text/plain',
