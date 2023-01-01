@@ -65,11 +65,63 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
             handler: this._webFingerRequestHandler.bind(this),
         });
 
+        ws.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/profile\//,
+            handler: this._profileRequestHandler.bind(this),
+        });
+
         return cb(null);
     }
 
     _webServer() {
         return this.webServer.instance;
+    }
+
+    _profileRequestHandler(req, resp) {
+        const url = new URL(req.url, `https://${req.headers.host}`);
+
+        const resource = url.pathname;
+        if (_.isEmpty(resource)) {
+            return this.webServer.instance.respondWithError(
+                resp,
+                400,
+                'pathname is required',
+                'Missing "resource"'
+            );
+        }
+
+        // TODO: Handle URL escaped @ sign as well
+        const userPosition = resource.indexOf('@');
+        if (-1 == userPosition || userPosition == resource.length - 1) {
+            this._notFound(resp);
+            return Errors.DoesNotExist('"@username" missing from path');
+        }
+
+        const accountName = resource.substring(userPosition + 1);
+
+        this._getUser(accountName, resp, (err, user) => {
+            if (err) {
+                // |resp| already written to
+                return Log.warn(
+                    { error: err.message },
+                    `Profile request failed: ${req.url}`
+                );
+            }
+
+            // TODO: More user information here
+            const body = `
+        User name: ${user.username},
+`;
+
+            const headers = {
+                'Content-Type': 'text/plain',
+                'Content-Length': body.length,
+            };
+
+            resp.writeHead(200, headers);
+            return resp.end(body);
+        });
     }
 
     _webFingerRequestHandler(req, resp) {
@@ -85,7 +137,15 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
             );
         }
 
-        this._getUser(resource, resp, (err, user) => {
+        const accountName = this._getAccountName(resource);
+        if (!accountName || accountName.length < 1) {
+            this._notFound(resp);
+            return Errors.DoesNotExist(
+                `Failed to parse "account name" for resource: ${resource}`
+            );
+        }
+
+        this._getUser(accountName, resp, (err, user) => {
             if (err) {
                 // |resp| already written to
                 return Log.warn({ error: err.message }, `WebFinger failed: ${req.url}`);
@@ -163,35 +223,26 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
         }
     }
 
-    _getUser(resource, resp, cb) {
-        const notFound = () => {
-            this._webServer().respondWithError(
-                resp,
-                404,
-                'Resource not found',
-                'Resource Not Found'
-            );
-        };
+    _notFound(resp) {
+        this._webServer().respondWithError(
+            resp,
+            404,
+            'Resource not found',
+            'Resource Not Found'
+        );
+    }
 
-        const accountName = this._getAccountName(resource);
-        if (!accountName || accountName.length < 1) {
-            notFound();
-            return cb(
-                Errors.DoesNotExist(
-                    `Failed to parse "account name" for resource: ${resource}`
-                )
-            );
-        }
 
+    _getUser(accountName, resp, cb) {
         User.getUserIdAndName(accountName, (err, userId) => {
             if (err) {
-                notFound();
+                this._notFound(resp);
                 return cb(err);
             }
 
             User.getUser(userId, (err, user) => {
                 if (err) {
-                    notFound();
+                    this._notFound(resp);
                     return cb(err);
                 }
 
