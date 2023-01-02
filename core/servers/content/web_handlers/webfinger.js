@@ -13,6 +13,7 @@ const mimeTypes = require('mime-types');
 
 const fs = require('graceful-fs');
 const paths = require('path');
+const moment = require('moment');
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -115,13 +116,31 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
             }
 
             this._getProfileTemplate((template, mimeType) => {
+                const up = (p, na = 'N/A') => {
+                    return user.getProperty(p) || na;
+                };
+
+                let birthDate = up(UserProps.Birthdate);
+                if (moment.isDate(birthDate)) {
+                    birthDate = moment(birthDate);
+                }
+
                 const varMap = {
                     USERNAME: user.username,
                     REAL_NAME: user.getSanitizedName('real'),
-                    LOGIN_COUNT: user.getProperty(UserProps.LoginCount),
-                    AFFILIATIONS: user.getProperty(UserProps.Affiliations) || 'N/A',
-                    ACHIEVEMENT_POINTS:
-                        user.getProperty(UserProps.AchievementTotalPoints) || '0',
+                    SEX: up(UserProps.Sex),
+                    BIRTHDATE: birthDate,
+                    AGE: user.getAge(),
+                    LOCATION: up(UserProps.Location),
+                    AFFILIATIONS: up(UserProps.Affiliations),
+                    EMAIL: up(UserProps.EmailAddress),
+                    WEB_ADDRESS: up(UserProps.WebAddress),
+                    ACCOUNT_CREATED: moment(user.getProperty(UserProps.AccountCreated)),
+                    LAST_LOGIN: moment(user.getProperty(UserProps.LastLoginTs)),
+                    LOGIN_COUNT: up(UserProps.LoginCount),
+                    ACHIEVEMENT_COUNT: up(UserProps.AchievementTotalCount, '0'),
+                    ACHIEVEMENT_POINTS: up(UserProps.AchievementTotalPoints, '0'),
+                    BOARDNAME: Config().general.boardName,
                 };
 
                 let body = template;
