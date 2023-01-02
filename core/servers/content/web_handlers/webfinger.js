@@ -1,6 +1,6 @@
 const WebHandlerModule = require('../../../web_handler_module');
 const Config = require('../../../config').get;
-const { Errors } = require('../../../enig_error');
+const { Errors, ErrorReasons } = require('../../../enig_error');
 
 const WebServerPackageName = require('../web').moduleInfo.packageName;
 const { WellKnownLocations } = require('../web');
@@ -292,6 +292,17 @@ Achievement Points: %ACHIEVEMENT_POINTS%`,
                 if (err) {
                     this._notFound(resp);
                     return cb(err);
+                }
+
+                const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
+                if (
+                    User.AccountStatus.disabled == accountStatus &&
+                    User.AccountStatus.inactive == accountStatus
+                ) {
+                    this._notFound(resp);
+                    return cb(
+                        Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
+                    );
                 }
 
                 return cb(null, user);
