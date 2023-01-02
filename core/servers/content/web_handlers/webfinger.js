@@ -97,7 +97,6 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
             );
         }
 
-        // TODO: Handle URL escaped @ sign as well
         const userPosition = resource.indexOf('@');
         if (-1 == userPosition || userPosition == resource.length - 1) {
             this._notFound(resp);
@@ -314,10 +313,7 @@ Achievement Points: %ACHIEVEMENT_POINTS%`,
                 }
 
                 const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
-                if (
-                    User.AccountStatus.disabled == accountStatus &&
-                    User.AccountStatus.inactive == accountStatus
-                ) {
+                if (User.AccountStatus.disabled == accountStatus || User.AccountStatus.inactive == accountStatus) {
                     this._notFound(resp);
                     return cb(
                         Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
