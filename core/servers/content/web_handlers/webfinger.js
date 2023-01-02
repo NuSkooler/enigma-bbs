@@ -22,6 +22,16 @@ exports.moduleInfo = {
     packageName: 'codes.l33t.enigma.web.handler.finger',
 };
 
+//  :TODO: more info in default
+const DefaultProfileTemplate = `
+User information for: %USERNAME%
+
+Real Name: %REAL_NAME%
+Login Count: %LOGIN_COUNT%
+Affiliations: %AFFILIATIONS%
+Achievement Points: %ACHIEVEMENT_POINTS%
+`;
+
 //
 //  WebFinger: https://www.rfc-editor.org/rfc/rfc7033
 //
@@ -175,17 +185,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
                     );
                 }
 
-                //  :TODO: more info in default
-                return cb(
-                    `
-User information for: %USERNAME%
-
-Real Name: %REAL_NAME%
-Login Count: %LOGIN_COUNT%
-Affiliations: %AFFILIATIONS%
-Achievement Points: %ACHIEVEMENT_POINTS%`,
-                    'text/plain'
-                );
+                return cb(DefaultProfileTemplate, 'text/plain');
             }
             return cb(data, mimeTypes.contentType(paths.basename(templateFile)));
         });
@@ -313,7 +313,10 @@ Achievement Points: %ACHIEVEMENT_POINTS%`,
                 }
 
                 const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
-                if (User.AccountStatus.disabled == accountStatus || User.AccountStatus.inactive == accountStatus) {
+                if (
+                    User.AccountStatus.disabled == accountStatus ||
+                    User.AccountStatus.inactive == accountStatus
+                ) {
                     this._notFound(resp);
                     return cb(
                         Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
