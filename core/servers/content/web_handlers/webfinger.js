@@ -9,6 +9,10 @@ const _ = require('lodash');
 const User = require('../../../user');
 const UserProps = require('../../../user_property');
 const Log = require('../../../logger').log;
+const mimeTypes = require('mime-types');
+
+const fs = require('graceful-fs');
+const paths = require('path');
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -68,7 +72,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
 
         ws.addRoute({
             method: 'GET',
-            path: /^\/_enig\/profile\//,
+            path: /^\/_enig\/wf\/@.+$/,
             handler: this._profileRequestHandler.bind(this),
         });
 
@@ -110,27 +114,62 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
                 );
             }
 
-            // TODO: More user information here
-            let body = `
-User information for: ${user.username}
+            this._getProfileTemplate((template, mimeType) => {
+                const varMap = {
+                    USERNAME: user.username,
+                    REAL_NAME: user.getSanitizedName('real'),
+                    LOGIN_COUNT: user.getProperty(UserProps.LoginCount),
+                    AFFILIATIONS: user.getProperty(UserProps.Affiliations) || 'N/A',
+                    ACHIEVEMENT_POINTS:
+                        user.getProperty(UserProps.AchievementTotalPoints) || '0',
+                };
 
-Real name:    ${user.getProperty(UserProps.RealName)},
-Login Count:  ${user.getProperty(UserProps.LoginCount)},
-Affiliations: ${user.getProperty(UserProps.Affiliations)}`;
+                let body = template;
+                _.each(varMap, (val, varName) => {
+                    body = body.replace(new RegExp(`%${varName}%`, 'g'), val);
+                });
 
-            if (user.getProperty(UserProps.AchievementTotalPoints) > 0) {
-                body = body + `,
-Total Points: ${user.getProperty(UserProps.AchievementTotalPoints)}
-`;
+                const headers = {
+                    'Content-Type': mimeType,
+                    'Content-Length': body.length,
+                };
+
+                resp.writeHead(200, headers);
+                return resp.end(body);
+            });
+        });
+    }
+
+    _getProfileTemplate(cb) {
+        let templateFile = _.get(
+            Config(),
+            'contentServers.web.handlers.webFinger.profileTemplate'
+        );
+        if (templateFile) {
+            templateFile = this._webServer().resolveTemplatePath(templateFile);
+        }
+        fs.readFile(templateFile || '', 'utf8', (err, data) => {
+            if (err) {
+                if (templateFile) {
+                    Log.warn(
+                        { error: err.message },
+                        `Failed to load profile template "${templateFile}"`
+                    );
+                }
+
+                //  :TODO: more info in default
+                return cb(
+                    `
+User information for: %USERNAME%
+
+Real Name: %REAL_NAME%
+Login Count: %LOGIN_COUNT%
+Affiliations: %AFFILIATIONS%
+Achievement Points: %ACHIEVEMENT_POINTS%`,
+                    'text/plain'
+                );
             }
-
-            const headers = {
-                'Content-Type': 'text/plain',
-                'Content-Length': body.length,
-            };
-
-            resp.writeHead(200, headers);
-            return resp.end(body);
+            return cb(data, mimeTypes.contentType(paths.basename(templateFile)));
         });
     }
 
@@ -241,7 +280,6 @@ Total Points: ${user.getProperty(UserProps.AchievementTotalPoints)}
             'Resource Not Found'
         );
     }
-
 
     _getUser(accountName, resp, cb) {
         User.getUserIdAndName(accountName, (err, userId) => {

@@ -27,8 +27,8 @@ const ModuleInfo = (exports.moduleInfo = {
 });
 
 exports.WellKnownLocations = {
-    Rfc5785: '/.well-known',    //  https://www.rfc-editor.org/rfc/rfc5785
-    Internal: '/_enig',         //  location of most enigma provided routes
+    Rfc5785: '/.well-known', //  https://www.rfc-editor.org/rfc/rfc5785
+    Internal: '/_enig', //  location of most enigma provided routes
 };
 
 class Route {
@@ -372,6 +372,18 @@ exports.getModule = class WebServerModule extends ServerModule {
         const path = paths.resolve(staticRoot, `.${requestPath}`);
         if (path.startsWith(staticRoot)) {
             return path;
+        }
+    }
+
+    resolveTemplatePath(path) {
+        if (paths.isAbsolute(path)) {
+            return path;
+        }
+
+        const staticRoot = _.get(Config(), 'contentServers.web.staticRoot');
+        const resolved = paths.resolve(staticRoot, path);
+        if (resolved.startsWith(staticRoot)) {
+            return resolved;
         }
     }
 
