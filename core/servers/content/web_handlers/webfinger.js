@@ -2,6 +2,7 @@ const WebHandlerModule = require('../../../web_handler_module');
 const Config = require('../../../config').get;
 const { Errors, ErrorReasons } = require('../../../enig_error');
 const { WellKnownLocations } = require('../web');
+const { buildSelfUrl } = require('../../../activitypub_util');
 
 const _ = require('lodash');
 const User = require('../../../user');
@@ -17,7 +18,7 @@ exports.moduleInfo = {
     name: 'WebFinger',
     desc: 'A simple WebFinger Handler.',
     author: 'NuSkooler, CognitiveGears',
-    packageName: 'codes.l33t.enigma.web.handler.finger',
+    packageName: 'codes.l33t.enigma.web.handler.webfinger',
 };
 
 //  :TODO: more info in default
@@ -40,10 +41,6 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
     init(cb) {
         const config = Config();
-
-        if (!WebHandlerModule.isEnabled('webFinger')) {
-            return cb(null);
-        }
 
         // we rely on the web server
         this.webServer = WebHandlerModule.getWebServer();
@@ -251,9 +248,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _selfUrl(user) {
-        return this.webServer.buildUrl(
-            WellKnownLocations.Internal + `/ap/users/${user.username}`
-        );
+        return buildSelfUrl(this.webServer, user, '/ap/users/');
     }
 
     // :TODO: only if ActivityPub is enabled

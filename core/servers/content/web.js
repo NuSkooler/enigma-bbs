@@ -5,7 +5,9 @@
 const Log = require('../../logger.js').log;
 const ServerModule = require('../../server_module.js').ServerModule;
 const Config = require('../../config.js').get;
-const { Errors } = require('../../enig_error.js');
+const { Errors, ErrorReasons } = require('../../enig_error.js');
+const { loadModulesForCategory, moduleCategories } = require('../../module_util');
+const WebHandlerModule = require('../../web_handler_module');
 
 //  deps
 const http = require('http');
@@ -16,8 +18,6 @@ const paths = require('path');
 const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
-
-const { loadModulesForCategory, moduleCategories } = require('../../module_util');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
@@ -166,6 +166,11 @@ exports.getModule = class WebServerModule extends ServerModule {
             (module, nextModule) => {
                 const moduleInst = new module.getModule();
                 try {
+                    const normalizedName = _.camelCase(module.moduleInfo.name);
+                    if (!WebHandlerModule.isEnabled(normalizedName)) {
+                        return nextModule(null);
+                    }
+
                     moduleInst.init(err => {
                         return nextModule(err);
                     });
