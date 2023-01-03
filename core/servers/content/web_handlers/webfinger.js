@@ -1,8 +1,6 @@
 const WebHandlerModule = require('../../../web_handler_module');
 const Config = require('../../../config').get;
 const { Errors, ErrorReasons } = require('../../../enig_error');
-
-const WebServerPackageName = require('../web').moduleInfo.packageName;
 const { WellKnownLocations } = require('../web');
 
 const _ = require('lodash');
@@ -35,7 +33,7 @@ Achievement Points: %ACHIEVEMENT_POINTS%
 //
 //  WebFinger: https://www.rfc-editor.org/rfc/rfc7033
 //
-exports.getModule = class WebFingerServerModule extends WebHandlerModule {
+exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     constructor() {
         super();
     }
@@ -43,20 +41,17 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
     init(cb) {
         const config = Config();
 
-        if (!_.get(config, 'contentServers.web.handlers.webFinger.enabled')) {
+        if (!WebHandlerModule.isEnabled('webFinger')) {
             return cb(null);
         }
 
-        const { getServer } = require('../../../listening_server');
-
         // we rely on the web server
-        this.webServer = getServer(WebServerPackageName);
-        const ws = this._webServer();
-        if (!ws || !ws.isEnabled()) {
+        this.webServer = WebHandlerModule.getWebServer();
+        if (!this.webServer || !this.webServer.isEnabled()) {
             return cb(Errors.UnexpectedState('Cannot access web server!'));
         }
 
-        const domain = ws.getDomain();
+        const domain = this.webServer.getDomain();
         if (!domain) {
             return cb(Errors.UnexpectedState('Web server does not have "domain" set'));
         }
@@ -67,31 +62,31 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
             new RegExp(`^acct:(.+)@${domain}$`),
             // profile page
             // https://webfinger.net/rel/profile-page/
-            new RegExp(`^${ws.buildUrl(WellKnownLocations.Internal + '/wf/@')}(.+)$`),
+            new RegExp(
+                `^${this.webServer.buildUrl(WellKnownLocations.Internal + '/wf/@')}(.+)$`
+            ),
             // self URL
             new RegExp(
-                `^${ws.buildUrl(WellKnownLocations.Internal + '/ap/users/')}(.+)$`
+                `^${this.webServer.buildUrl(
+                    WellKnownLocations.Internal + '/ap/users/'
+                )}(.+)$`
             ),
         ];
 
-        ws.addRoute({
+        this.webServer.addRoute({
             method: 'GET',
             // https://www.rfc-editor.org/rfc/rfc7033.html#section-10.1
             path: /^\/\.well-known\/webfinger\/?\?/,
             handler: this._webFingerRequestHandler.bind(this),
         });
 
-        ws.addRoute({
+        this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/wf\/@.+$/,
             handler: this._profileRequestHandler.bind(this),
         });
 
         return cb(null);
-    }
-
-    _webServer() {
-        return this.webServer.instance;
     }
 
     _profileRequestHandler(req, resp) {
@@ -174,7 +169,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
             'contentServers.web.handlers.webFinger.profileTemplate'
         );
         if (templateFile) {
-            templateFile = this._webServer().resolveTemplatePath(templateFile);
+            templateFile = this.webServer.resolveTemplatePath(templateFile);
         }
         fs.readFile(templateFile || '', 'utf8', (err, data) => {
             if (err) {
@@ -196,7 +191,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
 
         const resource = url.searchParams.get('resource');
         if (!resource) {
-            return this._webServer().respondWithError(
+            return this.webServer.respondWithError(
                 resp,
                 400,
                 '"resource" is required',
@@ -218,7 +213,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
                 return Log.warn({ error: err.message }, `WebFinger failed: ${req.url}`);
             }
 
-            const domain = this._webServer().getDomain();
+            const domain = this.webServer.getDomain();
 
             const body = JSON.stringify({
                 subject: `acct:${user.username}@${domain}`,
@@ -241,7 +236,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
     }
 
     _profileUrl(user) {
-        return this._webServer().buildUrl(
+        return this.webServer.buildUrl(
             WellKnownLocations.Internal + `/wf/@${user.username}`
         );
     }
@@ -256,7 +251,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
     }
 
     _selfUrl(user) {
-        return this._webServer().buildUrl(
+        return this.webServer.buildUrl(
             WellKnownLocations.Internal + `/ap/users/${user.username}`
         );
     }
@@ -275,7 +270,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
     _subscribeLink() {
         return {
             rel: 'http://ostatus.org/schema/1.0/subscribe',
-            template: this._webServer().buildUrl(
+            template: this.webServer.buildUrl(
                 WellKnownLocations.Internal + '/ap/authorize_interaction?uri={uri}'
             ),
         };
@@ -291,7 +286,7 @@ exports.getModule = class WebFingerServerModule extends WebHandlerModule {
     }
 
     _notFound(resp) {
-        this._webServer().respondWithError(
+        this.webServer.respondWithError(
             resp,
             404,
             'Resource not found',
