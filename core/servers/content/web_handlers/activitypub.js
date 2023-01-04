@@ -38,11 +38,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _selfUrlRequestHandler(req, resp) {
         const accept = req.headers['accept'] || '*/*';
         if (accept === 'application/activity+json') {
-            return this._selfActorHandler(req, resp);
+            return this._selfAsActorHandler(req, resp);
         }
+
+        return this._standardSelfHandler(req, resp);
     }
 
-    _selfActorHandler(req, resp) {
+    _selfAsActorHandler(req, resp) {
         const url = new URL(req.url, `https://${req.headers.host}`);
         const accountName = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
 
@@ -82,6 +84,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             resp.writeHead(200, headers);
             return resp.end(body);
         });
+    }
+
+    _standardSelfHandler(req, resp) {
+        // :TODO: this should also be their profile page?! Perhaps that should also be shared...
+        return this._notFound(resp);
     }
 
     _notFound(resp) {
