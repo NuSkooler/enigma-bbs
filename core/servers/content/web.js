@@ -175,7 +175,7 @@ exports.getModule = class WebServerModule extends ServerModule {
                         return nextModule(err);
                     });
                 } catch (e) {
-                    logger.log.error(e, 'Exception caught web handler!');
+                    Log.error(e, 'Exception caught web handler!');
                     return nextModule(e);
                 }
             },

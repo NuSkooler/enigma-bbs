@@ -2,7 +2,11 @@ const WebHandlerModule = require('../../../web_handler_module');
 const Config = require('../../../config').get;
 const { Errors, ErrorReasons } = require('../../../enig_error');
 const { WellKnownLocations } = require('../web');
-const { buildSelfUrl } = require('../../../activitypub_util');
+const {
+    selfUrl,
+    webFingerProfileUrl,
+    userFromAccount,
+} = require('../../../activitypub_util');
 
 const _ = require('lodash');
 const User = require('../../../user');
@@ -44,7 +48,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
         // we rely on the web server
         this.webServer = WebHandlerModule.getWebServer();
-        if (!this.webServer || !this.webServer.isEnabled()) {
+        if (!this.webServer) {
             return cb(Errors.UnexpectedState('Cannot access web server!'));
         }
 
@@ -107,13 +111,10 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
         const accountName = resource.substring(userPosition + 1);
 
-        this._getUser(accountName, resp, (err, user) => {
+        userFromAccount(accountName, (err, user) => {
             if (err) {
-                // |resp| already written to
-                return Log.warn(
-                    { error: err.message },
-                    `Profile request failed: ${req.url}`
-                );
+                Log.warn({ error: err.message }, `Profile request failed: ${req.url}`);
+                return this._notFound(resp);
             }
 
             this._getProfileTemplate((template, mimeType) => {
@@ -204,10 +205,10 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
             );
         }
 
-        this._getUser(accountName, resp, (err, user) => {
+        userFromAccount(accountName, (err, user) => {
             if (err) {
-                // |resp| already written to
-                return Log.warn({ error: err.message }, `WebFinger failed: ${req.url}`);
+                Log.warn({ error: err.message }, `WebFinger failed: ${req.url}`);
+                return this._notFound(resp);
             }
 
             const domain = this.webServer.getDomain();
@@ -233,9 +234,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _profileUrl(user) {
-        return this.webServer.buildUrl(
-            WellKnownLocations.Internal + `/wf/@${user.username}`
-        );
+        return webFingerProfileUrl(this.webServer, user);
     }
 
     _profilePageLink(user) {
@@ -248,7 +247,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _selfUrl(user) {
-        return buildSelfUrl(this.webServer, user, '/ap/users/');
+        return selfUrl(this.webServer, user);
     }
 
     // :TODO: only if ActivityPub is enabled
@@ -287,34 +286,5 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
             'Resource not found',
             'Resource Not Found'
         );
-    }
-
-    _getUser(accountName, resp, cb) {
-        User.getUserIdAndName(accountName, (err, userId) => {
-            if (err) {
-                this._notFound(resp);
-                return cb(err);
-            }
-
-            User.getUser(userId, (err, user) => {
-                if (err) {
-                    this._notFound(resp);
-                    return cb(err);
-                }
-
-                const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
-                if (
-                    User.AccountStatus.disabled == accountStatus ||
-                    User.AccountStatus.inactive == accountStatus
-                ) {
-                    this._notFound(resp);
-                    return cb(
-                        Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
-                    );
-                }
-
-                return cb(null, user);
-            });
-        });
     }
 };
