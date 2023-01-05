@@ -1,6 +1,6 @@
 const { WellKnownLocations } = require('./servers/content/web');
 const User = require('./user');
-const { Errors } = require('./enig_error');
+const { Errors, ErrorReasons } = require('./enig_error');
 const UserProps = require('./user_property');
 
 // deps
