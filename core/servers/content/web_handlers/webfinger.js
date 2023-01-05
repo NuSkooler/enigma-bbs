@@ -1,22 +1,17 @@
 const WebHandlerModule = require('../../../web_handler_module');
 const Config = require('../../../config').get;
-const { Errors, ErrorReasons } = require('../../../enig_error');
+const { Errors } = require('../../../enig_error');
 const { WellKnownLocations } = require('../web');
 const {
     selfUrl,
     webFingerProfileUrl,
     userFromAccount,
+    getUserProfileTemplatedBody,
+    DefaultProfileTemplate,
 } = require('../../../activitypub_util');
 
 const _ = require('lodash');
-const User = require('../../../user');
-const UserProps = require('../../../user_property');
 const Log = require('../../../logger').log;
-const mimeTypes = require('mime-types');
-
-const fs = require('graceful-fs');
-const paths = require('path');
-const moment = require('moment');
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -24,16 +19,6 @@ exports.moduleInfo = {
     author: 'NuSkooler, CognitiveGears',
     packageName: 'codes.l33t.enigma.web.handler.webfinger',
 };
-
-//  :TODO: more info in default
-const DefaultProfileTemplate = `
-User information for: %USERNAME%
-
-Real Name: %REAL_NAME%
-Login Count: %LOGIN_COUNT%
-Affiliations: %AFFILIATIONS%
-Achievement Points: %ACHIEVEMENT_POINTS%
-`;
 
 //
 //  WebFinger: https://www.rfc-editor.org/rfc/rfc7033
@@ -117,70 +102,33 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 return this._notFound(resp);
             }
 
-            this._getProfileTemplate((template, mimeType) => {
-                const up = (p, na = 'N/A') => {
-                    return user.getProperty(p) || na;
-                };
-
-                let birthDate = up(UserProps.Birthdate);
-                if (moment.isDate(birthDate)) {
-                    birthDate = moment(birthDate);
-                }
-
-                const varMap = {
-                    USERNAME: user.username,
-                    REAL_NAME: user.getSanitizedName('real'),
-                    SEX: up(UserProps.Sex),
-                    BIRTHDATE: birthDate,
-                    AGE: user.getAge(),
-                    LOCATION: up(UserProps.Location),
-                    AFFILIATIONS: up(UserProps.Affiliations),
-                    EMAIL: up(UserProps.EmailAddress),
-                    WEB_ADDRESS: up(UserProps.WebAddress),
-                    ACCOUNT_CREATED: moment(user.getProperty(UserProps.AccountCreated)),
-                    LAST_LOGIN: moment(user.getProperty(UserProps.LastLoginTs)),
-                    LOGIN_COUNT: up(UserProps.LoginCount),
-                    ACHIEVEMENT_COUNT: up(UserProps.AchievementTotalCount, '0'),
-                    ACHIEVEMENT_POINTS: up(UserProps.AchievementTotalPoints, '0'),
-                    BOARDNAME: Config().general.boardName,
-                };
-
-                let body = template;
-                _.each(varMap, (val, varName) => {
-                    body = body.replace(new RegExp(`%${varName}%`, 'g'), val);
-                });
-
-                const headers = {
-                    'Content-Type': mimeType,
-                    'Content-Length': body.length,
-                };
-
-                resp.writeHead(200, headers);
-                return resp.end(body);
-            });
-        });
-    }
-
-    _getProfileTemplate(cb) {
-        let templateFile = _.get(
-            Config(),
-            'contentServers.web.handlers.webFinger.profileTemplate'
-        );
-        if (templateFile) {
-            templateFile = this.webServer.resolveTemplatePath(templateFile);
-        }
-        fs.readFile(templateFile || '', 'utf8', (err, data) => {
-            if (err) {
-                if (templateFile) {
-                    Log.warn(
-                        { error: err.message },
-                        `Failed to load profile template "${templateFile}"`
-                    );
-                }
-
-                return cb(DefaultProfileTemplate, 'text/plain');
+            let templateFile = _.get(
+                Config(),
+                'contentServers.web.handlers.webFinger.profileTemplate'
+            );
+            if (templateFile) {
+                templateFile = this.webServer.resolveTemplatePath(templateFile);
             }
-            return cb(data, mimeTypes.contentType(paths.basename(templateFile)));
+
+            getUserProfileTemplatedBody(
+                templateFile,
+                user,
+                DefaultProfileTemplate,
+                'text/plain',
+                (err, body, contentType) => {
+                    if (err) {
+                        return this._notFound(resp);
+                    }
+
+                    const headers = {
+                        'Content-Type': contentType,
+                        'Content-Length': body.length,
+                    };
+
+                    resp.writeHead(200, headers);
+                    return resp.end(body);
+                }
+            );
         });
     }
 

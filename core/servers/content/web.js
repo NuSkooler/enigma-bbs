@@ -317,8 +317,8 @@ exports.getModule = class WebServerModule extends ServerModule {
                     req.url.substr(req.url.lastIndexOf('/', 1)),
                     tryFile
                 );
-                const filePath = this.resolveStaticPath(fileName);
 
+                const filePath = this.resolveStaticPath(fileName);
                 fs.stat(filePath, (err, stats) => {
                     if (err || !stats.isFile()) {
                         return nextTryFile(null, false);
