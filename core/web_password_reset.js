@@ -6,6 +6,7 @@ const Config = require('./config.js').get;
 const Errors = require('./enig_error.js').Errors;
 const getServer = require('./listening_server.js').getServer;
 const webServerPackageName = require('./servers/content/web.js').moduleInfo.packageName;
+const { WellKnownLocations } = require('./servers/content/web');
 const User = require('./user.js');
 const userDb = require('./database.js').dbs.user;
 const getISOTimestampString = require('./database.js').getISOTimestampString;
@@ -121,9 +122,10 @@ class WebPasswordReset {
                     const sendMail = require('./email.js').sendMail;
 
                     const resetUrl = webServer.instance.buildUrl(
-                        `/_internal/reset_password?token=${
-                            user.properties[UserProps.EmailPwResetToken]
-                        }`
+                        WellKnownLocations.Internal +
+                            `/sec/reset_password?token=${
+                                user.properties[UserProps.EmailPwResetToken]
+                            }`
                     );
 
                     function replaceTokens(s) {
@@ -194,13 +196,13 @@ class WebPasswordReset {
             {
                 //  this is the page displayed to user when they GET it
                 method: 'GET',
-                path: /^\/_internal\/reset_password\?token=[a-f0-9]+$/,
+                path: /^\/_enig\/sec\/reset_password\?token=[a-f0-9]+$/,
                 handler: WebPasswordReset.routeResetPasswordGet,
             },
             //  POST handler for performing the actual reset
             {
                 method: 'POST',
-                path: /^\/_internal\/reset_password$/,
+                path: /^\/_enig\/sec\/reset_password$/,
                 handler: WebPasswordReset.routeResetPasswordPost,
             },
         ].forEach(r => {
@@ -269,7 +271,9 @@ class WebPasswordReset {
                 );
             }
 
-            const postResetUrl = webServer.instance.buildUrl('/_internal/reset_password');
+            const postResetUrl = webServer.instance.buildUrl(
+                WellKnownLocations.Internal + '/sec/reset_password'
+            );
 
             const config = Config();
             return webServer.instance.routeTemplateFilePage(
