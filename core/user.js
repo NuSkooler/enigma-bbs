@@ -572,7 +572,7 @@ module.exports = class User {
     static persistPropertyByUserId(userId, propName, propValue, cb) {
         userDb.run(
             `REPLACE INTO user_property (user_id, prop_name, prop_value)
-                        VALUES (?, ?, ?);`,
+            VALUES (?, ?, ?);`,
             [userId, propName, propValue],
             err => {
                 if (cb) {
@@ -619,7 +619,7 @@ module.exports = class User {
 
         userDb.run(
             `DELETE FROM user_property
-                        WHERE user_id = ? AND prop_name = ?;`,
+            WHERE user_id = ? AND prop_name = ?;`,
             [this.userId, propName],
             err => {
                 if (cb) {
@@ -680,7 +680,7 @@ module.exports = class User {
 
         const stmt = transOrDb.prepare(
             `REPLACE INTO user_property (user_id, prop_name, prop_value)
-                        VALUES (?, ?, ?);`
+            VALUES (?, ?, ?);`
         );
 
         async.each(
@@ -809,8 +809,8 @@ module.exports = class User {
     static getUserIdAndName(username, cb) {
         userDb.get(
             `SELECT id, user_name
-                        FROM user
-                        WHERE user_name LIKE ?;`,
+            FROM user
+            WHERE user_name LIKE ?;`,
             [username],
             (err, row) => {
                 if (err) {
@@ -829,12 +829,12 @@ module.exports = class User {
     static getUserIdAndNameByRealName(realName, cb) {
         userDb.get(
             `SELECT id, user_name
-                        FROM user
-                        WHERE id = (
-                                SELECT user_id
-                                FROM user_property
-                                WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
-                        );`,
+            FROM user
+            WHERE id = (
+                SELECT user_id
+                FROM user_property
+                WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
+            );`,
             [realName],
             (err, row) => {
                 if (err) {
@@ -865,8 +865,8 @@ module.exports = class User {
     static getUserName(userId, cb) {
         userDb.get(
             `SELECT user_name
-                        FROM user
-                        WHERE id = ?;`,
+            FROM user
+            WHERE id = ?;`,
             [userId],
             (err, row) => {
                 if (err) {
@@ -889,8 +889,8 @@ module.exports = class User {
         }
 
         let sql = `SELECT prop_name, prop_value
-                        FROM user_property
-                        WHERE user_id = ?`;
+            FROM user_property
+            WHERE user_id = ?`;
 
         if (options.names) {
             sql += ` AND prop_name IN("${options.names.join('","')}");`;
@@ -920,8 +920,8 @@ module.exports = class User {
 
         userDb.each(
             `SELECT user_id
-                        FROM user_property
-                        WHERE prop_name = ? AND prop_value = ?;`,
+            FROM user_property
+            WHERE prop_name = ? AND prop_value = ?;`,
             [propName, propValue],
             (err, row) => {
                 if (row) {
@@ -937,7 +937,7 @@ module.exports = class User {
     static getUserCount(cb) {
         userDb.get(
             `SELECT count() AS user_count
-                        FROM user;`,
+            FROM user;`,
             (err, row) => {
                 if (err) {
                     return cb(err);
@@ -965,8 +965,8 @@ module.exports = class User {
 
         userDb.each(
             `SELECT u.id as userId, u.user_name as userName, ${asList.join(', ')}
-                        FROM user u ${joinList.join(' ')}
-                        ORDER BY u.user_name;`,
+            FROM user u ${joinList.join(' ')}
+            ORDER BY u.user_name;`,
             (err, row) => {
                 if (err) {
                     return cb(err);
