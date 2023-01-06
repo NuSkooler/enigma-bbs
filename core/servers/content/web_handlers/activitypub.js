@@ -66,7 +66,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             }
 
             const accept = req.headers['accept'] || '*/*';
-            if (accept === 'application/activity+json') {
+            const headerValues = ['application/activity+json', 'application/ld+json', 'application/json'];
+            if (headerValues.some(mime => accept.includes(mime))) {
                 sendActor = true;
             }
 
@@ -81,14 +82,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfAsActorHandler(user, req, resp) {
-        const selfUrl = selfUrl(this.webServer, user);
+        const sUrl = selfUrl(this.webServer, user);
 
         const bodyJson = {
             '@context': [
                 'https://www.w3.org/ns/activitystreams',
                 'https://w3id.org/security/v1',
             ],
-            id: selfUrl,
+            id: sUrl,
             type: 'Person',
             preferredUsername: user.username,
             name: user.getSanitizedName('real'),
@@ -108,7 +109,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
         if (!_.isEmpty(publicKeyPem)) {
             bodyJson['publicKey'] = {
-                id: selfUrl + '#main-key',
+                id: sUrl + '#main-key',
                 owner: sUrl,
                 publicKeyPem: user.getProperty(UserProps.PublicKeyMain),
             };

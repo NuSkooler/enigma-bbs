@@ -45,6 +45,10 @@ function selfUrl(webServer, user) {
 }
 
 function userFromAccount(accountName, cb) {
+    if (accountName.startsWith('@')) {
+        accountName = accountName.slice(1);
+    }
+
     User.getUserIdAndName(accountName, (err, userId) => {
         if (err) {
             return cb(err);
@@ -58,7 +62,7 @@ function userFromAccount(accountName, cb) {
             const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
             if (
                 User.AccountStatus.disabled == accountStatus ||
-                User.AccountStatus.inactive == accountStatus
+        User.AccountStatus.inactive == accountStatus
             ) {
                 return cb(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
             }
