@@ -32,7 +32,7 @@ module.exports = class Log {
         };
 
         //  try to remove sensitive info by default, e.g. 'password' fields
-        ['formData', 'formValue'].forEach(keyName => {
+        ['formData', 'formValue', 'user'].forEach(keyName => {
             serializers[keyName] = fd => Log.hideSensitive(fd);
         });
 
@@ -65,7 +65,7 @@ module.exports = class Log {
             //
             return JSON.parse(
                 JSON.stringify(obj).replace(
-                    /"(password|passwordConfirm|key|authCode)"\s?:\s?"([^"]+)"/,
+                    /"(password|passwordConfirm|key|authCode|private_key_main)"\s?:\s?"([^"]+)"/,
                     (match, valueName) => {
                         return `"${valueName}":"********"`;
                     }
