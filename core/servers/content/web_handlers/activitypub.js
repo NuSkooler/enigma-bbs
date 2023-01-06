@@ -94,10 +94,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             endpoints: {
                 sharedInbox: 'TODO',
             },
-            inbox: makeUserUrl(this.webServer, user, '/ap/users') + '/outbox',
-            outbox: makeUserUrl(this.webServer, user, '/ap/users') + '/inbox',
-            followers: makeUserUrl(this.webServer, user, '/ap/users') + '/followers',
-            following: makeUserUrl(this.webServer, user, '/ap/users') + '/following',
+            inbox: makeUserUrl(this.webServer, user, '/ap/users/') + '/inbox',
+            outbox: makeUserUrl(this.webServer, user, '/ap/users/') + '/outbox',
+            followers: makeUserUrl(this.webServer, user, '/ap/users/') + '/followers',
+            following: makeUserUrl(this.webServer, user, '/ap/users/') + '/following',
             summary: user.getProperty(UserProps.AutoSignature) || '',
             url: webFingerProfileUrl(this.webServer, user),
 
