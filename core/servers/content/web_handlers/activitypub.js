@@ -10,6 +10,7 @@ const {
 const UserProps = require('../../../user_property');
 const { Errors } = require('../../../enig_error');
 const Config = require('../../../config').get;
+const Log = require('../../../logger').log;
 
 // deps
 const _ = require('lodash');
@@ -31,6 +32,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         if (!this.webServer) {
             return cb(Errors.UnexpectedState('Cannot access web server!'));
         }
+        Log.debug('Adding route for ActivityPub');
 
         this.webServer.addRoute({
             method: 'GET',
@@ -42,20 +44,37 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfUrlRequestHandler(req, resp) {
+        Log.debug({ url: req.url }, 'Received request for self url');
         const url = new URL(req.url, `https://${req.headers.host}`);
-        const accountName = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
+        let accountName = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
+        let sendActor = false;
+
+        // Like Mastodon, if .json is appended onto URL then return the JSON content
+        if (accountName.endsWith('.json')) {
+            sendActor = true;
+            accountName = accountName.slice(0, -5);
+        }
+        Log.debug({ accountName: accountName }, 'Retrieving self url for account.');
 
         userFromAccount(accountName, (err, user) => {
             if (err) {
+                Log.info({ accountName: accountName }, 'Unable to find user from account retrieving self url.');
                 return this._notFound(resp);
             }
 
             const accept = req.headers['accept'] || '*/*';
             if (accept === 'application/activity+json') {
-                return this._selfAsActorHandler(user, req, resp);
+                sendActor = true;
             }
 
-            return this._standardSelfHandler(user, req, resp);
+            Log.debug({ sendActor: sendActor }, 'Sending actor JSON');
+
+            if (sendActor) {
+                return this._selfAsActorHandler(user, req, resp);
+            }
+            else {
+                return this._standardSelfHandler(user, req, resp);
+            }
         });
     }
 
