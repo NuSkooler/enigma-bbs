@@ -66,6 +66,7 @@ module.exports = {
     AuthFactor2OTP: 'auth_factor2_otp', //  If present, OTP type for 2FA. See OTPTypes
     AuthFactor2OTPSecret: 'auth_factor2_otp_secret', //  Secret used in conjunction with OTP 2FA
     AuthFactor2OTPBackupCodes: 'auth_factor2_otp_backup', //  JSON array of backup codes
-    PublicKeyMain: 'public_key_main', // RSA public key for user
-    PrivateKeyMain: 'private_key_main', // RSA private key (corresponding to PublicKeyMain)
+
+    PublicKeyMain: 'public_key_main_rsa_2048', // RSA public key for user
+    PrivateKeyMain: 'private_key_main_rsa_2048', // RSA private key (corresponding to PublicKeyMain)
 };

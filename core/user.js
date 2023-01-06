@@ -469,7 +469,7 @@ module.exports = class User {
                 function createUserRec(trans, callback) {
                     trans.run(
                         `INSERT INTO user (user_name)
-                                                VALUES (?);`,
+                        VALUES (?);`,
                         [self.username],
                         function inserted(err) {
                             //  use classic function for |this|
@@ -502,6 +502,11 @@ module.exports = class User {
                             return callback(null, trans);
                         }
                     );
+                },
+                function setKeyPair(trans, callback) {
+                    self.updateMainKeyPairProperties(err => {
+                        return callback(err, trans);
+                    });
                 },
                 function setInitialGroupMembership(trans, callback) {
                     //  Assign initial groups. Must perform a clone: #235 - All users are sysops (and I can't un-sysop them)
@@ -547,11 +552,6 @@ module.exports = class User {
 
         async.series(
             [
-                function setKeyPair(callback) {
-                    self.generateMainKeyPair(err => {
-                        return callback(err);
-                    });
-                },
                 function saveProps(callback) {
                     self.persistProperties(self.properties, trans, err => {
                         return callback(err);
@@ -643,7 +643,7 @@ module.exports = class User {
         );
     }
 
-    generateMainKeyPair(cb) {
+    updateMainKeyPairProperties(cb) {
         crypto.generateKeyPair(
             'rsa',
             {
