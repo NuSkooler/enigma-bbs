@@ -79,12 +79,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfAsActorHandler(user, req, resp) {
-        const body = JSON.stringify({
+
+        const sUrl = selfUrl(this.webServer, user);
+
+        const bodyJson = {
             '@context': [
                 'https://www.w3.org/ns/activitystreams',
                 'https://w3id.org/security/v1',
             ],
-            id: selfUrl(this.webServer, user),
+            id: sUrl,
             type: 'Person',
             preferredUsername: user.username,
             name: user.getSanitizedName('real'),
@@ -97,10 +100,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             following: makeUserUrl(this.webServer, user, '/ap/users') + '/following',
             summary: user.getProperty(UserProps.AutoSignature) || '',
             url: webFingerProfileUrl(this.webServer, user),
-            publicKey: {},
 
             // :TODO: we can start to define BBS related stuff with the community perhaps
-        });
+        };
+
+        const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
+        if (!(_.isEmpty(publicKeyPem))) {
+            bodyJson['publicKey'] = { id: sUrl + '#main-key', owner: sUrl, publicKeyPem: user.getProperty(UserProps.PublicKeyMain) };
+        }
+        else {
+            Log.debug({ User: user.username }, 'User does not have a publickey.');
+        }
+
+        const body = JSON.stringify(bodyJson);
 
         const headers = {
             'Content-Type': 'application/activity+json',
