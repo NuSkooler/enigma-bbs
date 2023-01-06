@@ -49,18 +49,18 @@ class Route {
     isValid() {
         return (
             (this.pathRegExp instanceof RegExp &&
-        -1 !==
-        [
-            'GET',
-            'HEAD',
-            'POST',
-            'PUT',
-            'DELETE',
-            'CONNECT',
-            'OPTIONS',
-            'TRACE',
-        ].indexOf(this.method)) ||
-      !_.isFunction(this.handler)
+                -1 !==
+                    [
+                        'GET',
+                        'HEAD',
+                        'POST',
+                        'PUT',
+                        'DELETE',
+                        'CONNECT',
+                        'OPTIONS',
+                        'TRACE',
+                    ].indexOf(this.method)) ||
+            !_.isFunction(this.handler)
         );
     }
 
@@ -96,13 +96,13 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     buildUrl(pathAndQuery) {
-    //
-    //  Create a URL such as
-    //  https://l33t.codes:44512/ + |pathAndQuery|
-    //
-    //  Prefer HTTPS over HTTP. Be explicit about the port
-    //  only if non-standard. Allow users to override full prefix in config.
-    //
+        //
+        //  Create a URL such as
+        //  https://l33t.codes:44512/ + |pathAndQuery|
+        //
+        //  Prefer HTTPS over HTTP. Be explicit about the port
+        //  only if non-standard. Allow users to override full prefix in config.
+        //
         const config = Config();
         if (_.isString(config.contentServers.web.overrideUrlPrefix)) {
             return `${config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
@@ -113,15 +113,15 @@ exports.getModule = class WebServerModule extends ServerModule {
         if (config.contentServers.web.https.enabled) {
             schema = 'https://';
             port =
-        443 === config.contentServers.web.https.port
-            ? ''
-            : `:${config.contentServers.web.https.port}`;
+                443 === config.contentServers.web.https.port
+                    ? ''
+                    : `:${config.contentServers.web.https.port}`;
         } else {
             schema = 'http://';
             port =
-        80 === config.contentServers.web.http.port
-            ? ''
-            : `:${config.contentServers.web.http.port}`;
+                80 === config.contentServers.web.http.port
+                    ? ''
+                    : `:${config.contentServers.web.http.port}`;
         }
 
         return `${schema}${config.contentServers.web.domain}${port}${pathAndQuery}`;
@@ -168,11 +168,17 @@ exports.getModule = class WebServerModule extends ServerModule {
                 try {
                     const normalizedName = _.camelCase(module.moduleInfo.name);
                     if (!WebHandlerModule.isEnabled(normalizedName)) {
-                        Log.info({ moduleName: normalizedName }, 'Skipping web handler module - not enabled.');
+                        Log.info(
+                            { moduleName: normalizedName },
+                            'Skipping web handler module - not enabled.'
+                        );
                         return nextModule(null);
                     }
 
-                    Log.info({ moduleName: normalizedName }, 'Initializing web handler module.');
+                    Log.info(
+                        { moduleName: normalizedName },
+                        'Initializing web handler module.'
+                    );
 
                     moduleInst.init(err => {
                         return nextModule(err);
@@ -329,8 +335,8 @@ exports.getModule = class WebServerModule extends ServerModule {
 
                     const headers = {
                         'Content-Type':
-              mimeTypes.contentType(paths.basename(filePath)) ||
-              mimeTypes.contentType('.bin'),
+                            mimeTypes.contentType(paths.basename(filePath)) ||
+                            mimeTypes.contentType('.bin'),
                         'Content-Length': stats.size,
                     };
 
@@ -362,8 +368,8 @@ exports.getModule = class WebServerModule extends ServerModule {
 
             const headers = {
                 'Content-Type':
-          mimeTypes.contentType(paths.basename(filePath)) ||
-          mimeTypes.contentType('.bin'),
+                    mimeTypes.contentType(paths.basename(filePath)) ||
+                    mimeTypes.contentType('.bin'),
                 'Content-Length': stats.size,
             };
 

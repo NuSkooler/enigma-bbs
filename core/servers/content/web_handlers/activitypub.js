@@ -58,7 +58,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         userFromAccount(accountName, (err, user) => {
             if (err) {
-                Log.info({ accountName: accountName }, 'Unable to find user from account retrieving self url.');
+                Log.info(
+                    { accountName: accountName },
+                    'Unable to find user from account retrieving self url.'
+                );
                 return this._notFound(resp);
             }
 
@@ -71,23 +74,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             if (sendActor) {
                 return this._selfAsActorHandler(user, req, resp);
-            }
-            else {
+            } else {
                 return this._standardSelfHandler(user, req, resp);
             }
         });
     }
 
     _selfAsActorHandler(user, req, resp) {
-
-        const sUrl = selfUrl(this.webServer, user);
+        const selfUrl = selfUrl(this.webServer, user);
 
         const bodyJson = {
             '@context': [
                 'https://www.w3.org/ns/activitystreams',
                 'https://w3id.org/security/v1',
             ],
-            id: sUrl,
+            id: selfUrl,
             type: 'Person',
             preferredUsername: user.username,
             name: user.getSanitizedName('real'),
@@ -105,11 +106,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         };
 
         const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
-        if (!(_.isEmpty(publicKeyPem))) {
-            bodyJson['publicKey'] = { id: sUrl + '#main-key', owner: sUrl, publicKeyPem: user.getProperty(UserProps.PublicKeyMain) };
-        }
-        else {
-            Log.debug({ User: user.username }, 'User does not have a publickey.');
+        if (!_.isEmpty(publicKeyPem)) {
+            bodyJson['publicKey'] = {
+                id: selfUrl + '#main-key',
+                owner: sUrl,
+                publicKeyPem: user.getProperty(UserProps.PublicKeyMain),
+            };
+        } else {
+            Log.debug({ username: user.username }, 'User does not have a publickey.');
         }
 
         const body = JSON.stringify(bodyJson);
