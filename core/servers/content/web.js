@@ -42,7 +42,7 @@ class Route {
         try {
             this.pathRegExp = new RegExp(this.path);
         } catch (e) {
-            Log.debug({ route: route }, 'Invalid regular expression for route path');
+            this.log.error({ route: route }, 'Invalid regular expression for route path');
         }
     }
 
@@ -77,11 +77,17 @@ exports.getModule = class WebServerModule extends ServerModule {
     constructor() {
         super();
 
+        this.log = Log.child({ server: 'Web' });
+
         const config = Config();
         this.enableHttp = config.contentServers.web.http.enabled || false;
         this.enableHttps = config.contentServers.web.https.enabled || false;
 
         this.routes = {};
+    }
+
+    logger() {
+        return this.log;
     }
 
     getDomain() {
@@ -168,23 +174,26 @@ exports.getModule = class WebServerModule extends ServerModule {
                 try {
                     const normalizedName = _.camelCase(module.moduleInfo.name);
                     if (!WebHandlerModule.isEnabled(normalizedName)) {
-                        Log.info(
+                        this.log.info(
                             { moduleName: normalizedName },
-                            'Skipping web handler module - not enabled.'
+                            'Web handler module not enabled'
                         );
                         return nextModule(null);
                     }
 
                     Log.info(
                         { moduleName: normalizedName },
-                        'Initializing web handler module.'
+                        'Initializing web handler module'
                     );
 
-                    moduleInst.init(err => {
+                    moduleInst.init(this, err => {
                         return nextModule(err);
                     });
                 } catch (e) {
-                    Log.error(e, 'Exception caught web handler!');
+                    this.log.error(
+                        { error: e.message },
+                        'Exception caught loading web handler'
+                    );
                     return nextModule(e);
                 }
             },
@@ -203,7 +212,7 @@ exports.getModule = class WebServerModule extends ServerModule {
                 if (this[name]) {
                     const port = parseInt(config.contentServers.web[service].port);
                     if (isNaN(port)) {
-                        Log.warn(
+                        this.log.error(
                             {
                                 port: config.contentServers.web[service].port,
                                 server: ModuleInfo.name,
@@ -238,7 +247,7 @@ exports.getModule = class WebServerModule extends ServerModule {
         route = new Route(route);
 
         if (!route.isValid()) {
-            Log.warn(
+            this.log.error(
                 { route: route },
                 'Cannot add route: missing or invalid required members'
             );
@@ -247,7 +256,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 
         const routeKey = route.getRouteKey();
         if (routeKey in this.routes) {
-            Log.warn(
+            this.log.warn(
                 { route: route, routeKey: routeKey },
                 'Cannot add route: duplicate method/path combination exists'
             );
@@ -259,6 +268,8 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     routeRequest(req, resp) {
+        this.log.trace({ url: req.url, method: req.method }, 'Request');
+
         let route = _.find(this.routes, r => r.matchesRequest(req));
 
         if (route) {

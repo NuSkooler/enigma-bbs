@@ -6,8 +6,9 @@ module.exports = class WebHandlerModule extends PluginModule {
         super(options);
     }
 
-    init(cb) {
+    init(webServer, cb) {
         // to be implemented!
+        this.webServer = webHandler;
         return cb(null);
     }
 

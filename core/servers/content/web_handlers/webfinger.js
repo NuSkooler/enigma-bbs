@@ -11,6 +11,7 @@ const {
 } = require('../../../activitypub_util');
 
 const _ = require('lodash');
+const enigma_assert = require('../../../enigma_assert');
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -25,18 +26,16 @@ exports.moduleInfo = {
 exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     constructor() {
         super();
-
-        this.log = require('../../../logger').log.child({ webHandler: 'WebFinger' });
     }
 
-    init(cb) {
+    init(webServer, cb) {
         const config = Config();
 
         // we rely on the web server
-        this.webServer = WebHandlerModule.getWebServer();
-        if (!this.webServer) {
-            return cb(Errors.UnexpectedState('Cannot access web server!'));
-        }
+        this.webServer = webServer;
+        enigma_assert(webServer, 'WebFinger Web Handler init without webServer');
+
+        this.log = webServer.logger().child({ webHandler: 'WebFinger' });
 
         const domain = this.webServer.getDomain();
         if (!domain) {

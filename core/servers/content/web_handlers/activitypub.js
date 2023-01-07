@@ -14,6 +14,7 @@ const Config = require('../../../config').get;
 // deps
 const _ = require('lodash');
 const { trim } = require('lodash');
+const enigma_assert = require('../../../enigma_assert');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -25,15 +26,13 @@ exports.moduleInfo = {
 exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     constructor() {
         super();
-
-        this.log = require('../../../logger').log.child({ webHandler: 'ActivityPub' });
     }
 
-    init(cb) {
-        this.webServer = WebHandlerModule.getWebServer();
-        if (!this.webServer) {
-            return cb(Errors.UnexpectedState('Cannot access web server!'));
-        }
+    init(webServer, cb) {
+        this.webServer = webServer;
+        enigma_assert(webServer, 'ActivityPub Web Handler init without webServer');
+
+        this.log = webServer.logger().child({ webHandler: 'ActivityPub' });
 
         this.webServer.addRoute({
             method: 'GET',
