@@ -45,7 +45,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfUrlRequestHandler(req, resp) {
-        this.log.debug({ url: req.url }, 'Received request for "self" URL');
+        this.log.trace({ url: req.url }, 'Request for "self"');
 
         const url = new URL(req.url, `https://${req.headers.host}`);
         let accountName = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
@@ -60,8 +60,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         userFromAccount(accountName, (err, user) => {
             if (err) {
                 this.log.info(
-                    { accountName: accountName },
-                    'Unable to find user from account retrieving self url.'
+                    { reason: error.message, accountName: accountName },
+                    `No user "${accountName}" for "self"`
                 );
                 return this._notFound(resp);
             }
@@ -86,7 +86,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _selfAsActorHandler(user, req, resp) {
         this.log.trace(
             { username: user.username },
-            `Serving ActivityPub Actor for ${user.username}`
+            `Serving ActivityPub Actor for "${user.username}"`
         );
 
         const userSelfUrl = selfUrl(this.webServer, user);
@@ -111,13 +111,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             url: webFingerProfileUrl(this.webServer, user),
 
             // :TODO: we can start to define BBS related stuff with the community perhaps
-            attachment: [
-                {
-                    name: 'SomeNetwork Address',
-                    type: 'PropertyValue',
-                    value: 'Mateo@21:1/121',
-                },
-            ],
+            // attachment: [
+            //     {
+            //         name: 'SomeNetwork Address',
+            //         type: 'PropertyValue',
+            //         value: 'Mateo@21:1/121',
+            //     },
+            // ],
         };
 
         const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
@@ -125,12 +125,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             bodyJson['publicKey'] = {
                 id: userSelfUrl + '#main-key',
                 owner: userSelfUrl,
-                publicKeyPem: user.getProperty(UserProps.PublicKeyMain),
+                publicKeyPem,
             };
         } else {
-            this.log.debug(
+            this.log.warn(
                 { username: user.username },
-                'User does not have a publickey.'
+                `No public key (${UserProps.PublicKeyMain}) for user "${user.username}"`
             );
         }
 

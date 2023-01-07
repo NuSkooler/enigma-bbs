@@ -11,7 +11,6 @@ const {
 } = require('../../../activitypub_util');
 
 const _ = require('lodash');
-const Log = require('../../../logger').log;
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -26,6 +25,8 @@ exports.moduleInfo = {
 exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     constructor() {
         super();
+
+        this.log = require('../../../logger').log.child({ webHandler: 'WebFinger' });
     }
 
     init(cb) {
@@ -98,7 +99,10 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
         userFromAccount(accountName, (err, user) => {
             if (err) {
-                Log.warn({ error: err.message }, `Profile request failed: ${req.url}`);
+                this.log.warn(
+                    { url: req.url, error: err.message, type: 'Profile' },
+                    `No profile for "${accountName}" could be retrieved`
+                );
                 return this._notFound(resp);
             }
 
@@ -155,7 +159,10 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
         userFromAccount(accountName, (err, user) => {
             if (err) {
-                Log.warn({ error: err.message }, `WebFinger failed: ${req.url}`);
+                this.log.warn(
+                    { url: req.url, error: err.message, type: 'WebFinger' },
+                    `No account for "${accountName}" could be retrieved`
+                );
                 return this._notFound(resp);
             }
 
