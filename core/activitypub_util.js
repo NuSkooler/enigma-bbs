@@ -62,7 +62,7 @@ function userFromAccount(accountName, cb) {
             const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
             if (
                 User.AccountStatus.disabled == accountStatus ||
-        User.AccountStatus.inactive == accountStatus
+                User.AccountStatus.inactive == accountStatus
             ) {
                 return cb(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
             }

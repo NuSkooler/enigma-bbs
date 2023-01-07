@@ -10,10 +10,10 @@ const {
 const UserProps = require('../../../user_property');
 const { Errors } = require('../../../enig_error');
 const Config = require('../../../config').get;
-const Log = require('../../../logger').log;
 
 // deps
 const _ = require('lodash');
+const { trim } = require('lodash');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -25,6 +25,8 @@ exports.moduleInfo = {
 exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     constructor() {
         super();
+
+        this.log = require('../../../logger').log.child({ webHandler: 'ActivityPub' });
     }
 
     init(cb) {
@@ -32,7 +34,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         if (!this.webServer) {
             return cb(Errors.UnexpectedState('Cannot access web server!'));
         }
-        Log.debug('Adding route for ActivityPub');
 
         this.webServer.addRoute({
             method: 'GET',
@@ -44,7 +45,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfUrlRequestHandler(req, resp) {
-        Log.debug({ url: req.url }, 'Received request for self url');
+        this.log.debug({ url: req.url }, 'Received request for "self" URL');
+
         const url = new URL(req.url, `https://${req.headers.host}`);
         let accountName = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
         let sendActor = false;
@@ -54,24 +56,24 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             sendActor = true;
             accountName = accountName.slice(0, -5);
         }
-        Log.debug({ accountName: accountName }, 'Retrieving self url for account.');
 
         userFromAccount(accountName, (err, user) => {
             if (err) {
-                Log.info(
+                this.log.info(
                     { accountName: accountName },
                     'Unable to find user from account retrieving self url.'
                 );
                 return this._notFound(resp);
             }
 
-            const accept = req.headers['accept'] || '*/*';
-            const headerValues = ['application/activity+json', 'application/ld+json', 'application/json'];
-            if (headerValues.some(mime => accept.includes(mime))) {
-                sendActor = true;
-            }
-
-            Log.debug({ sendActor: sendActor }, 'Sending actor JSON');
+            // Additionally, serve activity JSON if the proper 'Accept' header was sent
+            const accept = req.headers['accept'].split(',').map(v => v.trim()) || ['*/*'];
+            const headerValues = [
+                'application/activity+json',
+                'application/ld+json',
+                'application/json',
+            ];
+            sendActor = accept.some(v => headerValues.includes(v));
 
             if (sendActor) {
                 return this._selfAsActorHandler(user, req, resp);
@@ -82,14 +84,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfAsActorHandler(user, req, resp) {
-        const sUrl = selfUrl(this.webServer, user);
+        this.log.trace(
+            { username: user.username },
+            `Serving ActivityPub Actor for ${user.username}`
+        );
+
+        const userSelfUrl = selfUrl(this.webServer, user);
 
         const bodyJson = {
             '@context': [
                 'https://www.w3.org/ns/activitystreams',
                 'https://w3id.org/security/v1',
             ],
-            id: sUrl,
+            id: userSelfUrl,
             type: 'Person',
             preferredUsername: user.username,
             name: user.getSanitizedName('real'),
@@ -104,17 +111,27 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             url: webFingerProfileUrl(this.webServer, user),
 
             // :TODO: we can start to define BBS related stuff with the community perhaps
+            attachment: [
+                {
+                    name: 'SomeNetwork Address',
+                    type: 'PropertyValue',
+                    value: 'Mateo@21:1/121',
+                },
+            ],
         };
 
         const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
         if (!_.isEmpty(publicKeyPem)) {
             bodyJson['publicKey'] = {
-                id: sUrl + '#main-key',
-                owner: sUrl,
+                id: userSelfUrl + '#main-key',
+                owner: userSelfUrl,
                 publicKeyPem: user.getProperty(UserProps.PublicKeyMain),
             };
         } else {
-            Log.debug({ username: user.username }, 'User does not have a publickey.');
+            this.log.debug(
+                { username: user.username },
+                'User does not have a publickey.'
+            );
         }
 
         const body = JSON.stringify(bodyJson);
