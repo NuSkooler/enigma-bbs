@@ -8,12 +8,10 @@ const {
     DefaultProfileTemplate,
 } = require('../../../activitypub_util');
 const UserProps = require('../../../user_property');
-const { Errors } = require('../../../enig_error');
 const Config = require('../../../config').get;
 
 // deps
 const _ = require('lodash');
-const { trim } = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 
 exports.moduleInfo = {
@@ -59,7 +57,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         userFromAccount(accountName, (err, user) => {
             if (err) {
                 this.log.info(
-                    { reason: error.message, accountName: accountName },
+                    { reason: err.message, accountName: accountName },
                     `No user "${accountName}" for "self"`
                 );
                 return this._notFound(resp);
