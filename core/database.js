@@ -41,7 +41,7 @@ function getModDatabasePath(moduleInfo, suffix) {
     //  filename. An optional suffix may be supplied as well.
     //
     const HOST_RE =
-        /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/;
+    /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/;
 
     assert(_.isObject(moduleInfo));
     assert(_.isString(moduleInfo.packageName), 'moduleInfo must define "packageName"!');
@@ -81,7 +81,7 @@ function getISOTimestampString(ts) {
 
 function sanitizeString(s) {
     return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
-        //  eslint-disable-line no-control-regex
+    //  eslint-disable-line no-control-regex
         switch (c) {
             case '\0':
                 return '\\0';
@@ -97,7 +97,7 @@ function sanitizeString(s) {
                 return '\\r';
 
             case '"':
-            case "'":
+            case '\'':
                 return `${c}${c}`;
 
             case '\\':
@@ -109,7 +109,7 @@ function sanitizeString(s) {
 
 function initializeDatabases(cb) {
     async.eachSeries(
-        ['system', 'user', 'message', 'file'],
+        ['system', 'user', 'actor', 'message', 'file'],
         (dbName, next) => {
             dbs[dbName] = sqlite3Trans.wrap(
                 new sqlite3.Database(getDatabasePath(dbName), err => {
@@ -242,6 +242,36 @@ const DB_INIT_TABLE = {
 
         return cb(null);
     },
+    actor: cb => {
+        enableForeignKeys(dbs.actor);
+
+        dbs.actor.run(
+            `CREATE TABLE IF NOT EXISTS activitypub_actor (
+                id          INTEGER PRIMARY KEY,
+                actor_url   VARCHAR NOT NULL,
+                UNIQUE(actor_url)
+            );`
+        );
+
+        //  :TODO: create FK on delete/etc.
+
+        dbs.actor.run(
+            `CREATE TABLE IF NOT EXISTS activitypub_actor_property (
+                actor_id     INTEGER NOT NULL,
+                prop_name   VARCHAR NOT NULL,
+                prop_value  VARCHAR,
+                UNIQUE(actor_id, prop_name),
+                FOREIGN KEY(actor_id) REFERENCES actor(id) ON DELETE CASCADE
+            );`
+        );
+
+        dbs.actor.run(
+            `CREATE INDEX IF NOT EXISTS activitypub_actor_property_id_and_name_index0
+            ON activitypub_actor_property (actor_id, prop_name);`
+        );
+
+        return cb(null);
+    },
 
     message: cb => {
         enableForeignKeys(dbs.message);
@@ -312,22 +342,22 @@ const DB_INIT_TABLE = {
 
         //  :TODO: need SQL to ensure cleaned up if delete from message?
         /*
-        dbs.message.run(
-            `CREATE TABLE IF NOT EXISTS hash_tag (
-                hash_tag_id     INTEGER PRIMARY KEY,
-                hash_tag_name   VARCHAR NOT NULL,
-                UNIQUE(hash_tag_name)
-            );`
-        );
+dbs.message.run(
+    `CREATE TABLE IF NOT EXISTS hash_tag (
+        hash_tag_id     INTEGER PRIMARY KEY,
+        hash_tag_name   VARCHAR NOT NULL,
+        UNIQUE(hash_tag_name)
+    );`
+);
 
-        //  :TODO: need SQL to ensure cleaned up if delete from message?
-        dbs.message.run(
-            `CREATE TABLE IF NOT EXISTS message_hash_tag (
-                hash_tag_id INTEGER NOT NULL,
-                message_id  INTEGER NOT NULL,
-            );`
-        );
-        */
+//  :TODO: need SQL to ensure cleaned up if delete from message?
+dbs.message.run(
+    `CREATE TABLE IF NOT EXISTS message_hash_tag (
+        hash_tag_id INTEGER NOT NULL,
+        message_id  INTEGER NOT NULL,
+    );`
+);
+*/
 
         dbs.message.run(
             `CREATE TABLE IF NOT EXISTS user_message_area_last_read (
