@@ -4,9 +4,15 @@
 //  ENiGMA½
 const actorDb = require('./database.js').dbs.actor;
 const { Errors } = require('./enig_error.js');
-const Events = require('./events.js');
 const { ActorProps } = require('./activitypub_actor_property');
-const { isValidLink } = require('./activitypub_util');
+const UserProps = require('./user_property');
+const {
+    webFingerProfileUrl,
+    makeUserUrl,
+    selfUrl,
+    isValidLink,
+} = require('./activitypub_util');
+const Log = require('./logger').log;
 
 //  deps
 const assert = require('assert');
@@ -54,8 +60,55 @@ module.exports = class Actor {
         return true;
     }
 
-    //  :TODO: create an Actor object from a local user
-    static fromLocalUser(userId, cb) {}
+    //  :TODO: from a User object
+    static fromLocalUser(user, webServer, cb) {
+        const userSelfUrl = selfUrl(webServer, user);
+
+        const obj = {
+            '@context': [
+                'https://www.w3.org/ns/activitystreams',
+                'https://w3id.org/security/v1', // :TODO: add support
+            ],
+            id: userSelfUrl,
+            type: 'Person',
+            preferredUsername: user.username,
+            name: user.getSanitizedName('real'),
+            endpoints: {
+                sharedInbox: 'TODO',
+            },
+            inbox: makeUserUrl(webServer, user, '/ap/users/') + '/inbox',
+            outbox: makeUserUrl(webServer, user, '/ap/users/') + '/outbox',
+            followers: makeUserUrl(webServer, user, '/ap/users/') + '/followers',
+            following: makeUserUrl(webServer, user, '/ap/users/') + '/following',
+            summary: user.getProperty(UserProps.AutoSignature) || '',
+            url: webFingerProfileUrl(webServer, user),
+
+            // :TODO: we can start to define BBS related stuff with the community perhaps
+            // attachment: [
+            //     {
+            //         name: 'SomeNetwork Address',
+            //         type: 'PropertyValue',
+            //         value: 'Mateo@21:1/121',
+            //     },
+            // ],
+        };
+
+        const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
+        if (!_.isEmpty(publicKeyPem)) {
+            obj.publicKey = {
+                id: userSelfUrl + '#main-key',
+                owner: userSelfUrl,
+                publicKeyPem,
+            };
+        } else {
+            Log.warn(
+                { username: user.username },
+                `No public key (${UserProps.PublicKeyMain}) for user "${user.username}"`
+            );
+        }
+
+        return cb(null, new Actor(obj));
+    }
 
     static fromRemoteUrl(url, cb) {
         const headers = {

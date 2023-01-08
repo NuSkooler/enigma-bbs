@@ -214,54 +214,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    //  :TODO: replace me with a fetch-and-cache in Actor, wrapped in e.g. Actor.fetch(url, options, cb)
-    _fetchActor(actorUrl, cb) {
-        const headers = {
-            Accept: 'application/activity+json',
-        };
-        https
-            .get(actorUrl, { headers }, res => {
-                if (res.statusCode !== 200) {
-                    return cb(Errors.Invalid(`Bad HTTP status code: ${req.statusCode}`));
-                }
-
-                const contentType = res.headers['content-type'];
-                if (
-                    !_.isString(contentType) ||
-                    !contentType.startsWith('application/activity+json')
-                ) {
-                    return cb(Errors.Invalid(`Invalid Content-Type: ${contentType}`));
-                }
-
-                res.setEncoding('utf8');
-                let body = '';
-                res.on('data', data => {
-                    body += data;
-                });
-
-                res.on('end', () => {
-                    try {
-                        const actor = JSON.parse(body);
-                        if (
-                            !Array.isArray(actor['@context']) ||
-                            actor['@context'][0] !==
-                                'https://www.w3.org/ns/activitystreams'
-                        ) {
-                            return cb(
-                                Errors.Invalid('Invalid or missing Actor "@context"')
-                            );
-                        }
-                        return cb(null, actor);
-                    } catch (e) {
-                        return cb(e);
-                    }
-                });
-            })
-            .on('error', err => {
-                return cb(err);
-            });
-    }
-
     _validateKeyId(keyId) {
         if (!keyId) {
             return false;
@@ -275,82 +227,28 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         console.log(req);
     }
 
-    // _populateKeyIdInfo(keyId, info) {
-    //     if (!_.isString(keyId)) {
-    //         return false;
-    //     }
-
-    //     const m = /^https?:\/\/.+\/(.+)#(main-key)$/.exec(keyId);
-    //     if (!m || !m.length === 3) {
-    //         return false;
-    //     }
-
-    //     info.accountName = m[1];
-    //     info.keyType = m[2];
-    //     return true;
-    // }
-
     _selfAsActorHandler(user, req, resp) {
         this.log.trace(
             { username: user.username },
             `Serving ActivityPub Actor for "${user.username}"`
         );
 
-        const userSelfUrl = selfUrl(this.webServer, user);
+        Actor.fromLocalUser(user, this.webServer, (err, actor) => {
+            if (err) {
+                //  :TODO: Log me
+                return this.webServer.internalServerError(resp);
+            }
 
-        //  :TODO: something like: Actor.makeActor(...)
-        const bodyJson = {
-            '@context': [
-                'https://www.w3.org/ns/activitystreams',
-                'https://w3id.org/security/v1',
-            ],
-            id: userSelfUrl,
-            type: 'Person',
-            preferredUsername: user.username,
-            name: user.getSanitizedName('real'),
-            endpoints: {
-                sharedInbox: 'TODO',
-            },
-            inbox: makeUserUrl(this.webServer, user, '/ap/users/') + '/inbox',
-            outbox: makeUserUrl(this.webServer, user, '/ap/users/') + '/outbox',
-            followers: makeUserUrl(this.webServer, user, '/ap/users/') + '/followers',
-            following: makeUserUrl(this.webServer, user, '/ap/users/') + '/following',
-            summary: user.getProperty(UserProps.AutoSignature) || '',
-            url: webFingerProfileUrl(this.webServer, user),
+            const body = JSON.stringify(actor);
 
-            // :TODO: we can start to define BBS related stuff with the community perhaps
-            // attachment: [
-            //     {
-            //         name: 'SomeNetwork Address',
-            //         type: 'PropertyValue',
-            //         value: 'Mateo@21:1/121',
-            //     },
-            // ],
-        };
-
-        const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
-        if (!_.isEmpty(publicKeyPem)) {
-            bodyJson['publicKey'] = {
-                id: userSelfUrl + '#main-key',
-                owner: userSelfUrl,
-                publicKeyPem,
+            const headers = {
+                'Content-Type': 'application/activity+json',
+                'Content-Length': body.length,
             };
-        } else {
-            this.log.warn(
-                { username: user.username },
-                `No public key (${UserProps.PublicKeyMain}) for user "${user.username}"`
-            );
-        }
 
-        const body = JSON.stringify(bodyJson);
-
-        const headers = {
-            'Content-Type': 'application/activity+json',
-            'Content-Length': body.length,
-        };
-
-        resp.writeHead(200, headers);
-        return resp.end(body);
+            resp.writeHead(200, headers);
+            return resp.end(body);
+        });
     }
 
     _standardSelfHandler(user, req, resp) {
