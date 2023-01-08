@@ -177,7 +177,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            Actor.getRemoteActor(activity.actor, (err, actor) => {
+            Actor.fromRemoteUrl(activity.actor, (err, actor) => {
                 if (err) {
                     //  :TODO: log, and probably should be inspecting |err|
                     return this.webServer.internalServerError(resp);
