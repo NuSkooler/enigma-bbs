@@ -11,6 +11,7 @@ const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
 
+exports.isValidLink = isValidLink;
 exports.makeUserUrl = makeUserUrl;
 exports.webFingerProfileUrl = webFingerProfileUrl;
 exports.selfUrl = selfUrl;
@@ -30,6 +31,10 @@ Login Count: %LOGIN_COUNT%
 Affiliations: %AFFILIATIONS%
 Achievement Points: %ACHIEVEMENT_POINTS%
 `;
+
+function isValidLink(l) {
+    return /^https?:\/\/.+$/.test(l);
+}
 
 function makeUserUrl(webServer, user, relPrefix) {
     return webServer.buildUrl(

@@ -7,7 +7,7 @@
 //  This IS NOT a full list. For example, custom modules
 //  can utilize their own properties as well!
 //
-module.exports = {
+exports.ActorProps = {
     Type: 'type',
     PreferredUsername: 'preferred_user_name',
     Name: 'name',
@@ -16,3 +16,5 @@ module.exports = {
     BannerUrl: 'banner_url',
     PublicKeyMain: 'public_key_main_rsa_pem', // RSA public key for user
 };
+
+exports.AllActorProperties = Object.values(exports.ActorProps);

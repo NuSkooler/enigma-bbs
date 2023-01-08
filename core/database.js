@@ -41,7 +41,7 @@ function getModDatabasePath(moduleInfo, suffix) {
     //  filename. An optional suffix may be supplied as well.
     //
     const HOST_RE =
-    /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/;
+        /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/;
 
     assert(_.isObject(moduleInfo));
     assert(_.isString(moduleInfo.packageName), 'moduleInfo must define "packageName"!');
@@ -81,7 +81,7 @@ function getISOTimestampString(ts) {
 
 function sanitizeString(s) {
     return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
-    //  eslint-disable-line no-control-regex
+        //  eslint-disable-line no-control-regex
         switch (c) {
             case '\0':
                 return '\\0';
@@ -97,7 +97,7 @@ function sanitizeString(s) {
                 return '\\r';
 
             case '"':
-            case '\'':
+            case "'":
                 return `${c}${c}`;
 
             case '\\':

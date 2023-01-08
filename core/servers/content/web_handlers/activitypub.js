@@ -10,6 +10,7 @@ const {
 } = require('../../../activitypub_util');
 const UserProps = require('../../../user_property');
 const Config = require('../../../config').get;
+const Activity = require('../../../activitypub_activity');
 
 // deps
 const _ = require('lodash');
@@ -17,6 +18,7 @@ const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const https = require('https');
 const { Errors } = require('../../../enig_error');
+const Actor = require('../../../activitypub_actor');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -105,6 +107,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return this.webServer.resourceNotFound(resp);
         }
 
+        //  quick check up front
         const keyId = signature.keyId;
         if (!this._validateKeyId(keyId)) {
             return this.webServer.resourceNotFound(resp);
@@ -116,30 +119,37 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
 
         req.on('end', () => {
+            let activity;
             try {
-                const activity = JSON.parse(body);
-                switch (activity.type) {
-                    case 'Follow':
-                        return this._inboxFollowRequestHandler(
-                            keyId,
-                            signature,
-                            activity,
-                            req,
-                            resp
-                        );
-
-                    default:
-                        this.log.debug(
-                            { type: activity.type },
-                            `Unsupported Activity type "${activity.type}"`
-                        );
-                        return this.webServer.resourceNotFound(resp);
-                }
+                activity = Activity.fromJson(body);
             } catch (e) {
                 this.log.error(
                     { error: e.message, url: req.url, method: req.method },
                     'Failed to parse Activity'
                 );
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            if (!activity.isValid()) {
+                //  :TODO: Log me
+                return this.webServer.webServer.badRequest(resp);
+            }
+
+            switch (activity.type) {
+                case 'Follow':
+                    return this._inboxFollowRequestHandler(
+                        signature,
+                        activity,
+                        req,
+                        resp
+                    );
+
+                default:
+                    this.log.debug(
+                        { type: activity.type },
+                        `Unsupported Activity type "${activity.type}"`
+                    );
+                    return this.webServer.resourceNotFound(resp);
             }
         });
     }
@@ -156,15 +166,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
     }
 
-    _inboxFollowRequestHandler(keyId, signature, activity, req, resp) {
-        if (
-            activity['@context'] !== 'https://www.w3.org/ns/activitystreams' ||
-            !_.isString(activity.actor) ||
-            !_.isString(activity.object)
-        ) {
-            return this.webServerbadRequest(resp);
-        }
-
+    _inboxFollowRequestHandler(signature, activity, req, resp) {
         const accountName = accountFromSelfUrl(activity.object);
         if (!accountName) {
             return this.webServer.badRequest(resp);
@@ -175,7 +177,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            this._fetchActor(activity.actor, (err, actor) => {
+            Actor.getRemoteActor(activity.actor, (err, actor) => {
                 if (err) {
                     //  :TODO: log, and probably should be inspecting |err|
                     return this.webServer.internalServerError(resp);
@@ -187,7 +189,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this.webServer.accessDenied();
                 }
 
-                if (keyId !== pubKey.id) {
+                if (signature.keyId !== pubKey.id) {
                     //  :TODO: Log me
                     return this.webServer.accessDenied(resp);
                 }

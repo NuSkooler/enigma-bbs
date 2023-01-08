@@ -5,28 +5,111 @@
 const actorDb = require('./database.js').dbs.actor;
 const { Errors } = require('./enig_error.js');
 const Events = require('./events.js');
-const ActorProps = require('./activitypub_actor_property.js');
+const { ActorProps } = require('./activitypub_actor_property');
+const { isValidLink } = require('./activitypub_util');
 
 //  deps
 const assert = require('assert');
 const async = require('async');
 const _ = require('lodash');
+const https = require('https');
 
+const isString = require('lodash/isString');
+
+// https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor {
-    constructor() {
+    constructor(obj) {
+        if (obj) {
+            Object.assign(this, obj);
+        } else {
+            this['@context'] = ['https://www.w3.org/ns/activitystreams'];
+            this.id = '';
+            this.type = '';
+            this.inbox = '';
+            this.outbox = '';
+            this.following = '';
+            this.followers = '';
+            this.liked = '';
+        }
+
         this.actorId = 0;
         this.actorUrl = '';
         this.properties = {}; //  name:value
         this.groups = []; //  group membership(s)
     }
 
+    isValid() {
+        if (
+            !Array.isArray(this['@context']) ||
+            this['@context'][0] !== 'https://www.w3.org/ns/activitystreams'
+        ) {
+            return false;
+        }
+
+        if (!isString(this.type) || this.type.length < 1) {
+            return false;
+        }
+
+        const linksValid = ['inbox', 'outbox', 'following', 'followers'].every(p => {
+            return isValidLink(this[p]);
+        });
+        if (!linksValid) {
+            return false;
+        }
+
+        return true;
+    }
+
+    static getRemoteActor(url, cb) {
+        const headers = {
+            Accept: 'application/activity+json',
+        };
+
+        https.get(url, { headers }, res => {
+            if (res.statusCode !== 200) {
+                return cb(Errors.Invalid(`Bad HTTP status code: ${req.statusCode}`));
+            }
+
+            const contentType = res.headers['content-type'];
+            if (
+                !_.isString(contentType) ||
+                !contentType.startsWith('application/activity+json')
+            ) {
+                return cb(Errors.Invalid(`Invalid Content-Type: ${contentType}`));
+            }
+
+            res.setEncoding('utf8');
+            let body = '';
+            res.on('data', data => {
+                body += data;
+            });
+
+            res.on('end', () => {
+                let actor;
+                try {
+                    actor = Actor.fromJson(body);
+                } catch (e) {
+                    return cb(e);
+                }
+
+                if (!actor.isValid()) {
+                    return cb(Errors.Invalid('Invalid Actor'));
+                }
+
+                return cb(null, actor);
+            });
+        });
+    }
+
+    static fromJson(json) {
+        const parsed = JSON.parse(json);
+        return new Actor(parsed);
+    }
 
     create(cb) {
         assert(0 === this.actorId);
 
-        if (
-            _.isEmpty(this.actorUrl)
-        ) {
+        if (_.isEmpty(this.actorUrl)) {
             return cb(Errors.Invalid('Blank actor url'));
         }
 
@@ -135,14 +218,14 @@ module.exports = class Actor {
     }
 
     persistProperty(propName, propValue, cb) {
-    //  update live props
+        //  update live props
         this.properties[propName] = propValue;
 
         return Actor.persistPropertyByActorId(this.actorId, propName, propValue, cb);
     }
 
     removeProperty(propName, cb) {
-    //  update live
+        //  update live
         delete this.properties[propName];
 
         actorDb.run(
@@ -206,7 +289,6 @@ module.exports = class Actor {
         );
     }
 
-
     static getActor(actorId, cb) {
         async.waterfall(
             [
@@ -243,7 +325,7 @@ module.exports = class Actor {
                 ActorProps.Summary,
                 ActorProps.IconUrl,
                 ActorProps.BannerUrl,
-                ActorProps.PublicKeyMain
+                ActorProps.PublicKeyMain,
             ];
         }
 
