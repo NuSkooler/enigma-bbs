@@ -16,7 +16,8 @@
         "quotes": ["error", "single"],
         "semi": ["error", "always"],
         "comma-dangle": 0,
-        "no-trailing-spaces": "error"
+        "no-trailing-spaces": "error",
+        "no-control-regex": 0
     },
     "parserOptions": {
         "ecmaVersion": 2020
