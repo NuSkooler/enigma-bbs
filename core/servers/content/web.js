@@ -316,12 +316,34 @@ exports.getModule = class WebServerModule extends ServerModule {
         });
     }
 
+    badRequest(resp) {
+        return this.respondWithError(resp, 400, 'Bad request.', 'Bad Request');
+    }
+
     accessDenied(resp) {
         return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
     }
 
     fileNotFound(resp) {
         return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+    }
+
+    resourceNotFound(resp) {
+        return this.respondWithError(
+            resp,
+            404,
+            'Resource not found.',
+            'Resource Not Found'
+        );
+    }
+
+    internalServerError(resp) {
+        return this.respondWithError(
+            resp,
+            500,
+            'Internal server error.',
+            'Internal Server Error'
+        );
     }
 
     tryRouteIndex(req, resp, cb) {

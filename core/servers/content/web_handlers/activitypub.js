@@ -6,15 +6,17 @@ const {
     userFromAccount,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
+    accountFromSelfUrl,
 } = require('../../../activitypub_util');
 const UserProps = require('../../../user_property');
-const { Errors } = require('../../../enig_error');
 const Config = require('../../../config').get;
 
 // deps
 const _ = require('lodash');
-const { trim } = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
+const httpSignature = require('http-signature');
+const https = require('https');
+const { Errors } = require('../../../enig_error');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -40,6 +42,20 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             handler: this._selfUrlRequestHandler.bind(this),
         });
 
+        this.webServer.addRoute({
+            method: 'POST',
+            //inbox: makeUserUrl(this.webServer, user, '/ap/users/') + '/inbox',
+            path: /^\/_enig\/ap\/users\/.+\/inbox$/,
+            handler: this._inboxPostHandler.bind(this),
+        });
+
+        //  :TODO: NYI
+        // this.webServer.addRoute({
+        //     method: 'GET',
+        //     path: /^\/_enig\/authorize_interaction\?uri=(.+)$/,
+        //     handler: this._authorizeInteractionHandler.bind(this),
+        // });
+
         return cb(null);
     }
 
@@ -59,10 +75,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         userFromAccount(accountName, (err, user) => {
             if (err) {
                 this.log.info(
-                    { reason: error.message, accountName: accountName },
+                    { reason: err.message, accountName: accountName },
                     `No user "${accountName}" for "self"`
                 );
-                return this._notFound(resp);
+                return this.webServer.resourceNotFound(resp);
             }
 
             // Additionally, serve activity JSON if the proper 'Accept' header was sent
@@ -82,6 +98,196 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    _inboxPostHandler(req, resp) {
+        // the request must be signed, and the signature must be valid
+        const signature = this._parseSignature(req);
+        if (!signature) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        const keyId = signature.keyId;
+        if (!this._validateKeyId(keyId)) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        let body = '';
+        req.on('data', data => {
+            body += data;
+        });
+
+        req.on('end', () => {
+            try {
+                const activity = JSON.parse(body);
+                switch (activity.type) {
+                    case 'Follow':
+                        return this._inboxFollowRequestHandler(
+                            keyId,
+                            signature,
+                            activity,
+                            req,
+                            resp
+                        );
+
+                    default:
+                        this.log.debug(
+                            { type: activity.type },
+                            `Unsupported Activity type "${activity.type}"`
+                        );
+                        return this.webServer.resourceNotFound(resp);
+                }
+            } catch (e) {
+                this.log.error(
+                    { error: e.message, url: req.url, method: req.method },
+                    'Failed to parse Activity'
+                );
+            }
+        });
+    }
+
+    _parseSignature(req) {
+        try {
+            //  :TODO: validate options passed to parseRequest()
+            return httpSignature.parseRequest(req);
+        } catch (e) {
+            this.log.warn(
+                { error: e.message, url: req.url, method: req.method },
+                'Failed to parse HTTP signature'
+            );
+        }
+    }
+
+    _inboxFollowRequestHandler(keyId, signature, activity, req, resp) {
+        if (
+            activity['@context'] !== 'https://www.w3.org/ns/activitystreams' ||
+            !_.isString(activity.actor) ||
+            !_.isString(activity.object)
+        ) {
+            return this.webServerbadRequest(resp);
+        }
+
+        const accountName = accountFromSelfUrl(activity.object);
+        if (!accountName) {
+            return this.webServer.badRequest(resp);
+        }
+
+        userFromAccount(accountName, (err, user) => {
+            if (err) {
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            this._fetchActor(activity.actor, (err, actor) => {
+                if (err) {
+                    //  :TODO: log, and probably should be inspecting |err|
+                    return this.webServer.internalServerError(resp);
+                }
+
+                const pubKey = actor.publicKey;
+                if (!_.isObject(pubKey)) {
+                    //  Log me
+                    return this.webServer.accessDenied();
+                }
+
+                if (keyId !== pubKey.id) {
+                    //  :TODO: Log me
+                    return this.webServer.accessDenied(resp);
+                }
+
+                if (!httpSignature.verifySignature(signature, pubKey.publicKeyPem)) {
+                    this.log.warn(
+                        {
+                            actor: activity.actor,
+                            keyId,
+                            signature: req.headers['signature'] || '',
+                        },
+                        'Invalid signature supplied for Follow request'
+                    );
+                    return this.webServer.accessDenied(resp);
+                }
+
+                //  :TODO: return OK and kick off a async job of persisting and sending and 'Accepted'
+
+                resp.writeHead(200, { 'Content-Type': 'text/html' });
+                return resp.end('');
+            });
+        });
+    }
+
+    //  :TODO: replace me with a fetch-and-cache in Actor, wrapped in e.g. Actor.fetch(url, options, cb)
+    _fetchActor(actorUrl, cb) {
+        const headers = {
+            Accept: 'application/activity+json',
+        };
+        https
+            .get(actorUrl, { headers }, res => {
+                if (res.statusCode !== 200) {
+                    return cb(Errors.Invalid(`Bad HTTP status code: ${req.statusCode}`));
+                }
+
+                const contentType = res.headers['content-type'];
+                if (
+                    !_.isString(contentType) ||
+                    !contentType.startsWith('application/activity+json')
+                ) {
+                    return cb(Errors.Invalid(`Invalid Content-Type: ${contentType}`));
+                }
+
+                res.setEncoding('utf8');
+                let body = '';
+                res.on('data', data => {
+                    body += data;
+                });
+
+                res.on('end', () => {
+                    try {
+                        const actor = JSON.parse(body);
+                        if (
+                            !Array.isArray(actor['@context']) ||
+                            actor['@context'][0] !==
+                                'https://www.w3.org/ns/activitystreams'
+                        ) {
+                            return cb(
+                                Errors.Invalid('Invalid or missing Actor "@context"')
+                            );
+                        }
+                        return cb(null, actor);
+                    } catch (e) {
+                        return cb(e);
+                    }
+                });
+            })
+            .on('error', err => {
+                return cb(err);
+            });
+    }
+
+    _validateKeyId(keyId) {
+        if (!keyId) {
+            return false;
+        }
+
+        // we only accept main-key currently
+        return keyId.endsWith('#main-key');
+    }
+
+    _authorizeInteractionHandler(req, resp) {
+        console.log(req);
+    }
+
+    // _populateKeyIdInfo(keyId, info) {
+    //     if (!_.isString(keyId)) {
+    //         return false;
+    //     }
+
+    //     const m = /^https?:\/\/.+\/(.+)#(main-key)$/.exec(keyId);
+    //     if (!m || !m.length === 3) {
+    //         return false;
+    //     }
+
+    //     info.accountName = m[1];
+    //     info.keyType = m[2];
+    //     return true;
+    // }
+
     _selfAsActorHandler(user, req, resp) {
         this.log.trace(
             { username: user.username },
@@ -90,6 +296,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         const userSelfUrl = selfUrl(this.webServer, user);
 
+        //  :TODO: something like: Actor.makeActor(...)
         const bodyJson = {
             '@context': [
                 'https://www.w3.org/ns/activitystreams',
@@ -161,7 +368,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             'text/plain',
             (err, body, contentType) => {
                 if (err) {
-                    return this._notFound(resp);
+                    return this.webServer.resourceNotFound(resp);
                 }
 
                 const headers = {
@@ -172,15 +379,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 resp.writeHead(200, headers);
                 return resp.end(body);
             }
-        );
-    }
-
-    _notFound(resp) {
-        this.webServer.respondWithError(
-            resp,
-            404,
-            'Resource not found',
-            'Resource Not Found'
         );
     }
 };

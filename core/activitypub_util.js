@@ -15,6 +15,7 @@ exports.makeUserUrl = makeUserUrl;
 exports.webFingerProfileUrl = webFingerProfileUrl;
 exports.selfUrl = selfUrl;
 exports.userFromAccount = userFromAccount;
+exports.accountFromSelfUrl = accountFromSelfUrl;
 exports.getUserProfileTemplatedBody = getUserProfileTemplatedBody;
 
 //  :TODO: more info in default
@@ -42,6 +43,11 @@ function webFingerProfileUrl(webServer, user) {
 
 function selfUrl(webServer, user) {
     return makeUserUrl(webServer, user, '/ap/users/');
+}
+
+function accountFromSelfUrl(url) {
+    // https://some.l33t.enigma.board/_enig/ap/users/Masto -> Masto
+    return url.substring(url.lastIndexOf('/') + 1);
 }
 
 function userFromAccount(accountName, cb) {

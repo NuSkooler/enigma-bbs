@@ -89,8 +89,8 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         }
 
         const userPosition = resource.indexOf('@');
-        if (-1 == userPosition || userPosition == resource.length - 1) {
-            this._notFound(resp);
+        if (-1 === userPosition || userPosition === resource.length - 1) {
+            this.webServer.resourceNotFound(resp);
             return Errors.DoesNotExist('"@username" missing from path');
         }
 
@@ -102,7 +102,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                     { url: req.url, error: err.message, type: 'Profile' },
                     `No profile for "${accountName}" could be retrieved`
                 );
-                return this._notFound(resp);
+                return this.webServer.resourceNotFound(resp);
             }
 
             let templateFile = _.get(
@@ -120,7 +120,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 'text/plain',
                 (err, body, contentType) => {
                     if (err) {
-                        return this._notFound(resp);
+                        return this.webServer.resourceNotFound(resp);
                     }
 
                     const headers = {
@@ -150,7 +150,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
         const accountName = this._getAccountName(resource);
         if (!accountName || accountName.length < 1) {
-            this._notFound(resp);
+            this.webServer.resourceNotFound(resp);
             return Errors.DoesNotExist(
                 `Failed to parse "account name" for resource: ${resource}`
             );
@@ -162,7 +162,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                     { url: req.url, error: err.message, type: 'WebFinger' },
                     `No account for "${accountName}" could be retrieved`
                 );
-                return this._notFound(resp);
+                return this.webServer.resourceNotFound(resp);
             }
 
             const domain = this.webServer.getDomain();
@@ -231,14 +231,5 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 return m[1];
             }
         }
-    }
-
-    _notFound(resp) {
-        this.webServer.respondWithError(
-            resp,
-            404,
-            'Resource not found',
-            'Resource Not Found'
-        );
     }
 };
