@@ -39,7 +39,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+$/,
+            path: /^\/_enig\/ap\/users\/[^\/]+$/,
             handler: this._selfUrlRequestHandler.bind(this),
         });
 
