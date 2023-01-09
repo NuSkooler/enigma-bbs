@@ -4,18 +4,20 @@ const {
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
     accountFromSelfUrl,
+    selfUrl,
 } = require('../../../activitypub_util');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub_activity');
 const ActivityPubSettings = require('../../../activitypub_settings');
+const Actor = require('../../../activitypub_actor');
+const { postJson } = require('../../../http_util');
+const UserProps = require('../../../user_property');
 
 // deps
 const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const https = require('https');
-const { Errors } = require('../../../enig_error');
-const Actor = require('../../../activitypub_actor');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -220,12 +222,67 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             return;
                         }
 
+                        //  user must have a Private Key
+                        const privateKey = user.getProperty(UserProps.PrivateKeyMain);
+                        if (_.isEmpty(privateKey)) {
+                            //  :TODO: Log me
+                            return;
+                        }
+
                         const accept = Activity.makeAccept(
                             this.webServer,
                             localActor,
                             activity
                         );
-                        console.log(accept);
+
+                        const keyId = selfUrl(this.webServer, user) + '#main-key';
+
+                        const reqOpts = {
+                            headers: {
+                                'Content-Type': 'application/activity+json',
+                            },
+                            sign: {
+                                //  :TODO: Make a helper for this
+                                key: privateKey,
+                                keyId,
+                                authorizationHeaderName: 'Signature',
+                                headers: [
+                                    '(request-target)',
+                                    'host',
+                                    'date',
+                                    'digest',
+                                    'content-type',
+                                ],
+                            },
+                        };
+
+                        postJson(
+                            actor.inbox,
+                            JSON.stringify(accept),
+                            reqOpts,
+                            (err, respBody, res) => {
+                                if (err) {
+                                    return this.log.warn(
+                                        {
+                                            inbox: actor.inbox,
+                                            statusCode: res.statusCode,
+                                            error: err.message,
+                                        },
+                                        'Failed POSTing "Accept" to inbox'
+                                    );
+                                }
+
+                                if (res.statusCode != 202) {
+                                    return this.log.warn(
+                                        {
+                                            inbox: actor.inbox,
+                                            statusCode: res.statusCode,
+                                        },
+                                        'Unexpected status code'
+                                    );
+                                }
+                            }
+                        );
                     });
                 }
 

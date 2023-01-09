@@ -42,7 +42,7 @@ exports.Errors = {
     UnexpectedState: (reason, reasonCode) =>
         new EnigError('Unexpected state', -32007, reason, reasonCode),
     MissingParam: (reason, reasonCode) =>
-        new EnigError('Missing paramter(s)', -32008, reason, reasonCode),
+        new EnigError('Missing parameter(s)', -32008, reason, reasonCode),
     MissingMci: (reason, reasonCode) =>
         new EnigError('Missing required MCI code(s)', -32009, reason, reasonCode),
     BadLogin: (reason, reasonCode) =>
@@ -51,6 +51,9 @@ exports.Errors = {
         new EnigError('User interrupted', -32011, reason, reasonCode),
     NothingToDo: (reason, reasonCode) =>
         new EnigError('Nothing to do', -32012, reason, reasonCode),
+    HttpError: (reason, reasonCode) =>
+        new EnigError('HTTP error', -32013, reason, reasonCode),
+    Timeout: (reason, reasonCode) => new EnigError('Timeout', -32014, reason, reasonCode),
 };
 
 exports.ErrorReasons = {

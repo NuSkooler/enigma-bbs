@@ -1,4 +1,3 @@
-const { selfUrl } = require('./activitypub_util');
 const UserProps = require('./user_property');
 
 module.exports = class ActivityPubSettings {
