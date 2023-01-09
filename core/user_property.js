@@ -69,4 +69,6 @@ module.exports = {
 
     PublicKeyMain: 'public_key_main_rsa_pem', // RSA public key for user
     PrivateKeyMain: 'private_key_main_rsa_pem', // RSA private key (corresponding to PublicKeyMain)
+
+    ActivityPubSettings: 'activity_pub_settings', //   JSON object (above); see ActivityPubSettings in activitypub_settings.js
 };

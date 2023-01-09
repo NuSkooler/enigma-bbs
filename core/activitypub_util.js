@@ -2,6 +2,7 @@ const { WellKnownLocations } = require('./servers/content/web');
 const User = require('./user');
 const { Errors, ErrorReasons } = require('./enig_error');
 const UserProps = require('./user_property');
+const ActivityPubSettings = require('./activitypub_settings');
 
 // deps
 const _ = require('lodash');
@@ -11,6 +12,7 @@ const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
 
+exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 exports.isValidLink = isValidLink;
 exports.makeUserUrl = makeUserUrl;
 exports.webFingerProfileUrl = webFingerProfileUrl;
@@ -52,6 +54,7 @@ function selfUrl(webServer, user) {
 
 function accountFromSelfUrl(url) {
     // https://some.l33t.enigma.board/_enig/ap/users/Masto -> Masto
+    //  :TODO: take webServer, and just take path-to-users.length +1
     return url.substring(url.lastIndexOf('/') + 1);
 }
 
@@ -76,6 +79,11 @@ function userFromAccount(accountName, cb) {
                 User.AccountStatus.inactive == accountStatus
             ) {
                 return cb(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+            }
+
+            const activityPubSettings = ActivityPubSettings.fromUser(user);
+            if (!activityPubSettings.enabled) {
+                return cb(Errors.AccessDenied('ActivityPub is not enabled for user'));
             }
 
             return cb(null, user);

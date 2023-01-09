@@ -1,16 +1,13 @@
 const WebHandlerModule = require('../../../web_handler_module');
 const {
-    makeUserUrl,
-    webFingerProfileUrl,
-    selfUrl,
     userFromAccount,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
     accountFromSelfUrl,
 } = require('../../../activitypub_util');
-const UserProps = require('../../../user_property');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub_activity');
+const ActivityPubSettings = require('../../../activitypub_settings');
 
 // deps
 const _ = require('lodash');
@@ -46,7 +43,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'POST',
-            //inbox: makeUserUrl(this.webServer, user, '/ap/users/') + '/inbox',
             path: /^\/_enig\/ap\/users\/.+\/inbox$/,
             handler: this._inboxPostHandler.bind(this),
         });
@@ -207,6 +203,31 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 }
 
                 //  :TODO: return OK and kick off a async job of persisting and sending and 'Accepted'
+
+                //
+                //  If the user blindly accepts Followers, we can persist
+                //  and send an 'Accept' now. Otherwise, we need to queue this
+                //  request for the user to review and decide what to do with
+                //  at a later time.
+                //
+                const activityPubSettings = ActivityPubSettings.fromUser(user);
+                if (!activityPubSettings.manuallyApproveFollowers) {
+                    //
+                    //  :TODO: Implement the queue
+                    Actor.fromLocalUser(user, this.webServer, (err, localActor) => {
+                        if (err) {
+                            //  :TODO:
+                            return;
+                        }
+
+                        const accept = Activity.makeAccept(
+                            this.webServer,
+                            localActor,
+                            activity
+                        );
+                        console.log(accept);
+                    });
+                }
 
                 resp.writeHead(200, { 'Content-Type': 'text/html' });
                 return resp.end('');

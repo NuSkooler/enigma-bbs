@@ -11,6 +11,7 @@ const {
     makeUserUrl,
     selfUrl,
     isValidLink,
+    ActivityStreamsContext,
 } = require('./activitypub_util');
 const Log = require('./logger').log;
 
@@ -25,10 +26,11 @@ const isString = require('lodash/isString');
 // https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor {
     constructor(obj) {
+        this['@context'] = [ActivityStreamsContext];
+
         if (obj) {
             Object.assign(this, obj);
         } else {
-            this['@context'] = ['https://www.w3.org/ns/activitystreams'];
             this.id = '';
             this.type = '';
             this.inbox = '';
@@ -41,7 +43,7 @@ module.exports = class Actor {
     isValid() {
         if (
             !Array.isArray(this['@context']) ||
-            this['@context'][0] !== 'https://www.w3.org/ns/activitystreams'
+            this['@context'][0] !== ActivityStreamsContext
         ) {
             return false;
         }
@@ -66,7 +68,7 @@ module.exports = class Actor {
 
         const obj = {
             '@context': [
-                'https://www.w3.org/ns/activitystreams',
+                ActivityStreamsContext,
                 'https://w3id.org/security/v1', // :TODO: add support
             ],
             id: userSelfUrl,
