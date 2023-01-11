@@ -21,6 +21,7 @@ const EMAIL_REGEX =
     43:20/100.2                        { flavor : 'ftn', remote : '43:20/100.2' }
     foo@host.com                       { name : 'foo', flavor : 'email', remote : 'foo@host.com' }
     Bar <baz@foobar.net>               { name : 'Bar', flavor : 'email', remote : 'baz@foobar.com' }
+    @JoeUser@some.host.com             { name : 'Joe User', flavor : 'activitypub', remote 'JoeUser@some.host.com' }
 */
 function getAddressedToInfo(input) {
     input = input.trim();
@@ -53,6 +54,20 @@ function getAddressedToInfo(input) {
         }
 
         return { name: input, flavor: Message.AddressFlavor.Local };
+    }
+
+    if (firstAtPos === 0) {
+        const secondAtPos = input.indexOf('@', 1);
+        if (secondAtPos > 0) {
+            const m = input.slice(1).match(EMAIL_REGEX);
+            if (m) {
+                return {
+                    name: input.slice(1, secondAtPos),
+                    flavor: Message.AddressFlavor.ActivityPub,
+                    remote: input.slice(firstAtPos),
+                };
+            }
+        }
     }
 
     const lessThanPos = input.indexOf('<');

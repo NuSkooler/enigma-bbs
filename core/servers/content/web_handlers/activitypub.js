@@ -229,6 +229,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             return;
                         }
 
+                        //  :TODO: This stuff should probably be lifted out so it can be called ad-hoc from the queue
                         const accept = Activity.makeAccept(
                             this.webServer,
                             localActor,
@@ -281,6 +282,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                         'Unexpected status code'
                                     );
                                 }
+
+                                this.log.trace(
+                                    { inbox: actor.inbox },
+                                    'Remote server received our "Accept" successfully'
+                                );
                             }
                         );
                     });

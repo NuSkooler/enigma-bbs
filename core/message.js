@@ -56,6 +56,7 @@ const ADDRESS_FLAVOR = {
     Email: 'email', //  From email
     QWK: 'qwk', //  QWK packet
     NNTP: 'nntp', // NNTP article POST; often a email address
+    ActivityPub: 'activitypub', //  ActivityPub, Mastodon, etc.
 };
 
 const STATE_FLAGS0 = {
