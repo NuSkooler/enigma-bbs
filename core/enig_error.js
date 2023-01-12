@@ -54,6 +54,8 @@ exports.Errors = {
     HttpError: (reason, reasonCode) =>
         new EnigError('HTTP error', -32013, reason, reasonCode),
     Timeout: (reason, reasonCode) => new EnigError('Timeout', -32014, reason, reasonCode),
+    MissingProperty: (reason, reasonCode) =>
+        new EnigError('Missing property', -32014, reason, reasonCode),
 };
 
 exports.ErrorReasons = {

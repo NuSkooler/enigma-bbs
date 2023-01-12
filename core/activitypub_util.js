@@ -20,6 +20,7 @@ exports.selfUrl = selfUrl;
 exports.userFromAccount = userFromAccount;
 exports.accountFromSelfUrl = accountFromSelfUrl;
 exports.getUserProfileTemplatedBody = getUserProfileTemplatedBody;
+exports.messageBodyToHtml = messageBodyToHtml;
 
 //  :TODO: more info in default
 // this profile template is the *default* for both WebFinger
@@ -159,4 +160,13 @@ function getUserProfileTemplatedBody(
             return cb(err, data, contentType);
         }
     );
+}
+
+//
+//  Apply very basic HTML to a message following
+//  Mastodon's supported tags of 'p', 'br', 'a', and 'span':
+//  https://blog.joinmastodon.org/2018/06/how-to-implement-a-basic-activitypub-server/
+//
+function messageBodyToHtml(body) {
+    return `<p>${body.replace(/\r?\n/g, '<br>')}</p>`;
 }

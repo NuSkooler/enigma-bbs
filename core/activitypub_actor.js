@@ -4,7 +4,6 @@
 //  ENiGMA½
 const actorDb = require('./database.js').dbs.actor;
 const { Errors } = require('./enig_error.js');
-const { ActorProps } = require('./activitypub_actor_property');
 const UserProps = require('./user_property');
 const {
     webFingerProfileUrl,
@@ -14,9 +13,10 @@ const {
     ActivityStreamsContext,
 } = require('./activitypub_util');
 const Log = require('./logger').log;
+const { queryWebFinger } = require('./webfinger');
+const EnigAssert = require('./enigma_assert');
 
 //  deps
-const assert = require('assert');
 const async = require('async');
 const _ = require('lodash');
 const https = require('https');
@@ -102,6 +102,11 @@ module.exports = class Actor {
                 owner: userSelfUrl,
                 publicKeyPem,
             };
+
+            EnigAssert(
+                !_.isEmpty(user.getProperty(UserProps.PrivateKeyMain)),
+                'User has public key but no private key!'
+            );
         } else {
             Log.warn(
                 { username: user.username },
@@ -116,6 +121,8 @@ module.exports = class Actor {
         const headers = {
             Accept: 'application/activity+json',
         };
+
+        //  :TODO: use getJson()
 
         https.get(url, { headers }, res => {
             if (res.statusCode !== 200) {
@@ -150,6 +157,35 @@ module.exports = class Actor {
 
                 return cb(null, actor);
             });
+        });
+    }
+
+    static fromAccountName(actorName, options, cb) {
+        //  :TODO: cache first -- do we have an Actor for this account already with a OK TTL?
+
+        queryWebFinger(actorName, (err, res) => {
+            if (err) {
+                return cb(err);
+            }
+
+            // we need a link with 'application/activity+json'
+            const links = res.links;
+            if (!Array.isArray(links)) {
+                return cb(Errors.DoesNotExist('No "links" object in WebFinger response'));
+            }
+
+            const activityLink = links.find(l => {
+                return l.type === 'application/activity+json' && l.href?.length > 0;
+            });
+
+            if (!activityLink) {
+                return cb(
+                    Errors.DoesNotExist('No Activity link found in WebFinger response')
+                );
+            }
+
+            // we can now query the href value for an Actor
+            return Actor.fromRemoteUrl(activityLink.href, cb);
         });
     }
 

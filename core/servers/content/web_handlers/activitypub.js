@@ -212,55 +212,27 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 //  request for the user to review and decide what to do with
                 //  at a later time.
                 //
+                //  :TODO: Implement the queue
                 const activityPubSettings = ActivityPubSettings.fromUser(user);
                 if (!activityPubSettings.manuallyApproveFollowers) {
-                    //
-                    //  :TODO: Implement the queue
                     Actor.fromLocalUser(user, this.webServer, (err, localActor) => {
                         if (err) {
-                            //  :TODO:
-                            return;
+                            return this.log.warn(
+                                { inbox: actor.inbox, error: err.message },
+                                'Failed to load local Actor for "Accept"'
+                            );
                         }
 
-                        //  user must have a Private Key
-                        const privateKey = user.getProperty(UserProps.PrivateKeyMain);
-                        if (_.isEmpty(privateKey)) {
-                            //  :TODO: Log me
-                            return;
-                        }
-
-                        //  :TODO: This stuff should probably be lifted out so it can be called ad-hoc from the queue
                         const accept = Activity.makeAccept(
                             this.webServer,
                             localActor,
                             activity
                         );
 
-                        const keyId = selfUrl(this.webServer, user) + '#main-key';
-
-                        const reqOpts = {
-                            headers: {
-                                'Content-Type': 'application/activity+json',
-                            },
-                            sign: {
-                                //  :TODO: Make a helper for this
-                                key: privateKey,
-                                keyId,
-                                authorizationHeaderName: 'Signature',
-                                headers: [
-                                    '(request-target)',
-                                    'host',
-                                    'date',
-                                    'digest',
-                                    'content-type',
-                                ],
-                            },
-                        };
-
-                        postJson(
+                        accept.sendTo(
                             actor.inbox,
-                            JSON.stringify(accept),
-                            reqOpts,
+                            user,
+                            this.webServer,
                             (err, respBody, res) => {
                                 if (err) {
                                     return this.log.warn(

@@ -101,6 +101,10 @@ const QWKPropertyNames = {
     InReplyToNum: 'qwk_in_reply_to_num', //  note that we prefer the 'InReplyToMsgId' kludge if available
 };
 
+const ActivityPubPropertyNames = {
+    ActivityId: 'activitypub_activity_id', //  Activity ID; FK to AP table entries
+};
+
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
 const MESSAGE_ROW_MAP = {
     reply_to_message_id: 'replyToMsgId',
@@ -243,14 +247,27 @@ module.exports = class Message {
         this.meta.System[Message.SystemMetaNames.LocalFromUserID] = userId;
     }
 
+    getLocalFromUserId() {
+        let id = _.get(this, 'meta.System.local_from_user_id', 0);
+        return parseInt(id);
+    }
+
     setRemoteToUser(remoteTo) {
         this.meta.System = this.meta.System || {};
         this.meta.System[Message.SystemMetaNames.RemoteToUser] = remoteTo;
     }
 
+    getRemoteToUser() {
+        return _.get(this, 'meta.System.remote_to_user');
+    }
+
     setExternalFlavor(flavor) {
         this.meta.System = this.meta.System || {};
         this.meta.System[Message.SystemMetaNames.ExternalFlavor] = flavor;
+    }
+
+    getAddressFlavor() {
+        return _.get(this, 'meta.System.external_flavor', Message.AddressFlavor.Local);
     }
 
     static createMessageUUID(areaTag, modTimestamp, subject, body) {

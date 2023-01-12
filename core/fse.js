@@ -16,7 +16,11 @@ const { MessageAreaConfTempSwitcher } = require('./mod_mixins.js');
 const { isAnsi, stripAnsiControlCodes, insert } = require('./string_util.js');
 const { stripMciColorCodes, controlCodesToAnsi } = require('./color_codes.js');
 const Config = require('./config.js').get;
-const { getAddressedToInfo } = require('./mail_util.js');
+const {
+    getAddressedToInfo,
+    setExternalAddressedToInfo,
+    copyExternalAddressedToInfo,
+} = require('./mail_util.js');
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
@@ -589,15 +593,9 @@ exports.FullScreenEditorModule =
                             self.replyToMessage &&
                             self.replyToMessage.isFromRemoteUser()
                         ) {
-                            self.message.setRemoteToUser(
-                                self.replyToMessage.meta.System[
-                                    Message.SystemMetaNames.RemoteFromUser
-                                ]
-                            );
-                            self.message.setExternalFlavor(
-                                self.replyToMessage.meta.System[
-                                    Message.SystemMetaNames.ExternalFlavor
-                                ]
+                            copyExternalAddressedToInfo(
+                                self.replyToMessage,
+                                self.message
                             );
                             return callback(null);
                         }
@@ -605,21 +603,16 @@ exports.FullScreenEditorModule =
                         //
                         //  Detect if the user is attempting to send to a remote mail type that we support
                         //
-                        //  :TODO: how to plug in support without tying to various types here? isSupportedExteranlType() or such
                         const addressedToInfo = getAddressedToInfo(
                             self.message.toUserName
                         );
-                        if (
-                            addressedToInfo.name &&
-                            Message.AddressFlavor.FTN === addressedToInfo.flavor
-                        ) {
-                            self.message.setRemoteToUser(addressedToInfo.remote);
-                            self.message.setExternalFlavor(addressedToInfo.flavor);
-                            self.message.toUserName = addressedToInfo.name;
+
+                        if (setExternalAddressedToInfo(addressedToInfo, self.message)) {
+                            // setExternalAddressedToInfo() did what we need
                             return callback(null);
                         }
 
-                        //  we need to look it up
+                        //  Local user -- we need to look it up
                         User.getUserIdAndNameByLookup(
                             self.message.toUserName,
                             (err, toUserId) => {
