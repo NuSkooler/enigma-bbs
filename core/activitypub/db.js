@@ -1,4 +1,4 @@
-const apDb = require('./database').dbs.activitypub;
+const apDb = require('../database').dbs.activitypub;
 
 exports.persistToOutbox = persistToOutbox;
 

@@ -1,9 +1,9 @@
-const Activity = require('../activitypub_activity');
+const Activity = require('../activitypub/activity');
 const Message = require('../message');
 const { MessageScanTossModule } = require('../msg_scan_toss_module');
 const { getServer } = require('../listening_server');
 const Log = require('../logger').log;
-const { persistToOutbox } = require('../activitypub_db');
+const { persistToOutbox } = require('../activitypub/db');
 
 // deps
 const async = require('async');

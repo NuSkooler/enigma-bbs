@@ -4,13 +4,13 @@ const {
     ActivityStreamsContext,
     messageBodyToHtml,
     selfUrl,
-} = require('./activitypub_util');
-const { Errors } = require('./enig_error');
-const User = require('./user');
-const Actor = require('./activitypub_actor');
-const { getISOTimestampString } = require('./database');
-const UserProps = require('./user_property');
-const { postJson } = require('./http_util');
+} = require('../activitypub/util');
+const { Errors } = require('../enig_error');
+const User = require('../user');
+const Actor = require('../activitypub/actor');
+const { getISOTimestampString } = require('../database');
+const UserProps = require('../user_property');
+const { postJson } = require('../http_util');
 
 // deps
 const async = require('async');

@@ -4,20 +4,16 @@ const {
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
     accountFromSelfUrl,
-    selfUrl,
-} = require('../../../activitypub_util');
+} = require('../../../activitypub/util');
 const Config = require('../../../config').get;
-const Activity = require('../../../activitypub_activity');
-const ActivityPubSettings = require('../../../activitypub_settings');
-const Actor = require('../../../activitypub_actor');
-const { postJson } = require('../../../http_util');
-const UserProps = require('../../../user_property');
+const Activity = require('../../../activitypub/activity');
+const ActivityPubSettings = require('../../../activitypub/settings');
+const Actor = require('../../../activitypub/actor');
 
 // deps
 const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
-const https = require('https');
 
 exports.moduleInfo = {
     name: 'ActivityPub',

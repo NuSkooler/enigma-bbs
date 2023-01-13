@@ -2,22 +2,20 @@
 'use strict';
 
 //  ENiGMA½
-const actorDb = require('./database.js').dbs.actor;
-const { Errors } = require('./enig_error.js');
-const UserProps = require('./user_property');
+const { Errors } = require('../enig_error.js');
+const UserProps = require('../user_property');
 const {
     webFingerProfileUrl,
     makeUserUrl,
     selfUrl,
     isValidLink,
     ActivityStreamsContext,
-} = require('./activitypub_util');
-const Log = require('./logger').log;
-const { queryWebFinger } = require('./webfinger');
-const EnigAssert = require('./enigma_assert');
+} = require('../activitypub/util');
+const Log = require('../logger').log;
+const { queryWebFinger } = require('../webfinger');
+const EnigAssert = require('../enigma_assert');
 
 //  deps
-const async = require('async');
 const _ = require('lodash');
 const https = require('https');
 

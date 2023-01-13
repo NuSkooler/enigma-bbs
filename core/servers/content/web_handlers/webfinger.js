@@ -8,7 +8,7 @@ const {
     userFromAccount,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
-} = require('../../../activitypub_util');
+} = require('../../../activitypub/util');
 
 const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
