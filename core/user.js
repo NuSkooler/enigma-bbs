@@ -504,7 +504,7 @@ module.exports = class User {
                     );
                 },
                 function setKeyPair(trans, callback) {
-                    self.updateMainKeyPairProperties(err => {
+                    self.updateActivityPubKeyPairProperties(err => {
                         return callback(err, trans);
                     });
                 },
@@ -643,7 +643,7 @@ module.exports = class User {
         );
     }
 
-    updateMainKeyPairProperties(cb) {
+    updateActivityPubKeyPairProperties(cb) {
         crypto.generateKeyPair(
             'rsa',
             {
@@ -659,8 +659,8 @@ module.exports = class User {
             },
             (err, publicKey, privateKey) => {
                 if (!err) {
-                    this.setProperty(UserProps.PrivateKeyMain, privateKey);
-                    this.setProperty(UserProps.PublicKeyMain, publicKey);
+                    this.setProperty(UserProps.PrivateActivityPubSigningKey, privateKey);
+                    this.setProperty(UserProps.PublicActivityPubSigningKey, publicKey);
                 }
                 return cb(err);
             }

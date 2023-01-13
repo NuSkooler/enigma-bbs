@@ -67,8 +67,8 @@ module.exports = {
     AuthFactor2OTPSecret: 'auth_factor2_otp_secret', //  Secret used in conjunction with OTP 2FA
     AuthFactor2OTPBackupCodes: 'auth_factor2_otp_backup', //  JSON array of backup codes
 
-    PublicKeyMain: 'public_key_main_rsa_pem', // RSA public key for user
-    PrivateKeyMain: 'private_key_main_rsa_pem', // RSA private key (corresponding to PublicKeyMain)
+    PublicActivityPubSigningKey: 'public_key_activitypub_sign_rsa_pem', // RSA public key for ActivityPub signing
+    PrivateActivityPubSigningKey: 'private_key_activitypub_sign_rsa_pem', // RSA private key (corresponding to PublicActivityPubSigningKey)
 
     ActivityPubSettings: 'activity_pub_settings', //   JSON object (above); see ActivityPubSettings in activitypub/settings.js
 };

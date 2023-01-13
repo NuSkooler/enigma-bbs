@@ -93,7 +93,7 @@ module.exports = class Actor {
             // ],
         };
 
-        const publicKeyPem = user.getProperty(UserProps.PublicKeyMain);
+        const publicKeyPem = user.getProperty(UserProps.PublicActivityPubSigningKey);
         if (!_.isEmpty(publicKeyPem)) {
             obj.publicKey = {
                 id: userSelfUrl + '#main-key',
@@ -102,13 +102,13 @@ module.exports = class Actor {
             };
 
             EnigAssert(
-                !_.isEmpty(user.getProperty(UserProps.PrivateKeyMain)),
+                !_.isEmpty(user.getProperty(UserProps.PrivateActivityPubSigningKey)),
                 'User has public key but no private key!'
             );
         } else {
             Log.warn(
                 { username: user.username },
-                `No public key (${UserProps.PublicKeyMain}) for user "${user.username}"`
+                `No public key (${UserProps.PublicActivityPubSigningKey}) for user "${user.username}"`
             );
         }
 
@@ -412,7 +412,7 @@ module.exports = class Actor {
     //             ActorProps.Summary,
     //             ActorProps.IconUrl,
     //             ActorProps.BannerUrl,
-    //             ActorProps.PublicKeyMain,
+    //             ActorProps.PublicActivityPubSigningKey,
     //         ];
     //     }
 

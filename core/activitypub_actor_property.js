@@ -14,7 +14,7 @@ exports.ActorProps = {
     Summary: 'summary',
     IconUrl: 'icon_url',
     BannerUrl: 'banner_url',
-    PublicKeyMain: 'public_key_main_rsa_pem', // RSA public key for user
+    PublicActivityPubSigningKey: 'public_key_activitypub_sign_rsa_pem', // RSA public key for user
 };
 
 exports.AllActorProperties = Object.values(exports.ActorProps);
