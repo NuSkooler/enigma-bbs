@@ -4,14 +4,11 @@ const {
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
     accountFromSelfUrl,
-    ActivityStreamsContext,
-    makeUserUrl,
 } = require('../../../activitypub/util');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
-const { getOutboxEntries } = require('../../../activitypub/db');
 
 // deps
 const _ = require('lodash');
@@ -40,7 +37,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/[^\/]+$/,
+            path: /^\/_enig\/ap\/users\/[^/]+$/,
             handler: this._selfUrlRequestHandler.bind(this),
         });
 
@@ -120,7 +117,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         req.on('end', () => {
             let activity;
             try {
-                activity = Activity.fromJson(Buffer.concat(body).toString());
+                activity = Activity.fromJsonString(Buffer.concat(body).toString());
             } catch (e) {
                 this.log.error(
                     { error: e.message, url: req.url, method: req.method },
@@ -179,27 +176,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 );
                 return this.webServer.resourceNotFound(resp);
             }
-
-            // // we return a OrderedCollection response if this request
-            // // is not explicitly for a page of the collection
-            // const wantPage = url.searchParams.get('page') === 'true';
-            // if (!wantPage) {
-            //     const outboxUrl = makeUserUrl(this.webServer, user, '/ap/users/') + '/outbox';
-            //     const body = JSON.stringify({
-            //         '@context': ActivityStreamsContext,
-            //         id: outboxUrl,
-            //         type: 'OrderedCollection',
-            //         first: `${outboxUrl}?page=true`,
-            //     });
-
-            //     const headers = {
-            //         'Content-Type': 'application/activity+json',
-            //         'Content-Length': body.length,
-            //     };
-
-            //     resp.writeHead(200, headers);
-            //     return resp.end(body);
-            // }
 
             Activity.fromOutboxEntries(user, this.webServer, (err, activity) => {
                 if (err) {
@@ -288,7 +264,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     this.log.warn(
                         {
                             actor: activity.actor,
-                            keyId,
+                            keyId: signature.keyId,
                             signature: req.headers['signature'] || '',
                         },
                         'Invalid signature supplied for Follow request'
@@ -364,6 +340,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _authorizeInteractionHandler(req, resp) {
         console.log(req);
+        console.log(resp);
     }
 
     _selfAsActorHandler(user, req, resp) {

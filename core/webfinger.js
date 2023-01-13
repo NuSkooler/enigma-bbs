@@ -4,7 +4,6 @@ const Message = require('./message');
 const { getJson } = require('./http_util');
 
 // deps
-const https = require('https');
 
 exports.queryWebFinger = queryWebFinger;
 
@@ -15,12 +14,12 @@ function queryWebFinger(account, cb) {
         addrInfo.flavor !== Message.AddressFlavor.ActivityPub &&
         addrInfo.flavor !== Message.AddressFlavor.Email
     ) {
-        return cb(Errors.Invalid(`Cannot WebFinger "${accountName}"; Missing domain`));
+        return cb(Errors.Invalid(`Cannot WebFinger "${account.remote}"; Missing domain`));
     }
 
     const domain = addrInfo.remote.slice(addrInfo.remote.lastIndexOf('@') + 1);
     if (!domain) {
-        return cb(Errors.Invalid(`Cannot WebFinger "${accountName}"; Missing domain`));
+        return cb(Errors.Invalid(`Cannot WebFinger "${account.remote}"; Missing domain`));
     }
 
     const resource = encodeURIComponent(`acct:${account.slice(1)}`); // we need drop the initial '@' prefix

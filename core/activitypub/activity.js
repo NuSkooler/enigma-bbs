@@ -41,7 +41,7 @@ module.exports = class Activity {
         ];
     }
 
-    static fromJson(json) {
+    static fromJsonString(json) {
         const parsed = JSON.parse(json);
         return new Activity(parsed);
     }
@@ -67,6 +67,7 @@ module.exports = class Activity {
         id = id || Activity._makeFullId(webServer, 'accept');
 
         return new Activity({
+            id,
             type: 'Accept',
             actor: localActor,
             object: followRequest, // previous request Activity

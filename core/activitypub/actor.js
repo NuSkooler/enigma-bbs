@@ -124,7 +124,7 @@ module.exports = class Actor {
 
         https.get(url, { headers }, res => {
             if (res.statusCode !== 200) {
-                return cb(Errors.Invalid(`Bad HTTP status code: ${req.statusCode}`));
+                return cb(Errors.Invalid(`Bad HTTP status code: ${res.statusCode}`));
             }
 
             const contentType = res.headers['content-type'];
@@ -144,7 +144,7 @@ module.exports = class Actor {
             res.on('end', () => {
                 let actor;
                 try {
-                    actor = Actor.fromJson(body);
+                    actor = Actor.fromJsonString(body);
                 } catch (e) {
                     return cb(e);
                 }
@@ -187,7 +187,7 @@ module.exports = class Actor {
         });
     }
 
-    static fromJson(json) {
+    static fromJsonString(json) {
         const parsed = JSON.parse(json);
         return new Actor(parsed);
     }
