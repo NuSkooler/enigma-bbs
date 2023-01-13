@@ -99,8 +99,8 @@ function getUserProfileTemplatedBody(
     defaultContentType,
     cb
 ) {
-    const Log = require('./logger').log;
-    const Config = require('./config').get;
+    const Log = require('../logger').log;
+    const Config = require('../config').get;
 
     waterfall(
         [

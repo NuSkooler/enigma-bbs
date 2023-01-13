@@ -92,7 +92,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 'application/ld+json',
                 'application/json',
             ];
-            sendActor = accept.some(v => headerValues.includes(v));
+            if (accept.some(v => headerValues.includes(v))) {
+                sendActor = true;
+            }
 
             if (sendActor) {
                 return this._selfAsActorHandler(user, req, resp);
