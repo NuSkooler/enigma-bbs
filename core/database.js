@@ -502,26 +502,33 @@ dbs.message.run(
         return cb(null);
     },
     activitypub: cb => {
+        //                 private             INTEGER NOT NULL,       -- Is this Activity private?
         dbs.activitypub.run(
-            `CREATE TABLE IF NOT EXISTS activitypub_outbox (
-                id              INTEGER PRIMARY KEY, -- Local ID
-                activity_id     VARCHAR NOT NULL, -- Fully qualified Activity ID/URL
-                user_id         INTEGER NOT NULL, -- Local user ID
-                message_id      INTEGER NOT NULL, -- Local message ID
-                activity_json   VARCHAR NOT NULL, -- Activity in JSON format
+            `CREATE TABLE IF NOT EXISTS outbox (
+                id                  INTEGER PRIMARY KEY,    -- Local ID
+                activity_id         VARCHAR NOT NULL,       -- Fully qualified Activity ID/URL (activity.id)
+                user_id             INTEGER NOT NULL,       -- Local user ID
+                message_id          INTEGER NOT NULL,       -- Local message ID
+                activity_json       VARCHAR NOT NULL,       -- Activity in JSON format
+                published_timestamp DATETIME NOT NULL,      -- (activity.object.published))
 
                 UNIQUE(message_id, activity_id)
             );`
         );
 
         dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS activitypub_outbox_user_id_index0
-            ON activitypub_outbox (user_id);`
+            `CREATE INDEX IF NOT EXISTS outbox_user_id_index0
+            ON outbox (user_id);`
         );
 
         dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS activitypub_outbox_activity_id_index0
-            ON activitypub_outbox (activity_id);`
+            `CREATE INDEX IF NOT EXISTS outbox_activity_id_index0
+            ON outbox (activity_id);`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS outbox_activity_json_type_index0
+            ON outbox (json_extract(activity_json, '$.type'));`
         );
 
         return cb(null);

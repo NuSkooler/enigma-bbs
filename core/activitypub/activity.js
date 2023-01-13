@@ -1,18 +1,21 @@
-const { isString, isObject } = require('lodash');
-const { v4: UUIDv4 } = require('uuid');
 const {
     ActivityStreamsContext,
     messageBodyToHtml,
     selfUrl,
-} = require('../activitypub/util');
-const { Errors } = require('../enig_error');
+    makeUserUrl,
+} = require('./util');
 const User = require('../user');
-const Actor = require('../activitypub/actor');
+const Actor = require('./actor');
+const { Errors } = require('../enig_error');
 const { getISOTimestampString } = require('../database');
 const UserProps = require('../user_property');
 const { postJson } = require('../http_util');
+const { getOutboxEntries } = require('./db');
+const { WellKnownLocations } = require('../servers/content/web');
 
 // deps
+const { isString, isObject } = require('lodash');
+const { v4: UUIDv4 } = require('uuid');
 const async = require('async');
 const _ = require('lodash');
 
@@ -119,6 +122,7 @@ module.exports = class Activity {
                             type: 'Note',
                             published: getISOTimestampString(message.modTimestamp),
                             attributedTo: localActor.id,
+                            audience: [message.isPrivate() ? 'as:Private' : 'as:Public'],
                             // :TODO: inReplyto if this is a reply; we need this store in message meta.
 
                             content: messageBodyToHtml(message.message.trim()),
@@ -144,6 +148,37 @@ module.exports = class Activity {
                 return cb(err, { activity, fromUser, remoteActor });
             }
         );
+    }
+
+    static fromOutboxEntries(owningUser, webServer, cb) {
+        //  :TODO: support paging
+        const getOpts = {
+            create: true, // items marked 'Create'
+        };
+        getOutboxEntries(owningUser, getOpts, (err, entries) => {
+            if (err) {
+                return cb(err);
+            }
+
+            const obj = {
+                '@context': ActivityStreamsContext,
+                //  :TODO: makeOutboxUrl() and use elsewhere also
+                id: makeUserUrl(webServer, owningUser, '/ap/users') + '/outbox',
+                type: 'OrderedCollection',
+                totalItems: entries.length,
+                orderedItems: entries.map(e => {
+                    return {
+                        '@context': ActivityStreamsContext,
+                        id: e.activity.id,
+                        type: 'Create',
+                        actor: e.activity.actor,
+                        object: e.activity.object,
+                    };
+                }),
+            };
+
+            return cb(null, new Activity(obj));
+        });
     }
 
     sendTo(actorUrl, fromUser, webServer, cb) {
@@ -173,7 +208,10 @@ module.exports = class Activity {
         return postJson(actorUrl, activityJson, reqOpts, cb);
     }
 
-    static _makeFullId(webServer, prefix, uuid = '') {
-        return webServer.buildUrl(`/${prefix}/${uuid || UUIDv4()}`);
+    static _makeFullId(webServer, prefix) {
+        // e.g. http://some.host/_enig/ap/note/bf81a22e-cb3e-41c8-b114-21f375b61124
+        return webServer.buildUrl(
+            WellKnownLocations.Internal + `/ap/${prefix}/${UUIDv4()}`
+        );
     }
 };

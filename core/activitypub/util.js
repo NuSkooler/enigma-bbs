@@ -1,8 +1,8 @@
-const { WellKnownLocations } = require('./servers/content/web');
-const User = require('./user');
-const { Errors, ErrorReasons } = require('./enig_error');
-const UserProps = require('./user_property');
-const ActivityPubSettings = require('./activitypub/settings');
+const { WellKnownLocations } = require('../servers/content/web');
+const User = require('../user');
+const { Errors, ErrorReasons } = require('../enig_error');
+const UserProps = require('../user_property');
+const ActivityPubSettings = require('./settings');
 
 // deps
 const _ = require('lodash');

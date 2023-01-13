@@ -1,6 +1,3 @@
-/* jslint node: true */
-'use strict';
-
 //  ENiGMA½
 const Log = require('../../logger.js').log;
 const ServerModule = require('../../server_module.js').ServerModule;

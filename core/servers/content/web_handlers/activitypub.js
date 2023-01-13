@@ -4,11 +4,14 @@ const {
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
     accountFromSelfUrl,
+    ActivityStreamsContext,
+    makeUserUrl,
 } = require('../../../activitypub/util');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
+const { getOutboxEntries } = require('../../../activitypub/db');
 
 // deps
 const _ = require('lodash');
@@ -21,6 +24,8 @@ exports.moduleInfo = {
     author: 'NuSkooler, CognitiveGears',
     packageName: 'codes.l33t.enigma.web.handler.activitypub',
 };
+
+const ActivityJsonMime = 'application/activity+json';
 
 exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     constructor() {
@@ -43,6 +48,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             method: 'POST',
             path: /^\/_enig\/ap\/users\/.+\/inbox$/,
             handler: this._inboxPostHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=true)?$/,
+            handler: this._outboxGetHandler.bind(this),
         });
 
         //  :TODO: NYI
@@ -80,7 +91,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             // Additionally, serve activity JSON if the proper 'Accept' header was sent
             const accept = req.headers['accept'].split(',').map(v => v.trim()) || ['*/*'];
             const headerValues = [
-                'application/activity+json',
+                ActivityJsonMime,
                 'application/ld+json',
                 'application/json',
             ];
@@ -96,26 +107,20 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _inboxPostHandler(req, resp) {
         // the request must be signed, and the signature must be valid
-        const signature = this._parseSignature(req);
+        const signature = this._parseAndValidateSignature(req);
         if (!signature) {
-            return this.webServer.resourceNotFound(resp);
+            return this.webServer.accessDenied(resp);
         }
 
-        //  quick check up front
-        const keyId = signature.keyId;
-        if (!this._validateKeyId(keyId)) {
-            return this.webServer.resourceNotFound(resp);
-        }
-
-        let body = '';
-        req.on('data', data => {
-            body += data;
+        const body = [];
+        req.on('data', d => {
+            body.push(d);
         });
 
         req.on('end', () => {
             let activity;
             try {
-                activity = Activity.fromJson(body);
+                activity = Activity.fromJson(Buffer.concat(body).toString());
             } catch (e) {
                 this.log.error(
                     { error: e.message, url: req.url, method: req.method },
@@ -125,7 +130,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             }
 
             if (!activity.isValid()) {
-                //  :TODO: Log me
+                this.log.warn({ activity }, 'Invalid or unsupported Activity');
                 return this.webServer.webServer.badRequest(resp);
             }
 
@@ -148,19 +153,110 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _parseSignature(req) {
+    // https://docs.gotosocial.org/en/latest/federation/behaviors/outbox/
+    _outboxGetHandler(req, resp) {
+        this.log.trace({ url: req.url }, 'Request for "outbox"');
+
+        // the request must be signed, and the signature must be valid
+        const signature = this._parseAndValidateSignature(req);
+        if (!signature) {
+            return this.webServer.accessDenied(resp);
+        }
+
+        //  /_enig/ap/users/SomeName/outbox -> SomeName
+        const url = new URL(req.url, `https://${req.headers.host}`);
+        const m = url.pathname.match(/^\/_enig\/ap\/users\/(.+)\/outbox$/);
+        if (!m || !m[1]) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        const accountName = m[1];
+        userFromAccount(accountName, (err, user) => {
+            if (err) {
+                this.log.info(
+                    { reason: err.message, accountName: accountName },
+                    `No user "${accountName}" for "self"`
+                );
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            // // we return a OrderedCollection response if this request
+            // // is not explicitly for a page of the collection
+            // const wantPage = url.searchParams.get('page') === 'true';
+            // if (!wantPage) {
+            //     const outboxUrl = makeUserUrl(this.webServer, user, '/ap/users/') + '/outbox';
+            //     const body = JSON.stringify({
+            //         '@context': ActivityStreamsContext,
+            //         id: outboxUrl,
+            //         type: 'OrderedCollection',
+            //         first: `${outboxUrl}?page=true`,
+            //     });
+
+            //     const headers = {
+            //         'Content-Type': 'application/activity+json',
+            //         'Content-Length': body.length,
+            //     };
+
+            //     resp.writeHead(200, headers);
+            //     return resp.end(body);
+            // }
+
+            Activity.fromOutboxEntries(user, this.webServer, (err, activity) => {
+                if (err) {
+                    //  :TODO: LOG ME
+                    return this.webServer.internalServerError(resp);
+                }
+
+                const body = JSON.stringify(activity);
+                const headers = {
+                    'Content-Type': ActivityJsonMime,
+                    'Content-Length': body.length,
+                };
+
+                resp.writeHead(200, headers);
+                return resp.end(body);
+            });
+        });
+    }
+
+    _parseAndValidateSignature(req) {
+        let signature;
         try {
             //  :TODO: validate options passed to parseRequest()
-            return httpSignature.parseRequest(req);
+            signature = httpSignature.parseRequest(req);
         } catch (e) {
             this.log.warn(
                 { error: e.message, url: req.url, method: req.method },
                 'Failed to parse HTTP signature'
             );
+            return null;
         }
+
+        //  quick check up front
+        const keyId = signature.keyId;
+        if (!this._validateKeyId(keyId)) {
+            return null;
+        }
+
+        return signature;
+    }
+
+    _validateKeyId(keyId) {
+        if (!keyId) {
+            return false;
+        }
+
+        // we only accept main-key currently
+        return keyId.endsWith('#main-key');
     }
 
     _inboxFollowRequestHandler(signature, activity, req, resp) {
+        this.log.trace(
+            { actor: activity.actor },
+            `Follow request from ${activity.actor}`
+        );
+
+        //  :TODO: trace
         const accountName = accountFromSelfUrl(activity.object);
         if (!accountName) {
             return this.webServer.badRequest(resp);
@@ -266,15 +362,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _validateKeyId(keyId) {
-        if (!keyId) {
-            return false;
-        }
-
-        // we only accept main-key currently
-        return keyId.endsWith('#main-key');
-    }
-
     _authorizeInteractionHandler(req, resp) {
         console.log(req);
     }
@@ -294,7 +381,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             const body = JSON.stringify(actor);
 
             const headers = {
-                'Content-Type': 'application/activity+json',
+                'Content-Type': ActivityJsonMime,
                 'Content-Length': body.length,
             };
 

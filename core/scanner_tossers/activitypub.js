@@ -82,20 +82,15 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     );
                 },
                 (activity, fromUser, callback) => {
-                    persistToOutbox(
-                        activity,
-                        fromUser.userId,
-                        message.messageId,
-                        (err, localId) => {
-                            if (!err) {
-                                this.log.debug(
-                                    { localId, activityId: activity.id },
-                                    'Note Activity persisted to database'
-                                );
-                            }
-                            return callback(err, activity);
+                    persistToOutbox(activity, fromUser, message, (err, localId) => {
+                        if (!err) {
+                            this.log.debug(
+                                { localId, activityId: activity.id },
+                                'Note Activity persisted to database'
+                            );
                         }
-                    );
+                        return callback(err, activity);
+                    });
                 },
                 (activity, callback) => {
                     // mark exported

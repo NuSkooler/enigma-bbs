@@ -1,4 +1,4 @@
-const UserProps = require('./user_property');
+const UserProps = require('../user_property');
 
 module.exports = class ActivityPubSettings {
     constructor(obj) {
