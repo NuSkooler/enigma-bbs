@@ -82,7 +82,6 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     );
                 },
                 (activity, fromUser, callback) => {
-
                     persistToOutbox(
                         activity,
                         fromUser.userId,
@@ -128,7 +127,10 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         'Failed to export message to ActivityPub'
                     );
                 } else {
-                    this.log.info({id: activity.id}, 'Note Activity exported (published) successfully');
+                    this.log.info(
+                        { id: activity.id },
+                        'Note Activity exported (published) successfully'
+                    );
                 }
             }
         );
