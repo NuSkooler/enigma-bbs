@@ -31,6 +31,10 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
     }
 
     record(message) {
+        if (!this._shouldExportMessage(message)) {
+            return;
+        }
+
         if (!this._isEnabled()) {
             return;
         }
@@ -47,22 +51,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                 (noteInfo, callback) => {
                     const { activity, fromUser, remoteActor } = noteInfo;
 
-                    persistToOutbox(
-                        activity,
-                        fromUser.userId,
-                        message.messageId,
-                        (err, localId) => {
-                            if (!err) {
-                                this.log.debug(
-                                    { localId, activityId: activity.id },
-                                    'Note Activity persisted to database'
-                                );
-                            }
-                            return callback(err, activity, fromUser, remoteActor);
-                        }
-                    );
-                },
-                (activity, fromUser, remoteActor, callback) => {
+                    //  :TODO: Implement retry logic (connection issues, retryable HTTP status)
                     activity.sendTo(
                         remoteActor.inbox,
                         fromUser,
@@ -88,7 +77,24 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                             // in the original message to indicate export
                             // and updated mapping of message -> Activity record
                             //
-                            return callback(null, activity);
+                            return callback(null, activity, fromUser);
+                        }
+                    );
+                },
+                (activity, fromUser, callback) => {
+
+                    persistToOutbox(
+                        activity,
+                        fromUser.userId,
+                        message.messageId,
+                        (err, localId) => {
+                            if (!err) {
+                                this.log.debug(
+                                    { localId, activityId: activity.id },
+                                    'Note Activity persisted to database'
+                                );
+                            }
+                            return callback(err, activity);
                         }
                     );
                 },
@@ -138,14 +144,14 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
         // - Private messages: Must be ActivityPub flavor
         // - Public messages: Must be in area mapped for ActivityPub import/export
         //
-        //  :TODO: Implement the mapping
         if (
             Message.AddressFlavor.ActivityPub === message.getAddressFlavor() &&
-            Message.isPrivateAreaTag()
+            message.isPrivate()
         ) {
             return true;
         }
 
+        //  :TODO: Implement the area mapping check for public
         return false;
     }
 
