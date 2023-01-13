@@ -2,6 +2,12 @@ const Activity = require('../activitypub_activity');
 const Message = require('../message');
 const { MessageScanTossModule } = require('../msg_scan_toss_module');
 const { getServer } = require('../listening_server');
+const Log = require('../logger').log;
+const { persistToOutbox } = require('../activitypub_db');
+
+// deps
+const async = require('async');
+const _ = require('lodash');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -12,6 +18,8 @@ exports.moduleInfo = {
 exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule {
     constructor() {
         super();
+
+        this.log = Log.child({ module: 'ActivityPubScannerTosser' });
     }
 
     startup(cb) {
@@ -27,28 +35,97 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
             return;
         }
 
-        Activity.noteFromLocalMessage(this._webServer(), message, (err, noteData) => {
-            if (err) {
-                // :TODO: Log me
-            }
+        async.waterfall(
+            [
+                callback => {
+                    return Activity.noteFromLocalMessage(
+                        this._webServer(),
+                        message,
+                        callback
+                    );
+                },
+                (noteInfo, callback) => {
+                    const { activity, fromUser, remoteActor } = noteInfo;
 
-            const { activity, fromUser, remoteActor } = noteData;
+                    persistToOutbox(
+                        activity,
+                        fromUser.userId,
+                        message.messageId,
+                        (err, localId) => {
+                            if (!err) {
+                                this.log.debug(
+                                    { localId, activityId: activity.id },
+                                    'Note Activity persisted to database'
+                                );
+                            }
+                            return callback(err, activity, fromUser, remoteActor);
+                        }
+                    );
+                },
+                (activity, fromUser, remoteActor, callback) => {
+                    activity.sendTo(
+                        remoteActor.inbox,
+                        fromUser,
+                        this._webServer(),
+                        (err, respBody, res) => {
+                            if (err) {
+                                return callback(err);
+                            }
 
-            // - persist Activity
-            // - sendTo
-            // - update message properties:
-            //  * exported
-            //  * ActivityPub ID -> activity table
-            activity.sendTo(
-                remoteActor.inbox,
-                fromUser,
-                this._webServer(),
-                (err, respBody, res) => {
-                    if (err) {
-                    }
+                            if (res.statusCode !== 202 && res.statusCode !== 200) {
+                                this.log.warn(
+                                    {
+                                        inbox: remoteActor.inbox,
+                                        statusCode: res.statusCode,
+                                        body: _.truncate(respBody, 128),
+                                    },
+                                    'Unexpected status code'
+                                );
+                            }
+
+                            //
+                            // We sent successfully; update some properties
+                            // in the original message to indicate export
+                            // and updated mapping of message -> Activity record
+                            //
+                            return callback(null, activity);
+                        }
+                    );
+                },
+                (activity, callback) => {
+                    // mark exported
+                    return message.persistMetaValue(
+                        Message.WellKnownMetaCategories.System,
+                        Message.SystemMetaNames.StateFlags0,
+                        Message.StateFlags0.Exported.toString(),
+                        err => {
+                            return callback(err, activity);
+                        }
+                    );
+                },
+                (activity, callback) => {
+                    // message -> Activity ID relation
+                    return message.persistMetaValue(
+                        Message.WellKnownMetaCategories.ActivityPub,
+                        Message.ActivityPubPropertyNames.ActivityId,
+                        activity.id,
+                        err => {
+                            return callback(err, activity);
+                        }
+                    );
+                },
+            ],
+            (err, activity) => {
+                if (err) {
+                    this.log.error(
+                        { error: err.message, messageId: message.messageId },
+                        'Failed to export message to ActivityPub'
+                    );
+                } else {
+                    this.log.info({id: activity.id}, 'Note Activity exported (published) successfully');
                 }
-            );
-        });
+            }
+        );
     }
 
     _isEnabled() {

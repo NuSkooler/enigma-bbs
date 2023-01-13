@@ -39,6 +39,16 @@ const WELL_KNOWN_AREA_TAGS = {
     Bulletin: 'local_bulletin',
 };
 
+const WellKnownMetaCategories = {
+    System: 'System',
+    FtnProperty: 'FtnProperty',
+    FtnKludge: 'FtnKludge',
+    QwkProperty: 'QwkProperty',
+    QwkKludge: 'QwkKludge',
+    ActivityPub: 'ActivityPub',
+};
+
+//  Category: WellKnownMetaCategories.System ("System")
 const SYSTEM_META_NAMES = {
     LocalToUserID: 'local_to_user_id',
     LocalFromUserID: 'local_from_user_id',
@@ -66,6 +76,7 @@ const STATE_FLAGS0 = {
 };
 
 //  :TODO: these should really live elsewhere...
+// Category: WellKnownMetaCategories.FtnProperty ("FtnProperty")
 const FTN_PROPERTY_NAMES = {
     //  packet header oriented
     FtnOrigNode: 'ftn_orig_node',
@@ -94,6 +105,7 @@ const FTN_PROPERTY_NAMES = {
     FtnSeenBy: 'ftn_seen_by', //  http://ftsc.org/docs/fts-0004.001
 };
 
+//  Category: WellKnownMetaCategories.QwkProperty
 const QWKPropertyNames = {
     MessageNumber: 'qwk_msg_num',
     MessageStatus: 'qwk_msg_status', //  See http://wiki.synchro.net/ref:qwk for a decent list
@@ -101,8 +113,10 @@ const QWKPropertyNames = {
     InReplyToNum: 'qwk_in_reply_to_num', //  note that we prefer the 'InReplyToMsgId' kludge if available
 };
 
+// Category: WellKnownMetaCategories.ActivityPub
 const ActivityPubPropertyNames = {
     ActivityId: 'activitypub_activity_id', //  Activity ID; FK to AP table entries
+    InReplyTo: 'activitypub_in_reply_to', //  Activity ID from 'inReplyTo' field
 };
 
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
@@ -213,6 +227,10 @@ module.exports = class Message {
         return (this.isPrivate() && user.userId === messageLocalUserId) || user.isSysOp();
     }
 
+    static get WellKnownMetaCategories() {
+        return WellKnownMetaCategories;
+    }
+
     static get WellKnownAreaTags() {
         return WELL_KNOWN_AREA_TAGS;
     }
@@ -235,6 +253,10 @@ module.exports = class Message {
 
     static get QWKPropertyNames() {
         return QWKPropertyNames;
+    }
+
+    static get ActivityPubPropertyNames() {
+        return ActivityPubPropertyNames;
     }
 
     setLocalToUserId(userId) {

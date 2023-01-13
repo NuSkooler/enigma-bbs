@@ -54,14 +54,14 @@ module.exports = class Activity {
             return false;
         }
 
-        //  :TODO: we could validate the particular types
+        //  :TODO: Additional validation
 
         return true;
     }
 
     // https://www.w3.org/TR/activitypub/#accept-activity-inbox
     static makeAccept(webServer, localActor, followRequest, id = null) {
-        id = id || Activity._makeId(webServer, '/accept');
+        id = id || Activity._makeFullId(webServer, 'accept');
 
         return new Activity({
             type: 'Accept',
@@ -107,27 +107,7 @@ module.exports = class Activity {
                 },
                 (localUser, localActor, remoteActor, callback) => {
                     // we'll need the entire |activityId| as a linked reference later
-                    const activityId = Activity._makeId(webServer, '/create');
-
-                    // |remoteActor| is non-null if we fetchd it
-                    //const to = message.isPrivate() ? remoteActor ? remoteActor.id : `${ActivityStreamsContext}#Public`;
-
-                    // const obj = {
-                    //     '@context': ActivityStreamsContext,
-                    //     id: activityId,
-                    //     type: 'Create',
-                    //     to: [remoteActor.id],
-                    //     audience: ['as:Public'],
-                    //     actor: localActor.id,
-                    //     object: {
-                    //         id: Activity._makeId(webServer, '/note'),
-                    //         type: 'Note',
-                    //         attributedTo: localActor.id,
-                    //         to: [remoteActor.id],
-                    //         audience: ['as:Public'],
-                    //         content: messageBodyToHtml(message.message.trim()),
-                    //     },
-                    // };
+                    const activityId = Activity._makeFullId(webServer, 'create');
 
                     const obj = {
                         '@context': ActivityStreamsContext,
@@ -135,13 +115,12 @@ module.exports = class Activity {
                         type: 'Create',
                         actor: localActor.id,
                         object: {
-                            id: Activity._makeId(webServer, '/note'),
+                            id: Activity._makeFullId(webServer, 'note'),
                             type: 'Note',
                             published: getISOTimestampString(message.modTimestamp),
                             attributedTo: localActor.id,
                             // :TODO: inReplyto if this is a reply; we need this store in message meta.
 
-                            //  :TODO: we may want to turn this to a HTML fragment?
                             content: messageBodyToHtml(message.message.trim()),
                         },
                     };
@@ -149,11 +128,11 @@ module.exports = class Activity {
                     //  :TODO: this probably needs to change quite a bit based on "groups"
                     //  :TODO: verify we need both 'to' fields: https://socialhub.activitypub.rocks/t/problems-posting-to-mastodon-inbox/801/4
                     if (message.isPrivate()) {
-                        obj.to = remoteActor.id;
+                        //obj.to = remoteActor.id;
                         obj.object.to = remoteActor.id;
                     } else {
                         const publicInbox = `${ActivityStreamsContext}#Public`;
-                        obj.to = publicInbox;
+                        //obj.to = publicInbox;
                         obj.object.to = publicInbox;
                     }
 
@@ -194,7 +173,7 @@ module.exports = class Activity {
         return postJson(actorUrl, activityJson, reqOpts, cb);
     }
 
-    static _makeId(webServer, prefix = '') {
-        return webServer.buildUrl(`${prefix}/${UUIDv4()}`);
+    static _makeFullId(webServer, prefix, uuid = '') {
+        return webServer.buildUrl(`/${prefix}/${uuid || UUIDv4()}`);
     }
 };

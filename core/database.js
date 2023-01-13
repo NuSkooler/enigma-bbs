@@ -109,7 +109,7 @@ function sanitizeString(s) {
 
 function initializeDatabases(cb) {
     async.eachSeries(
-        ['system', 'user', 'actor', 'message', 'file'],
+        ['system', 'user', 'message', 'file', 'activitypub'],
         (dbName, next) => {
             dbs[dbName] = sqlite3Trans.wrap(
                 new sqlite3.Database(getDatabasePath(dbName), err => {
@@ -242,36 +242,36 @@ const DB_INIT_TABLE = {
 
         return cb(null);
     },
-    actor: cb => {
-        enableForeignKeys(dbs.actor);
+    // actor: cb => {
+    //     enableForeignKeys(dbs.actor);
 
-        dbs.actor.run(
-            `CREATE TABLE IF NOT EXISTS activitypub_actor (
-                id          INTEGER PRIMARY KEY,
-                actor_url   VARCHAR NOT NULL,
-                UNIQUE(actor_url)
-            );`
-        );
+    //     dbs.actor.run(
+    //         `CREATE TABLE IF NOT EXISTS activitypub_actor (
+    //             id          INTEGER PRIMARY KEY,
+    //             actor_url   VARCHAR NOT NULL,
+    //             UNIQUE(actor_url)
+    //         );`
+    //     );
 
-        //  :TODO: create FK on delete/etc.
+    //     //  :TODO: create FK on delete/etc.
 
-        dbs.actor.run(
-            `CREATE TABLE IF NOT EXISTS activitypub_actor_property (
-                actor_id     INTEGER NOT NULL,
-                prop_name   VARCHAR NOT NULL,
-                prop_value  VARCHAR,
-                UNIQUE(actor_id, prop_name),
-                FOREIGN KEY(actor_id) REFERENCES actor(id) ON DELETE CASCADE
-            );`
-        );
+    //     dbs.actor.run(
+    //         `CREATE TABLE IF NOT EXISTS activitypub_actor_property (
+    //             actor_id     INTEGER NOT NULL,
+    //             prop_name   VARCHAR NOT NULL,
+    //             prop_value  VARCHAR,
+    //             UNIQUE(actor_id, prop_name),
+    //             FOREIGN KEY(actor_id) REFERENCES actor(id) ON DELETE CASCADE
+    //         );`
+    //     );
 
-        dbs.actor.run(
-            `CREATE INDEX IF NOT EXISTS activitypub_actor_property_id_and_name_index0
-            ON activitypub_actor_property (actor_id, prop_name);`
-        );
+    //     dbs.actor.run(
+    //         `CREATE INDEX IF NOT EXISTS activitypub_actor_property_id_and_name_index0
+    //         ON activitypub_actor_property (actor_id, prop_name);`
+    //     );
 
-        return cb(null);
-    },
+    //     return cb(null);
+    // },
 
     message: cb => {
         enableForeignKeys(dbs.message);
@@ -497,6 +497,31 @@ dbs.message.run(
                 UNIQUE(hash_id, file_id),
                 FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
             );`
+        );
+
+        return cb(null);
+    },
+    activitypub: cb => {
+        dbs.activitypub.run(
+            `CREATE TABLE IF NOT EXISTS activitypub_outbox (
+                id              INTEGER PRIMARY KEY, -- Local ID
+                activity_id     VARCHAR NOT NULL, -- Fully qualified Activity ID/URL
+                user_id         INTEGER NOT NULL, -- Local user ID
+                message_id      INTEGER NOT NULL, -- Local message ID
+                activity_json   VARCHAR NOT NULL, -- Activity in JSON format
+
+                UNIQUE(message_id, activity_id)
+            );`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS activitypub_outbox_user_id_index0
+            ON activitypub_outbox (user_id);`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS activitypub_outbox_activity_id_index0
+            ON activitypub_outbox (activity_id);`
         );
 
         return cb(null);

@@ -245,7 +245,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                     );
                                 }
 
-                                if (res.statusCode != 202) {
+                                if (res.statusCode !== 202 && res.statusCode !== 200) {
                                     return this.log.warn(
                                         {
                                             inbox: actor.inbox,
