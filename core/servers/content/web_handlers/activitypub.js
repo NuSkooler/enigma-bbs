@@ -130,24 +130,28 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             if (!activity.isValid()) {
                 this.log.warn({ activity }, 'Invalid or unsupported Activity');
-                return this.webServer.webServer.badRequest(resp);
+                return this.webServer.badRequest(resp);
             }
 
-            switch (activity.type) {
-                case 'Follow':
-                    return this._inboxFollowRequestHandler(
-                        signature,
-                        activity,
-                        req,
-                        resp
-                    );
+            const activityFunctions = {
+                Follow: this._inboxFollowRequestHandler.bind(this),
+                // TODO: 'Create', 'Update', etc.
+            };
 
-                default:
-                    this.log.debug(
-                        { type: activity.type },
-                        `Unsupported Activity type "${activity.type}"`
-                    );
-                    return this.webServer.resourceNotFound(resp);
+            if (_.has(activityFunctions, activity.type)) {
+                return this._withUserRequestHandler(
+                    signature,
+                    activity,
+                    activityFunctions[activity.type],
+                    req,
+                    resp
+                );
+            } else {
+                this.log.debug(
+                    { type: activity.type },
+                    `Unsupported Activity type "${activity.type}"`
+                );
+                return this.webServer.resourceNotFound(resp);
             }
         });
     }
@@ -228,11 +232,70 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return keyId.endsWith('#main-key');
     }
 
-    _inboxFollowRequestHandler(signature, activity, req, resp) {
-        this.log.trace(
-            { actor: activity.actor },
-            `Follow request from ${activity.actor}`
-        );
+    _inboxFollowRequestHandler(activity, user, resp) {
+        this.log.debug({ user: user, type: activity.type }, 'Got a follow request!');
+        //  :TODO: return OK and kick off a async job of persisting and sending and 'Accepted'
+
+        //
+        //  If the user blindly accepts Followers, we can persist
+        //  and send an 'Accept' now. Otherwise, we need to queue this
+        //  request for the user to review and decide what to do with
+        //  at a later time.
+        //
+        //  :TODO: Implement the queue
+        const activityPubSettings = ActivityPubSettings.fromUser(user);
+        if (!activityPubSettings.manuallyApproveFollowers) {
+            Actor.fromLocalUser(user, this.webServer, (err, localActor) => {
+                if (err) {
+                    return this.log.warn(
+                        { user: user, error: err.message },
+                        'Failed to load local Actor for "Accept"'
+                    );
+                }
+
+                const accept = Activity.makeAccept(this.webServer, localActor, activity);
+
+                accept.sendTo(
+                    localActor.inbox,
+                    user,
+                    this.webServer,
+                    (err, respBody, res) => {
+                        if (err) {
+                            return this.log.warn(
+                                {
+                                    inbox: localActor.inbox,
+                                    statusCode: res.statusCode,
+                                    error: err.message,
+                                },
+                                'Failed POSTing "Accept" to inbox'
+                            );
+                        }
+
+                        if (res.statusCode !== 202 && res.statusCode !== 200) {
+                            return this.log.warn(
+                                {
+                                    inbox: localActor.inbox,
+                                    statusCode: res.statusCode,
+                                },
+                                'Unexpected status code'
+                            );
+                        }
+
+                        this.log.trace(
+                            { inbox: localActor.inbox },
+                            'Remote server received our "Accept" successfully'
+                        );
+                    }
+                );
+            });
+        }
+
+        resp.writeHead(200, { 'Content-Type': 'text/html' });
+        return resp.end('');
+    }
+
+    _withUserRequestHandler(signature, activity, activityHandler, req, resp) {
+        this.log.trace({ actor: activity.actor }, `Inbox request from ${activity.actor}`);
 
         //  :TODO: trace
         const accountName = accountFromSelfUrl(activity.object);
@@ -274,68 +337,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this.webServer.accessDenied(resp);
                 }
 
-                //  :TODO: return OK and kick off a async job of persisting and sending and 'Accepted'
-
-                //
-                //  If the user blindly accepts Followers, we can persist
-                //  and send an 'Accept' now. Otherwise, we need to queue this
-                //  request for the user to review and decide what to do with
-                //  at a later time.
-                //
-                //  :TODO: Implement the queue
-                const activityPubSettings = ActivityPubSettings.fromUser(user);
-                if (!activityPubSettings.manuallyApproveFollowers) {
-                    Actor.fromLocalUser(user, this.webServer, (err, localActor) => {
-                        if (err) {
-                            return this.log.warn(
-                                { inbox: actor.inbox, error: err.message },
-                                'Failed to load local Actor for "Accept"'
-                            );
-                        }
-
-                        const accept = Activity.makeAccept(
-                            this.webServer,
-                            localActor,
-                            activity
-                        );
-
-                        accept.sendTo(
-                            actor.inbox,
-                            user,
-                            this.webServer,
-                            (err, respBody, res) => {
-                                if (err) {
-                                    return this.log.warn(
-                                        {
-                                            inbox: actor.inbox,
-                                            statusCode: res.statusCode,
-                                            error: err.message,
-                                        },
-                                        'Failed POSTing "Accept" to inbox'
-                                    );
-                                }
-
-                                if (res.statusCode !== 202 && res.statusCode !== 200) {
-                                    return this.log.warn(
-                                        {
-                                            inbox: actor.inbox,
-                                            statusCode: res.statusCode,
-                                        },
-                                        'Unexpected status code'
-                                    );
-                                }
-
-                                this.log.trace(
-                                    { inbox: actor.inbox },
-                                    'Remote server received our "Accept" successfully'
-                                );
-                            }
-                        );
-                    });
-                }
-
-                resp.writeHead(200, { 'Content-Type': 'text/html' });
-                return resp.end('');
+                return activityHandler(activity, user, resp);
             });
         });
     }
