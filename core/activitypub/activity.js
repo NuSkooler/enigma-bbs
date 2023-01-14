@@ -151,6 +151,7 @@ module.exports = class Activity {
         );
     }
 
+    //  :TODO: move to Collection
     static fromOutboxEntries(owningUser, webServer, cb) {
         //  :TODO: support paging
         const getOpts = {

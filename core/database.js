@@ -531,6 +531,17 @@ dbs.message.run(
             ON outbox (json_extract(activity_json, '$.type'));`
         );
 
+        dbs.activitypub.run(
+            `CREATE TABLE IF NOT EXISTS followers (
+                id                  INTEGER PRIMARY KEY,    -- Local ID
+                user_id             INTEGER NOT NULL,       -- Local user ID
+                follower_id         VARCHAR NOT NULL,       -- Actor ID of follower
+                status              INTEGER NOT NULL,       -- Status: See FollowerEntryStatus
+
+                UNIQUE(user_id, follower_id)
+            );`
+        );
+
         return cb(null);
     },
 };

@@ -6,8 +6,8 @@ module.exports = class ActivityPubSettings {
         this.manuallyApproveFollowers = false;
         this.hideSocialGraph = false; // followers, following
         this.showRealName = false;
-        this.imageUrl = '';
-        this.iconUrl = '';
+        this.image = '';
+        this.icon = '';
 
         if (obj) {
             Object.assign(this, obj);

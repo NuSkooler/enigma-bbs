@@ -9,11 +9,14 @@ const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
+const Collection = require('../../../activitypub/collection');
+const { persistFollower, FollowerEntryStatus } = require('../../../activitypub/db');
 
 // deps
 const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
+const async = require('async');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -49,8 +52,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=true)?$/,
+            path: /^\/_enig\/ap\/users\/.+\/outbox$/,
             handler: this._outboxGetHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/users\/.+\/followers(\?page=[0-9]+)?$/,
+            handler: this._followersGetHandler.bind(this),
         });
 
         //  :TODO: NYI
@@ -168,12 +177,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         //  /_enig/ap/users/SomeName/outbox -> SomeName
         const url = new URL(req.url, `https://${req.headers.host}`);
-        const m = url.pathname.match(/^\/_enig\/ap\/users\/(.+)\/outbox$/);
-        if (!m || !m[1]) {
+        const accountName = this._accountNameFromUserPath(url, 'outbox');
+        if (!accountName) {
             return this.webServer.resourceNotFound(resp);
         }
 
-        const accountName = m[1];
         userFromAccount(accountName, (err, user) => {
             if (err) {
                 this.log.info(
@@ -190,6 +198,61 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 }
 
                 const body = JSON.stringify(activity);
+                const headers = {
+                    'Content-Type': ActivityJsonMime,
+                    'Content-Length': body.length,
+                };
+
+                resp.writeHead(200, headers);
+                return resp.end(body);
+            });
+        });
+    }
+
+    _accountNameFromUserPath(url, suffix) {
+        const re = new RegExp(`^/_enig/ap/users/(.+)/${suffix}(\\?page=[0-9]+)?$`);
+        const m = url.pathname.match(re);
+        if (!m || !m[1]) {
+            return null;
+        }
+        return m[1];
+    }
+
+    _followersGetHandler(req, resp) {
+        this.log.trace({ url: req.url }, 'Request for "followers"');
+
+        //  :TODO: dry this stuff..
+
+        // the request must be signed, and the signature must be valid
+        const signature = this._parseAndValidateSignature(req);
+        if (!signature) {
+            return this.webServer.accessDenied(resp);
+        }
+
+        //  /_enig/ap/users/SomeName/outbox -> SomeName
+        const url = new URL(req.url, `https://${req.headers.host}`);
+        const accountName = this._accountNameFromUserPath(url, 'followers');
+        if (!accountName) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        userFromAccount(accountName, (err, user) => {
+            if (err) {
+                this.log.info(
+                    { reason: err.message, accountName: accountName },
+                    `No user "${accountName}" for "self"`
+                );
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            const page = url.searchParams.get('page');
+            Collection.followers(user, page, this.webServe, (err, collection) => {
+                if (err) {
+                    //  :TODO: LOG ME
+                    return this.webServer.internalServerError(resp);
+                }
+
+                const body = JSON.stringify(collection);
                 const headers = {
                     'Content-Type': ActivityJsonMime,
                     'Content-Length': body.length,
@@ -340,6 +403,80 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return activityHandler(activity, user, resp);
             });
         });
+    }
+
+    _recordAcceptedFollowRequest(localUser, remoteActor, requestActivity) {
+        async.series(
+            [
+                callback => {
+                    const persistOpts = {
+                        status: FollowerEntryStatus.Accepted,
+                    };
+                    return persistFollower(localUser, remoteActor, persistOpts, callback);
+                },
+                callback => {
+                    Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
+                        if (err) {
+                            this.log.warn(
+                                { inbox: remoteActor.inbox, error: err.message },
+                                'Failed to load local Actor for "Accept"'
+                            );
+                            return callback(err);
+                        }
+
+                        const accept = Activity.makeAccept(
+                            this.webServer,
+                            localActor,
+                            requestActivity
+                        );
+
+                        accept.sendTo(
+                            remoteActor.inbox,
+                            localUser,
+                            this.webServer,
+                            (err, respBody, res) => {
+                                if (err) {
+                                    this.log.warn(
+                                        {
+                                            inbox: remoteActor.inbox,
+                                            error: err.message,
+                                        },
+                                        'Failed POSTing "Accept" to inbox'
+                                    );
+                                    return callback(null); // just a warning
+                                }
+
+                                if (res.statusCode !== 202 && res.statusCode !== 200) {
+                                    this.log.warn(
+                                        {
+                                            inbox: remoteActor.inbox,
+                                            statusCode: res.statusCode,
+                                        },
+                                        'Unexpected status code'
+                                    );
+                                    return callback(null); // just a warning
+                                }
+
+                                this.log.trace(
+                                    { inbox: remoteActor.inbox },
+                                    'Remote server received our "Accept" successfully'
+                                );
+
+                                return callback(null);
+                            }
+                        );
+                    });
+                },
+            ],
+            err => {
+                if (err) {
+                    this.log.error(
+                        { error: err.message },
+                        'Failed processing Follow request'
+                    );
+                }
+            }
+        );
     }
 
     _authorizeInteractionHandler(req, resp) {
