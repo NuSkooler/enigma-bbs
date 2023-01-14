@@ -53,7 +53,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/outbox$/,
-            handler: this._outboxGetHandler.bind(this),
+            handler: this._enforceSigningPolicy.bind(
+                this,
+                this._outboxGetHandler.bind(this)
+            ),
         });
 
         this.webServer.addRoute({
@@ -70,6 +73,16 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         // });
 
         return cb(null);
+    }
+
+    _enforceSigningPolicy(req, resp, next) {
+        // the request must be signed, and the signature must be valid
+        const signature = this._parseAndValidateSignature(req);
+        if (!signature) {
+            return this.webServer.accessDenied(resp);
+        }
+
+        return next(req, resp);
     }
 
     _selfUrlRequestHandler(req, resp) {
@@ -295,9 +308,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return keyId.endsWith('#main-key');
     }
 
-    _inboxFollowRequestHandler(activity, user, resp) {
-        this.log.debug({ user: user, type: activity.type }, 'Got a follow request!');
-        //  :TODO: return OK and kick off a async job of persisting and sending and 'Accepted'
+    _inboxFollowRequestHandler(activity, remoteActor, user, resp) {
+        this.log.debug({ user_id: user.userId, actor: activity.actor }, 'Follow request');
 
         //
         //  If the user blindly accepts Followers, we can persist
@@ -305,10 +317,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         //  request for the user to review and decide what to do with
         //  at a later time.
         //
-        //  :TODO: Implement the queue
         const activityPubSettings = ActivityPubSettings.fromUser(user);
         if (!activityPubSettings.manuallyApproveFollowers) {
-            this._recordAcceptedFollowRequest(user, activity.actor, activity);
+            this._recordAcceptedFollowRequest(user, remoteActor, activity);
+        } else {
+            //  :TODO: queue the request
         }
 
         resp.writeHead(200, { 'Content-Type': 'text/html' });
@@ -358,7 +371,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this.webServer.accessDenied(resp);
                 }
 
-                return activityHandler(activity, user, resp);
+                return activityHandler(activity, actor, user, resp);
             });
         });
     }
