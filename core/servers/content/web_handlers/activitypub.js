@@ -308,49 +308,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         //  :TODO: Implement the queue
         const activityPubSettings = ActivityPubSettings.fromUser(user);
         if (!activityPubSettings.manuallyApproveFollowers) {
-            Actor.fromLocalUser(user, this.webServer, (err, localActor) => {
-                if (err) {
-                    return this.log.warn(
-                        { user: user, error: err.message },
-                        'Failed to load local Actor for "Accept"'
-                    );
-                }
-
-                const accept = Activity.makeAccept(this.webServer, localActor, activity);
-
-                accept.sendTo(
-                    localActor.inbox,
-                    user,
-                    this.webServer,
-                    (err, respBody, res) => {
-                        if (err) {
-                            return this.log.warn(
-                                {
-                                    inbox: localActor.inbox,
-                                    statusCode: res.statusCode,
-                                    error: err.message,
-                                },
-                                'Failed POSTing "Accept" to inbox'
-                            );
-                        }
-
-                        if (res.statusCode !== 202 && res.statusCode !== 200) {
-                            return this.log.warn(
-                                {
-                                    inbox: localActor.inbox,
-                                    statusCode: res.statusCode,
-                                },
-                                'Unexpected status code'
-                            );
-                        }
-
-                        this.log.trace(
-                            { inbox: localActor.inbox },
-                            'Remote server received our "Accept" successfully'
-                        );
-                    }
-                );
-            });
+            this._recordAcceptedFollowRequest(user, activity.actor, activity);
         }
 
         resp.writeHead(200, { 'Content-Type': 'text/html' });
