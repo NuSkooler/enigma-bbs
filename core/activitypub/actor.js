@@ -14,12 +14,13 @@ const {
 const Log = require('../logger').log;
 const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
+const ActivityPubSettings = require('./settings');
 
 //  deps
 const _ = require('lodash');
 const https = require('https');
-
 const isString = require('lodash/isString');
+const mimeTypes = require('mime-types');
 
 // https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor {
@@ -63,6 +64,21 @@ module.exports = class Actor {
     //  :TODO: from a User object
     static fromLocalUser(user, webServer, cb) {
         const userSelfUrl = selfUrl(webServer, user);
+        const userSettings = ActivityPubSettings.fromUser(user);
+
+        const addImage = (o, t) => {
+            const url = userSettings[t];
+            if (url) {
+                const mt = mimeTypes.contentType(url);
+                if (mt) {
+                    o[t] = {
+                        mediaType: mt,
+                        type: 'Image',
+                        url,
+                    };
+                }
+            }
+        };
 
         const obj = {
             '@context': [
@@ -82,7 +98,8 @@ module.exports = class Actor {
             following: makeUserUrl(webServer, user, '/ap/users/') + '/following',
             summary: user.getProperty(UserProps.AutoSignature) || '',
             url: webFingerProfileUrl(webServer, user),
-
+            manuallyApprovesFollowers: userSettings.manuallyApprovesFollowers,
+            discoverable: userSettings.discoverable,
             // :TODO: we can start to define BBS related stuff with the community perhaps
             // attachment: [
             //     {
@@ -92,6 +109,9 @@ module.exports = class Actor {
             //     },
             // ],
         };
+
+        addImage('icon');
+        addImage('image');
 
         const publicKeyPem = user.getProperty(UserProps.PublicActivityPubSigningKey);
         if (!_.isEmpty(publicKeyPem)) {

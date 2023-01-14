@@ -151,6 +151,7 @@ module.exports = class Activity {
         );
     }
 
+    //  :TODO: move to Collection
     static fromOutboxEntries(owningUser, webServer, cb) {
         //  :TODO: support paging
         const getOpts = {
@@ -183,11 +184,11 @@ module.exports = class Activity {
     }
 
     sendTo(actorUrl, fromUser, webServer, cb) {
-        const privateKey = fromUser.getProperty(UserProps.PrivateKeyMain);
+        const privateKey = fromUser.getProperty(UserProps.PrivateActivityPubSigningKey);
         if (_.isEmpty(privateKey)) {
             return cb(
                 Errors.MissingProperty(
-                    `User "${fromUser.username}" is missing the '${UserProps.PrivateKeyMain}' property`
+                    `User "${fromUser.username}" is missing the '${UserProps.PrivateActivityPubSigningKey}' property`
                 )
             );
         }
