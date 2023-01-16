@@ -35,10 +35,6 @@
                     action: @menu:doorPartyExample
                 }
                 {
-                    value: { command: "CN" }
-                    action: @menu:doorCombatNetExample
-                }
-                {
                     value: { command: "EXODUS" }
                     action: @menu:doorExodusCataclysm
                 }
@@ -97,20 +93,6 @@
                 username: XXXXXXXX
                 password: XXXXXXXX
                 bbsTag: XX
-            }
-        }
-
-        //
-        //  CombatNet Example
-        //
-        //  Register @ http://combatnet.us/
-        //
-        doorCombatNetExample: {
-            desc: Using CombatNet
-            module: combatnet
-            config: {
-                bbsTag: CBNxxx
-                password: XXXXXXXXX
             }
         }
 

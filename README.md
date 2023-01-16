@@ -18,7 +18,7 @@ Below are just some of the features ENiGMA½ supports out of the box:
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
  * Support for **2-Factor Authentication** with One-Time-Passwords
- * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), [Exodus](https://oddnetwork.org/exodus/) and [CombatNet](http://combatnet.us/) support!
+ * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
  * Structured [Bunyan](https://github.com/trentm/node-bunyan) logging!
  * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md), or [NNTP](./docs/_docs/servers/contentservers/nntp.md)!
  * [Gazelle](https://github.com/WhatCD/Gazelle) inspired File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](./docs/_docs/servers/contentservers/web-server.md). Legacy X/Y/Z modem also supported!

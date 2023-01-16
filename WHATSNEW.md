@@ -7,6 +7,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
     * Some internal routes such as those used for password resets live within `/_internal/`.
     * Routes for the file base now default to `/_f/` prefixed instead of just `/f/`. If `/f/` is in your `config.hjson` you are encouraged to update it!
     * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
+* CombatNet has shut down, so the module (`combatnet.js`) has been removed.
 
 ## 0.0.13-beta
 * **Note for contributors**: ENiGMA has switched to [Prettier](https://prettier.io) for formatting/style. Please see [CONTRIBUTING](CONTRIBUTING.md) and the Prettier website for more information.
