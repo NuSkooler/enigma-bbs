@@ -115,7 +115,7 @@ exports.getModule = class GoldmineModule extends MenuModule {
                             );
                         }
 
-                        this.client.log.info('Connected to CombatNet');
+                        this.client.log.info('Connected to gOLD mINE');
                         this.client.term.output.on('data', rloginSend);
 
                         doorTracking = trackDoorRunBegin(this.client);
