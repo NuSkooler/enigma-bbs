@@ -49,10 +49,9 @@ function _makeRequest(url, options, cb) {
         options.headers['Content-Length'] = options.body.length;
 
         if (options?.sign?.headers?.includes('digest')) {
-            options.headers['Digest'] = `SHA-256=${crypto
-                .createHash('sha256')
-                .update(options.body)
-                .digest('base64')}`;
+            options.headers['Digest'] =
+                'SHA-256=' +
+                crypto.createHash('sha256').update(options.body).digest('base64');
         }
     }
 
@@ -95,5 +94,8 @@ function _makeRequest(url, options, cb) {
         return cb(Errors.Timeout('Timeout making HTTP request'));
     });
 
+    if (options.body) {
+        req.write(options.body);
+    }
     req.end();
 }

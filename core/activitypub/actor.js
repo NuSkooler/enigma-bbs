@@ -9,8 +9,8 @@ const {
     makeUserUrl,
     selfUrl,
     isValidLink,
-    ActivityStreamsContext,
 } = require('../activitypub/util');
+const { ActivityStreamsContext } = require('./const');
 const Log = require('../logger').log;
 const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');

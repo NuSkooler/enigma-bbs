@@ -1,4 +1,5 @@
-const { ActivityStreamsContext, makeUserUrl } = require('./util');
+const { makeUserUrl } = require('./util');
+const { ActivityStreamsContext } = require('./const');
 const { FollowerEntryStatus, getFollowerEntries } = require('./db');
 
 module.exports = class Collection {

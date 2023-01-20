@@ -53,10 +53,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/outbox$/,
-            handler: this._enforceSigningPolicy.bind(
-                this,
-                this._outboxGetHandler.bind(this)
-            ),
+            handler: (req, resp) => {
+                return this._enforceSigningPolicy(
+                    req,
+                    resp,
+                    this._outboxGetHandler.bind(this)
+                );
+            },
         });
 
         this.webServer.addRoute({
@@ -259,7 +262,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             }
 
             const page = url.searchParams.get('page');
-            Collection.followers(user, page, this.webServe, (err, collection) => {
+            Collection.followers(user, page, this.webServer, (err, collection) => {
                 if (err) {
                     //  :TODO: LOG ME
                     return this.webServer.internalServerError(resp);
