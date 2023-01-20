@@ -532,14 +532,18 @@ dbs.message.run(
         );
 
         dbs.activitypub.run(
-            `CREATE TABLE IF NOT EXISTS followers (
-                id                  INTEGER PRIMARY KEY,    -- Local ID
-                user_id             INTEGER NOT NULL,       -- Local user ID
-                follower_id         VARCHAR NOT NULL,       -- Actor ID of follower
-                status              INTEGER NOT NULL,       -- Status: See FollowerEntryStatus
-
-                UNIQUE(user_id, follower_id)
+            `CREATE TABLE IF NOT EXISTS collection_entry (
+                id                  INTEGER PRIMARY KEY,    -- Auto-generated key
+                name                VARCHAR NOT NULL,       -- examples: followers, follows, ...
+                timestamp           DATETIME NOT NULL,      -- Timestamp in which this entry was created
+                user_id             INTEGER NOT NULL,       -- Local, owning user ID
+                entry_json          VARCHAR NOT NULL        -- Varies by collection
             );`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS collection_entry_unique_index0
+            ON collection_entry (name, user_id, json_extract(entry_json, '$.id'))`
         );
 
         return cb(null);

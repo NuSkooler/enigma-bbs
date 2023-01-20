@@ -11,7 +11,6 @@ const { getOutboxEntries } = require('./db');
 const { WellKnownLocations } = require('../servers/content/web');
 
 // deps
-//const { isString, isObject } = require('lodash');
 const { v4: UUIDv4 } = require('uuid');
 const async = require('async');
 const _ = require('lodash');
@@ -29,22 +28,6 @@ module.exports = class Activity extends ActivityPubObject {
         const parsed = JSON.parse(json);
         return new Activity(parsed);
     }
-
-    // isValid() {
-    //     if (
-    //         this['@context'] !== ActivityStreamsContext ||
-    //         !isString(this.id) ||
-    //         !isString(this.actor) ||
-    //         (!isString(this.object) && !isObject(this.object)) ||
-    //         !Activity.ActivityTypes.includes(this.type)
-    //     ) {
-    //         return false;
-    //     }
-
-    //     //  :TODO: Additional validation
-
-    //     return true;
-    // }
 
     // https://www.w3.org/TR/activitypub/#accept-activity-inbox
     static makeAccept(webServer, localActor, followRequest, id = null) {

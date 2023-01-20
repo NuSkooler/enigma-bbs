@@ -10,7 +10,6 @@ const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
 const Collection = require('../../../activitypub/collection');
-const { persistFollower, FollowerEntryStatus } = require('../../../activitypub/db');
 
 // deps
 const _ = require('lodash');
@@ -383,10 +382,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         async.series(
             [
                 callback => {
-                    const persistOpts = {
-                        status: FollowerEntryStatus.Accepted,
-                    };
-                    return persistFollower(localUser, remoteActor, persistOpts, callback);
+                    return Collection.addFollower(localUser, remoteActor, callback);
                 },
                 callback => {
                     Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
@@ -444,6 +440,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             ],
             err => {
                 if (err) {
+                    //  :TODO: move this request to the "Request queue" for the user to try later
                     this.log.error(
                         { error: err.message },
                         'Failed processing Follow request'
