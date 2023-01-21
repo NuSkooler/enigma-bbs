@@ -542,8 +542,13 @@ dbs.message.run(
         );
 
         dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS collection_entry_unique_index0
-            ON collection_entry (name, user_id, json_extract(entry_json, '$.id'))`
+            `CREATE INDEX IF NOT EXISTS collection_entry_by_user_index0
+            ON collection_entry (name, user_id);`
+        );
+
+        dbs.activitypub.run(
+            `CREATE UNIQUE INDEX IF NOT EXISTS collection_entry_unique_index0
+            ON collection_entry (name, user_id, json_extract(entry_json, '$.id'));`
         );
 
         return cb(null);

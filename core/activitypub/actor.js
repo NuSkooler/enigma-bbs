@@ -18,9 +18,9 @@ const ActivityPubSettings = require('./settings');
 
 //  deps
 const _ = require('lodash');
-const https = require('https');
 const isString = require('lodash/isString');
 const mimeTypes = require('mime-types');
+const { getJson } = require('../http_util.js');
 
 // https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor {
@@ -141,40 +141,18 @@ module.exports = class Actor {
         };
 
         //  :TODO: use getJson()
-
-        https.get(url, { headers }, res => {
-            if (res.statusCode !== 200) {
-                return cb(Errors.Invalid(`Bad HTTP status code: ${res.statusCode}`));
+        getJson(url, { headers }, (err, actor) => {
+            if (err) {
+                return cb(err);
             }
 
-            const contentType = res.headers['content-type'];
-            if (
-                !_.isString(contentType) ||
-                !contentType.startsWith('application/activity+json')
-            ) {
-                return cb(Errors.Invalid(`Invalid Content-Type: ${contentType}`));
+            actor = new Actor(actor);
+
+            if (!actor.isValid()) {
+                return cb(Errors.Invalid('Invalid Actor'));
             }
 
-            res.setEncoding('utf8');
-            let body = '';
-            res.on('data', data => {
-                body += data;
-            });
-
-            res.on('end', () => {
-                let actor;
-                try {
-                    actor = Actor.fromJsonString(body);
-                } catch (e) {
-                    return cb(e);
-                }
-
-                if (!actor.isValid()) {
-                    return cb(Errors.Invalid('Invalid Actor'));
-                }
-
-                return cb(null, actor);
-            });
+            return cb(null, actor);
         });
     }
 

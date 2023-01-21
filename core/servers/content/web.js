@@ -334,7 +334,10 @@ exports.getModule = class WebServerModule extends ServerModule {
         );
     }
 
-    internalServerError(resp) {
+    internalServerError(resp, err) {
+        if (err) {
+            this.log.error({ error: err.message }, 'Internal server error');
+        }
         return this.respondWithError(
             resp,
             500,

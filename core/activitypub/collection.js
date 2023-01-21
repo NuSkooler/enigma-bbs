@@ -2,11 +2,40 @@ const { makeUserUrl } = require('./util');
 const ActivityPubObject = require('./object');
 const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
-const { isString } = require('lodash');
+
+const { isString, get } = require('lodash');
 
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
         super(obj);
+    }
+
+    static followers(owningUser, page, webServer, cb) {
+        return Collection.getOrdered(
+            'followers',
+            owningUser,
+            false,
+            page,
+            e => e.id,
+            webServer,
+            cb
+        );
+    }
+
+    static following(owningUser, page, webServer, cb) {
+        return Collection.getOrdered(
+            'following',
+            owningUser,
+            false,
+            page,
+            e => get(e, 'object.id'),
+            webServer,
+            cb
+        );
+    }
+
+    static addFollower(owningUser, followingActor, cb) {
+        return Collection.addToCollection('followers', owningUser, followingActor, cb);
     }
 
     static getOrdered(name, owningUser, includePrivate, page, mapper, webServer, cb) {
@@ -24,12 +53,22 @@ module.exports = class Collection extends ActivityPubObject {
                         return cb(err);
                     }
 
-                    const obj = {
-                        id: followersUrl,
-                        type: 'OrderedCollection',
-                        first: `${followersUrl}?page=1`,
-                        totalItems: row.count,
-                    };
+                    let obj;
+                    if (row.count > 0) {
+                        obj = {
+                            id: followersUrl,
+                            type: 'OrderedCollection',
+                            first: `${followersUrl}?page=1`,
+                            totalItems: row.count,
+                        };
+                    } else {
+                        obj = {
+                            id: followersUrl,
+                            type: 'OrderedCollection',
+                            totalItems: 0,
+                            orderedItems: [],
+                        };
+                    }
 
                     return cb(null, new Collection(obj));
                 }
@@ -48,7 +87,8 @@ module.exports = class Collection extends ActivityPubObject {
                     return cb(err);
                 }
 
-                if (mapper) {
+                entries = entries || [];
+                if (mapper && entries.length > 0) {
                     entries = entries.map(mapper);
                 }
 
@@ -65,35 +105,22 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static followers(owningUser, page, webServer, cb) {
-        return Collection.getOrdered(
-            'followers',
-            owningUser,
-            false,
-            page,
-            e => e.id,
-            webServer,
-            cb
-        );
-    }
-
     static addToCollection(name, owningUser, entry, cb) {
         if (!isString(entry)) {
             entry = JSON.stringify(entry);
         }
 
         apDb.run(
-            `INSERT INTO collection_entry (name, timestamp, user_id, entry_json)
-            VALUES (?, ?, ?, ?);`,
+            `INSERT OR IGNORE INTO collection_entry (name, timestamp, user_id, entry_json)
+                VALUES (?, ?, ?, ?);`,
             [name, getISOTimestampString(), owningUser.userId, entry],
             function res(err) {
                 // non-arrow for 'this' scope
+                if (err) {
+                    return cb(err);
+                }
                 return cb(err, this.lastID);
             }
         );
-    }
-
-    static addFollower(owningUser, followingActor, cb) {
-        return Collection.addToCollection('followers', owningUser, followingActor, cb);
     }
 };

@@ -64,7 +64,25 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/followers(\?page=[0-9]+)?$/,
-            handler: this._followersGetHandler.bind(this),
+            handler: (req, resp) => {
+                return this._enforceSigningPolicy(
+                    req,
+                    resp,
+                    this._followersGetHandler.bind(this)
+                );
+            },
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/users\/.+\/following(\?page=[0-9]+)?$/,
+            handler: (req, resp) => {
+                return this._enforceSigningPolicy(
+                    req,
+                    resp,
+                    this._followingGetHandler.bind(this)
+                );
+            },
         });
 
         //  :TODO: NYI
@@ -180,9 +198,54 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    _getCollectionHandler(name, req, resp) {
+        const url = new URL(req.url, `https://${req.headers.host}`);
+        const accountName = this._accountNameFromUserPath(url, name);
+        if (!accountName) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        // can we even handle this request?
+        const getter = Collection[name];
+        if (!getter) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        userFromAccount(accountName, (err, user) => {
+            if (err) {
+                this.log.info(
+                    { reason: err.message, accountName: accountName },
+                    `No user "${accountName}" for "${name}"`
+                );
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            const page = url.searchParams.get('page');
+            getter(user, page, this.webServer, (err, collection) => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                const body = JSON.stringify(collection);
+                const headers = {
+                    'Content-Type': ActivityJsonMime,
+                    'Content-Length': body.length,
+                };
+
+                resp.writeHead(200, headers);
+                return resp.end(body);
+            });
+        });
+    }
+
+    _followingGetHandler(req, resp) {
+        this.log.debug({ url: req.url }, 'Request for "following"');
+        return this._getCollectionHandler('following', req, resp);
+    }
+
     // https://docs.gotosocial.org/en/latest/federation/behaviors/outbox/
     _outboxGetHandler(req, resp) {
-        this.log.trace({ url: req.url }, 'Request for "outbox"');
+        this.log.debug({ url: req.url }, 'Request for "outbox"');
 
         // the request must be signed, and the signature must be valid
         const signature = this._parseAndValidateSignature(req);
@@ -208,8 +271,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             Activity.fromOutboxEntries(user, this.webServer, (err, activity) => {
                 if (err) {
-                    //  :TODO: LOG ME
-                    return this.webServer.internalServerError(resp);
+                    return this.webServer.internalServerError(resp, err);
                 }
 
                 const body = JSON.stringify(activity);
@@ -234,49 +296,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _followersGetHandler(req, resp) {
-        this.log.trace({ url: req.url }, 'Request for "followers"');
-
-        //  :TODO: dry this stuff..
-
-        // the request must be signed, and the signature must be valid
-        const signature = this._parseAndValidateSignature(req);
-        if (!signature) {
-            return this.webServer.accessDenied(resp);
-        }
-
-        //  /_enig/ap/users/SomeName/outbox -> SomeName
-        const url = new URL(req.url, `https://${req.headers.host}`);
-        const accountName = this._accountNameFromUserPath(url, 'followers');
-        if (!accountName) {
-            return this.webServer.resourceNotFound(resp);
-        }
-
-        userFromAccount(accountName, (err, user) => {
-            if (err) {
-                this.log.info(
-                    { reason: err.message, accountName: accountName },
-                    `No user "${accountName}" for "self"`
-                );
-                return this.webServer.resourceNotFound(resp);
-            }
-
-            const page = url.searchParams.get('page');
-            Collection.followers(user, page, this.webServer, (err, collection) => {
-                if (err) {
-                    //  :TODO: LOG ME
-                    return this.webServer.internalServerError(resp);
-                }
-
-                const body = JSON.stringify(collection);
-                const headers = {
-                    'Content-Type': ActivityJsonMime,
-                    'Content-Length': body.length,
-                };
-
-                resp.writeHead(200, headers);
-                return resp.end(body);
-            });
-        });
+        this.log.debug({ url: req.url }, 'Request for "followers"');
+        return this._getCollectionHandler('followers', req, resp);
     }
 
     _parseAndValidateSignature(req) {
@@ -331,7 +352,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _withUserRequestHandler(signature, activity, activityHandler, req, resp) {
-        this.log.trace({ actor: activity.actor }, `Inbox request from ${activity.actor}`);
+        this.log.debug({ actor: activity.actor }, `Inbox request from ${activity.actor}`);
 
         //  :TODO: trace
         const accountName = accountFromSelfUrl(activity.object);
@@ -346,8 +367,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             Actor.fromRemoteUrl(activity.actor, (err, actor) => {
                 if (err) {
-                    //  :TODO: log, and probably should be inspecting |err|
-                    return this.webServer.internalServerError(resp);
+                    return this.webServer.internalServerError(resp, err);
                 }
 
                 const pubKey = actor.publicKey;
@@ -427,7 +447,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                     return callback(null); // just a warning
                                 }
 
-                                this.log.trace(
+                                this.log.info(
                                     { inbox: remoteActor.inbox },
                                     'Remote server received our "Accept" successfully'
                                 );
@@ -463,8 +483,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         Actor.fromLocalUser(user, this.webServer, (err, actor) => {
             if (err) {
-                //  :TODO: Log me
-                return this.webServer.internalServerError(resp);
+                return this.webServer.internalServerError(resp, err);
             }
 
             const body = JSON.stringify(actor);
