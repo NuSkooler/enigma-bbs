@@ -10,6 +10,7 @@ const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
 const Collection = require('../../../activitypub/collection');
+const EnigAssert = require('../../../enigma_assert');
 
 // deps
 const _ = require('lodash');
@@ -46,7 +47,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.webServer.addRoute({
             method: 'POST',
             path: /^\/_enig\/ap\/users\/.+\/inbox$/,
-            handler: this._inboxPostHandler.bind(this),
+            handler: (req, resp) => {
+                return this._enforceSigningPolicy(
+                    req,
+                    resp,
+                    this._inboxPostHandler.bind(this)
+                );
+            },
         });
 
         this.webServer.addRoute({
@@ -102,7 +109,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return this.webServer.accessDenied(resp);
         }
 
-        return next(req, resp);
+        return next(req, resp, signature);
     }
 
     _selfUrlRequestHandler(req, resp) {
@@ -146,12 +153,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _inboxPostHandler(req, resp) {
-        // the request must be signed, and the signature must be valid
-        const signature = this._parseAndValidateSignature(req);
-        if (!signature) {
-            return this.webServer.accessDenied(resp);
-        }
+    _inboxPostHandler(req, resp, signature) {
+        EnigAssert(signature, 'Called without signature!');
 
         const body = [];
         req.on('data', d => {
@@ -161,7 +164,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         req.on('end', () => {
             let activity;
             try {
-                activity = Activity.fromJsonString(Buffer.concat(body).toString());
+                activity = JSON.parse(Buffer.concat(body).toString());
+                activity = new Activity(activity);
             } catch (e) {
                 this.log.error(
                     { error: e.message, url: req.url, method: req.method },
@@ -175,26 +179,28 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.badRequest(resp);
             }
 
-            const activityFunctions = {
-                Follow: this._inboxFollowRequestHandler.bind(this),
-                // TODO: 'Create', 'Update', etc.
-            };
+            switch (activity.type) {
+                case 'Follow':
+                    return this._withUserRequestHandler(
+                        signature,
+                        activity,
+                        this._inboxFollowRequestHandler.bind(this),
+                        req,
+                        resp
+                    );
 
-            if (_.has(activityFunctions, activity.type)) {
-                return this._withUserRequestHandler(
-                    signature,
-                    activity,
-                    activityFunctions[activity.type],
-                    req,
-                    resp
-                );
-            } else {
-                this.log.debug(
-                    { type: activity.type },
-                    `Unsupported Activity type "${activity.type}"`
-                );
-                return this.webServer.resourceNotFound(resp);
+                case 'Undo':
+                    return this._inboxUndoRequestHandler(activity, req, resp);
+
+                default:
+                    this.log.warn(
+                        { type: activity.type },
+                        `Unsupported Activity type "${activity.type}"`
+                    );
+                    break;
             }
+
+            return this.webServer.resourceNotFound(resp);
         });
     }
 
@@ -332,7 +338,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _inboxFollowRequestHandler(activity, remoteActor, user, resp) {
-        this.log.debug({ user_id: user.userId, actor: activity.actor }, 'Follow request');
+        this.log.info({ user_id: user.userId, actor: activity.actor }, 'Follow request');
 
         //
         //  If the user blindly accepts Followers, we can persist
@@ -349,6 +355,46 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         resp.writeHead(200, { 'Content-Type': 'text/html' });
         return resp.end('');
+    }
+
+    _inboxUndoRequestHandler(activity, req, resp) {
+        this.log.info({ actor: activity.actor }, 'Undo request');
+
+        const url = new URL(req.url, `https://${req.headers.host}`);
+        const accountName = this._accountNameFromUserPath(url, 'inbox');
+        if (!accountName) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        userFromAccount(accountName, (err, user) => {
+            if (err) {
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            // we only understand Follow right now
+            if (!activity.object || activity.object.type !== 'Follow') {
+                return this.webServer.notImplemented(resp);
+            }
+
+            Collection.remoteFromCollectionById(
+                'followers',
+                user,
+                activity.actor,
+                err => {
+                    if (err) {
+                        return this.webServer.internalServerError(resp, err);
+                    }
+
+                    this.log.info(
+                        { userId: user.userId, actor: activity.actor },
+                        'Undo "Follow" (un-follow) success'
+                    );
+
+                    resp.writeHead(202);
+                    return resp.end('');
+                }
+            );
+        });
     }
 
     _withUserRequestHandler(signature, activity, activityHandler, req, resp) {

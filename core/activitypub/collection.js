@@ -35,7 +35,13 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addFollower(owningUser, followingActor, cb) {
-        return Collection.addToCollection('followers', owningUser, followingActor, cb);
+        return Collection.addToCollection(
+            'followers',
+            owningUser,
+            followingActor.id,
+            followingActor,
+            cb
+        );
     }
 
     static getOrdered(name, owningUser, includePrivate, page, mapper, webServer, cb) {
@@ -45,7 +51,7 @@ module.exports = class Collection extends ActivityPubObject {
         if (!page) {
             return apDb.get(
                 `SELECT COUNT(id) AS count
-                FROM collection_entry
+                FROM collection
                 WHERE name = ?;`,
                 [name],
                 (err, row) => {
@@ -77,8 +83,8 @@ module.exports = class Collection extends ActivityPubObject {
 
         //  :TODO: actual paging...
         apDb.all(
-            `SELECT entry_json
-            FROM collection_entry
+            `SELECT obj_json
+            FROM collection
             WHERE user_id = ? AND name = ?
             ORDER BY timestamp;`,
             [owningUser.userId, name],
@@ -105,21 +111,32 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addToCollection(name, owningUser, entry, cb) {
-        if (!isString(entry)) {
-            entry = JSON.stringify(entry);
+    static addToCollection(name, owningUser, objectId, obj, cb) {
+        if (!isString(obj)) {
+            obj = JSON.stringify(obj);
         }
 
         apDb.run(
-            `INSERT OR IGNORE INTO collection_entry (name, timestamp, user_id, entry_json)
-                VALUES (?, ?, ?, ?);`,
-            [name, getISOTimestampString(), owningUser.userId, entry],
+            `INSERT OR IGNORE INTO collection (name, timestamp, user_id, obj_id, obj_json)
+            VALUES (?, ?, ?, ?, ?);`,
+            [name, getISOTimestampString(), owningUser.userId, objectId, obj],
             function res(err) {
                 // non-arrow for 'this' scope
                 if (err) {
                     return cb(err);
                 }
                 return cb(err, this.lastID);
+            }
+        );
+    }
+
+    static remoteFromCollectionById(name, owningUser, objectId, cb) {
+        apDb.run(
+            `DELETE FROM collection
+            WHERE user_id = ? AND name = ? AND obj_id = ?;`,
+            [owningUser.userId, name, objectId],
+            err => {
+                return cb(err);
             }
         );
     }

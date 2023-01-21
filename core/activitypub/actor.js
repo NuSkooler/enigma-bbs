@@ -15,45 +15,40 @@ const Log = require('../logger').log;
 const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
 const ActivityPubSettings = require('./settings');
+const ActivityPubObject = require('./object');
 
 //  deps
 const _ = require('lodash');
-const isString = require('lodash/isString');
 const mimeTypes = require('mime-types');
 const { getJson } = require('../http_util.js');
 
 // https://www.w3.org/TR/activitypub/#actor-objects
-module.exports = class Actor {
+module.exports = class Actor extends ActivityPubObject {
     constructor(obj) {
-        this['@context'] = [ActivityStreamsContext];
-
-        if (obj) {
-            Object.assign(this, obj);
-        } else {
-            this.id = '';
-            this.type = '';
-            this.inbox = '';
-            this.outbox = '';
-            this.following = '';
-            this.followers = '';
-        }
+        super(obj);
     }
 
     isValid() {
+        if (!super.isValid()) {
+            return false;
+        }
+
         if (
-            !Array.isArray(this['@context']) ||
-            this['@context'][0] !== ActivityStreamsContext
+            !['Person', 'Group', 'Organization', 'Service', 'Application'].includes(
+                this.type
+            )
         ) {
             return false;
         }
 
-        if (!isString(this.type) || this.type.length < 1) {
-            return false;
-        }
-
-        const linksValid = ['inbox', 'outbox', 'following', 'followers'].every(p => {
-            return isValidLink(this[p]);
+        const linksValid = ['inbox', 'outbox', 'following', 'followers'].every(l => {
+            // must be valid if set
+            if (this[l] && !isValidLink(this[l])) {
+                return false;
+            }
+            return true;
         });
+
         if (!linksValid) {
             return false;
         }
@@ -136,11 +131,11 @@ module.exports = class Actor {
     }
 
     static fromRemoteUrl(url, cb) {
+        //  :TODO: cache first
         const headers = {
             Accept: 'application/activity+json',
         };
 
-        //  :TODO: use getJson()
         getJson(url, { headers }, (err, actor) => {
             if (err) {
                 return cb(err);

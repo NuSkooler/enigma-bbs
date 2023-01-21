@@ -346,6 +346,10 @@ exports.getModule = class WebServerModule extends ServerModule {
         );
     }
 
+    notImplemented(resp) {
+        return this.respondWithError(resp, 501, 'Not implemented.', 'Not Implemented');
+    }
+
     tryRouteIndex(req, resp, cb) {
         const tryFiles = Config().contentServers.web.tryFiles || [
             'index.html',

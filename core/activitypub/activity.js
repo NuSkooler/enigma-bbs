@@ -24,11 +24,6 @@ module.exports = class Activity extends ActivityPubObject {
         return WellKnownActivityTypes;
     }
 
-    static fromJsonString(json) {
-        const parsed = JSON.parse(json);
-        return new Activity(parsed);
-    }
-
     // https://www.w3.org/TR/activitypub/#accept-activity-inbox
     static makeAccept(webServer, localActor, followRequest, id = null) {
         id = id || Activity._makeFullId(webServer, 'accept');

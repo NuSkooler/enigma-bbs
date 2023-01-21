@@ -532,23 +532,21 @@ dbs.message.run(
         );
 
         dbs.activitypub.run(
-            `CREATE TABLE IF NOT EXISTS collection_entry (
+            `CREATE TABLE IF NOT EXISTS collection (
                 id                  INTEGER PRIMARY KEY,    -- Auto-generated key
                 name                VARCHAR NOT NULL,       -- examples: followers, follows, ...
                 timestamp           DATETIME NOT NULL,      -- Timestamp in which this entry was created
                 user_id             INTEGER NOT NULL,       -- Local, owning user ID
-                entry_json          VARCHAR NOT NULL        -- Varies by collection
+                obj_id              VARCHAR NOT NULL,       -- Object ID from obj_json.id
+                obj_json            VARCHAR NOT NULL,       -- Object varies by collection (obj_json.type)
+
+                UNIQUE(name, user_id, obj_id)
             );`
         );
 
         dbs.activitypub.run(
             `CREATE INDEX IF NOT EXISTS collection_entry_by_user_index0
-            ON collection_entry (name, user_id);`
-        );
-
-        dbs.activitypub.run(
-            `CREATE UNIQUE INDEX IF NOT EXISTS collection_entry_unique_index0
-            ON collection_entry (name, user_id, json_extract(entry_json, '$.id'));`
+            ON collection (name, user_id);`
         );
 
         return cb(null);
