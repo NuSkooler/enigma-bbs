@@ -533,7 +533,7 @@ module.exports = class User {
                         const { makeUserUrl } = require('./activitypub/util');
                         const filename = paths.basename(outPath);
                         const url =
-                            makeUserUrl(webServer.instance, self, '/ap/users/') +
+                            makeUserUrl(webServer.instance, self, '/users/') +
                             `/avatar/${filename}`;
 
                         apSettings.image = url;

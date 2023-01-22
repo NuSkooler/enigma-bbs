@@ -294,6 +294,12 @@ module.exports = () => {
 
                 staticRoot: paths.join(__dirname, './../www'),
 
+                handlers: {
+                    systemGeneral: {
+                        enabled: true,
+                    },
+                },
+
                 resetPassword: {
                     //
                     //  The following templates have these variables available to them:

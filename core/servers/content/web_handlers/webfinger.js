@@ -11,7 +11,7 @@ const {
 } = require('../../../activitypub/util');
 
 const _ = require('lodash');
-const enigma_assert = require('../../../enigma_assert');
+const EngiAssert = require('../../../enigma_assert');
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -29,11 +29,9 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     init(webServer, cb) {
-        const config = Config();
-
         // we rely on the web server
         this.webServer = webServer;
-        enigma_assert(webServer, 'WebFinger Web Handler init without webServer');
+        EngiAssert(webServer, 'WebFinger Web Handler init without webServer');
 
         this.log = webServer.logger().child({ webHandler: 'WebFinger' });
 
