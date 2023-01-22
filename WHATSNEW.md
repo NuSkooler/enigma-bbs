@@ -7,6 +7,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
     * Some internal routes such as those used for password resets live within `/_enig/`.
     * Routes for the file base now default to `/_f/` prefixed instead of just `/f/`. If `/f/` is in your `config.hjson` you are encouraged to update it!
     * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
+* [WebFinger](/docs/_docs/servers/contentservers/webfinger-handler.md) support.
+* New users now have randomly generated avatars assigned to them that can be served up via, for example, the ActivityPub [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md).
 * CombatNet has shut down, so the module (`combatnet.js`) has been removed.
 
 ## 0.0.13-beta
