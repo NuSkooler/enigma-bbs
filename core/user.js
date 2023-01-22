@@ -19,6 +19,10 @@ const _ = require('lodash');
 const moment = require('moment');
 const sanatizeFilename = require('sanitize-filename');
 const ssh2 = require('ssh2');
+const AvatarGenerator = require('avatar-generator');
+const paths = require('path');
+const fse = require('fs-extra');
+const ActivityPubSettings = require('./activitypub/settings');
 
 module.exports = class User {
     constructor() {
@@ -508,6 +512,41 @@ module.exports = class User {
                         return callback(err, trans);
                     });
                 },
+                function defaultAvatar(trans, callback) {
+                    self.generateNewRandomAvatar((err, outPath) => {
+                        return callback(err, outPath, trans);
+                    });
+                },
+                function defaultActivityPubSettings(outPath, trans, callback) {
+                    // we have to late import this crap :D
+                    const getServer = require('./listening_server.js').getServer;
+                    const WebServerPackageName = require('./servers/content/web')
+                        .moduleInfo.packageName;
+                    const webServer = getServer(WebServerPackageName);
+
+                    //  :TODO: fetch over +op default overrides here, e.g. 'enabled'
+                    const apSettings = ActivityPubSettings.fromUser(self);
+
+                    // convert |outPath| of avatar to a URL, that, with the web
+                    // server enabled, can be fetched
+                    if (webServer) {
+                        const { makeUserUrl } = require('./activitypub/util');
+                        const filename = paths.basename(outPath);
+                        const url =
+                            makeUserUrl(webServer.instance, self, '/ap/users/') +
+                            `/avatar/${filename}`;
+
+                        apSettings.image = url;
+                        apSettings.icon = url;
+                    }
+
+                    self.setProperty(
+                        UserProps.ActivityPubSettings,
+                        JSON.stringify(apSettings)
+                    );
+
+                    return callback(null, trans);
+                },
                 function setInitialGroupMembership(trans, callback) {
                     //  Assign initial groups. Must perform a clone: #235 - All users are sysops (and I can't un-sysop them)
                     self.groups = [...config.users.defaultGroups];
@@ -663,6 +702,78 @@ module.exports = class User {
                     this.setProperty(UserProps.PublicActivityPubSigningKey, publicKey);
                 }
                 return cb(err);
+            }
+        );
+    }
+
+    generateNewRandomAvatar(cb) {
+        const spritesPath = _.get(Config(), 'users.avatars.spritesPath');
+        const storagePath = _.get(Config(), 'users.avatars.storagePath');
+
+        if (!spritesPath || !storagePath) {
+            return cb(
+                Errors.MissingConfig(
+                    'Cannot generate new avatar: Missing path(s) in configuration'
+                )
+            );
+        }
+
+        async.waterfall(
+            [
+                callback => {
+                    return fse.mkdirs(storagePath, err => {
+                        return callback(err);
+                    });
+                },
+                callback => {
+                    const avatar = new AvatarGenerator({
+                        parts: [
+                            'background',
+                            'face',
+                            'clothes',
+                            'head',
+                            'hair',
+                            'eye',
+                            'mouth',
+                        ],
+                        partsLocation: spritesPath,
+                        imageExtension: '.png',
+                    });
+
+                    const userSex = (
+                        this.getProperty(UserProps.Sex) || 'M'
+                    ).toUpperCase();
+
+                    const variant = userSex[0] === 'M' ? 'male' : 'female';
+                    const stableId = `user#${this.userId.toString()}`;
+
+                    avatar
+                        .generate(stableId, variant)
+                        .then(image => {
+                            const filename = `user-avatar-${this.userId}.png`;
+                            const outPath = paths.join(storagePath, filename);
+                            image.resize(640, 640);
+                            image.toFile(outPath, err => {
+                                if (!err) {
+                                    Log.info(
+                                        {
+                                            userId: this.userId,
+                                            username: this.username,
+                                            outPath,
+                                        },
+                                        `New avatar generated for ${this.username}`
+                                    );
+                                }
+                                return callback(err, outPath);
+                            });
+                        })
+                        .catch(err => {
+                            return callback(err);
+                        });
+                },
+            ],
+            (err, outPath) => {
+                return cb(err, outPath);
             }
         );
     }

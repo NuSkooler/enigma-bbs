@@ -17,6 +17,9 @@ const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
+const paths = require('path');
+const fs = require('fs');
+const mimeTypes = require('mime-types');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -58,7 +61,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/outbox$/,
+            path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=[0-9]+)?$/,
             handler: (req, resp) => {
                 return this._enforceSigningPolicy(
                     req,
@@ -90,6 +93,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     this._followingGetHandler.bind(this)
                 );
             },
+        });
+
+        //  default avatar routing
+        this.webServer.addRoute({
+            method: 'GET',
+            path: /^\/_enig\/ap\/users\/.+\/avatar\/.+$/,
+            handler: this._avatarGetHandler.bind(this),
         });
 
         //  :TODO: NYI
@@ -255,6 +265,37 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _outboxGetHandler(req, resp, signature) {
         this.log.debug({ url: req.url }, 'Request for "outbox"');
         return this._getCollectionHandler('outbox', req, resp, signature);
+    }
+
+    _avatarGetHandler(req, resp) {
+        const url = new URL(req.url, `https://${req.headers.host}`);
+        const filename = paths.basename(url.pathname);
+        if (!filename) {
+            return this.webServer.fileNotFound(resp);
+        }
+
+        const storagePath = _.get(Config(), 'users.avatars.storagePath');
+        if (!storagePath) {
+            return this.webServer.fileNotFound(resp);
+        }
+
+        const localPath = paths.join(storagePath, filename);
+        fs.stat(localPath, (err, stats) => {
+            if (err || !stats.isFile()) {
+                return this.webServer.accessDenied(resp);
+            }
+
+            const headers = {
+                'Content-Type':
+                    mimeTypes.contentType(paths.basename(localPath)) ||
+                    mimeTypes.contentType('.png'),
+                'Content-Length': stats.size,
+            };
+
+            const readStream = fs.createReadStream(localPath);
+            resp.writeHead(200, headers);
+            readStream.pipe(resp);
+        });
     }
 
     _accountNameFromUserPath(url, suffix) {

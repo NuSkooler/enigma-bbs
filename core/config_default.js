@@ -130,6 +130,12 @@ module.exports = () => {
                     ),
                 },
             },
+
+            // path to avatar generation parts
+            avatars: {
+                storagePath: paths.join(__dirname, '../userdata/avatars/'),
+                spritesPath: paths.join(__dirname, '../misc/avatar-sprites/'),
+            },
         },
 
         theme: {
