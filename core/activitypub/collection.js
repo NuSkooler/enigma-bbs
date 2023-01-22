@@ -40,25 +40,56 @@ module.exports = class Collection extends ActivityPubObject {
             owningUser,
             followingActor.id,
             followingActor,
+            false,
+            cb
+        );
+    }
+
+    static outbox(owningUser, page, webServer, cb) {
+        return Collection.getOrdered(
+            'outbox',
+            owningUser,
+            false,
+            page,
+            null,
+            webServer,
+            cb
+        );
+    }
+
+    static addOutboxItem(owningUser, outboxItem, cb) {
+        return Collection.addToCollection(
+            'outbox',
+            owningUser,
+            outboxItem.id,
+            outboxItem,
+            false,
             cb
         );
     }
 
     static getOrdered(name, owningUser, includePrivate, page, mapper, webServer, cb) {
-        //  :TODD: |includePrivate| handling
+        const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';
         const followersUrl =
             makeUserUrl(webServer, owningUser, '/ap/users/') + `/${name}`;
+
         if (!page) {
             return apDb.get(
                 `SELECT COUNT(id) AS count
                 FROM collection
-                WHERE name = ?;`,
-                [name],
+                WHERE user_id = ? AND name = ?${privateQuery};`,
+                [owningUser.userId, name],
                 (err, row) => {
                     if (err) {
                         return cb(err);
                     }
 
+                    //
+                    //  Mastodon for instance, will never follow up for the
+                    //  actual data from some Collections such as 'followers';
+                    //  Instead, they only use the |totalItems| to form an
+                    //  approximate follower count.
+                    //
                     let obj;
                     if (row.count > 0) {
                         obj = {
@@ -85,7 +116,7 @@ module.exports = class Collection extends ActivityPubObject {
         apDb.all(
             `SELECT obj_json
             FROM collection
-            WHERE user_id = ? AND name = ?
+            WHERE user_id = ? AND name = ?${privateQuery}
             ORDER BY timestamp;`,
             [owningUser.userId, name],
             (err, entries) => {
@@ -111,15 +142,16 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addToCollection(name, owningUser, objectId, obj, cb) {
+    static addToCollection(name, owningUser, objectId, obj, isPrivate, cb) {
         if (!isString(obj)) {
             obj = JSON.stringify(obj);
         }
 
+        isPrivate = isPrivate ? 1 : 0;
         apDb.run(
-            `INSERT OR IGNORE INTO collection (name, timestamp, user_id, obj_id, obj_json)
-            VALUES (?, ?, ?, ?, ?);`,
-            [name, getISOTimestampString(), owningUser.userId, objectId, obj],
+            `INSERT OR IGNORE INTO collection (name, timestamp, user_id, obj_id, obj_json, is_private)
+            VALUES (?, ?, ?, ?, ?, ?);`,
+            [name, getISOTimestampString(), owningUser.userId, objectId, obj, isPrivate],
             function res(err) {
                 // non-arrow for 'this' scope
                 if (err) {
@@ -130,7 +162,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static remoteFromCollectionById(name, owningUser, objectId, cb) {
+    static removeFromCollectionById(name, owningUser, objectId, cb) {
         apDb.run(
             `DELETE FROM collection
             WHERE user_id = ? AND name = ? AND obj_id = ?;`,

@@ -33,16 +33,12 @@ module.exports = class Actor extends ActivityPubObject {
             return false;
         }
 
-        if (
-            !['Person', 'Group', 'Organization', 'Service', 'Application'].includes(
-                this.type
-            )
-        ) {
+        if (!Actor.WellKnownActorTypes.includes(this.type)) {
             return false;
         }
 
-        const linksValid = ['inbox', 'outbox', 'following', 'followers'].every(l => {
-            // must be valid if set
+        const linksValid = Actor.WellKnownLinkTypes.every(l => {
+            // must be valid if present & non-empty
             if (this[l] && !isValidLink(this[l])) {
                 return false;
             }
@@ -56,7 +52,14 @@ module.exports = class Actor extends ActivityPubObject {
         return true;
     }
 
-    //  :TODO: from a User object
+    static get WellKnownActorTypes() {
+        return ['Person', 'Group', 'Organization', 'Service', 'Application'];
+    }
+
+    static get WellKnownLinkTypes() {
+        return ['inbox', 'outbox', 'following', 'followers'];
+    }
+
     static fromLocalUser(user, webServer, cb) {
         const userSelfUrl = selfUrl(webServer, user);
         const userSettings = ActivityPubSettings.fromUser(user);

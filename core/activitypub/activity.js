@@ -1,4 +1,4 @@
-const { messageBodyToHtml, selfUrl, makeUserUrl } = require('./util');
+const { messageBodyToHtml, selfUrl } = require('./util');
 const { ActivityStreamsContext, WellKnownActivityTypes } = require('./const');
 const ActivityPubObject = require('./object');
 const User = require('../user');
@@ -7,7 +7,6 @@ const { Errors } = require('../enig_error');
 const { getISOTimestampString } = require('../database');
 const UserProps = require('../user_property');
 const { postJson } = require('../http_util');
-const { getOutboxEntries } = require('./db');
 const { WellKnownLocations } = require('../servers/content/web');
 
 // deps
@@ -111,38 +110,6 @@ module.exports = class Activity extends ActivityPubObject {
                 return cb(err, { activity, fromUser, remoteActor });
             }
         );
-    }
-
-    //  :TODO: move to Collection
-    static fromOutboxEntries(owningUser, webServer, cb) {
-        //  :TODO: support paging
-        const getOpts = {
-            create: true, // items marked 'Create'
-        };
-        getOutboxEntries(owningUser, getOpts, (err, entries) => {
-            if (err) {
-                return cb(err);
-            }
-
-            const obj = {
-                '@context': ActivityStreamsContext,
-                //  :TODO: makeOutboxUrl() and use elsewhere also
-                id: makeUserUrl(webServer, owningUser, '/ap/users') + '/outbox',
-                type: 'OrderedCollection',
-                totalItems: entries.length,
-                orderedItems: entries.map(e => {
-                    return {
-                        '@context': ActivityStreamsContext,
-                        id: e.activity.id,
-                        type: 'Create',
-                        actor: e.activity.actor,
-                        object: e.activity.object,
-                    };
-                }),
-            };
-
-            return cb(null, new Activity(obj));
-        });
     }
 
     sendTo(actorUrl, fromUser, webServer, cb) {

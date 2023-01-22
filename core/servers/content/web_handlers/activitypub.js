@@ -204,7 +204,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _getCollectionHandler(name, req, resp) {
+    _getCollectionHandler(name, req, resp, signature) {
+        EnigAssert(signature, 'Missing signature!');
+
         const url = new URL(req.url, `https://${req.headers.host}`);
         const accountName = this._accountNameFromUserPath(url, name);
         if (!accountName) {
@@ -244,52 +246,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _followingGetHandler(req, resp) {
+    _followingGetHandler(req, resp, signature) {
         this.log.debug({ url: req.url }, 'Request for "following"');
-        return this._getCollectionHandler('following', req, resp);
+        return this._getCollectionHandler('following', req, resp, signature);
     }
 
     // https://docs.gotosocial.org/en/latest/federation/behaviors/outbox/
-    _outboxGetHandler(req, resp) {
+    _outboxGetHandler(req, resp, signature) {
         this.log.debug({ url: req.url }, 'Request for "outbox"');
-
-        // the request must be signed, and the signature must be valid
-        const signature = this._parseAndValidateSignature(req);
-        if (!signature) {
-            return this.webServer.accessDenied(resp);
-        }
-
-        //  /_enig/ap/users/SomeName/outbox -> SomeName
-        const url = new URL(req.url, `https://${req.headers.host}`);
-        const accountName = this._accountNameFromUserPath(url, 'outbox');
-        if (!accountName) {
-            return this.webServer.resourceNotFound(resp);
-        }
-
-        userFromAccount(accountName, (err, user) => {
-            if (err) {
-                this.log.info(
-                    { reason: err.message, accountName: accountName },
-                    `No user "${accountName}" for "self"`
-                );
-                return this.webServer.resourceNotFound(resp);
-            }
-
-            Activity.fromOutboxEntries(user, this.webServer, (err, activity) => {
-                if (err) {
-                    return this.webServer.internalServerError(resp, err);
-                }
-
-                const body = JSON.stringify(activity);
-                const headers = {
-                    'Content-Type': ActivityJsonMime,
-                    'Content-Length': body.length,
-                };
-
-                resp.writeHead(200, headers);
-                return resp.end(body);
-            });
-        });
+        return this._getCollectionHandler('outbox', req, resp, signature);
     }
 
     _accountNameFromUserPath(url, suffix) {
@@ -301,9 +266,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return m[1];
     }
 
-    _followersGetHandler(req, resp) {
+    _followersGetHandler(req, resp, signature) {
         this.log.debug({ url: req.url }, 'Request for "followers"');
-        return this._getCollectionHandler('followers', req, resp);
+        return this._getCollectionHandler('followers', req, resp, signature);
     }
 
     _parseAndValidateSignature(req) {
@@ -376,7 +341,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.notImplemented(resp);
             }
 
-            Collection.remoteFromCollectionById(
+            Collection.removeFromCollectionById(
                 'followers',
                 user,
                 activity.actor,

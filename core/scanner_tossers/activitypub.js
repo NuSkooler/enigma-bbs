@@ -3,11 +3,11 @@ const Message = require('../message');
 const { MessageScanTossModule } = require('../msg_scan_toss_module');
 const { getServer } = require('../listening_server');
 const Log = require('../logger').log;
-const { persistToOutbox } = require('../activitypub/db');
 
 // deps
 const async = require('async');
 const _ = require('lodash');
+const Collection = require('../activitypub/collection');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -51,7 +51,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                 (noteInfo, callback) => {
                     const { activity, fromUser, remoteActor } = noteInfo;
 
-                    //  :TODO: Implement retry logic (connection issues, retryable HTTP status)
+                    //  :TODO: Implement retry logic (connection issues, retryable HTTP status) ??
                     activity.sendTo(
                         remoteActor.inbox,
                         fromUser,
@@ -82,7 +82,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     );
                 },
                 (activity, fromUser, callback) => {
-                    persistToOutbox(activity, fromUser, message, (err, localId) => {
+                    Collection.addOutboxItem(fromUser, activity, (err, localId) => {
                         if (!err) {
                             this.log.debug(
                                 { localId, activityId: activity.id },

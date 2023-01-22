@@ -502,28 +502,21 @@ dbs.message.run(
         return cb(null);
     },
     activitypub: cb => {
-        //                 private             INTEGER NOT NULL,       -- Is this Activity private?
+        // Actors we know about and have cached
         dbs.activitypub.run(
-            `CREATE TABLE IF NOT EXISTS outbox (
-                id                  INTEGER PRIMARY KEY,    -- Local ID
-                activity_id         VARCHAR NOT NULL,       -- Fully qualified Activity ID/URL (activity.id)
-                user_id             INTEGER NOT NULL,       -- Local user ID
-                message_id          INTEGER NOT NULL,       -- Local message ID
-                activity_json       VARCHAR NOT NULL,       -- Activity in JSON format
-                published_timestamp DATETIME NOT NULL,      -- (activity.object.published))
+            `CREATE TABLE IF NOT EXISTS actor_cache (
+                id                  INTEGER PRIMARY KEY,    -- Local DB ID
+                actor_id            VARCHAR NOT NULL,       -- Fully qualified Actor ID/URL
+                actor_json          VARCHAR NOT NULL,       -- Actor document
+                timestamp           DATETIME NOT NULL,      -- Timestamp in which this Actor was cached
 
-                UNIQUE(message_id, activity_id)
+                UNIQUE(actor_id)
             );`
         );
 
         dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS outbox_user_id_index0
-            ON outbox (user_id);`
-        );
-
-        dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS outbox_activity_id_index0
-            ON outbox (activity_id);`
+            `CREATE INDEX IF NOT EXISTS actor_cache_actor_id_index0
+            ON actor_cache (actor_id);`
         );
 
         dbs.activitypub.run(
@@ -539,6 +532,7 @@ dbs.message.run(
                 user_id             INTEGER NOT NULL,       -- Local, owning user ID
                 obj_id              VARCHAR NOT NULL,       -- Object ID from obj_json.id
                 obj_json            VARCHAR NOT NULL,       -- Object varies by collection (obj_json.type)
+                is_private          INTEGER NOT NULL,       -- Is this object private to |user_id|?
 
                 UNIQUE(name, user_id, obj_id)
             );`
