@@ -57,13 +57,13 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addOutboxItem(owningUser, outboxItem, cb) {
+    static addOutboxItem(owningUser, outboxItem, isPrivate, cb) {
         return Collection.addToCollection(
             'outbox',
             owningUser,
             outboxItem.id,
             outboxItem,
-            false,
+            isPrivate,
             cb
         );
     }

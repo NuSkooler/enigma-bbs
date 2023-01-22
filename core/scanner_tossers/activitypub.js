@@ -58,10 +58,11 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         this._webServer(),
                         (err, respBody, res) => {
                             if (err) {
-                                return callback(err);
-                            }
-
-                            if (res.statusCode !== 202 && res.statusCode !== 200) {
+                                this.log.warn(
+                                    { error: err.message, inbox: remoteActor.inbox },
+                                    'Failed to send "Note" Activity to Inbox'
+                                );
+                            } else if (res.statusCode !== 202 && res.statusCode !== 200) {
                                 this.log.warn(
                                     {
                                         inbox: remoteActor.inbox,
@@ -72,25 +73,28 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                                 );
                             }
 
-                            //
-                            // We sent successfully; update some properties
-                            // in the original message to indicate export
-                            // and updated mapping of message -> Activity record
-                            //
+                            //  carry on regardless if we sent and record
+                            //  the item in the user's Outbox collection
                             return callback(null, activity, fromUser);
                         }
                     );
                 },
                 (activity, fromUser, callback) => {
-                    Collection.addOutboxItem(fromUser, activity, (err, localId) => {
-                        if (!err) {
-                            this.log.debug(
-                                { localId, activityId: activity.id },
-                                'Note Activity persisted to database'
-                            );
+                    //  If we failed to send above,
+                    Collection.addOutboxItem(
+                        fromUser,
+                        activity,
+                        message.isPrivate(),
+                        (err, localId) => {
+                            if (!err) {
+                                this.log.debug(
+                                    { localId, activityId: activity.id },
+                                    'Note Activity persisted to "outbox" collection"'
+                                );
+                            }
+                            return callback(err, activity);
                         }
-                        return callback(err, activity);
-                    });
+                    );
                 },
                 (activity, callback) => {
                     // mark exported
