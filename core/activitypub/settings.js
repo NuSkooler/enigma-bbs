@@ -5,7 +5,7 @@ module.exports = class ActivityPubSettings {
         this.enabled = true; //  :TODO: fetch from +op config default
         this.manuallyApproveFollowers = false;
         this.hideSocialGraph = false; // followers, following
-        this.showRealName = false;
+        this.showRealName = true;
         this.image = '';
         this.icon = '';
 

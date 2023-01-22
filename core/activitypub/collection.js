@@ -3,11 +3,18 @@ const ActivityPubObject = require('./object');
 const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
 
-const { isString, get } = require('lodash');
+const { isString, get, isObject } = require('lodash');
+
+const APPublicCollectionId = 'https://www.w3.org/ns/activitystreams#Public';
+const APPublicOwningUserId = 0;
 
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
         super(obj);
+    }
+
+    static get PublicCollectionId() {
+        return APPublicCollectionId;
     }
 
     static followers(owningUser, page, webServer, cb) {
@@ -68,17 +75,29 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
+    static addPublicInboxItem(inboxItem, cb) {
+        return Collection.addToCollection(
+            'publicInbox',
+            APPublicOwningUserId,
+            inboxItem.id,
+            inboxItem,
+            false,
+            cb
+        );
+    }
+
     static getOrdered(name, owningUser, includePrivate, page, mapper, webServer, cb) {
         const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';
         const followersUrl =
             makeUserUrl(webServer, owningUser, '/ap/users/') + `/${name}`;
+        const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
 
         if (!page) {
             return apDb.get(
                 `SELECT COUNT(id) AS count
                 FROM collection
                 WHERE user_id = ? AND name = ?${privateQuery};`,
-                [owningUser.userId, name],
+                [owningUserId, name],
                 (err, row) => {
                     if (err) {
                         return cb(err);
@@ -118,7 +137,7 @@ module.exports = class Collection extends ActivityPubObject {
             FROM collection
             WHERE user_id = ? AND name = ?${privateQuery}
             ORDER BY timestamp;`,
-            [owningUser.userId, name],
+            [owningUserId, name],
             (err, entries) => {
                 if (err) {
                     return cb(err);
@@ -147,11 +166,12 @@ module.exports = class Collection extends ActivityPubObject {
             obj = JSON.stringify(obj);
         }
 
+        const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
         isPrivate = isPrivate ? 1 : 0;
         apDb.run(
             `INSERT OR IGNORE INTO collection (name, timestamp, user_id, obj_id, obj_json, is_private)
             VALUES (?, ?, ?, ?, ?, ?);`,
-            [name, getISOTimestampString(), owningUser.userId, objectId, obj, isPrivate],
+            [name, getISOTimestampString(), owningUserId, objectId, obj, isPrivate],
             function res(err) {
                 // non-arrow for 'this' scope
                 if (err) {
@@ -163,10 +183,11 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static removeFromCollectionById(name, owningUser, objectId, cb) {
+        const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
         apDb.run(
             `DELETE FROM collection
             WHERE user_id = ? AND name = ? AND obj_id = ?;`,
-            [owningUser.userId, name, objectId],
+            [owningUserId, name, objectId],
             err => {
                 return cb(err);
             }

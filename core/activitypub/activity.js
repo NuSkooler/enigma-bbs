@@ -23,6 +23,16 @@ module.exports = class Activity extends ActivityPubObject {
         return WellKnownActivityTypes;
     }
 
+    static makeFollow(webServer, localActor, remoteActor, id = null) {
+        id = id || Activity._makeFullId(webServer, 'follow');
+        return new Activity({
+            id,
+            type: 'Follow',
+            actor: localActor,
+            object: remoteActor.id,
+        });
+    }
+
     // https://www.w3.org/TR/activitypub/#accept-activity-inbox
     static makeAccept(webServer, localActor, followRequest, id = null) {
         id = id || Activity._makeFullId(webServer, 'accept');

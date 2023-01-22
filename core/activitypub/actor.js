@@ -9,6 +9,7 @@ const {
     makeUserUrl,
     selfUrl,
     isValidLink,
+    makeSharedInboxUrl,
 } = require('../activitypub/util');
 const { ActivityStreamsContext } = require('./const');
 const Log = require('../logger').log;
@@ -86,9 +87,11 @@ module.exports = class Actor extends ActivityPubObject {
             id: userSelfUrl,
             type: 'Person',
             preferredUsername: user.username,
-            name: user.getSanitizedName('real'),
+            name: userSettings.showRealName
+                ? user.getSanitizedName('real')
+                : user.username,
             endpoints: {
-                sharedInbox: 'TODO',
+                sharedInbox: makeSharedInboxUrl(webServer),
             },
             inbox: makeUserUrl(webServer, user, '/ap/users/') + '/inbox',
             outbox: makeUserUrl(webServer, user, '/ap/users/') + '/outbox',

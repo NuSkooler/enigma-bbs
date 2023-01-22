@@ -14,6 +14,7 @@ const moment = require('moment');
 
 exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 exports.isValidLink = isValidLink;
+exports.makeSharedInboxUrl = makeSharedInboxUrl;
 exports.makeUserUrl = makeUserUrl;
 exports.webFingerProfileUrl = webFingerProfileUrl;
 exports.selfUrl = selfUrl;
@@ -37,6 +38,10 @@ Achievement Points: %ACHIEVEMENT_POINTS%
 
 function isValidLink(l) {
     return /^https?:\/\/.+$/.test(l);
+}
+
+function makeSharedInboxUrl(webServer) {
+    return webServer.buildUrl(WellKnownLocations.Internal + '/ap/shared-inbox');
 }
 
 function makeUserUrl(webServer, user, relPrefix) {

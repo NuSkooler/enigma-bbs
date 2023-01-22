@@ -529,7 +529,7 @@ dbs.message.run(
                 id                  INTEGER PRIMARY KEY,    -- Auto-generated key
                 name                VARCHAR NOT NULL,       -- examples: followers, follows, ...
                 timestamp           DATETIME NOT NULL,      -- Timestamp in which this entry was created
-                user_id             INTEGER NOT NULL,       -- Local, owning user ID
+                user_id             INTEGER NOT NULL,       -- Local, owning user ID, 0 means "all" for sharedInbox
                 obj_id              VARCHAR NOT NULL,       -- Object ID from obj_json.id
                 obj_json            VARCHAR NOT NULL,       -- Object varies by collection (obj_json.type)
                 is_private          INTEGER NOT NULL,       -- Is this object private to |user_id|?

@@ -57,6 +57,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
 
         this.webServer.addRoute({
+            method: 'POST',
+            path: /^\/_enig\/ap\/shared-inbox$/,
+            handler: this._sharedInboxPostHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=[0-9]+)?$/,
             handler: (req, resp) => {
@@ -162,20 +168,20 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
 
         req.on('end', () => {
-            let activity;
-            try {
-                activity = JSON.parse(Buffer.concat(body).toString());
-                activity = new Activity(activity);
-            } catch (e) {
+            const activity = Activity.fromJsonString(Buffer.concat(body).toString());
+            if (!activity) {
                 this.log.error(
-                    { error: e.message, url: req.url, method: req.method },
+                    { url: req.url, method: req.method, endpoint: 'inbox' },
                     'Failed to parse Activity'
                 );
                 return this.webServer.resourceNotFound(resp);
             }
 
             if (!activity.isValid()) {
-                this.log.warn({ activity }, 'Invalid or unsupported Activity');
+                this.log.warn(
+                    { activity, endpoint: 'inbox' },
+                    'Invalid or unsupported Activity'
+                );
                 return this.webServer.badRequest(resp);
             }
 
@@ -192,6 +198,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 case 'Undo':
                     return this._inboxUndoRequestHandler(activity, req, resp);
 
+                //  :TODO: Create, etc.
+
                 default:
                     this.log.warn(
                         { type: activity.type },
@@ -202,6 +210,100 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             return this.webServer.resourceNotFound(resp);
         });
+    }
+
+    _sharedInboxPostHandler(req, resp) {
+        const body = [];
+        req.on('data', d => {
+            body.push(d);
+        });
+
+        req.on('end', () => {
+            const activity = Activity.fromJsonString(Buffer.concat(body).toString());
+            if (!activity) {
+                this.log.error(
+                    { url: req.url, method: req.method, endpoint: 'sharedInbox' },
+                    'Failed to parse Activity'
+                );
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            if (!activity.isValid()) {
+                this.log.warn(
+                    { activity, endpoint: 'sharedInbox' },
+                    'Invalid or unsupported Activity'
+                );
+                return this.webServer.badRequest(resp);
+            }
+
+            switch (activity.type) {
+                case 'Create':
+                    return this._sharedInboxCreateActivity(req, resp, activity);
+
+                default:
+                    this.log.warn(
+                        { type: activity.type },
+                        'Invalid or unknown Activity type'
+                    );
+                    return this.resourceNotFound(resp);
+            }
+        });
+    }
+
+    _sharedInboxCreateActivity(req, resp, activity) {
+        // When an object is being delivered to the originating actor's followers,
+        // a server MAY reduce the number of receiving actors delivered to by
+        // identifying all followers which share the same sharedInbox who would
+        // otherwise be individual recipients and instead deliver objects to said
+        // sharedInbox. Thus in this scenario, the remote/receiving server participates
+        // in determining targeting and performing delivery to specific inboxes.
+        let toActors = activity.to;
+        if (!Array.isArray(toActors)) {
+            toActors = [toActors];
+        }
+
+        const createWhat = _.get(activity, 'object.type');
+        switch (createWhat) {
+            case 'Note':
+                return this._deliverSharedInboxNote(req, resp, toActors, activity);
+
+            default:
+                this.log.warn(
+                    { type: createWhat },
+                    'Invalid or unsupported "Create" type'
+                );
+                return this.resourceNotFound(resp);
+        }
+    }
+
+    _deliverSharedInboxNote(req, resp, toActors, activity) {
+        async.forEach(
+            toActors,
+            (actor, nextActor) => {
+                if (Collection.PublicCollectionId === actor) {
+                    // Deliver to inbox for "everyone":
+                    // - Add to 'sharedInbox' collection
+                    //
+                    Collection.addPublicInboxItem(activity.object, err => {
+                        if (err) {
+                            return nextActor(err);
+                        }
+
+                        return nextActor(null);
+                    });
+                } else {
+                    nextActor(null);
+                }
+            },
+            err => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                resp.writeHead(202);
+                return resp.end('');
+            }
+        );
     }
 
     _getCollectionHandler(name, req, resp, signature) {
