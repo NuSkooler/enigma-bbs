@@ -17,11 +17,13 @@ const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
 const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
+const apDb = require('../database').dbs.activitypub;
 
 //  deps
 const _ = require('lodash');
 const mimeTypes = require('mime-types');
 const { getJson } = require('../http_util.js');
+const { getISOTimestampString } = require('../database.js');
 
 // https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor extends ActivityPubObject {
@@ -136,13 +138,48 @@ module.exports = class Actor extends ActivityPubObject {
         return cb(null, new Actor(obj));
     }
 
-    static fromRemoteUrl(url, cb) {
-        //  :TODO: cache first
+    static fromId(id, forceRefresh, cb) {
+        if (_.isFunction(forceRefresh) && !cb) {
+            cb = forceRefresh;
+            forceRefresh = false;
+        }
+
+        Actor.fromCache(id, (err, actor) => {
+            if (err) {
+                if (forceRefresh) {
+                    return cb(err);
+                }
+
+                Actor.fromRemoteQuery(id, (err, actor) => {
+                    // deliver result to caller
+                    cb(err, actor);
+
+                    // cache our entry
+                    if (actor) {
+                        apDb.run(
+                            `INSERT INTO actor_cache (actor_id, actor_json, timestamp)
+                            VALUES (?, ?, ?);`,
+                            [id, JSON.stringify(actor), getISOTimestampString()],
+                            err => {
+                                if (err) {
+                                    //  :TODO: log me
+                                }
+                            }
+                        );
+                    }
+                });
+            } else {
+                return cb(null, actor);
+            }
+        });
+    }
+
+    static fromRemoteQuery(id, cb) {
         const headers = {
             Accept: 'application/activity+json',
         };
 
-        getJson(url, { headers }, (err, actor) => {
+        getJson(id, { headers }, (err, actor) => {
             if (err) {
                 return cb(err);
             }
@@ -157,8 +194,44 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
-    static fromAccountName(actorName, options, cb) {
+    static fromCache(id, cb) {
+        apDb.get(
+            `SELECT actor_json
+            FROM actor_cache
+            WHERE actor_id = ?
+            LIMIT 1;`,
+            [id],
+            (err, row) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                if (!row) {
+                    return cb(Errors.DoesNotExist());
+                }
+
+                const obj = ActivityPubObject.fromJsonString(row.actor_json);
+                if (!obj || !obj.isValid()) {
+                    return cb(Errors.Invalid('Failed to create ActivityPub object'));
+                }
+
+                const actor = new Actor(obj);
+                if (!actor.isValid()) {
+                    return cb(Errors.Invalid('Failed to create Actor object'));
+                }
+
+                return cb(null, actor);
+            }
+        );
+    }
+
+    static fromAccountName(actorName, cb) {
         //  :TODO: cache first -- do we have an Actor for this account already with a OK TTL?
+
+        //  account names can come in multiple forms, so need a cache mapping of that as well
+        //  actor_alias_cache
+        //  actor_alias | actor_id
+        //
 
         queryWebFinger(actorName, (err, res) => {
             if (err) {
@@ -182,12 +255,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             // we can now query the href value for an Actor
-            return Actor.fromRemoteUrl(activityLink.href, cb);
+            return Actor.fromId(activityLink.href, cb);
         });
-    }
-
-    static fromJsonString(json) {
-        const parsed = JSON.parse(json);
-        return new Actor(parsed);
     }
 };

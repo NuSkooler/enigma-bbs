@@ -17,6 +17,7 @@ const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
+const Note = require('../../../activitypub/note');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -96,6 +97,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     this._followingGetHandler.bind(this)
                 );
             },
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note$/,
+            handler: this._singlePublicNoteGetHandler.bind(this),
         });
 
         //  :TODO: NYI
@@ -359,6 +367,22 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return this._getCollectionHandler('outbox', req, resp, signature);
     }
 
+    _singlePublicNoteGetHandler(req, resp) {
+        this.log.debug({ url: req.url }, 'Request for "Note"');
+
+        const url = new URL(req.url, `https://${req.headers.host}`);
+        const noteId = url.toString();
+
+        Note.fromPublicNoteId(noteId, (err, note) => {
+            if (err) {
+                return this.webServer.internalServerError(resp, err);
+            }
+
+            resp.writeHead(200, { 'Content-Type': 'text/html' });
+            return resp.end(note.content);
+        });
+    }
+
     _accountNameFromUserPath(url, suffix) {
         const re = new RegExp(`^/_enig/ap/users/(.+)/${suffix}(\\?page=[0-9]+)?$`);
         const m = url.pathname.match(re);
@@ -478,7 +502,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            Actor.fromRemoteUrl(activity.actor, (err, actor) => {
+            Actor.fromId(activity.actor, (err, actor) => {
                 if (err) {
                     return this.webServer.internalServerError(resp, err);
                 }

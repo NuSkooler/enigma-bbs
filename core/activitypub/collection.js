@@ -2,7 +2,9 @@ const { makeUserUrl } = require('./util');
 const ActivityPubObject = require('./object');
 const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
+const { Errors } = require('../enig_error.js');
 
+// deps
 const { isString, get, isObject } = require('lodash');
 
 const APPublicCollectionId = 'https://www.w3.org/ns/activitystreams#Public';
@@ -86,18 +88,62 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static getOrdered(name, owningUser, includePrivate, page, mapper, webServer, cb) {
+    static embeddedObjById(collectionName, includePrivate, objectId, cb) {
         const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';
-        const followersUrl =
-            makeUserUrl(webServer, owningUser, '/ap/users/') + `/${name}`;
+
+        apDb.get(
+            `SELECT obj_json
+            FROM collection
+            WHERE name = ?
+            ${privateQuery}
+            AND json_extract(obj_json, '$.object.id') = ?;`,
+            [collectionName, objectId],
+            (err, row) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                if (!row) {
+                    return cb(
+                        Errors.DoesNotExist(
+                            `No embedded Object with object.id of "${objectId}" found`
+                        )
+                    );
+                }
+
+                const obj = ActivityPubObject.fromJsonString(row.obj_json);
+                if (!obj) {
+                    return cb(Errors.Invalid('Failed to parse Object JSON'));
+                }
+
+                return cb(null, obj);
+            }
+        );
+    }
+
+    static getOrdered(
+        collectionName,
+        owningUser,
+        includePrivate,
+        page,
+        mapper,
+        webServer,
+        cb
+    ) {
+        const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';
         const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
+
+        // e.g. http://some.host/_enig/ap/collections/1234/followers
+        const collectionIdBase =
+            makeUserUrl(webServer, owningUser, `/ap/collections/${owningUserId}`) +
+            `/${collectionName}`;
 
         if (!page) {
             return apDb.get(
                 `SELECT COUNT(id) AS count
                 FROM collection
                 WHERE user_id = ? AND name = ?${privateQuery};`,
-                [owningUserId, name],
+                [owningUserId, collectionName],
                 (err, row) => {
                     if (err) {
                         return cb(err);
@@ -112,14 +158,14 @@ module.exports = class Collection extends ActivityPubObject {
                     let obj;
                     if (row.count > 0) {
                         obj = {
-                            id: followersUrl,
+                            id: collectionIdBase,
                             type: 'OrderedCollection',
-                            first: `${followersUrl}?page=1`,
+                            first: `${collectionIdBase}?page=1`,
                             totalItems: row.count,
                         };
                     } else {
                         obj = {
-                            id: followersUrl,
+                            id: collectionIdBase,
                             type: 'OrderedCollection',
                             totalItems: 0,
                             orderedItems: [],
@@ -137,7 +183,7 @@ module.exports = class Collection extends ActivityPubObject {
             FROM collection
             WHERE user_id = ? AND name = ?${privateQuery}
             ORDER BY timestamp;`,
-            [owningUserId, name],
+            [owningUserId, collectionName],
             (err, entries) => {
                 if (err) {
                     return cb(err);
@@ -149,11 +195,11 @@ module.exports = class Collection extends ActivityPubObject {
                 }
 
                 const obj = {
-                    id: `${followersUrl}/page=${page}`,
+                    id: `${collectionIdBase}/page=${page}`,
                     type: 'OrderedCollectionPage',
                     totalItems: entries.length,
                     orderedItems: entries,
-                    partOf: followersUrl,
+                    partOf: collectionIdBase,
                 };
 
                 return cb(null, new Collection(obj));
@@ -161,7 +207,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addToCollection(name, owningUser, objectId, obj, isPrivate, cb) {
+    static addToCollection(collectionName, owningUser, objectId, obj, isPrivate, cb) {
         if (!isString(obj)) {
             obj = JSON.stringify(obj);
         }
@@ -171,7 +217,14 @@ module.exports = class Collection extends ActivityPubObject {
         apDb.run(
             `INSERT OR IGNORE INTO collection (name, timestamp, user_id, obj_id, obj_json, is_private)
             VALUES (?, ?, ?, ?, ?, ?);`,
-            [name, getISOTimestampString(), owningUserId, objectId, obj, isPrivate],
+            [
+                collectionName,
+                getISOTimestampString(),
+                owningUserId,
+                objectId,
+                obj,
+                isPrivate,
+            ],
             function res(err) {
                 // non-arrow for 'this' scope
                 if (err) {
@@ -182,12 +235,12 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static removeFromCollectionById(name, owningUser, objectId, cb) {
+    static removeFromCollectionById(collectionName, owningUser, objectId, cb) {
         const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
         apDb.run(
             `DELETE FROM collection
             WHERE user_id = ? AND name = ? AND obj_id = ?;`,
-            [owningUserId, name, objectId],
+            [owningUserId, collectionName, objectId],
             err => {
                 return cb(err);
             }

@@ -8,6 +8,7 @@ const Log = require('../logger').log;
 const async = require('async');
 const _ = require('lodash');
 const Collection = require('../activitypub/collection');
+const Note = require('../activitypub/note');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -42,18 +43,31 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
         async.waterfall(
             [
                 callback => {
-                    return Activity.noteFromLocalMessage(
-                        this._webServer(),
+                    Note.fromLocalOutgoingMessage(
                         message,
-                        callback
+                        this._webServer(),
+                        (err, noteInfo) => {
+                            return callback(err, noteInfo);
+                        }
                     );
                 },
                 (noteInfo, callback) => {
-                    const { activity, fromUser, remoteActor } = noteInfo;
+                    const { note, fromUser, remoteActor } = noteInfo;
+
+                    const activity = Activity.makeCreate(
+                        this._webServer(),
+                        note.attributedTo,
+                        note
+                    );
 
                     //  :TODO: Implement retry logic (connection issues, retryable HTTP status) ??
+                    //const inbox = remoteActor.inbox;
+
+                    const inbox = remoteActor.endpoints.sharedInbox;
+                    activity.object.to = 'https://www.w3.org/ns/activitystreams#Public';
+
                     activity.sendTo(
-                        remoteActor.inbox,
+                        inbox,
                         fromUser,
                         this._webServer(),
                         (err, respBody, res) => {

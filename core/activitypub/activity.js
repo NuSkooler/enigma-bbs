@@ -1,17 +1,11 @@
-const { messageBodyToHtml, selfUrl } = require('./util');
-const { ActivityStreamsContext, WellKnownActivityTypes } = require('./const');
+const { selfUrl } = require('./util');
+const { WellKnownActivityTypes } = require('./const');
 const ActivityPubObject = require('./object');
-const User = require('../user');
-const Actor = require('./actor');
 const { Errors } = require('../enig_error');
-const { getISOTimestampString } = require('../database');
 const UserProps = require('../user_property');
 const { postJson } = require('../http_util');
-const { WellKnownLocations } = require('../servers/content/web');
 
 // deps
-const { v4: UUIDv4 } = require('uuid');
-const async = require('async');
 const _ = require('lodash');
 
 module.exports = class Activity extends ActivityPubObject {
@@ -23,10 +17,9 @@ module.exports = class Activity extends ActivityPubObject {
         return WellKnownActivityTypes;
     }
 
-    static makeFollow(webServer, localActor, remoteActor, id = null) {
-        id = id || Activity._makeFullId(webServer, 'follow');
+    static makeFollow(webServer, localActor, remoteActor) {
         return new Activity({
-            id,
+            id: Activity.activityObjectId(webServer),
             type: 'Follow',
             actor: localActor,
             object: remoteActor.id,
@@ -34,92 +27,22 @@ module.exports = class Activity extends ActivityPubObject {
     }
 
     // https://www.w3.org/TR/activitypub/#accept-activity-inbox
-    static makeAccept(webServer, localActor, followRequest, id = null) {
-        id = id || Activity._makeFullId(webServer, 'accept');
-
+    static makeAccept(webServer, localActor, followRequest) {
         return new Activity({
-            id,
+            id: Activity.activityObjectId(webServer),
             type: 'Accept',
             actor: localActor,
             object: followRequest, // previous request Activity
         });
     }
 
-    static noteFromLocalMessage(webServer, message, cb) {
-        const localUserId = message.getLocalFromUserId();
-        if (!localUserId) {
-            return cb(Errors.UnexpectedState('Invalid user ID for local user!'));
-        }
-
-        async.waterfall(
-            [
-                callback => {
-                    return User.getUser(localUserId, callback);
-                },
-                (localUser, callback) => {
-                    const remoteActorAccount = message.getRemoteToUser();
-                    if (!remoteActorAccount) {
-                        return callback(
-                            Errors.UnexpectedState(
-                                'Message does not contain a remote address'
-                            )
-                        );
-                    }
-
-                    const opts = {};
-                    Actor.fromAccountName(
-                        remoteActorAccount,
-                        opts,
-                        (err, remoteActor) => {
-                            return callback(err, localUser, remoteActor);
-                        }
-                    );
-                },
-                (localUser, remoteActor, callback) => {
-                    Actor.fromLocalUser(localUser, webServer, (err, localActor) => {
-                        return callback(err, localUser, localActor, remoteActor);
-                    });
-                },
-                (localUser, localActor, remoteActor, callback) => {
-                    // we'll need the entire |activityId| as a linked reference later
-                    const activityId = Activity._makeFullId(webServer, 'create');
-
-                    const obj = {
-                        '@context': ActivityStreamsContext,
-                        id: activityId,
-                        type: 'Create',
-                        actor: localActor.id,
-                        object: {
-                            id: Activity._makeFullId(webServer, 'note'),
-                            type: 'Note',
-                            published: getISOTimestampString(message.modTimestamp),
-                            attributedTo: localActor.id,
-                            audience: [message.isPrivate() ? 'as:Private' : 'as:Public'],
-                            // :TODO: inReplyto if this is a reply; we need this store in message meta.
-
-                            content: messageBodyToHtml(message.message.trim()),
-                        },
-                    };
-
-                    //  :TODO: this probably needs to change quite a bit based on "groups"
-                    //  :TODO: verify we need both 'to' fields: https://socialhub.activitypub.rocks/t/problems-posting-to-mastodon-inbox/801/4
-                    if (message.isPrivate()) {
-                        //obj.to = remoteActor.id;
-                        obj.object.to = remoteActor.id;
-                    } else {
-                        const publicInbox = `${ActivityStreamsContext}#Public`;
-                        //obj.to = publicInbox;
-                        obj.object.to = publicInbox;
-                    }
-
-                    const activity = new Activity(obj);
-                    return callback(null, activity, localUser, remoteActor);
-                },
-            ],
-            (err, activity, fromUser, remoteActor) => {
-                return cb(err, { activity, fromUser, remoteActor });
-            }
-        );
+    static makeCreate(webServer, actor, obj) {
+        return new Activity({
+            id: Activity.activityObjectId(webServer),
+            type: 'Create',
+            actor,
+            object: obj,
+        });
     }
 
     sendTo(actorUrl, fromUser, webServer, cb) {
@@ -149,10 +72,7 @@ module.exports = class Activity extends ActivityPubObject {
         return postJson(actorUrl, activityJson, reqOpts, cb);
     }
 
-    static _makeFullId(webServer, prefix) {
-        // e.g. http://some.host/_enig/ap/note/bf81a22e-cb3e-41c8-b114-21f375b61124
-        return webServer.buildUrl(
-            WellKnownLocations.Internal + `/ap/${prefix}/${UUIDv4()}`
-        );
+    static activityObjectId(webServer) {
+        return ActivityPubObject.makeObjectId(webServer, 'activity');
     }
 };

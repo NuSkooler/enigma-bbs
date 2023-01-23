@@ -178,7 +178,25 @@ module.exports = class Message {
     }
 
     isFromRemoteUser() {
-        return null !== _.get(this, 'meta.System.remote_from_user', null);
+        return null !== this.getRemoteFromUser();
+    }
+
+    setRemoteFromUser(remoteFrom) {
+        this.meta[Message.WellKnownMetaCategories.System][
+            Message.SystemMetaNames.RemoteFromUser
+        ] = remoteFrom;
+    }
+
+    getRemoteFromUser() {
+        return _.get(
+            this,
+            [
+                'meta',
+                Message.WellKnownMetaCategories.System,
+                Message.SystemMetaNames.RemoteFromUser,
+            ],
+            null
+        );
     }
 
     isCP437Encodable() {

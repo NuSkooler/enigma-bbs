@@ -519,11 +519,19 @@ dbs.message.run(
             ON actor_cache (actor_id);`
         );
 
+        //  Mapping of known aliases for a fully qualified Actor ID
+        //  generally obtained via WebFinger
         dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS outbox_activity_json_type_index0
-            ON outbox (json_extract(activity_json, '$.type'));`
+            `CREATE TABLE IF NOT EXISTS actor_alias_cache (
+                id                  INTEGER PRIMARY KEY,
+                alias               VARCHAR NOT NULL,
+                actor_id            VARCHAR NOT NULL,   -- Fully qualified Actor ID/URL
+
+                UNIQUE(alias)
+            );`
         );
 
+        //  ActivityPub Collections of various types such as followers, following, likes, ...
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS collection (
                 id                  INTEGER PRIMARY KEY,    -- Auto-generated key
