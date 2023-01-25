@@ -4,6 +4,7 @@ const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const UserProps = require('../user_property');
 const { postJson } = require('../http_util');
+const { getISOTimestampString } = require('../database');
 
 // deps
 const _ = require('lodash');
@@ -42,6 +43,17 @@ module.exports = class Activity extends ActivityPubObject {
             type: 'Create',
             actor,
             object: obj,
+        });
+    }
+
+    static makeTombstone(obj) {
+        const deleted = getISOTimestampString();
+        return new Activity({
+            id: obj.id,
+            type: 'Tombstone',
+            deleted,
+            published: deleted,
+            updated: deleted,
         });
     }
 

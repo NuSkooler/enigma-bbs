@@ -69,7 +69,7 @@
                             }
                         ]
                     }
-                    actionKeys: @reference: common.escToPrev
+                    actionKeys: @reference:common.escToPrev
                 }
                 1: {
                     mci: {

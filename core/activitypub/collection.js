@@ -54,6 +54,17 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
+    static addFollowRequest(owningUser, requestingActor, cb) {
+        return Collection.addToCollection(
+            'follow_requests',
+            owningUser,
+            requestingActor.id,
+            requestingActor,
+            true,
+            cb
+        );
+    }
+
     static outbox(owningUser, page, webServer, cb) {
         return Collection.getOrdered(
             'outbox',
@@ -203,6 +214,25 @@ module.exports = class Collection extends ActivityPubObject {
                 };
 
                 return cb(null, new Collection(obj));
+            }
+        );
+    }
+
+    // https://www.w3.org/TR/activitypub/#update-activity-inbox
+    static updateCollectionEntry(collectionName, objectId, obj, cb) {
+        if (!isString(obj)) {
+            obj = JSON.stringify(obj);
+        }
+
+        //  :TODO: The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum, this may be done by ensuring that the Update and its object are of same origin.
+
+        apDb.run(
+            `UPDATE collection
+            SET obj_json = ?, timestamp = ?
+            WHERE name = ? AND obj_id = ?;`,
+            [obj, collectionName, getISOTimestampString(), objectId],
+            err => {
+                return cb(err);
             }
         );
     }

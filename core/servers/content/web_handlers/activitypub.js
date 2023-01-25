@@ -203,6 +203,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         resp
                     );
 
+                case 'Update':
+                    return this._inboxUpdateRequestHandler(activity, req, resp);
+
                 case 'Undo':
                     return this._inboxUndoRequestHandler(activity, req, resp);
 
@@ -378,6 +381,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.internalServerError(resp, err);
             }
 
+            //  :TODO: support a template here
+
             resp.writeHead(200, { 'Content-Type': 'text/html' });
             return resp.end(note.content);
         });
@@ -431,6 +436,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _inboxFollowRequestHandler(activity, remoteActor, user, resp) {
         this.log.info({ user_id: user.userId, actor: activity.actor }, 'Follow request');
 
+        const ok = () => {
+            resp.writeHead(200, { 'Content-Type': 'text/html' });
+            return resp.end('');
+        };
+
         //
         //  If the user blindly accepts Followers, we can persist
         //  and send an 'Accept' now. Otherwise, we need to queue this
@@ -440,16 +450,29 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const activityPubSettings = ActivityPubSettings.fromUser(user);
         if (!activityPubSettings.manuallyApproveFollowers) {
             this._recordAcceptedFollowRequest(user, remoteActor, activity);
+            return ok();
         } else {
-            //  :TODO: queue the request
-        }
+            Collection.addFollowRequest(user, remoteActor, err => {
+                if (err) {
+                    return this.internalServerError(resp, err);
+                }
 
-        resp.writeHead(200, { 'Content-Type': 'text/html' });
-        return resp.end('');
+                return ok();
+            });
+        }
+    }
+
+    _inboxUpdateRequestHandler(activity, req, resp) {
+        this.log.info({ actor: activity.actor }, 'Update Activity request');
+
+        return this.webServer.notImplemented(resp);
+
+        // Collection.updateCollectionEntry('inbox', activity.id, activity, err => {
+        // });
     }
 
     _inboxUndoRequestHandler(activity, req, resp) {
-        this.log.info({ actor: activity.actor }, 'Undo request');
+        this.log.info({ actor: activity.actor }, 'Undo Activity request');
 
         const url = new URL(req.url, `https://${req.headers.host}`);
         const accountName = this._accountNameFromUserPath(url, 'inbox');
