@@ -2675,6 +2675,11 @@ strip-json-comments@~2.0.1:
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
   integrity sha512-4gB8na07fecVVkOI6Rs4e7T6NOTki5EmL7TUduTs6bu3EdnSycntVJ4re8kgZA+wx9IueI2Y11bfbgwtzuE0KQ==
 
+striptags@^4.0.0-alpha.4:
+  version "4.0.0-alpha.4"
+  resolved "https://registry.yarnpkg.com/striptags/-/striptags-4.0.0-alpha.4.tgz#824f1ac040f824574316ce87a3663c0c4df9900d"
+  integrity sha512-/0jWyVWhpg9ciRHfjKYBpMHXct/HrFRfsR2HU77nGPbc8SPcVSIHZlZR/0TG3MyPq2C+HiHuwx8BlbcdI/cNbw==
+
 supports-color@^7.1.0:
   version "7.1.0"
   resolved "https://registry.npmjs.org/supports-color/-/supports-color-7.1.0.tgz"

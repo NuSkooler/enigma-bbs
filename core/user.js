@@ -937,6 +937,15 @@ module.exports = class User {
         );
     }
 
+    static getUserByUsername(username, cb) {
+        User.getUserIdAndName(username, (err, userId) => {
+            if (err) {
+                return cb(err);
+            }
+            return User.getUser(userId, cb);
+        });
+    }
+
     static getUserIdAndNameByRealName(realName, cb) {
         userDb.get(
             `SELECT id, user_name

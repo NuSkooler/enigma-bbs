@@ -1,4 +1,5 @@
 exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
+exports.PublicCollectionId = 'https://www.w3.org/ns/activitystreams#Public';
 
 const WellKnownActivity = {
     Create: 'Create',

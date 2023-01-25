@@ -11,6 +11,7 @@ const waterfall = require('async/waterfall');
 const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
+const { striptags } = require('striptags');
 
 exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 exports.isValidLink = isValidLink;
@@ -22,6 +23,7 @@ exports.userFromAccount = userFromAccount;
 exports.accountFromSelfUrl = accountFromSelfUrl;
 exports.getUserProfileTemplatedBody = getUserProfileTemplatedBody;
 exports.messageBodyToHtml = messageBodyToHtml;
+exports.htmlToMessageBody = htmlToMessageBody;
 
 //  :TODO: more info in default
 // this profile template is the *default* for both WebFinger
@@ -174,4 +176,8 @@ function getUserProfileTemplatedBody(
 //
 function messageBodyToHtml(body) {
     return `<p>${body.replace(/\r?\n/g, '<br>')}</p>`;
+}
+
+function htmlToMessageBody(html) {
+    return striptags(html);
 }

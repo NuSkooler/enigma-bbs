@@ -11,6 +11,7 @@ const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
 const Collection = require('../../../activitypub/collection');
 const EnigAssert = require('../../../enigma_assert');
+const Message = require('../../../message');
 
 // deps
 const _ = require('lodash');
@@ -18,6 +19,7 @@ const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
 const Note = require('../../../activitypub/note');
+const User = require('../../../user');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -262,12 +264,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _sharedInboxCreateActivity(req, resp, activity) {
-        // When an object is being delivered to the originating actor's followers,
-        // a server MAY reduce the number of receiving actors delivered to by
-        // identifying all followers which share the same sharedInbox who would
-        // otherwise be individual recipients and instead deliver objects to said
-        // sharedInbox. Thus in this scenario, the remote/receiving server participates
-        // in determining targeting and performing delivery to specific inboxes.
         let toActors = activity.to;
         if (!Array.isArray(toActors)) {
             toActors = [toActors];
@@ -288,22 +284,36 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _deliverSharedInboxNote(req, resp, toActors, activity) {
+        // When an object is being delivered to the originating actor's followers,
+        // a server MAY reduce the number of receiving actors delivered to by
+        // identifying all followers which share the same sharedInbox who would
+        // otherwise be individual recipients and instead deliver objects to said
+        // sharedInbox. Thus in this scenario, the remote/receiving server participates
+        // in determining targeting and performing delivery to specific inboxes.
+        const note = new Note(activity.object);
+        if (!note.isValid()) {
+            //  :TODO: Log me
+            return this.webServer.notImplemented();
+        }
+
         async.forEach(
             toActors,
-            (actor, nextActor) => {
-                if (Collection.PublicCollectionId === actor) {
+            (actorId, nextActor) => {
+                if (Collection.PublicCollectionId === actorId) {
                     // Deliver to inbox for "everyone":
                     // - Add to 'sharedInbox' collection
                     //
-                    Collection.addPublicInboxItem(activity.object, err => {
-                        if (err) {
-                            return nextActor(err);
-                        }
-
-                        return nextActor(null);
+                    Collection.addPublicInboxItem(note, err => {
+                        return nextActor(err);
                     });
                 } else {
-                    nextActor(null);
+                    this._deliverInboxNoteToLocalActor(
+                        req,
+                        resp,
+                        actorId,
+                        note,
+                        nextActor
+                    );
                 }
             },
             err => {
@@ -315,6 +325,49 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return resp.end('');
             }
         );
+    }
+
+    _deliverInboxNoteToLocalActor(req, resp, actorId, note, cb) {
+        const localUserName = accountFromSelfUrl(actorId);
+        if (!localUserName) {
+            this.log.debug({ url: req.url }, 'Could not get username from URL');
+            return cb(null);
+        }
+
+        User.getUserByUsername(localUserName, (err, localUser) => {
+            if (err) {
+                this.log.info(
+                    { username: localUserName },
+                    `No local user account for "${localUserName}"`
+                );
+                return cb(null);
+            }
+
+            Collection.addInboxItem(note, localUser, err => {
+                if (err) {
+                    return cb(err);
+                }
+
+                //
+                // Import the item to the user's private mailbox
+                //
+                const messageOpts = {
+                    //  Notes can have 1:N 'to' relationships while a Message is 1:1;
+                    toUser: localUser,
+                    areaTag: Message.WellKnownAreaTags.Private,
+                };
+
+                note.toMessage(messageOpts, (err, message) => {
+                    if (err) {
+                        return cb(err);
+                    }
+
+                    message.persist(err => {
+                        return cb(err);
+                    });
+                });
+            });
+        });
     }
 
     _getCollectionHandler(name, req, resp, signature) {

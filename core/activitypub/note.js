@@ -3,7 +3,7 @@ const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const { getISOTimestampString } = require('../database');
 const User = require('../user');
-const { messageBodyToHtml } = require('./util');
+const { messageBodyToHtml, htmlToMessageBody } = require('./util');
 
 // deps
 const { v5: UUIDv5 } = require('uuid');
@@ -11,6 +11,7 @@ const Actor = require('./actor');
 const moment = require('moment');
 const Collection = require('./collection');
 const async = require('async');
+const { isString, isObject } = require('lodash');
 
 const APMessageIdNamespace = '307bc7b3-3735-4573-9a20-e3f9eaac29c5';
 
@@ -90,7 +91,7 @@ module.exports = class Note extends ActivityPubObject {
                         audience: [message.isPrivate() ? 'as:Private' : 'as:Public'],
 
                         // :TODO: inReplyto if this is a reply; we need this store in message meta.
-
+                        summary: message.subject,
                         content: messageBodyToHtml(message.message.trim()),
                     };
 
@@ -104,24 +105,39 @@ module.exports = class Note extends ActivityPubObject {
         );
     }
 
-    toMessage(cb) {
+    toMessage(options, cb) {
+        if (!isObject(options.toUser) || !isString(options.areaTag)) {
+            return cb(Errors.MissingParam('Missing one or more required options!'));
+        }
+
         // stable ID based on Note ID
         const message = new Message({
             uuid: UUIDv5(this.id, APMessageIdNamespace),
         });
 
-        // Fetch the remote actor
+        // Fetch the remote actor info to get their user info
         Actor.fromId(this.attributedTo, false, (err, attributedToActor) => {
             if (err) {
                 //  :TODO: Log me
-                message.toUserName = this.attributedTo; // have some sort of value =/
+                message.fromUserName = this.attributedTo; // have some sort of value =/
             } else {
-                message.toUserName =
+                message.fromUserName =
                     attributedToActor.preferredUsername || this.attributedTo;
             }
 
+            //
+            //  Note's can be addressed to 1:N users, but a Message is a 1:1
+            //  relationship. This method requires the mapping up front via options
+            //
+            (message.toUserName = options.toUser.username),
+                (message.meta.System[Message.SystemMetaNames.LocalToUserID] =
+                    options.toUser.userId);
+            message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
+
             message.subject = this.summary || '-ActivityPub-';
-            message.message = this.content; //  :TODO: HTML to suitable format, or even strip
+
+            //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
+            message.message = htmlToMessageBody(this.content);
 
             try {
                 message.modTimestamp = moment(this.published);
@@ -130,21 +146,17 @@ module.exports = class Note extends ActivityPubObject {
                 message.modTimestamp = moment();
             }
 
-            //  :TODO: areaTag
             //  :TODO: replyToMsgId from 'inReplyTo'
-            //  :TODO: RemoteFromUser
-
-            message.meta[Message.WellKnownMetaCategories.ActivityPub] =
-                message.meta[Message.WellKnownMetaCategories.ActivityPub] || {};
-            const apMeta = message.meta[Message.WellKnownAreaTags.ActivityPub];
-
-            apMeta[Message.ActivityPubPropertyNames.ActivityId] = this.id;
-            if (this.InReplyTo) {
-                apMeta[Message.ActivityPubPropertyNames.InReplyTo] = this.InReplyTo;
-            }
-
             message.setRemoteFromUser(this.attributedTo);
-            message.setExternalFlavor(Message.ExternalFlavor.ActivityPub);
+            message.setExternalFlavor(Message.AddressFlavor.ActivityPub);
+
+            message.meta.ActivityPub = message.meta.ActivityPub || {};
+            message.meta.ActivityPub[Message.ActivityPubPropertyNames.ActivityId] =
+                this.id;
+            if (this.InReplyTo) {
+                message.meta.ActivityPub[Message.ActivityPubPropertyNames.InReplyTo] =
+                    this.InReplyTo;
+            }
 
             return cb(null, message);
         });

@@ -3,11 +3,11 @@ const ActivityPubObject = require('./object');
 const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
 const { Errors } = require('../enig_error.js');
+const { PublicCollectionId: APPublicCollectionId } = require('./const');
 
 // deps
 const { isString, get, isObject } = require('lodash');
 
-const APPublicCollectionId = 'https://www.w3.org/ns/activitystreams#Public';
 const APPublicOwningUserId = 0;
 
 module.exports = class Collection extends ActivityPubObject {
@@ -84,6 +84,17 @@ module.exports = class Collection extends ActivityPubObject {
             outboxItem.id,
             outboxItem,
             isPrivate,
+            cb
+        );
+    }
+
+    static addInboxItem(inboxItem, owningUser, cb) {
+        return Collection.addToCollection(
+            'inbox',
+            owningUser,
+            inboxItem.id,
+            inboxItem,
+            true,
             cb
         );
     }
