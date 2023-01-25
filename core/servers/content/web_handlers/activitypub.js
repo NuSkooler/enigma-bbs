@@ -318,6 +318,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             },
             err => {
                 if (err) {
+                    //  :TODO: If sqlite constraint, just return OK -- it's a dupe
                     return this.webServer.internalServerError(resp, err);
                 }
 
