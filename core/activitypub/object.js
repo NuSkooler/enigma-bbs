@@ -1,4 +1,4 @@
-const { ActivityStreamsContext } = require('./const');
+const { ActivityStreamsContext } = require('./util');
 const { WellKnownLocations } = require('../servers/content/web');
 
 // deps

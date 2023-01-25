@@ -5,13 +5,13 @@
 const { Errors } = require('../enig_error.js');
 const UserProps = require('../user_property');
 const {
+    ActivityStreamsContext,
     webFingerProfileUrl,
     makeUserUrl,
     selfUrl,
     isValidLink,
     makeSharedInboxUrl,
-} = require('../activitypub/util');
-const { ActivityStreamsContext } = require('./const');
+} = require('./util');
 const Log = require('../logger').log;
 const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');

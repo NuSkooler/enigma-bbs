@@ -1,5 +1,4 @@
-const { selfUrl } = require('./util');
-const { WellKnownActivityTypes } = require('./const');
+const { selfUrl, WellKnownActivityTypes } = require('./util');
 const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const UserProps = require('../user_property');
