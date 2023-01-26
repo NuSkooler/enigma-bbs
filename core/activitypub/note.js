@@ -171,10 +171,18 @@ module.exports = class Note extends ActivityPubObject {
 
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
             message.message = htmlToMessageBody(this.content);
-            message.subject =
-                this.summary ||
-                truncate(message.message, { length: 32, omission: '...' }) ||
-                APDefaultSummary;
+
+            //  If the summary is not present, build one using the message itself;
+            //  finally, default to a static subject so there is *something* if
+            //  all else fails.
+            if (this.summary) {
+                message.subject = this.summary;
+            } else {
+                let subject = message.message.replace(`@${message.toUserName} `, '');
+                subject = truncate(subject, { length: 32, omission: '...' });
+                subject = subject || APDefaultSummary;
+                message.subject = subject;
+            }
 
             try {
                 message.modTimestamp = moment(this.published);

@@ -258,7 +258,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         { type: activity.type },
                         'Invalid or unknown Activity type'
                     );
-                    return this.resourceNotFound(resp);
+                    return this.webServer.resourceNotFound(resp);
             }
         });
     }
@@ -279,7 +279,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     { type: createWhat },
                     'Invalid or unsupported "Create" type'
                 );
-                return this.resourceNotFound(resp);
+                return this.webServer.resourceNotFound(resp);
         }
     }
 

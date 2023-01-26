@@ -3,12 +3,13 @@
 
 const EnigmaAssert = require('./enigma_assert.js');
 const Address = require('./ftn_address.js');
-const { AddressFlavor } = require('./message.js');
-const Message = require('./message.js');
+const MessageConst = require('./message_const');
+const { getQuotePrefix } = require('./ftn_util');
 
 exports.getAddressedToInfo = getAddressedToInfo;
 exports.setExternalAddressedToInfo = setExternalAddressedToInfo;
 exports.copyExternalAddressedToInfo = copyExternalAddressedToInfo;
+exports.getQuotePrefixFromName = getQuotePrefixFromName;
 
 const EMAIL_REGEX =
     /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[?[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}]?)|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
@@ -35,29 +36,29 @@ function getAddressedToInfo(input) {
     if (firstAtPos < 0) {
         let addr = Address.fromString(input);
         if (Address.isValidAddress(addr)) {
-            return { flavor: AddressFlavor.FTN, remote: input };
+            return { flavor: MessageConst.AddressFlavor.FTN, remote: input };
         }
 
         const lessThanPos = input.indexOf('<');
         if (lessThanPos < 0) {
-            return { name: input, flavor: AddressFlavor.Local };
+            return { name: input, flavor: MessageConst.AddressFlavor.Local };
         }
 
         const greaterThanPos = input.indexOf('>');
         if (greaterThanPos < lessThanPos) {
-            return { name: input, flavor: AddressFlavor.Local };
+            return { name: input, flavor: MessageConst.AddressFlavor.Local };
         }
 
         addr = Address.fromString(input.slice(lessThanPos + 1, greaterThanPos));
         if (Address.isValidAddress(addr)) {
             return {
                 name: input.slice(0, lessThanPos).trim(),
-                flavor: AddressFlavor.FTN,
+                flavor: MessageConst.AddressFlavor.FTN,
                 remote: addr.toString(),
             };
         }
 
-        return { name: input, flavor: AddressFlavor.Local };
+        return { name: input, flavor: MessageConst.AddressFlavor.Local };
     }
 
     if (firstAtPos === 0) {
@@ -67,7 +68,7 @@ function getAddressedToInfo(input) {
             if (m) {
                 return {
                     name: input.slice(1, secondAtPos),
-                    flavor: AddressFlavor.ActivityPub,
+                    flavor: MessageConst.AddressFlavor.ActivityPub,
                     remote: input.slice(firstAtPos),
                 };
             }
@@ -82,38 +83,38 @@ function getAddressedToInfo(input) {
         if (m) {
             return {
                 name: input.slice(0, lessThanPos).trim(),
-                flavor: AddressFlavor.Email,
+                flavor: MessageConst.AddressFlavor.Email,
                 remote: addr,
             };
         }
 
-        return { name: input, flavor: AddressFlavor.Local };
+        return { name: input, flavor: MessageConst.AddressFlavor.Local };
     }
 
     let m = input.match(EMAIL_REGEX);
     if (m) {
         return {
             name: input.slice(0, firstAtPos),
-            flavor: AddressFlavor.Email,
+            flavor: MessageConst.AddressFlavor.Email,
             remote: input,
         };
     }
 
     let addr = Address.fromString(input); //  5D?
     if (Address.isValidAddress(addr)) {
-        return { flavor: AddressFlavor.FTN, remote: addr.toString() };
+        return { flavor: MessageConst.AddressFlavor.FTN, remote: addr.toString() };
     }
 
     addr = Address.fromString(input.slice(firstAtPos + 1).trim());
     if (Address.isValidAddress(addr)) {
         return {
             name: input.slice(0, firstAtPos).trim(),
-            flavor: AddressFlavor.FTN,
+            flavor: MessageConst.AddressFlavor.FTN,
             remote: addr.toString(),
         };
     }
 
-    return { name: input, flavor: AddressFlavor.Local };
+    return { name: input, flavor: MessageConst.AddressFlavor.Local };
 }
 
 /// returns true if it's an external address
@@ -123,11 +124,11 @@ function setExternalAddressedToInfo(addressInfo, message) {
     };
 
     switch (addressInfo.flavor) {
-        case AddressFlavor.FTN:
-        case AddressFlavor.Email:
-        case AddressFlavor.QWK:
-        case AddressFlavor.NNTP:
-        case AddressFlavor.ActivityPub:
+        case MessageConst.AddressFlavor.FTN:
+        case MessageConst.AddressFlavor.Email:
+        case MessageConst.AddressFlavor.QWK:
+        case MessageConst.AddressFlavor.NNTP:
+        case MessageConst.AddressFlavor.ActivityPub:
             EnigmaAssert(isValidAddressInfo());
 
             message.setRemoteToUser(addressInfo.remote);
@@ -136,13 +137,18 @@ function setExternalAddressedToInfo(addressInfo, message) {
             return true;
 
         default:
-        case AddressFlavor.Local:
+        case MessageConst.AddressFlavor.Local:
             return false;
     }
 }
 
 function copyExternalAddressedToInfo(fromMessage, toMessage) {
-    const sm = Message.SystemMetaNames;
+    const sm = MessageConst.SystemMetaNames;
     toMessage.setRemoteToUser(fromMessage.meta.System[sm.RemoteFromUser]);
     toMessage.setExternalFlavor(fromMessage.meta.System[sm.ExternalFlavor]);
+}
+
+function getQuotePrefixFromName(name) {
+    const addrInfo = getAddressedToInfo(name);
+    return getQuotePrefix(addrInfo.name || name);
 }

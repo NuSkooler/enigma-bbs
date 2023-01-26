@@ -3,14 +3,14 @@
 
 const msgDb = require('./database.js').dbs.message;
 const wordWrapText = require('./word_wrap.js').wordWrapText;
-const ftnUtil = require('./ftn_util.js');
 const createNamedUUID = require('./uuid_util.js').createNamedUUID;
 const Errors = require('./enig_error.js').Errors;
 const ANSI = require('./ansi_term.js');
 const { sanitizeString, getISOTimestampString } = require('./database.js');
-
 const { isCP437Encodable } = require('./cp437util');
 const { containsNonLatinCodepoints } = require('./string_util');
+const MessageConst = require('./message_const');
+const { getQuotePrefixFromName } = require('./mail_util');
 
 const {
     isAnsi,
@@ -32,93 +32,6 @@ const iconvEncode = require('iconv-lite').encode;
 const ENIGMA_MESSAGE_UUID_NAMESPACE = uuidParse.parse(
     '154506df-1df8-46b9-98f8-ebb5815baaf8'
 );
-
-const WELL_KNOWN_AREA_TAGS = {
-    Invalid: '',
-    Private: 'private_mail',
-    Bulletin: 'local_bulletin',
-};
-
-const WellKnownMetaCategories = {
-    System: 'System',
-    FtnProperty: 'FtnProperty',
-    FtnKludge: 'FtnKludge',
-    QwkProperty: 'QwkProperty',
-    QwkKludge: 'QwkKludge',
-    ActivityPub: 'ActivityPub',
-};
-
-//  Category: WellKnownMetaCategories.System ("System")
-const SYSTEM_META_NAMES = {
-    LocalToUserID: 'local_to_user_id',
-    LocalFromUserID: 'local_from_user_id',
-    StateFlags0: 'state_flags0', //  See Message.StateFlags0
-    ExplicitEncoding: 'explicit_encoding', //  Explicitly set encoding when exporting/etc.
-    ExternalFlavor: 'external_flavor', //  "Flavor" of message - imported from or to be exported to. See Message.AddressFlavor
-    RemoteToUser: 'remote_to_user', //  Opaque value depends on external system, e.g. FTN address
-    RemoteFromUser: 'remote_from_user', //  Opaque value depends on external system, e.g. FTN address
-};
-
-//  Types for Message.SystemMetaNames.ExternalFlavor meta
-const ADDRESS_FLAVOR = {
-    Local: 'local', //  local / non-remote addressing
-    FTN: 'ftn', //  FTN style
-    Email: 'email', //  From email
-    QWK: 'qwk', //  QWK packet
-    NNTP: 'nntp', // NNTP article POST; often a email address
-    ActivityPub: 'activitypub', //  ActivityPub, Mastodon, etc.
-};
-
-const STATE_FLAGS0 = {
-    None: 0x00000000,
-    Imported: 0x00000001, //  imported from foreign system
-    Exported: 0x00000002, //  exported to foreign system
-};
-
-//  :TODO: these should really live elsewhere...
-// Category: WellKnownMetaCategories.FtnProperty ("FtnProperty")
-const FTN_PROPERTY_NAMES = {
-    //  packet header oriented
-    FtnOrigNode: 'ftn_orig_node',
-    FtnDestNode: 'ftn_dest_node',
-    //  :TODO: rename these to ftn_*_net vs network - ensure things won't break, may need mapping
-    FtnOrigNetwork: 'ftn_orig_network',
-    FtnDestNetwork: 'ftn_dest_network',
-    FtnAttrFlags: 'ftn_attr_flags',
-    FtnCost: 'ftn_cost',
-    FtnOrigZone: 'ftn_orig_zone',
-    FtnDestZone: 'ftn_dest_zone',
-    FtnOrigPoint: 'ftn_orig_point',
-    FtnDestPoint: 'ftn_dest_point',
-
-    //  message header oriented
-    FtnMsgOrigNode: 'ftn_msg_orig_node',
-    FtnMsgDestNode: 'ftn_msg_dest_node',
-    FtnMsgOrigNet: 'ftn_msg_orig_net',
-    FtnMsgDestNet: 'ftn_msg_dest_net',
-
-    FtnAttribute: 'ftn_attribute',
-
-    FtnTearLine: 'ftn_tear_line', //  http://ftsc.org/docs/fts-0004.001
-    FtnOrigin: 'ftn_origin', //  http://ftsc.org/docs/fts-0004.001
-    FtnArea: 'ftn_area', //  http://ftsc.org/docs/fts-0004.001
-    FtnSeenBy: 'ftn_seen_by', //  http://ftsc.org/docs/fts-0004.001
-};
-
-//  Category: WellKnownMetaCategories.QwkProperty
-const QWKPropertyNames = {
-    MessageNumber: 'qwk_msg_num',
-    MessageStatus: 'qwk_msg_status', //  See http://wiki.synchro.net/ref:qwk for a decent list
-    ConferenceNumber: 'qwk_conf_num',
-    InReplyToNum: 'qwk_in_reply_to_num', //  note that we prefer the 'InReplyToMsgId' kludge if available
-};
-
-// Category: WellKnownMetaCategories.ActivityPub
-const ActivityPubPropertyNames = {
-    ActivityId: 'activitypub_activity_id', //  Activity ID; FK to AP table entries
-    InReplyTo: 'activitypub_in_reply_to', //  Activity ID from 'inReplyTo' field
-    NoteId: 'activitypub_note_id', // Note ID specific to Note Activities
-};
 
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
 const MESSAGE_ROW_MAP = {
@@ -247,35 +160,35 @@ module.exports = class Message {
     }
 
     static get WellKnownMetaCategories() {
-        return WellKnownMetaCategories;
+        return MessageConst.WellKnownMetaCategories;
     }
 
     static get WellKnownAreaTags() {
-        return WELL_KNOWN_AREA_TAGS;
+        return MessageConst.WellKnownAreaTags;
     }
 
     static get SystemMetaNames() {
-        return SYSTEM_META_NAMES;
+        return MessageConst.SystemMetaNames;
     }
 
     static get AddressFlavor() {
-        return ADDRESS_FLAVOR;
+        return MessageConst.AddressFlavor;
     }
 
     static get StateFlags0() {
-        return STATE_FLAGS0;
+        return MessageConst.StateFlags0;
     }
 
     static get FtnPropertyNames() {
-        return FTN_PROPERTY_NAMES;
+        return MessageConst.FtnPropertyNames;
     }
 
     static get QWKPropertyNames() {
-        return QWKPropertyNames;
+        return MessageConst.QWKPropertyNames;
     }
 
     static get ActivityPubPropertyNames() {
-        return ActivityPubPropertyNames;
+        return MessageConst.ActivityPubPropertyNames;
     }
 
     setLocalToUserId(userId) {
@@ -943,11 +856,13 @@ module.exports = class Message {
         );
     }
 
-    //  :TODO: FTN stuff doesn't have any business here
-    getFTNQuotePrefix(source) {
+    _getQuotePrefix(source) {
         source = source || 'fromUserName';
 
-        return ftnUtil.getQuotePrefix(this[source]);
+        //  grab out the name member, so we don't try to build
+        //  quote prefixes such as "@N" for "@NuSkooler@some.host", etc.
+        const userName = this[source];
+        return getQuotePrefixFromName(userName);
     }
 
     static getTearLinePosition(input) {
@@ -982,7 +897,7 @@ module.exports = class Message {
 
         */
         const quotePrefix = options.includePrefix
-            ? this.getFTNQuotePrefix(options.prefixSource || 'fromUserName')
+            ? this._getQuotePrefix(options.prefixSource || 'fromUserName')
             : '';
 
         function getWrapped(text, extraPrefix) {
