@@ -7,23 +7,45 @@ const { getJson } = require('./http_util');
 
 exports.queryWebFinger = queryWebFinger;
 
-function queryWebFinger(account, cb) {
+function queryWebFinger(query, cb) {
+    //
+    //  Accept a variety of formats to query via WebFinger
+    //  1) @Username@foo.bar -> query with acct:Username resource
+    //  2) http/https URL -> query with resource = URL
+    //  3) If not one of the above and a '/' is present in the query,
+    //     assume https:// and try #2
+    //
+
     // ex: @NuSkooler@toot.community -> https://toot.community/.well-known/webfinger with acct:NuSkooler resource
-    const addrInfo = getAddressedToInfo(account);
+    const addrInfo = getAddressedToInfo(query);
+    let resource;
+    let host;
     if (
-        addrInfo.flavor !== Message.AddressFlavor.ActivityPub &&
-        addrInfo.flavor !== Message.AddressFlavor.Email
+        addrInfo.flavor === Message.AddressFlavor.ActivityPub ||
+        addrInfo.flavor === Message.AddressFlavor.Email
     ) {
-        return cb(Errors.Invalid(`Cannot WebFinger "${account.remote}"; Missing domain`));
+        host = addrInfo.remote.slice(addrInfo.remote.lastIndexOf('@') + 1);
+        if (!host) {
+            return cb(Errors.Invalid(`Unsure how to WebFinger "${query}"`));
+        }
+        resource = `acct:${addrInfo.name}@${host}`;
+    } else {
+        if (!/^https?:\/\/.+$/.test(query)) {
+            resource = `https://${query}`;
+        } else {
+            resource = query;
+        }
+
+        try {
+            const url = new URL(resource);
+            host = url.host;
+        } catch (e) {
+            return cb(Errors.Invalid(`Cannot WebFinger "${query}": ${e.message}`));
+        }
     }
 
-    const domain = addrInfo.remote.slice(addrInfo.remote.lastIndexOf('@') + 1);
-    if (!domain) {
-        return cb(Errors.Invalid(`Cannot WebFinger "${account.remote}"; Missing domain`));
-    }
-
-    const resource = encodeURIComponent(`acct:${account.slice(1)}`); // we need drop the initial '@' prefix
-    const webFingerUrl = `https://${domain}/.well-known/webfinger?resource=${resource}`;
+    resource = encodeURIComponent(resource);
+    const webFingerUrl = `https://${host}/.well-known/webfinger?resource=${resource}`;
     getJson(webFingerUrl, {}, (err, json, res) => {
         if (err) {
             return cb(err);

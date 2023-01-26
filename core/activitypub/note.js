@@ -14,6 +14,7 @@ const async = require('async');
 const { isString, isObject } = require('lodash');
 
 const APMessageIdNamespace = '307bc7b3-3735-4573-9a20-e3f9eaac29c5';
+const APDefaultSummary = '[ActivityPub]';
 
 module.exports = class Note extends ActivityPubObject {
     constructor(obj) {
@@ -71,7 +72,7 @@ module.exports = class Note extends ActivityPubObject {
                     });
                 },
                 (fromUser, fromActor, callback) => {
-                    Actor.fromAccountName(remoteActorAccount, (err, remoteActor) => {
+                    Actor.fromId(remoteActorAccount, (err, remoteActor) => {
                         return callback(err, fromUser, fromActor, remoteActor);
                     });
                 },
@@ -91,9 +92,13 @@ module.exports = class Note extends ActivityPubObject {
                         audience: [message.isPrivate() ? 'as:Private' : 'as:Public'],
 
                         // :TODO: inReplyto if this is a reply; we need this store in message meta.
-                        summary: message.subject,
                         content: messageBodyToHtml(message.message.trim()),
                     };
+
+                    //  Filter out replace replacement
+                    if (message.subject !== APDefaultSummary) {
+                        obj.summary = message.subject;
+                    }
 
                     const note = new Note(obj);
                     return callback(null, { note, fromUser, remoteActor });
@@ -116,25 +121,23 @@ module.exports = class Note extends ActivityPubObject {
         });
 
         // Fetch the remote actor info to get their user info
-        Actor.fromId(this.attributedTo, false, (err, attributedToActor) => {
+        Actor.fromId(this.attributedTo, (err, attributedToActor, fromActorSubject) => {
             if (err) {
-                //  :TODO: Log me
-                message.fromUserName = this.attributedTo; // have some sort of value =/
-            } else {
-                message.fromUserName =
-                    attributedToActor.preferredUsername || this.attributedTo;
+                return cb(err);
             }
+
+            message.fromUserName = fromActorSubject || this.attributedTo;
 
             //
             //  Note's can be addressed to 1:N users, but a Message is a 1:1
             //  relationship. This method requires the mapping up front via options
             //
-            (message.toUserName = options.toUser.username),
-                (message.meta.System[Message.SystemMetaNames.LocalToUserID] =
-                    options.toUser.userId);
+            message.toUserName = options.toUser.username;
+            message.meta.System[Message.SystemMetaNames.LocalToUserID] =
+                options.toUser.userId;
             message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
 
-            message.subject = this.summary || '-ActivityPub-';
+            message.subject = this.summary || APDefaultSummary;
 
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
             message.message = htmlToMessageBody(this.content);

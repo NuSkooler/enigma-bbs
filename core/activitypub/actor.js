@@ -11,6 +11,7 @@ const {
     selfUrl,
     isValidLink,
     makeSharedInboxUrl,
+    userNameFromSubject,
 } = require('./util');
 const Log = require('../logger').log;
 const { queryWebFinger } = require('../webfinger');
@@ -24,6 +25,9 @@ const _ = require('lodash');
 const mimeTypes = require('mime-types');
 const { getJson } = require('../http_util.js');
 const { getISOTimestampString } = require('../database.js');
+const moment = require('moment');
+
+const ActorCacheTTL = moment.duration(1, 'day');
 
 // https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor extends ActivityPubObject {
@@ -138,43 +142,42 @@ module.exports = class Actor extends ActivityPubObject {
         return cb(null, new Actor(obj));
     }
 
-    static fromId(id, forceRefresh, cb) {
-        if (_.isFunction(forceRefresh) && !cb) {
-            cb = forceRefresh;
-            forceRefresh = false;
-        }
+    static fromId(id, cb) {
+        Actor._fromCache(id, (err, actor, subject) => {
+            if (!err) {
+                // cache hit
+                return cb(null, actor, subject);
+            }
 
-        Actor.fromCache(id, (err, actor) => {
-            if (err) {
-                if (forceRefresh) {
-                    return cb(err);
+            // cache miss: attempt to fetch & populate
+            Actor._fromWebFinger(id, (err, actor, subject) => {
+                if (subject) {
+                    subject = `@${userNameFromSubject(subject)}`; // e.g. @Username@host.com
+                } else {
+                    subject = actor.id; //   best we can do for now
                 }
 
-                Actor.fromRemoteQuery(id, (err, actor) => {
-                    // deliver result to caller
-                    cb(err, actor);
+                // deliver result to caller
+                cb(err, actor, subject);
 
-                    // cache our entry
-                    if (actor) {
-                        apDb.run(
-                            `INSERT INTO actor_cache (actor_id, actor_json, timestamp)
-                            VALUES (?, ?, ?);`,
-                            [id, JSON.stringify(actor), getISOTimestampString()],
-                            err => {
-                                if (err) {
-                                    //  :TODO: log me
-                                }
+                // cache our entry
+                if (actor) {
+                    apDb.run(
+                        `REPLACE INTO actor_cache (actor_id, actor_json, subject, timestamp)
+                        VALUES (?, ?, ?, ?);`,
+                        [id, JSON.stringify(actor), subject, getISOTimestampString()],
+                        err => {
+                            if (err) {
+                                //  :TODO: log me
                             }
-                        );
-                    }
-                });
-            } else {
-                return cb(null, actor);
-            }
+                        }
+                    );
+                }
+            });
         });
     }
 
-    static fromRemoteQuery(id, cb) {
+    static _fromRemoteQuery(id, cb) {
         const headers = {
             Accept: 'application/activity+json',
         };
@@ -194,13 +197,13 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
-    static fromCache(id, cb) {
+    static _fromCache(id, cb) {
         apDb.get(
-            `SELECT actor_json
+            `SELECT actor_json, subject, timestamp
             FROM actor_cache
-            WHERE actor_id = ?
+            WHERE actor_id = ? OR subject = ?
             LIMIT 1;`,
-            [id],
+            [id, id],
             (err, row) => {
                 if (err) {
                     return cb(err);
@@ -208,6 +211,11 @@ module.exports = class Actor extends ActivityPubObject {
 
                 if (!row) {
                     return cb(Errors.DoesNotExist());
+                }
+
+                const timestamp = moment(row.timestamp);
+                if (moment().isAfter(timestamp.add(ActorCacheTTL))) {
+                    return cb(Errors.Expired('The cache entry is expired'));
                 }
 
                 const obj = ActivityPubObject.fromJsonString(row.actor_json);
@@ -220,20 +228,14 @@ module.exports = class Actor extends ActivityPubObject {
                     return cb(Errors.Invalid('Failed to create Actor object'));
                 }
 
-                return cb(null, actor);
+                const subject = row.subject || actor.id;
+                return cb(null, actor, subject);
             }
         );
     }
 
-    static fromAccountName(actorName, cb) {
-        //  :TODO: cache first -- do we have an Actor for this account already with a OK TTL?
-
-        //  account names can come in multiple forms, so need a cache mapping of that as well
-        //  actor_alias_cache
-        //  actor_alias | actor_id
-        //
-
-        queryWebFinger(actorName, (err, res) => {
+    static _fromWebFinger(actorQuery, cb) {
+        queryWebFinger(actorQuery, (err, res) => {
             if (err) {
                 return cb(err);
             }
@@ -255,7 +257,9 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             // we can now query the href value for an Actor
-            return Actor.fromId(activityLink.href, cb);
+            return Actor._fromRemoteQuery(activityLink.href, (err, actor) => {
+                return cb(err, actor, res.subject);
+            });
         });
     }
 };

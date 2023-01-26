@@ -24,6 +24,7 @@ exports.accountFromSelfUrl = accountFromSelfUrl;
 exports.getUserProfileTemplatedBody = getUserProfileTemplatedBody;
 exports.messageBodyToHtml = messageBodyToHtml;
 exports.htmlToMessageBody = htmlToMessageBody;
+exports.userNameFromSubject = userNameFromSubject;
 
 //  :TODO: more info in default
 // this profile template is the *default* for both WebFinger
@@ -180,4 +181,8 @@ function messageBodyToHtml(body) {
 
 function htmlToMessageBody(html) {
     return striptags(html);
+}
+
+function userNameFromSubject(subject) {
+    return subject.replace(/^acct:(.+)$/, '$1');
 }

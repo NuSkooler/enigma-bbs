@@ -61,10 +61,10 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     );
 
                     //  :TODO: Implement retry logic (connection issues, retryable HTTP status) ??
-                    //const inbox = remoteActor.inbox;
+                    const inbox = remoteActor.inbox;
 
-                    const inbox = remoteActor.endpoints.sharedInbox;
-                    activity.object.to = 'https://www.w3.org/ns/activitystreams#Public';
+                    // const inbox = remoteActor.endpoints.sharedInbox;
+                    // activity.object.to = 'https://www.w3.org/ns/activitystreams#Public';
 
                     activity.sendTo(
                         inbox,

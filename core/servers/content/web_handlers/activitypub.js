@@ -299,6 +299,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         async.forEach(
             toActors,
             (actorId, nextActor) => {
+                //  :TODO: verify this - if *any* audience/actor is public, then this message is public I believe.
                 if (Collection.PublicCollectionId === actorId) {
                     // Deliver to inbox for "everyone":
                     // - Add to 'sharedInbox' collection
@@ -318,7 +319,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             },
             err => {
                 if (err) {
-                    //  :TODO: If sqlite constraint, just return OK -- it's a dupe
+                    // if we get a dupe, just tell the remote everything is A-OK
+                    if ('SQLITE_CONSTRAINT' === err.code) {
+                        resp.writeHead(202);
+                        return resp.end('');
+                    }
+
                     return this.webServer.internalServerError(resp, err);
                 }
 

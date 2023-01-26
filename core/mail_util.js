@@ -25,7 +25,7 @@ const EMAIL_REGEX =
     43:20/100.2                        { flavor : 'ftn', remote : '43:20/100.2' }
     foo@host.com                       { name : 'foo', flavor : 'email', remote : 'foo@host.com' }
     Bar <baz@foobar.net>               { name : 'Bar', flavor : 'email', remote : 'baz@foobar.com' }
-    @JoeUser@some.host.com             { name : 'Joe User', flavor : 'activitypub', remote 'JoeUser@some.host.com' }
+    @JoeUser@some.host.com             { name : 'JoeUser', flavor : 'activitypub', remote 'JoeUser@some.host.com' }
 */
 function getAddressedToInfo(input) {
     input = input.trim();

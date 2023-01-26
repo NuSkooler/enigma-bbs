@@ -56,6 +56,7 @@ exports.Errors = {
     Timeout: (reason, reasonCode) => new EnigError('Timeout', -32014, reason, reasonCode),
     MissingProperty: (reason, reasonCode) =>
         new EnigError('Missing property', -32014, reason, reasonCode),
+    Expired: (reason, reasonCode) => new EnigError('Expired', -32015, reason, reasonCode),
 };
 
 exports.ErrorReasons = {

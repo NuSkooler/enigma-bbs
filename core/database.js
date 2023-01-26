@@ -505,9 +505,10 @@ dbs.message.run(
         // Actors we know about and have cached
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS actor_cache (
-                id                  INTEGER PRIMARY KEY,    -- Local DB ID
+                actor_cache_id      INTEGER PRIMARY KEY,    -- Local DB ID
                 actor_id            VARCHAR NOT NULL,       -- Fully qualified Actor ID/URL
                 actor_json          VARCHAR NOT NULL,       -- Actor document
+                subject             VARCHAR,                -- Subject obtained from WebFinger, e.g. @Username@some.domain
                 timestamp           DATETIME NOT NULL,      -- Timestamp in which this Actor was cached
 
                 UNIQUE(actor_id)
