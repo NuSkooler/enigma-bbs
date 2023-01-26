@@ -313,6 +313,11 @@ exports.getModule = class WebServerModule extends ServerModule {
         });
     }
 
+    accepted(resp, body = '', headers = { 'Content-Type:': 'text/html' }) {
+        resp.writeHead(202, 'Accepted', body ? headers : null);
+        return resp.end(body);
+    }
+
     badRequest(resp) {
         return this.respondWithError(resp, 400, 'Bad request.', 'Bad Request');
     }

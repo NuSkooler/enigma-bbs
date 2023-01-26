@@ -299,11 +299,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         async.forEach(
             toActors,
             (actorId, nextActor) => {
-                //  :TODO: verify this - if *any* audience/actor is public, then this message is public I believe.
                 if (Collection.PublicCollectionId === actorId) {
-                    // Deliver to inbox for "everyone":
-                    // - Add to 'sharedInbox' collection
-                    //
+                    //  :TODO: we should probably land this in a public areaTag as well for AP; allowing Message objects to be used/etc.
                     Collection.addPublicInboxItem(note, err => {
                         return nextActor(err);
                     });
@@ -312,29 +309,23 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         req,
                         resp,
                         actorId,
+                        activity,
                         note,
                         nextActor
                     );
                 }
             },
             err => {
-                if (err) {
-                    // if we get a dupe, just tell the remote everything is A-OK
-                    if ('SQLITE_CONSTRAINT' === err.code) {
-                        resp.writeHead(202);
-                        return resp.end('');
-                    }
-
+                if (err && 'SQLITE_CONSTRAINT' !== err.code) {
                     return this.webServer.internalServerError(resp, err);
                 }
 
-                resp.writeHead(202);
-                return resp.end('');
+                return this.webServer.accepted(resp);
             }
         );
     }
 
-    _deliverInboxNoteToLocalActor(req, resp, actorId, note, cb) {
+    _deliverInboxNoteToLocalActor(req, resp, actorId, activity, note, cb) {
         const localUserName = accountFromSelfUrl(actorId);
         if (!localUserName) {
             this.log.debug({ url: req.url }, 'Could not get username from URL');
@@ -360,6 +351,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 //
                 const messageOpts = {
                     //  Notes can have 1:N 'to' relationships while a Message is 1:1;
+                    activityId: activity.id,
                     toUser: localUser,
                     areaTag: Message.WellKnownAreaTags.Private,
                 };
@@ -564,8 +556,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         'Undo "Follow" (un-follow) success'
                     );
 
-                    resp.writeHead(202);
-                    return resp.end('');
+                    return this.webServer.accepted(resp);
                 }
             );
         });

@@ -3,6 +3,7 @@ const User = require('../user');
 const { Errors, ErrorReasons } = require('../enig_error');
 const UserProps = require('../user_property');
 const ActivityPubSettings = require('./settings');
+const { stripAnsiControlCodes } = require('../string_util');
 
 // deps
 const _ = require('lodash');
@@ -12,6 +13,7 @@ const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
 const { striptags } = require('striptags');
+const { encode, decode } = require('html-entities');
 
 exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 exports.isValidLink = isValidLink;
@@ -173,14 +175,23 @@ function getUserProfileTemplatedBody(
 //
 //  Apply very basic HTML to a message following
 //  Mastodon's supported tags of 'p', 'br', 'a', and 'span':
-//  https://blog.joinmastodon.org/2018/06/how-to-implement-a-basic-activitypub-server/
+//  - https://docs.joinmastodon.org/spec/activitypub/#sanitization
+//  - https://blog.joinmastodon.org/2018/06/how-to-implement-a-basic-activitypub-server/
 //
+//  :TODO: https://docs.joinmastodon.org/spec/microformats/
 function messageBodyToHtml(body) {
-    return `<p>${body.replace(/\r?\n/g, '<br>')}</p>`;
+    body = encode(stripAnsiControlCodes(body), { mode: 'nonAsciiPrintable' }).replace(
+        /\r?\n/g,
+        '<br>'
+    );
+
+    return `<p>${body}</p>`;
 }
 
 function htmlToMessageBody(html) {
-    return striptags(html);
+    // <br>, </br>, and <br/> -> \r\n
+    html = html.replace(/<\/?br?\/?>/g, '\r\n');
+    return striptags(decode(html));
 }
 
 function userNameFromSubject(subject) {

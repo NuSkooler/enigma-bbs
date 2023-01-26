@@ -4,6 +4,7 @@ const { Errors } = require('../enig_error');
 const { getISOTimestampString } = require('../database');
 const User = require('../user');
 const { messageBodyToHtml, htmlToMessageBody } = require('./util');
+const { isAnsi } = require('../string_util');
 
 // deps
 const { v5: UUIDv5 } = require('uuid');
@@ -11,7 +12,7 @@ const Actor = require('./actor');
 const moment = require('moment');
 const Collection = require('./collection');
 const async = require('async');
-const { isString, isObject } = require('lodash');
+const { isString, isObject, truncate } = require('lodash');
 
 const APMessageIdNamespace = '307bc7b3-3735-4573-9a20-e3f9eaac29c5';
 const APDefaultSummary = '[ActivityPub]';
@@ -77,26 +78,57 @@ module.exports = class Note extends ActivityPubObject {
                     });
                 },
                 (fromUser, fromActor, remoteActor, callback) => {
-                    const to = message.isPrivate()
-                        ? remoteActor.id
-                        : Collection.PublicCollectionId;
+                    if (!message.replyToMsgId) {
+                        return callback(null, null, fromUser, fromActor, remoteActor);
+                    }
 
-                    // Refs
-                    // - https://docs.joinmastodon.org/spec/activitypub/#properties-used
+                    Message.getMetaValuesByMessageId(
+                        message.replyToMsgId,
+                        Message.WellKnownMetaCategories.ActivityPub,
+                        Message.ActivityPubPropertyNames.NoteId,
+                        (err, replyToNoteId) => {
+                            // (ignore error)
+                            return callback(
+                                null,
+                                replyToNoteId,
+                                fromUser,
+                                fromActor,
+                                remoteActor
+                            );
+                        }
+                    );
+                },
+                (replyToNoteId, fromUser, fromActor, remoteActor, callback) => {
+                    const to = [
+                        message.isPrivate()
+                            ? remoteActor.id
+                            : Collection.PublicCollectionId,
+                    ];
+
+                    const sourceMediaType = isAnsi(message.message)
+                        ? 'text/x-ansi' // ye ol' https://lists.freedesktop.org/archives/xdg/2006-March/006214.html
+                        : 'text/plain';
+
+                    // https://docs.joinmastodon.org/spec/activitypub/#properties-used
                     const obj = {
                         id: ActivityPubObject.makeObjectId(webServer, 'note'),
                         type: 'Note',
                         published: getISOTimestampString(message.modTimestamp),
                         to,
                         attributedTo: fromActor.id,
-                        audience: [message.isPrivate() ? 'as:Private' : 'as:Public'],
-
-                        // :TODO: inReplyto if this is a reply; we need this store in message meta.
                         content: messageBodyToHtml(message.message.trim()),
+                        source: {
+                            content: message.message,
+                            mediaType: sourceMediaType,
+                        },
                     };
 
-                    //  Filter out replace replacement
-                    if (message.subject !== APDefaultSummary) {
+                    if (replyToNoteId) {
+                        obj.inReplyTo = replyToNoteId;
+                    }
+
+                    //  ignore the subject if it's our default summary value for replies
+                    if (message.subject !== `RE: ${APDefaultSummary}`) {
                         obj.summary = message.subject;
                     }
 
@@ -137,10 +169,12 @@ module.exports = class Note extends ActivityPubObject {
                 options.toUser.userId;
             message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
 
-            message.subject = this.summary || APDefaultSummary;
-
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
             message.message = htmlToMessageBody(this.content);
+            message.subject =
+                this.summary ||
+                truncate(message.message, { length: 32, omission: '...' }) ||
+                APDefaultSummary;
 
             try {
                 message.modTimestamp = moment(this.published);
@@ -155,10 +189,12 @@ module.exports = class Note extends ActivityPubObject {
 
             message.meta.ActivityPub = message.meta.ActivityPub || {};
             message.meta.ActivityPub[Message.ActivityPubPropertyNames.ActivityId] =
-                this.id;
-            if (this.InReplyTo) {
+                options.activityId || 0;
+            message.meta.ActivityPub[Message.ActivityPubPropertyNames.NoteId] = this.id;
+
+            if (this.inReplyTo) {
                 message.meta.ActivityPub[Message.ActivityPubPropertyNames.InReplyTo] =
-                    this.InReplyTo;
+                    this.inReplyTo;
             }
 
             return cb(null, message);

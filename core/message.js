@@ -117,6 +117,7 @@ const QWKPropertyNames = {
 const ActivityPubPropertyNames = {
     ActivityId: 'activitypub_activity_id', //  Activity ID; FK to AP table entries
     InReplyTo: 'activitypub_in_reply_to', //  Activity ID from 'inReplyTo' field
+    NoteId: 'activitypub_note_id', // Note ID specific to Note Activities
 };
 
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!

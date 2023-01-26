@@ -132,6 +132,16 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         }
                     );
                 },
+                (activity, callback) => {
+                    return message.persistMetaValue(
+                        Message.WellKnownMetaCategories.ActivityPub,
+                        Message.ActivityPubPropertyNames.NoteId,
+                        activity.object.id,
+                        err => {
+                            return callback(err, activity);
+                        }
+                    );
+                },
             ],
             (err, activity) => {
                 if (err) {
