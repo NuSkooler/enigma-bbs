@@ -151,9 +151,13 @@ module.exports = class Actor extends ActivityPubObject {
 
             // cache miss: attempt to fetch & populate
             Actor._fromWebFinger(id, (err, actor, subject) => {
+                if (err) {
+                    return cb(err);
+                }
+
                 if (subject) {
                     subject = `@${userNameFromSubject(subject)}`; // e.g. @Username@host.com
-                } else {
+                } else if (!_.isEmpty(actor)) {
                     subject = actor.id; //   best we can do for now
                 }
 
