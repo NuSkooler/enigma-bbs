@@ -70,5 +70,6 @@ module.exports = {
     PublicActivityPubSigningKey: 'public_key_activitypub_sign_rsa_pem', // RSA public key for ActivityPub signing
     PrivateActivityPubSigningKey: 'private_key_activitypub_sign_rsa_pem', // RSA private key (corresponding to PublicActivityPubSigningKey)
 
-    ActivityPubSettings: 'activity_pub_settings', //   JSON object (above); see ActivityPubSettings in activitypub/settings.js
+    ActivityPubSettings: 'activitypub_settings', //   JSON object (above); see ActivityPubSettings in activitypub/settings.js
+    ActivityPubActorId: 'activitypub_actor_id', //  Actor ID representing this users
 };

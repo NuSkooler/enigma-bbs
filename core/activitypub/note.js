@@ -5,6 +5,7 @@ const { getISOTimestampString } = require('../database');
 const User = require('../user');
 const { messageBodyToHtml, htmlToMessageBody } = require('./util');
 const { isAnsi } = require('../string_util');
+const Log = require('../logger').log;
 
 // deps
 const { v5: UUIDv5 } = require('uuid');
@@ -187,7 +188,10 @@ module.exports = class Note extends ActivityPubObject {
             try {
                 message.modTimestamp = moment(this.published);
             } catch (e) {
-                //  :TODO: Log warning
+                Log.warn(
+                    { published: this.published, error: e.message },
+                    'Failed to parse Note published timestamp'
+                );
                 message.modTimestamp = moment();
             }
 
@@ -203,9 +207,30 @@ module.exports = class Note extends ActivityPubObject {
             if (this.inReplyTo) {
                 message.meta.ActivityPub[Message.ActivityPubPropertyNames.InReplyTo] =
                     this.inReplyTo;
-            }
 
-            return cb(null, message);
+                const filter = {
+                    resultType: 'id',
+                    metaTuples: [
+                        {
+                            category: Message.WellKnownMetaCategories.ActivityPub,
+                            name: Message.ActivityPubPropertyNames.InReplyTo,
+                            value: this.inReplyTo,
+                        },
+                    ],
+                    limit: 1,
+                };
+                Message.findMessages(filter, (err, messageId) => {
+                    if (messageId) {
+                        // we get an array, but limited 1; use the first
+                        messageId = messageId[0];
+                        message.replyToMsgId = messageId;
+                    }
+
+                    return cb(null, message);
+                });
+            } else {
+                return cb(null, message);
+            }
         });
     }
 };

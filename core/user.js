@@ -22,7 +22,6 @@ const ssh2 = require('ssh2');
 const AvatarGenerator = require('avatar-generator');
 const paths = require('path');
 const fse = require('fs-extra');
-const ActivityPubSettings = require('./activitypub/settings');
 
 module.exports = class User {
     constructor() {
@@ -49,6 +48,7 @@ module.exports = class User {
 
     static get PBKDF2() {
         return {
+            //  :TODO: bump up iterations for all new PWs
             iterations: 1000,
             keyLen: 128,
             saltLen: 32,
@@ -129,8 +129,14 @@ module.exports = class User {
     }
 
     getSanitizedName(type = 'username') {
-        const name =
-            'real' === type ? this.getProperty(UserProps.RealName) : this.username;
+        let name;
+        switch (type) {
+            case 'real':
+                name = this.getProperty(UserProps.RealName) || this.username;
+                break;
+            default:
+                name = this.username;
+        }
         return sanatizeFilename(name) || `user${this.userId.toString()}`;
     }
 
@@ -507,46 +513,6 @@ module.exports = class User {
                         }
                     );
                 },
-                function setKeyPair(trans, callback) {
-                    self.updateActivityPubKeyPairProperties(err => {
-                        return callback(err, trans);
-                    });
-                },
-                function defaultAvatar(trans, callback) {
-                    self.generateNewRandomAvatar((err, outPath) => {
-                        return callback(err, outPath, trans);
-                    });
-                },
-                function defaultActivityPubSettings(outPath, trans, callback) {
-                    // we have to late import this crap :D
-                    const getServer = require('./listening_server.js').getServer;
-                    const WebServerPackageName = require('./servers/content/web')
-                        .moduleInfo.packageName;
-                    const webServer = getServer(WebServerPackageName);
-
-                    //  :TODO: fetch over +op default overrides here, e.g. 'enabled'
-                    const apSettings = ActivityPubSettings.fromUser(self);
-
-                    // convert |outPath| of avatar to a URL, that, with the web
-                    // server enabled, can be fetched
-                    if (webServer) {
-                        const { makeUserUrl } = require('./activitypub/util');
-                        const filename = paths.basename(outPath);
-                        const url =
-                            makeUserUrl(webServer.instance, self, '/users/') +
-                            `/avatar/${filename}`;
-
-                        apSettings.image = url;
-                        apSettings.icon = url;
-                    }
-
-                    self.setProperty(
-                        UserProps.ActivityPubSettings,
-                        JSON.stringify(apSettings)
-                    );
-
-                    return callback(null, trans);
-                },
                 function setInitialGroupMembership(trans, callback) {
                     //  Assign initial groups. Must perform a clone: #235 - All users are sysops (and I can't un-sysop them)
                     self.groups = [...config.users.defaultGroups];
@@ -558,12 +524,21 @@ module.exports = class User {
 
                     return callback(null, trans);
                 },
+                function newUserPreEvent(trans, callback) {
+                    Events.emit(Events.getSystemEvents().NewUserPrePersist, {
+                        user: self,
+                        sessionId: createUserInfo.sessionId,
+                        callback: err => {
+                            return callback(err, trans);
+                        },
+                    });
+                },
                 function saveAll(trans, callback) {
                     self.persistWithTransaction(trans, err => {
                         return callback(err, trans);
                     });
                 },
-                function sendEvent(trans, callback) {
+                function newUserEvent(trans, callback) {
                     Events.emit(Events.getSystemEvents().NewUser, {
                         user: Object.assign({}, self, {
                             sessionId: createUserInfo.sessionId,
@@ -1048,8 +1023,8 @@ module.exports = class User {
                     userIds.push(row.user_id);
                 }
             },
-            () => {
-                return cb(null, userIds);
+            err => {
+                return cb(err, userIds);
             }
         );
     }

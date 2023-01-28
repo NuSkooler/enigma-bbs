@@ -4,11 +4,10 @@ const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
 const { Errors } = require('../enig_error.js');
 const { PublicCollectionId: APPublicCollectionId } = require('./const');
+const UserProps = require('../user_property');
 
 // deps
-const { isString, get, isObject } = require('lodash');
-
-const APPublicOwningUserId = 0;
+const { isString } = require('lodash');
 
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
@@ -19,34 +18,33 @@ module.exports = class Collection extends ActivityPubObject {
         return APPublicCollectionId;
     }
 
-    static followers(owningUser, page, webServer, cb) {
-        return Collection.getOrdered(
+    static followers(collectionId, page, cb) {
+        return Collection.publicOrderedById(
             'followers',
-            owningUser,
-            false,
+            collectionId,
             page,
             e => e.id,
-            webServer,
             cb
         );
     }
 
-    static following(owningUser, page, webServer, cb) {
-        return Collection.getOrdered(
+    static following(collectionId, page, cb) {
+        return Collection.publicOrderedById(
             'following',
-            owningUser,
-            false,
+            collectionId,
             page,
-            e => get(e, 'object.id'),
-            webServer,
+            e => e.id,
             cb
         );
     }
 
-    static addFollower(owningUser, followingActor, cb) {
+    static addFollower(owningUser, followingActor, webServer, cb) {
+        const collectionId =
+            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/followers';
         return Collection.addToCollection(
             'followers',
             owningUser,
+            collectionId,
             followingActor.id,
             followingActor,
             false,
@@ -54,10 +52,13 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addFollowRequest(owningUser, requestingActor, cb) {
+    static addFollowRequest(owningUser, requestingActor, webServer, cb) {
+        const collectionId =
+            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/follow-requests';
         return Collection.addToCollection(
-            'follow_requests',
+            'follow-requests',
             owningUser,
+            collectionId,
             requestingActor.id,
             requestingActor,
             true,
@@ -65,22 +66,17 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static outbox(owningUser, page, webServer, cb) {
-        return Collection.getOrdered(
-            'outbox',
-            owningUser,
-            false,
-            page,
-            null,
-            webServer,
-            cb
-        );
+    static outbox(collectionId, page, cb) {
+        return Collection.publicOrderedById('outbox', collectionId, page, null, cb);
     }
 
-    static addOutboxItem(owningUser, outboxItem, isPrivate, cb) {
+    static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, cb) {
+        const collectionId =
+            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/outbox';
         return Collection.addToCollection(
             'outbox',
             owningUser,
+            collectionId,
             outboxItem.id,
             outboxItem,
             isPrivate,
@@ -88,10 +84,13 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addInboxItem(inboxItem, owningUser, cb) {
+    static addInboxItem(inboxItem, owningUser, webServer, cb) {
+        const collectionId =
+            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/inbox';
         return Collection.addToCollection(
             'inbox',
             owningUser,
+            collectionId,
             inboxItem.id,
             inboxItem,
             true,
@@ -102,7 +101,8 @@ module.exports = class Collection extends ActivityPubObject {
     static addPublicInboxItem(inboxItem, cb) {
         return Collection.addToCollection(
             'publicInbox',
-            APPublicOwningUserId,
+            null, // N/A
+            Collection.PublicCollectionId,
             inboxItem.id,
             inboxItem,
             false,
@@ -114,11 +114,11 @@ module.exports = class Collection extends ActivityPubObject {
         const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';
 
         apDb.get(
-            `SELECT obj_json
+            `SELECT object_json
             FROM collection
             WHERE name = ?
             ${privateQuery}
-            AND json_extract(obj_json, '$.object.id') = ?;`,
+            AND json_extract(object_json, '$.object.id') = ?;`,
             [collectionName, objectId],
             (err, row) => {
                 if (err) {
@@ -133,7 +133,7 @@ module.exports = class Collection extends ActivityPubObject {
                     );
                 }
 
-                const obj = ActivityPubObject.fromJsonString(row.obj_json);
+                const obj = ActivityPubObject.fromJsonString(row.object_json);
                 if (!obj) {
                     return cb(Errors.Invalid('Failed to parse Object JSON'));
                 }
@@ -143,7 +143,71 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static getOrdered(
+    static publicOrderedById(collectionName, collectionId, page, mapper, cb) {
+        if (!page) {
+            return apDb.get(
+                `SELECT COUNT(collection_id) AS count
+                FROM collection
+                WHERE name = ? AND collection_id = ? AND is_private = FALSE;`,
+                [collectionName, collectionId],
+                (err, row) => {
+                    if (err) {
+                        return cb(err);
+                    }
+
+                    let obj;
+                    if (row.count > 0) {
+                        obj = {
+                            id: collectionId,
+                            type: 'OrderedCollection',
+                            first: `${collectionId}?page=1`,
+                            totalItems: row.count,
+                        };
+                    } else {
+                        obj = {
+                            id: collectionId,
+                            type: 'OrderedCollection',
+                            totalItems: 0,
+                            orderedItems: [],
+                        };
+                    }
+
+                    return cb(null, new Collection(obj));
+                }
+            );
+        }
+
+        //  :TODO: actual paging...
+        apDb.all(
+            `SELECT object_json
+            FROM collection
+            WHERE name = ? AND collection_id = ? AND is_private = FALSE
+            ORDER BY timestamp;`,
+            [collectionName, collectionId],
+            (err, entries) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                entries = entries || [];
+                if (mapper && entries.length > 0) {
+                    entries = entries.map(mapper);
+                }
+
+                const obj = {
+                    id: `${collectionId}/page=${page}`,
+                    type: 'OrderedCollectionPage',
+                    totalItems: entries.length,
+                    orderedItems: entries,
+                    partOf: collectionId,
+                };
+
+                return cb(null, new Collection(obj));
+            }
+        );
+    }
+
+    static ownedOrderedByUser(
         collectionName,
         owningUser,
         includePrivate,
@@ -153,19 +217,25 @@ module.exports = class Collection extends ActivityPubObject {
         cb
     ) {
         const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';
-        const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
+        const actorId = owningUser.getProperty(UserProps.ActivityPubActorId);
+        if (!actorId) {
+            return cb(
+                Errors.MissingProperty(
+                    `User "${owningUser.username}" is missing property '${UserProps.ActivityPubActorId}'`
+                )
+            );
+        }
 
-        // e.g. http://some.host/_enig/ap/collections/1234/followers
-        const collectionIdBase =
-            makeUserUrl(webServer, owningUser, `/ap/collections/${owningUserId}`) +
-            `/${collectionName}`;
+        // e.g. http://somewhere.com/_enig/ap/collections/NuSkooler/followers
+        const collectionId =
+            makeUserUrl(webServer, owningUser, '/ap/collections/') + `/${collectionName}`;
 
         if (!page) {
             return apDb.get(
-                `SELECT COUNT(id) AS count
+                `SELECT COUNT(collection_id) AS count
                 FROM collection
-                WHERE user_id = ? AND name = ?${privateQuery};`,
-                [owningUserId, collectionName],
+                WHERE owner_actor_id = ? AND name = ?${privateQuery};`,
+                [actorId, collectionName],
                 (err, row) => {
                     if (err) {
                         return cb(err);
@@ -180,14 +250,14 @@ module.exports = class Collection extends ActivityPubObject {
                     let obj;
                     if (row.count > 0) {
                         obj = {
-                            id: collectionIdBase,
+                            id: collectionId,
                             type: 'OrderedCollection',
-                            first: `${collectionIdBase}?page=1`,
+                            first: `${collectionId}?page=1`,
                             totalItems: row.count,
                         };
                     } else {
                         obj = {
-                            id: collectionIdBase,
+                            id: collectionId,
                             type: 'OrderedCollection',
                             totalItems: 0,
                             orderedItems: [],
@@ -201,11 +271,11 @@ module.exports = class Collection extends ActivityPubObject {
 
         //  :TODO: actual paging...
         apDb.all(
-            `SELECT obj_json
+            `SELECT object_json
             FROM collection
-            WHERE user_id = ? AND name = ?${privateQuery}
+            WHERE owner_actor_id = ? AND name = ?${privateQuery}
             ORDER BY timestamp;`,
-            [owningUserId, collectionName],
+            [actorId, collectionName],
             (err, entries) => {
                 if (err) {
                     return cb(err);
@@ -217,11 +287,11 @@ module.exports = class Collection extends ActivityPubObject {
                 }
 
                 const obj = {
-                    id: `${collectionIdBase}/page=${page}`,
+                    id: `${collectionId}/page=${page}`,
                     type: 'OrderedCollectionPage',
                     totalItems: entries.length,
                     orderedItems: entries,
-                    partOf: collectionIdBase,
+                    partOf: collectionId,
                 };
 
                 return cb(null, new Collection(obj));
@@ -239,8 +309,8 @@ module.exports = class Collection extends ActivityPubObject {
 
         apDb.run(
             `UPDATE collection
-            SET obj_json = ?, timestamp = ?
-            WHERE name = ? AND obj_id = ?;`,
+            SET object_json = ?, timestamp = ?
+            WHERE name = ? AND object_id = ?;`,
             [obj, collectionName, getISOTimestampString(), objectId],
             err => {
                 return cb(err);
@@ -248,20 +318,43 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addToCollection(collectionName, owningUser, objectId, obj, isPrivate, cb) {
+    static addToCollection(
+        collectionName,
+        owningUser,
+        collectionId,
+        objectId,
+        obj,
+        isPrivate,
+        cb
+    ) {
         if (!isString(obj)) {
             obj = JSON.stringify(obj);
         }
 
-        const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
+        let actorId;
+        if (owningUser) {
+            actorId = owningUser.getProperty(UserProps.ActivityPubActorId);
+            if (!actorId) {
+                return cb(
+                    Errors.MissingProperty(
+                        `User "${owningUser.username}" is missing property '${UserProps.ActivityPubActorId}'`
+                    )
+                );
+            }
+        } else {
+            actorId = Collection.APPublicCollectionId;
+        }
+
         isPrivate = isPrivate ? 1 : 0;
+
         apDb.run(
-            `INSERT OR IGNORE INTO collection (name, timestamp, user_id, obj_id, obj_json, is_private)
-            VALUES (?, ?, ?, ?, ?, ?);`,
+            `INSERT OR IGNORE INTO collection (name, timestamp, collection_id, owner_actor_id, object_id, object_json, is_private)
+            VALUES (?, ?, ?, ?, ?, ?, ?);`,
             [
                 collectionName,
                 getISOTimestampString(),
-                owningUserId,
+                collectionId,
+                actorId,
                 objectId,
                 obj,
                 isPrivate,
@@ -269,6 +362,9 @@ module.exports = class Collection extends ActivityPubObject {
             function res(err) {
                 // non-arrow for 'this' scope
                 if (err) {
+                    if ('SQLITE_CONSTRAINT' === err.code) {
+                        err = null; // ignore
+                    }
                     return cb(err);
                 }
                 return cb(err, this.lastID);
@@ -277,11 +373,18 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static removeFromCollectionById(collectionName, owningUser, objectId, cb) {
-        const owningUserId = isObject(owningUser) ? owningUser.userId : owningUser;
+        const actorId = owningUser.getProperty(UserProps.ActivityPubActorId);
+        if (!actorId) {
+            return cb(
+                Errors.MissingProperty(
+                    `User "${owningUser.username}" is missing property '${UserProps.ActivityPubActorId}'`
+                )
+            );
+        }
         apDb.run(
             `DELETE FROM collection
-            WHERE user_id = ? AND name = ? AND obj_id = ?;`,
-            [owningUserId, collectionName, objectId],
+            WHERE name = ? AND owner_actor_id = ? AND object_id = ?;`,
+            [collectionName, actorId, objectId],
             err => {
                 return cb(err);
             }

@@ -65,7 +65,6 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         //
         //  Enforce that we have at least a secure connection in our ACS check
         //
-        this.config.acs = this.config.acs;
         if (!this.config.acs) {
             this.config.acs = DefaultACS;
         } else if (!this.config.acs.includes('SC')) {

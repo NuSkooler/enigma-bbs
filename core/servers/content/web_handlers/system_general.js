@@ -44,7 +44,7 @@ exports.getModule = class SystemGeneralWebHandler extends WebHandlerModule {
     }
 
     _avatarGetHandler(req, resp) {
-        const url = new URL(req.url, `https://${req.headers.host}`);
+        const url = this.webServer.fullUrl(req);
         const filename = paths.basename(url.pathname);
         if (!filename) {
             return this.webServer.fileNotFound(resp);

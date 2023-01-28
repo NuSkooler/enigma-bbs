@@ -1,17 +1,21 @@
 const WebHandlerModule = require('../../../web_handler_module');
 const Config = require('../../../config').get;
-const { Errors } = require('../../../enig_error');
+const { Errors, ErrorReasons } = require('../../../enig_error');
 const { WellKnownLocations } = require('../web');
 const {
-    selfUrl,
+    localActorId,
     webFingerProfileUrl,
-    userFromAccount,
+    userFromActorId,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
 } = require('../../../activitypub/util');
-
-const _ = require('lodash');
 const EngiAssert = require('../../../enigma_assert');
+const User = require('../../../user');
+const UserProps = require('../../../user_property');
+const ActivityPubSettings = require('../../../activitypub/settings');
+
+// deps
+const _ = require('lodash');
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -74,31 +78,12 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _profileRequestHandler(req, resp) {
-        const url = new URL(req.url, `https://${req.headers.host}`);
-
-        const resource = url.pathname;
-        if (_.isEmpty(resource)) {
-            return this.webServer.instance.respondWithError(
-                resp,
-                400,
-                'pathname is required',
-                'Missing "resource"'
-            );
-        }
-
-        const userPosition = resource.indexOf('@');
-        if (-1 === userPosition || userPosition === resource.length - 1) {
-            this.webServer.resourceNotFound(resp);
-            return Errors.DoesNotExist('"@username" missing from path');
-        }
-
-        const accountName = resource.substring(userPosition + 1);
-
-        userFromAccount(accountName, (err, user) => {
+        const actorId = this.webServer.fullUrl(req).toString();
+        userFromActorId(actorId, (err, localUser) => {
             if (err) {
                 this.log.warn(
-                    { url: req.url, error: err.message, type: 'Profile' },
-                    `No profile for "${accountName}" could be retrieved`
+                    { error: err.message, type: 'Profile' },
+                    'Could not fetch profile for WebFinger request'
                 );
                 return this.webServer.resourceNotFound(resp);
             }
@@ -113,7 +98,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
             getUserProfileTemplatedBody(
                 templateFile,
-                user,
+                localUser,
                 DefaultProfileTemplate,
                 'text/plain',
                 (err, body, contentType) => {
@@ -134,8 +119,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _webFingerRequestHandler(req, resp) {
-        const url = new URL(req.url, `https://${req.headers.host}`);
-
+        const url = this.webServer.fullUrl(req);
         const resource = url.searchParams.get('resource');
         if (!resource) {
             return this.webServer.respondWithError(
@@ -148,13 +132,11 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
         const accountName = this._getAccountName(resource);
         if (!accountName || accountName.length < 1) {
-            this.webServer.resourceNotFound(resp);
-            return Errors.DoesNotExist(
-                `Failed to parse "account name" for resource: ${resource}`
-            );
+            this.log.warn(`Failed to parse "account name" for resource: ${resource}`);
+            return this.webServer.resourceNotFound(resp);
         }
 
-        userFromAccount(accountName, (err, user) => {
+        this._localUserFromWebFingerAccountName(accountName, (err, localUser) => {
             if (err) {
                 this.log.warn(
                     { url: req.url, error: err.message, type: 'WebFinger' },
@@ -166,11 +148,11 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
             const domain = this.webServer.getDomain();
 
             const body = JSON.stringify({
-                subject: `acct:${user.username}@${domain}`,
-                aliases: [this._profileUrl(user), this._selfUrl(user)],
+                subject: `acct:${localUser.username}@${domain}`,
+                aliases: [this._profileUrl(localUser), this._userActorId(localUser)],
                 links: [
-                    this._profilePageLink(user),
-                    this._selfLink(user),
+                    this._profilePageLink(localUser),
+                    this._selfLink(localUser),
                     this._subscribeLink(),
                 ],
             });
@@ -182,6 +164,41 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
             resp.writeHead(200, headers);
             return resp.end(body);
+        });
+    }
+
+    _localUserFromWebFingerAccountName(accountName, cb) {
+        if (accountName.startsWith('@')) {
+            accountName = accountName.slice(1);
+        }
+
+        User.getUserIdAndName(accountName, (err, userId) => {
+            if (err) {
+                return cb(err);
+            }
+
+            User.getUser(userId, (err, user) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
+                if (
+                    User.AccountStatus.disabled == accountStatus ||
+                    User.AccountStatus.inactive == accountStatus
+                ) {
+                    return cb(
+                        Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
+                    );
+                }
+
+                const activityPubSettings = ActivityPubSettings.fromUser(user);
+                if (!activityPubSettings.enabled) {
+                    return cb(Errors.AccessDenied('ActivityPub is not enabled for user'));
+                }
+
+                return cb(null, user);
+            });
         });
     }
 
@@ -198,13 +215,13 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         };
     }
 
-    _selfUrl(user) {
-        return selfUrl(this.webServer, user);
+    _userActorId(user) {
+        return localActorId(this.webServer, user);
     }
 
     // :TODO: only if ActivityPub is enabled
     _selfLink(user) {
-        const href = this._selfUrl(user);
+        const href = this._userActorId(user);
         return {
             rel: 'self',
             type: 'application/activity+json',

@@ -1,13 +1,17 @@
 const UserProps = require('../user_property');
+const Config = require('../config').get;
 
 module.exports = class ActivityPubSettings {
     constructor(obj) {
-        this.enabled = true; //  :TODO: fetch from +op config default
+        this.enabled = true;
         this.manuallyApproveFollowers = false;
         this.hideSocialGraph = false; // followers, following
         this.showRealName = true;
         this.image = '';
         this.icon = '';
+
+        //  override default with any op config
+        Object.assign(this, Config().users.activityPub);
 
         if (obj) {
             Object.assign(this, obj);

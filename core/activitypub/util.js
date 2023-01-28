@@ -20,9 +20,8 @@ exports.isValidLink = isValidLink;
 exports.makeSharedInboxUrl = makeSharedInboxUrl;
 exports.makeUserUrl = makeUserUrl;
 exports.webFingerProfileUrl = webFingerProfileUrl;
-exports.selfUrl = selfUrl;
-exports.userFromAccount = userFromAccount;
-exports.accountFromSelfUrl = accountFromSelfUrl;
+exports.localActorId = localActorId;
+exports.userFromActorId = userFromActorId;
 exports.getUserProfileTemplatedBody = getUserProfileTemplatedBody;
 exports.messageBodyToHtml = messageBodyToHtml;
 exports.htmlToMessageBody = htmlToMessageBody;
@@ -59,26 +58,26 @@ function webFingerProfileUrl(webServer, user) {
     return webServer.buildUrl(WellKnownLocations.Internal + `/wf/@${user.username}`);
 }
 
-function selfUrl(webServer, user) {
+function localActorId(webServer, user) {
     return makeUserUrl(webServer, user, '/ap/users/');
 }
 
-function accountFromSelfUrl(url) {
-    // https://some.l33t.enigma.board/_enig/ap/users/Masto -> Masto
-    //  :TODO: take webServer, and just take path-to-users.length +1
-    return url.substring(url.lastIndexOf('/') + 1);
-}
-
-function userFromAccount(accountName, cb) {
-    if (accountName.startsWith('@')) {
-        accountName = accountName.slice(1);
-    }
-
-    User.getUserIdAndName(accountName, (err, userId) => {
+function userFromActorId(actorId, cb) {
+    User.getUserIdsWithProperty(UserProps.ActivityPubActorId, actorId, (err, userId) => {
         if (err) {
             return cb(err);
         }
 
+        // must only be 0 or 1
+        if (!Array.isArray(userId) || userId.length !== 1) {
+            return cb(
+                Errors.DoesNotExist(
+                    `No user with property '${UserProps.ActivityPubActorId}' of ${actorId}`
+                )
+            );
+        }
+
+        userId = userId[0];
         User.getUser(userId, (err, user) => {
             if (err) {
                 return cb(err);

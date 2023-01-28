@@ -8,7 +8,6 @@ const {
     ActivityStreamsContext,
     webFingerProfileUrl,
     makeUserUrl,
-    selfUrl,
     isValidLink,
     makeSharedInboxUrl,
     userNameFromSubject,
@@ -68,7 +67,15 @@ module.exports = class Actor extends ActivityPubObject {
     }
 
     static fromLocalUser(user, webServer, cb) {
-        const userSelfUrl = selfUrl(webServer, user);
+        const userActorId = user.getProperty(UserProps.ActivityPubActorId);
+        if (!userActorId) {
+            return cb(
+                Errors.MissingProperty(
+                    `User missing '${UserProps.ActivityPubActorId}' property`
+                )
+            );
+        }
+
         const userSettings = ActivityPubSettings.fromUser(user);
 
         const addImage = (o, t) => {
@@ -90,7 +97,7 @@ module.exports = class Actor extends ActivityPubObject {
                 ActivityStreamsContext,
                 'https://w3id.org/security/v1', // :TODO: add support
             ],
-            id: userSelfUrl,
+            id: userActorId,
             type: 'Person',
             preferredUsername: user.username,
             name: userSettings.showRealName
@@ -123,8 +130,8 @@ module.exports = class Actor extends ActivityPubObject {
         const publicKeyPem = user.getProperty(UserProps.PublicActivityPubSigningKey);
         if (!_.isEmpty(publicKeyPem)) {
             obj.publicKey = {
-                id: userSelfUrl + '#main-key',
-                owner: userSelfUrl,
+                id: userActorId + '#main-key',
+                owner: userActorId,
                 publicKeyPem,
             };
 
@@ -219,6 +226,7 @@ module.exports = class Actor extends ActivityPubObject {
 
                 const timestamp = moment(row.timestamp);
                 if (moment().isAfter(timestamp.add(ActorCacheTTL))) {
+                    //  :TODO: drop from cache
                     return cb(Errors.Expired('The cache entry is expired'));
                 }
 

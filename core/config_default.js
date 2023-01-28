@@ -136,6 +136,14 @@ module.exports = () => {
                 storagePath: paths.join(__dirname, '../userdata/avatars/'),
                 spritesPath: paths.join(__dirname, '../misc/avatar-sprites/'),
             },
+
+            // See also ./core/activitypub/settings.js
+            activityPub: {
+                enabled: true, // ActivityPub enabled for this user?
+                manuallyApproveFollowers: false,
+                hideSocialGraph: false,
+                showRealName: true,
+            },
         },
 
         theme: {

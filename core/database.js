@@ -505,7 +505,6 @@ dbs.message.run(
         // Actors we know about and have cached
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS actor_cache (
-                actor_cache_id      INTEGER PRIMARY KEY,    -- Local DB ID
                 actor_id            VARCHAR NOT NULL,       -- Fully qualified Actor ID/URL
                 actor_json          VARCHAR NOT NULL,       -- Actor document
                 subject             VARCHAR,                -- Subject obtained from WebFinger, e.g. @Username@some.domain
@@ -524,32 +523,36 @@ dbs.message.run(
         //  generally obtained via WebFinger
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS actor_alias_cache (
-                id                  INTEGER PRIMARY KEY,
-                alias               VARCHAR NOT NULL,
                 actor_id            VARCHAR NOT NULL,   -- Fully qualified Actor ID/URL
+                actor_alias_id      VARCHAR NOT NULL,   -- Alias such the user's "profile URL"
 
-                UNIQUE(alias)
+                UNIQUE(actor_alias_id)
             );`
         );
 
         //  ActivityPub Collections of various types such as followers, following, likes, ...
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS collection (
-                id                  INTEGER PRIMARY KEY,    -- Auto-generated key
+                collection_id       VARCHAR NOT NULL,       -- ie: http://somewhere.com/_enig/ap/collections/NuSkooler/followers
                 name                VARCHAR NOT NULL,       -- examples: followers, follows, ...
                 timestamp           DATETIME NOT NULL,      -- Timestamp in which this entry was created
-                user_id             INTEGER NOT NULL,       -- Local, owning user ID, 0 means "all" for sharedInbox
-                obj_id              VARCHAR NOT NULL,       -- Object ID from obj_json.id
-                obj_json            VARCHAR NOT NULL,       -- Object varies by collection (obj_json.type)
-                is_private          INTEGER NOT NULL,       -- Is this object private to |user_id|?
+                owner_actor_id      VARCHAR NOT NULL,       -- Local, owning Actor ID, or the #Public magic collection ID
+                object_id           VARCHAR NOT NULL,       -- Object ID from obj_json.id
+                object_json         VARCHAR NOT NULL,       -- Object varies by collection (obj_json.type)
+                is_private          INTEGER NOT NULL,       -- Is this object private to |owner_actor_id|?
 
-                UNIQUE(name, user_id, obj_id)
+                UNIQUE(name, collection_id, object_id)
             );`
         );
 
         dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS collection_entry_by_user_index0
-            ON collection (name, user_id);`
+            `CREATE INDEX IF NOT EXISTS collection_entry_by_name_actor_id_index0
+            ON collection (name, owner_actor_id);`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS collection_entry_by_name_collection_id_index0
+            ON collection (name, collection_id);`
         );
 
         return cb(null);

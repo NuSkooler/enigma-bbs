@@ -1,4 +1,4 @@
-const { selfUrl } = require('./util');
+const { localActorId } = require('./util');
 const { WellKnownActivityTypes } = require('./const');
 const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
@@ -16,6 +16,11 @@ module.exports = class Activity extends ActivityPubObject {
 
     static get ActivityTypes() {
         return WellKnownActivityTypes;
+    }
+
+    static fromJsonString(s) {
+        const obj = ActivityPubObject.fromJsonString(s);
+        return new Activity(obj);
     }
 
     static makeFollow(webServer, localActor, remoteActor) {
@@ -74,7 +79,7 @@ module.exports = class Activity extends ActivityPubObject {
             sign: {
                 //  :TODO: Make a helper for this
                 key: privateKey,
-                keyId: selfUrl(webServer, fromUser) + '#main-key',
+                keyId: localActorId(webServer, fromUser) + '#main-key',
                 authorizationHeaderName: 'Signature',
                 headers: ['(request-target)', 'host', 'date', 'digest', 'content-type'],
             },
@@ -82,6 +87,23 @@ module.exports = class Activity extends ActivityPubObject {
 
         const activityJson = JSON.stringify(this);
         return postJson(actorUrl, activityJson, reqOpts, cb);
+    }
+
+    recipientIds() {
+        const ids = [];
+
+        //  :TODO: bto, bcc?
+        ['to', 'cc', 'audience'].forEach(field => {
+            let v = this[field];
+            if (v) {
+                if (!Array.isArray(v)) {
+                    v = [v];
+                }
+                ids.push(...v);
+            }
+        });
+
+        return ids;
     }
 
     static activityObjectId(webServer) {

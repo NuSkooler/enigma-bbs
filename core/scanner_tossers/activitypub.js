@@ -99,6 +99,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         fromUser,
                         activity,
                         message.isPrivate(),
+                        this._webServer(),
                         (err, localId) => {
                             if (!err) {
                                 this.log.debug(

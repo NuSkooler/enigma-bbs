@@ -10,7 +10,9 @@ module.exports = {
     ConfigChanged: 'codes.l33t.enigma.system.config_changed', //  (config.hjson)
     MenusChanged: 'codes.l33t.enigma.system.menus_changed', //  (menu.hjson)
 
-    //  User - includes { user, ...}
+    //  User - includes { user, callback, ... } where user *is* the user instance in question
+    NewUserPrePersist: 'codes.l33t.enigma.system.user_new_pre_persist',
+    //  User - includes { user, ...} where user is a *copy*
     NewUser: 'codes.l33t.enigma.system.user_new', //  { ... }
     UserLogin: 'codes.l33t.enigma.system.user_login', //  { ... }
     UserLogoff: 'codes.l33t.enigma.system.user_logoff', //  { ... }

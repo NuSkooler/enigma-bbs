@@ -89,7 +89,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 
     getDomain() {
         const config = Config();
-        const overridePrefix = _.get(config.contentServers.web.overrideUrlPrefix);
+        const overridePrefix = _.get(config, 'contentServers.web.overrideUrlPrefix');
         if (_.isString(overridePrefix)) {
             const url = new URL(overridePrefix);
             return url.hostname;
@@ -98,17 +98,11 @@ exports.getModule = class WebServerModule extends ServerModule {
         return config.contentServers.web.domain;
     }
 
-    buildUrl(pathAndQuery) {
-        //
-        //  Create a URL such as
-        //  https://l33t.codes:44512/ + |pathAndQuery|
-        //
-        //  Prefer HTTPS over HTTP. Be explicit about the port
-        //  only if non-standard. Allow users to override full prefix in config.
-        //
+    baseUrl() {
         const config = Config();
-        if (_.isString(config.contentServers.web.overrideUrlPrefix)) {
-            return `${config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
+        const overridePrefix = _.get(config, 'contentServers.web.overrideUrlPrefix');
+        if (overridePrefix) {
+            return overridePrefix;
         }
 
         let schema;
@@ -127,7 +121,24 @@ exports.getModule = class WebServerModule extends ServerModule {
                     : `:${config.contentServers.web.http.port}`;
         }
 
-        return `${schema}${config.contentServers.web.domain}${port}${pathAndQuery}`;
+        return `${schema}${config.contentServers.web.domain}${port}`;
+    }
+
+    fullUrl(req) {
+        const base = this.baseUrl();
+        return new URL(`${base}${req.url}`);
+    }
+
+    buildUrl(pathAndQuery) {
+        //
+        //  Create a URL such as
+        //  https://l33t.codes:44512/ + |pathAndQuery|
+        //
+        //  Prefer HTTPS over HTTP. Be explicit about the port
+        //  only if non-standard. Allow users to override full prefix in config.
+        //
+        const base = this.baseUrl();
+        return `${base}${pathAndQuery}`;
     }
 
     isEnabled() {

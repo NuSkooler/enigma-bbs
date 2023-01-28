@@ -1,25 +1,28 @@
 const WebHandlerModule = require('../../../web_handler_module');
 const {
-    userFromAccount,
+    userFromActorId,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
-    accountFromSelfUrl,
+    makeUserUrl,
+    localActorId,
 } = require('../../../activitypub/util');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
 const Collection = require('../../../activitypub/collection');
+const Note = require('../../../activitypub/note');
 const EnigAssert = require('../../../enigma_assert');
 const Message = require('../../../message');
+const Events = require('../../../events');
+const UserProps = require('../../../user_property');
 
 // deps
 const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
-const Note = require('../../../activitypub/note');
-const User = require('../../../user');
+const paths = require('path');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -40,6 +43,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         enigma_assert(webServer, 'ActivityPub Web Handler init without webServer');
 
         this.log = webServer.logger().child({ webHandler: 'ActivityPub' });
+
+        Events.addListener(Events.getSystemEvents().NewUserPrePersist, eventInfo => {
+            const { user, callback } = eventInfo;
+            return this._prepareNewUserAsActor(user, callback);
+        });
 
         this.webServer.addRoute({
             method: 'GET',
@@ -131,40 +139,37 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _selfUrlRequestHandler(req, resp) {
         this.log.trace({ url: req.url }, 'Request for "self"');
 
-        const url = new URL(req.url, `https://${req.headers.host}`);
-        let accountName = url.pathname.substring(url.pathname.lastIndexOf('/') + 1);
+        let actorId = this.webServer.fullUrl(req).toString();
         let sendActor = false;
-
-        // Like Mastodon, if .json is appended onto URL then return the JSON content
-        if (accountName.endsWith('.json')) {
+        if (actorId.endsWith('.json')) {
             sendActor = true;
-            accountName = accountName.slice(0, -5);
+            actorId = actorId.slice(0, -5);
         }
 
-        userFromAccount(accountName, (err, user) => {
+        // Additionally, serve activity JSON if the proper 'Accept' header was sent
+        const accept = req.headers['accept'].split(',').map(v => v.trim()) || ['*/*'];
+        const headerValues = [
+            ActivityJsonMime,
+            'application/ld+json',
+            'application/json',
+        ];
+        if (accept.some(v => headerValues.includes(v))) {
+            sendActor = true;
+        }
+
+        userFromActorId(actorId, (err, localUser) => {
             if (err) {
                 this.log.info(
-                    { reason: err.message, accountName: accountName },
-                    `No user "${accountName}" for "self"`
+                    { error: err.message, actorId },
+                    `No user for Actor ID ${actorId}`
                 );
                 return this.webServer.resourceNotFound(resp);
             }
 
-            // Additionally, serve activity JSON if the proper 'Accept' header was sent
-            const accept = req.headers['accept'].split(',').map(v => v.trim()) || ['*/*'];
-            const headerValues = [
-                ActivityJsonMime,
-                'application/ld+json',
-                'application/json',
-            ];
-            if (accept.some(v => headerValues.includes(v))) {
-                sendActor = true;
-            }
-
             if (sendActor) {
-                return this._selfAsActorHandler(user, req, resp);
+                return this._selfAsActorHandler(localUser, req, resp);
             } else {
-                return this._standardSelfHandler(user, req, resp);
+                return this._standardSelfHandler(localUser, req, resp);
             }
         });
     }
@@ -197,8 +202,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             switch (activity.type) {
                 case 'Follow':
-                    return this._withUserRequestHandler(
+                    return this._collectionRequestHandler(
                         signature,
+                        'inbox',
                         activity,
                         this._inboxFollowRequestHandler.bind(this),
                         req,
@@ -209,9 +215,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this._inboxUpdateRequestHandler(activity, req, resp);
 
                 case 'Undo':
-                    return this._inboxUndoRequestHandler(activity, req, resp);
-
-                //  :TODO: Create, etc.
+                    return this._collectionRequestHandler(
+                        signature,
+                        'inbox',
+                        activity,
+                        this._inboxUndoRequestHandler.bind(this),
+                        req,
+                        resp
+                    );
 
                 default:
                     this.log.warn(
@@ -264,15 +275,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _sharedInboxCreateActivity(req, resp, activity) {
-        let toActors = activity.to;
-        if (!Array.isArray(toActors)) {
-            toActors = [toActors];
-        }
+        const deliverTo = activity.recipientIds();
+
+        //Create a method to gather all to, cc, bcc, etc. dests (see spec) -> single array
+        // loop through, and attempt to fetch user-by-actor id for each; if found, deliver
+        // --we may need to add properties for ActivityPubFollowersId, ActivityPubFollowingId, etc.
+        // to user props for quick lookup -> user
+        // special handling of bcc (remove others before delivery), etc.
+        // const toActorIds = activity.recipientActorIds()
 
         const createWhat = _.get(activity, 'object.type');
         switch (createWhat) {
             case 'Note':
-                return this._deliverSharedInboxNote(req, resp, toActors, activity);
+                return this._deliverSharedInboxNote(req, resp, deliverTo, activity);
 
             default:
                 this.log.warn(
@@ -283,7 +298,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
     }
 
-    _deliverSharedInboxNote(req, resp, toActors, activity) {
+    _deliverSharedInboxNote(req, resp, deliverTo, activity) {
         // When an object is being delivered to the originating actor's followers,
         // a server MAY reduce the number of receiving actors delivered to by
         // identifying all followers which share the same sharedInbox who would
@@ -297,26 +312,32 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
 
         async.forEach(
-            toActors,
+            deliverTo,
             (actorId, nextActor) => {
-                if (Collection.PublicCollectionId === actorId) {
-                    //  :TODO: we should probably land this in a public areaTag as well for AP; allowing Message objects to be used/etc.
-                    Collection.addPublicInboxItem(note, err => {
-                        return nextActor(err);
-                    });
-                } else {
-                    this._deliverInboxNoteToLocalActor(
-                        req,
-                        resp,
-                        actorId,
-                        activity,
-                        note,
-                        nextActor
-                    );
+                switch (actorId) {
+                    case Collection.PublicCollectionId:
+                        //  :TODO: we should probably land this in a public areaTag as well for AP; allowing Message objects to be used/etc.
+                        Collection.addPublicInboxItem(note, err => {
+                            return nextActor(err);
+                        });
+                        break;
+
+                    default:
+                        this._deliverInboxNoteToLocalActor(
+                            req,
+                            resp,
+                            actorId,
+                            activity,
+                            note,
+                            err => {
+                                return nextActor(err);
+                            }
+                        );
+                        break;
                 }
             },
             err => {
-                if (err && 'SQLITE_CONSTRAINT' !== err.code) {
+                if (err) {
                     return this.webServer.internalServerError(resp, err);
                 }
 
@@ -326,22 +347,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _deliverInboxNoteToLocalActor(req, resp, actorId, activity, note, cb) {
-        const localUserName = accountFromSelfUrl(actorId);
-        if (!localUserName) {
-            this.log.debug({ url: req.url }, 'Could not get username from URL');
-            return cb(null);
-        }
-
-        User.getUserByUsername(localUserName, (err, localUser) => {
+        userFromActorId(actorId, (err, localUser) => {
             if (err) {
-                this.log.info(
-                    { username: localUserName },
-                    `No local user account for "${localUserName}"`
-                );
-                return cb(null);
+                return cb(null); //  not found/etc., just bail
             }
 
-            Collection.addInboxItem(note, localUser, err => {
+            Collection.addInboxItem(note, localUser, this.webServer, err => {
                 if (err) {
                     return cb(err);
                 }
@@ -362,6 +373,17 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     }
 
                     message.persist(err => {
+                        if (!err) {
+                            this.log.info(
+                                {
+                                    user: localUser.username,
+                                    userId: localUser.userId,
+                                    activityId: activity.id,
+                                    noteId: note.id,
+                                },
+                                'Note delivered as message to private mailbox'
+                            );
+                        }
                         return cb(err);
                     });
                 });
@@ -369,51 +391,41 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _getCollectionHandler(name, req, resp, signature) {
+    _getCollectionHandler(collectionName, req, resp, signature) {
         EnigAssert(signature, 'Missing signature!');
 
-        const url = new URL(req.url, `https://${req.headers.host}`);
-        const accountName = this._accountNameFromUserPath(url, name);
-        if (!accountName) {
+        const getCollection = Collection[collectionName];
+        if (!getCollection) {
             return this.webServer.resourceNotFound(resp);
         }
 
-        // can we even handle this request?
-        const getter = Collection[name];
-        if (!getter) {
-            return this.webServer.resourceNotFound(resp);
-        }
-
-        userFromAccount(accountName, (err, user) => {
+        const url = this.webServer.fullUrl(req);
+        const page = url.searchParams.get('page');
+        const collectionId = url.toString();
+        getCollection(collectionId, page, (err, collection) => {
             if (err) {
-                this.log.info(
-                    { reason: err.message, accountName: accountName },
-                    `No user "${accountName}" for "${name}"`
-                );
-                return this.webServer.resourceNotFound(resp);
+                return this.webServer.internalServerError(resp, err);
             }
 
-            const page = url.searchParams.get('page');
-            getter(user, page, this.webServer, (err, collection) => {
-                if (err) {
-                    return this.webServer.internalServerError(resp, err);
-                }
+            const body = JSON.stringify(collection);
+            const headers = {
+                'Content-Type': ActivityJsonMime,
+                'Content-Length': body.length,
+            };
 
-                const body = JSON.stringify(collection);
-                const headers = {
-                    'Content-Type': ActivityJsonMime,
-                    'Content-Length': body.length,
-                };
-
-                resp.writeHead(200, headers);
-                return resp.end(body);
-            });
+            resp.writeHead(200, headers);
+            return resp.end(body);
         });
     }
 
     _followingGetHandler(req, resp, signature) {
         this.log.debug({ url: req.url }, 'Request for "following"');
         return this._getCollectionHandler('following', req, resp, signature);
+    }
+
+    _followersGetHandler(req, resp, signature) {
+        this.log.debug({ url: req.url }, 'Request for "followers"');
+        return this._getCollectionHandler('followers', req, resp, signature);
     }
 
     // https://docs.gotosocial.org/en/latest/federation/behaviors/outbox/
@@ -425,9 +437,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _singlePublicNoteGetHandler(req, resp) {
         this.log.debug({ url: req.url }, 'Request for "Note"');
 
-        const url = new URL(req.url, `https://${req.headers.host}`);
-        const noteId = url.toString();
-
+        const noteId = this.webServer.fullUrl(req).toString();
         Note.fromPublicNoteId(noteId, (err, note) => {
             if (err) {
                 return this.webServer.internalServerError(resp, err);
@@ -447,11 +457,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return null;
         }
         return m[1];
-    }
-
-    _followersGetHandler(req, resp, signature) {
-        this.log.debug({ url: req.url }, 'Request for "followers"');
-        return this._getCollectionHandler('followers', req, resp, signature);
     }
 
     _parseAndValidateSignature(req) {
@@ -485,8 +490,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return keyId.endsWith('#main-key');
     }
 
-    _inboxFollowRequestHandler(activity, remoteActor, user, resp) {
-        this.log.info({ user_id: user.userId, actor: activity.actor }, 'Follow request');
+    _inboxFollowRequestHandler(activity, remoteActor, localUser, resp) {
+        this.log.info(
+            { user_id: localUser.userId, actor: activity.actor },
+            'Follow request'
+        );
 
         const ok = () => {
             resp.writeHead(200, { 'Content-Type': 'text/html' });
@@ -499,12 +507,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         //  request for the user to review and decide what to do with
         //  at a later time.
         //
-        const activityPubSettings = ActivityPubSettings.fromUser(user);
+        const activityPubSettings = ActivityPubSettings.fromUser(localUser);
         if (!activityPubSettings.manuallyApproveFollowers) {
-            this._recordAcceptedFollowRequest(user, remoteActor, activity);
+            this._recordAcceptedFollowRequest(localUser, remoteActor, activity);
             return ok();
         } else {
-            Collection.addFollowRequest(user, remoteActor, err => {
+            Collection.addFollowRequest(localUser, remoteActor, this.webServer, err => {
                 if (err) {
                     return this.internalServerError(resp, err);
                 }
@@ -523,55 +531,56 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         // });
     }
 
-    _inboxUndoRequestHandler(activity, req, resp) {
-        this.log.info({ actor: activity.actor }, 'Undo Activity request');
+    _inboxUndoRequestHandler(activity, remoteActor, localUser, resp) {
+        this.log.info(
+            { user: localUser.username, actor: remoteActor.id },
+            'Undo Activity request'
+        );
 
-        const url = new URL(req.url, `https://${req.headers.host}`);
-        const accountName = this._accountNameFromUserPath(url, 'inbox');
-        if (!accountName) {
-            return this.webServer.resourceNotFound(resp);
+        // we only understand Follow right now
+        if (!activity.object || activity.object.type !== 'Follow') {
+            return this.webServer.notImplemented(resp);
         }
 
-        userFromAccount(accountName, (err, user) => {
-            if (err) {
-                return this.webServer.resourceNotFound(resp);
-            }
-
-            // we only understand Follow right now
-            if (!activity.object || activity.object.type !== 'Follow') {
-                return this.webServer.notImplemented(resp);
-            }
-
-            Collection.removeFromCollectionById(
-                'followers',
-                user,
-                activity.actor,
-                err => {
-                    if (err) {
-                        return this.webServer.internalServerError(resp, err);
-                    }
-
-                    this.log.info(
-                        { userId: user.userId, actor: activity.actor },
-                        'Undo "Follow" (un-follow) success'
-                    );
-
-                    return this.webServer.accepted(resp);
+        Collection.removeFromCollectionById(
+            'followers',
+            localUser,
+            remoteActor.id,
+            err => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
                 }
-            );
-        });
+
+                this.log.info(
+                    {
+                        username: localUser.username,
+                        userId: localUser.userId,
+                        actor: remoteActor.id,
+                    },
+                    'Undo "Follow" (un-follow) success'
+                );
+
+                return this.webServer.accepted(resp);
+            }
+        );
     }
 
-    _withUserRequestHandler(signature, activity, activityHandler, req, resp) {
-        this.log.debug({ actor: activity.actor }, `Inbox request from ${activity.actor}`);
-
-        //  :TODO: trace
-        const accountName = accountFromSelfUrl(activity.object);
-        if (!accountName) {
-            return this.webServer.badRequest(resp);
+    _collectionRequestHandler(
+        signature,
+        collectionName,
+        activity,
+        activityHandler,
+        req,
+        resp
+    ) {
+        //  turn a collection URL to a Actor ID
+        let actorId = this.webServer.fullUrl(req).toString();
+        const suffix = `/${collectionName}`;
+        if (actorId.endsWith(suffix)) {
+            actorId = actorId.slice(0, -suffix.length);
         }
 
-        userFromAccount(accountName, (err, user) => {
+        userFromActorId(actorId, (err, localUser) => {
             if (err) {
                 return this.webServer.resourceNotFound(resp);
             }
@@ -604,7 +613,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this.webServer.accessDenied(resp);
                 }
 
-                return activityHandler(activity, actor, user, resp);
+                return activityHandler(activity, actor, localUser, resp);
             });
         });
     }
@@ -613,7 +622,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         async.series(
             [
                 callback => {
-                    return Collection.addFollower(localUser, remoteActor, callback);
+                    return Collection.addFollower(
+                        localUser,
+                        remoteActor,
+                        this.webServer,
+                        callback
+                    );
                 },
                 callback => {
                     Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
@@ -738,5 +752,51 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return resp.end(body);
             }
         );
+    }
+
+    _prepareNewUserAsActor(user, cb) {
+        this.log.info(
+            { username: user.username, userId: user.userId },
+            `Preparing ActivityPub settings for "${user.username}"`
+        );
+
+        const actorId = localActorId(this.webServer, user);
+        user.setProperty(UserProps.ActivityPubActorId, actorId);
+
+        user.updateActivityPubKeyPairProperties(err => {
+            if (err) {
+                return cb(err);
+            }
+
+            user.generateNewRandomAvatar((err, outPath) => {
+                if (err) {
+                    this.log.warn(
+                        {
+                            username: user.username,
+                            userId: user.userId,
+                            error: err.message,
+                        },
+                        `Failed to generate random avatar for "${user.username}"`
+                    );
+                }
+
+                //  :TODO: fetch over +op default overrides here, e.g. 'enabled'
+                const apSettings = ActivityPubSettings.fromUser(user);
+
+                const filename = paths.basename(outPath);
+                const avatarUrl =
+                    makeUserUrl(this.webServer, user, '/users/') + `/avatar/${filename}`;
+
+                apSettings.image = avatarUrl;
+                apSettings.icon = avatarUrl;
+
+                user.setProperty(
+                    UserProps.ActivityPubSettings,
+                    JSON.stringify(apSettings)
+                );
+
+                return cb(null);
+            });
+        });
     }
 };
