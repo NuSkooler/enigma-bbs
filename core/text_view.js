@@ -151,6 +151,11 @@ TextView.prototype.getData = function () {
 TextView.prototype.setText = function (text, redraw) {
     redraw = _.isBoolean(redraw) ? redraw : true;
 
+    // Don't bomb if text isn't defined, just treat as blank instead.
+    if (_.isUndefined(text)) {
+        text = '';
+    }
+
     if (!_.isString(text)) {
         //  allow |text| to be numbers/etc.
         text = text.toString();
