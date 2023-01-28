@@ -210,7 +210,7 @@ module.exports = class Actor extends ActivityPubObject {
 
     static _fromCache(id, cb) {
         apDb.get(
-            `SELECT actor_json, subject, timestamp
+            `SELECT rowid, actor_json, subject, timestamp,
             FROM actor_cache
             WHERE actor_id = ? OR subject = ?
             LIMIT 1;`,
@@ -226,8 +226,17 @@ module.exports = class Actor extends ActivityPubObject {
 
                 const timestamp = moment(row.timestamp);
                 if (moment().isAfter(timestamp.add(ActorCacheTTL))) {
-                    //  :TODO: drop from cache
-                    return cb(Errors.Expired('The cache entry is expired'));
+                    apDb.run(
+                        `DELETE FROM actor_cache
+                        WHERE rowid = ?;`,
+                        [row.rowid],
+                        err => {
+                            if (err) {
+                                //  :TODO: Log me
+                            }
+                            return cb(Errors.Expired('The cache entry is expired'));
+                        }
+                    );
                 }
 
                 const obj = ActivityPubObject.fromJsonString(row.actor_json);
