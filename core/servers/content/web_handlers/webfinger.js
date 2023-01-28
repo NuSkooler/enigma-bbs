@@ -5,7 +5,6 @@ const { WellKnownLocations } = require('../web');
 const {
     localActorId,
     webFingerProfileUrl,
-    userFromActorId,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
 } = require('../../../activitypub/util');
@@ -78,11 +77,20 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _profileRequestHandler(req, resp) {
-        const actorId = this.webServer.fullUrl(req).toString();
-        userFromActorId(actorId, (err, localUser) => {
+        //  Profile requests do not have an Actor ID available
+        const profileQuery = this.webServer.fullUrl(req).toString();
+        const accountName = this._getAccountName(profileQuery);
+        if (!accountName) {
+            this.log.warn(
+                `Failed to parse "account name" for profile query: ${profileQuery}`
+            );
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        this._localUserFromWebFingerAccountName(accountName, (err, localUser) => {
             if (err) {
                 this.log.warn(
-                    { error: err.message, type: 'Profile' },
+                    { error: err.message, type: 'Profile', accountName },
                     'Could not fetch profile for WebFinger request'
                 );
                 return this.webServer.resourceNotFound(resp);
