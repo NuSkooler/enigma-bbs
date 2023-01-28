@@ -490,17 +490,6 @@ dbs.message.run(
             ON actor_cache (actor_id);`
         );
 
-        //  Mapping of known aliases for a fully qualified Actor ID
-        //  generally obtained via WebFinger
-        dbs.activitypub.run(
-            `CREATE TABLE IF NOT EXISTS actor_alias_cache (
-                actor_id            VARCHAR NOT NULL,   -- Fully qualified Actor ID/URL
-                actor_alias_id      VARCHAR NOT NULL,   -- Alias such the user's "profile URL"
-
-                UNIQUE(actor_alias_id)
-            );`
-        );
-
         //  ActivityPub Collections of various types such as followers, following, likes, ...
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS collection (
