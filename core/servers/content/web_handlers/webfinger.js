@@ -15,6 +15,7 @@ const ActivityPubSettings = require('../../../activitypub/settings');
 
 // deps
 const _ = require('lodash');
+const Actor = require('../../../activitypub/actor');
 
 exports.moduleInfo = {
     name: 'WebFinger',
@@ -104,25 +105,33 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 templateFile = this.webServer.resolveTemplatePath(templateFile);
             }
 
-            getUserProfileTemplatedBody(
-                templateFile,
-                localUser,
-                DefaultProfileTemplate,
-                'text/plain',
-                (err, body, contentType) => {
-                    if (err) {
-                        return this.webServer.resourceNotFound(resp);
-                    }
-
-                    const headers = {
-                        'Content-Type': contentType,
-                        'Content-Length': body.length,
-                    };
-
-                    resp.writeHead(200, headers);
-                    return resp.end(body);
+            Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
                 }
-            );
+
+                getUserProfileTemplatedBody(
+                    this.webServer,
+                    templateFile,
+                    localUser,
+                    localActor,
+                    DefaultProfileTemplate,
+                    'text/plain',
+                    (err, body, contentType) => {
+                        if (err) {
+                            return this.webServer.resourceNotFound(resp);
+                        }
+
+                        const headers = {
+                            'Content-Type': contentType,
+                            'Content-Length': body.length,
+                        };
+
+                        resp.writeHead(200, headers);
+                        return resp.end(body);
+                    }
+                );
+            });
         });
     }
 

@@ -6,6 +6,7 @@ const {
     makeUserUrl,
     localActorId,
 } = require('../../../activitypub/util');
+const { ActivityStreamMediaType } = require('../../../activitypub/const');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
 const ActivityPubSettings = require('../../../activitypub/settings');
@@ -30,8 +31,6 @@ exports.moduleInfo = {
     author: 'NuSkooler, CognitiveGears',
     packageName: 'codes.l33t.enigma.web.handler.activitypub',
 };
-
-const ActivityJsonMime = 'application/activity+json';
 
 exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     constructor() {
@@ -149,7 +148,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         // Additionally, serve activity JSON if the proper 'Accept' header was sent
         const accept = req.headers['accept'].split(',').map(v => v.trim()) || ['*/*'];
         const headerValues = [
-            ActivityJsonMime,
+            ActivityStreamMediaType,
             'application/ld+json',
             'application/json',
         ];
@@ -166,11 +165,17 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            if (sendActor) {
-                return this._selfAsActorHandler(localUser, req, resp);
-            } else {
-                return this._standardSelfHandler(localUser, req, resp);
-            }
+            Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                if (sendActor) {
+                    return this._selfAsActorHandler(localUser, localActor, req, resp);
+                } else {
+                    return this._standardSelfHandler(localUser, localActor, req, resp);
+                }
+            });
         });
     }
 
@@ -341,7 +346,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this.webServer.internalServerError(resp, err);
                 }
 
-                return this.webServer.accepted(resp);
+                return this.webServer.created(resp);
             }
         );
     }
@@ -409,7 +414,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             const body = JSON.stringify(collection);
             const headers = {
-                'Content-Type': ActivityJsonMime,
+                'Content-Type': ActivityStreamMediaType,
                 'Content-Length': body.length,
             };
 
@@ -700,30 +705,24 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         console.log(resp);
     }
 
-    _selfAsActorHandler(user, req, resp) {
+    _selfAsActorHandler(localUser, localActor, req, resp) {
         this.log.trace(
-            { username: user.username },
-            `Serving ActivityPub Actor for "${user.username}"`
+            { username: localUser.username },
+            `Serving ActivityPub Actor for "${localUser.username}"`
         );
 
-        Actor.fromLocalUser(user, this.webServer, (err, actor) => {
-            if (err) {
-                return this.webServer.internalServerError(resp, err);
-            }
+        const body = JSON.stringify(localActor);
 
-            const body = JSON.stringify(actor);
+        const headers = {
+            'Content-Type': ActivityStreamMediaType,
+            'Content-Length': body.length,
+        };
 
-            const headers = {
-                'Content-Type': ActivityJsonMime,
-                'Content-Length': body.length,
-            };
-
-            resp.writeHead(200, headers);
-            return resp.end(body);
-        });
+        resp.writeHead(200, headers);
+        return resp.end(body);
     }
 
-    _standardSelfHandler(user, req, resp) {
+    _standardSelfHandler(localUser, localActor, req, resp) {
         let templateFile = _.get(
             Config(),
             'contentServers.web.handlers.activityPub.selfTemplate'
@@ -734,8 +733,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         // we'll fall back to the same default profile info as the WebFinger profile
         getUserProfileTemplatedBody(
+            this.webServer,
             templateFile,
-            user,
+            localUser,
+            localActor,
             DefaultProfileTemplate,
             'text/plain',
             (err, body, contentType) => {

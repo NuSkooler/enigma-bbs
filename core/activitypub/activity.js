@@ -1,5 +1,11 @@
 const { localActorId } = require('./util');
-const { WellKnownActivityTypes } = require('./const');
+const {
+    ActivityStreamMediaType,
+    WellKnownActivityTypes,
+    WellKnownActivity,
+    WellKnownRecipientFields,
+    HttpSignatureSignHeaders,
+} = require('./const');
 const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const UserProps = require('../user_property');
@@ -26,7 +32,7 @@ module.exports = class Activity extends ActivityPubObject {
     static makeFollow(webServer, localActor, remoteActor) {
         return new Activity({
             id: Activity.activityObjectId(webServer),
-            type: 'Follow',
+            type: WellKnownActivity.Follow,
             actor: localActor,
             object: remoteActor.id,
         });
@@ -36,7 +42,7 @@ module.exports = class Activity extends ActivityPubObject {
     static makeAccept(webServer, localActor, followRequest) {
         return new Activity({
             id: Activity.activityObjectId(webServer),
-            type: 'Accept',
+            type: WellKnownActivity.Accept,
             actor: localActor,
             object: followRequest, // previous request Activity
         });
@@ -45,7 +51,7 @@ module.exports = class Activity extends ActivityPubObject {
     static makeCreate(webServer, actor, obj) {
         return new Activity({
             id: Activity.activityObjectId(webServer),
-            type: 'Create',
+            type: WellKnownActivity.Create,
             actor,
             object: obj,
         });
@@ -55,7 +61,7 @@ module.exports = class Activity extends ActivityPubObject {
         const deleted = getISOTimestampString();
         return new Activity({
             id: obj.id,
-            type: 'Tombstone',
+            type: WellKnownActivity.Tombstone,
             deleted,
             published: deleted,
             updated: deleted,
@@ -74,14 +80,13 @@ module.exports = class Activity extends ActivityPubObject {
 
         const reqOpts = {
             headers: {
-                'Content-Type': 'application/activity+json',
+                'Content-Type': ActivityStreamMediaType,
             },
             sign: {
-                //  :TODO: Make a helper for this
                 key: privateKey,
                 keyId: localActorId(webServer, fromUser) + '#main-key',
                 authorizationHeaderName: 'Signature',
-                headers: ['(request-target)', 'host', 'date', 'digest', 'content-type'],
+                headers: HttpSignatureSignHeaders,
             },
         };
 
@@ -92,8 +97,7 @@ module.exports = class Activity extends ActivityPubObject {
     recipientIds() {
         const ids = [];
 
-        //  :TODO: bto, bcc?
-        ['to', 'cc', 'audience'].forEach(field => {
+        WellKnownRecipientFields.forEach(field => {
             let v = this[field];
             if (v) {
                 if (!Array.isArray(v)) {
@@ -103,7 +107,7 @@ module.exports = class Activity extends ActivityPubObject {
             }
         });
 
-        return ids;
+        return Array.from(new Set(ids));
     }
 
     static activityObjectId(webServer) {

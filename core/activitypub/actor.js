@@ -17,6 +17,7 @@ const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
 const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
+const { ActivityStreamMediaType } = require('./const');
 const apDb = require('../database').dbs.activitypub;
 
 //  deps
@@ -96,6 +97,12 @@ module.exports = class Actor extends ActivityPubObject {
             '@context': [
                 ActivityStreamsContext,
                 'https://w3id.org/security/v1', // :TODO: add support
+                {
+                    bbsPublicStats: {
+                        '@id': 'bbs:bbsPublicStats',
+                        '@type': '@id',
+                    },
+                },
             ],
             id: userActorId,
             type: 'Person',
@@ -122,6 +129,25 @@ module.exports = class Actor extends ActivityPubObject {
             //         value: 'Mateo@21:1/121',
             //     },
             // ],
+            bbsPublicStats: {
+                affiliations: user.getProperty(UserProps.Affiliations) || '',
+                lastLogin: user.getProperty(UserProps.LastLoginTs),
+                loginCount: user.getPropertyAsNumber(UserProps.LoginCount),
+                joined: user.getProperty(UserProps.AccountCreated),
+                postCount: user.getPropertyAsNumber(UserProps.MessagePostCount),
+                doorCount: user.getPropertyAsNumber(UserProps.DoorRunTotalCount),
+                doorMinute: user.getPropertyAsNumber(UserProps.DoorRunTotalMinutes),
+                achievementCount: user.getPropertyAsNumber(
+                    UserProps.AchievementTotalCount
+                ),
+                achievementPoints: user.getPropertyAsNumber(
+                    UserProps.AchievementTotalPoints
+                ),
+                uploadCount: user.getPropertyAsNumber(UserProps.FileUlTotalCount),
+                downloadCount: user.getPropertyAsNumber(UserProps.FileDlTotalCount),
+                uploadBytes: user.getPropertyAsNumber(UserProps.FileUlTotalBytes),
+                downloadBytes: user.getPropertyAsNumber(UserProps.FileDlTotalBytes),
+            },
         };
 
         addImage(obj, 'icon');
@@ -190,7 +216,7 @@ module.exports = class Actor extends ActivityPubObject {
 
     static _fromRemoteQuery(id, cb) {
         const headers = {
-            Accept: 'application/activity+json',
+            Accept: ActivityStreamMediaType,
         };
 
         getJson(id, { headers }, (err, actor) => {
@@ -268,7 +294,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             const activityLink = links.find(l => {
-                return l.type === 'application/activity+json' && l.href?.length > 0;
+                return l.type === ActivityStreamMediaType && l.href?.length > 0;
             });
 
             if (!activityLink) {

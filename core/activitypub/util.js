@@ -14,6 +14,7 @@ const paths = require('path');
 const moment = require('moment');
 const { striptags } = require('striptags');
 const { encode, decode } = require('html-entities');
+const { isString } = require('lodash');
 
 exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 exports.isValidLink = isValidLink;
@@ -32,9 +33,9 @@ exports.userNameFromSubject = userNameFromSubject;
 // profiles and 'self' requests without the
 // Accept: application/activity+json headers present
 exports.DefaultProfileTemplate = `
-User information for: %USERNAME%
+User information for: %PREFERRED_USERNAME%
 
-Real Name: %REAL_NAME%
+Name: %NAME%
 Login Count: %LOGIN_COUNT%
 Affiliations: %AFFILIATIONS%
 Achievement Points: %ACHIEVEMENT_POINTS%
@@ -102,8 +103,10 @@ function userFromActorId(actorId, cb) {
 }
 
 function getUserProfileTemplatedBody(
+    webServer,
     templateFile,
     user,
+    userAsActor,
     defaultTemplate,
     defaultContentType,
     cb
@@ -130,36 +133,53 @@ function getUserProfileTemplatedBody(
                 return callback(null, template, contentType);
             },
             (template, contentType, callback) => {
-                const up = (p, na = 'N/A') => {
-                    return user.getProperty(p) || na;
+                const val = v => {
+                    if (isString(v)) {
+                        return v ? encode(v) : '';
+                    } else {
+                        return v ? v : 0;
+                    }
                 };
 
-                let birthDate = up(UserProps.Birthdate);
+                let birthDate = val(user.getProperty(UserProps.Birthdate));
                 if (moment.isDate(birthDate)) {
                     birthDate = moment(birthDate);
                 }
 
                 const varMap = {
-                    USERNAME: user.username,
-                    REAL_NAME: user.getSanitizedName('real'),
-                    SEX: up(UserProps.Sex),
+                    ACTOR_OBJ: JSON.stringify(userAsActor),
+                    SUBJECT: `@${user.username}@${webServer.getDomain()}`,
+                    INBOX: userAsActor.inbox,
+                    SHARED_INBOX: userAsActor.endpoints.sharedInbox,
+                    OUTBOX: userAsActor.outbox,
+                    FOLLOWERS: userAsActor.followers,
+                    FOLLOWING: userAsActor.following,
+                    USER_ICON: userAsActor.icon.url,
+                    USER_IMAGE: userAsActor.image.url,
+                    PREFERRED_USERNAME: userAsActor.preferredUsername,
+                    NAME: userAsActor.name,
+                    SEX: user.getProperty(UserProps.Sex),
                     BIRTHDATE: birthDate,
                     AGE: user.getAge(),
-                    LOCATION: up(UserProps.Location),
-                    AFFILIATIONS: up(UserProps.Affiliations),
-                    EMAIL: up(UserProps.EmailAddress),
-                    WEB_ADDRESS: up(UserProps.WebAddress),
+                    LOCATION: user.getProperty(UserProps.Location),
+                    AFFILIATIONS: user.getProperty(UserProps.Affiliations),
+                    EMAIL: user.getProperty(UserProps.EmailAddress),
+                    WEB_ADDRESS: user.getProperty(UserProps.WebAddress),
                     ACCOUNT_CREATED: moment(user.getProperty(UserProps.AccountCreated)),
                     LAST_LOGIN: moment(user.getProperty(UserProps.LastLoginTs)),
-                    LOGIN_COUNT: up(UserProps.LoginCount),
-                    ACHIEVEMENT_COUNT: up(UserProps.AchievementTotalCount, '0'),
-                    ACHIEVEMENT_POINTS: up(UserProps.AchievementTotalPoints, '0'),
+                    LOGIN_COUNT: user.getPropertyAsNumber(UserProps.LoginCount),
+                    ACHIEVEMENT_COUNT: user.getPropertyAsNumber(
+                        UserProps.AchievementTotalCount
+                    ),
+                    ACHIEVEMENT_POINTS: user.getProperty(
+                        UserProps.AchievementTotalPoints
+                    ),
                     BOARDNAME: Config().general.boardName,
                 };
 
                 let body = template;
-                _.each(varMap, (val, varName) => {
-                    body = body.replace(new RegExp(`%${varName}%`, 'g'), val);
+                _.each(varMap, (v, varName) => {
+                    body = body.replace(new RegExp(`%${varName}%`, 'g'), val(v));
                 });
 
                 return callback(null, body, contentType);
