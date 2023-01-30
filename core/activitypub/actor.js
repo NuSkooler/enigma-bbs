@@ -26,6 +26,7 @@ const mimeTypes = require('mime-types');
 const { getJson } = require('../http_util.js');
 const { getISOTimestampString } = require('../database.js');
 const moment = require('moment');
+const paths = require('path');
 
 const ActorCacheTTL = moment.duration(1, 'day');
 
@@ -82,7 +83,8 @@ module.exports = class Actor extends ActivityPubObject {
         const addImage = (o, t) => {
             const url = userSettings[t];
             if (url) {
-                const mt = mimeTypes.contentType(url);
+                const fn = paths.basename(url);
+                const mt = mimeTypes.contentType(fn);
                 if (mt) {
                     o[t] = {
                         mediaType: mt,

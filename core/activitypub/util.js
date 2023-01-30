@@ -137,6 +137,9 @@ function getUserProfileTemplatedBody(
                     if (isString(v)) {
                         return v ? encode(v) : '';
                     } else {
+                        if (isNaN(v)) {
+                            return '';
+                        }
                         return v ? v : 0;
                     }
                 };
@@ -171,7 +174,7 @@ function getUserProfileTemplatedBody(
                     ACHIEVEMENT_COUNT: user.getPropertyAsNumber(
                         UserProps.AchievementTotalCount
                     ),
-                    ACHIEVEMENT_POINTS: user.getProperty(
+                    ACHIEVEMENT_POINTS: user.getPropertyAsNumber(
                         UserProps.AchievementTotalPoints
                     ),
                     BOARDNAME: Config().general.boardName,

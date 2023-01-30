@@ -306,6 +306,9 @@ module.exports = () => {
                     systemGeneral: {
                         enabled: true,
                     },
+                    nodeInfo2: {
+                        enabled: true,
+                    },
                 },
 
                 resetPassword: {

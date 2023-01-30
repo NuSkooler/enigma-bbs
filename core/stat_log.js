@@ -8,6 +8,7 @@ const SysProps = require('./system_property.js');
 const UserProps = require('./user_property');
 const Message = require('./message');
 const { getActiveConnections, AllConnections } = require('./client_connections');
+const Log = require('./logger').log;
 
 //  deps
 const _ = require('lodash');
@@ -349,6 +350,7 @@ class StatLog {
     //  - resultType: 'obj' | 'count' (default='obj')
     //  - limit: Limit returned results
     //  - date: exact date to filter against
+    //  - dateNewer: Entries newer than this value
     //  - order: 'timestamp' | 'timestamp_asc' | 'timestamp_desc' | 'random'
     //           (default='timestamp')
     //
@@ -402,7 +404,9 @@ class StatLog {
                 this.setNonPersistentSystemStat(SysProps.SystemLoadStats, loadStats);
             })
             .catch(err => {
-                //  :TODO: log me
+                if (err) {
+                    Log.err({ error: err.message }, 'Error refreshing system stats');
+                }
             });
     }
 
@@ -507,6 +511,11 @@ class StatLog {
         if (filter.date) {
             filter.date = moment(filter.date);
             sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format(
+                'YYYY-MM-DD'
+            )}")`;
+        } else if (filter.dateNewer) {
+            filter.dateNewer = moment(filter.dateNewer);
+            sql += ` AND DATE(timestamp, "localtime") > DATE("${filter.dateNewer.format(
                 'YYYY-MM-DD'
             )}")`;
         }
