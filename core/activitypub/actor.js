@@ -19,6 +19,7 @@ const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
 const { ActivityStreamMediaType } = require('./const');
 const apDb = require('../database').dbs.activitypub;
+const Config = require('../config').get;
 
 //  deps
 const _ = require('lodash');
@@ -100,8 +101,8 @@ module.exports = class Actor extends ActivityPubObject {
                 ActivityStreamsContext,
                 'https://w3id.org/security/v1', // :TODO: add support
                 {
-                    bbsPublicStats: {
-                        '@id': 'bbs:bbsPublicStats',
+                    bbsInfo: {
+                        '@id': 'bbs:bbsInfo',
                         '@type': '@id',
                     },
                 },
@@ -131,24 +132,9 @@ module.exports = class Actor extends ActivityPubObject {
             //         value: 'Mateo@21:1/121',
             //     },
             // ],
-            bbsPublicStats: {
-                affiliations: user.getProperty(UserProps.Affiliations) || '',
-                lastLogin: user.getProperty(UserProps.LastLoginTs),
-                loginCount: user.getPropertyAsNumber(UserProps.LoginCount),
-                joined: user.getProperty(UserProps.AccountCreated),
-                postCount: user.getPropertyAsNumber(UserProps.MessagePostCount),
-                doorCount: user.getPropertyAsNumber(UserProps.DoorRunTotalCount),
-                doorMinute: user.getPropertyAsNumber(UserProps.DoorRunTotalMinutes),
-                achievementCount: user.getPropertyAsNumber(
-                    UserProps.AchievementTotalCount
-                ),
-                achievementPoints: user.getPropertyAsNumber(
-                    UserProps.AchievementTotalPoints
-                ),
-                uploadCount: user.getPropertyAsNumber(UserProps.FileUlTotalCount),
-                downloadCount: user.getPropertyAsNumber(UserProps.FileDlTotalCount),
-                uploadBytes: user.getPropertyAsNumber(UserProps.FileUlTotalBytes),
-                downloadBytes: user.getPropertyAsNumber(UserProps.FileDlTotalBytes),
+            bbsInfo: {
+                boardName: Config().general.boardName,
+                memberSince: user.getProperty(UserProps.AccountCreated),
             },
         };
 
