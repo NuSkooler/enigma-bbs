@@ -30,7 +30,7 @@ const ALL_ASSETS = [
 ];
 
 const ASSET_RE = new RegExp(
-    '^@(' + ALL_ASSETS.join('|') + ')' + /:(?:([^:]+):)?([A-Za-z0-9_\-.]+)$/.source
+    '^@(' + ALL_ASSETS.join('|') + ')' + /:(?:([^:]+):)?([A-Za-z0-9_\-./]+)$/.source
 );
 
 function parseAsset(s) {

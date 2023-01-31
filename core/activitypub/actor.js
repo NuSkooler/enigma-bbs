@@ -135,6 +135,7 @@ module.exports = class Actor extends ActivityPubObject {
             bbsInfo: {
                 boardName: Config().general.boardName,
                 memberSince: user.getProperty(UserProps.AccountCreated),
+                affiliations: user.getProperty(UserProps.Affiliations) || '',
             },
         };
 
