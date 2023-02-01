@@ -46,7 +46,7 @@ function postJson(url, json, options, cb) {
 
 function _makeRequest(url, options, cb) {
     if (options.body) {
-        options.headers['Content-Length'] = options.body.length;
+        options.headers['Content-Length'] = Buffer(options.body).length;
 
         if (options?.sign?.headers?.includes('digest')) {
             options.headers['Digest'] =

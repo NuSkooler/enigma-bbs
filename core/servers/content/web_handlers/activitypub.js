@@ -415,7 +415,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             const body = JSON.stringify(collection);
             const headers = {
                 'Content-Type': ActivityStreamMediaType,
-                'Content-Length': body.length,
+                'Content-Length': Buffer(body).length,
             };
 
             resp.writeHead(200, headers);
@@ -715,7 +715,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         const headers = {
             'Content-Type': ActivityStreamMediaType,
-            'Content-Length': body.length,
+            'Content-Length': Buffer(body).length,
         };
 
         resp.writeHead(200, headers);
@@ -746,7 +746,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                 const headers = {
                     'Content-Type': contentType,
-                    'Content-Length': body.length,
+                    'Content-Length': Buffer(body).length,
                 };
 
                 resp.writeHead(200, headers);

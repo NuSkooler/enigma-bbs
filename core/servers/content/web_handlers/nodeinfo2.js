@@ -51,7 +51,7 @@ exports.getModule = class NodeInfo2WebHadnler extends WebHandlerModule {
             const body = JSON.stringify(nodeInfo);
             const headers = {
                 'Content-Type': 'application/json',
-                'Content-Length': body.length,
+                'Content-Length': Buffer(body).length,
             };
 
             resp.writeHead(200, headers);
