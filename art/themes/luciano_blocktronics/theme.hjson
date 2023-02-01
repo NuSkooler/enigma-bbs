@@ -427,6 +427,39 @@
 				}
 			}
 
+			//	:TODO: move this to the right area, rename, etc.
+			mainMenuActivityPubUserConfig: {
+				0: {
+					mci: {
+						TM1: {
+							focusTextStyle: upper
+						}
+						TM2: {
+							focusTextStyle: upper
+						}
+						TM3: {
+							focusTextStyle: upper
+						}
+						TM4: {
+							focusTextStyle: upper
+						}
+						TL5: {
+							width: 70
+						}
+						TL6: {
+							width: 70
+						}
+						BT7: {
+							width: 20
+							focusTextStyle: upper
+						}
+						TM8: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
 			mainMenuRumorz: {
 				0: {
 					mci: {

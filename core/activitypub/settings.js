@@ -13,6 +13,7 @@ module.exports = class ActivityPubSettings {
         //  override default with any op config
         Object.assign(this, Config().users.activityPub);
 
+        //  finally override with any explicit values given to us
         if (obj) {
             Object.assign(this, obj);
         }
@@ -39,7 +40,15 @@ module.exports = class ActivityPubSettings {
         return user.persistProperty(
             UserProps.ActivityPubSettings,
             JSON.stringify(this),
-            cb
+            err => {
+                if (!err) {
+                    //  drop from cache
+                    delete user.activityPubSettings;
+                }
+                if (cb) {
+                    return cb(err);
+                }
+            }
         );
     }
 };

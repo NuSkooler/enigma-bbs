@@ -127,6 +127,14 @@ View.prototype.getId = function () {
     return this.id;
 };
 
+View.prototype.getWidth = function () {
+    return this.dimens.width;
+};
+
+View.prototype.getHeight = function () {
+    return this.dimens.height;
+};
+
 View.prototype.setPosition = function (pos) {
     //
     //  Allow the following forms: [row, col], { row : r, col : c }, or (row, col)

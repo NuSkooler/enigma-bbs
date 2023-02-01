@@ -57,6 +57,8 @@ exports.Errors = {
     MissingProperty: (reason, reasonCode) =>
         new EnigError('Missing property', -32014, reason, reasonCode),
     Expired: (reason, reasonCode) => new EnigError('Expired', -32015, reason, reasonCode),
+    BadFormData: (reason, reasonCode) =>
+        new EnigError('Bad or missing form data', -32016, reason, reasonCode),
 };
 
 exports.ErrorReasons = {
