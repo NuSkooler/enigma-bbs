@@ -101,7 +101,16 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
         apSettings.hideSocialGraph = values.hideSocialGraph;
         apSettings.showRealName = values.showRealName;
 
-        return apSettings.persistToUserProperties(this.client.user, cb);
+        apSettings.persistToUserProperties(this.client.user, err => {
+            if (err) {
+                const user = this.client.user;
+                this.client.log.warn(
+                    { error: err.message, user: user.username },
+                    `Failed saving ActivityPub settings for user "${user.username}"`
+                );
+            }
+            return this.prevMenu(cb);
+        });
     }
 
     _displayMainPage(clearScreen, cb) {
