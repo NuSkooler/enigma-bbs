@@ -460,6 +460,35 @@
 				}
 			}
 
+			//	:TODO: move this to the right area, rename, etc.
+			mainMenuActivityPubActorSearch: {
+				0: {
+					mci: {
+						TL1: {
+							width: 70
+						}
+						BT2: {
+							width: 20
+							focusTextStyle: upper
+						}
+					}
+				}
+				1: {
+					mci: {
+						TL1: {
+							width: 70
+						}
+						TL2: {
+							width: 70
+						}
+						BT3: {
+							width: 20
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
 			mainMenuRumorz: {
 				0: {
 					mci: {
