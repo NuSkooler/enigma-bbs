@@ -632,6 +632,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         this.client.term.rawWrite(ansi.resetScreen());
                     }
 
+                    if (!_.has(config.art, name)) {
+                        const artKeys = _.keys(config.art);
+                        this.client.log.warn(
+                            { requestedArtName: name, availableArtKeys: artKeys },
+                            'Art name is not set! Check configuration for typos.'
+                        );
+                    }
+
                     theme.displayThemedAsset(
                         config.art[name],
                         this.client,
