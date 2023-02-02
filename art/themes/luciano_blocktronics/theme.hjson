@@ -432,16 +432,16 @@
 				0: {
 					mci: {
 						TM1: {
-							focusTextStyle: upper
+							focusTextStyle: first lower
 						}
 						TM2: {
-							focusTextStyle: upper
+							focusTextStyle: first lower
 						}
 						TM3: {
-							focusTextStyle: upper
+							focusTextStyle: first lower
 						}
 						TM4: {
-							focusTextStyle: upper
+							focusTextStyle: first lower
 						}
 						TL5: {
 							width: 70
@@ -451,10 +451,12 @@
 						}
 						BT7: {
 							width: 20
-							focusTextStyle: upper
+							itemFormat: "|00|08[ |03{text} |08]"
+							focusItemFormat: "|00|15[ |19|15{text}|16 |15]"
+							focusTextStyle: first lower
 						}
 						TM8: {
-							focusTextStyle: upper
+							focusTextStyle: first lower
 						}
 					}
 				}
