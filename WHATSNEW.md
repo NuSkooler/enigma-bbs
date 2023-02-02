@@ -2,12 +2,14 @@
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
 ## 0.0.14-beta
-* The [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made some possibly breaking changes:
+* [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made many changes, **some possibly breaking**:
     * `/static/` prefixes are no longer required. This was a ugly hack.
     * Some internal routes such as those used for password resets live within `/_enig/`.
     * Routes for the file base now default to `/_f/` prefixed instead of just `/f/`. If `/f/` is in your `config.hjson` you are encouraged to update it!
     * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
-* [WebFinger](/docs/_docs/servers/contentservers/webfinger-handler.md) support.
+    * Web activity now has it's own logging configuration under `contentHandlers.web.logging`; The format is the same as the systems standard logging and defaults to a `enigma-bbs.web.log` rotating file at `info` level.
+    * Smaller [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md) modules are now easy to add, a number of which exist by default.
+    * [WebFinger](/docs/_docs/servers/contentservers/webfinger-handler.md) support (Web Handler)
 * New users now have randomly generated avatars assigned to them that can be served up via the new System General [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md).
 * CombatNet has shut down, so the module (`combatnet.js`) has been removed.
 * New `NewUserPrePersist` system event available to developers to 'hook' account creation and add their own properties/etc.
