@@ -302,6 +302,17 @@ module.exports = () => {
 
                 staticRoot: paths.join(__dirname, './../www'),
 
+                // Logging block works the same way the system logger does
+                logging: {
+                    rotatingFile: {
+                        level: 'info',
+                        type: 'rotating-file',
+                        fileName: 'enigma-bbs.web.log',
+                        period: '1d',
+                        count: 3,
+                    },
+                },
+
                 handlers: {
                     systemGeneral: {
                         enabled: true,

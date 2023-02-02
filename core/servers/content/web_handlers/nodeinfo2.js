@@ -45,7 +45,7 @@ exports.getModule = class NodeInfo2WebHadnler extends WebHandlerModule {
     }
 
     _nodeInfo2Handler(req, resp) {
-        this.log.info({ url: req.url }, 'Serving NodeInfo2 request');
+        this.log.info('Serving NodeInfo2 request');
 
         this._getNodeInfo(nodeInfo => {
             const body = JSON.stringify(nodeInfo);

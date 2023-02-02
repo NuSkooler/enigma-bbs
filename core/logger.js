@@ -27,6 +27,16 @@ module.exports = class Log {
             logStreams.push(Config.logging.rotatingFile);
         }
 
+        const serializers = Log.standardSerializers();
+
+        this.log = bunyan.createLogger({
+            name: 'ENiGMA½ BBS',
+            streams: logStreams,
+            serializers: serializers,
+        });
+    }
+
+    static standardSerializers() {
         const serializers = {
             err: bunyan.stdSerializers.err, //  handle 'err' fields with stack/etc.
         };
@@ -36,11 +46,7 @@ module.exports = class Log {
             serializers[keyName] = fd => Log.hideSensitive(fd);
         });
 
-        this.log = bunyan.createLogger({
-            name: 'ENiGMA½ BBS',
-            streams: logStreams,
-            serializers: serializers,
-        });
+        return serializers;
     }
 
     static checkLogPath(logPath) {

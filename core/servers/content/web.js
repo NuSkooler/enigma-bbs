@@ -15,6 +15,7 @@ const paths = require('path');
 const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
+const WebLog = require('../../web_log.js');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
@@ -74,7 +75,8 @@ exports.getModule = class WebServerModule extends ServerModule {
     constructor() {
         super();
 
-        this.log = Log.child({ server: 'Web' });
+        //this.log = Log.child({ server: 'Web' });
+        this.log = WebLog.createWebLog();
 
         const config = Config();
         this.enableHttp = config.contentServers.web.http.enabled || false;
@@ -276,7 +278,7 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     routeRequest(req, resp) {
-        this.log.trace({ url: req.url, method: req.method }, 'Request');
+        this.log.trace({ req }, 'Request');
 
         let route = _.find(this.routes, r => r.matchesRequest(req));
 
