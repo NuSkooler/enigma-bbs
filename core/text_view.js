@@ -54,13 +54,28 @@ function TextView(options) {
         //  |ABCDEFG|  ^_ this.text.length
         //          ^-- this.dimens.width
         //
-        let renderLength = renderStringLength(s); //  initial; may be adjusted below:
+        let textToDraw;
+        if (this.itemFormat) {
+            textToDraw = pipeToAnsi(
+                stringFormat(
+                    this.hasFocus && this.focusItemFormat
+                        ? this.focusItemFormat
+                        : this.itemFormat,
+                    {
+                        text: stylizeString(
+                            s,
+                            this.hasFocus ? this.focusTextStyle : this.textStyle
+                        ),
+                    }
+                )
+            );
+        } else {
+            textToDraw = _.isString(this.textMaskChar)
+                ? new Array(renderStringLength(s) + 1).join(this.textMaskChar)
+                : stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+        }
 
-        let textToDraw = _.isString(this.textMaskChar)
-            ? new Array(renderLength + 1).join(this.textMaskChar)
-            : stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
-
-        renderLength = renderStringLength(textToDraw);
+        const renderLength = renderStringLength(textToDraw);
 
         if (renderLength >= this.dimens.width) {
             if (this.hasFocus) {
