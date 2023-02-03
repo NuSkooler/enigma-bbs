@@ -1,10 +1,12 @@
 const { MenuModule } = require('../menu_module');
 const { Errors } = require('../enig_error');
 const Actor = require('../activitypub/actor');
+const moment = require('moment');
+const { htmlToMessageBody } = require('./util');
 
 // deps
 const async = require('async');
-const { get, truncate } = require('lodash');
+const { get, truncate, isEmpty } = require('lodash');
 
 exports.moduleInfo = {
     name: 'ActivityPub Actor Search',
@@ -20,11 +22,18 @@ const FormIds = {
 const MciViewIds = {
     main: {
         searchUrl: 1,
-        searchOrCancel: 2,
+        searchButton: 2,
     },
     view: {
         userName: 1,
         fullName: 2,
+        datePublished: 3,
+        manualFollowers: 4,
+        numberFollowers: 5,
+        numberFollowing: 6,
+        summary: 7,
+        followButton: 8,
+        cancelButton: 9,
     },
 };
 
@@ -42,11 +51,8 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                     case MciViewIds.main.searchUrl: {
                         return this._search(formData.value, cb);
                     }
-                    case MciViewIds.main.searchOrCancel: {
-                        const search = get(formData, 'value.searchOrCancel') === 0;
-                        return search
-                            ? this._search(formData.value, cb)
-                            : this.prevMenu(cb);
+                    case MciViewIds.main.searchButton: {
+                        return this._search(formData.value, cb);
                     }
 
                     default:
@@ -96,11 +102,20 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
         async.series(
             [
                 callback => {
+                    if (this.viewControllers.main) {
+                        this.viewControllers.main.setFocus(false);
+                    }
+
                     return this.displayArtAndPrepViewController(
                         'view',
                         FormIds.view,
                         { clearScreen: true },
-                        callback
+                        (err, artInfo, wasCreated) => {
+                            if (!err && !wasCreated) {
+                                this.viewControllers.view.setFocus(true);
+                            }
+                            return callback(err);
+                        }
                     );
                 },
                 callback => {
@@ -120,11 +135,34 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                         })
                     );
 
-                    // TODO: FIXME: fullNameView.getWidth() is 0 - I'm thinking it's getting form 0 for some reason
                     const fullNameView = v(MciViewIds.view.fullName);
                     fullNameView.setText(
                         truncate(remoteActor.name, { length: fullNameView.getWidth() })
                     );
+
+                    const datePublishedView = v(MciViewIds.view.datePublished);
+                    if (isEmpty(remoteActor.published)) {
+                        datePublishedView.setText('Not available.');
+                    } else {
+                        const publishedDate = moment(remoteActor.published);
+                        datePublishedView.setText(
+                            publishedDate.format(this.getDateFormat())
+                        );
+                    }
+
+                    const manualFollowersView = v(MciViewIds.view.manualFollowers);
+                    manualFollowersView.setText(remoteActor.manuallyApprovesFollowers);
+
+                    // TODO: Number of followers, number following
+
+                    const summaryView = v(MciViewIds.view.summary);
+                    summaryView.setText(htmlToMessageBody(remoteActor.summary));
+                    summaryView.redraw();
+
+                    const followButtonView = v(MciViewIds.view.followButton);
+                    // TODO: FIXME: Real status
+                    followButtonView.setText('follow');
+
                     return callback(null);
                 },
             ],
