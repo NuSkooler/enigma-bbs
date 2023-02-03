@@ -472,6 +472,7 @@
 						BT2: {
 							width: 20
 							focusTextStyle: upper
+							submit: true
 						}
 					}
 				}
@@ -496,16 +497,19 @@
 							width: 4 
 						}
 						MT7: {
+							focus: true
 							width: 69
 							height: 3 
 							mode: preview
 						}
 						BT8: {
 							focusTextStyle: upper
+							submit: true
 						}
 						BT9: {
 							text: back
 							focusTextStyle: upper
+							submit: true
 						}
 					}
 				}

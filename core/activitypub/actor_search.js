@@ -22,7 +22,7 @@ const FormIds = {
 const MciViewIds = {
     main: {
         searchUrl: 1,
-        searchOrCancel: 2,
+        searchButton: 2,
     },
     view: {
         userName: 1,
@@ -51,11 +51,8 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                     case MciViewIds.main.searchUrl: {
                         return this._search(formData.value, cb);
                     }
-                    case MciViewIds.main.searchOrCancel: {
-                        const search = get(formData, 'value.searchOrCancel') === 0;
-                        return search
-                            ? this._search(formData.value, cb)
-                            : this.prevMenu(cb);
+                    case MciViewIds.main.searchButton: {
+                        return this._search(formData.value, cb);
                     }
 
                     default:
@@ -105,11 +102,20 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
         async.series(
             [
                 callback => {
+                    if (this.viewControllers.main) {
+                        this.viewControllers.main.setFocus(false);
+                    }
+
                     return this.displayArtAndPrepViewController(
                         'view',
                         FormIds.view,
                         { clearScreen: true },
-                        callback
+                        (err, artInfo, wasCreated) => {
+                            if (!err && !wasCreated) {
+                                this.viewControllers.view.setFocus(true);
+                            }
+                            return callback(err);
+                        }
                     );
                 },
                 callback => {
@@ -151,10 +157,11 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
 
                     const summaryView = v(MciViewIds.view.summary);
                     summaryView.setText(htmlToMessageBody(remoteActor.summary));
+                    summaryView.redraw();
 
                     const followButtonView = v(MciViewIds.view.followButton);
                     // TODO: FIXME: Real status
-                    followButtonView.setText('Follow');
+                    followButtonView.setText('follow');
 
                     return callback(null);
                 },
