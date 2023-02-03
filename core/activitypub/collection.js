@@ -38,7 +38,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addFollower(owningUser, followingActor, webServer, cb) {
+    static addFollower(owningUser, followingActor, webServer, ignoreDupes, cb) {
         const collectionId =
             makeUserUrl(webServer, owningUser, '/ap/collections/') + '/followers';
         return Collection.addToCollection(
@@ -48,11 +48,12 @@ module.exports = class Collection extends ActivityPubObject {
             followingActor.id,
             followingActor,
             false,
+            ignoreDupes,
             cb
         );
     }
 
-    static addFollowRequest(owningUser, requestingActor, webServer, cb) {
+    static addFollowRequest(owningUser, requestingActor, webServer, ignoreDupes, cb) {
         const collectionId =
             makeUserUrl(webServer, owningUser, '/ap/collections/') + '/follow-requests';
         return Collection.addToCollection(
@@ -62,6 +63,7 @@ module.exports = class Collection extends ActivityPubObject {
             requestingActor.id,
             requestingActor,
             true,
+            ignoreDupes,
             cb
         );
     }
@@ -70,7 +72,7 @@ module.exports = class Collection extends ActivityPubObject {
         return Collection.publicOrderedById('outbox', collectionId, page, null, cb);
     }
 
-    static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, cb) {
+    static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, ignoreDupes, cb) {
         const collectionId =
             makeUserUrl(webServer, owningUser, '/ap/collections/') + '/outbox';
         return Collection.addToCollection(
@@ -80,11 +82,12 @@ module.exports = class Collection extends ActivityPubObject {
             outboxItem.id,
             outboxItem,
             isPrivate,
+            ignoreDupes,
             cb
         );
     }
 
-    static addInboxItem(inboxItem, owningUser, webServer, cb) {
+    static addInboxItem(inboxItem, owningUser, webServer, ignoreDupes, cb) {
         const collectionId =
             makeUserUrl(webServer, owningUser, '/ap/collections/') + '/inbox';
         return Collection.addToCollection(
@@ -94,11 +97,12 @@ module.exports = class Collection extends ActivityPubObject {
             inboxItem.id,
             inboxItem,
             true,
+            ignoreDupes,
             cb
         );
     }
 
-    static addPublicInboxItem(inboxItem, cb) {
+    static addPublicInboxItem(inboxItem, ignoreDupes, cb) {
         return Collection.addToCollection(
             'publicInbox',
             null, // N/A
@@ -106,6 +110,7 @@ module.exports = class Collection extends ActivityPubObject {
             inboxItem.id,
             inboxItem,
             false,
+            ignoreDupes,
             cb
         );
     }
@@ -325,6 +330,7 @@ module.exports = class Collection extends ActivityPubObject {
         objectId,
         obj,
         isPrivate,
+        ignoreDupes,
         cb
     ) {
         if (!isString(obj)) {
@@ -361,8 +367,8 @@ module.exports = class Collection extends ActivityPubObject {
             ],
             function res(err) {
                 // non-arrow for 'this' scope
-                if (err) {
-                    if ('SQLITE_CONSTRAINT' === err.code) {
+                if (err && 'SQLITE_CONSTRAINT' === err.code) {
+                    if (ignoreDupes) {
                         err = null; // ignore
                     }
                     return cb(err);

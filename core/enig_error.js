@@ -59,6 +59,8 @@ exports.Errors = {
     Expired: (reason, reasonCode) => new EnigError('Expired', -32015, reason, reasonCode),
     BadFormData: (reason, reasonCode) =>
         new EnigError('Bad or missing form data', -32016, reason, reasonCode),
+    Duplicate: (reason, reasonCode) =>
+        new EnigError('Duplicate', -32017, reason, reasonCode),
 };
 
 exports.ErrorReasons = {

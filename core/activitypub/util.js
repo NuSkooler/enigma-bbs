@@ -211,8 +211,9 @@ function messageBodyToHtml(body) {
 }
 
 function htmlToMessageBody(html) {
-    // <br>, </br>, and <br/> -> \r\n
-    html = html.replace(/<\/?br?\/?>/g, '\r\n');
+    // <br>, </br>, and <br />, <br/> -> \r\n
+    // </p> -> \r\n
+    html = html.replace(/(?:<\/?br ?\/?>)|(?:<\/p>)/g, '\r\n');
     return striptags(decode(html));
 }
 

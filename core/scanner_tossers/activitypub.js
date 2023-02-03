@@ -100,6 +100,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         activity,
                         message.isPrivate(),
                         this._webServer(),
+                        false, // do not ignore dupes
                         (err, localId) => {
                             if (!err) {
                                 this.log.debug(
@@ -145,11 +146,16 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                 },
             ],
             (err, activity) => {
+                // dupes aren't considered failure
                 if (err) {
-                    this.log.error(
-                        { error: err.message, messageId: message.messageId },
-                        'Failed to export message to ActivityPub'
-                    );
+                    if (err.code === 'SQLITE_CONSTRAINT') {
+                        this.log.debug({ id: activity.id }, 'Ignoring duplicate');
+                    } else {
+                        this.log.error(
+                            { error: err.message, messageId: message.messageId },
+                            'Failed to export message to ActivityPub'
+                        );
+                    }
                 } else {
                     this.log.info(
                         { id: activity.id },

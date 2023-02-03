@@ -281,14 +281,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _sharedInboxCreateActivity(req, resp, activity) {
         const deliverTo = activity.recipientIds();
-
-        //Create a method to gather all to, cc, bcc, etc. dests (see spec) -> single array
-        // loop through, and attempt to fetch user-by-actor id for each; if found, deliver
-        // --we may need to add properties for ActivityPubFollowersId, ActivityPubFollowingId, etc.
-        // to user props for quick lookup -> user
-        // special handling of bcc (remove others before delivery), etc.
-        // const toActorIds = activity.recipientActorIds()
-
         const createWhat = _.get(activity, 'object.type');
         switch (createWhat) {
             case 'Note':
@@ -322,7 +314,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 switch (actorId) {
                     case Collection.PublicCollectionId:
                         //  :TODO: we should probably land this in a public areaTag as well for AP; allowing Message objects to be used/etc.
-                        Collection.addPublicInboxItem(note, err => {
+                        Collection.addPublicInboxItem(note, true, err => {
                             return nextActor(err);
                         });
                         break;
@@ -342,7 +334,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 }
             },
             err => {
-                if (err) {
+                if (err && err.code !== 'SQLITE_CONSTRAINT') {
                     return this.webServer.internalServerError(resp, err);
                 }
 
@@ -357,7 +349,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return cb(null); //  not found/etc., just bail
             }
 
-            Collection.addInboxItem(note, localUser, this.webServer, err => {
+            Collection.addInboxItem(note, localUser, this.webServer, false, err => {
                 if (err) {
                     return cb(err);
                 }
@@ -388,6 +380,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 },
                                 'Note delivered as message to private mailbox'
                             );
+                        } else if (err.code === 'SQLITE_CONSTRAINT') {
+                            return cb(null);
                         }
                         return cb(err);
                     });
@@ -517,13 +511,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             this._recordAcceptedFollowRequest(localUser, remoteActor, activity);
             return ok();
         } else {
-            Collection.addFollowRequest(localUser, remoteActor, this.webServer, err => {
-                if (err) {
-                    return this.internalServerError(resp, err);
-                }
+            Collection.addFollowRequest(
+                localUser,
+                remoteActor,
+                this.webServer,
+                true, // ignore dupes
+                err => {
+                    if (err) {
+                        return this.internalServerError(resp, err);
+                    }
 
-                return ok();
-            });
+                    return ok();
+                }
+            );
         }
     }
 
@@ -631,6 +631,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         localUser,
                         remoteActor,
                         this.webServer,
+                        true, // ignore dupes
                         callback
                     );
                 },
@@ -706,7 +707,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfAsActorHandler(localUser, localActor, req, resp) {
-        this.log.trace(
+        this.log.info(
             { username: localUser.username },
             `Serving ActivityPub Actor for "${localUser.username}"`
         );
@@ -743,6 +744,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 if (err) {
                     return this.webServer.resourceNotFound(resp);
                 }
+
+                this.log.info(
+                    { username: localUser.username },
+                    `Serving ActivityPub Profile for "${localUser.username}"`
+                );
 
                 const headers = {
                     'Content-Type': contentType,

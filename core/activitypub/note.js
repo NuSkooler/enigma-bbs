@@ -172,17 +172,54 @@ module.exports = class Note extends ActivityPubObject {
 
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
             message.message = htmlToMessageBody(this.content);
+            message.subject = this._getSubject(message);
 
-            //  If the summary is not present, build one using the message itself;
-            //  finally, default to a static subject so there is *something* if
-            //  all else fails.
-            if (this.summary) {
-                message.subject = this.summary;
-            } else {
-                let subject = message.message.replace(`@${message.toUserName} `, '');
-                subject = truncate(subject, { length: 32, omission: '...' });
-                subject = subject || APDefaultSummary;
-                message.subject = subject;
+            //  List all attachments
+            if (Array.isArray(this.attachment) && this.attachment.length > 0) {
+                let attachmentInfoLines = ['--[Attachments]--'];
+                // https://socialhub.activitypub.rocks/t/representing-images/624
+                this.attachment.forEach(att => {
+                    switch (att.mediaType) {
+                        case 'image/avif':
+                        case 'image/apng':
+                        case 'image/png':
+                        case 'image/x-png':
+                        case 'image/jpeg':
+                        case 'image/gif':
+                        case 'image/svg+xml':
+                        case 'image/webp':
+                            {
+                                let imgInfo;
+                                if (att.height && att.width) {
+                                    imgInfo = `Image (${att.width} x ${att.height})`;
+                                } else {
+                                    imgInfo = 'Image';
+                                }
+                                attachmentInfoLines.push(imgInfo);
+                            }
+                            break;
+
+                        //  :TODO: video
+
+                        default:
+                            attachmentInfoLines.push(att.mediaType);
+                    }
+
+                    if (att.name) {
+                        attachmentInfoLines.push(att.name);
+                    }
+
+                    attachmentInfoLines.push(att.url);
+                    attachmentInfoLines.push('');
+                    attachmentInfoLines.push('');
+                });
+
+                message.message += '\r\n\r\n' + attachmentInfoLines.join('\r\n');
+            }
+
+            //  If the Note is marked sensitive, prefix the subject
+            if (this.sensitive) {
+                message.subject = `[NSFW] ${message.subject}`;
             }
 
             try {
@@ -232,5 +269,29 @@ module.exports = class Note extends ActivityPubObject {
                 return cb(null, message);
             }
         });
+    }
+
+    _getSubject(message) {
+        if (this.summary) {
+            return this.summary;
+        }
+
+        //
+        //  Build a subject from the message itself:
+        //  - First few characters of the message, removing the @username
+        //    prefix, if any
+        //  - Truncate at the first line feed, the end of the message,
+        //    or 32 characters in length, whichever comes first
+        //  - If not end of string, we'll sub in '...'
+        //
+        let subject = message.message.replace(`@${message.toUserName} `, '').trim();
+        const m = /^(.+)\r?\n/.exec(subject);
+        if (m && m[1]) {
+            subject = m[1];
+        }
+
+        subject = truncate(subject, { length: 32, omission: '...' });
+        subject = subject || APDefaultSummary;
+        return subject;
     }
 };
