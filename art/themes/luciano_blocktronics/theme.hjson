@@ -483,8 +483,28 @@
 						TL2: {
 							width: 70
 						}
-						BT3: {
-							width: 20
+						TL3: {
+							width: 70
+						}
+						TL4: {
+							width: 10
+						}
+						TL5: {
+							width: 4 
+						}
+						TL6: {
+							width: 4 
+						}
+						MT7: {
+							width: 69
+							height: 3 
+							mode: preview
+						}
+						BT8: {
+							focusTextStyle: upper
+						}
+						BT9: {
+							text: back
 							focusTextStyle: upper
 						}
 					}

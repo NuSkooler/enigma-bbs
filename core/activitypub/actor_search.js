@@ -1,10 +1,12 @@
 const { MenuModule } = require('../menu_module');
 const { Errors } = require('../enig_error');
 const Actor = require('../activitypub/actor');
+const moment = require('moment');
+const { htmlToMessageBody } = require('./util');
 
 // deps
 const async = require('async');
-const { get, truncate } = require('lodash');
+const { get, truncate, isEmpty } = require('lodash');
 
 exports.moduleInfo = {
     name: 'ActivityPub Actor Search',
@@ -25,6 +27,13 @@ const MciViewIds = {
     view: {
         userName: 1,
         fullName: 2,
+        datePublished: 3,
+        manualFollowers: 4,
+        numberFollowers: 5,
+        numberFollowing: 6,
+        summary: 7,
+        followButton: 8,
+        cancelButton: 9,
     },
 };
 
@@ -120,11 +129,33 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                         })
                     );
 
-                    // TODO: FIXME: fullNameView.getWidth() is 0 - I'm thinking it's getting form 0 for some reason
                     const fullNameView = v(MciViewIds.view.fullName);
                     fullNameView.setText(
                         truncate(remoteActor.name, { length: fullNameView.getWidth() })
                     );
+
+                    const datePublishedView = v(MciViewIds.view.datePublished);
+                    if (isEmpty(remoteActor.published)) {
+                        datePublishedView.setText('Not available.');
+                    } else {
+                        const publishedDate = moment(remoteActor.published);
+                        datePublishedView.setText(
+                            publishedDate.format(this.getDateFormat())
+                        );
+                    }
+
+                    const manualFollowersView = v(MciViewIds.view.manualFollowers);
+                    manualFollowersView.setText(remoteActor.manuallyApprovesFollowers);
+
+                    // TODO: Number of followers, number following
+
+                    const summaryView = v(MciViewIds.view.summary);
+                    summaryView.setText(htmlToMessageBody(remoteActor.summary));
+
+                    const followButtonView = v(MciViewIds.view.followButton);
+                    // TODO: FIXME: Real status
+                    followButtonView.setText('Follow');
+
                     return callback(null);
                 },
             ],
