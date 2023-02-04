@@ -385,19 +385,18 @@ function ViewController(options) {
     this.validateView = function (view, cb) {
         if (view && _.isFunction(view.validate)) {
             view.validate(view.getData(), function validateResult(err) {
-                var viewValidationListener =
+                const viewValidationListener =
                     self.client.currentMenuModule.menuMethods.viewValidationListener;
                 if (_.isFunction(viewValidationListener)) {
                     if (err) {
                         err.view = view; //  pass along the view that failed
+                        err.friendlyText = err.reason || err.message;
                     }
 
-                    viewValidationListener(
-                        err,
-                        function validationComplete(newViewFocusId) {
-                            cb(err, newViewFocusId);
-                        }
-                    );
+                    viewValidationListener(err, (err, newFocusedViewId) => {
+                        // validator may have updated |err|
+                        return cb(err, newFocusedViewId);
+                    });
                 } else {
                     cb(err);
                 }

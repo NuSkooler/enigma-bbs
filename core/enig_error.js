@@ -61,6 +61,8 @@ exports.Errors = {
         new EnigError('Bad or missing form data', -32016, reason, reasonCode),
     Duplicate: (reason, reasonCode) =>
         new EnigError('Duplicate', -32017, reason, reasonCode),
+    ValidationFailed: (reason, reasonCode) =>
+        new EnigError('Validation failed', -32018, reason, reasonCode),
 };
 
 exports.ErrorReasons = {
@@ -76,4 +78,11 @@ exports.ErrorReasons = {
     Locked: 'LOCKED',
     NotAllowed: 'NOTALLOWED',
     Invalid2FA: 'INVALID2FA',
+
+    ValueTooShort: 'VALUE_TOO_SHORT',
+    ValueTooLong: 'VALUE_TOO_LONG',
+    ValueInvalid: 'VALUE_INVALID',
+
+    NotAvailable: 'NOT_AVAILABLE',
+    DoesNotExist: 'EEXIST',
 };

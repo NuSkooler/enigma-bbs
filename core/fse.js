@@ -38,6 +38,7 @@ const fse = require('fs-extra');
 const fs = require('graceful-fs');
 const paths = require('path');
 const sanatizeFilename = require('sanitize-filename');
+const { ErrorReasons } = require('./enig_error.js');
 
 exports.moduleInfo = {
     name: 'Full Screen Editor (FSE)',
@@ -165,23 +166,35 @@ exports.FullScreenEditorModule =
                 //
                 //  Validation stuff
                 //
-                viewValidationListener: function (err, cb) {
-                    var errMsgView = self.viewControllers.header.getView(
+                viewValidationListener: (err, cb) => {
+                    if (
+                        err &&
+                        err.view.getId() === MciViewIds.header.subject &&
+                        err.reasonCode === ErrorReasons.ValueTooShort
+                    ) {
+                        // Ignore validation errors if this is the subject field
+                        // and it's optional
+                        const toView = this.getView('header', MciViewIds.header.to);
+                        const msgInfo = messageInfoFromAddressedToInfo(
+                            getAddressedToInfo(toView.getData())
+                        );
+                        if (true === msgInfo.subjectOptional) {
+                            return cb(null, null);
+                        }
+                    }
+
+                    const errMsgView = this.viewControllers.header.getView(
                         MciViewIds.header.errorMsg
                     );
-                    var newFocusViewId;
                     if (errMsgView) {
                         if (err) {
-                            errMsgView.setText(err.message);
-
-                            if (MciViewIds.header.subject === err.view.getId()) {
-                                //  :TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
-                            }
+                            errMsgView.setText(err.friendlyText);
                         } else {
                             errMsgView.clearText();
                         }
                     }
-                    cb(newFocusViewId);
+
+                    return cb(err, null);
                 },
                 headerSubmit: function (formData, extraArgs, cb) {
                     self.switchToBody();

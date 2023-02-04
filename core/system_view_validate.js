@@ -2,11 +2,12 @@
 'use strict';
 
 //  ENiGMA½
-const User = require('./user.js');
-const Config = require('./config.js').get;
-const Log = require('./logger.js').log;
-const { getAddressedToInfo } = require('./mail_util.js');
-const Message = require('./message.js');
+const User = require('./user');
+const Config = require('./config').get;
+const Log = require('./logger').log;
+const { getAddressedToInfo } = require('./mail_util');
+const Message = require('./message');
+const { Errors, ErrorReasons } = require('./enig_error'); // note: Only use ValidationFailed in this module!
 
 //  deps
 const fs = require('graceful-fs');
@@ -22,36 +23,66 @@ exports.validateBirthdate = validateBirthdate;
 exports.validatePasswordSpec = validatePasswordSpec;
 
 function validateNonEmpty(data, cb) {
-    return cb(data && data.length > 0 ? null : new Error('Field cannot be empty'));
+    return cb(
+        data && data.length > 0
+            ? null
+            : Errors.ValidationFailed('Field cannot be empty', ErrorReasons.ValueTooShort)
+    );
 }
 
 function validateMessageSubject(data, cb) {
-    return cb(data && data.length > 1 ? null : new Error('Subject too short'));
+    return cb(
+        data && data.length > 1
+            ? null
+            : Errors.ValidationFailed('Subject too short', ErrorReasons.ValueTooShort)
+    );
 }
 
 function validateUserNameAvail(data, cb) {
     const config = Config();
     if (!data || data.length < config.users.usernameMin) {
-        cb(new Error('Username too short'));
+        cb(Errors.ValidationFailed('Username too short', ErrorReasons.ValueTooShort));
     } else if (data.length > config.users.usernameMax) {
         //  generally should be unreached due to view restraints
-        return cb(new Error('Username too long'));
+        return cb(
+            Errors.ValidationFailed('Username too long', ErrorReasons.ValueTooLong)
+        );
     } else {
         const usernameRegExp = new RegExp(config.users.usernamePattern);
         const invalidNames = config.users.newUserNames + config.users.badUserNames;
 
         if (!usernameRegExp.test(data)) {
-            return cb(new Error('Username contains invalid characters'));
+            return cb(
+                Errors.ValidationFailed(
+                    'Username contains invalid characters',
+                    ErrorReasons.ValueInvalid
+                )
+            );
         } else if (invalidNames.indexOf(data.toLowerCase()) > -1) {
-            return cb(new Error('Username is blacklisted'));
+            return cb(
+                Errors.ValidationFailed(
+                    'Username is blacklisted',
+                    ErrorReasons.NotAllowed
+                )
+            );
         } else if (/^[0-9]+$/.test(data)) {
-            return cb(new Error('Username cannot be a number'));
+            return cb(
+                Errors.ValidationFailed(
+                    'Username cannot be a number',
+                    ErrorReasons.ValueInvalid
+                )
+            );
         } else {
             //  a new user name cannot be an existing user name or an existing real name
             User.getUserIdAndNameByLookup(data, function userIdAndName(err) {
                 if (!err) {
                     //  err is null if we succeeded -- meaning this user exists already
-                    return cb(new Error('Username unavailable'));
+                    return cb(
+                        Errors.ValidationFailed(
+                            'Username unavailable',
+                            ErrorReasons.NotAvailable
+                        )
+                    );
                 }
 
                 return cb(null);
@@ -60,25 +91,41 @@ function validateUserNameAvail(data, cb) {
     }
 }
 
-const invalidUserNameError = () => new Error('Invalid username');
-
 function validateUserNameExists(data, cb) {
     if (0 === data.length) {
-        return cb(invalidUserNameError());
+        return cb(
+            Errors.ValidationFailed('Invalid username', ErrorReasons.ValueTooShort)
+        );
     }
 
     User.getUserIdAndName(data, err => {
-        return cb(err ? invalidUserNameError() : null);
+        return cb(
+            err
+                ? Errors.ValidationFailed(
+                      'Failed to find username',
+                      err.reasonCode || ErrorReasons.DoesNotExist
+                  )
+                : null
+        );
     });
 }
 
 function validateUserNameOrRealNameExists(data, cb) {
     if (0 === data.length) {
-        return cb(invalidUserNameError());
+        return cb(
+            Errors.ValidationFailed('Invalid username', ErrorReasons.ValueTooShort)
+        );
     }
 
     User.getUserIdAndNameByLookup(data, err => {
-        return cb(err ? invalidUserNameError() : null);
+        return cb(
+            err
+                ? Errors.ValidationFailed(
+                      'Failed to find user',
+                      err.reasonCode || ErrorReasons.DoesNotExist
+                  )
+                : null
+        );
     });
 }
 
@@ -112,7 +159,9 @@ function validateEmailAvail(data, cb) {
     //
     const emailRegExp = /[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9-]+(.[a-z0-9-]+)*/;
     if (!emailRegExp.test(data)) {
-        return cb(new Error('Invalid email address'));
+        return cb(
+            Errors.ValidationFailed('Invalid email address', ErrorReasons.ValueInvalid)
+        );
     }
 
     User.getUserIdsWithProperty(
@@ -120,9 +169,19 @@ function validateEmailAvail(data, cb) {
         data,
         function userIdsWithEmail(err, uids) {
             if (err) {
-                return cb(new Error('Internal system error'));
+                return cb(
+                    Errors.ValidationFailed(
+                        err.message,
+                        err.reasonCode || ErrorReasons.DoesNotExist
+                    )
+                );
             } else if (uids.length > 0) {
-                return cb(new Error('Email address not unique'));
+                return cb(
+                    Errors.ValidationFailed(
+                        'Email address not unique',
+                        ErrorReasons.NotAvailable
+                    )
+                );
             }
 
             return cb(null);
@@ -132,25 +191,36 @@ function validateEmailAvail(data, cb) {
 
 function validateBirthdate(data, cb) {
     //  :TODO: check for dates in the future, or > reasonable values
-    return cb(isNaN(Date.parse(data)) ? new Error('Invalid birthdate') : null);
+    return cb(
+        isNaN(Date.parse(data))
+            ? Errors.ValidationFailed('Invalid birthdate', ErrorReasons.ValueInvalid)
+            : null
+    );
 }
 
 function validatePasswordSpec(data, cb) {
     const config = Config();
     if (!data || data.length < config.users.passwordMin) {
-        return cb(new Error('Password too short'));
+        return cb(
+            Errors.ValidationFailed('Password too short', ErrorReasons.ValueTooShort)
+        );
     }
 
     //  check badpass, if avail
     fs.readFile(config.users.badPassFile, 'utf8', (err, passwords) => {
         if (err) {
-            Log.warn({ error: err.message }, 'Cannot read bad pass file');
+            Log.warn(
+                { error: err.message, path: config.users.badPassFile },
+                'Cannot read bad pass file'
+            );
             return cb(null);
         }
 
         passwords = passwords.toString().split(/\r\n|\n/g);
         if (passwords.includes(data)) {
-            return cb(new Error('Password is too common'));
+            return cb(
+                Errors.ValidationFailed('Password is too common', ErrorReasons.NotAllowed)
+            );
         }
 
         return cb(null);
