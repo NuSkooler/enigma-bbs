@@ -226,6 +226,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     enter() {
         this.client.stopIdleMonitor();
         this._applyOpVisibility();
+
         Events.on(
             Events.getSystemEvents().ClientDisconnected,
             this._clientDisconnected.bind(this)
@@ -240,7 +241,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         Events.removeListener(
             Events.getSystemEvents().ClientDisconnected,
-            this._clientDisconnected
+            this._clientDisconnected.bind(this)
         );
 
         this._restoreOpVisibility();

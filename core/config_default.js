@@ -413,6 +413,18 @@ module.exports = () => {
             },
         },
 
+        // General ActivityPub integration configuration
+        activityPub: {
+            // Mimics Mastodon max 500 characters for *outgoing* Notes
+            // (messages destined for ActivityPub); This is a soft limit;
+            // Implementations including Mastodon should still display
+            // longer messages, but this keeps us as a "good citizen"
+            autoSignatures: false,
+
+            // by default, don't include auto-signatures in AP outgoing
+            maxMessageLength: 500,
+        },
+
         infoExtractUtils: {
             Exiftool2Desc: {
                 cmd: `${__dirname}/../util/exiftool2desc.js`, //  ensure chmod +x

@@ -94,6 +94,7 @@ module.exports = class Activity extends ActivityPubObject {
         return postJson(actorUrl, activityJson, reqOpts, cb);
     }
 
+    //  :TODO: we need dp/support a bit more here...
     recipientIds() {
         const ids = [];
 

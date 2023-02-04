@@ -5,10 +5,15 @@ const EnigmaAssert = require('./enigma_assert.js');
 const Address = require('./ftn_address.js');
 const MessageConst = require('./message_const');
 const { getQuotePrefix } = require('./ftn_util');
+const Config = require('./config').get;
+
+// deps
+const { get } = require('lodash');
 
 exports.getAddressedToInfo = getAddressedToInfo;
 exports.setExternalAddressedToInfo = setExternalAddressedToInfo;
 exports.copyExternalAddressedToInfo = copyExternalAddressedToInfo;
+exports.messageInfoFromAddressedToInfo = messageInfoFromAddressedToInfo;
 exports.getQuotePrefixFromName = getQuotePrefixFromName;
 
 const EMAIL_REGEX =
@@ -146,6 +151,24 @@ function copyExternalAddressedToInfo(fromMessage, toMessage) {
     const sm = MessageConst.SystemMetaNames;
     toMessage.setRemoteToUser(fromMessage.meta.System[sm.RemoteFromUser]);
     toMessage.setExternalFlavor(fromMessage.meta.System[sm.ExternalFlavor]);
+}
+
+function messageInfoFromAddressedToInfo(addressInfo) {
+    switch (addressInfo.flavor) {
+        case MessageConst.AddressFlavor.ActivityPub: {
+            const config = Config();
+            const maxMessageLength = get(config, 'activityPub.maxMessageLength', 500);
+            const autoSignatures = get(config, 'activityPub.autoSignatures', false);
+
+            // Additionally, it's ot necessary to supply a subject
+            // (aka summary) with a 'Note' Activity
+            return { subjectOptional: true, maxMessageLength, autoSignatures };
+        }
+
+        default:
+            // autoSignatures: null = varies by additional config
+            return { subjectOptional: false, maxMessageLength: 0, autoSignatures: null };
+    }
 }
 
 function getQuotePrefixFromName(name) {

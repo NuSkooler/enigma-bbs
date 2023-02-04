@@ -113,6 +113,7 @@ function MultiLineEditTextView(options) {
     this.textLines = [];
     this.topVisibleIndex = 0;
     this.mode = options.mode || 'edit'; //  edit | preview | read-only
+    this.maxLength = 0; // no max by default
 
     if ('preview' === this.mode) {
         this.autoScroll = options.autoScroll || true;
@@ -315,6 +316,15 @@ function MultiLineEditTextView(options) {
             }
         }
         return text;
+    };
+
+    this.getCharacterLength = function () {
+        //  :TODO: FSE needs re-write anyway, but this should just be known all the time vs calc. Too much of a mess right now...
+        let len = 0;
+        this.textLines.forEach(tl => {
+            len += tl.text.length;
+        });
+        return len;
     };
 
     this.replaceCharacterInText = function (c, index, col) {
@@ -664,6 +674,10 @@ function MultiLineEditTextView(options) {
     };
 
     this.keyPressCharacter = function (c) {
+        if (this.maxLength > 0 && this.getCharacterLength() + 1 >= this.maxLength) {
+            return;
+        }
+
         var index = self.getTextLinesIndex();
 
         //
@@ -1169,6 +1183,12 @@ MultiLineEditTextView.prototype.setPropertyValue = function (propName, value) {
             this.tabSwitchesView = value;
             this.specialKeyMap.next = this.specialKeyMap.next || [];
             this.specialKeyMap.next.push('tab');
+            break;
+
+        case 'maxLength':
+            if (_.isNumber(value)) {
+                this.maxLength = value;
+            }
             break;
     }
 

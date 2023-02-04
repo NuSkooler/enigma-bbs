@@ -18,6 +18,7 @@ const { stripMciColorCodes, controlCodesToAnsi } = require('./color_codes.js');
 const Config = require('./config.js').get;
 const {
     getAddressedToInfo,
+    messageInfoFromAddressedToInfo,
     setExternalAddressedToInfo,
     copyExternalAddressedToInfo,
 } = require('./mail_util.js');
@@ -424,10 +425,15 @@ exports.FullScreenEditorModule =
             //
             //  Append auto-signature, if enabled for the area & the user has one
             //
-            if (false != area.autoSignatures) {
-                const sig = this.client.user.getProperty(UserProps.AutoSignature);
-                if (sig) {
-                    messageBody += `\r\n-- \r\n${sig}`;
+            const msgInfo = messageInfoFromAddressedToInfo(
+                getAddressedToInfo(headerValues.to)
+            );
+            if (false !== msgInfo.autoSignatures) {
+                if (false !== area.autoSignatures) {
+                    const sig = this.client.user.getProperty(UserProps.AutoSignature);
+                    if (sig) {
+                        messageBody += `\r\n-- \r\n${sig}`;
+                    }
                 }
             }
 
@@ -1391,6 +1397,13 @@ exports.FullScreenEditorModule =
         }
 
         switchToBody() {
+            const to = this.getView('header', MciViewIds.header.to).getData();
+            const msgInfo = messageInfoFromAddressedToInfo(getAddressedToInfo(to));
+            if (msgInfo.maxMessageLength > 0) {
+                const bodyView = this.getView('body', MciViewIds.body.message);
+                bodyView.maxLength = msgInfo.maxMessageLength;
+            }
+
             this.viewControllers.header.setFocus(false);
             this.viewControllers.body.switchFocus(1);
 
