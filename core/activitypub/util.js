@@ -25,6 +25,7 @@ exports.localActorId = localActorId;
 exports.userFromActorId = userFromActorId;
 exports.getUserProfileTemplatedBody = getUserProfileTemplatedBody;
 exports.messageBodyToHtml = messageBodyToHtml;
+exports.messageToHtml = messageToHtml;
 exports.htmlToMessageBody = htmlToMessageBody;
 exports.userNameFromSubject = userNameFromSubject;
 
@@ -194,13 +195,6 @@ function getUserProfileTemplatedBody(
     );
 }
 
-//
-//  Apply very basic HTML to a message following
-//  Mastodon's supported tags of 'p', 'br', 'a', and 'span':
-//  - https://docs.joinmastodon.org/spec/activitypub/#sanitization
-//  - https://blog.joinmastodon.org/2018/06/how-to-implement-a-basic-activitypub-server/
-//
-//  :TODO: https://docs.joinmastodon.org/spec/microformats/
 function messageBodyToHtml(body) {
     body = encode(stripAnsiControlCodes(body), { mode: 'nonAsciiPrintable' }).replace(
         /\r?\n/g,
@@ -208,6 +202,35 @@ function messageBodyToHtml(body) {
     );
 
     return `<p>${body}</p>`;
+}
+
+//
+//  Apply very basic HTML to a message following
+//  Mastodon's supported tags of 'p', 'br', 'a', and 'span':
+//  - https://docs.joinmastodon.org/spec/activitypub/#sanitization
+//  - https://blog.joinmastodon.org/2018/06/how-to-implement-a-basic-activitypub-server/
+//
+//  Microformats:
+//  - https://microformats.org/wiki/
+//  - https://indieweb.org/note
+//  - https://docs.joinmastodon.org/spec/microformats/
+//
+function messageToHtml(message, remoteActor) {
+    const msg = encode(stripAnsiControlCodes(message.message.trim()), {
+        mode: 'nonAsciiPrintable',
+    }).replace(/\r?\n/g, '<br>');
+
+    if (message.isPrivate()) {
+        const toId = remoteActor.id;
+        return `<p>
+<span class="h-card">
+    <a href="${toId}" class="u-url mention">@ <span>${remoteActor.preferredUsername}</span></a>
+</span>
+${msg}
+</p>`;
+    }
+
+    return `<p>${msg}</p>`;
 }
 
 function htmlToMessageBody(html) {

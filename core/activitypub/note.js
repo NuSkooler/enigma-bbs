@@ -3,7 +3,7 @@ const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const { getISOTimestampString } = require('../database');
 const User = require('../user');
-const { messageBodyToHtml, htmlToMessageBody } = require('./util');
+const { messageToHtml, htmlToMessageBody } = require('./util');
 const { isAnsi } = require('../string_util');
 const Log = require('../logger').log;
 
@@ -117,7 +117,7 @@ module.exports = class Note extends ActivityPubObject {
                         published: getISOTimestampString(message.modTimestamp),
                         to,
                         attributedTo: fromActor.id,
-                        content: messageBodyToHtml(message.message.trim()),
+                        content: messageToHtml(message, remoteActor),
                         source: {
                             content: message.message,
                             mediaType: sourceMediaType,
@@ -237,7 +237,6 @@ module.exports = class Note extends ActivityPubObject {
                 message.modTimestamp = moment();
             }
 
-            //  :TODO: replyToMsgId from 'inReplyTo'
             message.setRemoteFromUser(this.attributedTo);
             message.setExternalFlavor(Message.AddressFlavor.ActivityPub);
 
