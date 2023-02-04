@@ -171,7 +171,12 @@ module.exports = class Note extends ActivityPubObject {
             message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
 
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
-            message.message = htmlToMessageBody(this.content);
+            message.message = htmlToMessageBody(
+                // try to handle various implementations
+                // - https://docs.joinmastodon.org/spec/activitypub/#payloads
+                // - https://indieweb.org/post-type-discovery#Algorithm
+                this.content || this.name || this.summary
+            );
             message.subject = this._getSubject(message);
 
             //  List all attachments
@@ -179,19 +184,13 @@ module.exports = class Note extends ActivityPubObject {
                 let attachmentInfoLines = ['--[Attachments]--'];
                 // https://socialhub.activitypub.rocks/t/representing-images/624
                 this.attachment.forEach(att => {
-                    switch (att.mediaType) {
-                        case 'image/avif':
-                        case 'image/apng':
-                        case 'image/png':
-                        case 'image/x-png':
-                        case 'image/jpeg':
-                        case 'image/gif':
-                        case 'image/svg+xml':
-                        case 'image/webp':
+                    const type = att.mediaType.substring(0, att.mediaType.indexOf('/'));
+                    switch (type) {
+                        case 'image':
                             {
                                 let imgInfo;
                                 if (att.height && att.width) {
-                                    imgInfo = `Image (${att.width} x ${att.height})`;
+                                    imgInfo = `Image (${att.width}x${att.height})`;
                                 } else {
                                     imgInfo = 'Image';
                                 }
@@ -199,7 +198,13 @@ module.exports = class Note extends ActivityPubObject {
                             }
                             break;
 
-                        //  :TODO: video
+                        case 'audio':
+                            attachmentInfoLines.push('Audio');
+                            break;
+
+                        case 'video':
+                            attachmentInfoLines.push('Video');
+                            break;
 
                         default:
                             attachmentInfoLines.push(att.mediaType);
@@ -273,7 +278,11 @@ module.exports = class Note extends ActivityPubObject {
 
     _getSubject(message) {
         if (this.summary) {
-            return this.summary;
+            return this.summary.trim();
+        }
+
+        if (this.name) {
+            return this.name.trim();
         }
 
         //
