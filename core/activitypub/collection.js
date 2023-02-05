@@ -26,27 +26,29 @@ module.exports = class Collection extends ActivityPubObject {
         const headers = {
             Accept: ActivityStreamMediaType,
         };
-        getJson(collectionUrl, { headers }, (err, collection) => {
-            if (err) {
-                return cb(err);
+        getJson(
+            collectionUrl,
+            { headers, validContentTypes: [ActivityStreamMediaType] },
+            (err, collection) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                collection = new Collection(collection);
+                if (!collection.isValid()) {
+                    return cb(Errors.Invalid('Invalid Collection'));
+                }
+
+                const { totalItems, type, id, summary } = collection;
+
+                return cb(null, {
+                    totalItems,
+                    type,
+                    id,
+                    summary,
+                });
             }
-
-            //  :TODO: validate headers?
-
-            collection = new Collection(collection);
-            if (!collection.isValid()) {
-                return cb(Errors.Invalid('Invalid Collection'));
-            }
-
-            const { totalItems, type, id, summary } = collection;
-
-            return cb(null, {
-                totalItems,
-                type,
-                id,
-                summary,
-            });
-        });
+        );
     }
 
     static followers(collectionId, page, cb) {
@@ -71,14 +73,14 @@ module.exports = class Collection extends ActivityPubObject {
 
     static addFollower(owningUser, followingActor, webServer, ignoreDupes, cb) {
         const collectionId =
-            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/followers';
+            makeUserUrl(webServer, owningUser, '/ap/users/') + '/followers';
         return Collection.addToCollection(
             'followers',
             owningUser,
             collectionId,
-            followingActor.id,
+            followingActor.id, // Actor following owningUser
             followingActor,
-            false,
+            false, // we'll check dynamically when queried
             ignoreDupes,
             cb
         );
@@ -86,14 +88,29 @@ module.exports = class Collection extends ActivityPubObject {
 
     static addFollowRequest(owningUser, requestingActor, webServer, ignoreDupes, cb) {
         const collectionId =
-            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/follow-requests';
+            makeUserUrl(webServer, owningUser, '/ap/users/') + '/follow-requests';
         return Collection.addToCollection(
             'follow-requests',
             owningUser,
             collectionId,
-            requestingActor.id,
+            requestingActor.id, // Actor requesting to follow owningUser
             requestingActor,
             true,
+            ignoreDupes,
+            cb
+        );
+    }
+
+    static addFollowing(owningUser, followingActor, webServer, ignoreDupes, cb) {
+        const collectionId =
+            makeUserUrl(webServer, owningUser, '/ap/users/') + '/following';
+        return Collection.addToCollection(
+            'following',
+            owningUser,
+            collectionId,
+            followingActor.id, // Actor owningUser is following
+            followingActor,
+            false, // we'll check dynamically when queried
             ignoreDupes,
             cb
         );
@@ -104,8 +121,7 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, ignoreDupes, cb) {
-        const collectionId =
-            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/outbox';
+        const collectionId = makeUserUrl(webServer, owningUser, '/ap/users/') + '/outbox';
         return Collection.addToCollection(
             'outbox',
             owningUser,
@@ -119,8 +135,7 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addInboxItem(inboxItem, owningUser, webServer, ignoreDupes, cb) {
-        const collectionId =
-            makeUserUrl(webServer, owningUser, '/ap/collections/') + '/inbox';
+        const collectionId = makeUserUrl(webServer, owningUser, '/ap/users/') + '/inbox';
         return Collection.addToCollection(
             'inbox',
             owningUser,
@@ -282,9 +297,9 @@ module.exports = class Collection extends ActivityPubObject {
             );
         }
 
-        // e.g. http://somewhere.com/_enig/ap/collections/NuSkooler/followers
+        // e.g. http://somewhere.com/_enig/ap/users/NuSkooler/followers
         const collectionId =
-            makeUserUrl(webServer, owningUser, '/ap/collections/') + `/${collectionName}`;
+            makeUserUrl(webServer, owningUser, '/ap/users/') + `/${collectionName}`;
 
         if (!page) {
             return apDb.get(

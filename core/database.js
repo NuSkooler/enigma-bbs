@@ -493,7 +493,7 @@ dbs.message.run(
         //  ActivityPub Collections of various types such as followers, following, likes, ...
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS collection (
-                collection_id       VARCHAR NOT NULL,       -- ie: http://somewhere.com/_enig/ap/collections/NuSkooler/followers
+                collection_id       VARCHAR NOT NULL,       -- ie: http://somewhere.com/_enig/ap/users/NuSkooler/followers
                 name                VARCHAR NOT NULL,       -- examples: followers, follows, ...
                 timestamp           DATETIME NOT NULL,      -- Timestamp in which this entry was created
                 owner_actor_id      VARCHAR NOT NULL,       -- Local, owning Actor ID, or the #Public magic collection ID

@@ -18,6 +18,17 @@ function getJson(url, options, cb) {
             return cb(err);
         }
 
+        if (Array.isArray(options.validContentTypes)) {
+            const contentType = res.headers['content-type'] || '';
+            if (
+                !options.validContentTypes.some(ct => {
+                    return contentType.startsWith(ct);
+                })
+            ) {
+                return cb(Errors.HttpError(`Invalid Content-Type: ${contentType}`));
+            }
+        }
+
         Log.debug({ url: url, body: body }, 'Response from getJson');
         let parsed;
         try {

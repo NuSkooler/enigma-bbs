@@ -19,7 +19,6 @@ const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
 const { ActivityStreamMediaType } = require('./const');
 const apDb = require('../database').dbs.activitypub;
-const Config = require('../config').get;
 
 //  deps
 const _ = require('lodash');
@@ -132,11 +131,13 @@ module.exports = class Actor extends ActivityPubObject {
             //         value: 'Mateo@21:1/121',
             //     },
             // ],
-            bbsInfo: {
-                boardName: Config().general.boardName,
-                memberSince: user.getProperty(UserProps.AccountCreated),
-                affiliations: user.getProperty(UserProps.Affiliations) || '',
-            },
+
+            //  :TODO: re-enable once a spec is defined; board should prob be a object with connection info, etc.
+            // bbsInfo: {
+            //     boardName: Config().general.boardName,
+            //     memberSince: user.getProperty(UserProps.AccountCreated),
+            //     affiliations: user.getProperty(UserProps.Affiliations) || '',
+            // },
         };
 
         addImage(obj, 'icon');
