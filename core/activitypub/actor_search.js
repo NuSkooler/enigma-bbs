@@ -3,8 +3,7 @@ const { Errors } = require('../enig_error');
 const Actor = require('../activitypub/actor');
 const moment = require('moment');
 const { htmlToMessageBody } = require('./util');
-const { getJson } = require('../http_util');
-const { ActivityStreamMediaType } = require('./const');
+const Collection = require('./collection');
 
 // deps
 const async = require('async');
@@ -156,35 +155,15 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                     manualFollowersView.setText(remoteActor.manuallyApprovesFollowers);
 
                     const followerCountView = v(MciViewIds.view.numberFollowers);
-                    this._retrieveCountFromUrl(
+                    this._updateViewWithCollectionItemCount(
                         remoteActor.followers,
-                        (err, followerCount) => {
-                            if (err) {
-                                this.client.log.warn(
-                                    { err: err },
-                                    'Unable to get follower count'
-                                );
-                                followerCountView.setText('--');
-                            } else {
-                                followerCountView.setText(followerCount);
-                            }
-                        }
+                        followerCountView
                     );
 
                     const followingCountView = v(MciViewIds.view.numberFollowing);
-                    this._retrieveCountFromUrl(
+                    this._updateViewWithCollectionItemCount(
                         remoteActor.following,
-                        (err, followingCount) => {
-                            if (err) {
-                                this.client.log.warn(
-                                    { err: err },
-                                    'Unable to get following count'
-                                );
-                                followingCountView.setText('--');
-                            } else {
-                                followingCountView.setText(followingCount);
-                            }
-                        }
+                        followingCountView
                     );
 
                     const summaryView = v(MciViewIds.view.summary);
@@ -229,33 +208,28 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
         );
     }
 
-    _retrieveCountFromUrl(countUrl, cb) {
-        async.waterfall(
-            [
-                callback => {
-                    countUrl = countUrl.trim();
-                    if (isEmpty(countUrl)) {
-                        return callback(
-                            Errors.UnexpectedState('Count URL can not be empty.')
-                        );
-                    }
-                    const headers = {
-                        Accept: ActivityStreamMediaType,
-                    };
-                    getJson(countUrl, { headers }, (err, jsonResponse) => {
-                        if (err) {
-                            return callback(err, jsonResponse);
-                        }
-                        return callback(null, jsonResponse);
-                    });
-                },
-                (jsonResponse, callback) => {
-                    return callback(null, jsonResponse.totalItems);
-                },
-            ],
-            (err, result) => {
-                return cb(err, result);
+    _updateViewWithCollectionItemCount(collectionUrl, view) {
+        this._retrieveCountFromCollectionUrl(collectionUrl, (err, count) => {
+            if (err) {
+                this.client.log.warn(
+                    { err: err },
+                    `Unable to get Collection count for ${collectionUrl}`
+                );
+                view.setText('--');
+            } else {
+                view.setText(count);
             }
-        );
+        });
+    }
+
+    _retrieveCountFromCollectionUrl(collectionUrl, cb) {
+        collectionUrl = collectionUrl.trim();
+        if (isEmpty(collectionUrl)) {
+            return cb(Errors.UnexpectedState('Count URL can not be empty.'));
+        }
+
+        Collection.getRemoteCollectionStats(collectionUrl, (err, stats) => {
+            return cb(err, stats.totalItems);
+        });
     }
 };

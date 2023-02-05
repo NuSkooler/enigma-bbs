@@ -3,8 +3,12 @@ const ActivityPubObject = require('./object');
 const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
 const { Errors } = require('../enig_error.js');
-const { PublicCollectionId: APPublicCollectionId } = require('./const');
+const {
+    PublicCollectionId: APPublicCollectionId,
+    ActivityStreamMediaType,
+} = require('./const');
 const UserProps = require('../user_property');
+const { getJson } = require('../http_util');
 
 // deps
 const { isString } = require('lodash');
@@ -16,6 +20,33 @@ module.exports = class Collection extends ActivityPubObject {
 
     static get PublicCollectionId() {
         return APPublicCollectionId;
+    }
+
+    static getRemoteCollectionStats(collectionUrl, cb) {
+        const headers = {
+            Accept: ActivityStreamMediaType,
+        };
+        getJson(collectionUrl, { headers }, (err, collection) => {
+            if (err) {
+                return cb(err);
+            }
+
+            //  :TODO: validate headers?
+
+            collection = new Collection(collection);
+            if (!collection.isValid()) {
+                return cb(Errors.Invalid('Invalid Collection'));
+            }
+
+            const { totalItems, type, id, summary } = collection;
+
+            return cb(null, {
+                totalItems,
+                type,
+                id,
+                summary,
+            });
+        });
     }
 
     static followers(collectionId, page, cb) {
