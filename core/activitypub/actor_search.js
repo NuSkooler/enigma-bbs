@@ -3,6 +3,8 @@ const { Errors } = require('../enig_error');
 const Actor = require('../activitypub/actor');
 const moment = require('moment');
 const { htmlToMessageBody } = require('./util');
+const { getJson } = require('../http_util');
+const { ActivityStreamMediaType } = require('./const');
 
 // deps
 const async = require('async');
@@ -153,7 +155,37 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                     const manualFollowersView = v(MciViewIds.view.manualFollowers);
                     manualFollowersView.setText(remoteActor.manuallyApprovesFollowers);
 
-                    // TODO: Number of followers, number following
+                    const followerCountView = v(MciViewIds.view.numberFollowers);
+                    this._retrieveCountFromUrl(
+                        remoteActor.followers,
+                        (err, followerCount) => {
+                            if (err) {
+                                this.client.log.warn(
+                                    { err: err },
+                                    'Unable to get follower count'
+                                );
+                                followerCountView.setText('--');
+                            } else {
+                                followerCountView.setText(followerCount);
+                            }
+                        }
+                    );
+
+                    const followingCountView = v(MciViewIds.view.numberFollowing);
+                    this._retrieveCountFromUrl(
+                        remoteActor.following,
+                        (err, followingCount) => {
+                            if (err) {
+                                this.client.log.warn(
+                                    { err: err },
+                                    'Unable to get following count'
+                                );
+                                followingCountView.setText('--');
+                            } else {
+                                followingCountView.setText(followingCount);
+                            }
+                        }
+                    );
 
                     const summaryView = v(MciViewIds.view.summary);
                     summaryView.setText(htmlToMessageBody(remoteActor.summary));
@@ -193,6 +225,36 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
             ],
             err => {
                 return cb(err);
+            }
+        );
+    }
+
+    _retrieveCountFromUrl(countUrl, cb) {
+        async.waterfall(
+            [
+                callback => {
+                    countUrl = countUrl.trim();
+                    if (isEmpty(countUrl)) {
+                        return callback(
+                            Errors.UnexpectedState('Count URL can not be empty.')
+                        );
+                    }
+                    const headers = {
+                        Accept: ActivityStreamMediaType,
+                    };
+                    getJson(countUrl, { headers }, (err, jsonResponse) => {
+                        if (err) {
+                            return callback(err, jsonResponse);
+                        }
+                        return callback(null, jsonResponse);
+                    });
+                },
+                (jsonResponse, callback) => {
+                    return callback(null, jsonResponse.totalItems);
+                },
+            ],
+            (err, result) => {
+                return cb(err, result);
             }
         );
     }
