@@ -120,13 +120,13 @@ exports.getModule = class UploadModule extends MenuModule {
                 );
                 if (errView) {
                     if (err) {
-                        errView.setText(err.message);
+                        errView.setText(err.friendlyText);
                     } else {
                         errView.clearText();
                     }
                 }
 
-                return cb(null);
+                return cb(err, null);
             },
         };
     }

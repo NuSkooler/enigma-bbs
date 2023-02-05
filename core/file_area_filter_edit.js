@@ -146,18 +146,17 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
                 const errorView = this.viewControllers.editor.getView(
                     MciViewIds.editor.error
                 );
-                let newFocusId;
 
                 if (errorView) {
                     if (err) {
-                        errorView.setText(err.message);
+                        errorView.setText(err.friendlyText);
                         err.view.clearText(); //  clear out the invalid data
                     } else {
                         errorView.clearText();
                     }
                 }
 
-                return cb(newFocusId);
+                return cb(err, null);
             },
         };
     }

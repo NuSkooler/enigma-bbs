@@ -13,6 +13,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * New users now have randomly generated avatars assigned to them that can be served up via the new System General [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md).
 * CombatNet has shut down, so the module (`combatnet.js`) has been removed.
 * New `NewUserPrePersist` system event available to developers to 'hook' account creation and add their own properties/etc.
+* The signature for `viewValidationListener`'s callback has changed: It is now `(err, newFocusId)`. To ignore a validation error, implementors can simply call the callback with a `null` error, else they should forward it on.
 
 ## 0.0.13-beta
 * **Note for contributors**: ENiGMA has switched to [Prettier](https://prettier.io) for formatting/style. Please see [CONTRIBUTING](CONTRIBUTING.md) and the Prettier website for more information.

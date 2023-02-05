@@ -49,10 +49,10 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 
             viewValidationListener: function (err, cb) {
                 const errMsgView = self.viewControllers.menu.getView(MciViewIds.errMsg);
-                let newFocusId;
 
+                let newFocusId;
                 if (err) {
-                    errMsgView.setText(err.message);
+                    errMsgView.setText(err.friendlyText);
                     err.view.clearText();
 
                     if (err.view.getId() === MciViewIds.confirm) {
@@ -65,7 +65,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                     errMsgView.clearText();
                 }
 
-                return cb(newFocusId);
+                return cb(err, newFocusId);
             },
 
             //

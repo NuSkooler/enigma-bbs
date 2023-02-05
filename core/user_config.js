@@ -90,7 +90,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                 var newFocusId;
                 if (errMsgView) {
                     if (err) {
-                        errMsgView.setText(err.message);
+                        errMsgView.setText(err.friendlyText);
 
                         if (err.view.getId() === MciCodeIds.PassConfirm) {
                             newFocusId = MciCodeIds.Password;
@@ -102,7 +102,8 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         errMsgView.clearText();
                     }
                 }
-                cb(newFocusId);
+
+                return cb(err, newFocusId);
             },
 
             //
