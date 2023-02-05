@@ -13,7 +13,7 @@ const Collection = require('./collection');
 const async = require('async');
 const { isString, isObject, truncate } = require('lodash');
 
-const APMessageIdNamespace = '307bc7b3-3735-4573-9a20-e3f9eaac29c5';
+const PublicMessageIdNamespace = 'a26ae389-5dfb-4b24-a58e-5472085c8e42';
 const APDefaultSummary = '[ActivityPub]';
 
 module.exports = class Note extends ActivityPubObject {
@@ -154,10 +154,26 @@ module.exports = class Note extends ActivityPubObject {
             return cb(Errors.MissingParam('Missing one or more required options!'));
         }
 
-        // stable ID based on Note ID
-        const message = new Message({
-            uuid: UUIDv5(this.id, APMessageIdNamespace),
-        });
+        const isPrivate = isObject(options.toUser);
+
+        //
+        //  Message UUIDs are unique in the message database;
+        //  However, we may need to deliver a particular message to:
+        //  - #Public / sharedInbox
+        //  - 1:N private user inboxes
+        //
+        //  In both cases, the UUID is stable. That is, the same ID
+        //  will equal the same UUID as to prevent dupes.
+        //
+        const makeMessageUuid = () => {
+            if (isPrivate) {
+                // UUID specific to the target user
+                const url = `${this.id}/${options.toUser.userId}`;
+                return UUIDv5(url, UUIDv5.URL);
+            } else {
+                return UUIDv5(this.id, PublicMessageIdNamespace);
+            }
+        };
 
         // Fetch the remote actor info to get their user info
         Actor.fromId(this.attributedTo, (err, attributedToActor, fromActorSubject) => {
@@ -165,13 +181,17 @@ module.exports = class Note extends ActivityPubObject {
                 return cb(err);
             }
 
+            const message = new Message({
+                uuid: makeMessageUuid(),
+            });
+
             message.fromUserName = fromActorSubject || this.attributedTo;
 
             //
             //  Note's can be addressed to 1:N users, but a Message is a 1:1
             //  relationship. This method requires the mapping up front via options
             //
-            if (isObject(options.toUser)) {
+            if (isPrivate) {
                 message.toUserName = options.toUser.username;
                 message.meta.System[Message.SystemMetaNames.LocalToUserID] =
                     options.toUser.userId;

@@ -28,7 +28,7 @@ const { getISOTimestampString } = require('../database.js');
 const moment = require('moment');
 const paths = require('path');
 
-const ActorCacheTTL = moment.duration(1, 'day');
+const ActorCacheTTL = moment.duration(120, 'days');
 
 // https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor extends ActivityPubObject {
