@@ -216,8 +216,18 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         resp
                     );
 
+                case 'Delete':
+                    return this._collectionRequestHandler(
+                        signature,
+                        'inbox',
+                        activity,
+                        this._inboxDeleteRequestHandler.bind(this),
+                        req,
+                        resp
+                    );
+
                 case 'Update':
-                    return this._inboxUpdateRequestHandler(activity, req, resp);
+                    return this.inboxUpdateObject('inbox', req, resp, activity);
 
                 case 'Undo':
                     return this._collectionRequestHandler(
@@ -269,6 +279,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 case 'Create':
                     return this._sharedInboxCreateActivity(req, resp, activity);
 
+                case 'Update':
+                    return this.inboxUpdateObject('sharedInbox', req, resp, activity);
+
                 default:
                     this.log.warn(
                         { type: activity.type },
@@ -295,6 +308,80 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
     }
 
+    inboxUpdateObject(inboxType, req, resp, activity) {
+        const objectIdToUpdate = _.get(activity, 'object.id');
+        const objectType = _.get(activity, 'object.type');
+
+        this.log.info(
+            { inboxType, objectId: objectIdToUpdate, type: objectType },
+            'Inbox Object "Update" request'
+        );
+
+        //  :TODO: other types...
+        if (!objectIdToUpdate || !['Note'].includes(objectType)) {
+            return this.webServer.resourceNotFound(resp);
+        }
+
+        //  Note's are wrapped in Create Activities
+        Collection.objectByEmbeddedId(objectIdToUpdate, (err, obj) => {
+            if (err) {
+                return this.webServer.internalServerError(resp, err);
+            }
+
+            if (!obj) {
+                // no match
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            // OK, the object exists; Does the caller have permission
+            // to update? The origin must match
+            //
+            // "The receiving server MUST take care to be sure that the Update is authorized
+            // to modify its object. At minimum, this may be done by ensuring that the Update
+            // and its object are of same origin."
+            try {
+                const updateTargetUrl = new URL(obj.object.id);
+                const updaterUrl = new URL(activity.actor);
+
+                if (updateTargetUrl.host !== updaterUrl.host) {
+                    this.log.warn(
+                        {
+                            objectId: objectIdToUpdate,
+                            type: objectType,
+                            updateTargetHost: updateTargetUrl.host,
+                            requestorHost: updaterUrl.host,
+                        },
+                        'Attempt to update object from another origin'
+                    );
+                    return this.webServer.accessDenied(resp);
+                }
+
+                Collection.updateCollectionEntry(
+                    'inbox',
+                    objectIdToUpdate,
+                    activity,
+                    err => {
+                        if (err) {
+                            return this.webServer.internalServerError(resp, err);
+                        }
+
+                        this.log.info(
+                            {
+                                objectId: objectIdToUpdate,
+                                type: objectType,
+                                collection: 'inbox',
+                            },
+                            'Object updated'
+                        );
+                        return this.webServer.accepted(resp);
+                    }
+                );
+            } catch (e) {
+                return this.webServer.internalServerError(resp, e);
+            }
+        });
+    }
+
     _deliverSharedInboxNote(req, resp, deliverTo, activity) {
         // When an object is being delivered to the originating actor's followers,
         // a server MAY reduce the number of receiving actors delivered to by
@@ -313,10 +400,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             (actorId, nextActor) => {
                 switch (actorId) {
                     case Collection.PublicCollectionId:
-                        //  :TODO: we should probably land this in a public areaTag as well for AP; allowing Message objects to be used/etc.
-                        Collection.addPublicInboxItem(note, true, err => {
-                            return nextActor(err);
-                        });
+                        this._deliverInboxNoteToSharedInbox(
+                            req,
+                            resp,
+                            activity,
+                            note,
+                            err => {
+                                return nextActor(err);
+                            }
+                        );
                         break;
 
                     default:
@@ -343,49 +435,77 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
+    _deliverInboxNoteToSharedInbox(req, resp, activity, note, cb) {
+        Collection.addSharedInboxItem(activity, true, err => {
+            if (err) {
+                return cb(err);
+            }
+
+            return this._storeNoteAsMessage(
+                activity.id,
+                'All',
+                Message.WellKnownAreaTags.ActivityPubSharedInbox,
+                note,
+                cb
+            );
+        });
+    }
+
+    _storeNoteAsMessage(activityId, localAddressedTo, areaTag, note, cb) {
+        //
+        // Import the item to the user's private mailbox
+        //
+        const messageOpts = {
+            //  Notes can have 1:N 'to' relationships while a Message is 1:1;
+            activityId,
+            toUser: localAddressedTo,
+            areaTag: areaTag,
+        };
+
+        note.toMessage(messageOpts, (err, message) => {
+            if (err) {
+                return cb(err);
+            }
+
+            message.persist(err => {
+                if (!err) {
+                    if (_.isObject(localAddressedTo)) {
+                        localAddressedTo = localAddressedTo.username;
+                    }
+                    this.log.info(
+                        {
+                            localAddressedTo,
+                            activityId,
+                            noteId: note.id,
+                        },
+                        'Note delivered as message to private mailbox'
+                    );
+                } else if (err.code === 'SQLITE_CONSTRAINT') {
+                    return cb(null);
+                }
+                return cb(err);
+            });
+        });
+    }
+
     _deliverInboxNoteToLocalActor(req, resp, actorId, activity, note, cb) {
         userFromActorId(actorId, (err, localUser) => {
             if (err) {
                 return cb(null); //  not found/etc., just bail
             }
 
-            Collection.addInboxItem(note, localUser, this.webServer, false, err => {
+            Collection.addInboxItem(activity, localUser, this.webServer, false, err => {
                 if (err) {
                     return cb(err);
                 }
 
-                //
-                // Import the item to the user's private mailbox
-                //
-                const messageOpts = {
-                    //  Notes can have 1:N 'to' relationships while a Message is 1:1;
-                    activityId: activity.id,
-                    toUser: localUser,
-                    areaTag: Message.WellKnownAreaTags.Private,
-                };
-
-                note.toMessage(messageOpts, (err, message) => {
-                    if (err) {
-                        return cb(err);
-                    }
-
-                    message.persist(err => {
-                        if (!err) {
-                            this.log.info(
-                                {
-                                    user: localUser.username,
-                                    userId: localUser.userId,
-                                    activityId: activity.id,
-                                    noteId: note.id,
-                                },
-                                'Note delivered as message to private mailbox'
-                            );
-                        } else if (err.code === 'SQLITE_CONSTRAINT') {
-                            return cb(null);
-                        }
-                        return cb(err);
-                    });
-                });
+                return this._storeNoteAsMessage(
+                    activity.id,
+                    localUser,
+                    Message.WellKnownAreaTags.Private,
+                    note,
+                    cb
+                );
             });
         });
     }
@@ -440,6 +560,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         Note.fromPublicNoteId(noteId, (err, note) => {
             if (err) {
                 return this.webServer.internalServerError(resp, err);
+            }
+
+            if (!note) {
+                return this.webServer.resourceNotFound(resp);
             }
 
             //  :TODO: support a template here
@@ -527,13 +651,16 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
     }
 
-    _inboxUpdateRequestHandler(activity, req, resp) {
-        this.log.info({ actor: activity.actor }, 'Update Activity request');
+    //  :TODO: DRY: update/delete are mostly the same code other than the final operation
+    _inboxDeleteRequestHandler(activity, remoteActor, localUser, resp) {
+        this.log.info(
+            { user_id: localUser.userId, actor: activity.actor },
+            'Delete request'
+        );
 
-        return this.webServer.notImplemented(resp);
+        //  :TODO:only delete if it's owned by the sender
 
-        // Collection.updateCollectionEntry('inbox', activity.id, activity, err => {
-        // });
+        return this.webServer.accepted(resp);
     }
 
     _inboxUndoRequestHandler(activity, remoteActor, localUser, resp) {
@@ -547,27 +674,22 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return this.webServer.notImplemented(resp);
         }
 
-        Collection.removeFromCollectionById(
-            'followers',
-            localUser,
-            remoteActor.id,
-            err => {
-                if (err) {
-                    return this.webServer.internalServerError(resp, err);
-                }
-
-                this.log.info(
-                    {
-                        username: localUser.username,
-                        userId: localUser.userId,
-                        actor: remoteActor.id,
-                    },
-                    'Undo "Follow" (un-follow) success'
-                );
-
-                return this.webServer.accepted(resp);
+        Collection.removeById('followers', localUser, remoteActor.id, err => {
+            if (err) {
+                return this.webServer.internalServerError(resp, err);
             }
-        );
+
+            this.log.info(
+                {
+                    username: localUser.username,
+                    userId: localUser.userId,
+                    actor: remoteActor.id,
+                },
+                'Undo "Follow" (un-follow) success'
+            );
+
+            return this.webServer.accepted(resp);
+        });
     }
 
     _collectionRequestHandler(

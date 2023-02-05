@@ -15,8 +15,11 @@ const moment = require('moment');
 const { striptags } = require('striptags');
 const { encode, decode } = require('html-entities');
 const { isString } = require('lodash');
+const Log = require('../logger').log;
 
 exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
+
+exports.parseTimestampOrNow = parseTimestampOrNow;
 exports.isValidLink = isValidLink;
 exports.makeSharedInboxUrl = makeSharedInboxUrl;
 exports.makeUserUrl = makeUserUrl;
@@ -41,6 +44,15 @@ Login Count: %LOGIN_COUNT%
 Affiliations: %AFFILIATIONS%
 Achievement Points: %ACHIEVEMENT_POINTS%
 `;
+
+function parseTimestampOrNow(s) {
+    try {
+        return moment(s);
+    } catch (e) {
+        Log.warn({ error: e.message }, `Failed parsing timestamp "${s}"`);
+        return moment();
+    }
+}
 
 function isValidLink(l) {
     return /^https?:\/\/.+$/.test(l);
@@ -215,20 +227,12 @@ function messageBodyToHtml(body) {
 //  - https://indieweb.org/note
 //  - https://docs.joinmastodon.org/spec/microformats/
 //
-function messageToHtml(message, remoteActor) {
+function messageToHtml(message) {
     const msg = encode(stripAnsiControlCodes(message.message.trim()), {
         mode: 'nonAsciiPrintable',
     }).replace(/\r?\n/g, '<br>');
 
-    if (message.isPrivate()) {
-        const toId = remoteActor.id;
-        return `<p>
-<span class="h-card">
-    <a href="${toId}" class="u-url mention">@ <span>${remoteActor.preferredUsername}</span></a>
-</span>
-${msg}
-</p>`;
-    }
+    //  :TODO: figure out any microformats we should use here...
 
     return `<p>${msg}</p>`;
 }

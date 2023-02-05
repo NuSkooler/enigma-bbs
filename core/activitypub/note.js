@@ -3,14 +3,12 @@ const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const { getISOTimestampString } = require('../database');
 const User = require('../user');
-const { messageToHtml, htmlToMessageBody } = require('./util');
+const { parseTimestampOrNow, messageToHtml, htmlToMessageBody } = require('./util');
 const { isAnsi } = require('../string_util');
-const Log = require('../logger').log;
 
 // deps
 const { v5: UUIDv5 } = require('uuid');
 const Actor = require('./actor');
-const moment = require('moment');
 const Collection = require('./collection');
 const async = require('async');
 const { isString, isObject, truncate } = require('lodash');
@@ -34,9 +32,17 @@ module.exports = class Note extends ActivityPubObject {
     }
 
     static fromPublicNoteId(noteId, cb) {
-        Collection.embeddedObjById('outbox', false, noteId, (err, obj) => {
+        Collection.objectByEmbeddedId(noteId, (err, obj, objInfo) => {
             if (err) {
                 return cb(err);
+            }
+
+            if (!obj) {
+                return cb(null, null);
+            }
+
+            if (objInfo.isPrivate || !obj.object || obj.object.type !== 'Note') {
+                return cb(null, null);
             }
 
             return cb(null, new Note(obj.object));
@@ -117,7 +123,7 @@ module.exports = class Note extends ActivityPubObject {
                         published: getISOTimestampString(message.modTimestamp),
                         to,
                         attributedTo: fromActor.id,
-                        content: messageToHtml(message, remoteActor),
+                        content: messageToHtml(message),
                         source: {
                             content: message.message,
                             mediaType: sourceMediaType,
@@ -144,7 +150,7 @@ module.exports = class Note extends ActivityPubObject {
     }
 
     toMessage(options, cb) {
-        if (!isObject(options.toUser) || !isString(options.areaTag)) {
+        if (!options.toUser || !isString(options.areaTag)) {
             return cb(Errors.MissingParam('Missing one or more required options!'));
         }
 
@@ -165,9 +171,14 @@ module.exports = class Note extends ActivityPubObject {
             //  Note's can be addressed to 1:N users, but a Message is a 1:1
             //  relationship. This method requires the mapping up front via options
             //
-            message.toUserName = options.toUser.username;
-            message.meta.System[Message.SystemMetaNames.LocalToUserID] =
-                options.toUser.userId;
+            if (isObject(options.toUser)) {
+                message.toUserName = options.toUser.username;
+                message.meta.System[Message.SystemMetaNames.LocalToUserID] =
+                    options.toUser.userId;
+            } else {
+                message.toUser = 'All';
+            }
+
             message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
 
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
@@ -227,15 +238,7 @@ module.exports = class Note extends ActivityPubObject {
                 message.subject = `[NSFW] ${message.subject}`;
             }
 
-            try {
-                message.modTimestamp = moment(this.published);
-            } catch (e) {
-                Log.warn(
-                    { published: this.published, error: e.message },
-                    'Failed to parse Note published timestamp'
-                );
-                message.modTimestamp = moment();
-            }
+            message.modTimestamp = parseTimestampOrNow(this.published);
 
             message.setRemoteFromUser(this.attributedTo);
             message.setExternalFlavor(Message.AddressFlavor.ActivityPub);

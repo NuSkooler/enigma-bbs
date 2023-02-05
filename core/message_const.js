@@ -2,6 +2,7 @@ const WellKnownAreaTags = {
     Invalid: '',
     Private: 'private_mail',
     Bulletin: 'local_bulletin',
+    ActivityPubSharedInbox: 'activitypub_shared_inbox',
 };
 exports.WellKnownAreaTags = WellKnownAreaTags;
 

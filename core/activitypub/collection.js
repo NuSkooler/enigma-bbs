@@ -1,4 +1,4 @@
-const { makeUserUrl } = require('./util');
+const { makeUserUrl, parseTimestampOrNow } = require('./util');
 const ActivityPubObject = require('./object');
 const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
@@ -102,9 +102,9 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addPublicInboxItem(inboxItem, ignoreDupes, cb) {
+    static addSharedInboxItem(inboxItem, ignoreDupes, cb) {
         return Collection.addToCollection(
-            'publicInbox',
+            'sharedInbox',
             null, // N/A
             Collection.PublicCollectionId,
             inboxItem.id,
@@ -115,27 +115,20 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static embeddedObjById(collectionName, includePrivate, objectId, cb) {
-        const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';
-
+    static objectById(objectId, cb) {
         apDb.get(
-            `SELECT object_json
+            `SELECT name, timestamp, owner_actor_id, object_json, is_private
             FROM collection
-            WHERE name = ?
-            ${privateQuery}
-            AND json_extract(object_json, '$.object.id') = ?;`,
-            [collectionName, objectId],
+            WHERE name = ? AND object_id = ?
+            LIMIT 1;`,
+            [objectId],
             (err, row) => {
                 if (err) {
                     return cb(err);
                 }
 
                 if (!row) {
-                    return cb(
-                        Errors.DoesNotExist(
-                            `No embedded Object with object.id of "${objectId}" found`
-                        )
-                    );
+                    return cb(null, null);
                 }
 
                 const obj = ActivityPubObject.fromJsonString(row.object_json);
@@ -143,7 +136,34 @@ module.exports = class Collection extends ActivityPubObject {
                     return cb(Errors.Invalid('Failed to parse Object JSON'));
                 }
 
-                return cb(null, obj);
+                return cb(null, obj, Collection._rowToObjectInfo(row));
+            }
+        );
+    }
+
+    static objectByEmbeddedId(objectId, cb) {
+        apDb.get(
+            `SELECT name, timestamp, owner_actor_id, object_json, is_private
+            FROM collection
+            WHERE json_extract(object_json, '$.object.id') = ?
+            LIMIT 1;`,
+            [objectId],
+            (err, row) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                if (!row) {
+                    // no match
+                    return cb(null, null);
+                }
+
+                const obj = ActivityPubObject.fromJsonString(row.object_json);
+                if (!obj) {
+                    return cb(Errors.Invalid('Failed to parse Object JSON'));
+                }
+
+                return cb(null, obj, Collection._rowToObjectInfo(row));
             }
         );
     }
@@ -310,8 +330,6 @@ module.exports = class Collection extends ActivityPubObject {
             obj = JSON.stringify(obj);
         }
 
-        //  :TODO: The receiving server MUST take care to be sure that the Update is authorized to modify its object. At minimum, this may be done by ensuring that the Update and its object are of same origin.
-
         apDb.run(
             `UPDATE collection
             SET object_json = ?, timestamp = ?
@@ -378,7 +396,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static removeFromCollectionById(collectionName, owningUser, objectId, cb) {
+    static removeById(collectionName, owningUser, objectId, cb) {
         const actorId = owningUser.getProperty(UserProps.ActivityPubActorId);
         if (!actorId) {
             return cb(
@@ -395,5 +413,14 @@ module.exports = class Collection extends ActivityPubObject {
                 return cb(err);
             }
         );
+    }
+
+    static _rowToObjectInfo(row) {
+        return {
+            name: row.name,
+            timestamp: parseTimestampOrNow(row.timestamp),
+            ownerActorId: row.owner_actor_id,
+            isPrivate: row.is_private,
+        };
     }
 };
