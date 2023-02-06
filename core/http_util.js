@@ -5,7 +5,6 @@ const { isString, isObject, truncate } = require('lodash');
 const https = require('https');
 const httpSignature = require('http-signature');
 const crypto = require('crypto');
-const Log = require('./logger').log;
 
 exports.getJson = getJson;
 exports.postJson = postJson;
@@ -29,7 +28,6 @@ function getJson(url, options, cb) {
             }
         }
 
-        Log.debug({ url: url, body: body }, 'Response from getJson');
         let parsed;
         try {
             parsed = JSON.parse(body);
