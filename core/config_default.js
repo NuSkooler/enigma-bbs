@@ -904,10 +904,20 @@ module.exports = () => {
                         name: 'System Bulletins',
                         desc: 'Bulletin messages for all users',
                     },
+                },
+            },
 
-                    activitypub_shared_inbox: {
+            activity_pub: {
+                name: 'ActivityPub Shared Inbox',
+                desc: 'Public and shared ActivityPub messages',
+
+                areas: {
+                    activitypub_shared: {
                         name: 'ActivityPub sharedInbox',
                         desc: 'Public shared inbox for ActivityPub',
+                        alwaysExportExternal: true,
+                        subjectOptional: true,
+                        addressFlavor: 'activitypub',
                     },
                 },
             },

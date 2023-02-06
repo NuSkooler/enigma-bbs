@@ -189,20 +189,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         req.on('end', () => {
             const activity = Activity.fromJsonString(Buffer.concat(body).toString());
-            if (!activity) {
+            if (!activity || !activity.isValid()) {
                 this.log.error(
                     { url: req.url, method: req.method, endpoint: 'inbox' },
-                    'Failed to parse Activity'
-                );
-                return this.webServer.resourceNotFound(resp);
-            }
-
-            if (!activity.isValid()) {
-                this.log.warn(
-                    { activity, endpoint: 'inbox' },
                     'Invalid or unsupported Activity'
                 );
-                return this.webServer.badRequest(resp);
+                return activity
+                    ? this.webServer.badRequest(resp)
+                    : this.webServer.notImplemented(resp);
             }
 
             switch (activity.type) {
@@ -247,7 +241,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     break;
             }
 
-            return this.webServer.resourceNotFound(resp);
+            return this.webServer.notImplemented(resp);
         });
     }
 
@@ -259,20 +253,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         req.on('end', () => {
             const activity = Activity.fromJsonString(Buffer.concat(body).toString());
-            if (!activity) {
+            if (!activity || !activity.isValid()) {
                 this.log.error(
                     { url: req.url, method: req.method, endpoint: 'sharedInbox' },
-                    'Failed to parse Activity'
-                );
-                return this.webServer.resourceNotFound(resp);
-            }
-
-            if (!activity.isValid()) {
-                this.log.warn(
-                    { activity, endpoint: 'sharedInbox' },
                     'Invalid or unsupported Activity'
                 );
-                return this.webServer.badRequest(resp);
+                return activity
+                    ? this.webServer.badRequest(resp)
+                    : this.webServer.notImplemented(resp);
             }
 
             switch (activity.type) {
@@ -287,8 +275,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         { type: activity.type },
                         'Invalid or unknown Activity type'
                     );
-                    return this.webServer.resourceNotFound(resp);
+                    break;
             }
+
+            // don't understand the 'type'
+            return this.webServer.notImplemented(resp);
         });
     }
 
@@ -309,28 +300,28 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     inboxUpdateObject(inboxType, req, resp, activity) {
-        const objectIdToUpdate = _.get(activity, 'object.id');
+        const updateObjectId = _.get(activity, 'object.id');
         const objectType = _.get(activity, 'object.type');
 
         this.log.info(
-            { inboxType, objectId: objectIdToUpdate, type: objectType },
+            { inboxType, objectId: updateObjectId, type: objectType },
             'Inbox Object "Update" request'
         );
 
         //  :TODO: other types...
-        if (!objectIdToUpdate || !['Note'].includes(objectType)) {
-            return this.webServer.resourceNotFound(resp);
+        if (!updateObjectId || !['Note'].includes(objectType)) {
+            return this.webServer.notImplemented(resp);
         }
 
         //  Note's are wrapped in Create Activities
-        Collection.objectByEmbeddedId(objectIdToUpdate, (err, obj) => {
+        Collection.objectByEmbeddedId(updateObjectId, (err, obj) => {
             if (err) {
                 return this.webServer.internalServerError(resp, err);
             }
 
             if (!obj) {
-                // no match
-                return this.webServer.resourceNotFound(resp);
+                // no match, but respond as accepted and hopefully they don't ask again
+                return this.webServer.accepted(resp);
             }
 
             // OK, the object exists; Does the caller have permission
@@ -346,7 +337,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 if (updateTargetUrl.host !== updaterUrl.host) {
                     this.log.warn(
                         {
-                            objectId: objectIdToUpdate,
+                            objectId: updateObjectId,
                             type: objectType,
                             updateTargetHost: updateTargetUrl.host,
                             requestorHost: updaterUrl.host,
@@ -358,7 +349,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                 Collection.updateCollectionEntry(
                     'inbox',
-                    objectIdToUpdate,
+                    updateObjectId,
                     activity,
                     err => {
                         if (err) {
@@ -367,7 +358,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                         this.log.info(
                             {
-                                objectId: objectIdToUpdate,
+                                objectId: updateObjectId,
                                 type: objectType,
                                 collection: 'inbox',
                             },
@@ -444,7 +435,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return this._storeNoteAsMessage(
                 activity.id,
                 'All',
-                Message.WellKnownAreaTags.ActivityPubSharedInbox,
+                Message.WellKnownAreaTags.ActivityPubShared,
                 note,
                 cb
             );
@@ -527,13 +518,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             }
 
             const body = JSON.stringify(collection);
-            const headers = {
+            return this.webServer.ok(resp, body, {
                 'Content-Type': ActivityStreamMediaType,
-                'Content-Length': Buffer(body).length,
-            };
-
-            resp.writeHead(200, headers);
-            return resp.end(body);
+            });
         });
     }
 
@@ -568,8 +555,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             //  :TODO: support a template here
 
-            resp.writeHead(200, { 'Content-Type': 'text/html' });
-            return resp.end(note.content);
+            return this.webServer.ok(resp, note.content);
         });
     }
 
@@ -619,11 +605,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             'Follow request'
         );
 
-        const ok = () => {
-            resp.writeHead(200, { 'Content-Type': 'text/html' });
-            return resp.end('');
-        };
-
         //
         //  If the user blindly accepts Followers, we can persist
         //  and send an 'Accept' now. Otherwise, we need to queue this
@@ -633,7 +614,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const activityPubSettings = ActivityPubSettings.fromUser(localUser);
         if (!activityPubSettings.manuallyApproveFollowers) {
             this._recordAcceptedFollowRequest(localUser, remoteActor, activity);
-            return ok();
+            return this.webServer.ok(resp);
         } else {
             Collection.addFollowRequest(
                 localUser,
@@ -645,7 +626,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return this.internalServerError(resp, err);
                     }
 
-                    return ok();
+                    return this.webServer.ok(resp);
                 }
             );
         }
@@ -836,13 +817,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         const body = JSON.stringify(localActor);
 
-        const headers = {
-            'Content-Type': ActivityStreamMediaType,
-            'Content-Length': Buffer(body).length,
-        };
-
-        resp.writeHead(200, headers);
-        return resp.end(body);
+        return this.webServer.ok(resp, body, { 'Content-Type': ActivityStreamMediaType });
     }
 
     _standardSelfHandler(localUser, localActor, req, resp) {
@@ -872,13 +847,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     `Serving ActivityPub Profile for "${localUser.username}"`
                 );
 
-                const headers = {
-                    'Content-Type': contentType,
-                    'Content-Length': Buffer(body).length,
-                };
-
-                resp.writeHead(200, headers);
-                return resp.end(body);
+                return this.webServer.ok(resp, body, { 'Content-Type': contentType });
             }
         );
     }

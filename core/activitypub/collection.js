@@ -12,6 +12,7 @@ const { getJson } = require('../http_util');
 
 // deps
 const { isString } = require('lodash');
+const Log = require('../logger');
 
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
@@ -260,18 +261,33 @@ module.exports = class Collection extends ActivityPubObject {
                     return cb(err);
                 }
 
-                entries = entries || [];
+                try {
+                    entries = (entries || []).map(e => JSON.parse(e.object_json));
+                } catch (e) {
+                    Log.error(`Collection "${collectionId}" error: ${e.message}`);
+                }
+
                 if (mapper && entries.length > 0) {
                     entries = entries.map(mapper);
                 }
 
-                const obj = {
-                    id: `${collectionId}/page=${page}`,
-                    type: 'OrderedCollectionPage',
-                    totalItems: entries.length,
-                    orderedItems: entries,
-                    partOf: collectionId,
-                };
+                let obj;
+                if ('all' === page) {
+                    obj = {
+                        id: collectionId,
+                        type: 'OrderedCollection',
+                        totalItems: entries.length,
+                        orderedItems: entries,
+                    };
+                } else {
+                    obj = {
+                        id: `${collectionId}/page=${page}`,
+                        type: 'OrderedCollectionPage',
+                        totalItems: entries.length,
+                        orderedItems: entries,
+                        partOf: collectionId,
+                    };
+                }
 
                 return cb(null, new Collection(obj));
             }

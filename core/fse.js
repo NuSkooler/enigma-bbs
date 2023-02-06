@@ -174,6 +174,12 @@ exports.FullScreenEditorModule =
                     ) {
                         // Ignore validation errors if this is the subject field
                         // and it's optional
+                        const areaInfo = getMessageAreaByTag(this.messageAreaTag);
+                        if (true === areaInfo.subjectOptional) {
+                            return cb(null, null);
+                        }
+
+                        // private messages are a little different...
                         const toView = this.getView('header', MciViewIds.header.to);
                         const msgInfo = messageInfoFromAddressedToInfo(
                             getAddressedToInfo(toView.getData())
@@ -594,7 +600,11 @@ exports.FullScreenEditorModule =
                     function populateLocalUserInfo(callback) {
                         self.message.setLocalFromUserId(self.client.user.userId);
 
-                        if (!self.isPrivateMail()) {
+                        const areaInfo = getMessageAreaByTag(self.messageAreaTag);
+                        if (
+                            !self.isPrivateMail() &&
+                            true !== areaInfo.alwaysExportExternal
+                        ) {
                             return callback(null);
                         }
 
@@ -636,7 +646,17 @@ exports.FullScreenEditorModule =
                             self.message.toUserName,
                             (err, toUserId) => {
                                 if (err) {
-                                    return callback(err);
+                                    if (self.message.isPrivate()) {
+                                        return callback(err);
+                                    }
+
+                                    if (areaInfo.addressFlavor) {
+                                        self.message.setExternalFlavor(
+                                            areaInfo.addressFlavor
+                                        );
+                                    }
+
+                                    return callback(null);
                                 }
 
                                 self.message.setLocalToUserId(toUserId);

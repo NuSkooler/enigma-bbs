@@ -50,7 +50,7 @@ module.exports = class Note extends ActivityPubObject {
     }
 
     // A local Message bound for ActivityPub
-    static fromLocalOutgoingMessage(message, webServer, cb) {
+    static fromLocalMessage(message, webServer, cb) {
         const localUserId = message.getLocalFromUserId();
         if (!localUserId) {
             return cb(Errors.UnexpectedState('Invalid user ID for local user!'));
@@ -63,7 +63,7 @@ module.exports = class Note extends ActivityPubObject {
         }
 
         const remoteActorAccount = message.getRemoteToUser();
-        if (!remoteActorAccount) {
+        if (!remoteActorAccount && message.isPrivate()) {
             return cb(
                 Errors.UnexpectedState('Message does not contain a remote address')
             );
@@ -80,9 +80,13 @@ module.exports = class Note extends ActivityPubObject {
                     });
                 },
                 (fromUser, fromActor, callback) => {
-                    Actor.fromId(remoteActorAccount, (err, remoteActor) => {
-                        return callback(err, fromUser, fromActor, remoteActor);
-                    });
+                    if (message.isPrivate()) {
+                        Actor.fromId(remoteActorAccount, (err, remoteActor) => {
+                            return callback(err, fromUser, fromActor, remoteActor);
+                        });
+                    } else {
+                        return callback(null, fromUser, fromActor, null);
+                    }
                 },
                 (fromUser, fromActor, remoteActor, callback) => {
                     if (!message.replyToMsgId) {

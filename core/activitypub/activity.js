@@ -49,12 +49,25 @@ module.exports = class Activity extends ActivityPubObject {
     }
 
     static makeCreate(webServer, actor, obj) {
-        return new Activity({
+        const activity = new Activity({
             id: Activity.activityObjectId(webServer),
+            to: obj.to,
             type: WellKnownActivity.Create,
             actor,
             object: obj,
         });
+
+        const copy = n => {
+            if (obj[n]) {
+                activity[n] = obj[n];
+            }
+        };
+
+        copy('to');
+        copy('cc');
+        //  :TODO: Others?
+
+        return activity;
     }
 
     static makeTombstone(obj) {
@@ -68,7 +81,7 @@ module.exports = class Activity extends ActivityPubObject {
         });
     }
 
-    sendTo(actorUrl, fromUser, webServer, cb) {
+    sendTo(inboxEndpoint, fromUser, webServer, cb) {
         const privateKey = fromUser.getProperty(UserProps.PrivateActivityPubSigningKey);
         if (_.isEmpty(privateKey)) {
             return cb(
@@ -91,7 +104,7 @@ module.exports = class Activity extends ActivityPubObject {
         };
 
         const activityJson = JSON.stringify(this);
-        return postJson(actorUrl, activityJson, reqOpts, cb);
+        return postJson(inboxEndpoint, activityJson, reqOpts, cb);
     }
 
     //  :TODO: we need dp/support a bit more here...

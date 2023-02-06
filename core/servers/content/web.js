@@ -326,6 +326,14 @@ exports.getModule = class WebServerModule extends ServerModule {
         });
     }
 
+    ok(resp, body = '', headers = { 'Content-Type:': 'text/html' }) {
+        if (body && !headers['Content-Length']) {
+            headers['Content-Length'] = Buffer(body).length;
+        }
+        resp.writeHead(200, 'OK', body ? headers : null);
+        return resp.end(body);
+    }
+
     created(resp, body = '', headers = { 'Content-Type:': 'text/html' }) {
         resp.writeHead(201, 'Created', body ? headers : null);
         return resp.end(body);

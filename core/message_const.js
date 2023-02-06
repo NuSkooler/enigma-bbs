@@ -2,9 +2,12 @@ const WellKnownAreaTags = {
     Invalid: '',
     Private: 'private_mail',
     Bulletin: 'local_bulletin',
-    ActivityPubSharedInbox: 'activitypub_shared_inbox',
+    ActivityPubShared: 'activitypub_shared', // sharedInbox -> HERE -> exported as replies (direct) and outbox items (new posts)
 };
 exports.WellKnownAreaTags = WellKnownAreaTags;
+
+const WellKnownExternalAreaTags = [WellKnownAreaTags.ActivityPubShared];
+exports.WellKnownExternalAreaTags = WellKnownExternalAreaTags;
 
 const WellKnownMetaCategories = {
     System: 'System',
