@@ -4,14 +4,8 @@
 //  ENiGMA½
 const { Errors } = require('../enig_error.js');
 const UserProps = require('../user_property');
-const {
-    ActivityStreamsContext,
-    webFingerProfileUrl,
-    makeUserUrl,
-    isValidLink,
-    makeSharedInboxUrl,
-    userNameFromSubject,
-} = require('./util');
+const { ActivityStreamsContext, isValidLink, userNameFromSubject } = require('./util');
+const Endpoints = require('./endpoint');
 const Log = require('../logger').log;
 const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
@@ -113,14 +107,14 @@ module.exports = class Actor extends ActivityPubObject {
                 ? user.getSanitizedName('real')
                 : user.username,
             endpoints: {
-                sharedInbox: makeSharedInboxUrl(webServer),
+                sharedInbox: Endpoints.sharedInbox(webServer),
             },
-            inbox: makeUserUrl(webServer, user, '/ap/users/') + '/inbox',
-            outbox: makeUserUrl(webServer, user, '/ap/users/') + '/outbox',
-            followers: makeUserUrl(webServer, user, '/ap/users/') + '/followers',
-            following: makeUserUrl(webServer, user, '/ap/users/') + '/following',
+            inbox: Endpoints.inbox(webServer, user),
+            outbox: Endpoints.outbox(webServer, user),
+            followers: Endpoints.followers(webServer, user),
+            following: Endpoints.following(webServer, user),
             summary: user.getProperty(UserProps.AutoSignature) || '',
-            url: webFingerProfileUrl(webServer, user),
+            url: Endpoints.profile(webServer, user),
             manuallyApprovesFollowers: userSettings.manuallyApprovesFollowers,
             discoverable: userSettings.discoverable,
             // :TODO: we can start to define BBS related stuff with the community perhaps

@@ -3,9 +3,8 @@ const {
     userFromActorId,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
-    makeUserUrl,
-    localActorId,
 } = require('../../../activitypub/util');
+const Endpoints = require('../../../activitypub/endpoint');
 const { ActivityStreamMediaType } = require('../../../activitypub/const');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
@@ -858,7 +857,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             `Preparing ActivityPub settings for "${user.username}"`
         );
 
-        const actorId = localActorId(this.webServer, user);
+        const actorId = Endpoints.actorId(this.webServer, user);
         user.setProperty(UserProps.ActivityPubActorId, actorId);
 
         user.updateActivityPubKeyPairProperties(err => {
@@ -882,8 +881,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 const apSettings = ActivityPubSettings.fromUser(user);
 
                 const filename = paths.basename(outPath);
-                const avatarUrl =
-                    makeUserUrl(this.webServer, user, '/users/') + `/avatar/${filename}`;
+                const avatarUrl = Endpoints.avatar(this.webServer, user, filename);
 
                 apSettings.image = avatarUrl;
                 apSettings.icon = avatarUrl;

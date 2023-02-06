@@ -1,4 +1,3 @@
-const { localActorId } = require('./util');
 const {
     ActivityStreamMediaType,
     WellKnownActivityTypes,
@@ -6,6 +5,7 @@ const {
     WellKnownRecipientFields,
     HttpSignatureSignHeaders,
 } = require('./const');
+const Endpoints = require('./endpoint');
 const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const UserProps = require('../user_property');
@@ -97,7 +97,7 @@ module.exports = class Activity extends ActivityPubObject {
             },
             sign: {
                 key: privateKey,
-                keyId: localActorId(webServer, fromUser) + '#main-key',
+                keyId: Endpoints.actorId(webServer, fromUser) + '#main-key',
                 authorizationHeaderName: 'Signature',
                 headers: HttpSignatureSignHeaders,
             },

@@ -3,11 +3,10 @@ const Config = require('../../../config').get;
 const { Errors, ErrorReasons } = require('../../../enig_error');
 const { WellKnownLocations } = require('../web');
 const {
-    localActorId,
-    webFingerProfileUrl,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
 } = require('../../../activitypub/util');
+const Endpoints = require('../../../activitypub/endpoint');
 const EngiAssert = require('../../../enigma_assert');
 const User = require('../../../user');
 const UserProps = require('../../../user_property');
@@ -220,7 +219,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _profileUrl(user) {
-        return webFingerProfileUrl(this.webServer, user);
+        return Endpoints.profile(this.webServer, user);
     }
 
     _profilePageLink(user) {
@@ -233,7 +232,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _userActorId(user) {
-        return localActorId(this.webServer, user);
+        return Endpoints.actorId(this.webServer, user);
     }
 
     // :TODO: only if ActivityPub is enabled

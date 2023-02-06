@@ -7,7 +7,7 @@ const { WellKnownAreaTags, AddressFlavor } = require('../message_const');
 const { Errors } = require('../enig_error');
 const Collection = require('../activitypub/collection');
 const Note = require('../activitypub/note');
-const { makeUserUrl } = require('../activitypub/util');
+const Endpoints = require('../activitypub/endpoint');
 const { getAddressedToInfo } = require('../mail_util');
 const { PublicCollectionId } = require('../activitypub/const');
 const Actor = require('../activitypub/actor');
@@ -296,8 +296,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
     }
 
     _collectFollowersSharedInboxEndpoints(localUser, cb) {
-        const localFollowersEndpoint =
-            makeUserUrl(this._webServer(), localUser, '/ap/users/') + '/followers';
+        const localFollowersEndpoint = Endpoints.followers(this._webServer(), localUser);
 
         Collection.followers(localFollowersEndpoint, 'all', (err, collection) => {
             if (err) {

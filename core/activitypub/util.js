@@ -1,4 +1,3 @@
-const { WellKnownLocations } = require('../servers/content/web');
 const User = require('../user');
 const { Errors, ErrorReasons } = require('../enig_error');
 const UserProps = require('../user_property');
@@ -21,16 +20,13 @@ exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 
 exports.parseTimestampOrNow = parseTimestampOrNow;
 exports.isValidLink = isValidLink;
-exports.makeSharedInboxUrl = makeSharedInboxUrl;
-exports.makeUserUrl = makeUserUrl;
-exports.webFingerProfileUrl = webFingerProfileUrl;
-exports.localActorId = localActorId;
 exports.userFromActorId = userFromActorId;
 exports.getUserProfileTemplatedBody = getUserProfileTemplatedBody;
 exports.messageBodyToHtml = messageBodyToHtml;
 exports.messageToHtml = messageToHtml;
 exports.htmlToMessageBody = htmlToMessageBody;
 exports.userNameFromSubject = userNameFromSubject;
+exports.extractMessageMetadata = extractMessageMetadata;
 
 //  :TODO: more info in default
 // this profile template is the *default* for both WebFinger
@@ -56,24 +52,6 @@ function parseTimestampOrNow(s) {
 
 function isValidLink(l) {
     return /^https?:\/\/.+$/.test(l);
-}
-
-function makeSharedInboxUrl(webServer) {
-    return webServer.buildUrl(WellKnownLocations.Internal + '/ap/shared-inbox');
-}
-
-function makeUserUrl(webServer, user, relPrefix) {
-    return webServer.buildUrl(
-        WellKnownLocations.Internal + `${relPrefix}${user.username}`
-    );
-}
-
-function webFingerProfileUrl(webServer, user) {
-    return webServer.buildUrl(WellKnownLocations.Internal + `/wf/@${user.username}`);
-}
-
-function localActorId(webServer, user) {
-    return makeUserUrl(webServer, user, '/ap/users/');
 }
 
 function userFromActorId(actorId, cb) {
@@ -246,4 +224,20 @@ function htmlToMessageBody(html) {
 
 function userNameFromSubject(subject) {
     return subject.replace(/^acct:(.+)$/, '$1');
+}
+
+function extractMessageMetadata(body) {
+    const metadata = { mentions: new Set(), hashTags: new Set() };
+
+    const re = /(@\w+)|(#[A-Za-z0-9_]+)/g;
+    const matches = body.matchAll(re);
+    for (const m of matches) {
+        if (m[1]) {
+            metadata.mentions.add(m[1]);
+        } else if (m[2]) {
+            metadata.hashTags.add(m[2]);
+        }
+    }
+
+    return metadata;
 }
