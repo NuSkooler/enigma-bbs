@@ -178,11 +178,11 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                             );
                         },
                         () => {
-                            return callback(null, activity, fromUser);
+                            return callback(null, activity, fromUser, note);
                         }
                     );
                 },
-                (activity, fromUser, callback) => {
+                (activity, fromUser, note, callback) => {
                     Collection.addOutboxItem(
                         fromUser,
                         activity,
@@ -192,7 +192,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         (err, localId) => {
                             if (!err) {
                                 this.log.debug(
-                                    { localId, activityId: activity.id },
+                                    { localId, activityId: activity.id, noteId: note.id },
                                     'Note Activity persisted to "outbox" collection"'
                                 );
                             }
