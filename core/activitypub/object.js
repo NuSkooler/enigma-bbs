@@ -1,14 +1,30 @@
 const { ActivityStreamsContext } = require('./util');
-const { WellKnownLocations } = require('../servers/content/web');
+const Endpoints = require('./endpoint');
 
 // deps
-const { isString } = require('lodash');
-const { v4: UUIDv4 } = require('uuid');
+const { isString, isObject } = require('lodash');
 
 module.exports = class ActivityPubObject {
-    constructor(obj) {
-        this['@context'] = ActivityStreamsContext;
+    constructor(obj, withContext = [ActivityStreamsContext]) {
+        if (withContext) {
+            this.setContext(withContext);
+        }
         Object.assign(this, obj);
+    }
+
+    static get DefaultContext() {
+        return [ActivityStreamsContext];
+    }
+
+    static makeContext(namespaceUrls, aliases = null) {
+        const context = [ActivityStreamsContext];
+        if (Array.isArray(namespaceUrls)) {
+            context.push(...namespaceUrls);
+        }
+        if (isObject(aliases)) {
+            context.push(aliases);
+        }
+        return context;
     }
 
     static fromJsonString(s) {
@@ -23,23 +39,27 @@ module.exports = class ActivityPubObject {
     }
 
     isValid() {
-        const nes = s => isString(s) && s.length > 1;
+        const nonEmpty = s => isString(s) && s.length > 1;
         //  :TODO: Additional validation
         if (
             (this['@context'] === ActivityStreamsContext ||
                 this['@context'][0] === ActivityStreamsContext) &&
-            nes(this.id) &&
-            nes(this.type)
+            nonEmpty(this.id) &&
+            nonEmpty(this.type)
         ) {
             return true;
         }
         return false;
     }
 
-    static makeObjectId(webServer, suffix) {
-        // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/activity
-        return webServer.buildUrl(
-            WellKnownLocations.Internal + `/ap/${UUIDv4()}/${suffix}`
-        );
+    setContext(context) {
+        if (!Array.isArray(context)) {
+            context = [context];
+        }
+        this['@context'] = context;
+    }
+
+    static makeObjectId(webServer, objectType) {
+        return Endpoints.objectId(webServer, objectType);
     }
 };

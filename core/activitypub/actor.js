@@ -4,8 +4,8 @@
 //  ENiGMA½
 const { Errors } = require('../enig_error.js');
 const UserProps = require('../user_property');
-const { ActivityStreamsContext, isValidLink, userNameFromSubject } = require('./util');
 const Endpoints = require('./endpoint');
+const { userNameFromSubject, isValidLink } = require('./util');
 const Log = require('../logger').log;
 const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
@@ -24,10 +24,17 @@ const paths = require('path');
 
 const ActorCacheTTL = moment.duration(120, 'days');
 
+// default context for Actor's
+const DefaultContext = ActivityPubObject.makeContext(['https://w3id.org/security/v1'], {
+    toot: 'http://joinmastodon.org/ns#',
+    discoverable: 'toot:discoverable',
+    manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
+});
+
 // https://www.w3.org/TR/activitypub/#actor-objects
 module.exports = class Actor extends ActivityPubObject {
-    constructor(obj) {
-        super(obj);
+    constructor(obj, withContext = DefaultContext) {
+        super(obj, withContext);
     }
 
     isValid() {
@@ -90,16 +97,6 @@ module.exports = class Actor extends ActivityPubObject {
         };
 
         const obj = {
-            '@context': [
-                ActivityStreamsContext,
-                'https://w3id.org/security/v1', // :TODO: add support
-                {
-                    bbsInfo: {
-                        '@id': 'bbs:bbsInfo',
-                        '@type': '@id',
-                    },
-                },
-            ],
             id: userActorId,
             type: 'Person',
             preferredUsername: user.username,

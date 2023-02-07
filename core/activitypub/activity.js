@@ -16,8 +16,8 @@ const { getISOTimestampString } = require('../database');
 const _ = require('lodash');
 
 module.exports = class Activity extends ActivityPubObject {
-    constructor(obj) {
-        super(obj);
+    constructor(obj, withContext = ActivityPubObject.DefaultContext) {
+        super(obj, withContext);
     }
 
     static get ActivityTypes() {
@@ -48,14 +48,17 @@ module.exports = class Activity extends ActivityPubObject {
         });
     }
 
-    static makeCreate(webServer, actor, obj) {
-        const activity = new Activity({
-            id: Activity.activityObjectId(webServer),
-            to: obj.to,
-            type: WellKnownActivity.Create,
-            actor,
-            object: obj,
-        });
+    static makeCreate(webServer, actor, obj, context) {
+        const activity = new Activity(
+            {
+                id: Activity.activityObjectId(webServer),
+                to: obj.to,
+                type: WellKnownActivity.Create,
+                actor,
+                object: obj,
+            },
+            context
+        );
 
         const copy = n => {
             if (obj[n]) {

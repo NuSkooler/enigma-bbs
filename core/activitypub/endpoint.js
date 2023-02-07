@@ -1,5 +1,8 @@
 const { WellKnownLocations } = require('../servers/content/web');
 
+// deps
+const { v4: UUIDv4 } = require('uuid');
+
 exports.makeUserUrl = makeUserUrl;
 exports.inbox = inbox;
 exports.outbox = outbox;
@@ -9,6 +12,7 @@ exports.actorId = actorId;
 exports.profile = profile;
 exports.avatar = avatar;
 exports.sharedInbox = sharedInbox;
+exports.objectId = objectId;
 
 const ActivityPubUsersPrefix = '/ap/users/';
 
@@ -48,4 +52,10 @@ function avatar(webServer, user, filename) {
 
 function sharedInbox(webServer) {
     return webServer.buildUrl(WellKnownLocations.Internal + '/ap/shared-inbox');
+}
+
+function objectId(webServer, objectType) {
+    return webServer.buildUrl(
+        WellKnownLocations.Internal + `/ap/${UUIDv4()}/${objectType}`
+    );
 }

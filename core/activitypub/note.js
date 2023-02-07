@@ -18,7 +18,7 @@ const APDefaultSummary = '[ActivityPub]';
 
 module.exports = class Note extends ActivityPubObject {
     constructor(obj) {
-        super(obj);
+        super(obj, null); // Note are wrapped
     }
 
     isValid() {
@@ -127,24 +127,29 @@ module.exports = class Note extends ActivityPubObject {
                         published: getISOTimestampString(message.modTimestamp),
                         to,
                         attributedTo: fromActor.id,
+                        summary: message.subject.trim(),
                         content: messageToHtml(message),
                         source: {
                             content: message.message,
                             mediaType: sourceMediaType,
                         },
+                        sensitive: message.subject.startsWith('[NSFW]'),
                     };
 
                     if (replyToNoteId) {
                         obj.inReplyTo = replyToNoteId;
                     }
 
-                    //  ignore the subject if it's our default summary value for replies
-                    if (message.subject !== `RE: ${APDefaultSummary}`) {
-                        obj.summary = message.subject;
-                    }
-
                     const note = new Note(obj);
-                    return callback(null, { note, fromUser, remoteActor });
+                    const context = ActivityPubObject.makeContext([], {
+                        sensitive: 'as:sensitive',
+                    });
+                    return callback(null, {
+                        note,
+                        fromUser,
+                        remoteActor,
+                        context,
+                    });
                 },
             ],
             (err, noteInfo) => {

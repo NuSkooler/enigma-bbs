@@ -90,7 +90,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     );
                 },
                 (noteInfo, deliveryEndpoints, callback) => {
-                    const { note, fromUser } = noteInfo;
+                    const { note, fromUser, context } = noteInfo;
 
                     //
                     //  Update the Note's addressing:
@@ -127,7 +127,8 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     const activity = Activity.makeCreate(
                         this._webServer(),
                         note.attributedTo,
-                        note
+                        note,
+                        context
                     );
 
                     let allEndpoints = deliveryEndpoints.sharedInboxes;
