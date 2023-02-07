@@ -47,7 +47,7 @@ function profile(webServer, user) {
 }
 
 function avatar(webServer, user, filename) {
-    return makeUserUrl(this.webServer, user, '/users/') + `/avatar/${filename}`;
+    return makeUserUrl(webServer, user, '/users/') + `/avatar/${filename}`;
 }
 
 function sharedInbox(webServer) {

@@ -457,7 +457,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static removeById(collectionName, owningUser, objectId, cb) {
+    static removeOwnedById(collectionName, owningUser, objectId, cb) {
         const actorId = owningUser.getProperty(UserProps.ActivityPubActorId);
         if (!actorId) {
             return cb(
@@ -470,6 +470,17 @@ module.exports = class Collection extends ActivityPubObject {
             `DELETE FROM collection
             WHERE name = ? AND owner_actor_id = ? AND object_id = ?;`,
             [collectionName, actorId, objectId],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    static removeById(collectionName, objectId, cb) {
+        apDb.run(
+            `DELETE FROM collection
+            WHERE name = ? AND object_id = ?;`,
+            [collectionName, objectId],
             err => {
                 return cb(err);
             }

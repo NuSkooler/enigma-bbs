@@ -654,7 +654,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return this.webServer.notImplemented(resp);
         }
 
-        Collection.removeById('followers', localUser, remoteActor.id, err => {
+        Collection.removeOwnedById('followers', localUser, remoteActor.id, err => {
             if (err) {
                 return this.webServer.internalServerError(resp, err);
             }
