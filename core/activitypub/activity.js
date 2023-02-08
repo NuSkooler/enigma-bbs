@@ -2,9 +2,9 @@ const {
     ActivityStreamMediaType,
     WellKnownActivityTypes,
     WellKnownActivity,
-    WellKnownRecipientFields,
     HttpSignatureSignHeaders,
 } = require('./const');
+const { recipientIdsFromObject } = require('./util');
 const Endpoints = require('./endpoint');
 const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
@@ -110,21 +110,8 @@ module.exports = class Activity extends ActivityPubObject {
         return postJson(inboxEndpoint, activityJson, reqOpts, cb);
     }
 
-    //  :TODO: we need dp/support a bit more here...
     recipientIds() {
-        const ids = [];
-
-        WellKnownRecipientFields.forEach(field => {
-            let v = this[field];
-            if (v) {
-                if (!Array.isArray(v)) {
-                    v = [v];
-                }
-                ids.push(...v);
-            }
-        });
-
-        return Array.from(new Set(ids));
+        return recipientIdsFromObject(this);
     }
 
     static activityObjectId(webServer) {

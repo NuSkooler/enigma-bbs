@@ -78,7 +78,9 @@ function _makeRequest(url, options, cb) {
             if (res.statusCode < 200 || res.statusCode > 299) {
                 return cb(
                     Errors.HttpError(
-                        `HTTP error ${res.statusCode}: ${truncate(body, { length: 128 })}`
+                        `URL ${url} HTTP error ${res.statusCode}: ${truncate(body, {
+                            length: 128,
+                        })}`
                     )
                 );
             }

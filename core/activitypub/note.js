@@ -3,7 +3,12 @@ const ActivityPubObject = require('./object');
 const { Errors } = require('../enig_error');
 const { getISOTimestampString } = require('../database');
 const User = require('../user');
-const { parseTimestampOrNow, messageToHtml, htmlToMessageBody } = require('./util');
+const {
+    parseTimestampOrNow,
+    messageToHtml,
+    htmlToMessageBody,
+    recipientIdsFromObject,
+} = require('./util');
 const { isAnsi } = require('../string_util');
 
 // deps
@@ -26,9 +31,17 @@ module.exports = class Note extends ActivityPubObject {
             return false;
         }
 
+        if (this.type !== 'Note') {
+            return false;
+        }
+
         //  :TODO: validate required properties
 
         return true;
+    }
+
+    recipientIds() {
+        return recipientIdsFromObject(this);
     }
 
     static fromPublicNoteId(noteId, cb) {

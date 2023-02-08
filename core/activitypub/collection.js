@@ -73,6 +73,10 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
+    static outbox(collectionId, page, cb) {
+        return Collection.publicOrderedById('outbox', collectionId, page, null, cb);
+    }
+
     static addFollower(owningUser, followingActor, webServer, ignoreDupes, cb) {
         const collectionId = Endpoints.followers(webServer, owningUser);
         return Collection.addToCollection(
@@ -114,10 +118,6 @@ module.exports = class Collection extends ActivityPubObject {
             ignoreDupes,
             cb
         );
-    }
-
-    static outbox(collectionId, page, cb) {
-        return Collection.publicOrderedById('outbox', collectionId, page, null, cb);
     }
 
     static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, ignoreDupes, cb) {

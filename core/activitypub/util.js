@@ -3,6 +3,7 @@ const { Errors, ErrorReasons } = require('../enig_error');
 const UserProps = require('../user_property');
 const ActivityPubSettings = require('./settings');
 const { stripAnsiControlCodes } = require('../string_util');
+const { WellKnownRecipientFields } = require('./const');
 
 // deps
 const _ = require('lodash');
@@ -27,6 +28,7 @@ exports.messageToHtml = messageToHtml;
 exports.htmlToMessageBody = htmlToMessageBody;
 exports.userNameFromSubject = userNameFromSubject;
 exports.extractMessageMetadata = extractMessageMetadata;
+exports.recipientIdsFromObject = recipientIdsFromObject;
 
 //  :TODO: more info in default
 // this profile template is the *default* for both WebFinger
@@ -240,4 +242,20 @@ function extractMessageMetadata(body) {
     }
 
     return metadata;
+}
+
+function recipientIdsFromObject(obj) {
+    const ids = [];
+
+    WellKnownRecipientFields.forEach(field => {
+        let v = obj[field];
+        if (v) {
+            if (!Array.isArray(v)) {
+                v = [v];
+            }
+            ids.push(...v);
+        }
+    });
+
+    return Array.from(new Set(ids));
 }
