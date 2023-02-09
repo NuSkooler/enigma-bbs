@@ -1082,6 +1082,12 @@ module.exports = () => {
                     ],
                 },
 
+                //  Removes old Actor records
+                activityPubActorCacheMaintenance: {
+                    schedule: 'every 24 hours',
+                    action: '@method:/core/activitypub/actor.js:actorCacheMaintenanceTask',
+                },
+
                 //
                 //  Enable the following entry in your config.hjson to periodically create/update
                 //  DESCRIPT.ION files for your file base

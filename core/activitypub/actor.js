@@ -13,6 +13,7 @@ const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
 const { ActivityStreamMediaType } = require('./const');
 const apDb = require('../database').dbs.activitypub;
+const Config = require('../config').get;
 
 //  deps
 const _ = require('lodash');
@@ -22,7 +23,8 @@ const { getISOTimestampString } = require('../database.js');
 const moment = require('moment');
 const paths = require('path');
 
-const ActorCacheTTL = moment.duration(120, 'days');
+const ActorCacheExpiration = moment.duration(15, 'days');
+const ActorCacheMaxAgeDays = 125; // hasn't been used in >= 125 days, nuke it.
 
 // default context for Actor's
 const DefaultContext = ActivityPubObject.makeContext(['https://w3id.org/security/v1'], {
@@ -157,16 +159,28 @@ module.exports = class Actor extends ActivityPubObject {
     }
 
     static fromId(id, cb) {
-        Actor._fromCache(id, (err, actor, subject) => {
+        let delivered = false;
+        const callback = (e, a, s) => {
+            if (!delivered) {
+                delivered = true;
+                return cb(e, a, s);
+            }
+        };
+
+        Actor._fromCache(id, (err, actor, subject, needsRefresh) => {
             if (!err) {
                 // cache hit
-                return cb(null, actor, subject);
+                callback(null, actor, subject);
+
+                if (!needsRefresh) {
+                    return;
+                }
             }
 
-            // cache miss: attempt to fetch & populate
+            //  Cache miss or needs refreshed; Try to do so now
             Actor._fromWebFinger(id, (err, actor, subject) => {
                 if (err) {
-                    return cb(err);
+                    return callback(err);
                 }
 
                 if (subject) {
@@ -176,7 +190,7 @@ module.exports = class Actor extends ActivityPubObject {
                 }
 
                 // deliver result to caller
-                cb(err, actor, subject);
+                callback(err, actor, subject);
 
                 // cache our entry
                 if (actor) {
@@ -193,6 +207,28 @@ module.exports = class Actor extends ActivityPubObject {
                 }
             });
         });
+    }
+
+    static actorCacheMaintenanceTask(args, cb) {
+        const enabled = _.get(
+            Config(),
+            'contentServers.web.handlers.activityPub.enabled'
+        );
+        if (!enabled) {
+            return;
+        }
+
+        apDb.run(
+            `DELETE FROM actor_cache
+            WHERE DATETIME(timestamp) > DATETIME("now", "+${ActorCacheMaxAgeDays}");`,
+            err => {
+                if (err) {
+                    //  :TODO: log me
+                }
+
+                return cb(null); // always non-fatal
+            }
+        );
     }
 
     static _fromRemoteQuery(id, cb) {
@@ -215,13 +251,13 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
-    static _fromCache(id, cb) {
+    static _fromCache(actorIdOrSubject, cb) {
         apDb.get(
             `SELECT rowid, actor_json, subject, timestamp,
             FROM actor_cache
             WHERE actor_id = ? OR subject = ?
             LIMIT 1;`,
-            [id, id],
+            [actorIdOrSubject, actorIdOrSubject],
             (err, row) => {
                 if (err) {
                     return cb(err);
@@ -232,19 +268,9 @@ module.exports = class Actor extends ActivityPubObject {
                 }
 
                 const timestamp = moment(row.timestamp);
-                if (moment().isAfter(timestamp.add(ActorCacheTTL))) {
-                    apDb.run(
-                        `DELETE FROM actor_cache
-                        WHERE rowid = ?;`,
-                        [row.rowid],
-                        err => {
-                            if (err) {
-                                //  :TODO: Log me
-                            }
-                            return cb(Errors.Expired('The cache entry is expired'));
-                        }
-                    );
-                }
+                const needsRefresh = moment().isAfter(
+                    timestamp.add(ActorCacheExpiration)
+                );
 
                 const obj = ActivityPubObject.fromJsonString(row.actor_json);
                 if (!obj || !obj.isValid()) {
@@ -257,7 +283,7 @@ module.exports = class Actor extends ActivityPubObject {
                 }
 
                 const subject = row.subject || actor.id;
-                return cb(null, actor, subject);
+                return cb(null, actor, subject, needsRefresh);
             }
         );
     }
