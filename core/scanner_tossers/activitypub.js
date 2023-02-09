@@ -77,7 +77,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                                 )
                             );
                         }
-                        return callback(null, noteInfo, [noteInfo.remoteActor.id]);
+                        return callback(null, noteInfo, [noteInfo.remoteActor.inbox]);
                     }
 
                     //  public: we need to build a list of sharedInbox's
@@ -103,7 +103,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     //      cc: [sharedInboxEndpoints]
                     //
                     if (message.isPrivate()) {
-                        note.to = deliveryEndpoints.sharedInboxes[0];
+                        note.to = deliveryEndpoints;
                     } else {
                         if (deliveryEndpoints.additionalTo) {
                             note.to = [
@@ -131,7 +131,9 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         context
                     );
 
-                    let allEndpoints = deliveryEndpoints.sharedInboxes;
+                    let allEndpoints = Array.isArray(deliveryEndpoints)
+                        ? deliveryEndpoints
+                        : deliveryEndpoints.sharedInboxes;
                     if (deliveryEndpoints.additionalTo) {
                         allEndpoints.push(deliveryEndpoints.additionalTo);
                     }
@@ -247,8 +249,8 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     }
                 } else {
                     this.log.info(
-                        { id: activity.id },
-                        'Note Activity exported (published) successfully'
+                        { activityId: activity.id, noteId: activity.object.id },
+                        'Note Activity published successfully'
                     );
                 }
             }
