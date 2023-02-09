@@ -3,7 +3,9 @@ const { Errors, ErrorReasons } = require('../enig_error');
 const UserProps = require('../user_property');
 const ActivityPubSettings = require('./settings');
 const { stripAnsiControlCodes } = require('../string_util');
-const { WellKnownRecipientFields } = require('./const');
+const { WellKnownRecipientFields, WellKnownActivity } = require('./const');
+const ActivityPubObject = require('./object');
+const Log = require('../logger').log;
 
 // deps
 const _ = require('lodash');
@@ -15,9 +17,6 @@ const moment = require('moment');
 const { striptags } = require('striptags');
 const { encode, decode } = require('html-entities');
 const { isString } = require('lodash');
-const Log = require('../logger').log;
-
-exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 
 exports.parseTimestampOrNow = parseTimestampOrNow;
 exports.isValidLink = isValidLink;
@@ -29,6 +28,7 @@ exports.htmlToMessageBody = htmlToMessageBody;
 exports.userNameFromSubject = userNameFromSubject;
 exports.extractMessageMetadata = extractMessageMetadata;
 exports.recipientIdsFromObject = recipientIdsFromObject;
+exports.sendFollowRequest = sendFollowRequest;
 
 //  :TODO: more info in default
 // this profile template is the *default* for both WebFinger
@@ -258,4 +258,24 @@ function recipientIdsFromObject(obj) {
     });
 
     return Array.from(new Set(ids));
+}
+
+function sendFollowRequest(fromUser, toActor, webServer, cb) {
+    const fromActorId = fromUser.getProperty(UserProps.ActivityPubActorId);
+    if (!fromActorId) {
+        return cb(
+            Errors.MissingProperty(
+                `User missing "${UserProps.ActivityPubActorId}" property`
+            )
+        );
+    }
+
+    const followRequest = new ActivityPubObject({
+        id: ActivityPubObject.makeObjectId(webServer, 'follow'),
+        type: WellKnownActivity.Follow,
+        actor: fromActorId,
+        object: toActor.id,
+    });
+
+    return followRequest.sendTo(toActor.inbox, fromUser, webServer, cb);
 }

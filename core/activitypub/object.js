@@ -1,8 +1,15 @@
-const { ActivityStreamsContext } = require('./util');
+const {
+    ActivityStreamsContext,
+    ActivityStreamMediaType,
+    HttpSignatureSignHeaders,
+} = require('./const');
 const Endpoints = require('./endpoint');
+const UserProps = require('../user_property');
+const { Errors } = require('../enig_error');
+const { postJson } = require('../http_util');
 
 // deps
-const { isString, isObject } = require('lodash');
+const { isString, isObject, isEmpty } = require('lodash');
 
 const Context = '@context';
 
@@ -78,5 +85,31 @@ module.exports = class ActivityPubObject {
 
     static makeObjectId(webServer, objectType) {
         return Endpoints.objectId(webServer, objectType);
+    }
+
+    sendTo(inboxEndpoint, fromUser, webServer, cb) {
+        const privateKey = fromUser.getProperty(UserProps.PrivateActivityPubSigningKey);
+        if (isEmpty(privateKey)) {
+            return cb(
+                Errors.MissingProperty(
+                    `User "${fromUser.username}" is missing the '${UserProps.PrivateActivityPubSigningKey}' property`
+                )
+            );
+        }
+
+        const reqOpts = {
+            headers: {
+                'Content-Type': ActivityStreamMediaType,
+            },
+            sign: {
+                key: privateKey,
+                keyId: Endpoints.actorId(webServer, fromUser) + '#main-key',
+                authorizationHeaderName: 'Signature',
+                headers: HttpSignatureSignHeaders,
+            },
+        };
+
+        const activityJson = JSON.stringify(this);
+        return postJson(inboxEndpoint, activityJson, reqOpts, cb);
     }
 };

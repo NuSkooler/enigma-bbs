@@ -283,7 +283,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         }
 
                         return cb(null, {
-                            additionalTo: actor.id,
+                            additionalTo: actor.inbox,
                             sharedInboxes: endpoints,
                             followers: followersEndpoint,
                         });

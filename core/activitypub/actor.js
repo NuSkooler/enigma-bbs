@@ -253,7 +253,7 @@ module.exports = class Actor extends ActivityPubObject {
 
     static _fromCache(actorIdOrSubject, cb) {
         apDb.get(
-            `SELECT rowid, actor_json, subject, timestamp,
+            `SELECT actor_json, subject, timestamp
             FROM actor_cache
             WHERE actor_id = ? OR subject = ?
             LIMIT 1;`,
