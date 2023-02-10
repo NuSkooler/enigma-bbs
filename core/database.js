@@ -480,7 +480,8 @@ dbs.message.run(
                 actor_json          VARCHAR NOT NULL,       -- Actor document
                 subject             VARCHAR,                -- Subject obtained from WebFinger, e.g. @Username@some.domain
                 timestamp           DATETIME NOT NULL,      -- Timestamp in which this Actor was cached
-
+                preferredUsername   VARCHAR,                -- Denormalized username for search
+                name                VARCHAR,                -- Denormalized actor name for search
                 UNIQUE(actor_id)
             );`
         );
@@ -488,6 +489,25 @@ dbs.message.run(
         dbs.activitypub.run(
             `CREATE INDEX IF NOT EXISTS actor_cache_actor_id_index0
             ON actor_cache (actor_id);`
+        );
+
+        // Denormalized actor information for search
+        dbs.activitypub.run(
+            `CREATE TABLE IF NOT EXISTS actor_cache_search (
+                actor_id            VARCHAR NOT NULL,       -- Fully qualified Actor ID/URL
+                search_name         VARCHAR,                -- Name to search
+                CONSTRAINT actor_cache_search_actor_cache_fk FOREIGN KEY(actor_id) REFERENCES actor_cache(actor_id) ON DELETE CASCADE
+            );`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS actor_cache_search_actor_id_index0
+            ON actor_cache_search (actor_id);`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS actor_cache_search_name_index0
+            ON actor_cache_search (search_name);`
         );
 
         //  ActivityPub Collections of various types such as followers, following, likes, ...

@@ -14,17 +14,17 @@ const ActivityPubObject = require('./object');
 const { ActivityStreamMediaType } = require('./const');
 const apDb = require('../database').dbs.activitypub;
 const Config = require('../config').get;
+const parseFullName = require('parse-full-name').parseFullName;
 
 //  deps
 const _ = require('lodash');
 const mimeTypes = require('mime-types');
 const { getJson } = require('../http_util.js');
 const { getISOTimestampString } = require('../database.js');
-const moment = require('moment');
 const paths = require('path');
 
-const ActorCacheExpiration = moment.duration(15, 'days');
 const ActorCacheMaxAgeDays = 125; // hasn't been used in >= 125 days, nuke it.
+const MaxSearchResults = 10; // Maximum number of results to show for a search
 
 // default context for Actor's
 const DefaultContext = ActivityPubObject.makeContext(['https://w3id.org/security/v1'], {
@@ -167,14 +167,10 @@ module.exports = class Actor extends ActivityPubObject {
             }
         };
 
-        Actor._fromCache(id, (err, actor, subject, needsRefresh) => {
+        Actor._fromCache(id, (err, actor, subject) => {
             if (!err) {
                 // cache hit
                 callback(null, actor, subject);
-
-                if (!needsRefresh) {
-                    return;
-                }
             }
 
             //  Cache miss or needs refreshed; Try to do so now
@@ -195,18 +191,73 @@ module.exports = class Actor extends ActivityPubObject {
                 // cache our entry
                 if (actor) {
                     apDb.run(
+                        'DELETE FROM actor_cache_search WHERE actor_id=?',
+                        [id],
+                        err => {
+                            if (err) {
+                                Log.warn(
+                                    { err: err },
+                                    'Error deleting previous actor_cache_search'
+                                );
+                            }
+                        }
+                    );
+
+                    apDb.run(
                         `REPLACE INTO actor_cache (actor_id, actor_json, subject, timestamp)
                         VALUES (?, ?, ?, ?);`,
                         [id, JSON.stringify(actor), subject, getISOTimestampString()],
                         err => {
                             if (err) {
-                                //  :TODO: log me
+                                Log.warn(
+                                    { err: err },
+                                    'Error replacing into the actor cache'
+                                );
                             }
                         }
                     );
+
+                    const searchNames = this._parseSearchNames(actor);
+                    if (searchNames.length > 0) {
+                        const searchStatement = apDb.prepare(
+                            'INSERT INTO actor_cache_search (actor_id, search_name) VALUES (?, ?)'
+                        );
+                        searchNames.forEach(name => {
+                            searchStatement.run([id, name], err => {
+                                if (err) {
+                                    Log.warn(
+                                        { err: err },
+                                        'Error inserting into actor cache search'
+                                    );
+                                }
+                            });
+                        });
+                    }
                 }
             });
         });
+    }
+
+    static _parseSearchNames(actor) {
+        const searchNames = [];
+
+        if (!_.isEmpty(actor.preferredUsername)) {
+            searchNames.push(actor.preferredUsername);
+        }
+        const name = parseFullName(actor.name);
+        if (!_.isEmpty(name.first)) {
+            searchNames.push(name.first);
+        }
+
+        if (!_.isEmpty(name.last)) {
+            searchNames.push(name.last);
+        }
+
+        if (!_.isEmpty(name.nick)) {
+            searchNames.push(name.nick);
+        }
+
+        return searchNames;
     }
 
     static actorCacheMaintenanceTask(args, cb) {
@@ -220,15 +271,49 @@ module.exports = class Actor extends ActivityPubObject {
 
         apDb.run(
             `DELETE FROM actor_cache
-            WHERE DATETIME(timestamp) > DATETIME("now", "+${ActorCacheMaxAgeDays}");`,
+            WHERE DATETIME(timestamp) < DATETIME("now", "-${ActorCacheMaxAgeDays} day");`,
             err => {
                 if (err) {
-                    //  :TODO: log me
+                    Log.warn({ err: err }, 'Error clearing old cache entries.');
                 }
 
                 return cb(null); // always non-fatal
             }
         );
+    }
+
+    static fromSearch(searchString, cb) {
+        // first try to find an exact match
+        this.fromId(searchString, (err, remoteActor) => {
+            if (!err) {
+                return cb(null, [remoteActor]);
+            } else {
+                Log.info({ err: err }, 'Not able to find based on id');
+            }
+        });
+
+        let returnRows = [];
+        // If not found, try searching database for known actors
+        apDb.each(
+            `SELECT actor_cache.actor_json
+            FROM actor_cache INNER JOIN actor_cache_search ON actor_cache.actor_id = actor_cache_search.actor_id
+            WHERE actor_cache_search.search_name like '%'||?||'%'
+            LIMIT ${MaxSearchResults}`,
+            (err, row) => {
+                if (err) {
+                    Log.warn({ err: err }, 'error retrieving search results');
+                    return cb(err, []);
+                }
+                this._fromJsonToActor(row.actor_json, (err, actor) => {
+                    if (err) {
+                        Log.warn({ err: err }, 'error converting search results');
+                        return cb(err, []);
+                    }
+                    returnRows.push(actor);
+                });
+            }
+        );
+        return cb(null, returnRows);
     }
 
     static _fromRemoteQuery(id, cb) {
@@ -253,9 +338,10 @@ module.exports = class Actor extends ActivityPubObject {
 
     static _fromCache(actorIdOrSubject, cb) {
         apDb.get(
-            `SELECT actor_json, subject, timestamp
+            `SELECT actor_json, subject
             FROM actor_cache
             WHERE actor_id = ? OR subject = ?
+            AND DATETIME(timestamp) > DATETIME("now", "-${ActorCacheMaxAgeDays} day")
             LIMIT 1;`,
             [actorIdOrSubject, actorIdOrSubject],
             (err, row) => {
@@ -267,25 +353,29 @@ module.exports = class Actor extends ActivityPubObject {
                     return cb(Errors.DoesNotExist());
                 }
 
-                const timestamp = moment(row.timestamp);
-                const needsRefresh = moment().isAfter(
-                    timestamp.add(ActorCacheExpiration)
-                );
-
-                const obj = ActivityPubObject.fromJsonString(row.actor_json);
-                if (!obj || !obj.isValid()) {
-                    return cb(Errors.Invalid('Failed to create ActivityPub object'));
-                }
-
-                const actor = new Actor(obj);
-                if (!actor.isValid()) {
-                    return cb(Errors.Invalid('Failed to create Actor object'));
-                }
-
-                const subject = row.subject || actor.id;
-                return cb(null, actor, subject, needsRefresh);
+                this._fromJsonToActor(row.actor_json, (err, actor) => {
+                    if (err) {
+                        return cb(err);
+                    }
+                    const subject = row.subject || actor.id;
+                    return cb(null, actor, subject);
+                });
             }
         );
+    }
+
+    static _fromJsonToActor(actorJson, cb) {
+        const obj = ActivityPubObject.fromJsonString(actorJson);
+        if (!obj || !obj.isValid()) {
+            return cb(Errors.Invalid('Failed to create ActivityPub object'));
+        }
+
+        const actor = new Actor(obj);
+        if (!actor.isValid()) {
+            return cb(Errors.Invalid('Failed to create Actor object'));
+        }
+
+        return cb(null, actor);
     }
 
     static _fromWebFinger(actorQuery, cb) {
