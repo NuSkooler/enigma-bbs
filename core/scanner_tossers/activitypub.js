@@ -63,7 +63,6 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
         async.waterfall(
             [
                 callback => {
-                    //  Private or addressed to a single AP Actor:
                     Note.fromLocalMessage(message, this._webServer(), (err, noteInfo) => {
                         return callback(err, noteInfo);
                     });
@@ -95,7 +94,8 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     //
                     //  Update the Note's addressing:
                     //  - Private:
-                    //      to: sharedInboxEndpoints[0]
+                    //      to: Directly to addressed-to Actor inbox
+                    //
                     //  - Public:
                     //      to: https://www.w3.org/ns/activitystreams#Public
                     //          ... and the message.getRemoteToUser() value *if*

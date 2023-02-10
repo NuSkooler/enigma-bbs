@@ -69,12 +69,6 @@ module.exports = class Note extends ActivityPubObject {
             return cb(Errors.UnexpectedState('Invalid user ID for local user!'));
         }
 
-        if (Message.AddressFlavor.ActivityPub !== message.getAddressFlavor()) {
-            return cb(
-                Errors.Invalid('Cannot build note for non-ActivityPub addressed message')
-            );
-        }
-
         const remoteActorAccount = message.getRemoteToUser();
         if (!remoteActorAccount && message.isPrivate()) {
             return cb(
