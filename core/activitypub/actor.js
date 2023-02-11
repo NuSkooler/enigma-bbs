@@ -63,6 +63,11 @@ module.exports = class Actor extends ActivityPubObject {
         return true;
     }
 
+    static fromJsonString(s) {
+        const obj = ActivityPubObject.fromJsonString(s);
+        return new Actor(obj);
+    }
+
     static get WellKnownActorTypes() {
         return ['Person', 'Group', 'Organization', 'Service', 'Application'];
     }
@@ -220,7 +225,7 @@ module.exports = class Actor extends ActivityPubObject {
 
         apDb.run(
             `DELETE FROM actor_cache
-            WHERE DATETIME(timestamp) > DATETIME("now", "+${ActorCacheMaxAgeDays}");`,
+            WHERE DATETIME(timestamp, "+${ActorCacheMaxAgeDays} days") > DATETIME("now");`,
             err => {
                 if (err) {
                     //  :TODO: log me
