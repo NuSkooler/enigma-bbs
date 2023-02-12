@@ -39,6 +39,7 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `UI` | Current user's user ID |
 | `UG` | Current user's group membership(s) |
 | `UR` | Current user's real name |
+| `AS` | ActivityPub subject, ie: "@SomeUser@yourhost.com", "(disabled)" if AP is not enabled for the user |
 | `LO` | Current user's location |
 | `UA` | Current user's age |
 | `BD` | Current user's birthday (using theme date format) |

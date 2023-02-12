@@ -26,6 +26,7 @@ exports.messageBodyToHtml = messageBodyToHtml;
 exports.messageToHtml = messageToHtml;
 exports.htmlToMessageBody = htmlToMessageBody;
 exports.userNameFromSubject = userNameFromSubject;
+exports.userNameToSubject = userNameToSubject;
 exports.extractMessageMetadata = extractMessageMetadata;
 exports.recipientIdsFromObject = recipientIdsFromObject;
 exports.sendFollowRequest = sendFollowRequest;
@@ -144,7 +145,7 @@ function getUserProfileTemplatedBody(
 
                 const varMap = {
                     ACTOR_OBJ: JSON.stringify(userAsActor),
-                    SUBJECT: `@${user.username}@${webServer.getDomain()}`,
+                    SUBJECT: userNameToSubject(user.username, webServer),
                     INBOX: userAsActor.inbox,
                     SHARED_INBOX: userAsActor.endpoints.sharedInbox,
                     OUTBOX: userAsActor.outbox,
@@ -226,6 +227,10 @@ function htmlToMessageBody(html) {
 
 function userNameFromSubject(subject) {
     return subject.replace(/^acct:(.+)$/, '$1');
+}
+
+function userNameToSubject(userName, webServer) {
+    return `@${userName}@${webServer.getDomain()}`;
 }
 
 function extractMessageMetadata(body) {

@@ -270,7 +270,7 @@ module.exports = class Note extends ActivityPubObject {
             }
 
             //  If the Note is marked sensitive, prefix the subject
-            if (this.sensitive) {
+            if (this.sensitive && message.subject.indexOf('[NSFW]') === -1) {
                 message.subject = `[NSFW] ${message.subject}`;
             }
 

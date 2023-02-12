@@ -13,6 +13,9 @@ const ANSI = require('./ansi_term.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
 const SysLogKeys = require('./system_log.js');
+const ActivityPubSettings = require('./activitypub/settings');
+const { userNameToSubject } = require('./activitypub/util');
+const { getServer } = require('./listening_server');
 
 //  deps
 const packageJson = require('../package.json');
@@ -82,6 +85,15 @@ function userStatAsCountString(client, statName, defaultValue) {
     return toNumberWithCommas(value);
 }
 
+// lazy cache
+let cachedWebServer;
+function getWebServer() {
+    if (undefined === cachedWebServer) {
+        cachedWebServer = getServer('codes.l33t.enigma.web.server');
+    }
+    return cachedWebServer ? cachedWebServer.instance : null;
+}
+
 const PREDEFINED_MCI_GENERATORS = {
     //
     //  Board
@@ -132,6 +144,17 @@ const PREDEFINED_MCI_GENERATORS = {
     },
     UR: function realName(client) {
         return userStatAsString(client, UserProps.RealName, '');
+    },
+    AS: function activityPubSubjectName(client) {
+        const activityPubSettings = ActivityPubSettings.fromUser(client.user);
+        if (!activityPubSettings.enabled) {
+            return '(disabled)';
+        }
+        const webServer = getWebServer();
+        if (!webServer) {
+            return 'N/A';
+        }
+        return userNameToSubject(client.user.username, webServer);
     },
     LO: function location(client) {
         return userStatAsString(client, UserProps.Location, '');

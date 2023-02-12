@@ -1,6 +1,8 @@
 const { MenuModule } = require('../menu_module');
 const ActivityPubSettings = require('./settings');
 const { Errors } = require('../enig_error');
+const { getServer } = require('../listening_server');
+const { userNameToSubject } = require('./util');
 
 // deps
 const async = require('async');
@@ -27,8 +29,19 @@ const MciViewIds = {
         icon: 6,
         manageImagesButton: 7,
         saveOrCancel: 8,
+
+        customRangeStart: 10,
     },
 };
+
+const EnabledViewGroup = [
+    MciViewIds.main.manuallyApproveFollowersToggle,
+    MciViewIds.main.hideSocialGraphToggle,
+    MciViewIds.main.showRealNameToggle,
+    MciViewIds.main.image,
+    MciViewIds.main.icon,
+    MciViewIds.main.manageImagesButton,
+];
 
 exports.getModule = class ActivityPubUserConfig extends MenuModule {
     constructor(options) {
@@ -159,6 +172,14 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                         truncate(apSettings.icon, { length: iconView.getWidth() })
                     );
 
+                    this._toggleEnabledViewGroup();
+                    this._updateCustomViews();
+
+                    enabledToggleView.on('index update', () => {
+                        this._toggleEnabledViewGroup();
+                        this._updateCustomViews();
+                    });
+
                     return callback(null);
                 },
             ],
@@ -166,5 +187,41 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                 return cb(err);
             }
         );
+    }
+
+    _toggleEnabledViewGroup() {
+        const enabledToggleView = this.getView('main', MciViewIds.main.enabledToggle);
+        EnabledViewGroup.forEach(id => {
+            const v = this.getView('main', id);
+            v.acceptsFocus = enabledToggleView.isTrue();
+        });
+    }
+
+    _updateCustomViews() {
+        const enabledToggleView = this.getView('main', MciViewIds.main.enabledToggle);
+        const ws = this._webServer();
+        const enabled = enabledToggleView.isTrue();
+        const formatObj = {
+            enabled,
+            status: enabled ? 'enabled' : 'disabled',
+            subject: enabled
+                ? ws
+                    ? userNameToSubject(this.client.user.username, ws)
+                    : 'N/A'
+                : '',
+        };
+
+        this.updateCustomViewTextsWithFilter(
+            'main',
+            MciViewIds.main.customRangeStart,
+            formatObj
+        );
+    }
+
+    _webServer() {
+        if (undefined === this.webServer) {
+            this.webServer = getServer('codes.l33t.enigma.web.server');
+        }
+        return this.webServer ? this.webServer.instance : null;
     }
 };

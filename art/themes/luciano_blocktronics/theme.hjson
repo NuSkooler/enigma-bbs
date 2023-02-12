@@ -430,6 +430,9 @@
 
 			//	:TODO: move this to the right area, rename, etc.
 			mainMenuActivityPubUserConfig: {
+				config: {
+					mainInfoFormat10: "{subject}"
+				}
 				0: {
 					mci: {
 						TM1: {
@@ -458,6 +461,9 @@
 						}
 						TM8: {
 							focusTextStyle: first lower
+						}
+						TL10: {
+							width: 40
 						}
 					}
 				}
