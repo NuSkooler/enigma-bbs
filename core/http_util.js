@@ -1,10 +1,14 @@
 const { Errors } = require('./enig_error.js');
 
 // deps
-const { isString, isObject, truncate } = require('lodash');
+const { isString, isObject, truncate, get, has } = require('lodash');
 const https = require('https');
 const httpSignature = require('http-signature');
 const crypto = require('crypto');
+const Config = require('./config.js').get;
+
+const TimeoutConfigPath = 'outbound.connectionTimeoutMilliseconds';
+const DefaultTimeoutMilliseconds = 5000;
 
 exports.getJson = getJson;
 exports.postJson = postJson;
@@ -56,6 +60,15 @@ function postJson(url, json, options, cb) {
 }
 
 function _makeRequest(url, options, cb) {
+    let defaultTimeout = DefaultTimeoutMilliseconds;
+    // Only set to config value if it has one, this allows us to set it
+    // to zero, but still have a default if none is set
+    if (has(Config(), TimeoutConfigPath)) {
+        defaultTimeout = get(Config(), TimeoutConfigPath);
+    }
+
+    options = Object.assign({}, options, { timeout: defaultTimeout }); // Let options override default timeout if needed
+
     if (options.body) {
         options.headers['Content-Length'] = Buffer.from(options.body).length;
 
