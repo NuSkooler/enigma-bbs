@@ -81,6 +81,8 @@ module.exports = class MenuStack {
     prev(cb) {
         const menuResult = this.top().instance.getMenuResult();
 
+        const currentModuleInfo = this.top();
+
         //  :TODO: leave() should really take a cb...
         this.pop().instance.leave(); //  leave & remove current
 
@@ -91,6 +93,7 @@ module.exports = class MenuStack {
                 extraArgs: previousModuleInfo.extraArgs,
                 savedState: previousModuleInfo.savedState,
                 lastMenuResult: menuResult,
+                currentModuleInfo,
             };
 
             return this.goto(previousModuleInfo.name, opts, cb);
@@ -102,14 +105,13 @@ module.exports = class MenuStack {
     }
 
     goto(name, options, cb) {
-        const currentModuleInfo = this.top();
-
         if (!cb && _.isFunction(options)) {
             cb = options;
             options = {};
         }
-
         options = options || {};
+
+        const currentModuleInfo = options.currentModuleInfo || this.top();
         const self = this;
 
         if (currentModuleInfo && name === currentModuleInfo.name) {

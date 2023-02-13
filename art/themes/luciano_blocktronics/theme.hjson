@@ -467,6 +467,21 @@
 						}
 					}
 				}
+				1: {
+					mci: {
+						ML1: {
+							height: 4
+							width: 70
+						}
+						ML2: {
+							height: 4
+							width: 70
+						}
+						TM3: {
+							focusTextStyle: first lower
+						}
+					}
+				}
 			}
 
 			//	:TODO: move this to the right area, rename, etc.

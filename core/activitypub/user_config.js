@@ -25,12 +25,17 @@ const MciViewIds = {
         manuallyApproveFollowersToggle: 2,
         hideSocialGraphToggle: 3,
         showRealNameToggle: 4,
-        image: 5,
-        icon: 6,
+        imageUrl: 5,
+        iconUrl: 6,
         manageImagesButton: 7,
         saveOrCancel: 8,
 
         customRangeStart: 10,
+    },
+    images: {
+        imageUrl: 1,
+        iconUrl: 2,
+        saveOrCancel: 3,
     },
 };
 
@@ -38,8 +43,8 @@ const EnabledViewGroup = [
     MciViewIds.main.manuallyApproveFollowersToggle,
     MciViewIds.main.hideSocialGraphToggle,
     MciViewIds.main.showRealNameToggle,
-    MciViewIds.main.image,
-    MciViewIds.main.icon,
+    MciViewIds.main.imageUrl,
+    MciViewIds.main.iconUrl,
     MciViewIds.main.manageImagesButton,
 ];
 
@@ -52,7 +57,7 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
         });
 
         this.menuMethods = {
-            submit: (formData, extraArgs, cb) => {
+            mainSubmit: (formData, extraArgs, cb) => {
                 switch (formData.submitId) {
                     case MciViewIds.main.manageImagesButton:
                         return this._manageImagesButton(cb);
@@ -69,6 +74,13 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                             )
                         );
                 }
+            },
+            imagesSubmit: (formData, extraArgs, cb) => {
+                const save = get(formData, 'value.imagesSaveOrCancel') === 0;
+                return save ? this._saveImages(formData.value, cb) : this._backToMain(cb);
+            },
+            backToMain: (formData, extraArgs, cb) => {
+                return this._backToMain(cb);
             },
         };
     }
@@ -89,8 +101,14 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
         );
     }
 
+    _backToMain(cb) {
+        this.viewControllers.images.setFocus(false);
+        return this._displayMainPage(true, cb);
+    }
+
     _manageImagesButton(cb) {
-        return cb(null);
+        this.viewControllers.main.setFocus(false);
+        return this._displayImagesPage(true, cb);
     }
 
     _save(values, cb) {
@@ -126,6 +144,26 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
         });
     }
 
+    _saveImages(values, cb) {
+        const apSettings = ActivityPubSettings.fromUser(this.client.user);
+        apSettings.image = values.imageUrl.trim();
+        apSettings.icon = values.iconUrl.trim();
+
+        apSettings.persistToUserProperties(this.client.user, err => {
+            if (err) {
+                if (err) {
+                    const user = this.client.user;
+                    this.client.log.warn(
+                        { error: err.message, user: user.username },
+                        `Failed saving ActivityPub settings for user "${user.username}"`
+                    );
+                }
+            }
+
+            return this._backToMain(cb);
+        });
+    }
+
     _displayMainPage(clearScreen, cb) {
         async.series(
             [
@@ -140,7 +178,9 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                 callback => {
                     return this.validateMCIByViewIds(
                         'main',
-                        Object.values(MciViewIds.main),
+                        Object.values(MciViewIds.main).filter(
+                            i => i !== MciViewIds.main.customRangeStart
+                        ),
                         callback
                     );
                 },
@@ -155,8 +195,8 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                         MciViewIds.main.hideSocialGraphToggle
                     );
                     const showRealNameToggleView = v(MciViewIds.main.showRealNameToggle);
-                    const imageView = v(MciViewIds.main.image);
-                    const iconView = v(MciViewIds.main.icon);
+                    const imageView = v(MciViewIds.main.imageUrl);
+                    const iconView = v(MciViewIds.main.iconUrl);
 
                     const apSettings = ActivityPubSettings.fromUser(this.client.user);
                     enabledToggleView.setFromBoolean(apSettings.enabled);
@@ -179,6 +219,43 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                         this._toggleEnabledViewGroup();
                         this._updateCustomViews();
                     });
+
+                    return callback(null);
+                },
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    _displayImagesPage(clearScreen, cb) {
+        async.series(
+            [
+                callback => {
+                    return this.displayArtAndPrepViewController(
+                        'images',
+                        FormIds.images,
+                        { clearScreen },
+                        callback
+                    );
+                },
+                callback => {
+                    return this.validateMCIByViewIds(
+                        'images',
+                        Object.values(MciViewIds.images),
+                        callback
+                    );
+                },
+                callback => {
+                    const v = id => this.getView('images', id);
+
+                    const imageView = v(MciViewIds.images.imageUrl);
+                    const iconView = v(MciViewIds.images.iconUrl);
+
+                    const apSettings = ActivityPubSettings.fromUser(this.client.user);
+                    imageView.setText(apSettings.image);
+                    iconView.setText(apSettings.icon);
 
                     return callback(null);
                 },

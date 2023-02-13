@@ -3,9 +3,7 @@
 
 //  ENiGMA½
 const MenuModule = require('./menu_module.js').MenuModule;
-const ViewController = require('./view_controller.js').ViewController;
 const ansi = require('./ansi_term.js');
-const theme = require('./theme.js');
 const FileEntry = require('./file_entry.js');
 const stringFormat = require('./string_format.js');
 const FileArea = require('./file_base_area.js');
@@ -344,7 +342,7 @@ exports.getModule = class FileAreaList extends MenuModule {
         );
     }
 
-    displayArtDataPrepCallback(name, artData, viewController) {
+    displayArtDataPrepCallback(name, artData) {
         if (name === 'details') {
             try {
                 this.detailsInfoArea = {
