@@ -11,7 +11,7 @@ const { queryWebFinger } = require('../webfinger');
 const EnigAssert = require('../enigma_assert');
 const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
-const { ActivityStreamMediaType } = require('./const');
+const { ActivityStreamMediaType, Collections } = require('./const');
 const apDb = require('../database').dbs.activitypub;
 const Config = require('../config').get;
 
@@ -73,7 +73,12 @@ module.exports = class Actor extends ActivityPubObject {
     }
 
     static get WellKnownLinkTypes() {
-        return ['inbox', 'outbox', 'following', 'followers'];
+        return [
+            Collections.Inbox,
+            Collections.Outbox,
+            Collections.Following,
+            Collections.Followers,
+        ];
     }
 
     static fromLocalUser(user, webServer, cb) {

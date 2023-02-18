@@ -11,7 +11,6 @@ const pipeToAnsi = require('./color_codes.js').pipeToAnsi;
 //  deps
 const util = require('util');
 const _ = require('lodash');
-const { throws } = require('assert');
 
 exports.VerticalMenuView = VerticalMenuView;
 

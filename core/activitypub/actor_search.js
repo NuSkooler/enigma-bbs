@@ -3,11 +3,15 @@ const { Errors } = require('../enig_error');
 const Actor = require('../activitypub/actor');
 const moment = require('moment');
 const { htmlToMessageBody } = require('./util');
+const { Collections } = require('./const');
 const Collection = require('./collection');
+const EnigAssert = require('../enigma_assert');
+const { sendFollowRequest, sendUnfollowRequest } = require('./follow_util');
+const { getServer } = require('../listening_server');
 
 // deps
 const async = require('async');
-const { get, truncate, isEmpty } = require('lodash');
+const { get, isEmpty, isObject, cloneDeep } = require('lodash');
 
 exports.moduleInfo = {
     name: 'ActivityPub Actor Search',
@@ -22,8 +26,7 @@ const FormIds = {
 
 const MciViewIds = {
     main: {
-        searchUrl: 1,
-        searchButton: 2,
+        searchQuery: 1,
     },
     view: {
         userName: 1,
@@ -33,8 +36,8 @@ const MciViewIds = {
         numberFollowers: 5,
         numberFollowing: 6,
         summary: 7,
-        followButton: 8,
-        cancelButton: 9,
+
+        customRangeStart: 10,
     },
 };
 
@@ -47,27 +50,34 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
         });
 
         this.menuMethods = {
-            submit: (formData, extraArgs, cb) => {
-                switch (formData.submitId) {
-                    case MciViewIds.main.searchUrl: {
-                        return this._search(formData.value, cb);
-                    }
-                    case MciViewIds.main.searchButton: {
-                        return this._search(formData.value, cb);
-                    }
-
-                    default:
-                        cb(
-                            Errors.UnexpectedState(
-                                `Unexpected submitId: ${formData.submitId}`
-                            )
+            search: (formData, extraArgs, cb) => {
+                return this._search(formData.value, cb);
+            },
+            toggleFollowKeyPressed: (formData, extraArgs, cb) => {
+                return this._toggleFollowStatus(err => {
+                    if (err) {
+                        this.client.log.error(
+                            { error: err.message },
+                            'Failed to toggle follow status'
                         );
-                }
+                    }
+                    return cb(err);
+                });
+            },
+            backKeyPressed: (formData, extraArgs, cb) => {
+                return this._displayMainPage(true, cb);
             },
         };
     }
 
     initSequence() {
+        this.webServer = getServer('codes.l33t.enigma.web.server');
+        if (!this.webServer) {
+            this.client.log('Could not get Web server');
+            return this.prevMenu();
+        }
+        this.webServer = this.webServer.instance;
+
         async.series(
             [
                 callback => {
@@ -84,7 +94,7 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
     }
 
     _search(values, cb) {
-        const searchString = values['searchUrl'].trim();
+        const searchString = values.searchQuery.trim();
         //TODO: Handle empty searchString
         Actor.fromId(searchString, (err, remoteActor) => {
             if (err) {
@@ -95,11 +105,15 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                 // TODO: Add error to page for failure to find actor
                 return this._displayMainPage(true, cb);
             }
-            return this._displayListScreen(remoteActor, cb);
+
+            this.selectedActorInfo = remoteActor;
+            return this._displayViewPage(cb);
         });
     }
 
-    _displayListScreen(remoteActor, cb) {
+    _displayViewPage(cb) {
+        EnigAssert(isObject(this.selectedActorInfo), 'No Actor selected!');
+
         async.series(
             [
                 callback => {
@@ -122,65 +136,167 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
                 callback => {
                     return this.validateMCIByViewIds(
                         'view',
-                        Object.values(MciViewIds.view),
+                        Object.values(MciViewIds.view).filter(
+                            id => id !== MciViewIds.view.customRangeStart
+                        ),
                         callback
                     );
+                },
+                callback => {
+                    this._updateCollectionItemCount(Collections.Following, () => {
+                        return this._updateCollectionItemCount(
+                            Collections.Followers,
+                            callback
+                        );
+                    });
                 },
                 callback => {
                     const v = id => this.getView('view', id);
 
                     const nameView = v(MciViewIds.view.userName);
-                    nameView.setText(
-                        truncate(remoteActor.preferredUsername, {
-                            length: nameView.getWidth(),
-                        })
-                    );
+                    nameView.setText(this.selectedActorInfo.preferredUsername);
 
                     const fullNameView = v(MciViewIds.view.fullName);
-                    fullNameView.setText(
-                        truncate(remoteActor.name, { length: fullNameView.getWidth() })
-                    );
+                    fullNameView.setText(this.selectedActorInfo.name);
 
                     const datePublishedView = v(MciViewIds.view.datePublished);
-                    if (isEmpty(remoteActor.published)) {
+                    if (isEmpty(this.selectedActorInfo.published)) {
                         datePublishedView.setText('Not available.');
                     } else {
-                        const publishedDate = moment(remoteActor.published);
+                        const publishedDate = moment(this.selectedActorInfo.published);
                         datePublishedView.setText(
                             publishedDate.format(this.getDateFormat())
                         );
                     }
 
                     const manualFollowersView = v(MciViewIds.view.manualFollowers);
-                    manualFollowersView.setText(remoteActor.manuallyApprovesFollowers);
+                    manualFollowersView.setText(
+                        this.selectedActorInfo.manuallyApprovesFollowers
+                    );
 
                     const followerCountView = v(MciViewIds.view.numberFollowers);
-                    this._updateViewWithCollectionItemCount(
-                        remoteActor.followers,
-                        followerCountView
+                    followerCountView.setText(
+                        this.selectedActorInfo._followersCount > -1
+                            ? this.selectedActorInfo._followersCount
+                            : '--'
                     );
 
                     const followingCountView = v(MciViewIds.view.numberFollowing);
-                    this._updateViewWithCollectionItemCount(
-                        remoteActor.following,
-                        followingCountView
+                    followingCountView.setText(
+                        this.selectedActorInfo._followingCount > -1
+                            ? this.selectedActorInfo._followingCount
+                            : '--'
                     );
 
                     const summaryView = v(MciViewIds.view.summary);
-                    summaryView.setText(htmlToMessageBody(remoteActor.summary));
+                    summaryView.setText(
+                        htmlToMessageBody(this.selectedActorInfo.summary)
+                    );
                     summaryView.redraw();
 
-                    const followButtonView = v(MciViewIds.view.followButton);
-                    // TODO: FIXME: Real status
-                    followButtonView.setText('follow');
-
-                    return callback(null);
+                    return this._setFollowStatus(callback);
                 },
             ],
             err => {
                 return cb(err);
             }
         );
+    }
+
+    _setFollowStatus(cb) {
+        Collection.ownedObjectByNameAndId(
+            Collections.Following,
+            this.client.user,
+            this.selectedActorInfo.id,
+            (err, followingActorEntry) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                this.selectedActorInfo._isFollowing = followingActorEntry ? true : false;
+                this.selectedActorInfo._followingIndicator =
+                    this._getFollowingIndicator();
+
+                this.updateCustomViewTextsWithFilter(
+                    'view',
+                    MciViewIds.view.customRangeStart,
+                    this._getCustomInfoFormatObject()
+                );
+
+                return cb(null);
+            }
+        );
+    }
+
+    _toggleFollowStatus(cb) {
+        // catch early key presses
+        if (!this.selectedActorInfo) {
+            return;
+        }
+
+        this.selectedActorInfo._isFollowing = !this.selectedActorInfo._isFollowing;
+        this.selectedActorInfo._followingIndicator = this._getFollowingIndicator();
+
+        const finish = e => {
+            this.updateCustomViewTextsWithFilter(
+                'view',
+                MciViewIds.view.customRangeStart,
+                this._getCustomInfoFormatObject()
+            );
+
+            return cb(e);
+        };
+
+        const actor = this._getSelectedActor(); // actor info -> actor
+        return this.selectedActorInfo._isFollowing
+            ? sendFollowRequest(this.client.user, actor, this.webServer, finish)
+            : sendUnfollowRequest(this.client.user, actor, this.webServer, finish);
+    }
+
+    _getSelectedActor() {
+        const actor = cloneDeep(this.selectedActorInfo);
+
+        //  nuke our added properties
+        delete actor._isFollowing;
+        delete actor._followingIndicator;
+        delete actor._followingCount;
+        delete actor._followersCount;
+
+        return actor;
+    }
+
+    _getFollowingIndicator() {
+        return this.selectedActorInfo._isFollowing
+            ? this.config.followingIndicator || 'Following'
+            : this.config.notFollowingIndicator || 'Not following';
+    }
+
+    _getCustomInfoFormatObject() {
+        const formatObj = {
+            followingCount: this.selectedActorInfo._followingCount,
+            followerCount: this.selectedActorInfo._followersCount,
+        };
+
+        const v = f => {
+            return this.selectedActorInfo[f] || '';
+        };
+
+        Object.assign(formatObj, {
+            actorId: v('id'),
+            actorSubject: v('subject'),
+            actorType: v('type'),
+            actorName: v('name'),
+            actorSummary: v('summary'),
+            actorPreferredUsername: v('preferredUsername'),
+            actorUrl: v('url'),
+            actorImage: v('image'),
+            actorIcon: v('icon'),
+            actorFollowing: this.selectedActorInfo._isFollowing,
+            actorFollowingIndicator: v('_followingIndicator'),
+            text: v('name'),
+        });
+
+        return formatObj;
     }
 
     _displayMainPage(clearScreen, cb) {
@@ -208,17 +324,20 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
         );
     }
 
-    _updateViewWithCollectionItemCount(collectionUrl, view) {
+    _updateCollectionItemCount(collectionName, cb) {
+        const collectionUrl = this.selectedActorInfo[collectionName];
         this._retrieveCountFromCollectionUrl(collectionUrl, (err, count) => {
             if (err) {
                 this.client.log.warn(
                     { err: err },
                     `Unable to get Collection count for ${collectionUrl}`
                 );
-                view.setText('--');
+                this.selectedActorInfo[`_${collectionName}Count`] = -1;
             } else {
-                view.setText(count);
+                this.selectedActorInfo[`_${collectionName}Count`] = count;
             }
+
+            return cb(null);
         });
     }
 
@@ -229,7 +348,7 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
         }
 
         Collection.getRemoteCollectionStats(collectionUrl, (err, stats) => {
-            return cb(err, stats.totalItems);
+            return cb(err, err ? null : stats.totalItems);
         });
     }
 };

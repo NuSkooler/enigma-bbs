@@ -484,16 +484,42 @@
 				}
 			}
 
+			activityPubFollowingManager: {
+				config: {
+					selectedActorInfoFormat: "|00|15{preferredUsername}\n|02{name}\n{summary}"
+					statusIndicatorEnabled: "|00|10√"
+					staticIndicatorDisabled: "|00|12X"
+				}
+				0: {
+					mci: {
+						VM1: {
+							height: 15
+							width: 30
+							itemFormat: "|00|03{subject}|00 {statusIndicator}"
+							focusItemFormat: "|00|19|15{subject}|00 {statusIndicator}"
+						}
+						MT2: {
+							height: 15
+							width: 32
+						}
+						TM3: {
+							focusTextStyle: first upper
+						}
+					}
+				}
+			}
+
 			//	:TODO: move this to the right area, rename, etc.
 			mainMenuActivityPubActorSearch: {
+				config: {
+					followingIndicator: "|00|14> |10Following|08!|14 <"
+					notFollowingIndicator: "|00|14> |02Not Following|14 <"
+					viewInfoFormat10: "{actorFollowingIndicator}"
+				}
 				0: {
 					mci: {
 						TL1: {
 							width: 70
-						}
-						BT2: {
-							width: 20
-							focusTextStyle: upper
 							submit: true
 						}
 					}
@@ -524,14 +550,9 @@
 							height: 3
 							mode: preview
 						}
-						BT8: {
-							focusTextStyle: upper
-							submit: true
-						}
-						BT9: {
-							text: back
-							focusTextStyle: upper
-							submit: true
+						TL10: {
+							width: 24
+
 						}
 					}
 				}

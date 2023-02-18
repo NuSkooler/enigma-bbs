@@ -7,6 +7,7 @@ const { Errors } = require('../enig_error.js');
 const {
     PublicCollectionId: APPublicCollectionId,
     ActivityStreamMediaType,
+    Collections,
 } = require('./const');
 const UserProps = require('../user_property');
 const { getJson } = require('../http_util');
@@ -55,7 +56,7 @@ module.exports = class Collection extends ActivityPubObject {
 
     static followers(collectionId, page, cb) {
         return Collection.publicOrderedById(
-            'followers',
+            Collections.Followers,
             collectionId,
             page,
             e => e.id,
@@ -65,7 +66,7 @@ module.exports = class Collection extends ActivityPubObject {
 
     static following(collectionId, page, cb) {
         return Collection.publicOrderedById(
-            'following',
+            Collections.Following,
             collectionId,
             page,
             e => e.id,
@@ -74,13 +75,19 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static outbox(collectionId, page, cb) {
-        return Collection.publicOrderedById('outbox', collectionId, page, null, cb);
+        return Collection.publicOrderedById(
+            Collections.Outbox,
+            collectionId,
+            page,
+            null,
+            cb
+        );
     }
 
     static addFollower(owningUser, followingActor, webServer, ignoreDupes, cb) {
         const collectionId = Endpoints.followers(webServer, owningUser);
         return Collection.addToCollection(
-            'followers',
+            Collections.Followers,
             owningUser,
             collectionId,
             followingActor.id, // Actor following owningUser
@@ -95,7 +102,7 @@ module.exports = class Collection extends ActivityPubObject {
         const collectionId =
             Endpoints.makeUserUrl(webServer, owningUser) + 'follow-requests';
         return Collection.addToCollection(
-            'follow-requests',
+            Collections.FollowRequests,
             owningUser,
             collectionId,
             requestingActor.id, // Actor requesting to follow owningUser
@@ -109,7 +116,7 @@ module.exports = class Collection extends ActivityPubObject {
     static addFollowing(owningUser, followingActor, webServer, ignoreDupes, cb) {
         const collectionId = Endpoints.following(webServer, owningUser);
         return Collection.addToCollection(
-            'following',
+            Collections.Following,
             owningUser,
             collectionId,
             followingActor.id, // Actor owningUser is following
@@ -123,7 +130,7 @@ module.exports = class Collection extends ActivityPubObject {
     static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, ignoreDupes, cb) {
         const collectionId = Endpoints.outbox(webServer, owningUser);
         return Collection.addToCollection(
-            'outbox',
+            Collections.Outbox,
             owningUser,
             collectionId,
             outboxItem.id,
@@ -137,7 +144,7 @@ module.exports = class Collection extends ActivityPubObject {
     static addInboxItem(inboxItem, owningUser, webServer, ignoreDupes, cb) {
         const collectionId = Endpoints.inbox(webServer, owningUser);
         return Collection.addToCollection(
-            'inbox',
+            Collections.Inbox,
             owningUser,
             collectionId,
             inboxItem.id,
@@ -150,7 +157,7 @@ module.exports = class Collection extends ActivityPubObject {
 
     static addSharedInboxItem(inboxItem, ignoreDupes, cb) {
         return Collection.addToCollection(
-            'sharedInbox',
+            Collections.SharedInbox,
             null, // N/A
             Collection.PublicCollectionId,
             inboxItem.id,
@@ -161,13 +168,79 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static objectById(objectId, cb) {
+    //  Get Object(s) by ID; There may be multiples as they may be
+    //  e.g. Actors belonging to multiple followers collections.
+    //  This method also returns information about the objects
+    //  and any items that can't be parsed
+    static objectsById(objectId, cb) {
+        apDb.all(
+            `SELECT name, timestamp, owner_actor_id, object_json, is_private
+            FROM collection
+            WHERE object_id = ?;`,
+            [objectId],
+            (err, rows) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                const results = (rows || []).map(r => {
+                    const info = {
+                        info: this._rowToObjectInfo(r),
+                        object: ActivityPubObject.fromJsonString(r.object_json),
+                    };
+                    if (!info.object) {
+                        info.raw = r.object_json;
+                    }
+                    return info;
+                });
+
+                return cb(null, results);
+            }
+        );
+    }
+
+    static ownedObjectByNameAndId(collectionName, owningUser, objectId, cb) {
+        const actorId = owningUser.getProperty(UserProps.ActivityPubActorId);
+        if (!actorId) {
+            return cb(
+                Errors.MissingProperty(
+                    `User "${owningUser.username}" is missing property '${UserProps.ActivityPubActorId}'`
+                )
+            );
+        }
+
+        apDb.get(
+            `SELECT name, timestamp, owner_actor_id, object_json, is_private
+            FROM collection
+            WHERE name = ? AND owner_actor_id = ? AND object_id = ?
+            LIMIT 1;`,
+            [collectionName, actorId, objectId],
+            (err, row) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                if (!row) {
+                    return cb(null, null);
+                }
+
+                const obj = ActivityPubObject.fromJsonString(row.object_json);
+                if (!obj) {
+                    return cb(Errors.Invalid('Failed to parse Object JSON'));
+                }
+
+                return cb(null, obj, Collection._rowToObjectInfo(row));
+            }
+        );
+    }
+
+    static objectByNameAndId(collectionName, objectId, cb) {
         apDb.get(
             `SELECT name, timestamp, owner_actor_id, object_json, is_private
             FROM collection
             WHERE name = ? AND object_id = ?
             LIMIT 1;`,
-            [objectId],
+            [collectionName, objectId],
             (err, row) => {
                 if (err) {
                     return cb(err);

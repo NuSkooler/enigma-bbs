@@ -31,3 +31,13 @@ exports.HttpSignatureSignHeaders = [
     'digest',
     'content-type',
 ];
+
+const Collections = {
+    Following: 'following',
+    Followers: 'followers',
+    FollowRequests: 'followRequests',
+    Outbox: 'outbox',
+    Inbox: 'inbox',
+    SharedInbox: 'sharedInbox',
+};
+exports.Collections = Collections;

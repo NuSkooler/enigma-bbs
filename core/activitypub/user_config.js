@@ -51,10 +51,7 @@ const EnabledViewGroup = [
 exports.getModule = class ActivityPubUserConfig extends MenuModule {
     constructor(options) {
         super(options);
-
-        this.config = Object.assign({}, get(options, 'menuConfig.config'), {
-            extraArgs: options.extraArgs,
-        });
+        this.setConfigWithExtraArgs(options);
 
         this.menuMethods = {
             mainSubmit: (formData, extraArgs, cb) => {

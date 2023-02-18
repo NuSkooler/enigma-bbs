@@ -8,6 +8,7 @@ const Endpoints = require('../../../activitypub/endpoint');
 const {
     ActivityStreamMediaType,
     WellKnownActivity,
+    Collections,
 } = require('../../../activitypub/const');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
@@ -64,7 +65,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     req,
                     resp,
                     (req, resp, signature) => {
-                        return this._inboxPostHandler(req, resp, signature, 'inbox');
+                        return this._inboxPostHandler(
+                            req,
+                            resp,
+                            signature,
+                            Collections.Inbox
+                        );
                     }
                 );
             },
@@ -82,7 +88,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             req,
                             resp,
                             signature,
-                            'sharedInbox'
+                            Collections.SharedInbox
                         );
                     }
                 );
@@ -262,7 +268,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                 switch (activity.type) {
                     case WellKnownActivity.Accept:
-                        break;
+                        return this._inboxAcceptActivity(resp, activity);
 
                     case WellKnownActivity.Add:
                         break;
@@ -292,17 +298,17 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                     case WellKnownActivity.Follow:
                         // Follow requests are only allowed directly
-                        if ('inbox' === inboxType) {
+                        if (Collections.Inbox === inboxType) {
                             return this._inboxFollowActivity(resp, remoteActor, activity);
                         }
                         break;
 
                     case WellKnownActivity.Reject:
-                        break;
+                        return this._inboxRejectActivity(resp, activity);
 
                     case WellKnownActivity.Undo:
                         //  We only Undo from private inboxes
-                        if ('inbox' === inboxType) {
+                        if (Collections.Inbox === inboxType) {
                             //  Only Follow Undo's currently supported
                             const type = _.get(activity, 'object.type');
                             if (WellKnownActivity.Follow === type) {
@@ -330,6 +336,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    _inboxAcceptActivity(resp, activity) {
+        const acceptWhat = _.get(activity, 'object.type');
+        switch (acceptWhat) {
+            case WellKnownActivity.Follow:
+                return this._inboxAcceptFollowActivity(resp, activity);
+
+            default:
+                this.log.warn(
+                    { type: acceptWhat },
+                    'Invalid or unsupported "Accept" type'
+                );
+                return this.webServer.notImplemented(resp);
+        }
+    }
+
     _inboxCreateActivity(resp, activity) {
         const createWhat = _.get(activity, 'object.type');
         switch (createWhat) {
@@ -341,8 +362,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     { type: createWhat },
                     'Invalid or unsupported "Create" type'
                 );
-                return this.webServer.resourceNotFound(resp);
+                return this.webServer.notImplemented(resp);
         }
+    }
+
+    _inboxAcceptFollowActivity(resp, activity) {
+        // Currently Accept's to Follow's are really just a formality;
+        // we'll log it, but that's about it for now
+        this.log.info(
+            {
+                remoteActorId: activity.actor,
+                localActorId: _.get(activity, 'object.actor'),
+            },
+            'Follow request Accepted'
+        );
+        return this.webServer.accepted(resp);
     }
 
     _inboxCreateNoteActivity(resp, activity) {
@@ -380,10 +414,107 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
-    _inboxDeleteActivity(inboxType, signature, resp /*, activity*/) {
-        //  :TODO: Implement me!
+    _inboxRejectFollowActivity(resp, activity) {
+        // A user Rejected our local Actor/user's Follow request;
+        // Update the local Collection to reflect this fact.
+        const remoteActorId = activity.actor;
+        const localActorId = _.get(activity, 'object.actor');
+
+        if (!remoteActorId || !localActorId) {
+            return this.webServer.badRequest(resp);
+        }
+
+        userFromActorId(localActorId, (err, localUser) => {
+            if (err) {
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            Collection.removeOwnedById(
+                Collections.Following,
+                localUser,
+                remoteActorId,
+                err => {
+                    if (err) {
+                        this.log.error(
+                            { remoteActorId, localActorId },
+                            'Failed removing "following" record'
+                        );
+                    }
+                    return this.webServer.accepted(resp);
+                }
+            );
+        });
+    }
+
+    _inboxDeleteActivity(inboxType, signature, resp, activity) {
+        const objectId = _.get(activity, 'object.id', activity.object);
+
+        this.log.info({ inboxType, objectId }, 'Incoming Delete request');
+
         //  :TODO: we need to DELETE the existing stored Message object if this is a Note, or associated if this is an Actor
         //  :TODO: delete / invalidate any actor cache if actor
+        Collection.objectsById(objectId, (err, objectsInfo) => {
+            if (err) {
+                this.log.warn({ objectId });
+                // We'll respond accepted so they don't keep trying
+                return this.webServer.accepted(resp);
+            }
+
+            if (objectsInfo.length === 0) {
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            //  Generally we'd have a 1:1 objectId -> object here, but it's
+            //  possible for example, that we're being asked to delete an Actor;
+            //  If this is the case, they may be following multiple local Actor/users
+            //  and we have multiple entries.
+            async.forEachSeries(
+                objectsInfo,
+                (objInfo, nextObjInfo) => {
+                    if (objInfo.object) {
+                        //  Based on the collection we find this entry in,
+                        //  we may have additional validation or actions
+                        switch (objInfo.info.name) {
+                            case Collections.Inbox:
+                                if (inboxType !== Collections.Inbox) {
+                                    //  :TODO: LOG ME
+                                    return nextObjInfo(null);
+                                }
+                                break;
+
+                            case Collections.SharedInbox:
+                                if (inboxType !== Collections.SharedInbox) {
+                                    //  :TODO: log me
+                                    return nextObjInfo(null);
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+
+                        return nextObjInfo(null);
+                    } else {
+                        // it's unparsable, so we'll delete it
+                        Collection.removeById(objInfo.info.name, objectId, err => {
+                            if (err) {
+                                this.log.warn(
+                                    { objectId, collectionName: objInfo.info.name },
+                                    'Failed to remove object'
+                                );
+                            }
+                            return nextObjInfo(null);
+                        });
+                    }
+                },
+                err => {
+                    if (err) {
+                        //  :TODO: log me
+                    }
+                    return this.webServer.accepted(resp);
+                }
+            );
+        });
+
         return this.webServer.accepted(resp);
     }
 
@@ -402,7 +533,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             const activityPubSettings = ActivityPubSettings.fromUser(localUser);
             if (!activityPubSettings.manuallyApproveFollowers) {
                 this._recordAcceptedFollowRequest(localUser, remoteActor, activity);
-                return this.webServer.ok(resp);
+                return this.webServer.accepted(resp);
             }
 
             //  User manually approves requests; add them to their requests collection
@@ -416,10 +547,25 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return this.internalServerError(resp, err);
                     }
 
-                    return this.webServer.ok(resp);
+                    return this.webServer.accepted(resp);
                 }
             );
         });
+    }
+
+    _inboxRejectActivity(resp, activity) {
+        const rejectWhat = _.get(activity, 'object.type');
+        switch (rejectWhat) {
+            case WellKnownActivity.Follow:
+                return this._inboxRejectFollowActivity(resp, activity);
+
+            default:
+                this.log.warn(
+                    { type: rejectWhat },
+                    'Invalid or unsupported "Reject" type'
+                );
+                return this.webServer.notImplemented(resp);
+        }
     }
 
     _inboxUndoActivity(resp, remoteActor, activity) {
@@ -435,22 +581,27 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            Collection.removeOwnedById('followers', localUser, remoteActor.id, err => {
-                if (err) {
-                    return this.webServer.internalServerError(resp, err);
+            Collection.removeOwnedById(
+                Collections.Followers,
+                localUser,
+                remoteActor.id,
+                err => {
+                    if (err) {
+                        return this.webServer.internalServerError(resp, err);
+                    }
+
+                    this.log.info(
+                        {
+                            username: localUser.username,
+                            userId: localUser.userId,
+                            remoteActorId: remoteActor.id,
+                        },
+                        'Undo "Follow" (un-follow) success'
+                    );
+
+                    return this.webServer.accepted(resp);
                 }
-
-                this.log.info(
-                    {
-                        username: localUser.username,
-                        userId: localUser.userId,
-                        remoteActorId: remoteActor.id,
-                    },
-                    'Undo "Follow" (un-follow) success'
-                );
-
-                return this.webServer.accepted(resp);
-            });
+            );
         });
     }
 
@@ -712,18 +863,18 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _followingGetHandler(req, resp) {
         this.log.debug({ url: req.url }, 'Request for "following"');
-        return this._actorCollectionRequest('following', req, resp);
+        return this._actorCollectionRequest(Collections.Following, req, resp);
     }
 
     _followersGetHandler(req, resp) {
         this.log.debug({ url: req.url }, 'Request for "followers"');
-        return this._actorCollectionRequest('followers', req, resp);
+        return this._actorCollectionRequest(Collections.Followers, req, resp);
     }
 
     // https://docs.gotosocial.org/en/latest/federation/behaviors/outbox/
     _outboxGetHandler(req, resp) {
         this.log.debug({ url: req.url }, 'Request for "outbox"');
-        return this._actorCollectionRequest('outbox', req, resp);
+        return this._actorCollectionRequest(Collections.Outbox, req, resp);
     }
 
     _singlePublicNoteGetHandler(req, resp) {
