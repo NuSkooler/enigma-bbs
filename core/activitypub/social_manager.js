@@ -13,6 +13,7 @@ const { Collections } = require('./const');
 // deps
 const async = require('async');
 const { get, cloneDeep } = require('lodash');
+const { htmlToMessageBody } = require('./util');
 
 exports.moduleInfo = {
     name: 'ActivityPub Social Manager',
@@ -122,8 +123,13 @@ exports.getModule = class ActivityPubFollowingManager extends MenuModule {
                                         return callback(err);
                                     }
 
-                                    this.followingActors = followingActors;
-                                    this.followerActors = followerActors;
+                                    const mapper = a => {
+                                        a.plainTextSummary = htmlToMessageBody(a.summary);
+                                        return a;
+                                    };
+
+                                    this.followingActors = followingActors.map(mapper);
+                                    this.followerActors = followerActors.map(mapper);
 
                                     return callback(null);
                                 }
@@ -212,7 +218,11 @@ exports.getModule = class ActivityPubFollowingManager extends MenuModule {
             const s = stringFormat(selectedActorInfoFormat, actorInfo);
 
             if (view instanceof MultiLineEditTextView) {
-                view.setAnsi(pipeToAnsi(s, this.client));
+                const opts = {
+                    prepped: false,
+                    forceLineTerm: true,
+                };
+                view.setAnsi(pipeToAnsi(s, this.client), opts);
             } else {
                 view.setText(s);
             }
@@ -282,6 +292,7 @@ exports.getModule = class ActivityPubFollowingManager extends MenuModule {
         delete actor.text;
         delete actor.status;
         delete actor.statusIndicator;
+        delete actor.plainTextSummary;
 
         return actor;
     }
@@ -306,6 +317,9 @@ exports.getModule = class ActivityPubFollowingManager extends MenuModule {
             selectedActorType: v('type'),
             selectedActorName: v('name'),
             selectedActorSummary: v('summary'),
+            selectedActorPlainTextSummary: actorInfo
+                ? htmlToMessageBody(actorInfo.summary || '')
+                : '',
             selectedActorPreferredUsername: v('preferredUsername'),
             selectedActorUrl: v('url'),
             selectedActorImage: v('image'),

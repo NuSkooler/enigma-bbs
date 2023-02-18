@@ -13,9 +13,9 @@ const waterfall = require('async/waterfall');
 const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
-const { striptags } = require('striptags');
 const { encode, decode } = require('html-entities');
 const { isString } = require('lodash');
+const { stripHtml } = require('string-strip-html');
 
 exports.parseTimestampOrNow = parseTimestampOrNow;
 exports.isValidLink = isValidLink;
@@ -217,10 +217,8 @@ function messageToHtml(message) {
 }
 
 function htmlToMessageBody(html) {
-    // <br>, </br>, and <br />, <br/> -> \r\n
-    // </p> -> \r\n
-    html = html.replace(/(?:<\/?br ?\/?>)|(?:<\/p>)/g, '\r\n');
-    return striptags(decode(html));
+    const res = stripHtml(decode(html));
+    return res.result;
 }
 
 function userNameFromSubject(subject) {

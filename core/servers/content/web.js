@@ -149,9 +149,12 @@ exports.getModule = class WebServerModule extends ServerModule {
 
     createServer(cb) {
         if (this.enableHttp) {
-            this.httpServer = http.createServer((req, resp) =>
-                this.routeRequest(req, resp)
-            );
+            this.httpServer = http.createServer((req, resp) => {
+                resp.on('error', err => {
+                    this.log.error({ error: err.message }, 'Response error');
+                });
+                this.routeRequest(req, resp);
+            });
         }
 
         const config = Config();

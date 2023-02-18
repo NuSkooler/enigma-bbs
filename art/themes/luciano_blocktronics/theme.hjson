@@ -486,7 +486,7 @@
 
 			activityPubFollowingManager: {
 				config: {
-					selectedActorInfoFormat: "|00|15{preferredUsername}\n|02{name}\n{summary}"
+					selectedActorInfoFormat: "|00|15{preferredUsername}\n|02{name}\n{plainTextSummary}"
 					statusIndicatorEnabled: "|00|10√"
 					staticIndicatorDisabled: "|00|12X"
 				}
@@ -500,7 +500,7 @@
 						}
 						MT2: {
 							height: 15
-							width: 32
+							width: 38
 						}
 						TM3: {
 							focusTextStyle: first upper
