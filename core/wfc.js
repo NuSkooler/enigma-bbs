@@ -116,7 +116,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     );
 
                     if (nodeStatusSelectionView) {
-                        const item = nodeStatusView.getItems()[index];
+                        const item = nodeStatusView.getItem(index);
                         this._updateNodeStatusSelection(nodeStatusSelectionView, item);
                     }
                 }
@@ -200,7 +200,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
                     if (nodeStatusView && nodeStatusSelectionView) {
                         nodeStatusView.on('index update', index => {
-                            const item = nodeStatusView.getItems()[index];
+                            const item = nodeStatusView.getItem(index);
                             this._updateNodeStatusSelection(
                                 nodeStatusSelectionView,
                                 item
@@ -405,7 +405,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (nodeStatusSelectionView) {
             const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
             if (nodeStatusView) {
-                const item = nodeStatusView.getItems()[this.selectedNodeStatusIndex];
+                const item = nodeStatusView.getItem(this.selectedNodeStatusIndex);
                 this._updateNodeStatusSelection(nodeStatusSelectionView, item);
             }
         }
@@ -596,7 +596,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 MciViewIds.main.selectedNodeStatusInfo
             );
             if (nodeStatusSelectionView) {
-                const item = nodeStatusView.getItems()[0];
+                const item = nodeStatusView.getItem(0);
                 this._updateNodeStatusSelection(nodeStatusSelectionView, item);
             }
         }
