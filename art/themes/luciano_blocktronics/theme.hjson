@@ -429,140 +429,6 @@
 				}
 			}
 
-			//	:TODO: move this to the right area, rename, etc.
-			mainMenuActivityPubUserConfig: {
-				config: {
-					mainInfoFormat10: "{subject}"
-				}
-				0: {
-					mci: {
-						TM1: {
-							focusTextStyle: first lower
-						}
-						TM2: {
-							focusTextStyle: first lower
-						}
-						TM3: {
-							focusTextStyle: first lower
-						}
-						TM4: {
-							focusTextStyle: first lower
-						}
-						TL5: {
-							width: 70
-						}
-						TL6: {
-							width: 70
-						}
-						BT7: {
-							width: 20
-							itemFormat: "|00|08[ |03{text} |08]"
-							focusItemFormat: "|00|15[ |19|15{text}|16 |15]"
-							focusTextStyle: first lower
-						}
-						TM8: {
-							focusTextStyle: first lower
-						}
-						TL10: {
-							width: 40
-						}
-					}
-				}
-				1: {
-					mci: {
-						ML1: {
-							height: 4
-							width: 70
-						}
-						ML2: {
-							height: 4
-							width: 70
-						}
-						TM3: {
-							focusTextStyle: first lower
-						}
-					}
-				}
-			}
-
-			activityPubFollowingManager: {
-				config: {
-					selectedActorInfoFormat: "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}"
-					statusIndicatorEnabled: "|00|10√"
-					staticIndicatorDisabled: "|00|12X"
-				}
-				0: {
-					mci: {
-						VM1: {
-							height: 15
-							width: 35
-							itemFormat: "|00|03{subject}|00 {statusIndicator}"
-							focusItemFormat: "|00|19|15{subject!styleUpper}|00 {statusIndicator}"
-							itemFormat: "|00{statusIndicator} |00|03{subject}"
-							focusItemFormat: "|00{statusIndicator} |00|19|15{subject}"
-							textOverflow: "..."
-						}
-						MT2: {
-							height: 15
-							width: 34
-						}
-						TM3: {
-							focusTextStyle: first lower
-							styleSGR1: "|00|08"
-						}
-					}
-				}
-			}
-
-			//	:TODO: move this to the right area, rename, etc.
-			mainMenuActivityPubActorSearch: {
-				config: {
-					followingIndicator: "|00|14> |10Following|08!|14 <"
-					notFollowingIndicator: "|00|14> |02Not Following|14 <"
-					viewInfoFormat10: "{actorFollowingIndicator}"
-				}
-				0: {
-					mci: {
-						TL1: {
-							width: 70
-							submit: true
-						}
-					}
-				}
-				1: {
-					mci: {
-						TL1: {
-							width: 70
-						}
-						TL2: {
-							width: 70
-						}
-						TL3: {
-							width: 70
-						}
-						TL4: {
-							width: 10
-						}
-						TL5: {
-							width: 4
-						}
-						TL6: {
-							width: 4
-						}
-						MT7: {
-							focus: true
-							width: 69
-							height: 3
-							mode: preview
-						}
-						TL10: {
-							width: 24
-
-						}
-					}
-				}
-			}
-
 			mainMenuRumorz: {
 				0: {
 					mci: {
@@ -1389,6 +1255,141 @@
 							focusTextStyle: first lower
 							itemFormat: "|00|03{name}"
 							focusItemFormat: "|00|19|15{name}"
+						}
+					}
+				}
+			}
+
+			//
+			// ActivityPub
+			//
+			activityPubUserConfig: {
+				config: {
+					mainInfoFormat10: "{subject}"
+				}
+				0: {
+					mci: {
+						TM1: {
+							focusTextStyle: first lower
+						}
+						TM2: {
+							focusTextStyle: first lower
+						}
+						TM3: {
+							focusTextStyle: first lower
+						}
+						TM4: {
+							focusTextStyle: first lower
+						}
+						TL5: {
+							width: 70
+						}
+						TL6: {
+							width: 70
+						}
+						BT7: {
+							width: 20
+							itemFormat: "|00|08[ |03{text} |08]"
+							focusItemFormat: "|00|15[ |19|15{text}|16 |15]"
+							focusTextStyle: first lower
+						}
+						TM8: {
+							focusTextStyle: first lower
+						}
+						TL10: {
+							width: 40
+						}
+					}
+				}
+				1: {
+					mci: {
+						ML1: {
+							height: 4
+							width: 70
+						}
+						ML2: {
+							height: 4
+							width: 70
+						}
+						TM3: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
+			activityPubSocialManager: {
+				config: {
+					selectedActorInfoFormat: "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}"
+					statusIndicatorEnabled: "|00|10√"
+					staticIndicatorDisabled: "|00|12X"
+				}
+				0: {
+					mci: {
+						VM1: {
+							height: 15
+							width: 35
+							itemFormat: "|00|03{subject}|00 {statusIndicator}"
+							focusItemFormat: "|00|19|15{subject!styleUpper}|00 {statusIndicator}"
+							itemFormat: "|00{statusIndicator} |00|03{subject}"
+							focusItemFormat: "|00{statusIndicator} |00|19|15{subject}"
+							textOverflow: "..."
+						}
+						MT2: {
+							height: 15
+							width: 34
+						}
+						TM3: {
+							focusTextStyle: first lower
+							styleSGR1: "|00|08"
+						}
+					}
+				}
+			}
+
+			activityPubActorSearch: {
+				config: {
+					followingIndicator: "|00|14> |10Following|08!|14 <"
+					notFollowingIndicator: "|00|14> |02Not Following|14 <"
+					viewInfoFormat10: "{actorFollowingIndicator}"
+				}
+				0: {
+					mci: {
+						TL1: {
+							width: 70
+							submit: true
+						}
+					}
+				}
+				1: {
+					mci: {
+						TL1: {
+							width: 70
+						}
+						TL2: {
+							width: 70
+						}
+						TL3: {
+							width: 70
+						}
+						TL4: {
+							width: 10
+						}
+						TL5: {
+							width: 4
+						}
+						TL6: {
+							width: 4
+						}
+						MT7: {
+							focus: true
+							width: 69
+							height: 3
+							mode: preview
+						}
+						TL10: {
+							width: 24
+
 						}
 					}
 				}

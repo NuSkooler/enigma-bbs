@@ -35,7 +35,7 @@ const MciViewIds = {
     },
 };
 
-exports.getModule = class ActivityPubFollowingManager extends MenuModule {
+exports.getModule = class activityPubSocialManager extends MenuModule {
     constructor(options) {
         super(options);
         this.setConfigWithExtraArgs(options);

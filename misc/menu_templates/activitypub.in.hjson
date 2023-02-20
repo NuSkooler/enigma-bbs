@@ -1,7 +1,7 @@
 {
   "menus": {
     "activityPubMenu": {
-      "desc": "Menu for all ActivityPub actions",
+      "desc": "ActivityPub",
       "art": "activitypub_menu",
       "prompt": "menuCommand",
       "submit": [
@@ -21,7 +21,7 @@
           "value": {
             "command": "M"
           },
-          "action": "@menu:activityPubFollowingManager"
+          "action": "@menu:activityPubSocialManager"
         },
         {
           "value": {
@@ -211,7 +211,7 @@
         }
       }
     },
-    "activityPubFollowingManager": {
+    "activityPubSocialManager": {
       "desc": "Social Manager",
       "module": "./activitypub/social_manager",
       "config": {
