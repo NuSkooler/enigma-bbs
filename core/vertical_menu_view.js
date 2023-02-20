@@ -98,10 +98,10 @@ function VerticalMenuView(options) {
             sgr = index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR();
         }
 
-        const renderLength = strUtil.renderStringLength(text);
-        if (renderLength > this.dimens.width) {
-            text = strUtil.renderSubstr(text, 0, this.dimens.width);
-        }
+        text = strUtil.renderTruncate(text, {
+            length: this.dimens.width,
+            omission: this.textOverflow,
+        });
 
         text = `${sgr}${strUtil.pad(
             `${text}${this.styleSGR1}`,
@@ -109,6 +109,7 @@ function VerticalMenuView(options) {
             this.fillChar,
             this.justify
         )}`;
+
         self.client.term.write(`${ansi.goto(item.row, self.position.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);
     };

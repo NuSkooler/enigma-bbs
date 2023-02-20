@@ -72,10 +72,12 @@ exports.getModule = class NodeInfo2WebHadnler extends WebHandlerModule {
             },
             //  :TODO: Only list what's enabled
             protocols: ['telnet', 'ssh', 'gopher', 'nntp', 'ws', 'activitypub'],
-            services: {
-                inbound: [],
-                outbound: [''],
-            },
+
+            //  :TODO: what should we really be doing here???
+            // services: {
+            //     inbound: [],
+            //     outbound: [],
+            // },
             openRegistrations: !config.general.closedSystem,
             usage: {
                 users: {

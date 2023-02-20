@@ -254,12 +254,11 @@ function FullMenuView(options) {
 
         if (relativeColumn + renderLength > this.dimens.width) {
             const overflow = this.hasTextOverflow() ? this.textOverflow : '';
-            text =
-                strUtil.renderSubstr(
-                    text,
-                    0,
-                    this.dimens.width - (relativeColumn + overflow.length)
-                ) + overflow;
+
+            text = strUtil.renderTruncate(text, {
+                length: this.dimens.width - (relativeColumn + overflow.length),
+                omission: overflow,
+            });
         }
 
         let padLength = Math.min(item.fixedLength + 1, this.dimens.width);

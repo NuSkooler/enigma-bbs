@@ -50,6 +50,7 @@ function View(options) {
     this.textStyle = options.textStyle || 'normal';
     this.focusTextStyle = options.focusTextStyle || this.textStyle;
     this.offsetsApplied = false;
+    this.truncateOmission = options.truncateOmission || '';
 
     if (options.id) {
         this.setId(options.id);
@@ -271,6 +272,12 @@ View.prototype.setPropertyValue = function (propName, value) {
         case 'validate':
             if (_.isFunction(value)) {
                 this.validate = value;
+            }
+            break;
+
+        case 'truncateOmission':
+            if (_.isString(value)) {
+                this.truncateOmission = value;
             }
             break;
     }

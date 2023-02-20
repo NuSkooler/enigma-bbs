@@ -19,6 +19,7 @@ exports.debugEscapedString = debugEscapedString;
 exports.stringFromNullTermBuffer = stringFromNullTermBuffer;
 exports.stringToNullTermBuffer = stringToNullTermBuffer;
 exports.renderSubstr = renderSubstr;
+exports.renderTruncate = renderTruncate;
 exports.renderStringLength = renderStringLength;
 exports.ansiRenderStringLength = ansiRenderStringLength;
 exports.formatByteSizeAbbr = formatByteSizeAbbr;
@@ -136,13 +137,12 @@ function stylizeString(s, style) {
     return s;
 }
 
-function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen) {
+function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen = true) {
     len = len || 0;
     padChar = padChar || ' ';
     justify = justify || 'left';
     stringSGR = stringSGR || '';
     padSGR = padSGR || '';
-    useRenderLen = _.isUndefined(useRenderLen) ? true : useRenderLen;
 
     const renderLen = useRenderLen ? renderStringLength(s) : s.length;
     const padLen = len > renderLen ? len - renderLen : 0;
@@ -285,6 +285,29 @@ function renderSubstr(str, start, length) {
     if (pos + start < str.length && renderLen < length) {
         out += str.slice(pos + start, pos + start + (length - renderLen));
         //out += str.slice(pos + start, Math.max(1, pos + (length - renderLen - 1)));
+    }
+
+    return out;
+}
+
+const DefaultTruncateLen = 30;
+const DefaultTruncateOmission = '...';
+
+function renderTruncate(str, options) {
+    //  shortcut for empty strings
+    if (0 === str.length) {
+        return str;
+    }
+
+    options = options || {};
+    options.length = options.length || DefaultTruncateLen;
+    options.omission = _.isString(options.omission)
+        ? options.omission
+        : DefaultTruncateOmission;
+
+    let out = renderSubstr(str, 0, options.length - options.omission.length);
+    if (out.length < str.length) {
+        out += options.omission;
     }
 
     return out;
@@ -464,7 +487,7 @@ function isAnsiLine(line) {
 //  * Pipe codes
 //  * Extended (CP437) ASCII - https://www.ascii-codes.com/
 //  * Tabs
-//  * Contigous 3+ spaces before the end of the line
+//  * Contiguous 3+ spaces before the end of the line
 //
 function isFormattedLine(line) {
     if (renderStringLength(line) < line.length) {
