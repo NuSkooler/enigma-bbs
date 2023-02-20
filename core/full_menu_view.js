@@ -253,12 +253,13 @@ function FullMenuView(options) {
         }
 
         if (relativeColumn + renderLength > this.dimens.width) {
-            const overflow = this.hasTextOverflow() ? this.textOverflow : '';
-
-            text = strUtil.renderTruncate(text, {
-                length: this.dimens.width - (relativeColumn + overflow.length),
-                omission: overflow,
-            });
+            if (this.hasTextOverflow()) {
+                text = strUtil.renderTruncate(text, {
+                    length:
+                        this.dimens.width - (relativeColumn + this.textOverflow.length),
+                    omission: this.textOverflow,
+                });
+            }
         }
 
         let padLength = Math.min(item.fixedLength + 1, this.dimens.width);

@@ -98,10 +98,12 @@ function VerticalMenuView(options) {
             sgr = index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR();
         }
 
-        text = strUtil.renderTruncate(text, {
-            length: this.dimens.width,
-            omission: this.textOverflow,
-        });
+        if (this.hasTextOverflow()) {
+            text = strUtil.renderTruncate(text, {
+                length: this.dimens.width,
+                omission: this.textOverflow,
+            });
+        }
 
         text = `${sgr}${strUtil.pad(
             `${text}${this.styleSGR1}`,
@@ -403,6 +405,12 @@ VerticalMenuView.prototype.focusLast = function () {
     }
 
     return VerticalMenuView.super_.prototype.focusLast.call(this);
+};
+
+VerticalMenuView.prototype.setTextOverflow = function (overflow) {
+    VerticalMenuView.super_.prototype.setTextOverflow.call(this, overflow);
+
+    this.positionCacheExpired = true;
 };
 
 VerticalMenuView.prototype.setFocusItems = function (items) {
