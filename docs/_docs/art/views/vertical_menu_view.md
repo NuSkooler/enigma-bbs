@@ -31,6 +31,7 @@ Items can be selected on a menu via the cursor keys, Page Up, Page Down, Home, a
 | `fillChar` | Specifies a character to fill extra space in the menu with. Defaults to an empty space |
 | `items` | List of items to show in the menu. See **Items** below.
 | `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** in [MCI](../mci.md) |
+| `truncateOmission` | Sets the omission characters for truncated text if used. Defaults to an empty string. Commonly set to "..." |
 
 
 ### Hot Keys
