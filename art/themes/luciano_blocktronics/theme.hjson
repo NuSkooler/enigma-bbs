@@ -498,6 +498,7 @@
 							width: 35
 							itemFormat: "|00{statusIndicator} |00|03{subject}"
 							focusItemFormat: "|00{statusIndicator} |00|19|15{subject}"
+							textOverflow: "..."
 						}
 						MT2: {
 							height: 15
