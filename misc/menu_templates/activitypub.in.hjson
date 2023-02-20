@@ -1,260 +1,198 @@
 {
-  "menus": {
-    "activityPubMenu": {
-      "desc": "ActivityPub",
-      "art": "activitypub_menu",
-      "prompt": "menuCommand",
-      "submit": [
+  menus: {
+    activityPubMenu: {
+      desc: ActivityPub
+      art: activitypub_menu
+      prompt: menuCommand
+      submit: [
         {
-          "value": {
-            "command": "S"
-          },
-          "action": "@menu:activityPubActorSearch"
-        },
-        {
-          "value": {
-            "command": "C"
-          },
-          "action": "@menu:activityPubUserConfig"
-        },
-        {
-          "value": {
-            "command": "M"
-          },
-          "action": "@menu:activityPubSocialManager"
-        },
-        {
-          "value": {
-            "command": "Q"
-          },
-          "action": "@menu:mainMenu"
-        },
-      ]
-    },
-    "activityPubActorSearch": {
-      "desc": "Viewing ActivityPub",
-      "module": "activitypub/actor_search",
-      "config": {
-        "cls": true,
-        "art": {
-          "main": "activitypub_actor_search_main",
-          "view": "activitypub_actor_view"
+          value: {command: "S"}
+          action: @menu:activityPubActorSearch
         }
-      },
-      "form": {
-        "0": {
-          "mci": {
-            "ET1": {
-              "focus": true,
-              "maxLength": 70,
-              "argName": "searchQuery",
-              "submit": true
+        {
+          value: {command: "C"}
+          action: @menu:activityPubUserConfig
+        }
+        {
+          value: {command: "M"}
+          action: @menu:activityPubSocialManager
+        }
+        {
+          value: {command: "Q"}
+          action: @menu:mainMenu
+        }
+      ]
+    }
+    activityPubActorSearch: {
+      desc: Viewing ActivityPub
+      module: activitypub/actor_search
+      config: {
+        cls: true
+        art: {
+          main: activitypub_actor_search_main
+          view: activitypub_actor_view
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            ET1: {
+              focus: true
+              maxLength: 70
+              argName: searchQuery
+              submit: true
             }
-          },
-          "submit": {
-            "*": [
+          }
+          submit: {
+            *: [
               {
-                "value": {
-                  "searchQuery": null
-                },
-                "action": "@method:search"
+                value: {searchQuery: null}
+                action: @method:search
               }
             ]
-          },
-          "actionKeys": [
+          }
+          actionKeys: [
             {
-              "keys": [
-                "escape"
-              ],
-              "action": "@systemMethod:prevMenu"
+              keys: ["escape"]
+              action: @systemMethod:prevMenu
             }
           ]
-        },
-        "1": {
-          "mci": {},
-          "actionKeys": [
+        }
+        1: {
+          mci: {}
+          actionKeys: [
             {
-              "keys": [
-                "escape",
-                "q",
-                "shift + q"
-              ],
-              "action": "@method:backKeyPressed"
-            },
+              keys: ["escape", "q", "shift + q"]
+              action: @method:backKeyPressed
+            }
             {
-              "keys": [
-                "space"
-              ],
-              "action": "@method:toggleFollowKeyPressed"
+              keys: ["space"]
+              action: @method:toggleFollowKeyPressed
             }
           ]
         }
       }
-    },
-    "activityPubUserConfig": {
-      "desc": "ActivityPub Config",
-      "module": "./activitypub/user_config",
-      "config": {
-        "art": {
-          "main": "activitypub_user_config_main",
-          "images": "activitypub_user_config_images"
+    }
+    activityPubUserConfig: {
+      desc: ActivityPub Config
+      module: ./activitypub/user_config
+      config: {
+        art: {
+          main: activitypub_user_config_main
+          images: activitypub_user_config_images
         }
-      },
-      "form": {
-        "0": {
-          "mci": {
-            "TM1": {
-              "focus": true,
-              "items": [
-                "yes",
-                "no"
-              ],
-              "argName": "enabled"
-            },
-            "TM2": {
-              "items": [
-                "yes",
-                "no"
-              ],
-              "argName": "manuallyApproveFollowers"
-            },
-            "TM3": {
-              "items": [
-                "yes",
-                "no"
-              ],
-              "argName": "hideSocialGraph"
-            },
-            "TM4": {
-              "items": [
-                "yes",
-                "no"
-              ],
-              "argName": "showRealName"
-            },
-            "TL5": {
-              "argName": "image"
-            },
-            "TL6": {
-              "argName": "icon"
-            },
-            "BT7": {
-              "text": "manage images",
-              "argName": "manageImages",
-              "submit": true,
-              "justify": "center"
-            },
-            "TM8": {
-              "items": [
-                "save",
-                "cancel"
-              ],
-              "submit": true,
-              "argName": "saveOrCancel"
+      }
+      form: {
+        0: {
+          mci: {
+            TM1: {
+              focus: true
+              items: ["yes", "no"]
+              argName: enabled
             }
-          },
-          "submit": {
-            "*": [
+            TM2: {
+              items: ["yes", "no"]
+              argName: manuallyApproveFollowers
+            }
+            TM3: {
+              items: ["yes", "no"]
+              argName: hideSocialGraph
+            }
+            TM4: {
+              items: ["yes", "no"]
+              argName: showRealName
+            }
+            TL5: {argName: "image"}
+            TL6: {argName: "icon"}
+            BT7: {
+              text: manage images
+              argName: manageImages
+              submit: true
+              justify: center
+            }
+            TM8: {
+              items: ["save", "cancel"]
+              submit: true
+              argName: saveOrCancel
+            }
+          }
+          submit: {
+            *: [
               {
                                 // :TODO: we need a way to just want the argName *for the submitting item* and drop others
-                "value": {
-                  "manageImages": null
-                },
-                "action": "@method:mainSubmit"
+                value: {manageImages: null}
+                action: @method:mainSubmit
               }
             ]
-          },
-          "actionKeys": "@reference:common.escToPrev"
-        },
-        "1": {
-          "mci": {
-            "ML1": {
-              "argName": "imageUrl",
-              "mode": "edit",
-              "scrollMode": "start",
-              "focus": true,
-              "tabSwitchesView": true
-            },
-            "ML2": {
-              "argName": "iconUrl",
-              "mode": "edit",
-              "scrollMode": "start",
-              "tabSwitchesView": true
-            },
-            "TM3": {
-              "items": [
-                "save",
-                "cancel"
-              ],
-              "submit": true,
-              "argName": "imagesSaveOrCancel"
+          }
+          actionKeys: @reference:common.escToPrev
+        }
+        1: {
+          mci: {
+            ML1: {
+              argName: imageUrl
+              mode: edit
+              scrollMode: start
+              focus: true
+              tabSwitchesView: true
             }
-          },
-          "submit": {
-            "*": [
+            ML2: {
+              argName: iconUrl
+              mode: edit
+              scrollMode: start
+              tabSwitchesView: true
+            }
+            TM3: {
+              items: ["save", "cancel"]
+              submit: true
+              argName: imagesSaveOrCancel
+            }
+          }
+          submit: {
+            *: [
               {
-                "value": {
-                  "imagesSaveOrCancel": null
-                },
-                "action": "@method:imagesSubmit"
+                value: {imagesSaveOrCancel: null}
+                action: @method:imagesSubmit
               }
             ]
-          },
-          "actionKeys": [
+          }
+          actionKeys: [
             {
-              "keys": [
-                "escape"
-              ],
-              "action": "@method:backToMain"
+              keys: ["escape"]
+              action: @method:backToMain
             }
           ]
         }
       }
-    },
-    "activityPubSocialManager": {
-      "desc": "Social Manager",
-      "module": "./activitypub/social_manager",
-      "config": {
-        "art": {
-          "main": "activitypub_social_manager"
-        }
-      },
-      "form": {
-        "0": {
-          "mci": {
-            "VM1": {},
-            "MT2": {
-              "mode": "preview",
-              "acceptsFocus": false,
-              "acceptsInput": false
-            },
-            "TM3": {
-              "focus": true,
-              "items": [
-                "following",
-                "followers"
-              ]
+    }
+    activityPubSocialManager: {
+      desc: Social Manager
+      module: ./activitypub/social_manager
+      config: {
+        art: {main: "activitypub_social_manager"}
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {}
+            MT2: {mode: "preview", acceptsFocus: false, acceptsInput: false}
+            TM3: {
+              focus: true
+              items: ["following", "followers"]
             }
-          },
-          "actionKeys": [
+          }
+          actionKeys: [
             {
-              "keys": [
-                "space"
-              ],
-              "action": "@method:spaceKeyPressed"
-            },
+              keys: ["space"]
+              action: @method:spaceKeyPressed
+            }
             {
-              "keys": [
-                "down arrow",
-                "up arrow"
-              ],
-              "action": "@method:listKeyPressed"
-            },
+              keys: ["down arrow", "up arrow"]
+              action: @method:listKeyPressed
+            }
             {
-              "keys": [
-                "escape"
-              ],
-              "action": "@systemMethod:prevMenu"
+              keys: ["escape"]
+              action: @systemMethod:prevMenu
             }
           ]
         }
