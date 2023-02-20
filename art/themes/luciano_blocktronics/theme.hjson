@@ -97,7 +97,7 @@
 					mci: {
 						VM1: {
 							height: 10
-							width: 20
+							width: 71
 							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
 						}
 						TM2: {
@@ -229,6 +229,7 @@
 						VM1: {
 							height: 10
 							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+							width: 71
 						}
 						TM2: {
 							focusTextStyle: first lower
@@ -486,7 +487,7 @@
 
 			activityPubFollowingManager: {
 				config: {
-					selectedActorInfoFormat: "|00|15{preferredUsername}\n|02{name}\n{plainTextSummary}"
+					selectedActorInfoFormat: "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}"
 					statusIndicatorEnabled: "|00|10√"
 					staticIndicatorDisabled: "|00|12X"
 				}
@@ -494,13 +495,13 @@
 					mci: {
 						VM1: {
 							height: 15
-							width: 30
+							width: 35
 							itemFormat: "|00|03{subject}|00 {statusIndicator}"
 							focusItemFormat: "|00|19|15{subject}|00 {statusIndicator}"
 						}
 						MT2: {
 							height: 15
-							width: 38
+							width: 34
 						}
 						TM3: {
 							focusTextStyle: first upper
