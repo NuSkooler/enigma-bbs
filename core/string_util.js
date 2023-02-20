@@ -145,29 +145,29 @@ function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen = true) {
     padSGR = padSGR || '';
 
     const renderLen = useRenderLen ? renderStringLength(s) : s.length;
-    const padlen = len >= renderLen ? len - renderLen : 0;
+    const padLen = len > renderLen ? len - renderLen : 0;
 
     switch (justify) {
         case 'L':
         case 'left':
-            s = `${stringSGR}${s}${padSGR}${Array(padlen).join(padChar)}`;
+            s = `${stringSGR}${s}${padSGR}${padChar.repeat(padLen)}`;
             break;
 
         case 'C':
         case 'center':
         case 'both':
             {
-                const right = Math.ceil(padlen / 2);
-                const left = padlen - right;
+                const right = Math.ceil(padLen / 2);
+                const left = padLen - right;
                 s = `${padSGR}${Array(left + 1).join(
                     padChar
-                )}${stringSGR}${s}${padSGR}${Array(right + 1).join(padChar)}`;
+                )}${stringSGR}${s}${padSGR}${padChar.repeat(right)}`;
             }
             break;
 
         case 'R':
         case 'right':
-            s = `${padSGR}${Array(padlen).join(padChar)}${stringSGR}${s}`;
+            s = `${padSGR}${padChar.repeat(padLen)}${stringSGR}${s}`;
             break;
 
         default:

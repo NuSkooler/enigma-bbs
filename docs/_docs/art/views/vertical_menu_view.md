@@ -29,9 +29,9 @@ Items can be selected on a menu via the cursor keys, Page Up, Page Down, Home, a
 | `justify` | Sets the justification of each item in the list. Options: left (default), right, center |
 | `itemFormat` | Sets the format for a list entry. See **Entry Formatting** in [MCI](../mci.md) |
 | `fillChar` | Specifies a character to fill extra space in the menu with. Defaults to an empty space |
+| `textOverflow` | If an entry cannot be displayed due to `width`, set overflow characters. See **Text Overflow** below |
 | `items` | List of items to show in the menu. See **Items** below.
 | `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** in [MCI](../mci.md) |
-| `truncateOmission` | Sets the omission characters for truncated text if used. Defaults to an empty string. Commonly set to "..." |
 
 
 ### Hot Keys
@@ -70,6 +70,15 @@ If the list is for display only (there is no form action associated with it) you
 ["First item", "Second item", "Third Item"]
 ```
 
+### Text Overflow
+
+The `textOverflow` option is used to specify what happens when a text string is too long to fit in the `width` defined. If an entry is too long to display in the width specified
+
+> :information_source: If `textOverflow` is not specified at all, a menu can become wider than the `width` if needed to display a single column.
+
+> :information_source: Setting `textOverflow` to an empty string `textOverflow: ""` will cause the item to be truncated if necessary without any characters displayed
+
+> :information_source: Otherwise, setting `textOverflow` to one or more characters will truncate the value if necessary and display those characters at the end. i.e. `textOverflow: ...`
 
 ## Example
 
