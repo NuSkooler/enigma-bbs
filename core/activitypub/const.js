@@ -2,6 +2,8 @@ exports.ActivityStreamsContext = 'https://www.w3.org/ns/activitystreams';
 exports.PublicCollectionId = 'https://www.w3.org/ns/activitystreams#Public';
 exports.ActivityStreamMediaType = 'application/activity+json';
 
+exports.ActorCollectionId = exports.PublicCollectionId + 'Actors';
+
 const WellKnownActivity = {
     Create: 'Create',
     Update: 'Update',
@@ -39,5 +41,6 @@ const Collections = {
     Outbox: 'outbox',
     Inbox: 'inbox',
     SharedInbox: 'sharedInbox',
+    Actors: 'actors',
 };
 exports.Collections = Collections;

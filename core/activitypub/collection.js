@@ -8,6 +8,7 @@ const {
     PublicCollectionId: APPublicCollectionId,
     ActivityStreamMediaType,
     Collections,
+    ActorCollectionId,
 } = require('./const');
 const UserProps = require('../user_property');
 const { getJson } = require('../http_util');
@@ -15,6 +16,7 @@ const { getJson } = require('../http_util');
 // deps
 const { isString } = require('lodash');
 const Log = require('../logger');
+const async = require('async');
 
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
@@ -165,6 +167,119 @@ module.exports = class Collection extends ActivityPubObject {
             false,
             ignoreDupes,
             cb
+        );
+    }
+
+    //  Actors is a special collection
+    static actor(actorIdOrSubject, cb) {
+        // We always store subjects prefixed with '@'
+        if (!/^https?:\/\//.test(actorIdOrSubject) && '@' !== actorIdOrSubject[0]) {
+            actorIdOrSubject = `@${actorIdOrSubject}`;
+        }
+
+        apDb.get(
+            `SELECT c.name, c.timestamp, c.owner_actor_id, c.is_private, c.object_json, m.meta_value
+            FROM collection c, collection_object_meta m
+            WHERE c.collection_id = ? AND c.name = ? AND (c.object_id LIKE ? OR (m.object_id = c.object_id AND m.meta_name = ? AND m.meta_value LIKE ?))
+            LIMIT 1;`,
+            [
+                ActorCollectionId,
+                Collections.Actors,
+                actorIdOrSubject,
+                'actor_subject',
+                actorIdOrSubject,
+            ],
+            (err, row) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                if (!row) {
+                    return cb(
+                        Errors.DoesNotExist(`No Actor found for "${actorIdOrSubject}"`)
+                    );
+                }
+
+                const obj = ActivityPubObject.fromJsonString(row.object_json);
+                if (!obj) {
+                    return cb(Errors.Invalid('Failed to parse Object JSON'));
+                }
+
+                const info = Collection._rowToObjectInfo(row);
+                if (row.meta_value) {
+                    info.subject = row.meta_value;
+                } else {
+                    info.subject = obj.id;
+                }
+
+                return cb(null, obj, info);
+            }
+        );
+    }
+
+    static addActor(actor, subject, cb) {
+        async.waterfall(
+            [
+                callback => {
+                    return apDb.beginTransaction(callback);
+                },
+                (trans, callback) => {
+                    trans.run(
+                        `REPLACE INTO collection (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
+                        VALUES(?, ?, ?, ?, ?, ?, ?);`,
+                        [
+                            ActorCollectionId,
+                            Collections.Actors,
+                            getISOTimestampString(),
+                            APPublicCollectionId,
+                            actor.id,
+                            JSON.stringify(actor),
+                            false,
+                        ],
+                        err => {
+                            return callback(err, trans);
+                        }
+                    );
+                },
+                (trans, callback) => {
+                    trans.run(
+                        `REPLACE INTO collection_object_meta (collection_id, name, object_id, meta_name, meta_value)
+                        VALUES(?, ?, ?, ?, ?);`,
+                        [
+                            ActorCollectionId,
+                            Collections.Actors,
+                            actor.id,
+                            'actor_subject',
+                            subject,
+                        ],
+                        err => {
+                            return callback(err, trans);
+                        }
+                    );
+                },
+            ],
+            (err, trans) => {
+                if (err) {
+                    trans.rollback(err => {
+                        return cb(err);
+                    });
+                } else {
+                    trans.commit(err => {
+                        return cb(err);
+                    });
+                }
+            }
+        );
+    }
+
+    static removeOldActorEntries(maxAgeDays, cb) {
+        apDb.run(
+            `DELETE FROM collection
+            WHERE collection_id = ? AND name = ? AND DATETIME(timestamp, "+${maxAgeDays} days") > DATETIME("now");`,
+            [ActorCollectionId, Collections.Actors],
+            err => {
+                return cb(err);
+            }
         );
     }
 

@@ -12,16 +12,15 @@ const EnigAssert = require('../enigma_assert');
 const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
 const { ActivityStreamMediaType, Collections } = require('./const');
-const apDb = require('../database').dbs.activitypub;
 const Config = require('../config').get;
 
 //  deps
 const _ = require('lodash');
 const mimeTypes = require('mime-types');
 const { getJson } = require('../http_util.js');
-const { getISOTimestampString } = require('../database.js');
 const moment = require('moment');
 const paths = require('path');
+const Collection = require('./collection.js');
 
 const ActorCacheExpiration = moment.duration(15, 'days');
 const ActorCacheMaxAgeDays = 125; // hasn't been used in >= 125 days, nuke it.
@@ -204,16 +203,11 @@ module.exports = class Actor extends ActivityPubObject {
 
                 // cache our entry
                 if (actor) {
-                    apDb.run(
-                        `REPLACE INTO actor_cache (actor_id, actor_json, subject, timestamp)
-                        VALUES (?, ?, ?, ?);`,
-                        [id, JSON.stringify(actor), subject, getISOTimestampString()],
-                        err => {
-                            if (err) {
-                                //  :TODO: log me
-                            }
+                    Collection.addActor(actor, subject, err => {
+                        if (err) {
+                            //  :TODO: Log me
                         }
-                    );
+                    });
                 }
             });
         });
@@ -228,17 +222,13 @@ module.exports = class Actor extends ActivityPubObject {
             return;
         }
 
-        apDb.run(
-            `DELETE FROM actor_cache
-            WHERE DATETIME(timestamp, "+${ActorCacheMaxAgeDays} days") > DATETIME("now");`,
-            err => {
-                if (err) {
-                    //  :TODO: log me
-                }
-
-                return cb(null); // always non-fatal
+        Collection.removeOldActorEntries(ActorCacheMaxAgeDays, err => {
+            if (err) {
+                //  :TODO: log me
             }
-        );
+
+            return cb(null); // always non-fatal
+        });
     }
 
     static _fromRemoteQuery(id, cb) {
@@ -262,40 +252,22 @@ module.exports = class Actor extends ActivityPubObject {
     }
 
     static _fromCache(actorIdOrSubject, cb) {
-        apDb.get(
-            `SELECT actor_json, subject, timestamp
-            FROM actor_cache
-            WHERE actor_id = ? OR subject = ?
-            LIMIT 1;`,
-            [actorIdOrSubject, actorIdOrSubject],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
-
-                if (!row) {
-                    return cb(Errors.DoesNotExist());
-                }
-
-                const timestamp = moment(row.timestamp);
-                const needsRefresh = moment().isAfter(
-                    timestamp.add(ActorCacheExpiration)
-                );
-
-                const obj = ActivityPubObject.fromJsonString(row.actor_json);
-                if (!obj || !obj.isValid()) {
-                    return cb(Errors.Invalid('Failed to create ActivityPub object'));
-                }
-
-                const actor = new Actor(obj);
-                if (!actor.isValid()) {
-                    return cb(Errors.Invalid('Failed to create Actor object'));
-                }
-
-                const subject = row.subject || actor.id;
-                return cb(null, actor, subject, needsRefresh);
+        Collection.actor(actorIdOrSubject, (err, actor, info) => {
+            if (err) {
+                return cb(err);
             }
-        );
+
+            const needsRefresh = moment().isAfter(
+                info.timestamp.add(ActorCacheExpiration)
+            );
+
+            actor = new Actor(actor);
+            if (!actor.isValid()) {
+                return cb(Errors.Invalid('Failed to create Actor object'));
+            }
+
+            return cb(null, actor, info.subject, needsRefresh);
+        });
     }
 
     static _fromWebFinger(actorQuery, cb) {

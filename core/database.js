@@ -473,23 +473,6 @@ dbs.message.run(
     activitypub: cb => {
         enableForeignKeys(dbs.activitypub);
 
-        // Actors we know about and have cached
-        dbs.activitypub.run(
-            `CREATE TABLE IF NOT EXISTS actor_cache (
-                actor_id            VARCHAR NOT NULL,       -- Fully qualified Actor ID/URL
-                actor_json          VARCHAR NOT NULL,       -- Actor document
-                subject             VARCHAR,                -- Subject obtained from WebFinger, e.g. @Username@some.domain
-                timestamp           DATETIME NOT NULL,      -- Timestamp in which this Actor was cached
-
-                UNIQUE(actor_id)
-            );`
-        );
-
-        dbs.activitypub.run(
-            `CREATE INDEX IF NOT EXISTS actor_cache_actor_id_index0
-            ON actor_cache (actor_id);`
-        );
-
         //  ActivityPub Collections of various types such as followers, following, likes, ...
         dbs.activitypub.run(
             `CREATE TABLE IF NOT EXISTS collection (
@@ -513,6 +496,20 @@ dbs.message.run(
         dbs.activitypub.run(
             `CREATE INDEX IF NOT EXISTS collection_entry_by_name_collection_id_index0
             ON collection (name, collection_id);`
+        );
+
+        //  Collection meta contains 0:N additional metadata records for a object_id in a collection
+        dbs.activitypub.run(
+            `CREATE TABLE IF NOT EXISTS collection_object_meta (
+                collection_id   VARCHAR NOT NULL,
+                name            VARCHAR NOT NULL,
+                object_id       VARCHAR NOT NULL,
+                meta_name       VARCHAR NOT NULL,
+                meta_value      VARCHAR NOT NULL,
+
+                UNIQUE(collection_id, object_id, meta_name),
+                FOREIGN KEY(name, collection_id, object_id) REFERENCES collection(name, collection_id, object_id) ON DELETE CASCADE
+            );`
         );
 
         return cb(null);
