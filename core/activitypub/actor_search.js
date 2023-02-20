@@ -303,6 +303,9 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
         async.series(
             [
                 callback => {
+                    if (this.viewControllers.view) {
+                        this.viewControllers.view.setFocus(false);
+                    }
                     return this.displayArtAndPrepViewController(
                         'main',
                         FormIds.main,

@@ -114,6 +114,10 @@
                     action: @menu:messageBaseMainMenu
                 }
                 {
+                    value: { command: "A" }
+                    action: @menu:activityPubMenu
+                }
+                {
                     value: { command: "E" }
                     action: @menu:privateMailMenu
                 }
