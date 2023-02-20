@@ -59,7 +59,7 @@ function FullMenuView(options) {
         }
 
         for (let i = 0; i < this.dimens.height; i++) {
-            const text = `${strUtil.pad(this.fillChar, width, this.fillChar, 'left')}`;
+            const text = strUtil.pad('', width, this.fillChar);
             this.client.term.write(
                 `${ansi.goto(
                     this.position.row + i,
@@ -77,6 +77,7 @@ function FullMenuView(options) {
             this.autoAdjustHeightIfEnabled();
 
             this.pages = []; // reset
+            this.currentPage = 0; // reset currentPage when pages reset
 
             // Calculate number of items visible per column
             this.itemsPerRow = Math.floor(this.dimens.height / (this.itemSpacing + 1));
@@ -240,14 +241,25 @@ function FullMenuView(options) {
             sgr = index === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR();
         }
 
-        let renderLength = strUtil.renderStringLength(text);
-        if (this.hasTextOverflow() && item.col + renderLength > this.dimens.width) {
+        const renderLength = strUtil.renderStringLength(text);
+
+        let relativeColumn = item.col - this.position.col;
+        if (relativeColumn < 0) {
+            relativeColumn = 0;
+            this.client.log.warn(
+                { itemCol: item.col, positionColumn: this.position.col },
+                'Invalid item column detected in full menu'
+            );
+        }
+
+        if (relativeColumn + renderLength > this.dimens.width) {
+            const overflow = this.hasTextOverflow() ? this.textOverflow : '';
             text =
                 strUtil.renderSubstr(
                     text,
                     0,
-                    this.dimens.width - (item.col + this.textOverflow.length)
-                ) + this.textOverflow;
+                    this.dimens.width - (relativeColumn + overflow.length)
+                ) + overflow;
         }
 
         let padLength = Math.min(item.fixedLength + 1, this.dimens.width);
@@ -270,14 +282,29 @@ FullMenuView.prototype.redraw = function () {
 
     this.cachePositions();
 
+    // In case we get in a bad state, try to recover
+    if (this.currentPage < 0) {
+        this.currentPage = 0;
+    }
+
     if (this.items.length) {
-        for (
-            let i = this.pages[this.currentPage].start;
-            i <= this.pages[this.currentPage].end;
-            ++i
+        if (
+            this.currentPage > this.pages.length ||
+            !_.isObject(this.pages[this.currentPage])
         ) {
-            this.items[i].focused = this.focusedItemIndex === i;
-            this.drawItem(i);
+            this.client.log.warn(
+                { currentPage: this.currentPage, pagesLength: this.pages.length },
+                'Invalid state! in full menu redraw'
+            );
+        } else {
+            for (
+                let i = this.pages[this.currentPage].start;
+                i <= this.pages[this.currentPage].end;
+                ++i
+            ) {
+                this.items[i].focused = this.focusedItemIndex === i;
+                this.drawItem(i);
+            }
         }
     }
 };
@@ -358,6 +385,10 @@ FullMenuView.prototype.setItems = function (items) {
         this.oldDimens = Object.assign({}, this.dimens);
     }
 
+    // Reset the page on new items
+    this.currentPage = 0;
+    this.focusedItemIndex = 0;
+
     FullMenuView.super_.prototype.setItems.call(this, items);
 
     this.positionCacheExpired = true;
@@ -378,10 +409,20 @@ FullMenuView.prototype.focusNext = function () {
         this.focusedItemIndex = 0;
         this.currentPage = 0;
     } else {
-        this.focusedItemIndex++;
-        if (this.focusedItemIndex > this.pages[this.currentPage].end) {
-            this.clearPage();
-            this.currentPage++;
+        if (
+            this.currentPage > this.pages.length ||
+            !_.isObject(this.pages[this.currentPage])
+        ) {
+            this.client.log.warn(
+                { currentPage: this.currentPage, pagesLength: this.pages.length },
+                'Invalid state in focusNext for full menu view'
+            );
+        } else {
+            this.focusedItemIndex++;
+            if (this.focusedItemIndex > this.pages[this.currentPage].end) {
+                this.clearPage();
+                this.currentPage++;
+            }
         }
     }
 
@@ -397,9 +438,19 @@ FullMenuView.prototype.focusPrevious = function () {
         this.currentPage = this.pages.length - 1;
     } else {
         this.focusedItemIndex--;
-        if (this.focusedItemIndex < this.pages[this.currentPage].start) {
-            this.clearPage();
-            this.currentPage--;
+        if (
+            this.currentPage > this.pages.length ||
+            !_.isObject(this.pages[this.currentPage])
+        ) {
+            this.client.log.warn(
+                { currentPage: this.currentPage, pagesLength: this.pages.length },
+                'Bad focus state, ignoring call to focusPrevious.'
+            );
+        } else {
+            if (this.focusedItemIndex < this.pages[this.currentPage].start) {
+                this.clearPage();
+                this.currentPage--;
+            }
         }
     }
 

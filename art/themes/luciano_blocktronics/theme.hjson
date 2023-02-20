@@ -495,8 +495,8 @@
 						VM1: {
 							height: 15
 							width: 30
-							itemFormat: "|00|03{subject}|00 {statusIndicator}"
-							focusItemFormat: "|00|19|15{subject}|00 {statusIndicator}"
+							itemFormat: "|00{statusIndicator} |00|03{subject}"
+							focusItemFormat: "|00{statusIndicator} |00|19|15{subject}"
 						}
 						MT2: {
 							height: 15

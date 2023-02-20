@@ -98,6 +98,11 @@ function VerticalMenuView(options) {
             sgr = index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR();
         }
 
+        const renderLength = strUtil.renderStringLength(text);
+        if (renderLength > this.dimens.width) {
+            text = strUtil.renderSubstr(text, 0, this.dimens.width);
+        }
+
         text = `${sgr}${strUtil.pad(
             `${text}${this.styleSGR1}`,
             this.dimens.width,
@@ -137,18 +142,16 @@ VerticalMenuView.prototype.redraw = function () {
     //  erase old items
     //  :TODO: optimize this: only needed if a item is removed or new max width < old.
     if (this.oldDimens) {
-        const blank = new Array(Math.max(this.oldDimens.width, this.dimens.width)).join(
-            ' '
-        );
-        let seq = ansi.goto(this.position.row, this.position.col) + this.getSGR() + blank;
-        let row = this.position.row + 1;
+        const blank = ' '.repeat(Math.max(this.oldDimens.width, this.dimens.width));
+        let row = this.position.row;
         const endRow = row + this.oldDimens.height - 2;
 
         while (row <= endRow) {
-            seq += ansi.goto(row, this.position.col) + blank;
+            this.client.term.write(
+                ansi.goto(row, this.position.col) + this.getSGR() + blank
+            );
             row += 1;
         }
-        this.client.term.write(seq);
         delete this.oldDimens;
     }
 
@@ -241,6 +244,7 @@ VerticalMenuView.prototype.setItems = function (items) {
     if (this.items && this.items.length) {
         this.oldDimens = Object.assign({}, this.dimens);
     }
+    this.focusedItemIndex = 0;
 
     VerticalMenuView.super_.prototype.setItems.call(this, items);
 
