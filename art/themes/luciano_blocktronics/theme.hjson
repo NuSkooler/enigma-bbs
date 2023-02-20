@@ -497,14 +497,15 @@
 							height: 15
 							width: 35
 							itemFormat: "|00|03{subject}|00 {statusIndicator}"
-							focusItemFormat: "|00|19|15{subject}|00 {statusIndicator}"
+							focusItemFormat: "|00|19|15{subject!styleUpper}|00 {statusIndicator}"
 						}
 						MT2: {
 							height: 15
 							width: 34
 						}
 						TM3: {
-							focusTextStyle: first upper
+							focusTextStyle: first lower
+							styleSGR1: "|00|08"
 						}
 					}
 				}
@@ -591,7 +592,7 @@
 						VM1: {
 							height: 11
 							width: 22
-							focusTextStyle: first upper
+							focusTextStyle: first lower
 							itemFormat: "|00|07{bbsName}"
 							focusItemFormat: "|00|19|15{bbsName!styleFirstLower}"
 						}
@@ -617,7 +618,7 @@
 						ET8: { width: 32 }
 
 						TM17: {
-							focusTextStyle: first upper
+							focusTextStyle: first lower
 						}
 					}
 				}
@@ -805,7 +806,7 @@
 				4: {
 					mci: {
 						HM1: {
-							focusTextStyle: first upper
+							focusTextStyle: first lower
 						}
 					}
 				}
