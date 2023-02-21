@@ -222,9 +222,9 @@ module.exports = class Actor extends ActivityPubObject {
             return;
         }
 
-        Collection.removeOldActorEntries(ActorCacheMaxAgeDays, err => {
+        Collection.removeExpiredActors(ActorCacheMaxAgeDays, err => {
             if (err) {
-                //  :TODO: log me
+                Log.error('Failed removing expired Actor items');
             }
 
             return cb(null); // always non-fatal

@@ -272,7 +272,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static removeOldActorEntries(maxAgeDays, cb) {
+    static removeExpiredActors(maxAgeDays, cb) {
         apDb.run(
             `DELETE FROM collection
             WHERE collection_id = ? AND name = ? AND DATETIME(timestamp, "+${maxAgeDays} days") > DATETIME("now");`,

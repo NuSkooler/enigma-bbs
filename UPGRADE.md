@@ -9,10 +9,10 @@ This document covers basic upgrade notes for major ENiGMA½ version updates.
 
 # General Notes
 ## Configuration File Updates
-In general, look at template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
+In general, look at template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. <u>These files may come with new sections you wish to merge into your system!</u>
 
 ### Menus & Theme Updates
-Upgrades often come with changes to the default menu templates found in `misc/menu_tempaltes`. You can use these as references for changes and additions to the default menu sets. This also applies to the default `luciano_blocktronics` theme and it's `theme.hjson` file.
+Upgrades often come with changes to the default menu templates found in `misc/menu_templates`. You can use these as references for changes and additions to the default menu sets. This also applies to the default `luciano_blocktronics` theme and it's `theme.hjson` file.
 
 See [Updating](./docs/admin/updating.md) for details on menu files/etc.
 
@@ -34,6 +34,13 @@ npm install # or simply 'yarn'
 > :warning: Be sure to inspect these notes during any upgrades!
 
 ## 0.0.13-beta to 0.0.14-beta
+* A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:
+```bash
+cp ./misc/menu_templates/activitypub.in.hjson ./config/menus/my_board_name-activitypub.hjson`
+```
+
+This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`.
+
 
 ## 0.0.12-beta to 0.0.13-beta
 * To enable the new Waiting for Caller (WFC) support, please see [WFC](docs/modding/wfc.md).
