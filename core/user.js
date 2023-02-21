@@ -525,12 +525,24 @@ module.exports = class User {
                     return callback(null, trans);
                 },
                 function newUserPreEvent(trans, callback) {
-                    Events.emit(Events.getSystemEvents().NewUserPrePersist, {
+                    const eventName = Events.getSystemEvents().NewUserPrePersist;
+                    const subCount = Events.listenerCount(eventName);
+                    if (subCount < 1) {
+                        return callback(null, trans);
+                    }
+
+                    let returned = 0;
+                    const cbWrapper = e => {
+                        ++returned;
+                        if (returned >= subCount) {
+                            return callback(e, trans);
+                        }
+                    };
+
+                    Events.emit(eventName, {
                         user: self,
                         sessionId: createUserInfo.sessionId,
-                        callback: err => {
-                            return callback(err, trans);
-                        },
+                        callback: cbWrapper,
                     });
                 },
                 function saveAll(trans, callback) {
