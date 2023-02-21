@@ -78,17 +78,17 @@ ToggleMenuView.prototype.setFocusItemIndex = function (index) {
 };
 
 ToggleMenuView.prototype.setTrue = function () {
-    this.setFocusItemIndex(0);
-    this.updateSelection();
-};
-
-ToggleMenuView.prototype.setFalse = function () {
     this.setFocusItemIndex(1);
     this.updateSelection();
 };
 
+ToggleMenuView.prototype.setFalse = function () {
+    this.setFocusItemIndex(0);
+    this.updateSelection();
+};
+
 ToggleMenuView.prototype.isTrue = function () {
-    return this.focusedItemIndex === 0;
+    return this.focusedItemIndex === 1;
 };
 
 ToggleMenuView.prototype.setFromBoolean = function (bool) {

@@ -11,6 +11,7 @@ const FileBaseFilters = require('./file_base_filter.js');
 const Errors = require('./enig_error.js').Errors;
 const { getAvailableFileAreaTags } = require('./file_base_area.js');
 const { valueAsArray } = require('./misc_util.js');
+const { SystemInternalConfTags } = require('./message_const');
 
 //  deps
 const _ = require('lodash');
@@ -80,12 +81,12 @@ exports.getModule = class NewScanModule extends MenuModule {
             );
 
             //
-            //  Sort conferences by name, other than 'system_internal' which should
+            //  Sort conferences by name, other than "System Internal" which should
             //  always come first such that we display private mails/etc. before
             //  other conferences & areas
             //
             this.sortedMessageConfs.sort((a, b) => {
-                if ('system_internal' === a.confTag) {
+                if (SystemInternalConfTags.includes(a.confTag)) {
                     return -1;
                 } else {
                     return a.conf.name.localeCompare(b.conf.name, {

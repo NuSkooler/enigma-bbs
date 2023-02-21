@@ -87,19 +87,19 @@
           mci: {
             TM1: {
               focus: true
-              items: ["yes", "no"]
+              items: ["no", "yes"]
               argName: enabled
             }
             TM2: {
-              items: ["yes", "no"]
+              items: ["no", "yes"]
               argName: manuallyApproveFollowers
             }
             TM3: {
-              items: ["yes", "no"]
+              items: ["no", "yes"]
               argName: hideSocialGraph
             }
             TM4: {
-              items: ["yes", "no"]
+              items: ["no", "yes"]
               argName: showRealName
             }
             TL5: {argName: "image"}

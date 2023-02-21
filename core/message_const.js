@@ -1,3 +1,15 @@
+const WellKnownConfTags = {
+    Invalid: '',
+    SystemInternal: 'system_internal',
+    ActivityPubInternal: 'activitypub_internal',
+};
+exports.WellKnownConfTags = WellKnownConfTags;
+
+exports.SystemInternalConfTags = [
+    WellKnownConfTags.SystemInternal,
+    WellKnownConfTags.ActivityPubInternal,
+];
+
 const WellKnownAreaTags = {
     Invalid: '',
     Private: 'private_mail',

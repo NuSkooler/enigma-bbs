@@ -907,14 +907,14 @@ module.exports = () => {
                 },
             },
 
-            activity_pub: {
-                name: 'ActivityPub Shared Inbox',
-                desc: 'Public and shared ActivityPub messages',
+            activitypub_internal: {
+                name: 'ActivityPub',
+                desc: 'Public ActivityPub messages',
 
                 areas: {
                     activitypub_shared: {
-                        name: 'ActivityPub sharedInbox',
-                        desc: 'Public shared inbox for ActivityPub',
+                        name: 'ActivityPub Public',
+                        desc: 'Public inbox for ActivityPub',
                         alwaysExportExternal: true,
                         subjectOptional: true,
                         addressFlavor: 'activitypub',
