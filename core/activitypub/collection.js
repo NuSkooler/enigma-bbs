@@ -180,7 +180,7 @@ module.exports = class Collection extends ActivityPubObject {
         apDb.get(
             `SELECT c.name, c.timestamp, c.owner_actor_id, c.is_private, c.object_json, m.meta_value
             FROM collection c, collection_object_meta m
-            WHERE c.collection_id = ? AND c.name = ? AND (c.object_id LIKE ? OR (m.object_id = c.object_id AND m.meta_name = ? AND m.meta_value LIKE ?))
+            WHERE c.collection_id = ? AND c.name = ? AND m.object_id = c.object_id AND (c.object_id LIKE ? OR (m.meta_name = ? AND m.meta_value LIKE ?))
             LIMIT 1;`,
             [
                 ActorCollectionId,
