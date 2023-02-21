@@ -72,7 +72,7 @@ module.exports = class Log {
             return JSON.parse(
                 JSON.stringify(obj).replace(
                     // note that we match against key names here
-                    /"(password|passwordConfirm|key|authCode)"\s?:\s?"([^"]+)"/,
+                    /"(password|passwordConfirm|key|authCode)"\s?:\s?"([^"]+)"/g,
                     (match, keyName) => {
                         return `"${keyName}":"********"`;
                     }
