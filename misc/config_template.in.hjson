@@ -236,7 +236,7 @@
                 //  others.
                 //  See https://www.w3.org/TR/activitypub/
                 activityPub: {
-                    enabled: true
+                    enabled: false
                 }
             }
 
