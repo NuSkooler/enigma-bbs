@@ -139,7 +139,7 @@ module.exports = () => {
 
             // See also ./core/activitypub/settings.js
             activityPub: {
-                enabled: true, // ActivityPub enabled for this user?
+                enabled: false, // ActivityPub enabled for this user?
                 manuallyApproveFollowers: false,
                 hideSocialGraph: false,
                 showRealName: true,
