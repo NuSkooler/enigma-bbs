@@ -125,8 +125,8 @@ collections:
       - modding/user-2fa-otp-config.md
       - modding/autosig-edit.md
       - modding/menu-modules.md
-      - admin/administration.md
       - modding/wfc.md
+      - admin/administration.md
       - admin/oputil.md
       - admin/updating.md
       - troubleshooting/monitoring-logs.md
