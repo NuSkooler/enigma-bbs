@@ -5,10 +5,7 @@ const WellKnownConfTags = {
 };
 exports.WellKnownConfTags = WellKnownConfTags;
 
-exports.SystemInternalConfTags = [
-    WellKnownConfTags.SystemInternal,
-    WellKnownConfTags.ActivityPubInternal,
-];
+exports.SystemInternalConfTags = [WellKnownConfTags.SystemInternal];
 
 const WellKnownAreaTags = {
     Invalid: '',
