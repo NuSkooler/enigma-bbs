@@ -415,13 +415,13 @@ module.exports = () => {
 
         // General ActivityPub integration configuration
         activityPub: {
+            // by default, don't include auto-signatures in AP outgoing
+            autoSignatures: false,
+
             // Mimics Mastodon max 500 characters for *outgoing* Notes
             // (messages destined for ActivityPub); This is a soft limit;
             // Implementations including Mastodon should still display
             // longer messages, but this keeps us as a "good citizen"
-            autoSignatures: false,
-
-            // by default, don't include auto-signatures in AP outgoing
             maxMessageLength: 500,
         },
 
