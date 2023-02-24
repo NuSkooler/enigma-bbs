@@ -911,6 +911,10 @@ module.exports = () => {
                 name: 'ActivityPub',
                 desc: 'Public ActivityPub messages',
 
+                acs: {
+                    read: 'GM[users]SE[activitypub]',
+                },
+
                 areas: {
                     activitypub_shared: {
                         name: 'ActivityPub Public',

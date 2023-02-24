@@ -3,6 +3,7 @@
 	const UserProps	= require('./user_property.js');
 	const Log       = require('./logger.js').log;
 	const User		= require('./user.js');
+	const Config	= require('./config.js').get;
 
 	const _			= require('lodash');
 	const moment	= require('moment');
@@ -13,6 +14,48 @@
 	function checkAccess(acsCode, value) {
 		try {
 			return {
+				SE	: function servicesEnabled() {
+					if (!Array.isArray(value)) {
+						value = [ value];
+					}
+					const config = Config();
+					const webEnabled = () => {
+						return (true === _.get(config, 'contentServers.web.http.enabled') ||
+							true === _.get(config, 'contentServers.web.https.enabled'));
+					};
+
+					const allEnabled = value.every(svcName => {
+						switch (svcName) {
+							case 'http':
+								return true === _.get(config, 'contentServers.web.http.enabled');
+
+							case 'https':
+								return true === _.get(config, 'contentServers.web.https.enabled');
+
+							case 'web':
+								return webEnabled();
+
+							case 'gopher':
+								return true === _.get(config, 'contentServers.gopher.enabled');
+
+							case 'nttp':
+								return true === _.get(config, 'contentServers.nntp.nntp.enabled');
+
+							case 'nntps':
+								return true === _.get(config, 'contentServers.nntp.nntps.enabled');
+
+							case 'activitypub':
+								return webEnabled() && true === _.get(config, 'contentServers.web.handlers.activityPub.enabled');
+
+							case 'nodeinfo2':
+								return webEnabled() && true === _.get(config, 'contentServers.web.handlers.nodeInfo2.enabled');
+
+							case 'webfinger':
+								return webEnabled() && true === _.get(config, 'contentServers.web.handlers.webFinger.enabled');
+						}
+					});
+					return allEnabled;
+				},
 				LC	: function isLocalConnection() {
 					return client && client.isLocal();
 				},
@@ -77,8 +120,8 @@
 					const now = moment();
 					const daysOld = accountCreated.diff(moment(), 'days');
 					return !isNaN(value) &&
-						accountCreated.isValid() && 
-						now.isAfter(accountCreated) && 
+						accountCreated.isValid() &&
+						now.isAfter(accountCreated) &&
 						daysOld >= value;
 				},
 				BU	: function bytesUploaded() {
@@ -270,7 +313,7 @@ atom
 comma
 	= ','
 
-ws 
+ws
 	= ' '
 
 optWs
@@ -304,4 +347,3 @@ arg
 	= list
 	/ num:number?
 
- 
