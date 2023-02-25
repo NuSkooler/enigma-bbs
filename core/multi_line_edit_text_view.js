@@ -137,10 +137,6 @@ function MultiLineEditTextView(options) {
     };
 
     this.getTextSgrPrefix = function () {
-        if (!self.isEditMode()) {
-            return '';
-        }
-
         return self.hasFocus ? self.getFocusSGR() : self.getSGR();
     };
 
