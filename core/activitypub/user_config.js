@@ -254,6 +254,8 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                     imageView.setText(apSettings.image);
                     iconView.setText(apSettings.icon);
 
+                    imageView.setFocus(true);
+
                     return callback(null);
                 },
             ],

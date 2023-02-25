@@ -128,20 +128,20 @@ function MultiLineEditTextView(options) {
     //
     this.cursorPos = { col: 0, row: 0 };
 
-    this.getSGRFor = function (sgrFor) {
-        return (
-            {
-                text: self.getSGR(),
-            }[sgrFor] || self.getSGR()
-        );
-    };
-
     this.isEditMode = function () {
         return 'edit' === self.mode;
     };
 
     this.isPreviewMode = function () {
         return 'preview' === self.mode;
+    };
+
+    this.getTextSgrPrefix = function () {
+        if (!self.isEditMode()) {
+            return '';
+        }
+
+        return self.hasFocus ? self.getFocusSGR() : self.getSGR();
     };
 
     //  :TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
@@ -171,7 +171,7 @@ function MultiLineEditTextView(options) {
 
     this.toggleTextCursor = function (action) {
         self.client.term.rawWrite(
-            `${self.getSGRFor('text')}${
+            `${self.getTextSgrPrefix()}${
                 'hide' === action ? ansi.hideCursor() : ansi.showCursor()
             }`
         );
@@ -183,11 +183,11 @@ function MultiLineEditTextView(options) {
         const startIndex = self.getTextLinesIndex(startRow);
         const endIndex = Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
         const absPos = self.getAbsolutePosition(startRow, 0);
+        const prefix = self.getTextSgrPrefix();
 
         for (let i = startIndex; i < endIndex; ++i) {
-            //${self.getSGRFor('text')}
             self.client.term.write(
-                `${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`,
+                `${ansi.goto(absPos.row++, absPos.col)}${prefix}${self.getRenderText(i)}`,
                 false //  convertLineFeeds
             );
         }
@@ -492,7 +492,7 @@ function MultiLineEditTextView(options) {
                 .slice(self.cursorPos.col - c.length);
 
             self.client.term.write(
-                `${ansi.hideCursor()}${self.getSGRFor('text')}${renderText}${ansi.goto(
+                `${ansi.hideCursor()}${self.getTextSgrPrefix()}${renderText}${ansi.goto(
                     absPos.row,
                     absPos.col
                 )}${ansi.showCursor()}`,
@@ -1105,10 +1105,14 @@ MultiLineEditTextView.prototype.redraw = function () {
 };
 
 MultiLineEditTextView.prototype.setFocus = function (focused) {
-    this.client.term.rawWrite(this.getSGRFor('text'));
-    this.moveClientCursorToCursorPos();
-
     MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
+
+    if (this.isEditMode() && this.getSGR() !== this.getFocusSGR()) {
+        this.redrawVisibleArea();
+    } else {
+        this.client.term.rawWrite(this.getTextSgrPrefix());
+    }
+    this.moveClientCursorToCursorPos();
 };
 
 MultiLineEditTextView.prototype.setText = function (

@@ -505,7 +505,7 @@ exports.FullScreenEditorModule =
                                 msg = insert(
                                     msg,
                                     tearLinePos,
-                                    bodyMessageView.getSGRFor('text')
+                                    bodyMessageView.getTextSgrPrefix()
                                 );
                             }
 
@@ -1496,7 +1496,7 @@ exports.FullScreenEditorModule =
                     const bodyMessageView = this.viewControllers.body.getView(
                         MciViewIds.body.message
                     );
-                    quoteLines += `${ansi.normal()}${bodyMessageView.getSGRFor('text')}`;
+                    quoteLines += `${ansi.normal()}${bodyMessageView.getTextSgrPrefix()}`;
                 }
                 msgView.addText(`${quoteLines}\n\n`);
             }

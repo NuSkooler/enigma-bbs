@@ -1474,6 +1474,14 @@
 					}
 				}
 			}
+
+			activityPubMenuCommand: {
+				mci: {
+					TL1: {
+						text: "|00|08(|11|AS|08)"
+					}
+				}
+			}
 		}
 
 		achievements: {

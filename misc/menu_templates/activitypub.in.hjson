@@ -1,9 +1,9 @@
 {
   menus: {
     activityPubMenu: {
-      desc: ActivityPub
+      desc: ActivityPub Menu
       art: activitypub_menu
-      prompt: menuCommand
+      prompt: activiytPubMenuCommand
       submit: [
         {
           value: {command: "S"}
@@ -14,17 +14,26 @@
           action: @menu:activityPubUserConfig
         }
         {
-          value: {command: "M"}
+          value: {command: "S"}
           action: @menu:activityPubSocialManager
         }
         {
           value: {command: "Q"}
           action: @menu:mainMenu
         }
+        {
+          value: { command: "E" }
+          action: @menu:privateMailMenu
+        }
+        {
+          value: { command: "G" }
+          action: @menu:fullLogoffSequence
+        }
       ]
     }
+
     activityPubActorSearch: {
-      desc: Viewing ActivityPub
+      desc: ActivityPub Search
       module: activitypub/actor_search
       config: {
         cls: true
@@ -166,7 +175,7 @@
       }
     }
     activityPubSocialManager: {
-      desc: Social Manager
+      desc: ActivityPub Social Manager
       module: ./activitypub/social_manager
       config: {
         art: {main: "activitypub_social_manager"}
@@ -195,6 +204,22 @@
               action: @systemMethod:prevMenu
             }
           ]
+        }
+      }
+    }
+  }
+
+  prompts: {
+    activityPubMenuCommand: {
+        art: activitypub_menu_prompt
+        mci:  {
+          ET2: {
+            argName: command
+            width: 20
+            maxLength: 20
+            submit: true
+            textStyle: upper
+            focus: true
         }
       }
     }
