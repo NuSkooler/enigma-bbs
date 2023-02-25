@@ -1349,8 +1349,8 @@
 
 			activityPubActorSearch: {
 				config: {
-					followingIndicator: "|00|14> |10Following|08!|14 <"
-					notFollowingIndicator: "|00|14> |02Not Following|14 <"
+					followingIndicator: "|00|14FOLLOWING"
+					notFollowingIndicator: "|00|12not following"
 					viewInfoFormat10: "{actorFollowingIndicator}"
 				}
 				0: {
