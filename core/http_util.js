@@ -105,8 +105,7 @@ function _makeRequest(url, options, cb) {
         try {
             httpSignature.sign(req, options.sign);
         } catch (e) {
-            req.destroy();
-            return cbWrapper(Errors.Invalid(`Invalid signing material: ${e}`));
+            req.destroy(Errors.Invalid(`Invalid signing material: ${e}`));
         }
     }
 
@@ -115,8 +114,7 @@ function _makeRequest(url, options, cb) {
     });
 
     req.on('timeout', () => {
-        req.destroy();
-        return cbWrapper(Errors.Timeout('Timeout making HTTP request'));
+        req.destroy(Errors.Timeout('Timeout making HTTP request'));
     });
 
     if (options.body) {

@@ -8,6 +8,7 @@ const Collection = require('./collection');
 const EnigAssert = require('../enigma_assert');
 const { sendFollowRequest, sendUnfollowRequest } = require('./follow_util');
 const { getServer } = require('../listening_server');
+const UserProps = require('../user_property');
 
 // deps
 const async = require('async');
@@ -231,7 +232,13 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
     _toggleFollowStatus(cb) {
         // catch early key presses
         if (!this.selectedActorInfo) {
-            return;
+            return cb(Errors.UnexpectedState('No Actor selected'));
+        }
+
+        //  Don't allow users to follow themselves
+        const currentActorId = this.client.user.getProperty(UserProps.ActivityPubActorId);
+        if (currentActorId === this.selectedActorInfo.id) {
+            return cb(Errors.Invalid('You cannot follow yourself!'));
         }
 
         this.selectedActorInfo._isFollowing = !this.selectedActorInfo._isFollowing;

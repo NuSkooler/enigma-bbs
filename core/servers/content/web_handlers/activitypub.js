@@ -99,6 +99,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=[0-9]+)?$/,
+            //  :TODO: fix me: What are we exposing to the outbox? Should be public only; GET's don't have signatures
             handler: (req, resp) => {
                 return this._enforceMainKeySignatureValidity(
                     req,
@@ -111,25 +112,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/followers(\?page=[0-9]+)?$/,
-            handler: (req, resp) => {
-                return this._enforceMainKeySignatureValidity(
-                    req,
-                    resp,
-                    this._followersGetHandler.bind(this)
-                );
-            },
+            handler: this._followersGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/following(\?page=[0-9]+)?$/,
-            handler: (req, resp) => {
-                return this._enforceMainKeySignatureValidity(
-                    req,
-                    resp,
-                    this._followingGetHandler.bind(this)
-                );
-            },
+            handler: this._followingGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
@@ -469,26 +458,41 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             //  possible for example, that we're being asked to delete an Actor;
             //  If this is the case, they may be following multiple local Actor/users
             //  and we have multiple entries.
+            const stats = {
+                deleted: [],
+                failed: [],
+            };
             async.forEachSeries(
                 objectsInfo,
                 (objInfo, nextObjInfo) => {
+                    const collectionName = objInfo.info.name;
+
                     if (objInfo.object) {
                         //  Based on the collection we find this entry in,
                         //  we may have additional validation or actions
-                        switch (objInfo.info.name) {
+                        switch (collectionName) {
                             case Collections.Inbox:
-                                if (inboxType !== Collections.Inbox) {
-                                    //  :TODO: LOG ME
+                            case Collections.SharedInbox:
+                                // Validate the inbox this was sent to
+                                if (inboxType !== collectionName) {
+                                    this.log.warn(
+                                        { inboxType, collectionName, objectId },
+                                        'Will not Delete object(s) from mismatched collection!'
+                                    );
                                     return nextObjInfo(null);
                                 }
+
+                                // Validate signature
+
                                 break;
 
-                            case Collections.SharedInbox:
-                                if (inboxType !== Collections.SharedInbox) {
-                                    //  :TODO: log me
-                                    return nextObjInfo(null);
-                                }
+                            case Collections.Actors:
+                                // Validate signature; Delete Actor and Following entries if any
                                 break;
+
+                            case Collection.Following:
+                                break;
+
                             default:
                                 break;
                         }
@@ -496,12 +500,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return nextObjInfo(null);
                     } else {
                         // it's unparsable, so we'll delete it
-                        Collection.removeById(objInfo.info.name, objectId, err => {
+                        Collection.removeById(collectionName, objectId, err => {
                             if (err) {
                                 this.log.warn(
-                                    { objectId, collectionName: objInfo.info.name },
+                                    { objectId, collectionName },
                                     'Failed to remove object'
                                 );
+                                stats.failed.push({ collectionName, objectId });
+                            } else {
+                                stats.deleted.push({ collectionName, objectId });
                             }
                             return nextObjInfo(null);
                         });
@@ -511,6 +518,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     if (err) {
                         //  :TODO: log me
                     }
+
+                    this.log.info({ stats, inboxType }, 'Inbox Delete request complete');
                     return this.webServer.accepted(resp);
                 }
             );
@@ -823,6 +832,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _actorCollectionRequest(collectionName, req, resp) {
+        this.log.debug({ url: req.url }, `Request for "${collectionName}"`);
+
         const getCollection = Collection[collectionName];
         if (!getCollection) {
             return this.webServer.resourceNotFound(resp);
@@ -863,12 +874,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _followingGetHandler(req, resp) {
-        this.log.debug({ url: req.url }, 'Request for "following"');
         return this._actorCollectionRequest(Collections.Following, req, resp);
     }
 
     _followersGetHandler(req, resp) {
-        this.log.debug({ url: req.url }, 'Request for "followers"');
         return this._actorCollectionRequest(Collections.Followers, req, resp);
     }
 

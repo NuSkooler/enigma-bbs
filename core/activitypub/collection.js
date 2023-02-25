@@ -31,6 +31,7 @@ module.exports = class Collection extends ActivityPubObject {
         const headers = {
             Accept: ActivityStreamMediaType,
         };
+
         getJson(
             collectionUrl,
             { headers, validContentTypes: [ActivityStreamMediaType] },
