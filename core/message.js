@@ -91,6 +91,10 @@ module.exports = class Message {
         return Message.isPrivateAreaTag(this.areaTag);
     }
 
+    isPublic() {
+        return !this.isPrivate();
+    }
+
     isFromRemoteUser() {
         return null !== this.getRemoteFromUser();
     }

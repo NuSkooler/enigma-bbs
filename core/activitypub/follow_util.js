@@ -20,17 +20,18 @@ function sendFollowRequest(fromUser, toActor, webServer, cb) {
     //  We always add to the following collection;
     //  We expect an async follow up request to our server of
     //  Accept or Reject but it's not guaranteed
+    const followRequest = new ActivityPubObject({
+        id: ActivityPubObject.makeObjectId(webServer, 'follow'),
+        type: WellKnownActivity.Follow,
+        actor: fromActorId,
+        object: toActor.id,
+    });
+
+    toActor._followRequest = followRequest;
     Collection.addFollowing(fromUser, toActor, webServer, true, err => {
         if (err) {
             return cb(err);
         }
-
-        const followRequest = new ActivityPubObject({
-            id: ActivityPubObject.makeObjectId(webServer, 'follow'),
-            type: WellKnownActivity.Follow,
-            actor: fromActorId,
-            object: toActor.id,
-        });
 
         return followRequest.sendTo(toActor.inbox, fromUser, webServer, cb);
     });
@@ -46,19 +47,37 @@ function sendUnfollowRequest(fromUser, toActor, webServer, cb) {
         );
     }
 
-    //  Always remove from the local collection, notify the remote server
-    Collection.removeOwnedById(Collections.Following, fromUser, toActor.inbox, err => {
-        if (err) {
-            return cb(err);
+    //  Fetch previously saved 'Follow'; We're going to Undo it &
+    //  need a copy.
+    Collection.ownedObjectByNameAndId(
+        Collections.Following,
+        fromUser,
+        toActor.id,
+        (err, followedActor) => {
+            if (err) {
+                return cb(err);
+            }
+
+            //  Always remove from the local collection, notify the remote server
+            Collection.removeOwnedById(
+                Collections.Following,
+                fromUser,
+                toActor.id,
+                err => {
+                    if (err) {
+                        return cb(err);
+                    }
+
+                    const undoRequest = new ActivityPubObject({
+                        id: ActivityPubObject.makeObjectId(webServer, 'undo'),
+                        type: WellKnownActivity.Undo,
+                        actor: fromActorId,
+                        object: followedActor._followRequest,
+                    });
+
+                    return undoRequest.sendTo(toActor.inbox, fromUser, webServer, cb);
+                }
+            );
         }
-
-        const undoRequest = new ActivityPubObject({
-            id: ActivityPubObject.makeObjectId(webServer, 'undo'),
-            type: WellKnownActivity.Undo,
-            actor: fromActorId,
-            object: toActor.id,
-        });
-
-        return undoRequest.sendTo(toActor.inbox, fromUser, webServer, cb);
-    });
+    );
 }

@@ -17,6 +17,7 @@ const { encode, decode } = require('html-entities');
 const { isString } = require('lodash');
 const { stripHtml } = require('string-strip-html');
 
+exports.getActorId = o => o.actor?.id || o.actor;
 exports.parseTimestampOrNow = parseTimestampOrNow;
 exports.isValidLink = isValidLink;
 exports.userFromActorId = userFromActorId;

@@ -37,7 +37,7 @@ const moment = require('moment');
 const fse = require('fs-extra');
 const fs = require('graceful-fs');
 const paths = require('path');
-const sanatizeFilename = require('sanitize-filename');
+const sanitizeFilename = require('sanitize-filename');
 const { ErrorReasons } = require('./enig_error.js');
 
 exports.moduleInfo = {
@@ -350,7 +350,7 @@ exports.FullScreenEditorModule =
             return {
                 //  :TODO: ensure we show real names for form/to if they are enforced in the area
                 fromUserName: this.message.fromUserName,
-                toUserName: this.message.toUserName,
+                toUserName: this._viewModeToField(),
                 //  :TODO:
                 //fromRealName
                 //toRealName
@@ -1108,6 +1108,24 @@ exports.FullScreenEditorModule =
             this.setViewText('header', id, text);
         }
 
+        _viewModeToField() {
+            //  Imported messages may have no explicit 'to' on various public forums
+            if (this.message.toUserName) {
+                return this.message.toUserName;
+            }
+
+            const toRemoteUser = _.get(this.message, 'meta.System.remote_to_user');
+            if (toRemoteUser) {
+                return toRemoteUser;
+            }
+
+            if (this.message.isPublic()) {
+                return '(Public)';
+            }
+
+            this.menuConfig.config.remoteUserNotAvail || 'N/A';
+        }
+
         initHeaderViewMode() {
             // Only set header text for from view if it is on the form
             if (
@@ -1115,7 +1133,7 @@ exports.FullScreenEditorModule =
             ) {
                 this.setHeaderText(MciViewIds.header.from, this.message.fromUserName);
             }
-            this.setHeaderText(MciViewIds.header.to, this.message.toUserName);
+            this.setHeaderText(MciViewIds.header.to, this._viewModeToField());
             this.setHeaderText(MciViewIds.header.subject, this.message.subject);
 
             this.setHeaderText(
@@ -1199,7 +1217,7 @@ exports.FullScreenEditorModule =
 
             const outputFileName = paths.join(
                 sysTempDownloadDir,
-                sanatizeFilename(
+                sanitizeFilename(
                     `(${msgInfo.messageId}) ${
                         msgInfo.subject
                     }_(${this.message.modTimestamp.format('YYYY-MM-DD')}).txt`

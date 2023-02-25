@@ -3,6 +3,7 @@ const {
     userFromActorId,
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
+    getActorId,
 } = require('../../../activitypub/util');
 const Endpoints = require('../../../activitypub/endpoint');
 const {
@@ -257,7 +258,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             }
 
             //  Fetch and validate the signature of the remote Actor
-            Actor.fromId(activity.actor, (err, remoteActor) => {
+            Actor.fromId(getActorId(activity), (err, remoteActor) => {
                 if (err) {
                     return this.webServer.internalServerError(resp, err);
                 }
@@ -318,7 +319,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                     activity
                                 );
                             } else {
-                                this.log.warn(`Unsupported Undo for type "${type}`);
+                                this.log.warn(`Unsupported Undo for type "${type}"`);
                             }
                         }
                         break;
@@ -920,7 +921,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                         const accept = Activity.makeAccept(
                             this.webServer,
-                            localActor,
+                            localActor.id,
                             requestActivity
                         );
 

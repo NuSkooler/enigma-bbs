@@ -176,6 +176,10 @@ module.exports = class Actor extends ActivityPubObject {
             }
         };
 
+        if (!id) {
+            return cb(Errors.Invalid('Invalid Actor ID'));
+        }
+
         Actor._fromCache(id, (err, actor, subject, needsRefresh) => {
             if (!err) {
                 // cache hit
