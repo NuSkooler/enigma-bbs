@@ -70,6 +70,14 @@ function _makeRequest(url, options, cb) {
         }
     }
 
+    let cbCalled = false;
+    const cbWrapper = (e, b, r) => {
+        if (!cbCalled) {
+            cbCalled = true;
+            return cb(e, b, r);
+        }
+    };
+
     const req = https.request(url, options, res => {
         let body = [];
         res.on('data', d => {
@@ -80,7 +88,7 @@ function _makeRequest(url, options, cb) {
             body = Buffer.concat(body).toString();
 
             if (res.statusCode < 200 || res.statusCode > 299) {
-                return cb(
+                return cbWrapper(
                     Errors.HttpError(
                         `URL ${url} HTTP error ${res.statusCode}: ${truncate(body, {
                             length: 128,
@@ -89,7 +97,7 @@ function _makeRequest(url, options, cb) {
                 );
             }
 
-            return cb(null, body, res);
+            return cbWrapper(null, body, res);
         });
     });
 
@@ -98,17 +106,17 @@ function _makeRequest(url, options, cb) {
             httpSignature.sign(req, options.sign);
         } catch (e) {
             req.destroy();
-            return cb(Errors.Invalid(`Invalid signing material: ${e}`));
+            return cbWrapper(Errors.Invalid(`Invalid signing material: ${e}`));
         }
     }
 
     req.on('error', err => {
-        return cb(err);
+        return cbWrapper(err);
     });
 
     req.on('timeout', () => {
         req.destroy();
-        return cb(Errors.Timeout('Timeout making HTTP request'));
+        return cbWrapper(Errors.Timeout('Timeout making HTTP request'));
     });
 
     if (options.body) {
