@@ -10,6 +10,7 @@ const {
     ActivityStreamMediaType,
     WellKnownActivity,
     Collections,
+    PublicCollectionId,
 } = require('../../../activitypub/const');
 const Config = require('../../../config').get;
 const Activity = require('../../../activitypub/activity');
@@ -381,7 +382,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             recipientActorIds,
             (actorId, nextActorId) => {
                 switch (actorId) {
-                    case Collection.PublicCollectionId:
+                    case PublicCollectionId:
                         this._deliverNoteToSharedInbox(activity, note, err => {
                             return nextActorId(err);
                         });
@@ -436,6 +437,32 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    _getMatchingObjectsForDeleteRequest(objectId, cb) {
+        async.waterfall(
+            [
+                callback => {
+                    return Collection.objectsById(objectId, callback);
+                },
+                (objectsInfo, callback) => {
+                    Collection.objectByEmbeddedId(objectId, (err, obj, objInfo) => {
+                        if (err) {
+                            return callback(err);
+                        }
+
+                        const allObjsInfo = objectsInfo;
+                        if (obj) {
+                            allObjsInfo.push({ info: objInfo, object: obj });
+                        }
+                        return callback(null, objectsInfo);
+                    });
+                },
+            ],
+            (err, objectsInfo) => {
+                return cb(err, objectsInfo);
+            }
+        );
+    }
+
     _inboxDeleteActivity(inboxType, signature, resp, activity) {
         const objectId = _.get(activity, 'object.id', activity.object);
 
@@ -443,7 +470,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         //  :TODO: we need to DELETE the existing stored Message object if this is a Note, or associated if this is an Actor
         //  :TODO: delete / invalidate any actor cache if actor
-        Collection.objectsById(objectId, (err, objectsInfo) => {
+
+        this._getMatchingObjectsForDeleteRequest(objectId, (err, objectsInfo) => {
             if (err) {
                 this.log.warn({ objectId });
                 // We'll respond accepted so they don't keep trying
@@ -750,7 +778,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _deliverNoteToSharedInbox(activity, note, cb) {
-        this.log.info({ noteId: note.id }, 'Delivering Note to Public inbox');
+        this.log.info(
+            { activityId: activity.id, noteId: note.id },
+            'Delivering Note to Public inbox'
+        );
 
         Collection.addSharedInboxItem(activity, true, err => {
             if (err) {
@@ -768,15 +799,20 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _deliverNoteToLocalActor(actorId, activity, note, cb) {
-        this.log.info(
-            { noteId: note.id, actorId },
-            'Delivering Note to local Actor Private inbox'
-        );
-
+        //  Skip over e.g. actorId = https://someethingsomething/users/Actor/followers
         userFromActorId(actorId, (err, localUser) => {
             if (err) {
+                this.log.trace(
+                    { activityId: activity.id, noteId: note.id, actorId },
+                    `No Actor by ID ${actorId}`
+                );
                 return cb(null); //  not found/etc., just bail
             }
+
+            this.log.info(
+                { activityId: activity.id, noteId: note.id, actorId },
+                'Delivering Note to local Actor Private inbox'
+            );
 
             Collection.addInboxItem(activity, localUser, this.webServer, false, err => {
                 if (err) {

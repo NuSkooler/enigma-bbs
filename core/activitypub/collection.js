@@ -5,7 +5,7 @@ const apDb = require('../database').dbs.activitypub;
 const { getISOTimestampString } = require('../database');
 const { Errors } = require('../enig_error.js');
 const {
-    PublicCollectionId: APPublicCollectionId,
+    PublicCollectionId,
     ActivityStreamMediaType,
     Collections,
     ActorCollectionId,
@@ -21,10 +21,6 @@ const async = require('async');
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
         super(obj);
-    }
-
-    static get PublicCollectionId() {
-        return APPublicCollectionId;
     }
 
     static getRemoteCollectionStats(collectionUrl, cb) {
@@ -162,7 +158,7 @@ module.exports = class Collection extends ActivityPubObject {
         return Collection.addToCollection(
             Collections.SharedInbox,
             null, // N/A
-            Collection.PublicCollectionId,
+            PublicCollectionId,
             inboxItem.id,
             inboxItem,
             false,
@@ -232,7 +228,7 @@ module.exports = class Collection extends ActivityPubObject {
                             ActorCollectionId,
                             Collections.Actors,
                             getISOTimestampString(),
-                            APPublicCollectionId,
+                            PublicCollectionId,
                             actor.id,
                             JSON.stringify(actor),
                             false,
@@ -616,7 +612,7 @@ module.exports = class Collection extends ActivityPubObject {
                 );
             }
         } else {
-            actorId = Collection.APPublicCollectionId;
+            actorId = PublicCollectionId;
         }
 
         isPrivate = isPrivate ? 1 : 0;

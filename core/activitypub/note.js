@@ -9,6 +9,7 @@ const {
     htmlToMessageBody,
     recipientIdsFromObject,
 } = require('./util');
+const { PublicCollectionId } = require('./const');
 const { isAnsi } = require('../string_util');
 
 // deps
@@ -118,9 +119,7 @@ module.exports = class Note extends ActivityPubObject {
                 },
                 (replyToNoteId, fromUser, fromActor, remoteActor, callback) => {
                     const to = [
-                        message.isPrivate()
-                            ? remoteActor.id
-                            : Collection.PublicCollectionId,
+                        message.isPrivate() ? remoteActor.id : PublicCollectionId,
                     ];
 
                     const sourceMediaType = isAnsi(message.message)
