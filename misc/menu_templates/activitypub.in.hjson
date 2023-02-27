@@ -3,19 +3,35 @@
     activityPubMenu: {
       desc: ActivityPub Menu
       art: activitypub_menu
-      prompt: activiytPubMenuCommand
+      prompt: activityPubMenuCommand
       submit: [
         {
           value: {command: "S"}
-          action: @menu:activityPubActorSearch
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubActorSearch
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
         }
         {
           value: {command: "C"}
           action: @menu:activityPubUserConfig
         }
         {
-          value: {command: "S"}
-          action: @menu:activityPubSocialManager
+          value: {command: "M"}
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubSocialManager
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
         }
         {
           value: {command: "Q"}
@@ -24,10 +40,6 @@
         {
           value: { command: "E" }
           action: @menu:privateMailMenu
-        }
-        {
-          value: { command: "G" }
-          action: @menu:fullLogoffSequence
         }
       ]
     }
@@ -82,6 +94,7 @@
         }
       }
     }
+
     activityPubUserConfig: {
       desc: ActivityPub Config
       module: ./activitypub/user_config
@@ -174,6 +187,7 @@
         }
       }
     }
+
     activityPubSocialManager: {
       desc: ActivityPub Social Manager
       module: ./activitypub/social_manager
@@ -205,6 +219,15 @@
             }
           ]
         }
+      }
+    }
+
+    activityPubNotEnabled: {
+      desc: ActivityPub Not Enabled
+      art: activitypub_not_enabled
+      config: {
+        cls: true
+        pause: true
       }
     }
   }

@@ -505,14 +505,30 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 if (inboxType !== collectionName) {
                                     this.log.warn(
                                         { inboxType, collectionName, objectId },
-                                        'Will not Delete object(s) from mismatched collection!'
+                                        'Will not Delete object: Collection mismatch'
                                     );
                                     return nextObjInfo(null);
                                 }
 
-                                // Validate signature
+                                if (
+                                    !this._isSignatureEqual(
+                                        activity.signature,
+                                        objInfo.object.signature
+                                    )
+                                ) {
+                                    this.log.warn(
+                                        { inboxType, collectionName, objectId },
+                                        'Will not Delete object: Signature mismatch'
+                                    );
+                                    return nextObjInfo(null);
+                                }
 
-                                break;
+                                return this._deleteObjectWithStats(
+                                    collectionName,
+                                    objInfo.object,
+                                    stats,
+                                    nextObjInfo
+                                );
 
                             case Collections.Actors:
                                 // Validate signature; Delete Actor and Following entries if any
@@ -526,21 +542,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         }
 
                         return nextObjInfo(null);
-                    } else {
-                        // it's unparsable, so we'll delete it
-                        Collection.removeById(collectionName, objectId, err => {
-                            if (err) {
-                                this.log.warn(
-                                    { objectId, collectionName },
-                                    'Failed to remove object'
-                                );
-                                stats.failed.push({ collectionName, objectId });
-                            } else {
-                                stats.deleted.push({ collectionName, objectId });
-                            }
-                            return nextObjInfo(null);
-                        });
                     }
+
+                    //  Malformed; we'll go ahead and remove
+                    return this._deleteObjectWithStats(
+                        collectionName,
+                        objInfo.object,
+                        stats,
+                        nextObjInfo
+                    );
                 },
                 err => {
                     if (err) {
@@ -554,6 +564,32 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
 
         return this.webServer.accepted(resp);
+    }
+
+    _deleteObjectWithStats(collectionName, object, stats, cb) {
+        const objectId = _.isString(object) ? object : object.id;
+        const type = object.type;
+        Collection.removeById(collectionName, objectId, err => {
+            if (err) {
+                this.log.warn(
+                    { objectId, collectionName, type },
+                    'Failed to remove object'
+                );
+                stats.failed.push({ collectionName, objectId, type });
+            } else {
+                stats.deleted.push({ collectionName, objectId, type });
+            }
+
+            return cb(null);
+        });
+    }
+
+    _isSignatureEqual(sigA, sigB) {
+        return (
+            sigA.type === sigB.type &&
+            sigA.creator === sigB.creator &&
+            sigA.signatureValue === sigB.signatureValue
+        );
     }
 
     _inboxFollowActivity(resp, remoteActor, activity) {
