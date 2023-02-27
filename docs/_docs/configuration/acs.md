@@ -51,6 +51,7 @@ The following are ACS codes available as of this writing:
 | AR<i>authFactorReq</i> | Current user **requires** an Authentication Factor >= _authFactorReq_ |
 | PV[_name,_value_] | Checks that the property by _name_ for the current user is exactly _value_. This ACS allows arbitrary user property values to be checked. For example, `PV[message_conf,local]` checks that the user is currently in the "local" message conference.
 | SE[_service_,_service_,...] | Checks that all services listed by _service_ listed are enabled. Available services: `http`, `https`, `web` (`http` or `https`), `gopher`, `nntp`, `nntps`, `activitypub` (requires `web`), `nodeinfo2` (requires `web`), `webfinger` (requires `web`). Example: `SE[activitypub]`.
+| AE<i>enabled</i> | ActivityPub is _enabled_: 1=true, 0=false |
 
 ## ACS Strings
 ACS strings are one or more ACS codes in addition to some basic language semantics.

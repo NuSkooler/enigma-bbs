@@ -4,6 +4,7 @@
 	const Log       = require('./logger.js').log;
 	const User		= require('./user.js');
 	const Config	= require('./config.js').get;
+	const ActivityPubSettings = require('./activitypub/settings');
 
 	const _			= require('lodash');
 	const moment	= require('moment');
@@ -14,6 +15,14 @@
 	function checkAccess(acsCode, value) {
 		try {
 			return {
+				AE	: function activityPubEnabled() {
+					const apSettings = ActivityPubSettings.fromUser(user);
+					switch(value) {
+						case 0	: return !apSettings.enabled;
+						case 1	: return apSettings.enabled;
+						default	: return false;
+					}
+				},
 				SE	: function servicesEnabled() {
 					if (!Array.isArray(value)) {
 						value = [ value];
