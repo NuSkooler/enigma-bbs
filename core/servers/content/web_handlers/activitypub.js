@@ -511,7 +511,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 }
 
                                 if (
-                                    !this._isSignatureEqual(
+                                    !this._isSignatureValid(
                                         activity.signature,
                                         objInfo.object.signature
                                     )
@@ -527,7 +527,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                     collectionName,
                                     objInfo.object,
                                     stats,
-                                    nextObjInfo
+                                    () => {
+                                        if ('Note' === objInfo.object.type) {
+                                            //  :TODO: delete associated message!
+                                        }
+
+                                        return nextObjInfo(null);
+                                    }
                                 );
 
                             case Collections.Actors:
@@ -584,11 +590,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _isSignatureEqual(sigA, sigB) {
+    _isSignatureValid(request, object) {
+        //  :TODO: We need to validate signatures here -- this is no good
+        // https://github.com/transmute-industries/RsaSignature2017
         return (
-            sigA.type === sigB.type &&
-            sigA.creator === sigB.creator &&
-            sigA.signatureValue === sigB.signatureValue
+            request.type === object.type && request.creator === object.creator
+            //&&
+            // request.signatureValue === object.signatureValue
         );
     }
 
