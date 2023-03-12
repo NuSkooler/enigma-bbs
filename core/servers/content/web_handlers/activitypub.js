@@ -22,6 +22,7 @@ const EnigAssert = require('../../../enigma_assert');
 const Message = require('../../../message');
 const Events = require('../../../events');
 const UserProps = require('../../../user_property');
+const { Errors } = require('../../../enig_error');
 
 // deps
 const _ = require('lodash');
@@ -238,22 +239,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     : this.webServer.notImplemented(resp);
             }
 
-            //
-            //  Delete is a special beast:
-            //  We will *likely* get a 410, 404, or a Tombstone when fetching the Actor
-            //  Thus, we need some short circuiting
-            //
-            if (WellKnownActivity.Delete === activity.type) {
-                return this._inboxDeleteActivity(inboxType, signature, resp, activity);
-            }
-
             //  Fetch and validate the signature of the remote Actor
             Actor.fromId(getActorId(activity), (err, remoteActor) => {
-                if (err) {
-                    return this.webServer.internalServerError(resp, err);
-                }
+                // if (err) {
+                //     return this.webServer.internalServerError(resp, err);
+                // }
 
-                if (!this._validateActorSignature(remoteActor, signature)) {
+                const httpSigValidated =
+                    remoteActor && this._validateActorSignature(remoteActor, signature);
+                if (activity.type !== WellKnownActivity.Delete && !httpSigValidated) {
                     return this.webServer.accessDenied(resp);
                 }
 
@@ -267,11 +261,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     case WellKnownActivity.Create:
                         return this._inboxCreateActivity(resp, activity);
 
+                    case WellKnownActivity.Delete:
+                        return this._inboxDeleteActivity(
+                            inboxType,
+                            signature,
+                            resp,
+                            activity,
+                            httpSigValidated
+                        );
+
                     case WellKnownActivity.Update:
                         {
                             //  Only Notes currently supported
                             const type = _.get(activity, 'object.type');
                             if ('Note' === type) {
+                                //  :TODO: get rid of this extra indirection
                                 return this._inboxMutateExistingObject(
                                     inboxType,
                                     signature,
@@ -463,7 +467,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
-    _inboxDeleteActivity(inboxType, signature, resp, activity) {
+    _inboxDeleteActivity(inboxType, signature, resp, activity, httpSigValidated) {
         const objectId = _.get(activity, 'object.id', activity.object);
 
         this.log.info({ inboxType, objectId }, 'Incoming Delete request');
@@ -510,29 +514,36 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                     return nextObjInfo(null);
                                 }
 
-                                if (
-                                    !this._isSignatureValid(
-                                        activity.signature,
-                                        objInfo.object.signature
-                                    )
-                                ) {
-                                    this.log.warn(
-                                        { inboxType, collectionName, objectId },
-                                        'Will not Delete object: Signature mismatch'
-                                    );
-                                    return nextObjInfo(null);
-                                }
-
-                                return this._deleteObjectWithStats(
-                                    collectionName,
+                                return this._verifyObjectOwner(
+                                    httpSigValidated,
                                     objInfo.object,
-                                    stats,
-                                    () => {
-                                        if ('Note' === objInfo.object.type) {
-                                            //  :TODO: delete associated message!
+                                    activity,
+                                    err => {
+                                        if (err) {
+                                            this.log.warn(
+                                                {
+                                                    error: err.message,
+                                                    inboxType,
+                                                    collectionName,
+                                                    objectId,
+                                                },
+                                                'Will not Delete object: Signature mismatch'
+                                            );
+                                            return nextObjInfo(null);
                                         }
 
-                                        return nextObjInfo(null);
+                                        return this._deleteObjectWithStats(
+                                            collectionName,
+                                            objInfo.object,
+                                            stats,
+                                            () => {
+                                                if ('Note' === objInfo.object.type) {
+                                                    //  :TODO: delete associated message!
+                                                }
+
+                                                return nextObjInfo(null);
+                                            }
+                                        );
                                     }
                                 );
 
@@ -590,13 +601,29 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _isSignatureValid(request, object) {
-        //  :TODO: We need to validate signatures here -- this is no good
-        // https://github.com/transmute-industries/RsaSignature2017
-        return (
-            request.type === object.type && request.creator === object.creator
-            //&&
-            // request.signatureValue === object.signatureValue
+    _verifyObjectOwner(httpSigValidated, object, activity, cb) {
+        if (httpSigValidated) {
+            //  owner signed
+            return cb(null);
+        }
+
+        const creator = activity.signature?.creator;
+        if (creator !== `${object.actor}#main-key`) {
+            return cb(Errors.ValidationFailed('Creator mismatch'));
+        }
+
+        //
+        //  We can't fetch an Actor for deleted Actors, so
+        //  we're left with a basic comparison (above)
+        //
+        if (object.type === 'Actor') {
+            return cb(null);
+        }
+
+        return cb(
+            Errors.ValidationFailed(
+                'Object does not appear to be owned by calling Activity'
+            )
         );
     }
 
@@ -701,6 +728,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _validateActorSignature(actor, signature) {
+        //  :TODO: If we stop enforcing HTTP signatures, we can check LD sigs here
+
         const pubKey = actor.publicKey;
         if (!_.isObject(pubKey)) {
             this.log.debug('Expected object of "pubKey"');
@@ -778,27 +807,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             }
         });
     }
-
-    // _inboxDeleteActivityMutator(inboxType, resp, objectType, targetObjectId) {
-    //     Collection.removeById(inboxType, targetObjectId, err => {
-    //         if (err) {
-    //             return this.webServer.internalServerError(resp, err);
-    //         }
-
-    //         this.log.info(
-    //             {
-    //                 inboxType,
-    //                 objectId: targetObjectId,
-    //                 objectType,
-    //             },
-    //             `${objectType} Deleted`
-    //         );
-
-    //         //  :TODO: we need to DELETE the existing stored Message object if this is a Note
-
-    //         return this.webServer.accepted(resp);
-    //     });
-    // }
 
     _inboxUpdateObjectMutator(inboxType, resp, objectType, targetObjectId, activity) {
         Collection.updateCollectionEntry(inboxType, targetObjectId, activity, err => {
