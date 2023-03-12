@@ -241,10 +241,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             //  Fetch and validate the signature of the remote Actor
             Actor.fromId(getActorId(activity), (err, remoteActor) => {
-                // if (err) {
-                //     return this.webServer.internalServerError(resp, err);
-                // }
-
+                // validate sig up front
                 const httpSigValidated =
                     remoteActor && this._validateActorSignature(remoteActor, signature);
                 if (activity.type !== WellKnownActivity.Delete && !httpSigValidated) {
@@ -264,7 +261,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     case WellKnownActivity.Delete:
                         return this._inboxDeleteActivity(
                             inboxType,
-                            signature,
                             resp,
                             activity,
                             httpSigValidated
@@ -276,12 +272,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             const type = _.get(activity, 'object.type');
                             if ('Note' === type) {
                                 //  :TODO: get rid of this extra indirection
-                                return this._inboxMutateExistingObject(
+                                return this._inboxUpdateExistingObject(
                                     inboxType,
-                                    signature,
                                     resp,
                                     activity,
-                                    this._inboxUpdateObjectMutator.bind(this)
+                                    httpSigValidated
                                 );
                             } else {
                                 this.log.warn(
@@ -467,7 +462,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
-    _inboxDeleteActivity(inboxType, signature, resp, activity, httpSigValidated) {
+    _inboxDeleteActivity(inboxType, resp, activity, httpSigValidated) {
         const objectId = _.get(activity, 'object.id', activity.object);
 
         this.log.info({ inboxType, objectId }, 'Incoming Delete request');
@@ -762,7 +757,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return true;
     }
 
-    _inboxMutateExistingObject(inboxType, signature, resp, activity, mutator) {
+    _inboxUpdateExistingObject(inboxType, resp, activity, httpSigValidated) {
         const targetObjectId = _.get(activity, 'object.id');
         const objectType = _.get(activity, 'object.type');
 
@@ -779,53 +774,44 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            //
-            //  Object exists; Validate we allow the action by origin
-            //  comparing the request's keyId origin to the object's
-            //
-            try {
-                const updateTargetHost = new URL(obj.object.id).host;
-                const keyIdHost = new URL(signature.keyId).host;
-
-                if (updateTargetHost !== keyIdHost) {
+            this._verifyObjectOwner(httpSigValidated, obj, activity, err => {
+                if (err) {
                     this.log.warn(
                         {
-                            targetObjectId,
-                            type: objectType,
-                            updateTargetHost,
-                            keyIdHost,
-                            activityType: activity.type,
+                            error: err.message,
+                            inboxType,
+                            objectId: targetObjectId,
+                            objectType,
                         },
-                        `Attempt to ${activity.type} Object of non-matching origin`
+                        'Will not Update object: Signature mismatch'
                     );
                     return this.webServer.accessDenied(resp);
                 }
 
-                return mutator(inboxType, resp, objectType, targetObjectId, activity);
-            } catch (e) {
-                return this.webServer.internalServerError(resp, e);
-            }
-        });
-    }
-
-    _inboxUpdateObjectMutator(inboxType, resp, objectType, targetObjectId, activity) {
-        Collection.updateCollectionEntry(inboxType, targetObjectId, activity, err => {
-            if (err) {
-                return this.webServer.internalServerError(resp, err);
-            }
-
-            this.log.info(
-                {
+                Collection.updateCollectionEntry(
                     inboxType,
-                    objectId: targetObjectId,
-                    objectType,
-                },
-                `${objectType} Updated`
-            );
+                    targetObjectId,
+                    activity,
+                    err => {
+                        if (err) {
+                            return this.webServer.internalServerError(resp, err);
+                        }
 
-            //  :TODO: we need to UPDATE the existing stored Message object if this is a Note
+                        this.log.info(
+                            {
+                                inboxType,
+                                objectId: targetObjectId,
+                                objectType,
+                            },
+                            `${objectType} Updated`
+                        );
 
-            return this.webServer.accepted(resp);
+                        //  :TODO: we need to UPDATE the existing stored Message object if this is a Note
+
+                        return this.webServer.accepted(resp);
+                    }
+                );
+            });
         });
     }
 
