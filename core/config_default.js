@@ -913,7 +913,7 @@ module.exports = () => {
                 desc: 'Public ActivityPub messages',
 
                 acs: {
-                    read: 'GM[users]SE[activitypub]',
+                    read: 'GM[users]SE[activitypub]AE1',
                 },
 
                 areas: {

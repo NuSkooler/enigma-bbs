@@ -6,6 +6,10 @@
       prompt: activityPubMenuCommand
       submit: [
         {
+          value: { command: "G" }
+          action: @menu:fullLogoffSequence
+        }
+        {
           value: {command: "S"}
           action: [
             {
@@ -40,6 +44,10 @@
         {
           value: { command: "E" }
           action: @menu:privateMailMenu
+        }
+        {
+          value: { command: "P" }
+          action: @menu:activityPubPublicMessages
         }
       ]
     }
@@ -218,6 +226,36 @@
               action: @systemMethod:prevMenu
             }
           ]
+        }
+      }
+    }
+
+    activityPubPublicMessages: {
+      desc: ActivityPub Public
+      module: msg_list
+      art: MSGLIST
+      config: {
+        messageAreaTag: activitypub_shared
+        menuViewPost: messageAreaViewPost
+      }
+      form: {
+        0: {
+          mci:  {
+            VM1: {
+              focus: true
+              submit: true
+              argName: messageIndex
+            }
+          }
+          submit: {
+            *: [
+              {
+                  value: { messageIndex: null }
+                  action: @method:selectMessage
+              }
+            ]
+          }
+          actionKeys: @reference:common.quitToPrev
         }
       }
     }

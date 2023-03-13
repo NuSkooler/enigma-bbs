@@ -1395,6 +1395,22 @@
 				}
 			}
 
+			activityPubPublicMessages: {
+				config: {
+					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 70
+						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}"
+						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}"
+					}
+				}
+			}
+
+			// MRC
 			mrc: {
 				config: {
 					messageFormat: "|00|10<|02{fromUserName}|10>|00 |03{message}|00"
