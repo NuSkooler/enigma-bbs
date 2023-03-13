@@ -532,8 +532,28 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                             objInfo.object,
                                             stats,
                                             () => {
-                                                if ('Note' === objInfo.object.type) {
-                                                    //  :TODO: delete associated message!
+                                                // if it was a Note before...
+                                                if (
+                                                    Collections.Inbox ===
+                                                        objInfo.info.name ||
+                                                    Collections.SharedInbox ===
+                                                        objInfo.info.name
+                                                ) {
+                                                    return Note.deleteAssocMessage(
+                                                        objectId,
+                                                        err => {
+                                                            if (err) {
+                                                                this.log.warn(
+                                                                    {
+                                                                        error: err.message,
+                                                                        noteId: objectId,
+                                                                    },
+                                                                    'Failed to remove message associated with Note'
+                                                                );
+                                                            }
+                                                            return nextObjInfo(null);
+                                                        }
+                                                    );
                                                 }
 
                                                 return nextObjInfo(null);
@@ -576,6 +596,58 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
 
         return this.webServer.accepted(resp);
+    }
+
+    _updateMessageAssocWithNote(objectId, activity) {
+        const filter = {
+            resultType: 'uuid',
+            metaTuples: [
+                {
+                    category: Message.WellKnownMetaCategories.ActivityPub,
+                    name: Message.ActivityPubPropertyNames.NoteId,
+                    value: objectId,
+                },
+            ],
+            limit: 1,
+        };
+
+        Message.findMessages(filter, (err, messageUuid) => {
+            if (!messageUuid) {
+                return this.log.warn(
+                    { messageUuid },
+                    'Failed to find message for Update Note'
+                );
+            }
+
+            messageUuid = messageUuid[0]; // limit 1
+
+            const note = new Note(activity.object);
+            if (!note.isValid()) {
+                return this.log.error('Note within Update does not appear to be valid');
+            }
+
+            const updateOpts = {
+                messageUuid,
+            };
+
+            note.toUpdatedMessage(updateOpts, (err, message) => {
+                if (err) {
+                    return this.log.error(
+                        { error: err.message, messageUuid, step: 'Note to Message' },
+                        'Note Update failed to update underlying message'
+                    );
+                }
+
+                message.update(err => {
+                    if (err) {
+                        this.log.error(
+                            { error: err.message, messageUuid, step: 'Persist' },
+                            'Note Update failed to update underlying message'
+                        );
+                    }
+                });
+            });
+        });
     }
 
     _deleteObjectWithStats(collectionName, object, stats, cb) {
@@ -806,7 +878,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             `${objectType} Updated`
                         );
 
-                        //  :TODO: we need to UPDATE the existing stored Message object if this is a Note
+                        //  Update any assoc Message object
+                        this._updateMessageAssocWithNote(targetObjectId, activity);
 
                         return this.webServer.accepted(resp);
                     }

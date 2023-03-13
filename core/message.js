@@ -708,6 +708,17 @@ module.exports = class Message {
         );
     }
 
+    static deleteByMessageUuid(messageUuid, cb) {
+        msgDb.run(
+            `DELETE FROM message
+            WHERE message_uuid = ?;`,
+            [messageUuid],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
     persistMetaValue(category, name, value, transOrDb, cb) {
         if (!_.isFunction(cb) && _.isFunction(transOrDb)) {
             cb = transOrDb;
@@ -729,6 +740,34 @@ module.exports = class Message {
             value,
             (v, next) => {
                 metaStmt.run(self.messageId, category, name, v, err => {
+                    return next(err);
+                });
+            },
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    updateMetaValue(category, name, value, transOrDb, cb) {
+        if (!_.isFunction(cb) && _.isFunction(transOrDb)) {
+            cb = transOrDb;
+            transOrDb = msgDb;
+        }
+
+        const metaStmt = transOrDb.prepare(
+            `REPLACE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+            VALUES (?, ?, ?, ?);`
+        );
+
+        if (!_.isArray(value)) {
+            value = [value];
+        }
+
+        async.each(
+            value,
+            (v, next) => {
+                metaStmt.run(this.messageId, category, name, v, err => {
                     return next(err);
                 });
             },
@@ -829,6 +868,90 @@ module.exports = class Message {
                 function storeHashTags(trans, callback) {
                     //  :TODO: hash tag support
                     return callback(null, trans);
+                },
+            ],
+            (err, trans) => {
+                if (trans) {
+                    trans[err ? 'rollback' : 'commit'](transErr => {
+                        return cb(err ? err : transErr, self.messageId);
+                    });
+                } else {
+                    return cb(err);
+                }
+            }
+        );
+    }
+
+    update(cb) {
+        if (!this.isValid()) {
+            return cb(Errors.Invalid('Cannot update invalid message!'));
+        }
+
+        if (!this.messageUuid) {
+            return cb(Errors.Invalid("Cannot update without a valid 'messageUUID'"));
+        }
+
+        const self = this;
+
+        async.waterfall(
+            [
+                callback => {
+                    return msgDb.beginTransaction(callback);
+                },
+                (trans, callback) => {
+                    trans.run(
+                        `REPLACE INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+                        [
+                            this.areaTag,
+                            this.messageUuid,
+                            this.replyToMsgId,
+                            this.toUserName,
+                            this.fromUserName,
+                            this.subject,
+                            this.message,
+                            getISOTimestampString(this.modTimestamp),
+                        ],
+                        function inserted(err) {
+                            //  use non-arrow function for 'this' scope
+                            if (!err) {
+                                self.messageId = this.lastID;
+                            }
+
+                            return callback(err, trans);
+                        }
+                    );
+                },
+                (trans, callback) => {
+                    if (!this.meta) {
+                        return callback(null, trans);
+                    }
+
+                    async.each(
+                        Object.keys(this.meta),
+                        (category, nextCat) => {
+                            async.each(
+                                Object.keys(this.meta[category]),
+                                (name, nextName) => {
+                                    this.updateMetaValue(
+                                        category,
+                                        name,
+                                        this.meta[category][name],
+                                        trans,
+                                        err => {
+                                            return nextName(err);
+                                        }
+                                    );
+                                },
+                                err => {
+                                    return nextCat(err);
+                                }
+                            );
+                        },
+                        err => {
+                            return callback(err, trans);
+                        }
+                    );
                 },
             ],
             (err, trans) => {

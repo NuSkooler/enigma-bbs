@@ -100,6 +100,7 @@ module.exports = () => {
                 'server',
                 'client',
                 'notme',
+                'public',
             ],
 
             preAuthIdleLogoutSeconds: 60 * 3, //  3m

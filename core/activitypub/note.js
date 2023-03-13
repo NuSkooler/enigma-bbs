@@ -313,6 +313,89 @@ module.exports = class Note extends ActivityPubObject {
         });
     }
 
+    toUpdatedMessage(options, cb) {
+        const original = new Message();
+        original.load({ uuid: options.messageUuid }, err => {
+            if (err) {
+                return cb(err);
+            }
+
+            //  rebuild message
+            options.areaTag = original.areaTag;
+
+            async.waterfall(
+                [
+                    callback => {
+                        if (!original.isPrivate()) {
+                            options.toUser = 'All';
+                            return callback(null);
+                        }
+
+                        const userId =
+                            original.meta.System[Message.SystemMetaNames.LocalToUserID];
+                        if (!userId) {
+                            return cb(
+                                Errors.MissingProperty(
+                                    `User is missing "${Message.SystemMetaNames.LocalToUserID}" property`
+                                )
+                            );
+                        }
+
+                        User.getUser(userId, (err, user) => {
+                            if (err) {
+                                return callback(err);
+                            }
+
+                            options.toUser = user;
+                            return callback(null);
+                        });
+                    },
+                    callback => {
+                        this.toMessage(options, (err, message) => {
+                            if (err) {
+                                return callback(err);
+                            }
+
+                            //  re-target as message to be updated
+                            message.messageUuid = original.messageUuid;
+
+                            return callback(null, message);
+                        });
+                    },
+                ],
+                (err, message) => {
+                    return cb(err, message);
+                }
+            );
+        });
+    }
+
+    static deleteAssocMessage(noteId, cb) {
+        const filter = {
+            resultType: 'uuid',
+            metaTuples: [
+                {
+                    category: Message.WellKnownMetaCategories.ActivityPub,
+                    name: Message.ActivityPubPropertyNames.NoteId,
+                    value: noteId,
+                },
+            ],
+            limit: 1,
+        };
+
+        return Message.findMessages(filter, (err, messageUuid) => {
+            if (!messageUuid) {
+                return cb(null);
+            }
+
+            messageUuid = messageUuid[0]; // limit 1
+
+            Message.deleteByMessageUuid(messageUuid, err => {
+                return cb(err);
+            });
+        });
+    }
+
     _getSubject(message) {
         if (this.summary) {
             return this.summary.trim();
