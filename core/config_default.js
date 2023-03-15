@@ -923,6 +923,8 @@ module.exports = () => {
                         alwaysExportExternal: true,
                         subjectOptional: true,
                         addressFlavor: 'activitypub',
+                        maxAgeDays: 365 * 2,
+                        maxMessages: 100000,
                     },
                 },
             },

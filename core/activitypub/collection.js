@@ -15,7 +15,7 @@ const { getJson } = require('../http_util');
 
 // deps
 const { isString } = require('lodash');
-const Log = require('../logger');
+const Log = require('../logger').log;
 const async = require('async');
 
 module.exports = class Collection extends ActivityPubObject {
@@ -670,6 +670,64 @@ module.exports = class Collection extends ActivityPubObject {
                 return cb(err);
             }
         );
+    }
+
+    static removeByMaxCount(collectionName, maxCount, cb) {
+        apDb.run(
+            `DELETE FROM collection
+            WHERE _rowid_ IN (
+                SELECT _rowid_
+                FROM collection
+                WHERE name = ?
+                ORDER BY _rowid_ DESC
+                LIMIT -1 OFFSET ${maxCount}
+            );`,
+            [maxCount],
+            function res(err) {
+                // non-arrow function for 'this'
+                Collection._removeByLogHelper(
+                    collectionName,
+                    'MaxCount',
+                    err,
+                    maxCount,
+                    this.changes
+                );
+                return cb(err);
+            }
+        );
+    }
+
+    static removeByMaxAgeDays(collectionName, maxAgeDays, cb) {
+        apDb.run(
+            `DELETE FROM collection
+            WHERE name = ? AND timestamp < DATE('now', '-${maxAgeDays} days');`,
+            [maxAgeDays],
+            function res(err) {
+                // non-arrow function for 'this'
+                Collection._removeByLogHelper(
+                    collectionName,
+                    'MaxAgeDays',
+                    err,
+                    maxAgeDays,
+                    this.changes
+                );
+                return cb(err);
+            }
+        );
+    }
+
+    static _removeByLogHelper(collectionName, type, err, value, deletedCount) {
+        if (err) {
+            Log.error(
+                { collectionName, error: err.message, type, value },
+                'Error trimming collection'
+            );
+        } else {
+            Log.debug(
+                { collectionName, type, value, deletedCount },
+                'Collection trimmed successfully'
+            );
+        }
     }
 
     static _rowToObjectInfo(row) {

@@ -16,6 +16,8 @@ const {
     WellKnownConfTags,
     WellKnownAreaTags,
 } = require('./message_const');
+const Collection = require('./activitypub/collection');
+const { Collections } = require('./activitypub/const');
 
 //  deps
 const async = require('async');
@@ -824,18 +826,69 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 return callback(null, areaInfos);
             },
             function trimGeneralAreas(areaInfos, callback) {
+                const cbWrap = (e, t, c) => {
+                    if (e) {
+                        Log.warn({ error: e.message, type: t }, `Failed trimming (${t})`);
+                    }
+                    return c(null);
+                };
+
+                const ApSharedAreaTag = Message.WellKnownAreaTags.ActivityPubShared;
+
+                //  Clean up messages, and any associated ActivityPub 'SharedInbox'
+                //  Notes (ie: the source of said messages)
                 async.each(
                     areaInfos,
-                    (areaInfo, next) => {
-                        trimMessageAreaByMaxMessages(areaInfo, err => {
-                            if (err) {
-                                return next(err);
+                    (areaInfo, nextArea) => {
+                        async.series(
+                            [
+                                next => {
+                                    trimMessageAreaByMaxMessages(areaInfo, err => {
+                                        return cbWrap(err, 'Messages:MaxCount', next);
+                                    });
+                                },
+                                next => {
+                                    if (areaInfo.areaTag !== ApSharedAreaTag) {
+                                        return next(null);
+                                    }
+                                    Collection.removeByMaxCount(
+                                        Collections.SharedInbox,
+                                        areaInfo.maxMessages,
+                                        err => {
+                                            return cbWrap(
+                                                err,
+                                                'ActivityPubShared:MaxCount',
+                                                next
+                                            );
+                                        }
+                                    );
+                                },
+                                next => {
+                                    trimMessageAreaByMaxAgeDays(areaInfo, err => {
+                                        return cbWrap(err, 'Messages:MaxAgeDays', next);
+                                    });
+                                },
+                                next => {
+                                    if (areaInfo.areaTag !== ApSharedAreaTag) {
+                                        return next(null);
+                                    }
+                                    Collection.removeByMaxAgeDays(
+                                        Collections.SharedInbox,
+                                        areaInfo.maxAgeDays,
+                                        err => {
+                                            return cbWrap(
+                                                err,
+                                                'ActivityPubShared:MaxAgeDays',
+                                                next
+                                            );
+                                        }
+                                    );
+                                },
+                            ],
+                            err => {
+                                return nextArea(err);
                             }
-
-                            trimMessageAreaByMaxAgeDays(areaInfo, err => {
-                                return next(err);
-                            });
-                        });
+                        );
                     },
                     callback
                 );
