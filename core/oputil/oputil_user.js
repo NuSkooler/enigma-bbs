@@ -13,6 +13,7 @@ const getHelpFor = require('./oputil_help.js').getHelpFor;
 const Errors = require('../enig_error.js').Errors;
 const UserProps = require('../user_property.js');
 
+// deps
 const async = require('async');
 const _ = require('lodash');
 const moment = require('moment');
@@ -337,7 +338,9 @@ function modUserGroups(user) {
 }
 
 function showUserInfo(user) {
-    const User = require('../../core/user.js');
+    const User = require('../user');
+    const ActivityPubSettings = require('../activitypub/settings');
+    const { OTPTypes } = require('../user_2fa_otp');
 
     const statusDesc = () => {
         const status = user.properties[UserProps.AccountStatus];
@@ -362,7 +365,9 @@ function showUserInfo(user) {
         return user.properties[UserProps.ThemeId];
     };
 
-    const stdInfo = `User information:
+    const apSettings = ActivityPubSettings.fromUser(user);
+
+    let infoDump = `User information:
 Username     : ${user.username}${user.isRoot() ? ' (root/SysOp)' : ''}
 Real name    : ${propOrNA(UserProps.RealName)}
 ID           : ${user.userId}
@@ -374,27 +379,35 @@ Last login   : ${lastLogin()}
 Login count  : ${propOrNA(UserProps.LoginCount)}
 Email        : ${propOrNA(UserProps.EmailAddress)}
 Location     : ${propOrNA(UserProps.Location)}
-Affiliations : ${propOrNA(UserProps.Affiliations)}`;
-    let secInfo = '';
-    if (argv.security) {
-        const otp = user.getProperty(UserProps.AuthFactor2OTP);
-        if (otp) {
-            const backupCodesOrNa = () => {
-                try {
-                    return JSON.parse(
-                        user.getProperty(UserProps.AuthFactor2OTPBackupCodes)
-                    ).join(', ');
-                } catch (e) {
-                    return 'N/A';
-                }
-            };
-            secInfo = `\n2FA OTP      : ${otp}
-OTP secret   : ${user.getProperty(UserProps.AuthFactor2OTPSecret) || 'N/A'}
-OTP Backup   : ${backupCodesOrNa()}`;
+Affiliations : ${propOrNA(UserProps.Affiliations)}
+ActivityPub  : ${apSettings.enabled ? 'enabled' : 'disabled'}`;
+
+    const otp = user.getProperty(UserProps.AuthFactor2OTP);
+    const oppDesc =
+        {
+            [OTPTypes.RFC6238_TOTP]: 'RFC6238 TOTP',
+            [OTPTypes.RFC4266_HOTP]: 'rfc4266 HOTP',
+            [OTPTypes.GoogleAuthenticator]: 'GoogleAuth',
+        }[otp] || 'disabled';
+    infoDump += `\n2FA OTP      : ${oppDesc}`;
+
+    if (argv.security && otp) {
+        const backupCodesOrNa = () => {
+            try {
+                return JSON.parse(
+                    user.getProperty(UserProps.AuthFactor2OTPBackupCodes)
+                ).join(', ');
+            } catch (e) {
+                return 'N/A';
+            }
+        };
+        infoDump += `\nOTP secret   : ${
+            user.getProperty(UserProps.AuthFactor2OTPSecret) || 'N/A'
         }
+OTP Backup   : ${backupCodesOrNa()}`;
     }
 
-    console.info(`${stdInfo}${secInfo}`);
+    console.info(infoDump);
 }
 
 function twoFactorAuthOTP(user) {

@@ -891,7 +891,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _deliverNoteToSharedInbox(activity, note, cb) {
         this.log.info(
             { activityId: activity.id, noteId: note.id },
-            'Delivering Note to Public inbox'
+            'Delivering Note to Public/Shared inbox'
         );
 
         Collection.addSharedInboxItem(activity, true, err => {
