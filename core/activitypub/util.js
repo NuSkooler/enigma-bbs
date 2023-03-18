@@ -5,6 +5,7 @@ const ActivityPubSettings = require('./settings');
 const { stripAnsiControlCodes } = require('../string_util');
 const { WellKnownRecipientFields } = require('./const');
 const Log = require('../logger').log;
+const { getWebDomain } = require('../web_util');
 
 // deps
 const _ = require('lodash');
@@ -226,8 +227,8 @@ function userNameFromSubject(subject) {
     return subject.replace(/^acct:(.+)$/, '$1');
 }
 
-function userNameToSubject(userName, webServer) {
-    return `@${userName}@${webServer.getDomain()}`;
+function userNameToSubject(userName) {
+    return `@${userName}@${getWebDomain()}`;
 }
 
 function extractMessageMetadata(body) {

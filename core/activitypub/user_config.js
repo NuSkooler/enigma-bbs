@@ -275,16 +275,11 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
 
     _updateCustomViews() {
         const enabledToggleView = this.getView('main', MciViewIds.main.enabledToggle);
-        const ws = this._webServer();
         const enabled = enabledToggleView.isTrue();
         const formatObj = {
             enabled,
             status: enabled ? 'enabled' : 'disabled',
-            subject: enabled
-                ? ws
-                    ? userNameToSubject(this.client.user.username, ws)
-                    : 'N/A'
-                : '',
+            subject: enabled ? userNameToSubject(this.client.user.username) : 'N/A',
         };
 
         this.updateCustomViewTextsWithFilter(

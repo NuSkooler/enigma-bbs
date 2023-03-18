@@ -18,7 +18,7 @@ exports.moduleInfo = {
     packageName: 'codes.l33t.enigma.web.handler.nodeinfo2',
 };
 
-exports.getModule = class NodeInfo2WebHadnler extends WebHandlerModule {
+exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
     constructor() {
         super();
     }

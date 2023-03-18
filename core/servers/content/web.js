@@ -5,6 +5,7 @@ const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
 const { loadModulesForCategory, moduleCategories } = require('../../module_util');
 const WebHandlerModule = require('../../web_handler_module');
+const { getWebDomain } = require('../../web_util');
 
 //  deps
 const http = require('http');
@@ -90,14 +91,7 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     getDomain() {
-        const config = Config();
-        const overridePrefix = _.get(config, 'contentServers.web.overrideUrlPrefix');
-        if (_.isString(overridePrefix)) {
-            const url = new URL(overridePrefix);
-            return url.hostname;
-        }
-
-        return config.contentServers.web.domain;
+        return getWebDomain();
     }
 
     baseUrl() {

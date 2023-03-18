@@ -20,6 +20,7 @@ Commands:
   config                    Configuration management
   fb                        File base management
   mb                        Message base management
+  ap                        ActivityPub management
 `,
     User: `usage: oputil.js user <action> [<arguments>]
 
@@ -208,6 +209,12 @@ qwk-export arguments:
                               TIMESTAMP.
   --no-qwke                   Disable QWKE extensions.
   --no-synchronet             Disable Synchronet style extensions.
+`,
+    ActivityPub: `usage: oputil.js ap <action> [<arguments>]
+Actions:
+  condition USERNAME          Condition user with system ActivityPub defaults
+
+  Instead of an actual USERNAME, the '*' character may be substituted.
 `,
 });
 

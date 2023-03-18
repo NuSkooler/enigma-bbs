@@ -154,7 +154,7 @@ const PREDEFINED_MCI_GENERATORS = {
         if (!webServer) {
             return 'N/A';
         }
-        return userNameToSubject(client.user.username, webServer);
+        return userNameToSubject(client.user.username);
     },
     LO: function location(client) {
         return userStatAsString(client, UserProps.Location, '');
