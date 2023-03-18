@@ -83,7 +83,7 @@ module.exports = class Note extends ActivityPubObject {
                     return User.getUser(localUserId, callback);
                 },
                 (fromUser, callback) => {
-                    Actor.fromLocalUser(fromUser, webServer, (err, fromActor) => {
+                    Actor.fromLocalUser(fromUser, (err, fromActor) => {
                         return callback(err, fromUser, fromActor);
                     });
                 },
@@ -128,7 +128,7 @@ module.exports = class Note extends ActivityPubObject {
 
                     // https://docs.joinmastodon.org/spec/activitypub/#properties-used
                     const obj = {
-                        id: ActivityPubObject.makeObjectId(webServer, 'note'),
+                        id: ActivityPubObject.makeObjectId('note'),
                         type: 'Note',
                         published: getISOTimestampString(message.modTimestamp),
                         to,

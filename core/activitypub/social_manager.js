@@ -280,8 +280,8 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
         const actor = this._actorInfoToActor(actorInfo);
 
         return wantsToFollow
-            ? sendFollowRequest(this.client.user, actor, this.webServer, cb)
-            : sendUnfollowRequest(this.client.user, actor, this.webServer, cb);
+            ? sendFollowRequest(this.client.user, actor, cb)
+            : sendUnfollowRequest(this.client.user, actor, cb);
     }
 
     _actorInfoToActor(actorInfo) {
@@ -339,7 +339,7 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
     }
 
     _fetchActorList(collectionName, cb) {
-        const collectionId = Endpoints[collectionName](this.webServer, this.client.user);
+        const collectionId = Endpoints[collectionName](this.client.user);
         Collection[collectionName](collectionId, 'all', (err, collection) => {
             if (err) {
                 return cb(err);

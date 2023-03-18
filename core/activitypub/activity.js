@@ -17,9 +17,9 @@ module.exports = class Activity extends ActivityPubObject {
         return new Activity(obj);
     }
 
-    static makeFollow(webServer, localActor, remoteActor) {
+    static makeFollow(localActor, remoteActor) {
         return new Activity({
-            id: Activity.activityObjectId(webServer),
+            id: Activity.activityObjectId(),
             type: WellKnownActivity.Follow,
             actor: localActor,
             object: remoteActor.id,
@@ -27,19 +27,19 @@ module.exports = class Activity extends ActivityPubObject {
     }
 
     // https://www.w3.org/TR/activitypub/#accept-activity-inbox
-    static makeAccept(webServer, localActor, followRequest) {
+    static makeAccept(localActor, followRequest) {
         return new Activity({
-            id: Activity.activityObjectId(webServer),
+            id: Activity.activityObjectId(),
             type: WellKnownActivity.Accept,
             actor: localActor,
             object: followRequest, // previous request Activity
         });
     }
 
-    static makeCreate(webServer, actor, obj, context) {
+    static makeCreate(actor, obj, context) {
         const activity = new Activity(
             {
-                id: Activity.activityObjectId(webServer),
+                id: Activity.activityObjectId(),
                 to: obj.to,
                 type: WellKnownActivity.Create,
                 actor,
@@ -76,7 +76,7 @@ module.exports = class Activity extends ActivityPubObject {
         return recipientIdsFromObject(this);
     }
 
-    static activityObjectId(webServer) {
-        return ActivityPubObject.makeObjectId(webServer, 'activity');
+    static activityObjectId() {
+        return ActivityPubObject.makeObjectId('activity');
     }
 };

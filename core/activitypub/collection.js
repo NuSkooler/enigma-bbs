@@ -83,7 +83,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addFollower(owningUser, followingActor, webServer, ignoreDupes, cb) {
+    static addFollower(owningUser, followingActor, ignoreDupes, cb) {
         const collectionId = Endpoints.followers(owningUser);
         return Collection.addToCollection(
             Collections.Followers,
@@ -97,7 +97,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addFollowRequest(owningUser, requestingActor, webServer, ignoreDupes, cb) {
+    static addFollowRequest(owningUser, requestingActor, ignoreDupes, cb) {
         const collectionId = Endpoints.makeUserUrl(owningUser) + 'follow-requests';
         return Collection.addToCollection(
             Collections.FollowRequests,
@@ -111,7 +111,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addFollowing(owningUser, followingActor, webServer, ignoreDupes, cb) {
+    static addFollowing(owningUser, followingActor, ignoreDupes, cb) {
         const collectionId = Endpoints.following(owningUser);
         return Collection.addToCollection(
             Collections.Following,
@@ -125,7 +125,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, ignoreDupes, cb) {
+    static addOutboxItem(owningUser, outboxItem, isPrivate, ignoreDupes, cb) {
         const collectionId = Endpoints.outbox(owningUser);
         return Collection.addToCollection(
             Collections.Outbox,
@@ -139,7 +139,7 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addInboxItem(inboxItem, owningUser, webServer, ignoreDupes, cb) {
+    static addInboxItem(inboxItem, owningUser, ignoreDupes, cb) {
         const collectionId = Endpoints.inbox(owningUser);
         return Collection.addToCollection(
             Collections.Inbox,
@@ -483,7 +483,6 @@ module.exports = class Collection extends ActivityPubObject {
         includePrivate,
         page,
         mapper,
-        webServer,
         cb
     ) {
         const privateQuery = includePrivate ? '' : ' AND is_private = FALSE';

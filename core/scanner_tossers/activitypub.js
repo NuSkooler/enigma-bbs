@@ -125,7 +125,6 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     }
 
                     const activity = Activity.makeCreate(
-                        this._webServer(),
                         note.attributedTo,
                         note,
                         context
@@ -143,42 +142,37 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         allEndpoints,
                         4,
                         (inbox, nextInbox) => {
-                            activity.sendTo(
-                                inbox,
-                                fromUser,
-                                this._webServer(),
-                                (err, respBody, res) => {
-                                    if (err) {
-                                        this.log.warn(
-                                            {
-                                                inbox,
-                                                error: err.message,
-                                            },
-                                            'Failed to send "Note" Activity to Inbox'
-                                        );
-                                    } else if (
-                                        res.statusCode === 200 ||
-                                        res.statusCode === 202
-                                    ) {
-                                        this.log.debug(
-                                            { inbox, uuid: message.uuid },
-                                            'Message delivered to Inbox'
-                                        );
-                                    } else {
-                                        this.log.warn(
-                                            {
-                                                inbox,
-                                                statusCode: res.statusCode,
-                                                body: _.truncate(respBody, 128),
-                                            },
-                                            'Unexpected status code'
-                                        );
-                                    }
-
-                                    //  If we can't send now, no harm, we'll record to the outbox
-                                    return nextInbox(null);
+                            activity.sendTo(inbox, fromUser, (err, respBody, res) => {
+                                if (err) {
+                                    this.log.warn(
+                                        {
+                                            inbox,
+                                            error: err.message,
+                                        },
+                                        'Failed to send "Note" Activity to Inbox'
+                                    );
+                                } else if (
+                                    res.statusCode === 200 ||
+                                    res.statusCode === 202
+                                ) {
+                                    this.log.debug(
+                                        { inbox, uuid: message.uuid },
+                                        'Message delivered to Inbox'
+                                    );
+                                } else {
+                                    this.log.warn(
+                                        {
+                                            inbox,
+                                            statusCode: res.statusCode,
+                                            body: _.truncate(respBody, 128),
+                                        },
+                                        'Unexpected status code'
+                                    );
                                 }
-                            );
+
+                                //  If we can't send now, no harm, we'll record to the outbox
+                                return nextInbox(null);
+                            });
                         },
                         () => {
                             return callback(null, activity, fromUser, note);
@@ -190,7 +184,6 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                         fromUser,
                         activity,
                         message.isPrivate(),
-                        this._webServer(),
                         false, // do not ignore dupes
                         (err, localId) => {
                             if (!err) {

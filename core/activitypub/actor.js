@@ -80,7 +80,7 @@ module.exports = class Actor extends ActivityPubObject {
         ];
     }
 
-    static fromLocalUser(user, webServer, cb) {
+    static fromLocalUser(user, cb) {
         const userActorId = user.getProperty(UserProps.ActivityPubActorId);
         if (!userActorId) {
             return cb(

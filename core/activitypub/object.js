@@ -83,11 +83,11 @@ module.exports = class ActivityPubObject {
         this['@context'] = context;
     }
 
-    static makeObjectId(webServer, objectType) {
+    static makeObjectId(objectType) {
         return Endpoints.objectId(objectType);
     }
 
-    sendTo(inboxEndpoint, fromUser, webServer, cb) {
+    sendTo(inboxEndpoint, fromUser, cb) {
         const privateKey = fromUser.getProperty(UserProps.PrivateActivityPubSigningKey);
         if (isEmpty(privateKey)) {
             return cb(

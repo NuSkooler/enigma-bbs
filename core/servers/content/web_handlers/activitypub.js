@@ -201,7 +201,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
+            Actor.fromLocalUser(localUser, (err, localActor) => {
                 if (err) {
                     return this.webServer.internalServerError(resp, err);
                 }
@@ -715,7 +715,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             Collection.addFollowRequest(
                 localUser,
                 remoteActor,
-                this.webServer,
                 true, // ignore dupes
                 err => {
                     if (err) {
@@ -924,7 +923,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 'Delivering Note to local Actor Private inbox'
             );
 
-            Collection.addInboxItem(activity, localUser, this.webServer, false, err => {
+            Collection.addInboxItem(activity, localUser, false, err => {
                 if (err) {
                     return cb(err);
                 }
@@ -1059,13 +1058,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return Collection.addFollower(
                         localUser,
                         remoteActor,
-                        this.webServer,
                         true, // ignore dupes
                         callback
                     );
                 },
                 callback => {
-                    Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
+                    Actor.fromLocalUser(localUser, (err, localActor) => {
                         if (err) {
                             this.log.warn(
                                 { inbox: remoteActor.inbox, error: err.message },
@@ -1075,7 +1073,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         }
 
                         const accept = Activity.makeAccept(
-                            this.webServer,
                             localActor.id,
                             requestActivity
                         );
@@ -1083,7 +1080,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         accept.sendTo(
                             remoteActor.inbox,
                             localUser,
-                            this.webServer,
                             (err, respBody, res) => {
                                 if (err) {
                                     this.log.warn(
@@ -1152,7 +1148,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         // we'll fall back to the same default profile info as the WebFinger profile
         getUserProfileTemplatedBody(
-            this.webServer,
             templateFile,
             localUser,
             localActor,

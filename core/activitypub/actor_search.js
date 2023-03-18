@@ -256,8 +256,8 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
 
         const actor = this._getSelectedActor(); // actor info -> actor
         return this.selectedActorInfo._isFollowing
-            ? sendFollowRequest(this.client.user, actor, this.webServer, finish)
-            : sendUnfollowRequest(this.client.user, actor, this.webServer, finish);
+            ? sendFollowRequest(this.client.user, actor, finish)
+            : sendUnfollowRequest(this.client.user, actor, finish);
     }
 
     _getSelectedActor() {

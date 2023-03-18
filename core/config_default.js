@@ -321,6 +321,14 @@ module.exports = () => {
                     nodeInfo2: {
                         enabled: true,
                     },
+                    webFinger: {
+                        enabled: false,
+                        profileTemplate: './wf/profile.template.html',
+                    },
+                    activityPub: {
+                        enabled: false,
+                        selfTemplate: './wf/profile.template.html',
+                    },
                 },
 
                 resetPassword: {

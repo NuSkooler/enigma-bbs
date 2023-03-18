@@ -99,13 +99,12 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 templateFile = this.webServer.resolveTemplatePath(templateFile);
             }
 
-            Actor.fromLocalUser(localUser, this.webServer, (err, localActor) => {
+            Actor.fromLocalUser(localUser, (err, localActor) => {
                 if (err) {
                     return this.webServer.internalServerError(resp, err);
                 }
 
                 getUserProfileTemplatedBody(
-                    this.webServer,
                     templateFile,
                     localUser,
                     localActor,

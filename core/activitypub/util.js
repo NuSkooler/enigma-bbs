@@ -99,7 +99,6 @@ function userFromActorId(actorId, cb) {
 }
 
 function getUserProfileTemplatedBody(
-    webServer,
     templateFile,
     user,
     userAsActor,
@@ -147,7 +146,7 @@ function getUserProfileTemplatedBody(
 
                 const varMap = {
                     ACTOR_OBJ: JSON.stringify(userAsActor),
-                    SUBJECT: userNameToSubject(user.username, webServer),
+                    SUBJECT: userNameToSubject(user.username),
                     INBOX: userAsActor.inbox,
                     SHARED_INBOX: userAsActor.endpoints.sharedInbox,
                     OUTBOX: userAsActor.outbox,

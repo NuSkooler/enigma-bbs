@@ -7,7 +7,7 @@ const Collection = require('./collection');
 exports.sendFollowRequest = sendFollowRequest;
 exports.sendUnfollowRequest = sendUnfollowRequest;
 
-function sendFollowRequest(fromUser, toActor, webServer, cb) {
+function sendFollowRequest(fromUser, toActor, cb) {
     const fromActorId = fromUser.getProperty(UserProps.ActivityPubActorId);
     if (!fromActorId) {
         return cb(
@@ -21,23 +21,23 @@ function sendFollowRequest(fromUser, toActor, webServer, cb) {
     //  We expect an async follow up request to our server of
     //  Accept or Reject but it's not guaranteed
     const followRequest = new ActivityPubObject({
-        id: ActivityPubObject.makeObjectId(webServer, 'follow'),
+        id: ActivityPubObject.makeObjectId('follow'),
         type: WellKnownActivity.Follow,
         actor: fromActorId,
         object: toActor.id,
     });
 
     toActor._followRequest = followRequest;
-    Collection.addFollowing(fromUser, toActor, webServer, true, err => {
+    Collection.addFollowing(fromUser, toActor, true, err => {
         if (err) {
             return cb(err);
         }
 
-        return followRequest.sendTo(toActor.inbox, fromUser, webServer, cb);
+        return followRequest.sendTo(toActor.inbox, fromUser, cb);
     });
 }
 
-function sendUnfollowRequest(fromUser, toActor, webServer, cb) {
+function sendUnfollowRequest(fromUser, toActor, cb) {
     const fromActorId = fromUser.getProperty(UserProps.ActivityPubActorId);
     if (!fromActorId) {
         return cb(
@@ -69,13 +69,13 @@ function sendUnfollowRequest(fromUser, toActor, webServer, cb) {
                     }
 
                     const undoRequest = new ActivityPubObject({
-                        id: ActivityPubObject.makeObjectId(webServer, 'undo'),
+                        id: ActivityPubObject.makeObjectId('undo'),
                         type: WellKnownActivity.Undo,
                         actor: fromActorId,
                         object: followedActor._followRequest,
                     });
 
-                    return undoRequest.sendTo(toActor.inbox, fromUser, webServer, cb);
+                    return undoRequest.sendTo(toActor.inbox, fromUser, cb);
                 }
             );
         }
