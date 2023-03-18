@@ -1,4 +1,5 @@
 const { WellKnownLocations } = require('../servers/content/web');
+const { buildUrl } = require('../web_util');
 
 // deps
 const { v4: UUIDv4 } = require('uuid');
@@ -16,46 +17,42 @@ exports.objectId = objectId;
 
 const ActivityPubUsersPrefix = '/ap/users/';
 
-function makeUserUrl(webServer, user, relPrefix = ActivityPubUsersPrefix) {
-    return webServer.buildUrl(
-        WellKnownLocations.Internal + `${relPrefix}${user.username}`
-    );
+function makeUserUrl(user, relPrefix = ActivityPubUsersPrefix) {
+    return buildUrl(WellKnownLocations.Internal + `${relPrefix}${user.username}`);
 }
 
-function inbox(webServer, user) {
-    return makeUserUrl(webServer, user, ActivityPubUsersPrefix) + '/inbox';
+function inbox(user) {
+    return makeUserUrl(user, ActivityPubUsersPrefix) + '/inbox';
 }
 
-function outbox(webServer, user) {
-    return makeUserUrl(webServer, user, ActivityPubUsersPrefix) + '/outbox';
+function outbox(user) {
+    return makeUserUrl(user, ActivityPubUsersPrefix) + '/outbox';
 }
 
-function followers(webServer, user) {
-    return makeUserUrl(webServer, user, ActivityPubUsersPrefix) + '/followers';
+function followers(user) {
+    return makeUserUrl(user, ActivityPubUsersPrefix) + '/followers';
 }
 
-function following(webServer, user) {
-    return makeUserUrl(webServer, user, ActivityPubUsersPrefix) + '/following';
+function following(user) {
+    return makeUserUrl(user, ActivityPubUsersPrefix) + '/following';
 }
 
-function actorId(webServer, user) {
-    return makeUserUrl(webServer, user, ActivityPubUsersPrefix);
+function actorId(user) {
+    return makeUserUrl(user, ActivityPubUsersPrefix);
 }
 
-function profile(webServer, user) {
-    return webServer.buildUrl(WellKnownLocations.Internal + `/wf/@${user.username}`);
+function profile(user) {
+    return buildUrl(WellKnownLocations.Internal + `/wf/@${user.username}`);
 }
 
-function avatar(webServer, user, filename) {
-    return makeUserUrl(webServer, user, '/users/') + `/avatar/${filename}`;
+function avatar(user, filename) {
+    return makeUserUrl(user, '/users/') + `/avatar/${filename}`;
 }
 
-function sharedInbox(webServer) {
-    return webServer.buildUrl(WellKnownLocations.Internal + '/ap/shared-inbox');
+function sharedInbox() {
+    return buildUrl(WellKnownLocations.Internal + '/ap/shared-inbox');
 }
 
-function objectId(webServer, objectType) {
-    return webServer.buildUrl(
-        WellKnownLocations.Internal + `/ap/${UUIDv4()}/${objectType}`
-    );
+function objectId(objectType) {
+    return buildUrl(WellKnownLocations.Internal + `/ap/${UUIDv4()}/${objectType}`);
 }

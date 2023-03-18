@@ -2,6 +2,7 @@ const WebHandlerModule = require('../../../web_handler_module');
 const { Errors } = require('../../../enig_error');
 const EngiAssert = require('../../../enigma_assert');
 const Config = require('../../../config').get;
+const { getFullUrl, getWebDomain } = require('../../../web_util');
 
 // deps
 const paths = require('path');
@@ -28,7 +29,7 @@ exports.getModule = class SystemGeneralWebHandler extends WebHandlerModule {
 
         this.log = webServer.logger().child({ webHandler: 'SysGeneral' });
 
-        const domain = this.webServer.getDomain();
+        const domain = getWebDomain();
         if (!domain) {
             return cb(Errors.UnexpectedState('Web server does not have "domain" set'));
         }
@@ -44,7 +45,7 @@ exports.getModule = class SystemGeneralWebHandler extends WebHandlerModule {
     }
 
     _avatarGetHandler(req, resp) {
-        const url = this.webServer.fullUrl(req);
+        const url = getFullUrl(req);
         const filename = paths.basename(url.pathname);
         if (!filename) {
             return this.webServer.fileNotFound(resp);

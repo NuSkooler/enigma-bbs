@@ -115,14 +115,14 @@ module.exports = class Actor extends ActivityPubObject {
                 ? user.getSanitizedName('real')
                 : user.username,
             endpoints: {
-                sharedInbox: Endpoints.sharedInbox(webServer),
+                sharedInbox: Endpoints.sharedInbox(),
             },
-            inbox: Endpoints.inbox(webServer, user),
-            outbox: Endpoints.outbox(webServer, user),
-            followers: Endpoints.followers(webServer, user),
-            following: Endpoints.following(webServer, user),
+            inbox: Endpoints.inbox(user),
+            outbox: Endpoints.outbox(user),
+            followers: Endpoints.followers(user),
+            following: Endpoints.following(user),
             summary: user.getProperty(UserProps.AutoSignature) || '',
-            url: Endpoints.profile(webServer, user),
+            url: Endpoints.profile(user),
             manuallyApprovesFollowers: userSettings.manuallyApprovesFollowers,
             discoverable: userSettings.discoverable,
             // :TODO: we can start to define BBS related stuff with the community perhaps

@@ -6,6 +6,7 @@ const packageJson = require('../../../../package.json');
 const StatLog = require('../../../stat_log');
 const SysProps = require('../../../system_property');
 const SysLogKeys = require('../../../system_log');
+const { getBaseUrl, getWebDomain } = require('../../../web_util');
 
 // deps
 const moment = require('moment');
@@ -30,7 +31,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
 
         this.log = webServer.logger().child({ webHandler: 'NodeInfo2' });
 
-        const domain = this.webServer.getDomain();
+        const domain = getWebDomain();
         if (!domain) {
             return cb(Errors.UnexpectedState('Web server does not have "domain" set'));
         }
@@ -65,7 +66,7 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
         const nodeInfo = {
             version: '1.0',
             server: {
-                baseUrl: this.webServer.baseUrl(),
+                baseUrl: getBaseUrl(),
                 name: config.general.boardName,
                 software: 'ENiGMA½ Bulletin Board Software',
                 version: packageJson.version,

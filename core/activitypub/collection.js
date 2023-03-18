@@ -84,7 +84,7 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addFollower(owningUser, followingActor, webServer, ignoreDupes, cb) {
-        const collectionId = Endpoints.followers(webServer, owningUser);
+        const collectionId = Endpoints.followers(owningUser);
         return Collection.addToCollection(
             Collections.Followers,
             owningUser,
@@ -98,8 +98,7 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addFollowRequest(owningUser, requestingActor, webServer, ignoreDupes, cb) {
-        const collectionId =
-            Endpoints.makeUserUrl(webServer, owningUser) + 'follow-requests';
+        const collectionId = Endpoints.makeUserUrl(owningUser) + 'follow-requests';
         return Collection.addToCollection(
             Collections.FollowRequests,
             owningUser,
@@ -113,7 +112,7 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addFollowing(owningUser, followingActor, webServer, ignoreDupes, cb) {
-        const collectionId = Endpoints.following(webServer, owningUser);
+        const collectionId = Endpoints.following(owningUser);
         return Collection.addToCollection(
             Collections.Following,
             owningUser,
@@ -127,7 +126,7 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addOutboxItem(owningUser, outboxItem, isPrivate, webServer, ignoreDupes, cb) {
-        const collectionId = Endpoints.outbox(webServer, owningUser);
+        const collectionId = Endpoints.outbox(owningUser);
         return Collection.addToCollection(
             Collections.Outbox,
             owningUser,
@@ -141,7 +140,7 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static addInboxItem(inboxItem, owningUser, webServer, ignoreDupes, cb) {
-        const collectionId = Endpoints.inbox(webServer, owningUser);
+        const collectionId = Endpoints.inbox(owningUser);
         return Collection.addToCollection(
             Collections.Inbox,
             owningUser,
@@ -498,8 +497,7 @@ module.exports = class Collection extends ActivityPubObject {
         }
 
         // e.g. http://somewhere.com/_enig/ap/users/NuSkooler/followers
-        const collectionId =
-            Endpoints.makeUserUrl(webServer, owningUser) + `/${collectionName}`;
+        const collectionId = Endpoints.makeUserUrl(owningUser) + `/${collectionName}`;
 
         if (!page) {
             return apDb.get(

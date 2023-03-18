@@ -299,7 +299,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
     }
 
     _collectFollowersSharedInboxEndpoints(localUser, cb) {
-        const localFollowersEndpoint = Endpoints.followers(this._webServer(), localUser);
+        const localFollowersEndpoint = Endpoints.followers(localUser);
 
         Collection.followers(localFollowersEndpoint, 'all', (err, collection) => {
             if (err) {

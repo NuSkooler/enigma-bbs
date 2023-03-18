@@ -84,7 +84,7 @@ module.exports = class ActivityPubObject {
     }
 
     static makeObjectId(webServer, objectType) {
-        return Endpoints.objectId(webServer, objectType);
+        return Endpoints.objectId(objectType);
     }
 
     sendTo(inboxEndpoint, fromUser, webServer, cb) {
@@ -103,7 +103,7 @@ module.exports = class ActivityPubObject {
             },
             sign: {
                 key: privateKey,
-                keyId: Endpoints.actorId(webServer, fromUser) + '#main-key',
+                keyId: Endpoints.actorId(fromUser) + '#main-key',
                 authorizationHeaderName: 'Signature',
                 headers: HttpSignatureSignHeaders,
             },

@@ -215,6 +215,9 @@ Actions:
   condition USERNAME          Condition user with system ActivityPub defaults
 
   Instead of an actual USERNAME, the '*' character may be substituted.
+
+condition arguments:
+  --force                     Force condition; overrides any existing settings
 `,
 });
 

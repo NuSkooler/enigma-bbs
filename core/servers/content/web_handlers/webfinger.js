@@ -11,6 +11,7 @@ const EngiAssert = require('../../../enigma_assert');
 const User = require('../../../user');
 const UserProps = require('../../../user_property');
 const ActivityPubSettings = require('../../../activitypub/settings');
+const { getFullUrl, buildUrl, getWebDomain } = require('../../../web_util');
 
 // deps
 const _ = require('lodash');
@@ -38,7 +39,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
         this.log = webServer.logger().child({ webHandler: 'WebFinger' });
 
-        const domain = this.webServer.getDomain();
+        const domain = getWebDomain();
         if (!domain) {
             return cb(Errors.UnexpectedState('Web server does not have "domain" set'));
         }
@@ -49,15 +50,9 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
             new RegExp(`^acct:(.+)@${domain}$`),
             // profile page
             // https://webfinger.net/rel/profile-page/
-            new RegExp(
-                `^${this.webServer.buildUrl(WellKnownLocations.Internal + '/wf/@')}(.+)$`
-            ),
+            new RegExp(`^${buildUrl(WellKnownLocations.Internal + '/wf/@')}(.+)$`),
             // self URL
-            new RegExp(
-                `^${this.webServer.buildUrl(
-                    WellKnownLocations.Internal + '/ap/users/'
-                )}(.+)$`
-            ),
+            new RegExp(`^${buildUrl(WellKnownLocations.Internal + '/ap/users/')}(.+)$`),
         ];
 
         this.webServer.addRoute({
@@ -78,7 +73,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
     _profileRequestHandler(req, resp) {
         //  Profile requests do not have an Actor ID available
-        const profileQuery = this.webServer.fullUrl(req).toString();
+        const profileQuery = getFullUrl(req).toString();
         const accountName = this._getAccountName(profileQuery);
         if (!accountName) {
             this.log.warn(
@@ -135,7 +130,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _webFingerRequestHandler(req, resp) {
-        const url = this.webServer.fullUrl(req);
+        const url = getFullUrl(req);
         const resource = url.searchParams.get('resource');
         if (!resource) {
             return this.webServer.respondWithError(
@@ -161,11 +156,10 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            const domain = this.webServer.getDomain();
-
+            const domain = getWebDomain();
             const body = JSON.stringify({
                 subject: `acct:${localUser.username}@${domain}`,
-                aliases: [this._profileUrl(localUser), this._userActorId(localUser)],
+                aliases: [Endpoints.profile(localUser), Endpoints.actorId(localUser)],
                 links: [
                     this._profilePageLink(localUser),
                     this._selfLink(localUser),
@@ -218,12 +212,8 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         });
     }
 
-    _profileUrl(user) {
-        return Endpoints.profile(this.webServer, user);
-    }
-
     _profilePageLink(user) {
-        const href = this._profileUrl(user);
+        const href = Endpoints.profile(user);
         return {
             rel: 'http://webfinger.net/rel/profile-page',
             type: 'text/plain',
@@ -232,12 +222,12 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     }
 
     _userActorId(user) {
-        return Endpoints.actorId(this.webServer, user);
+        return Endpoints.actorId(user);
     }
 
     // :TODO: only if ActivityPub is enabled
     _selfLink(user) {
-        const href = this._userActorId(user);
+        const href = Endpoints.actorId(user);
         return {
             rel: 'self',
             type: 'application/activity+json',
@@ -249,7 +239,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
     _subscribeLink() {
         return {
             rel: 'http://ostatus.org/schema/1.0/subscribe',
-            template: this.webServer.buildUrl(
+            template: buildUrl(
                 WellKnownLocations.Internal + '/ap/authorize_interaction?uri={uri}'
             ),
         };

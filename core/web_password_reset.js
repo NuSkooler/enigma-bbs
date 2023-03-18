@@ -12,6 +12,7 @@ const userDb = require('./database.js').dbs.user;
 const getISOTimestampString = require('./database.js').getISOTimestampString;
 const Log = require('./logger.js').log;
 const UserProps = require('./user_property.js');
+const { buildUrl } = require('./web_util');
 
 //  deps
 const async = require('async');
@@ -121,7 +122,7 @@ class WebPasswordReset {
                 function buildAndSendEmail(user, textTemplate, htmlTemplate, callback) {
                     const sendMail = require('./email.js').sendMail;
 
-                    const resetUrl = webServer.instance.buildUrl(
+                    const resetUrl = buildUrl(
                         WellKnownLocations.Internal +
                             `/sec/reset_password?token=${
                                 user.properties[UserProps.EmailPwResetToken]
@@ -271,7 +272,7 @@ class WebPasswordReset {
                 );
             }
 
-            const postResetUrl = webServer.instance.buildUrl(
+            const postResetUrl = buildUrl(
                 WellKnownLocations.Internal + '/sec/reset_password'
             );
 

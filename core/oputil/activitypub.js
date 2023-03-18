@@ -5,7 +5,6 @@ const {
     initConfigAndDatabases,
 } = require('./oputil_common');
 const getHelpFor = require('./oputil_help.js').getHelpFor;
-const UserProps = require('../user_property');
 const { Errors } = require('../enig_error');
 
 // deps
@@ -48,24 +47,30 @@ function applyAction(username, actionFunc, cb) {
     });
 }
 
-function conditionSingleUser(User, username, userId, settings, cb) {
-    const { userNameToSubject } = require('../activitypub/util');
-    const subject = userNameToSubject(username);
+function conditionSingleUser(user, cb) {
+    const { userNameToSubject, prepareLocalUserAsActor } = require('../activitypub/util');
+
+    const subject = userNameToSubject(user.username);
     if (!subject) {
-        return cb(Errors.General(`Failed to get subject for ${username}`));
+        return cb(Errors.General(`Failed to get subject for ${user.username}`));
     }
 
-    console.info(`Conditioning ${username} (${userId}) -> ${subject}...`);
+    console.info(`Conditioning ${user.username} (${user.userId}) -> ${subject}...`);
+    prepareLocalUserAsActor(user, { force: argv.force }, err => {
+        if (err) {
+            return cb(err);
+        }
 
-    User.persistPropertyByUserId(userId, UserProps.ActivityPubSettings, settings, err => {
-        return cb(err);
+        user.persistProperties(user.properties, err => {
+            if (err) {
+                return cb(err);
+            }
+        });
     });
 }
 
 function actionConditionAllUsers(_, cb) {
     const User = require('../../core/user.js');
-    const ActivityPubSettings = require('../activitypub/settings');
-    const defaultSettings = JSON.stringify(new ActivityPubSettings());
 
     User.getUserList({}, (err, userList) => {
         if (err) {
@@ -75,26 +80,18 @@ function actionConditionAllUsers(_, cb) {
         async.each(
             userList,
             (entry, next) => {
-                conditionSingleUser(
-                    User,
-                    entry.userName,
-                    entry.userId,
-                    defaultSettings,
-                    next
-                );
+                User.getUser(entry.userId, (err, user) => {
+                    if (err) {
+                        return next(err);
+                    }
+                    return conditionSingleUser(user, next);
+                });
             },
             err => {
                 return cb(err);
             }
         );
     });
-}
-
-function actionConditionUser(user, cb) {
-    const User = require('../../core/user.js');
-    const ActivityPubSettings = require('../activitypub/settings');
-    const defaultSettings = JSON.stringify(new ActivityPubSettings());
-    return conditionSingleUser(User, user.username, user.userId, defaultSettings, cb);
 }
 
 function validateActivityPub() {
@@ -116,7 +113,7 @@ function validateActivityPub() {
 function conditionUser(action, username) {
     return applyAction(
         username,
-        '*' === username ? actionConditionAllUsers : actionConditionUser,
+        '*' === username ? actionConditionAllUsers : conditionSingleUser,
         err => {
             if (err) {
                 console.error(err.message);

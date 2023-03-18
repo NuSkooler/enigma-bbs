@@ -4,8 +4,8 @@ const {
     getUserProfileTemplatedBody,
     DefaultProfileTemplate,
     getActorId,
+    prepareLocalUserAsActor,
 } = require('../../../activitypub/util');
-const Endpoints = require('../../../activitypub/endpoint');
 const {
     ActivityStreamMediaType,
     WellKnownActivity,
@@ -21,15 +21,14 @@ const Note = require('../../../activitypub/note');
 const EnigAssert = require('../../../enigma_assert');
 const Message = require('../../../message');
 const Events = require('../../../events');
-const UserProps = require('../../../user_property');
 const { Errors } = require('../../../enig_error');
+const { getFullUrl } = require('../../../web_util');
 
 // deps
 const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
-const paths = require('path');
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -175,7 +174,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _selfUrlRequestHandler(req, resp) {
         this.log.trace({ url: req.url }, 'Request for "self"');
 
-        let actorId = this.webServer.fullUrl(req).toString();
+        let actorId = getFullUrl(req).toString();
         let sendActor = false;
         if (actorId.endsWith('.json')) {
             sendActor = true;
@@ -783,7 +782,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _localUserFromCollectionEndpoint(req, collectionName, cb) {
         //  turn a collection URL to a Actor ID
-        let actorId = this.webServer.fullUrl(req).toString();
+        let actorId = getFullUrl(req).toString();
         const suffix = `/${collectionName}`;
         if (actorId.endsWith(suffix)) {
             actorId = actorId.slice(0, -suffix.length);
@@ -986,7 +985,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return this.webServer.resourceNotFound(resp);
         }
 
-        const url = this.webServer.fullUrl(req);
+        const url = getFullUrl(req);
         const page = url.searchParams.get('page');
         const collectionId = url.toString();
 
@@ -1037,7 +1036,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _singlePublicNoteGetHandler(req, resp) {
         this.log.debug({ url: req.url }, 'Request for "Note"');
 
-        const noteId = this.webServer.fullUrl(req).toString();
+        const noteId = getFullUrl(req).toString();
         Note.fromPublicNoteId(noteId, (err, note) => {
             if (err) {
                 return this.webServer.internalServerError(resp, err);
@@ -1180,42 +1179,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             `Preparing ActivityPub settings for "${user.username}"`
         );
 
-        const actorId = Endpoints.actorId(this.webServer, user);
-        user.setProperty(UserProps.ActivityPubActorId, actorId);
-
-        user.updateActivityPubKeyPairProperties(err => {
-            if (err) {
-                return cb(err);
-            }
-
-            user.generateNewRandomAvatar((err, outPath) => {
-                if (err) {
-                    this.log.warn(
-                        {
-                            username: user.username,
-                            userId: user.userId,
-                            error: err.message,
-                        },
-                        `Failed to generate random avatar for "${user.username}"`
-                    );
-                }
-
-                //  :TODO: fetch over +op default overrides here, e.g. 'enabled'
-                const apSettings = ActivityPubSettings.fromUser(user);
-
-                const filename = paths.basename(outPath);
-                const avatarUrl = Endpoints.avatar(this.webServer, user, filename);
-
-                apSettings.image = avatarUrl;
-                apSettings.icon = avatarUrl;
-
-                user.setProperty(
-                    UserProps.ActivityPubSettings,
-                    JSON.stringify(apSettings)
-                );
-
-                return cb(null);
-            });
-        });
+        return prepareLocalUserAsActor(user, cb);
     }
 };

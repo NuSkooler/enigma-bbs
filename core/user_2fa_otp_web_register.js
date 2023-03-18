@@ -17,6 +17,7 @@ const { sendMail } = require('./email.js');
 const UserProps = require('./user_property.js');
 const Log = require('./logger.js').log;
 const { getConnectionByUserId } = require('./client_connections.js');
+const { buildUrl } = require('./web_util');
 
 //  deps
 const async = require('async');
@@ -75,8 +76,7 @@ module.exports = class User2FA_OTPWebRegister {
                     });
                 },
                 (token, textTemplate, htmlTemplate, callback) => {
-                    const webServer = getWebServer();
-                    const registerUrl = webServer.instance.buildUrl(
+                    const registerUrl = buildUrl(
                         WellKnownLocations.Internal +
                             `/2fa/enable_2fa_otp?token=${token}&otpType=${otpType}`
                     );
@@ -172,7 +172,7 @@ module.exports = class User2FA_OTPWebRegister {
                     return User2FA_OTPWebRegister.accessDenied(webServer, resp);
                 }
 
-                const postUrl = webServer.instance.buildUrl(
+                const postUrl = buildUrl(
                     WellKnownLocations.Internal + '/2fa/enable_2fa_otp'
                 );
                 const config = Config();

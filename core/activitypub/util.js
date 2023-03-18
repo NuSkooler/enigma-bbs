@@ -6,6 +6,7 @@ const { stripAnsiControlCodes } = require('../string_util');
 const { WellKnownRecipientFields } = require('./const');
 const Log = require('../logger').log;
 const { getWebDomain } = require('../web_util');
+const Endpoints = require('./endpoint');
 
 // deps
 const _ = require('lodash');
@@ -30,6 +31,7 @@ exports.userNameFromSubject = userNameFromSubject;
 exports.userNameToSubject = userNameToSubject;
 exports.extractMessageMetadata = extractMessageMetadata;
 exports.recipientIdsFromObject = recipientIdsFromObject;
+exports.prepareLocalUserAsActor = prepareLocalUserAsActor;
 
 //  :TODO: more info in default
 // this profile template is the *default* for both WebFinger
@@ -261,4 +263,44 @@ function recipientIdsFromObject(obj) {
     });
 
     return Array.from(new Set(ids));
+}
+
+function prepareLocalUserAsActor(user, options = { force: false }, cb) {
+    const hasProps =
+        user.getProperty(UserProps.ActivityPubActorId) &&
+        user.getProperty(UserProps.PrivateActivityPubSigningKey) &&
+        user.getProperty(UserProps.PublicActivityPubSigningKey);
+
+    if (hasProps && !options.force) {
+        return cb(null);
+    }
+
+    const actorId = Endpoints.actorId(user);
+    user.setProperty(UserProps.ActivityPubActorId, actorId);
+
+    user.updateActivityPubKeyPairProperties(err => {
+        if (err) {
+            return cb(err);
+        }
+
+        user.generateNewRandomAvatar((err, outPath) => {
+            if (err) {
+                return err;
+            }
+
+            //  :TODO: fetch over +op default overrides here, e.g. 'enabled'
+            const apSettings = ActivityPubSettings.fromUser(user);
+
+            const filename = paths.basename(outPath);
+            const avatarUrl = Endpoints.avatar(user, filename);
+
+            apSettings.image = avatarUrl;
+            apSettings.icon = avatarUrl;
+
+            user.setProperty(UserProps.AvatarImageUrl, avatarUrl);
+            user.setProperty(UserProps.ActivityPubSettings, JSON.stringify(apSettings));
+
+            return cb(null);
+        });
+    });
 }

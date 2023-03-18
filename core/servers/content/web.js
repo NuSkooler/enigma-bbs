@@ -5,7 +5,6 @@ const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
 const { loadModulesForCategory, moduleCategories } = require('../../module_util');
 const WebHandlerModule = require('../../web_handler_module');
-const { getWebDomain } = require('../../web_util');
 
 //  deps
 const http = require('http');
@@ -88,53 +87,6 @@ exports.getModule = class WebServerModule extends ServerModule {
 
     logger() {
         return this.log;
-    }
-
-    getDomain() {
-        return getWebDomain();
-    }
-
-    baseUrl() {
-        const config = Config();
-        const overridePrefix = _.get(config, 'contentServers.web.overrideUrlPrefix');
-        if (overridePrefix) {
-            return overridePrefix;
-        }
-
-        let schema;
-        let port;
-        if (config.contentServers.web.https.enabled) {
-            schema = 'https://';
-            port =
-                443 === config.contentServers.web.https.port
-                    ? ''
-                    : `:${config.contentServers.web.https.port}`;
-        } else {
-            schema = 'http://';
-            port =
-                80 === config.contentServers.web.http.port
-                    ? ''
-                    : `:${config.contentServers.web.http.port}`;
-        }
-
-        return `${schema}${config.contentServers.web.domain}${port}`;
-    }
-
-    fullUrl(req) {
-        const base = this.baseUrl();
-        return new URL(`${base}${req.url}`);
-    }
-
-    buildUrl(pathAndQuery) {
-        //
-        //  Create a URL such as
-        //  https://l33t.codes:44512/ + |pathAndQuery|
-        //
-        //  Prefer HTTPS over HTTP. Be explicit about the port
-        //  only if non-standard. Allow users to override full prefix in config.
-        //
-        const base = this.baseUrl();
-        return `${base}${pathAndQuery}`;
     }
 
     isEnabled() {
