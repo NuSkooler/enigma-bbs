@@ -15,7 +15,7 @@ The script will install `nvm`, Node.js and grab the latest ENiGMA BBS from GitHu
 
 > :information_source: After installing:
 > * Read [External Binaries](../configuration/external-binaries.md)
-> * Read [Updating](../admin/updating.md)
+> * Read [Upgrading](../admin/upgrading.md)
 
 You might also check out some external guides:
 * https://www.maketecheasier.com/create-bbs-linux-with-enigmabbs/

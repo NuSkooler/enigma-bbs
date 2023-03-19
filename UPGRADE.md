@@ -2,52 +2,20 @@
 This document covers information for keeping your system updated through periodic upgrades as well as version-to-version upgrade notes. **Be sure to read these notes for _any_ upgrade!**
 
 # Before Upgrading
-* Always back up your system! (See [Administration](./docs/admin/administration.md))
-* Seriously, always back up your system!
+1. Always back up your system! (See [Administration - Backing Up Your System](./docs/_docs/admin/administration.md#backing-up-your-system))
+2. Seriously, always back up your system!
+3. Review the version to version release notes within this document.
+4. [Upgrade](./docs/_docs/admin/upgrading.md)
 
-# General Notes
-## The Upgrade Process
+# The Upgrade Process
 ENiGMA½ does not currently have much of a "release process" in that instead, it is expected that if you want new features, you will `git pull` them to your system.
 
-You will generally be pulling from `master`, so the process is as follows:
-```bash
-# stop system if running
-cd enigma-bbs
-git pull origin main
-# look for any errors
-rm -rf node_modules # ONLY for Node.js upgrades!
-npm install # or yarn, etc.
-# look for any errors
-node main.js # restart system
-```
-
-![Upgrade Flow](./docs/assets/images/upgrade-flow.png)
-
-
-> :information_source: After upgrading, it is always recommended to look at [UPGRADE.md](UPGRADE.md) and inspect the version-to-version notes as well as the [WHATSNEW](WHATSNEW.md).
-
-## Configuration File Updates
-After an upgrade, **it is possible that your system is missing new features exposed in the default theme/menu layout**. To check this, you can look at the template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files for changes/additions.
-
-Tips:
-* Create a clean checkout of ENiGMA via `git https://github.com/NuSkooler/enigma-bbs.git enigma-bbs-clean` and run it to see any new features within the default configuration
-* As the template files described above are likely what you built your system from, a diff viewer can go a long way!
-
-> :information_source: See [Updating](./docs/admin/updating.md) for details on updating menu files.
-
-# Upgrading the Code
-Upgrading from GitHub is easy:
-
-```bash
-cd /path/to/enigma-bbs
-git pull
-rm -rf npm_modules # do this any time you update Node.js itself
-npm install # or simply 'yarn'
-```
+Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this process.
 
 # Problems
 1. Check [TROUBLESHOOTING](TROUBLESHOOTING.md) first.
-2. Report your issue on [Xibalba BBS](https://xibalba.l33t.codes), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues) if you believe you've found a bug or missing feature.
+2. Report your issue on [Xibalba BBS](https://xibalba.l33t.codes), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues)!
+
 
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
@@ -61,7 +29,6 @@ cp ./misc/menu_templates/activitypub.in.hjson ./config/menus/my_board_name-activ
 This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`.
 
 > :information_source: See [Configuration Files Include Statements](./docs/_docs/configuration/config-files.md#includes) for more information on using `include`.
-
 
 
 ## 0.0.12-beta to 0.0.13-beta

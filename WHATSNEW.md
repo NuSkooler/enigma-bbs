@@ -34,7 +34,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Additional options in the `abracadabra` module for launching doors. See [Local Doors](./docs/modding/local-doors.md)
 
 ## 0.0.12-beta
-* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
+* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Upgrading](./docs/admin/upgrading.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
 * Development now occurs against [Node.js 14 LTS](https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V14.md).
 * The default configuration has been moved to [config_default.js](/core/config_default.js).
 * A full configuration revamp has taken place. Configuration files such as `config.hjson`, `menu.hjson`, and `theme.hjson` can now utilize includes via the `includes` directive, reference 'self' sections using `@reference:` and import environment variables with `@environment`.
