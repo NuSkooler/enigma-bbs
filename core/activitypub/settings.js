@@ -36,18 +36,22 @@ module.exports = class ActivityPubSettings {
         return user.activityPubSettings;
     }
 
-    persistToUserProperties(user, cb = null) {
+    persistToUserProperties(user, cb) {
         return user.persistProperty(
             UserProps.ActivityPubSettings,
             JSON.stringify(this),
             err => {
-                if (!err) {
-                    //  drop from cache
-                    delete user.activityPubSettings;
-                }
-                if (cb) {
+                if (err) {
                     return cb(err);
                 }
+
+                //  drop from cache - force re-cache
+                delete user.activityPubSettings;
+
+                const { prepareLocalUserAsActor } = require('./util');
+                prepareLocalUserAsActor(user, { force: false }, err => {
+                    return cb(err);
+                });
             }
         );
     }

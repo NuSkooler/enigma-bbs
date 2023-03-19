@@ -137,6 +137,7 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
                     `Failed saving ActivityPub settings for user "${user.username}"`
                 );
             }
+
             return this.prevMenu(cb);
         });
     }
