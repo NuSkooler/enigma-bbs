@@ -1,20 +1,39 @@
 # Introduction
-This document covers basic upgrade notes for major ENiGMA½ version updates.
-
-> :information_source: **Be sure to read the version-to-version upgrade notes below** for each upgrade!
+This document covers information for keeping your system updated through periodic upgrades as well as version-to-version upgrade notes. **Be sure to read these notes for _any_ upgrade!**
 
 # Before Upgrading
 * Always back up your system! (See [Administration](./docs/admin/administration.md))
 * Seriously, always back up your system!
 
 # General Notes
+## The Upgrade Process
+ENiGMA½ does not currently have much of a "release process" in that instead, it is expected that if you want new features, you will `git pull` them to your system.
+
+You will generally be pulling from `master`, so the process is as follows:
+```bash
+# stop system if running
+cd enigma-bbs
+git pull origin main
+# look for any errors
+rm -rf node_modules # ONLY for Node.js upgrades!
+npm install # or yarn, etc.
+# look for any errors
+node main.js # restart system
+```
+
+![Upgrade Flow](./docs/assets/images/upgrade-flow.png)
+
+
+> :information_source: After upgrading, it is always recommended to look at [UPGRADE.md](UPGRADE.md) and inspect the version-to-version notes as well as the [WHATSNEW](WHATSNEW.md).
+
 ## Configuration File Updates
-In general, look at template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. <u>These files may come with new sections you wish to merge into your system!</u>
+After an upgrade, **it is possible that your system is missing new features exposed in the default theme/menu layout**. To check this, you can look at the template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files for changes/additions.
 
-### Menus & Theme Updates
-Upgrades often come with changes to the default menu templates found in `misc/menu_templates`. You can use these as references for changes and additions to the default menu sets. This also applies to the default `luciano_blocktronics` theme and it's `theme.hjson` file.
+Tips:
+* Create a clean checkout of ENiGMA via `git https://github.com/NuSkooler/enigma-bbs.git enigma-bbs-clean` and run it to see any new features within the default configuration
+* As the template files described above are likely what you built your system from, a diff viewer can go a long way!
 
-See [Updating](./docs/admin/updating.md) for details on menu files/etc.
+> :information_source: See [Updating](./docs/admin/updating.md) for details on updating menu files.
 
 # Upgrading the Code
 Upgrading from GitHub is easy:
@@ -28,7 +47,7 @@ npm install # or simply 'yarn'
 
 # Problems
 1. Check [TROUBLESHOOTING](TROUBLESHOOTING.md) first.
-2. Report your issue on Xibalba BBS, hop in #`enigma-bbs` on FreeNode and chat, or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues) if you believe you've found a bug or missing feature.
+2. Report your issue on [Xibalba BBS](https://xibalba.l33t.codes), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues) if you believe you've found a bug or missing feature.
 
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
@@ -40,6 +59,9 @@ cp ./misc/menu_templates/activitypub.in.hjson ./config/menus/my_board_name-activ
 ```
 
 This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`.
+
+> :information_source: See [Configuration Files Include Statements](./docs/_docs/configuration/config-files.md#includes) for more information on using `include`.
+
 
 
 ## 0.0.12-beta to 0.0.13-beta
@@ -55,7 +77,7 @@ This will expose the default ActivityPub setup. Enabling ActivityPub functionali
     // position reports, which are not supported on all terminals.
     // Using this with a terminal that does not support cursor
     // position reports results in a 2 second delay during the
-    // connect process, but provides better autoconfiguration of utf-8
+    // connect process, but provides better auto configuration of utf-8
     checkUtf8Encoding: true
 
 

@@ -2,6 +2,8 @@
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
 ## 0.0.14-beta
+* **ActivityPub & Mastodon Support**
+    * A new [ActivityPub Web Handler](./docs/_docs/servers/contentservers/activitypub-handler.md) has been added
 * [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made many changes, **some possibly breaking**:
     * `/static/` prefixes are no longer required. This was a ugly hack.
     * Some internal routes such as those used for password resets live within `/_enig/`.
