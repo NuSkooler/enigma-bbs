@@ -1,6 +1,6 @@
 ---
 layout: page
-title: WebFinger Handler
+title: WebFinger Web Handler
 ---
 The WebFinger ([webfinger.js](/core/servers/content/web_handlers/webfinger.js)) [Handler](./web-handlers.md) provides basic [WebFinger](https://webfinger.net/) ([RFC7033](https://www.rfc-editor.org/rfc/rfc7033)) support, enabling servers such as those participating in the [Mastodon](https://en.wikipedia.org/wiki/Mastodon_(social_network)) [Fediverse](https://en.wikipedia.org/wiki/Fediverse) to discover basic information about a user.
 
