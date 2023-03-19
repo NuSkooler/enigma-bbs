@@ -50,7 +50,10 @@ module.exports = class ActivityPubSettings {
 
                 const { prepareLocalUserAsActor } = require('./util');
                 prepareLocalUserAsActor(user, { force: false }, err => {
-                    return cb(err);
+                    if (err) {
+                        return cb(err);
+                    }
+                    return user.persistProperties(user.properties, cb);
                 });
             }
         );
