@@ -461,8 +461,9 @@ class StatLog {
     _refreshUserPrivateMailCount(client) {
         const MsgArea = require('./message_area');
         MsgArea.getNewMessageCountInAreaForUser(
-            client.user.userId,
+            client.user,
             Message.WellKnownAreaTags.Private,
+            { addrToOnly: false },
             (err, count) => {
                 if (!err) {
                     client.user.setProperty(UserProps.NewPrivateMailCount, count);

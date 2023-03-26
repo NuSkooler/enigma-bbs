@@ -519,8 +519,13 @@ function filterMessageListByReadACS(client, messageList) {
     });
 }
 
-function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
-    getMessageAreaLastReadId(userId, areaTag, (err, lastMessageId) => {
+function getNewMessageCountInAreaForUser(
+    user,
+    areaTag,
+    options = { addrToOnly: false },
+    cb
+) {
+    getMessageAreaLastReadId(user.userId, areaTag, (err, lastMessageId) => {
         lastMessageId = lastMessageId || 0;
 
         const filter = {
@@ -530,7 +535,9 @@ function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
         };
 
         if (Message.isPrivateAreaTag(areaTag)) {
-            filter.privateTagUserId = userId;
+            filter.privateTagUserId = user.userId;
+        } else if (options.addrToOnly) {
+            filter.toUserName = user.username;
         }
 
         Message.findMessages(filter, (err, count) => {
@@ -554,8 +561,9 @@ function getNewMessageCountAddressedToUser(client, cb) {
             getMessageAreaLastReadId(client.user.userId, areaTag, (_, lastMessageId) => {
                 lastMessageId = lastMessageId || 0; // eslint-disable-line no-unused-vars
                 getNewMessageCountInAreaForUser(
-                    client.user.userId,
+                    client.user,
                     areaTag,
+                    { addrToOnly: true },
                     (err, count) => {
                         newMessageCount += count;
                         return nextAreaTag(err);

@@ -157,8 +157,9 @@ exports.getModule = class NewScanModule extends MenuModule {
                 },
                 function getNewMessagesCountInArea(callback) {
                     msgArea.getNewMessageCountInAreaForUser(
-                        self.client.user.userId,
+                        self.client.user,
                         currentArea.areaTag,
+                        { addrToOnly: false },
                         (err, newMessageCount) => {
                             callback(err, newMessageCount);
                         }
