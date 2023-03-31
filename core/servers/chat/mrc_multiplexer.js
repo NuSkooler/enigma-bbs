@@ -219,7 +219,8 @@ exports.getModule = class MrcModule extends ServerModule {
         connectedSockets.forEach(client => {
             if (
                 message.to_user == '' ||
-                message.to_user == client.username ||
+                // Fix PrivMSG delivery on case mismatch
+                message.to_user.toUpperCase() == client.username.toUpperCase() ||
                 message.to_user == 'CLIENT' ||
                 message.from_user == client.username ||
                 message.to_user == 'NOTME'

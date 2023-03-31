@@ -315,6 +315,8 @@
     chatServers: {
         // multi relay chat settings. No need to sign up, just enable it.
         // More info: https://bbswiki.bottomlessabyss.net/index.php?title=MRC_Chat_platform
+        // Make sure to adjust 'prettyBoardName' to your liking in your config before enabling
+
         mrc: {
             enabled             : false
             serverHostname      : 'mrc.bottomlessabyss.net'
