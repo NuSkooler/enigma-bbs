@@ -557,17 +557,24 @@ exports.getModule = class GopherModule extends ServerModule {
                 this.makeItem(ItemTypes.InfoMessage, `Messages in ${area.name}`),
                 this.makeItem(ItemTypes.InfoMessage, '(newest first)'),
                 this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-                ...msgList.map(msg =>
-                    this.makeItem(
+                ...msgList.map(msg => {
+                    let m;
+                    try {
+                        m = moment(msg.modTimestamp);
+                    } catch (e) {
+                        this.log.warn(
+                            `Error parsing "${msg.modTimestamp}"; expected timestamp: ${e.message}`
+                        );
+                        m = moment();
+                    }
+                    return this.makeItem(
                         ItemTypes.TextFile,
-                        `${moment(msg.modTimestamp).format(
-                            'YYYY-MM-DD hh:mma'
-                        )}: ${this.shortenSubject(msg.subject)}  (${
-                            msg.fromUserName
-                        } to ${msg.toUserName})`,
+                        `${m.format('YYYY-MM-DD hh:mma')}: ${this.shortenSubject(
+                            msg.subject
+                        )}  (${msg.fromUserName} to ${msg.toUserName})`,
                         `/msgarea/${confTag}/${areaTag}/${msg.messageUuid}`
-                    )
-                ),
+                    );
+                }),
             ].join('');
 
             this.log.debug({ confTag, areaTag }, 'Gopher serving message list');
