@@ -16,7 +16,7 @@ const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
 const { encode, decode } = require('html-entities');
-const { isString } = require('lodash');
+const { isString, get } = require('lodash');
 const { stripHtml } = require('string-strip-html');
 
 exports.getActorId = o => o.actor?.id || o.actor;
@@ -152,8 +152,8 @@ function getUserProfileTemplatedBody(
                     OUTBOX: userAsActor.outbox,
                     FOLLOWERS: userAsActor.followers,
                     FOLLOWING: userAsActor.following,
-                    USER_ICON: userAsActor.icon.url,
-                    USER_IMAGE: userAsActor.image.url,
+                    USER_ICON: get(userAsActor, 'icon.url', ''),
+                    USER_IMAGE: get(userAsActor, 'image.url', ''),
                     PREFERRED_USERNAME: userAsActor.preferredUsername,
                     NAME: userAsActor.name,
                     SEX: user.getProperty(UserProps.Sex),
