@@ -98,7 +98,8 @@ module.exports = class Actor extends ActivityPubObject {
             const url = userSettings[t];
             if (url) {
                 const fn = paths.basename(url);
-                const mt = mimeTypes.contentType(fn);
+                const mt =
+                    mimeTypes.contentType(fn) || mimeTypes.contentType('dummy.png');
                 if (mt) {
                     o[t] = {
                         mediaType: mt,
