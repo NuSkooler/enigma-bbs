@@ -13,6 +13,8 @@ const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
 const { ActivityStreamMediaType, Collections } = require('./const');
 const Config = require('../config').get;
+const { stripMciColorCodes } = require('../color_codes');
+const { stripAnsiControlCodes } = require('../string_util');
 
 //  deps
 const _ = require('lodash');
@@ -107,6 +109,11 @@ module.exports = class Actor extends ActivityPubObject {
             }
         };
 
+        const summary = stripMciColorCodes(
+            stripAnsiControlCodes(user.getProperty(UserProps.AutoSignature) || ''),
+            { mode: 'nonAsciiPrintable' }
+        );
+
         const obj = {
             id: userActorId,
             type: 'Person',
@@ -121,7 +128,7 @@ module.exports = class Actor extends ActivityPubObject {
             outbox: Endpoints.outbox(user),
             followers: Endpoints.followers(user),
             following: Endpoints.following(user),
-            summary: user.getProperty(UserProps.AutoSignature) || '',
+            summary,
             url: Endpoints.profile(user),
             manuallyApprovesFollowers: userSettings.manuallyApprovesFollowers,
             discoverable: userSettings.discoverable,
