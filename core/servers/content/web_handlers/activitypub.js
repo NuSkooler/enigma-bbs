@@ -1174,6 +1174,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             `Preparing ActivityPub settings for "${user.username}"`
         );
 
-        return prepareLocalUserAsActor(user, cb);
+        return prepareLocalUserAsActor(user, { force: false }, cb);
     }
 };
