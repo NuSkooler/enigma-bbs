@@ -216,7 +216,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _getAssociatedActors(objectActorId, signatureActorId, cb) {
-        signatureActorId = async.waterfall(
+        async.waterfall(
             [
                 callback => {
                     Actor.fromId(objectActorId, (err, objectActor) => {
@@ -268,7 +268,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 getActorId(activity),
                 signature.keyId.split('#', 1)[0], // trim #main-key
                 (err, remoteActor, signatureActor) => {
-                    //Actor.fromId(getActorId(activity), (err, remoteActor) => {
+                    if (err) {
+                        return this.webServer.accept(resp);
+                    }
+
                     // validate sig up front
                     const httpSigValidated =
                         remoteActor &&
