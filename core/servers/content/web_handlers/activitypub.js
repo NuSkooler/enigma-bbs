@@ -215,6 +215,31 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    _getAssociatedActors(objectActorId, signatureActorId, cb) {
+        signatureActorId = async.waterfall(
+            [
+                callback => {
+                    Actor.fromId(objectActorId, (err, objectActor) => {
+                        return callback(err, objectActor);
+                    });
+                },
+                (objectActor, callback) => {
+                    // shortcut
+                    if (objectActorId === signatureActorId) {
+                        return callback(null, objectActor, objectActor);
+                    }
+
+                    Actor.fromId(signatureActorId, (err, signatureActor) => {
+                        return callback(err, objectActor, signatureActor);
+                    });
+                },
+            ],
+            (err, objectActor, signatureActor) => {
+                return cb(err, objectActor, signatureActor);
+            }
+        );
+    }
+
     _inboxPostHandler(req, resp, signature, inboxType) {
         EnigAssert(signature, 'Called without signature!');
         EnigAssert(signature.keyId, 'No keyId in signature!');
@@ -239,89 +264,99 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             }
 
             //  Fetch and validate the signature of the remote Actor
-            Actor.fromId(getActorId(activity), (err, remoteActor) => {
-                // validate sig up front
-                const httpSigValidated =
-                    remoteActor && this._validateActorSignature(remoteActor, signature);
-                if (activity.type !== WellKnownActivity.Delete && !httpSigValidated) {
-                    return this.webServer.accessDenied(resp);
-                }
+            this._getAssociatedActors(
+                getActorId(activity),
+                signature.keyId.split('#', 1)[0], // trim #main-key
+                (err, remoteActor, signatureActor) => {
+                    //Actor.fromId(getActorId(activity), (err, remoteActor) => {
+                    // validate sig up front
+                    const httpSigValidated =
+                        remoteActor &&
+                        this._validateActorSignature(signatureActor, signature);
+                    if (activity.type !== WellKnownActivity.Delete && !httpSigValidated) {
+                        return this.webServer.accessDenied(resp);
+                    }
 
-                switch (activity.type) {
-                    case WellKnownActivity.Accept:
-                        return this._inboxAcceptActivity(resp, activity);
+                    switch (activity.type) {
+                        case WellKnownActivity.Accept:
+                            return this._inboxAcceptActivity(resp, activity);
 
-                    case WellKnownActivity.Add:
-                        break;
+                        case WellKnownActivity.Add:
+                            break;
 
-                    case WellKnownActivity.Create:
-                        return this._inboxCreateActivity(resp, activity);
+                        case WellKnownActivity.Create:
+                            return this._inboxCreateActivity(resp, activity);
 
-                    case WellKnownActivity.Delete:
-                        return this._inboxDeleteActivity(
-                            inboxType,
-                            resp,
-                            activity,
-                            httpSigValidated
-                        );
+                        case WellKnownActivity.Delete:
+                            return this._inboxDeleteActivity(
+                                inboxType,
+                                resp,
+                                activity,
+                                httpSigValidated
+                            );
 
-                    case WellKnownActivity.Update:
-                        {
-                            //  Only Notes currently supported
-                            const type = _.get(activity, 'object.type');
-                            if ('Note' === type) {
-                                //  :TODO: get rid of this extra indirection
-                                return this._inboxUpdateExistingObject(
-                                    inboxType,
-                                    resp,
-                                    activity,
-                                    httpSigValidated
-                                );
-                            } else {
-                                this.log.warn(
-                                    `Unsupported Inbox Update for type "${type}"`
-                                );
+                        case WellKnownActivity.Update:
+                            {
+                                //  Only Notes currently supported
+                                const type = _.get(activity, 'object.type');
+                                if ('Note' === type) {
+                                    //  :TODO: get rid of this extra indirection
+                                    return this._inboxUpdateExistingObject(
+                                        inboxType,
+                                        resp,
+                                        activity,
+                                        httpSigValidated
+                                    );
+                                } else {
+                                    this.log.warn(
+                                        `Unsupported Inbox Update for type "${type}"`
+                                    );
+                                }
                             }
-                        }
-                        break;
+                            break;
 
-                    case WellKnownActivity.Follow:
-                        // Follow requests are only allowed directly
-                        if (Collections.Inbox === inboxType) {
-                            return this._inboxFollowActivity(resp, remoteActor, activity);
-                        }
-                        break;
-
-                    case WellKnownActivity.Reject:
-                        return this._inboxRejectActivity(resp, activity);
-
-                    case WellKnownActivity.Undo:
-                        //  We only Undo from private inboxes
-                        if (Collections.Inbox === inboxType) {
-                            //  Only Follow Undo's currently supported
-                            const type = _.get(activity, 'object.type');
-                            if (WellKnownActivity.Follow === type) {
-                                return this._inboxUndoActivity(
+                        case WellKnownActivity.Follow:
+                            // Follow requests are only allowed directly
+                            if (Collections.Inbox === inboxType) {
+                                return this._inboxFollowActivity(
                                     resp,
                                     remoteActor,
                                     activity
                                 );
-                            } else {
-                                this.log.warn(`Unsupported Undo for type "${type}"`);
                             }
-                        }
-                        break;
+                            break;
 
-                    default:
-                        this.log.warn(
-                            { type: activity.type, inboxType },
-                            `Unsupported Activity type "${activity.type}"`
-                        );
-                        break;
+                        case WellKnownActivity.Reject:
+                            return this._inboxRejectActivity(resp, activity);
+
+                        case WellKnownActivity.Undo:
+                            //  We only Undo from private inboxes
+                            if (Collections.Inbox === inboxType) {
+                                //  Only Follow Undo's currently supported
+                                const type = _.get(activity, 'object.type');
+                                if (WellKnownActivity.Follow === type) {
+                                    return this._inboxUndoActivity(
+                                        resp,
+                                        remoteActor,
+                                        activity
+                                    );
+                                } else {
+                                    this.log.warn(`Unsupported Undo for type "${type}"`);
+                                }
+                            }
+                            break;
+
+                        default:
+                            this.log.warn(
+                                { type: activity.type, inboxType },
+                                `Unsupported Activity type "${activity.type}"`
+                            );
+                            break;
+                    }
+
+                    return this.webServer.notImplemented(resp);
                 }
-
-                return this.webServer.notImplemented(resp);
-            });
+            );
         });
     }
 
@@ -801,17 +836,17 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return false;
         }
 
-        // if (signature.keyId !== pubKey.id) {
-        //     this.log.warn(
-        //         {
-        //             actorId: actor.id,
-        //             signatureKeyId: signature.keyId,
-        //             actorPubKeyId: pubKey.id,
-        //         },
-        //         'Key ID mismatch'
-        //     );
-        //     return false;
-        // }
+        if (signature.keyId !== pubKey.id) {
+            this.log.warn(
+                {
+                    actorId: actor.id,
+                    signatureKeyId: signature.keyId,
+                    actorPubKeyId: pubKey.id,
+                },
+                'Key ID mismatch'
+            );
+            return false;
+        }
 
         if (!httpSignature.verifySignature(signature, pubKey.publicKeyPem)) {
             this.log.warn(
