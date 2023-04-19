@@ -801,23 +801,24 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return false;
         }
 
-        if (signature.keyId !== pubKey.id) {
-            this.log.warn(
-                {
-                    actorId: actor.id,
-                    signatureKeyId: signature.keyId,
-                    actorPubKeyId: pubKey.id,
-                },
-                'Key ID mismatch'
-            );
-            return false;
-        }
+        // if (signature.keyId !== pubKey.id) {
+        //     this.log.warn(
+        //         {
+        //             actorId: actor.id,
+        //             signatureKeyId: signature.keyId,
+        //             actorPubKeyId: pubKey.id,
+        //         },
+        //         'Key ID mismatch'
+        //     );
+        //     return false;
+        // }
 
         if (!httpSignature.verifySignature(signature, pubKey.publicKeyPem)) {
             this.log.warn(
                 {
                     actorId: actor.id,
                     keyId: signature.keyId,
+                    actorPubKeyId: pubKey.id,
                 },
                 'Actor signature verification failed'
             );
