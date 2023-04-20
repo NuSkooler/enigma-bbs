@@ -269,7 +269,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 signature.keyId.split('#', 1)[0], // trim #main-key
                 (err, remoteActor, signatureActor) => {
                     if (err) {
-                        return this.webServer.accept(resp);
+                        return this.webServer.accessDenied(resp);
                     }
 
                     // validate sig up front
