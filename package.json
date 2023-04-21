@@ -39,6 +39,7 @@
         "deepdash": "^5.3.9",
         "easy-table": "^1.2.0",
         "exiftool": "^0.0.3",
+        "follow-redirects": "^1.15.2",
         "fs-extra": "10.1.0",
         "glob": "8.0.3",
         "graceful-fs": "^4.2.10",
