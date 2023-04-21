@@ -2,7 +2,7 @@ const { Errors } = require('./enig_error.js');
 
 // deps
 const { isString, isObject, truncate } = require('lodash');
-const https = require('https');
+const { https } = require('follow-redirects');
 const httpSignature = require('http-signature');
 const crypto = require('crypto');
 

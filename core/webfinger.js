@@ -57,7 +57,11 @@ function queryWebFinger(query, cb) {
         }
 
         const contentType = res.headers['content-type'] || '';
-        if (!contentType.startsWith('application/jrd+json')) {
+        if (
+            !['application/jrd+json', 'application/json'].some(ct =>
+                contentType.startsWith(ct)
+            )
+        ) {
             return cb(
                 Errors.Invalid(
                     `Invalid Content-Type for WebFinger URL ${webFingerUrl}: ${contentType}`

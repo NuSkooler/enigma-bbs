@@ -994,7 +994,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return cb(err);
             }
 
-            message.persist(err => {
+            message.persist((err, messageId) => {
                 if (!err) {
                     if (_.isObject(localAddressedTo)) {
                         localAddressedTo = localAddressedTo.username;
@@ -1004,8 +1004,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             localAddressedTo,
                             activityId,
                             noteId: note.id,
+                            messageId,
                         },
-                        'Note delivered as message to private mailbox'
+                        'Note persisted as local Message'
                     );
                 } else if (err.code === 'SQLITE_CONSTRAINT') {
                     return cb(null);

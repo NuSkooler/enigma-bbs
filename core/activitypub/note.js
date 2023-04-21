@@ -20,7 +20,7 @@ const async = require('async');
 const { isString, isObject, truncate } = require('lodash');
 
 const PublicMessageIdNamespace = 'a26ae389-5dfb-4b24-a58e-5472085c8e42';
-const APDefaultSummary = '[ActivityPub]';
+const APDefaultSummary = '[No Subject]';
 
 module.exports = class Note extends ActivityPubObject {
     constructor(obj) {
@@ -202,20 +202,6 @@ module.exports = class Note extends ActivityPubObject {
 
             message.fromUserName = fromActorSubject || this.attributedTo;
 
-            //
-            //  Note's can be addressed to 1:N users, but a Message is a 1:1
-            //  relationship. This method requires the mapping up front via options
-            //
-            if (isPrivate) {
-                message.toUserName = options.toUser.username;
-                message.meta.System[Message.SystemMetaNames.LocalToUserID] =
-                    options.toUser.userId;
-            } else {
-                message.toUser = 'All';
-            }
-
-            message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
-
             //  :TODO: it would be better to do some basic HTML to ANSI or pipe codes perhaps
             message.message = htmlToMessageBody(
                 // try to handle various implementations
@@ -223,7 +209,11 @@ module.exports = class Note extends ActivityPubObject {
                 // - https://indieweb.org/post-type-discovery#Algorithm
                 this.content || this.name || this.summary
             );
-            message.subject = this._getSubject(message);
+
+            this._setToUserName(message, isPrivate, options.toUser);
+            this._setSubject(message);
+
+            message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
 
             //  List all attachments
             if (Array.isArray(this.attachment) && this.attachment.length > 0) {
@@ -396,13 +386,15 @@ module.exports = class Note extends ActivityPubObject {
         });
     }
 
-    _getSubject(message) {
+    _setSubject(message) {
         if (this.summary) {
-            return this.summary.trim();
+            message.subject = this.summary.trim();
+            return;
         }
 
         if (this.name) {
-            return this.name.trim();
+            message.subject = this.name.trim();
+            return;
         }
 
         //
@@ -421,6 +413,21 @@ module.exports = class Note extends ActivityPubObject {
 
         subject = truncate(subject, { length: 32, omission: '...' });
         subject = subject || APDefaultSummary;
-        return subject;
+        message.subject = subject;
+    }
+
+    _setToUserName(message, isPrivate, toUser) {
+        if (isPrivate) {
+            message.toUserName = toUser.username;
+            message.meta.System[Message.SystemMetaNames.LocalToUserID] = toUser.userId;
+            return;
+        }
+
+        const m = /^@([^ ]+) ./.exec(message.message);
+        if (m && m[1]) {
+            message.toUserName = m[1];
+        }
+
+        message.toUserName = message.toUserName || 'All';
     }
 };
