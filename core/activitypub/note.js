@@ -423,7 +423,7 @@ module.exports = class Note extends ActivityPubObject {
             return;
         }
 
-        const m = /^@([^ ]+) ./.exec(message.message);
+        const m = /^(@[^ ]+) ./.exec(message.message);
         if (m && m[1]) {
             message.toUserName = m[1];
         }
