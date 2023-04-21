@@ -405,7 +405,7 @@ module.exports = class Note extends ActivityPubObject {
         //    or 32 characters in length, whichever comes first
         //  - If not end of string, we'll sub in '...'
         //
-        let subject = message.message.replace(`@${message.toUserName} `, '').trim();
+        let subject = message.message.replace(/^@[^ ]+ /, '').trim();
         const m = /^(.+)\r?\n/.exec(subject);
         if (m && m[1]) {
             subject = m[1];
