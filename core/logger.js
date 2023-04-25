@@ -30,7 +30,7 @@ module.exports = class Log {
         const serializers = Log.standardSerializers();
 
         this.log = bunyan.createLogger({
-            name: 'ENiGMA½ BBS',
+            name: 'ENiGMA½',
             streams: logStreams,
             serializers: serializers,
         });

@@ -19,7 +19,7 @@ module.exports = class WebLog {
         serializers.res = bunyan.stdSerializers.res;
 
         const webLog = bunyan.createLogger({
-            name: 'ENiGMA½ BBS[Web]',
+            name: 'ENiGMA½',
             streams: [rotatingFile],
             serializers,
         });

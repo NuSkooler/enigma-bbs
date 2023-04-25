@@ -1,5 +1,5 @@
 //  ENiGMA½
-const Log = require('../../logger.js').log;
+const SysLog = require('../../logger.js').log;
 const ServerModule = require('../../server_module.js').ServerModule;
 const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
@@ -75,7 +75,6 @@ exports.getModule = class WebServerModule extends ServerModule {
     constructor() {
         super();
 
-        //this.log = Log.child({ server: 'Web' });
         this.log = WebLog.createWebLog();
 
         const config = Config();
@@ -133,14 +132,14 @@ exports.getModule = class WebServerModule extends ServerModule {
                 try {
                     const normalizedName = _.camelCase(module.moduleInfo.name);
                     if (!WebHandlerModule.isEnabled(normalizedName)) {
-                        this.log.info(
+                        SysLog.info(
                             { moduleName: normalizedName },
                             'Web handler module not enabled'
                         );
                         return nextModule(null);
                     }
 
-                    Log.info(
+                    SysLog.info(
                         { moduleName: normalizedName },
                         'Initializing web handler module'
                     );
@@ -149,7 +148,7 @@ exports.getModule = class WebServerModule extends ServerModule {
                         return nextModule(err);
                     });
                 } catch (e) {
-                    this.log.error(
+                    SysLog.error(
                         { error: e.message },
                         'Exception caught loading web handler'
                     );
@@ -171,7 +170,7 @@ exports.getModule = class WebServerModule extends ServerModule {
                 if (this[name]) {
                     const port = parseInt(config.contentServers.web[service].port);
                     if (isNaN(port)) {
-                        this.log.error(
+                        SysLog.error(
                             {
                                 port: config.contentServers.web[service].port,
                                 server: ModuleInfo.name,
@@ -206,7 +205,7 @@ exports.getModule = class WebServerModule extends ServerModule {
         route = new Route(route);
 
         if (!route.isValid()) {
-            this.log.error(
+            SysLog.error(
                 { route: route },
                 'Cannot add route: missing or invalid required members'
             );
@@ -215,7 +214,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 
         const routeKey = route.getRouteKey();
         if (routeKey in this.routes) {
-            this.log.warn(
+            SysLog.warn(
                 { route: route, routeKey: routeKey },
                 'Cannot add route: duplicate method/path combination exists'
             );
