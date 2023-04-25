@@ -1395,6 +1395,23 @@
 				}
 			}
 
+			activityPubPostPublicMessage: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+						ET4: { width: 21, textOverflow: "..." }
+						//TL4: { width: 25 }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
 			activityPubPublicMessages: {
 				config: {
 					dateTimeFormat: ddd MMM Do

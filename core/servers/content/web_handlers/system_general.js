@@ -27,8 +27,6 @@ exports.getModule = class SystemGeneralWebHandler extends WebHandlerModule {
         this.webServer = webServer;
         EngiAssert(webServer, 'System General Web Handler init without webServer');
 
-        this.log = webServer.logger().child({ webHandler: 'SysGeneral' });
-
         const domain = getWebDomain();
         if (!domain) {
             return cb(Errors.UnexpectedState('Web server does not have "domain" set'));

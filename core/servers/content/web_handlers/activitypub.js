@@ -6,6 +6,7 @@ const {
     getActorId,
     prepareLocalUserAsActor,
 } = require('../../../activitypub/util');
+const SysLog = require('../../../logger').log;
 const {
     ActivityStreamMediaType,
     WellKnownActivity,
@@ -182,7 +183,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         }
 
         // Additionally, serve activity JSON if the proper 'Accept' header was sent
-        const accept = req.headers['accept'].split(',').map(v => v.trim()) || ['*/*'];
+        const accept = (req.headers.accept &&
+            req.headers.accept.split(',').map(v => v.trim())) || ['*/*'];
         const headerValues = [
             ActivityStreamMediaType,
             'application/ld+json',
@@ -396,7 +398,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _inboxAcceptFollowActivity(resp, activity) {
         // Currently Accept's to Follow's are really just a formality;
         // we'll log it, but that's about it for now
-        this.log.info(
+        SysLog.info(
             {
                 remoteActorId: activity.actor,
                 localActorId: _.get(activity, 'object.actor'),
@@ -626,7 +628,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         //  :TODO: log me
                     }
 
-                    this.log.info({ stats, inboxType }, 'Inbox Delete request complete');
+                    SysLog.info({ stats, inboxType }, 'Inbox Delete request complete');
                     return this.webServer.accepted(resp);
                 }
             );
@@ -802,7 +804,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return this.webServer.internalServerError(resp, err);
                     }
 
-                    this.log.info(
+                    SysLog.info(
                         {
                             username: localUser.username,
                             userId: localUser.userId,
@@ -906,7 +908,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             return this.webServer.internalServerError(resp, err);
                         }
 
-                        this.log.info(
+                        SysLog.info(
                             {
                                 inboxType,
                                 objectId: targetObjectId,
@@ -926,7 +928,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _deliverNoteToSharedInbox(activity, note, cb) {
-        this.log.info(
+        SysLog.info(
             { activityId: activity.id, noteId: note.id },
             'Delivering Note to Public/Shared inbox'
         );
@@ -957,9 +959,14 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return cb(null); //  not found/etc., just bail
             }
 
-            this.log.info(
-                { activityId: activity.id, noteId: note.id, actorId },
-                'Delivering Note to local Actor Private inbox'
+            this.sysLog.info(
+                {
+                    activityId: activity.id,
+                    noteId: note.id,
+                    actorId,
+                    username: localUser.username,
+                },
+                `Delivering private Note to local Actor "${localUser.username}"`
             );
 
             Collection.addInboxItem(activity, localUser, false, err => {
@@ -1209,7 +1216,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _prepareNewUserAsActor(user, cb) {
-        this.log.info(
+        this.sysLog.info(
             { username: user.username, userId: user.userId },
             `Preparing ActivityPub settings for "${user.username}"`
         );
