@@ -48,6 +48,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         enigma_assert(webServer, 'ActivityPub Web Handler init without webServer');
 
         this.log = webServer.logger().child({ webHandler: 'ActivityPub' });
+        this.sysLog = SysLog.child({ webHandler: 'ActivityPub' });
 
         Events.addListener(Events.getSystemEvents().NewUserPrePersist, eventInfo => {
             const { user, callback } = eventInfo;
@@ -398,7 +399,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _inboxAcceptFollowActivity(resp, activity) {
         // Currently Accept's to Follow's are really just a formality;
         // we'll log it, but that's about it for now
-        SysLog.info(
+        this.log.info(
             {
                 remoteActorId: activity.actor,
                 localActorId: _.get(activity, 'object.actor'),
@@ -628,7 +629,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         //  :TODO: log me
                     }
 
-                    SysLog.info({ stats, inboxType }, 'Inbox Delete request complete');
+                    this.sysLog.info(
+                        { stats, inboxType },
+                        `AP: ${_.startCase(inboxType)} delete request complete (${
+                            stats.deleted.length
+                        })`
+                    );
                     return this.webServer.accepted(resp);
                 }
             );
@@ -804,7 +810,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return this.webServer.internalServerError(resp, err);
                     }
 
-                    SysLog.info(
+                    this.log.info(
                         {
                             username: localUser.username,
                             userId: localUser.userId,
@@ -908,13 +914,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             return this.webServer.internalServerError(resp, err);
                         }
 
-                        SysLog.info(
+                        this.sysLog.info(
                             {
                                 inboxType,
                                 objectId: targetObjectId,
                                 objectType,
                             },
-                            `${objectType} Updated`
+                            `AP: ${_.startCase(inboxType)} '${objectType}' updated`
                         );
 
                         //  Update any assoc Message object
@@ -928,9 +934,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _deliverNoteToSharedInbox(activity, note, cb) {
-        SysLog.info(
+        this.log.info(
             { activityId: activity.id, noteId: note.id },
-            'Delivering Note to Public/Shared inbox'
+            "Delivering 'Note' to Public/Shared inbox"
         );
 
         Collection.addSharedInboxItem(activity, true, err => {
@@ -966,7 +972,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     actorId,
                     username: localUser.username,
                 },
-                `Delivering private Note to local Actor "${localUser.username}"`
+                `AP: Delivering private 'Note' to user "${localUser.username}"`
             );
 
             Collection.addInboxItem(activity, localUser, false, err => {
@@ -1006,14 +1012,15 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     if (_.isObject(localAddressedTo)) {
                         localAddressedTo = localAddressedTo.username;
                     }
-                    this.log.info(
+
+                    this.sysLog.info(
                         {
                             localAddressedTo,
                             activityId,
                             noteId: note.id,
                             messageId,
                         },
-                        'Note persisted as local Message'
+                        `AP: Saved 'Note' to "${localAddressedTo}" as message ${messageId}`
                     );
                 } else if (err.code === 'SQLITE_CONSTRAINT') {
                     return cb(null);
@@ -1218,7 +1225,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _prepareNewUserAsActor(user, cb) {
         this.sysLog.info(
             { username: user.username, userId: user.userId },
-            `Preparing ActivityPub settings for "${user.username}"`
+            `AP: Preparing ActivityPub settings for "${user.username}"`
         );
 
         return prepareLocalUserAsActor(user, { force: false }, cb);
