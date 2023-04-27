@@ -1622,6 +1622,9 @@ function FTNMessageScanTossModule() {
                         const addrString = new Address(
                             packetHeader.destAddress
                         ).toString();
+
+                        importStats.otherFail += 1;
+
                         return next(
                             new Error(
                                 `No local configuration for packet addressed to ${addrString}`
