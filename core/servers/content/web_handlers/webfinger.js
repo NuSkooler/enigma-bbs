@@ -117,7 +117,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
                         const headers = {
                             'Content-Type': contentType,
-                            'Content-Length': Buffer(body).length,
+                            'Content-Length': Buffer.from(body).length,
                         };
 
                         resp.writeHead(200, headers);
@@ -168,7 +168,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
 
             const headers = {
                 'Content-Type': 'application/jrd+json',
-                'Content-Length': Buffer(body).length,
+                'Content-Length': Buffer.from(body).length,
             };
 
             resp.writeHead(200, headers);
