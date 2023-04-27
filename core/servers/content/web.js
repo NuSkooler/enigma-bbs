@@ -1,5 +1,5 @@
 //  ENiGMA½
-const SysLog = require('../../logger.js').log;
+const SysLogger = require('../../logger.js').log;
 const ServerModule = require('../../server_module.js').ServerModule;
 const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
@@ -132,14 +132,14 @@ exports.getModule = class WebServerModule extends ServerModule {
                 try {
                     const normalizedName = _.camelCase(module.moduleInfo.name);
                     if (!WebHandlerModule.isEnabled(normalizedName)) {
-                        SysLog.info(
+                        SysLogger.info(
                             { moduleName: normalizedName },
                             'Web handler module not enabled'
                         );
                         return nextModule(null);
                     }
 
-                    SysLog.info(
+                    SysLogger.info(
                         { moduleName: normalizedName },
                         'Initializing web handler module'
                     );
@@ -148,7 +148,7 @@ exports.getModule = class WebServerModule extends ServerModule {
                         return nextModule(err);
                     });
                 } catch (e) {
-                    SysLog.error(
+                    SysLogger.error(
                         { error: e.message },
                         'Exception caught loading web handler'
                     );
@@ -170,12 +170,12 @@ exports.getModule = class WebServerModule extends ServerModule {
                 if (this[name]) {
                     const port = parseInt(config.contentServers.web[service].port);
                     if (isNaN(port)) {
-                        SysLog.error(
+                        SysLogger.error(
                             {
                                 port: config.contentServers.web[service].port,
                                 server: ModuleInfo.name,
                             },
-                            `Invalid port (${service})`
+                            `Invalid web port (${service})`
                         );
                         return nextService(
                             Errors.Invalid(
@@ -205,16 +205,13 @@ exports.getModule = class WebServerModule extends ServerModule {
         route = new Route(route);
 
         if (!route.isValid()) {
-            SysLog.error(
-                { route: route },
-                'Cannot add route: missing or invalid required members'
-            );
+            SysLogger.error({ route: route }, 'Cannot add invalid route');
             return false;
         }
 
         const routeKey = route.getRouteKey();
         if (routeKey in this.routes) {
-            SysLog.warn(
+            SysLogger.warn(
                 { route: route, routeKey: routeKey },
                 'Cannot add route: duplicate method/path combination exists'
             );
