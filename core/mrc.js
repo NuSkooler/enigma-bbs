@@ -379,7 +379,9 @@ exports.getModule = class mrcModule extends MenuModule {
                 }
 
                 // Deliver PrivMsg
-                else if (message.to_user.toLowerCase() == this.state.alias.toLowerCase()) {
+                else if (
+                    message.to_user.toLowerCase() == this.state.alias.toLowerCase()
+                ) {
                     const currentTime = moment().format(
                         this.client.currentTheme.helpers.getTimeFormat()
                     );
@@ -387,8 +389,6 @@ exports.getModule = class mrcModule extends MenuModule {
                         '|08' + currentTime + '|00 ' + message.body + '|00'
                     );
                 }
-
-
             }
 
             this.viewControllers.mrcChat.switchFocus(MciViewIds.mrcChat.inputArea);
@@ -563,47 +563,35 @@ exports.getModule = class mrcModule extends MenuModule {
              * Process known additional server commands directly
              */
             case 'afk':
-                this.sendServerMessage(
-                    `AFK ${message.substr(5)}`
-                );
+                this.sendServerMessage(`AFK ${message.substr(5)}`);
                 break;
 
             case 'roomconfig':
-                this.sendServerMessage(
-                    `ROOMCONFIG ${message.substr(12)}`
-                );
+                this.sendServerMessage(`ROOMCONFIG ${message.substr(12)}`);
                 break;
 
             case 'roompass':
-                this.sendServerMessage(
-                    `ROOMPASS ${message.substr(12)}`
-                );
+                this.sendServerMessage(`ROOMPASS ${message.substr(12)}`);
                 break;
 
             case 'status':
-                this.sendServerMessage(
-                    `STATUS ${message.substr(8)}`
-                );
+                this.sendServerMessage(`STATUS ${message.substr(8)}`);
                 break;
 
             case 'lastseen':
-                this.sendServerMessage(
-                    `LASTSEEN ${message.substr(10)}`
-                );
+                this.sendServerMessage(`LASTSEEN ${message.substr(10)}`);
                 break;
-    
+
             case 'help':
-                this.sendServerMessage(
-                    `HELP ${message.substr(6)}`
-                );
+                this.sendServerMessage(`HELP ${message.substr(6)}`);
                 break;
-    
+
             case 'statistics':
             case 'changelog':
             case 'listbans':
             case 'listmutes':
             case 'routing':
-                    this.sendServerMessage(cmd[0].toUpperCase());
+                this.sendServerMessage(cmd[0].toUpperCase());
                 break;
 
             case 'quit':

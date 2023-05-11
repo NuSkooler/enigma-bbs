@@ -692,6 +692,30 @@ function exportQWKPacket() {
     );
 }
 
+const listConferences = () => {
+    initConfigAndDatabases(err => {
+        if (err) {
+            return console.error(err.reason ? err.reason : err.message);
+        }
+
+        const { getSortedAvailMessageConferences } = require('../../core/message_area');
+
+        const conferences = getSortedAvailMessageConferences(null, { noClient: true });
+
+        for (let conf of conferences) {
+            console.info(`${conf.confTag} - ${conf.conf.name}`);
+
+            if (!argv.areas) {
+                continue;
+            }
+
+            for (let areaTag of Object.keys(conf.conf.areas)) {
+                console.info(`  ${areaTag} - ${conf.conf.areas[areaTag].name}`);
+            }
+        }
+    });
+};
+
 function handleMessageBaseCommand() {
     function errUsage() {
         return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
@@ -709,6 +733,7 @@ function handleMessageBaseCommand() {
             'import-areas': importAreas,
             'qwk-dump': dumpQWKPacket,
             'qwk-export': exportQWKPacket,
+            'list-confs': listConferences,
         }[action] || errUsage
     )();
 }
