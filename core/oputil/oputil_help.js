@@ -184,6 +184,12 @@ General Information:
 Actions:
   list-confs                  List conferences and areas
 
+  post PATH                   Posts a message file specified in PATH.
+                              PATH must point to a UTF-8 encoded JSON file
+                              containing 'to', 'from', 'subject', 'areaTag', and
+                              'body'. If 'timestamp' is present, the system will
+                              attempt to use it.
+
   areafix CMD1 CMD2 ... ADDR  Sends an AreaFix NetMail
 
   NetMail is sent to supplied address  with the supplied command(s). Multi-part commands
