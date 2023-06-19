@@ -595,7 +595,7 @@
 				}
 			}
 
-			messageBaseSearchMessageList: {
+			messageBaseSearchResultsMessageList: {
 				config: {
 					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 					//	Fri Sep 25th
