@@ -124,9 +124,12 @@ module.exports = class User {
         return isMember;
     }
 
+    realName() {
+        return this.getProperty(UserProps.RealName) || this.username;
+    }
+
     getSanitizedName(type = 'username') {
-        const name =
-            'real' === type ? this.getProperty(UserProps.RealName) : this.username;
+        const name = 'real' === type ? this.realName() : this.username;
         return sanatizeFilename(name) || `user${this.userId.toString()}`;
     }
 

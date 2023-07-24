@@ -143,7 +143,7 @@ class WebPasswordReset {
                     }
 
                     const message = {
-                        to: `${user.properties[UserProps.RealName] || user.username} <${
+                        to: `${user.realName()} <${
                             user.properties[UserProps.EmailAddress]
                         }>`,
                         //  from will be filled in
