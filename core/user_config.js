@@ -8,10 +8,10 @@ const theme = require('./theme.js');
 const sysValidate = require('./system_view_validate.js');
 const UserProps = require('./user_property.js');
 const { getISOTimestampString } = require('./database.js');
+const EnigAssert = require('./enigma_assert');
 
 //  deps
 const async = require('async');
-const assert = require('assert');
 const _ = require('lodash');
 const moment = require('moment');
 
@@ -109,7 +109,10 @@ exports.getModule = class UserConfigModule extends MenuModule {
             //  Handlers
             //
             saveChanges: function (formData, extraArgs, cb) {
-                assert(formData.value.password === formData.value.passwordConfirm);
+                EnigAssert(formData.value.password === formData.value.passwordConfirm);
+
+                //  cache a copy of |formData| as changing a theme below can invalidate it
+                formData = _.clone(formData);
 
                 const newProperties = {
                     [UserProps.RealName]: formData.value.realName,
@@ -126,7 +129,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         self.availThemeInfo[formData.value.theme].themeId,
                 };
 
-                //  runtime set theme
+                //  Runtime set theme
                 theme.setClientTheme(self.client, newProperties.theme_id);
 
                 //  persist all changes

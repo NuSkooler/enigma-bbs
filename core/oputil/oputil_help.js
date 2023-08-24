@@ -182,6 +182,14 @@ General Information:
     MessageBase: `usage: oputil.js mb <action> [<arguments>]
 
 Actions:
+  list-confs                  List conferences and areas
+
+  post PATH                   Posts a message file specified in PATH.
+                              PATH must point to a UTF-8 encoded JSON file
+                              containing 'to', 'from', 'subject', 'areaTag', and
+                              'body'. If 'timestamp' is present, the system will
+                              attempt to use it.
+
   areafix CMD1 CMD2 ... ADDR  Sends an AreaFix NetMail
 
   NetMail is sent to supplied address  with the supplied command(s). Multi-part commands
@@ -193,6 +201,9 @@ Actions:
   qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
                               packet in the directory specified by PATH. The QWK
                               BBS ID will be obtained by the final component of PATH.
+
+list-confs arguments:
+  --areas                     Include areas within each message conference.
 
 import-areas arguments:
   --conf CONF_TAG             Conference tag in which to import areas
