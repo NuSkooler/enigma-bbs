@@ -323,7 +323,7 @@ qwk-export arguments:
 
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
-| `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file. Optionally maps areas to FTN networks.  | `./oputil.js config import-areas /some/path/l33tnet.na`   |
+| `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file. Optionally maps areas to FTN networks.  | `./oputil.js mb import-areas /some/path/l33tnet.na`   |
 | `areafix` | Utility for sending AreaFix mails without logging into the system | |
 | `qwk-dump` | Dump a QWK packet to stdout | `./oputil.js mb qwk-dump /path/to/XIBALBA.QWK` |
 | `qwk-export` | Export messages to a QWK packet | `./oputil.js mb qwk-export /path/to/XIBALBA.QWK` |

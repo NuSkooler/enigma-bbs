@@ -776,7 +776,7 @@
                 key: confTag
                 pause: true
                 cls: true
-                menuFlags: [ "popParent", "noHistory" ]
+                menuFlags: [ "noHistory" ]
             }
         }
 
@@ -794,7 +794,7 @@
                 key: areaTag
                 pause: true
                 cls: true
-                menuFlags: [ "popParent", "noHistory" ]
+                menuFlags: [ "noHistory" ]
             }
         }
     }

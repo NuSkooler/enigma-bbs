@@ -5,12 +5,12 @@
 const loadMenu = require('./menu_util.js').loadMenu;
 const { Errors, ErrorReasons } = require('./enig_error.js');
 const { getResolvedSpec } = require('./menu_util.js');
+const { MenuFlags } = require('./menu_module.js');
 
 //  deps
 const _ = require('lodash');
 const assert = require('assert');
-
-//  :TODO: Stack is backwards.... top should be most recent! :)
+const bunyan = require('bunyan');
 
 module.exports = class MenuStack {
     constructor(client) {
@@ -27,19 +27,11 @@ module.exports = class MenuStack {
     }
 
     peekPrev() {
-        if (this.stackSize > 1) {
-            return this.stack[this.stack.length - 2];
-        }
+        return this.stack[this.stack.length - 2];
     }
 
     top() {
-        if (this.stackSize > 0) {
-            return this.stack[this.stack.length - 1];
-        }
-    }
-
-    get stackSize() {
-        return this.stack.length;
+        return this.stack[this.stack.length - 1];
     }
 
     get currentModule() {
@@ -56,13 +48,13 @@ module.exports = class MenuStack {
             return cb(
                 Array.isArray(menuConfig.next)
                     ? Errors.MenuStack(
-                          'No matching condition for "next"',
-                          ErrorReasons.NoConditionMatch
-                      )
+                        'No matching condition for "next"',
+                        ErrorReasons.NoConditionMatch
+                    )
                     : Errors.MenuStack(
-                          'Invalid or missing "next" member in menu config',
-                          ErrorReasons.InvalidNextMenu
-                      )
+                        'Invalid or missing "next" member in menu config',
+                        ErrorReasons.InvalidNextMenu
+                    )
             );
         }
 
@@ -81,7 +73,6 @@ module.exports = class MenuStack {
     prev(cb) {
         const menuResult = this.top().instance.getMenuResult();
 
-        //  :TODO: leave() should really take a cb...
         this.pop().instance.leave(); //  leave & remove current
 
         const previousModuleInfo = this.pop(); //  get previous
@@ -129,7 +120,7 @@ module.exports = class MenuStack {
             client: self.client,
         };
 
-        if (currentModuleInfo && currentModuleInfo.menuFlags.includes('forwardArgs')) {
+        if (currentModuleInfo && currentModuleInfo.menuFlags.includes(MenuFlags.ForwardArgs)) {
             loadOpts.extraArgs = currentModuleInfo.extraArgs;
         } else {
             loadOpts.extraArgs = options.extraArgs || _.get(options, 'formData.value');
@@ -138,7 +129,6 @@ module.exports = class MenuStack {
 
         loadMenu(loadOpts, (err, modInst) => {
             if (err) {
-                //  :TODO: probably should just require a cb...
                 const errCb = cb || self.client.defaultHandlerMissingMod();
                 errCb(err);
             } else {
@@ -149,22 +139,6 @@ module.exports = class MenuStack {
                         return cb(Errors.AccessDenied('No access to this menu'));
                     }
                     return;
-                }
-
-                //
-                //  Handle deprecated 'options' block by merging to config and warning user.
-                //  :TODO: Remove in 0.0.10+
-                //
-                if (modInst.menuConfig.options) {
-                    self.client.log.warn(
-                        { options: modInst.menuConfig.options },
-                        'Use of "options" is deprecated. Move relevant members to "config" block! Support will be fully removed in future versions'
-                    );
-                    Object.assign(
-                        modInst.menuConfig.config || {},
-                        modInst.menuConfig.options
-                    );
-                    delete modInst.menuConfig.options;
                 }
 
                 //
@@ -180,9 +154,9 @@ module.exports = class MenuStack {
                     //  in code we can ask to merge in
                     if (
                         Array.isArray(options.menuFlags) &&
-                        options.menuFlags.includes('mergeFlags')
+                        options.menuFlags.includes(MenuFlags.MergeFlags)
                     ) {
-                        menuFlags = _.uniq(menuFlags.concat(options.menuFlags));
+                        menuFlags = [...new Set(options.menuFlags)]; // make unique
                     }
                 }
 
@@ -193,12 +167,8 @@ module.exports = class MenuStack {
 
                     currentModuleInfo.instance.leave();
 
-                    if (currentModuleInfo.menuFlags.includes('noHistory')) {
-                        this.pop();
-                    }
-
-                    if (menuFlags.includes('popParent')) {
-                        this.pop().instance.leave(); //  leave & remove current
+                    if (currentModuleInfo.menuFlags.includes(MenuFlags.NoHistory)) {
+                        this.pop().instance.leave(); // leave & remove current from stack
                     }
                 }
 
@@ -214,17 +184,19 @@ module.exports = class MenuStack {
                     modInst.restoreSavedState(options.savedState);
                 }
 
-                const stackEntries = self.stack.map(stackEntry => {
-                    let name = stackEntry.name;
-                    if (stackEntry.instance.menuConfig.config.menuFlags.length > 0) {
-                        name += ` (${stackEntry.instance.menuConfig.config.menuFlags.join(
-                            ', '
-                        )})`;
-                    }
-                    return name;
-                });
+                if (self.client.log.level() <= bunyan.TRACE) {
+                    const stackEntries = self.stack.map(stackEntry => {
+                        let name = stackEntry.name;
+                        if (stackEntry.instance.menuConfig.config.menuFlags.length > 0) {
+                            name += ` (${stackEntry.instance.menuConfig.config.menuFlags.join(
+                                ', '
+                            )})`;
+                        }
+                        return name;
+                    });
 
-                self.client.log.trace({ stack: stackEntries }, 'Updated menu stack');
+                    self.client.log.trace({ stack: stackEntries }, 'Updated menu stack');
+                }
 
                 modInst.enter();
 
