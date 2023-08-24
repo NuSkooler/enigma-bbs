@@ -2,7 +2,8 @@ const { Errors } = require('./enig_error.js');
 
 // deps
 const { isString, isObject, truncate } = require('lodash');
-const { https } = require('follow-redirects');
+const httpsNoRedirects = require('node:https');
+const { https: httpsWithRedirects } = require('follow-redirects');
 const httpSignature = require('http-signature');
 const crypto = require('crypto');
 
@@ -77,6 +78,13 @@ function _makeRequest(url, options, cb) {
             return cb(e, b, r);
         }
     };
+
+    let https;
+    if (options.method === 'POST' || options.sign) {
+        https = httpsNoRedirects;
+    } else {
+        https = httpsWithRedirects;
+    }
 
     const req = https.request(url, options, res => {
         let body = [];
