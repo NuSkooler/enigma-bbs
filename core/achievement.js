@@ -505,9 +505,9 @@ class Achievements {
     getFormatObject(info) {
         return {
             userName: info.user.username,
-            userRealName: info.user.realName(),
-            userLocation: info.user.properties[UserProps.Location],
-            userAffils: info.user.properties[UserProps.Affiliations],
+            userRealName: info.user.realName(false) || 'N/A',
+            userLocation: info.user.properties[UserProps.Location] || 'N/A',
+            userAffils: info.user.properties[UserProps.Affiliations] || 'N/A',
             nodeId: info.client.node,
             title: info.details.title,
             //text            : info.global ? info.details.globalText : info.details.text,

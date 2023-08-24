@@ -124,13 +124,27 @@ module.exports = class User {
         return isMember;
     }
 
-    realName() {
-        return this.getProperty(UserProps.RealName) || this.username;
+    realName(withUsernameFallback = true) {
+        const realName = this.getProperty(UserProps.RealName);
+        if (realName) {
+            return realName;
+        }
+        if (withUsernameFallback) {
+            return this.username;
+        }
     }
 
     getSanitizedName(type = 'username') {
-        const name = 'real' === type ? this.realName() : this.username;
+        const name = 'real' === type ? this.realName(true) : this.username;
         return sanatizeFilename(name) || `user${this.userId.toString()}`;
+    }
+
+    emailAddress() {
+        const email = this.getProperty(UserProps.EmailAddress);
+        if (email) {
+            const realName = this.realName(false);
+            return realName ? `${realName} <${email}>` : email;
+        }
     }
 
     isAvailable() {

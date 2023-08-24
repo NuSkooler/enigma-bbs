@@ -87,7 +87,7 @@ function getActiveConnectionList(
         //
         entry.text = ac.user?.username || 'N/A';
         entry.userName = ac.user?.username || 'N/A';
-        entry.realName = ac.user?.realName() || 'N/A';
+        entry.realName = ac.user?.realName(false) || 'N/A';
         entry.location = ac.user?.getProperty(UserProps.Location) || 'N/A';
         entry.affils = entry.affiliation =
             ac.user?.getProperty(UserProps.Affiliations) || 'N/A';

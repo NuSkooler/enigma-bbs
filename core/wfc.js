@@ -506,7 +506,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
             //  Current
             currentUserName: this.client.user.username,
-            currentUserRealName: this.client.user.realName(),
+            currentUserRealName: this.client.user.realName(false) || 'N/A',
             availIndicator: availIndicator,
             visIndicator: visIndicator,
             lastLoginUserName: lastLoginStats.userName,

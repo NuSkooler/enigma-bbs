@@ -9,6 +9,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
     * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
 * CombatNet has shut down, so the module (`combatnet.js`) has been removed.
 * The Menu Flag `popParent` has been removed and `noHistory` has been updated to work as expected. In general things should "Just Work", but check your `menu.hjson` entries if you see menu stack issues.
+* Various New User Application (NUA) properties are now optional. If you would like to reduce the information users are required, remove optional fields from NUA artwork and collect less. These properties will be stored as "" (empty). Optional properties are as follows: Real name, Birth date, Sex, Location, Affiliations (Affils), Email, and Web address.
 
 ## 0.0.13-beta
 * **Note for contributors**: ENiGMA has switched to [Prettier](https://prettier.io) for formatting/style. Please see [CONTRIBUTING](CONTRIBUTING.md) and the Prettier website for more information.

@@ -233,7 +233,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                     function populateViews(callback) {
                         const user = self.client.user;
 
-                        self.setViewText('menu', MciCodeIds.RealName, user.realName());
+                        self.setViewText('menu', MciCodeIds.RealName, user.realName(false) || '');
                         self.setViewText(
                             'menu',
                             MciCodeIds.BirthDate,

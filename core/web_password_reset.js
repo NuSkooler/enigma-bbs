@@ -143,9 +143,7 @@ class WebPasswordReset {
                     }
 
                     const message = {
-                        to: `${user.realName()} <${
-                            user.properties[UserProps.EmailAddress]
-                        }>`,
+                        to: user.emailAddress(),
                         //  from will be filled in
                         subject: 'Forgot Password',
                         text: textTemplate,
