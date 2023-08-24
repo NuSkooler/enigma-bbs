@@ -55,6 +55,8 @@ const helpText = `
 |03/|11topic |03<message>           |08- |07Set the room topic
 |03/|11bbses |08& |03/|11info <id>        |08- |07Info about BBS's connected
 |03/|11meetups                   |08- |07Info about MRC MeetUps
+|03/|11quote                     |08- |07Send raw command to server
+|03/|11help                      |08- |07Server-side commands help
 ---
 |03/|11l33t |03<your message>       |08- |07l337 5p34k
 |03/|11kewl |03<your message>       |08- |07BBS KeWL SPeaK
@@ -375,6 +377,18 @@ exports.getModule = class mrcModule extends MenuModule {
                         '|08' + currentTime + '|00 ' + message.body + '|00'
                     );
                 }
+
+                // Deliver PrivMsg
+                else if (
+                    message.to_user.toLowerCase() == this.state.alias.toLowerCase()
+                ) {
+                    const currentTime = moment().format(
+                        this.client.currentTheme.helpers.getTimeFormat()
+                    );
+                    this.addMessageToChatLog(
+                        '|08' + currentTime + '|00 ' + message.body + '|00'
+                    );
+                }
             }
 
             this.viewControllers.mrcChat.switchFocus(MciViewIds.mrcChat.inputArea);
@@ -538,6 +552,46 @@ exports.getModule = class mrcModule extends MenuModule {
 
             case 'rooms':
                 this.sendServerMessage('LIST');
+                break;
+
+            // Allow support for new server commands without change to client
+            case 'quote':
+                this.sendServerMessage(`${message.substr(7)}`);
+                break;
+
+            /**
+             * Process known additional server commands directly
+             */
+            case 'afk':
+                this.sendServerMessage(`AFK ${message.substr(5)}`);
+                break;
+
+            case 'roomconfig':
+                this.sendServerMessage(`ROOMCONFIG ${message.substr(12)}`);
+                break;
+
+            case 'roompass':
+                this.sendServerMessage(`ROOMPASS ${message.substr(12)}`);
+                break;
+
+            case 'status':
+                this.sendServerMessage(`STATUS ${message.substr(8)}`);
+                break;
+
+            case 'lastseen':
+                this.sendServerMessage(`LASTSEEN ${message.substr(10)}`);
+                break;
+
+            case 'help':
+                this.sendServerMessage(`HELP ${message.substr(6)}`);
+                break;
+
+            case 'statistics':
+            case 'changelog':
+            case 'listbans':
+            case 'listmutes':
+            case 'routing':
+                this.sendServerMessage(cmd[0].toUpperCase());
                 break;
 
             case 'quit':

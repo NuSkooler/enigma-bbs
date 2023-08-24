@@ -59,13 +59,15 @@ The `config` block for a menu entry can contain common members as well as a per-
 | `menuFlags` | An array of menu flag(s) controlling menu behavior. See **Menu Flags** below.
 
 #### Menu Flags
-The `menuFlags` field of a `config` block can change default behavior of a particular menu.
+The `menuFlags` field of a `config` block can change default behavior of a particular menu:
 
 | Flag | Description |
 |------|-------------|
-| `noHistory` | Prevents the menu from remaining in the menu stack / history. When this flag is set, when the **next** menu falls back, this menu will be skipped and the previous menu again displayed instead. Example: menuA -> menuB(noHistory) -> menuC: Exiting menuC returns the user to menuA. |
-| `popParent` | When *this* menu is exited, fall back beyond the parent as well. Often used in combination with `noHistory`. |
-| `forwardArgs` | If set, when the next menu is entered, forward any `extraArgs` arguments to *this* menu on to it. |
+| `noHistory` | When leaving the current menu to load/chain to another, remove this menu from history. In other words, the fallback from the next menu would *not* be this one, but the previous. |
+| `mergeFlags` | Generally used in code only: Request that any flags from `menu.hjson` |
+| `forwardArgs` | Forward this menu's `extraArgs` to the next. |
+
+> 💡 In JavaScript code, `MenuFlags` from `menu_module.js` contains constants for these flags.
 
 
 ## Forms
