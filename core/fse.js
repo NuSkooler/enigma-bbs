@@ -21,6 +21,7 @@ const {
     messageInfoFromAddressedToInfo,
     setExternalAddressedToInfo,
     copyExternalAddressedToInfo,
+    getReplyToMessagePrefix,
 } = require('./mail_util.js');
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
@@ -28,10 +29,10 @@ const SysProps = require('./system_property.js');
 const FileArea = require('./file_base_area.js');
 const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
+const EngiAssert = require('./enigma_assert.js');
 
 //  deps
 const async = require('async');
-const assert = require('assert');
 const _ = require('lodash');
 const moment = require('moment');
 const fse = require('fs-extra');
@@ -123,7 +124,7 @@ exports.FullScreenEditorModule =
             this.editorMode = config.editorMode;
 
             if (config.messageAreaTag) {
-                //  :TODO: swtich to this.config.messageAreaTag so we can follow Object.assign pattern for config/extraArgs
+                //  :TODO: switch to this.config.messageAreaTag so we can follow Object.assign pattern for config/extraArgs
                 this.messageAreaTag = config.messageAreaTag;
             }
 
@@ -251,7 +252,7 @@ exports.FullScreenEditorModule =
                     if (self.newQuoteBlock) {
                         self.newQuoteBlock = false;
 
-                        //  :TODO: If replying to ANSI, add a blank sepration line here
+                        //  :TODO: If replying to ANSI, add a blank separation line here
 
                         quoteMsgView.addText(self.getQuoteByHeader());
                     }
@@ -480,106 +481,108 @@ exports.FullScreenEditorModule =
             this.message = message;
 
             this.updateLastReadId(() => {
-                if (this.isReady) {
-                    this.initHeaderViewMode();
-                    this.initFooterViewMode();
+                if (!this.isReady) {
+                    return;
+                }
 
-                    const bodyMessageView = this.viewControllers.body.getView(
-                        MciViewIds.body.message
-                    );
-                    let msg = this.message.message;
+                this.initHeaderViewMode();
+                this.initFooterViewMode();
 
-                    if (bodyMessageView && _.has(this, 'message.message')) {
+                const bodyMessageView = this.viewControllers.body.getView(
+                    MciViewIds.body.message
+                );
+                let msg = this.message.message;
+
+                if (bodyMessageView && _.has(this, 'message.message')) {
+                    //
+                    //  We handle ANSI messages differently than standard messages -- this is required as
+                    //  we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
+                    //  how the author wanted it
+                    //
+                    if (isAnsi(msg)) {
                         //
-                        //  We handle ANSI messages differently than standard messages -- this is required as
-                        //  we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
-                        //  how the author wanted it
+                        //  Find tearline - we want to color it differently.
                         //
-                        if (isAnsi(msg)) {
-                            //
-                            //  Find tearline - we want to color it differently.
-                            //
-                            const tearLinePos = Message.getTearLinePosition(msg);
+                        const tearLinePos = Message.getTearLinePosition(msg);
 
-                            if (tearLinePos > -1) {
-                                msg = insert(
-                                    msg,
-                                    tearLinePos,
-                                    bodyMessageView.getTextSgrPrefix()
-                                );
+                        if (tearLinePos > -1) {
+                            msg = insert(
+                                msg,
+                                tearLinePos,
+                                bodyMessageView.getTextSgrPrefix()
+                            );
+                        }
+
+                        bodyMessageView.setAnsi(
+                            msg.replace(/\r?\n/g, '\r\n'), //  messages are stored with CRLF -> LF
+                            {
+                                prepped: false,
+                                forceLineTerm: true,
                             }
+                        );
+                    } else {
+                        msg = stripAnsiControlCodes(msg); //  start clean
 
-                            bodyMessageView.setAnsi(
-                                msg.replace(/\r?\n/g, '\r\n'), //  messages are stored with CRLF -> LF
-                                {
-                                    prepped: false,
-                                    forceLineTerm: true,
+                        const styleToArray = (style, len) => {
+                            if (!Array.isArray(style)) {
+                                style = [style];
+                            }
+                            while (style.length < len) {
+                                style.push(style[0]);
+                            }
+                            return style;
+                        };
+
+                        //
+                        //  In *View* mode, if enabled, do a little prep work so we can stylize:
+                        //  - Quote indicators
+                        //  - Tear lines
+                        //  - Origins
+                        //
+                        if (this.menuConfig.config.quoteStyleLevel1) {
+                            //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
+                            //  Non-standard (as for BBSes) single > TEXT, omitting space before XX, etc. are allowed
+                            const styleL1 = styleToArray(
+                                this.menuConfig.config.quoteStyleLevel1,
+                                3
+                            );
+
+                            const QuoteRegex =
+                                /^([ ]?)([!-~]{0,2})>([ ]*)([^\r\n]*\r?\n)/gm;
+                            msg = msg.replace(
+                                QuoteRegex,
+                                (m, spc1, initials, spc2, text) => {
+                                    return `${spc1}${styleL1[0]}${initials}${styleL1[1]}>${spc2}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
                                 }
                             );
-                        } else {
-                            msg = stripAnsiControlCodes(msg); //  start clean
-
-                            const styleToArray = (style, len) => {
-                                if (!Array.isArray(style)) {
-                                    style = [style];
-                                }
-                                while (style.length < len) {
-                                    style.push(style[0]);
-                                }
-                                return style;
-                            };
-
-                            //
-                            //  In *View* mode, if enabled, do a little prep work so we can stylize:
-                            //  - Quote indicators
-                            //  - Tear lines
-                            //  - Origins
-                            //
-                            if (this.menuConfig.config.quoteStyleLevel1) {
-                                //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
-                                //  Non-standard (as for BBSes) single > TEXT, omitting space before XX, etc. are allowed
-                                const styleL1 = styleToArray(
-                                    this.menuConfig.config.quoteStyleLevel1,
-                                    3
-                                );
-
-                                const QuoteRegex =
-                                    /^([ ]?)([!-~]{0,2})>([ ]*)([^\r\n]*\r?\n)/gm;
-                                msg = msg.replace(
-                                    QuoteRegex,
-                                    (m, spc1, initials, spc2, text) => {
-                                        return `${spc1}${styleL1[0]}${initials}${styleL1[1]}>${spc2}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
-                                    }
-                                );
-                            }
-
-                            if (this.menuConfig.config.tearLineStyle) {
-                                //  '---' and TEXT
-                                const style = styleToArray(
-                                    this.menuConfig.config.tearLineStyle,
-                                    2
-                                );
-
-                                const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
-                                msg = msg.replace(TearLineRegex, (m, text) => {
-                                    return `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`;
-                                });
-                            }
-
-                            if (this.menuConfig.config.originStyle) {
-                                const style = styleToArray(
-                                    this.menuConfig.config.originStyle,
-                                    3
-                                );
-
-                                const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
-                                msg = msg.replace(OriginRegex, (m, spc, text) => {
-                                    return `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`;
-                                });
-                            }
-
-                            bodyMessageView.setText(controlCodesToAnsi(msg));
                         }
+
+                        if (this.menuConfig.config.tearLineStyle) {
+                            //  '---' and TEXT
+                            const style = styleToArray(
+                                this.menuConfig.config.tearLineStyle,
+                                2
+                            );
+
+                            const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
+                            msg = msg.replace(TearLineRegex, (m, text) => {
+                                return `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        if (this.menuConfig.config.originStyle) {
+                            const style = styleToArray(
+                                this.menuConfig.config.originStyle,
+                                3
+                            );
+
+                            const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
+                            msg = msg.replace(OriginRegex, (m, spc, text) => {
+                                return `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        bodyMessageView.setText(controlCodesToAnsi(msg));
                     }
                 }
             });
@@ -849,7 +852,7 @@ exports.FullScreenEditorModule =
             const self = this;
             var art = self.menuConfig.config.art;
 
-            assert(_.isObject(art));
+            EngiAssert(_.isObject(art));
 
             async.waterfall(
                 [
@@ -1161,7 +1164,7 @@ exports.FullScreenEditorModule =
         }
 
         initHeaderReplyEditMode() {
-            assert(_.isObject(this.replyToMessage));
+            EngiAssert(_.isObject(this.replyToMessage));
 
             this.setHeaderText(MciViewIds.header.to, this.replyToMessage.fromUserName);
 
@@ -1175,6 +1178,20 @@ exports.FullScreenEditorModule =
             }
 
             this.setHeaderText(MciViewIds.header.subject, newSubj);
+        }
+
+        initBodyReplyEditMode() {
+            EngiAssert(_.isObject(this.replyToMessage));
+
+            const bodyMessageView = this.viewControllers.body.getView(
+                MciViewIds.body.message
+            );
+
+            const messagePrefix = getReplyToMessagePrefix(
+                this.replyToMessage.fromUserName
+            );
+
+            bodyMessageView.setText(messagePrefix);
         }
 
         initFooterViewMode() {
@@ -1450,9 +1467,16 @@ exports.FullScreenEditorModule =
         switchToBody() {
             const to = this.getView('header', MciViewIds.header.to).getData();
             const msgInfo = messageInfoFromAddressedToInfo(getAddressedToInfo(to));
+            const bodyView = this.getView('body', MciViewIds.body.message);
+
             if (msgInfo.maxMessageLength > 0) {
-                const bodyView = this.getView('body', MciViewIds.body.message);
                 bodyView.maxLength = msgInfo.maxMessageLength;
+            }
+
+            // first pass through, init body (we may need header values set)
+            const bodyText = bodyView.getData();
+            if (!bodyText && this.isReply()) {
+                this.initBodyReplyEditMode();
             }
 
             this.viewControllers.header.setFocus(false);

@@ -15,6 +15,7 @@ exports.setExternalAddressedToInfo = setExternalAddressedToInfo;
 exports.copyExternalAddressedToInfo = copyExternalAddressedToInfo;
 exports.messageInfoFromAddressedToInfo = messageInfoFromAddressedToInfo;
 exports.getQuotePrefixFromName = getQuotePrefixFromName;
+exports.getReplyToMessagePrefix = getReplyToMessagePrefix;
 
 const EMAIL_REGEX =
     /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[?[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}]?)|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
@@ -32,6 +33,11 @@ const EMAIL_REGEX =
     foo@host.com                       { name : 'foo', flavor : 'email', remote : 'foo@host.com' }
     Bar <baz@foobar.net>               { name : 'Bar', flavor : 'email', remote : 'baz@foobar.com' }
     @JoeUser@some.host.com             { name : 'JoeUser', flavor : 'activitypub', remote 'JoeUser@some.host.com' }
+
+    Fields:
+    - name          : user/display name
+    - flavor        : remote flavor - FTN/etc.
+    - remote        : Address in remote format, if applicable
 */
 function getAddressedToInfo(input) {
     input = input.trim();
@@ -41,17 +47,26 @@ function getAddressedToInfo(input) {
     if (firstAtPos < 0) {
         let addr = Address.fromString(input);
         if (Address.isValidAddress(addr)) {
-            return { flavor: MessageConst.AddressFlavor.FTN, remote: input };
+            return {
+                flavor: MessageConst.AddressFlavor.FTN,
+                remote: input,
+            };
         }
 
         const lessThanPos = input.indexOf('<');
         if (lessThanPos < 0) {
-            return { name: input, flavor: MessageConst.AddressFlavor.Local };
+            return {
+                name: input,
+                flavor: MessageConst.AddressFlavor.Local,
+            };
         }
 
         const greaterThanPos = input.indexOf('>');
         if (greaterThanPos < lessThanPos) {
-            return { name: input, flavor: MessageConst.AddressFlavor.Local };
+            return {
+                name: input,
+                flavor: MessageConst.AddressFlavor.Local,
+            };
         }
 
         addr = Address.fromString(input.slice(lessThanPos + 1, greaterThanPos));
@@ -93,7 +108,10 @@ function getAddressedToInfo(input) {
             };
         }
 
-        return { name: input, flavor: MessageConst.AddressFlavor.Local };
+        return {
+            name: input,
+            flavor: MessageConst.AddressFlavor.Local,
+        };
     }
 
     let m = input.match(EMAIL_REGEX);
@@ -107,7 +125,10 @@ function getAddressedToInfo(input) {
 
     let addr = Address.fromString(input); //  5D?
     if (Address.isValidAddress(addr)) {
-        return { flavor: MessageConst.AddressFlavor.FTN, remote: addr.toString() };
+        return {
+            flavor: MessageConst.AddressFlavor.FTN,
+            remote: addr.toString(),
+        };
     }
 
     addr = Address.fromString(input.slice(firstAtPos + 1).trim());
@@ -172,6 +193,17 @@ function messageInfoFromAddressedToInfo(addressInfo) {
 }
 
 function getQuotePrefixFromName(name) {
-    const addrInfo = getAddressedToInfo(name);
-    return getQuotePrefix(addrInfo.name || name);
+    const addressInfo = getAddressedToInfo(name);
+    return getQuotePrefix(addressInfo.name || name);
+}
+
+function getReplyToMessagePrefix(name) {
+    const addressInfo = getAddressedToInfo(name);
+
+    // currently only ActivityPub
+    if (addressInfo.flavor === MessageConst.AddressFlavor.ActivityPub) {
+        return `@${addressInfo.name} `;
+    }
+
+    return '';
 }
