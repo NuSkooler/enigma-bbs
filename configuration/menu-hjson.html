@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2023-08-24T01:08:10+00:00" />
+<meta property="article:published_time" content="2023-08-24T01:08:37+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu HSJON" />
 <script type="application/ld+json">
-{"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","headline":"Menu HSJON","dateModified":"2023-08-24T01:08:10+00:00","datePublished":"2023-08-24T01:08:10+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"@context":"https://schema.org"}</script>
+{"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","headline":"Menu HSJON","dateModified":"2023-08-24T01:08:37+00:00","datePublished":"2023-08-24T01:08:37+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2407,7 +2407,7 @@
 </table>
 
 <h4 id="menu-flags">Menu Flags</h4>
-<p>The <code class="language-plaintext highlighter-rouge">menuFlags</code> field of a <code class="language-plaintext highlighter-rouge">config</code> block can change default behavior of a particular menu.</p>
+<p>The <code class="language-plaintext highlighter-rouge">menuFlags</code> field of a <code class="language-plaintext highlighter-rouge">config</code> block can change default behavior of a particular menu:</p>
 
 <table>
   <thead>
@@ -2419,18 +2419,23 @@
   <tbody>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">noHistory</code></td>
-      <td>Prevents the menu from remaining in the menu stack / history. When this flag is set, when the <strong>next</strong> menu falls back, this menu will be skipped and the previous menu again displayed instead. Example: menuA -&gt; menuB(noHistory) -&gt; menuC: Exiting menuC returns the user to menuA.</td>
+      <td>When leaving the current menu to load/chain to another, remove this menu from history. In other words, the fallback from the next menu would <em>not</em> be this one, but the previous.</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">popParent</code></td>
-      <td>When <em>this</em> menu is exited, fall back beyond the parent as well. Often used in combination with <code class="language-plaintext highlighter-rouge">noHistory</code>.</td>
+      <td><code class="language-plaintext highlighter-rouge">mergeFlags</code></td>
+      <td>Generally used in code only: Request that any flags from <code class="language-plaintext highlighter-rouge">menu.hjson</code>
+</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">forwardArgs</code></td>
-      <td>If set, when the next menu is entered, forward any <code class="language-plaintext highlighter-rouge">extraArgs</code> arguments to <em>this</em> menu on to it.</td>
+      <td>Forward this menu’s <code class="language-plaintext highlighter-rouge">extraArgs</code> to the next.</td>
     </tr>
   </tbody>
 </table>
+
+<blockquote>
+  <p>💡 In JavaScript code, <code class="language-plaintext highlighter-rouge">MenuFlags</code> from <code class="language-plaintext highlighter-rouge">menu_module.js</code> contains constants for these flags.</p>
+</blockquote>
 
 <h2 id="forms">Forms</h2>
 <p>ENiGMA½ uses a concept of <em>forms</em> in menus. A form is a collection of associated <em>views</em>. Consider a New User Application using the <code class="language-plaintext highlighter-rouge">nua</code> module: The default implementation utilizes a single form with multiple EditTextView views, a submit button, etc. Forms are identified by number starting with <code class="language-plaintext highlighter-rouge">0</code>. A given menu may have mutiple forms (often associated with different states or screens within the menu).</p>
