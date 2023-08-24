@@ -172,7 +172,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 
                     StatLog.getSystemLogEntries(
                         SystemLogKeys.UserAddedRumorz,
-                        StatLog.Order.Timestamp,
+                        StatLog.Order.TimestampDesc,
                         (err, entries) => {
                             return callback(err, entriesView, entries);
                         }

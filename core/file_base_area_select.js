@@ -2,7 +2,7 @@
 'use strict';
 
 //  enigma-bbs
-const MenuModule = require('./menu_module.js').MenuModule;
+const { MenuModule, MenuFlags } = require('./menu_module.js');
 const { getSortedAvailableFileAreas } = require('./file_base_area.js');
 const StatLog = require('./stat_log.js');
 const SysProps = require('./system_property.js');
@@ -24,6 +24,8 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
     constructor(options) {
         super(options);
 
+        this.setMergedFlag(MenuFlags.NoHistory);
+
         this.menuMethods = {
             selectArea: (formData, extraArgs, cb) => {
                 const filterCriteria = {
@@ -34,7 +36,7 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
                     extraArgs: {
                         filterCriteria: filterCriteria,
                     },
-                    menuFlags: ['popParent', 'mergeFlags'],
+                    menuFlags: [MenuFlags.NoHistory],
                 };
 
                 return this.gotoMenu(
