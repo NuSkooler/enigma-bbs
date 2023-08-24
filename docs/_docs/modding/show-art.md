@@ -58,7 +58,6 @@ showFileBaseAreaArt: {
         method: fileBaseArea
         cls: true
         pause: true
-        menuFlags: [ "popParent", "noHistory" ]
     }
 }
 ```

@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule } = require('./menu_module.js');
+const { MenuModule, MenuFlags } = require('./menu_module.js');
 const messageArea = require('./message_area.js');
 const { Errors } = require('./enig_error.js');
 const UserProps = require('./user_property.js');
@@ -29,6 +29,9 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
     constructor(options) {
         super(options);
 
+        // always include noHistory flag
+        this.setMergedFlag(MenuFlags.NoHistory);
+
         this.initList();
 
         this.menuMethods = {
@@ -49,7 +52,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
                                 extraArgs: {
                                     areaTag: area.areaTag,
                                 },
-                                menuFlags: ['popParent', 'noHistory'],
+                                menuFlags: [MenuFlags.NoHistory],
                             };
 
                             return this.gotoMenu(

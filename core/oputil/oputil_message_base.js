@@ -716,6 +716,138 @@ const listConferences = () => {
     });
 };
 
+const postMessage = () => {
+    const inputFile = argv._[argv._.length - 1];
+    if (argv._.length < 3 || !inputFile || 0 === inputFile.length) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
+    }
+
+    async.waterfall(
+        [
+            callback => {
+                return initConfigAndDatabases(callback);
+            },
+            callback => {
+                fs.readFile(inputFile, { encoding: 'utf-8' }, (err, jsonData) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    let messageJson;
+                    try {
+                        messageJson = JSON.parse(jsonData);
+                    } catch (e) {
+                        return callback(e);
+                    }
+
+                    for (let f of ['to', 'from', 'subject', 'body', 'areaTag']) {
+                        if (!_.isString(messageJson[f])) {
+                            return callback(
+                                Errors.MissingConfig(
+                                    `Missing "${f}" field in message JSON`
+                                )
+                            );
+                        }
+
+                        messageJson[f] = messageJson[f].trim();
+                        if (messageJson[f].length === 0 && f !== 'subject') {
+                            return callback(
+                                Errors.Invalid(
+                                    `"${messageJson[f]}" is not a valid value for the "${f}" field`
+                                )
+                            );
+                        }
+                    }
+
+                    const { getMessageAreaByTag } = require('../../core/message_area');
+
+                    const area = getMessageAreaByTag(messageJson.areaTag);
+                    if (!area) {
+                        return callback(
+                            Errors.DoesNotExist(
+                                `Area "${messageJson.areaTag}" does not exist`
+                            )
+                        );
+                    }
+
+                    const { getAddressedToInfo } = require('../../core/mail_util');
+                    const Message = require('../../core/message');
+
+                    const toInfo = getAddressedToInfo(messageJson.to);
+                    const fromInfo = getAddressedToInfo(messageJson.from);
+
+                    if (fromInfo.flavor !== Message.AddressFlavor.Local) {
+                        return callback(
+                            Errors.Invalid(
+                                'Only local "from" users are currently supported'
+                            )
+                        );
+                    }
+
+                    let modTimestamp;
+                    if (_.isString(messageJson.timestamp)) {
+                        modTimestamp = moment(messageJson.timestamp);
+                    }
+
+                    if (!modTimestamp || !modTimestamp.isValid()) {
+                        modTimestamp = moment();
+                    }
+
+                    const message = new Message({
+                        toUserName: messageJson.to,
+                        fromUserName: messageJson.from,
+                        subject: messageJson.subject,
+                        message: messageJson.body,
+                        areaTag: messageJson.areaTag,
+                        modTimestamp,
+                    });
+
+                    if (toInfo.flavor !== Message.AddressFlavor.Local) {
+                        message.setExternalFlavor(toInfo.flavor);
+                        message.setRemoteToUser(toInfo.remote);
+
+                        return callback(null, area, message);
+                    }
+
+                    const User = require('../../core/user');
+                    User.getUserIdAndNameByLookup(
+                        message.toUserName,
+                        (err, toUserId, toUserName) => {
+                            if (err) {
+                                return callback(
+                                    Errors.DoesNotExist(
+                                        `User "${message.toUserName}" does not exist.`
+                                    )
+                                );
+                            }
+
+                            message.to = toUserName; // adjust case/etc.
+                            message.setLocalToUserId(toUserId);
+
+                            return callback(null, area, message);
+                        }
+                    );
+                });
+            },
+            (area, message, callback) => {
+                message.persist(err => {
+                    if (!err) {
+                        console.info(
+                            `Message from ${message.fromUserName} to ${message.toUserName}: "${message.subject}" in ${area.name}`
+                        );
+                    }
+                    return callback(err);
+                });
+            },
+        ],
+        err => {
+            if (err) {
+                return console.error(err.reason ? err.reason : err.message);
+            }
+        }
+    );
+};
+
 function handleMessageBaseCommand() {
     function errUsage() {
         return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
@@ -734,6 +866,7 @@ function handleMessageBaseCommand() {
             'qwk-dump': dumpQWKPacket,
             'qwk-export': exportQWKPacket,
             'list-confs': listConferences,
+            post: postMessage,
         }[action] || errUsage
     )();
 }

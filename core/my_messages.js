@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule = require('./menu_module.js').MenuModule;
+const { MenuModule, MenuFlags } = require('./menu_module');
 const Message = require('./message.js');
 const UserProps = require('./user_property.js');
 const { filterMessageListByReadACS } = require('./message_area.js');
@@ -16,6 +16,7 @@ exports.moduleInfo = {
 exports.getModule = class MyMessagesModule extends MenuModule {
     constructor(options) {
         super(options);
+        this.setMergedFlag(MenuFlags.NoHistory);
     }
 
     initSequence() {
@@ -48,8 +49,7 @@ exports.getModule = class MyMessagesModule extends MenuModule {
     finishedLoading() {
         if (!this.messageList || 0 === this.messageList.length) {
             return this.gotoMenu(
-                this.menuConfig.config.noResultsMenu || 'messageSearchNoResults',
-                { menuFlags: ['popParent'] }
+                this.menuConfig.config.noResultsMenu || 'messageSearchNoResults'
             );
         }
 
@@ -58,7 +58,6 @@ exports.getModule = class MyMessagesModule extends MenuModule {
                 messageList: this.messageList,
                 noUpdateLastReadId: true,
             },
-            menuFlags: ['popParent'],
         };
 
         return this.gotoMenu(

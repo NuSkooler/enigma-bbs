@@ -20,6 +20,22 @@ const assert = require('assert');
 const _ = require('lodash');
 const iconvDecode = require('iconv-lite').decode;
 
+const MenuFlags = {
+    // When leaving this menu to load/chain to another, remove this
+    // menu from history. In other words, the fallback from
+    // the next menu would *not* be this one, but the previous.
+    NoHistory: 'noHistory',
+
+    // Generally used in code only: Request that any flags from menu.hjson
+    // are merged in to the total set of flags vs overriding the default.
+    MergeFlags: 'mergeFlags',
+
+    //  Forward this menu's 'extraArgs' to the next.
+    ForwardArgs: 'forwardArgs',
+};
+
+exports.MenuFlags = MenuFlags;
+
 exports.MenuModule = class MenuModule extends PluginModule {
     constructor(options) {
         super(options);
@@ -46,6 +62,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.config = Object.assign({}, _.get(options, 'menuConfig.config'), {
             extraArgs: options.extraArgs,
         });
+    }
+
+    setMergedFlag(flag) {
+        this.menuConfig.config.menuFlags.push(flag);
+        this.menuConfig.config.menuFlags = [
+            ...new Set([...this.menuConfig.config.menuFlags, MenuFlags.MergeFlags]),
+        ];
     }
 
     static get InterruptTypes() {

@@ -22,13 +22,27 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.0.13-beta to 0.0.14-beta
 * A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:
+
 ```bash
 cp ./misc/menu_templates/activitypub.in.hjson ./config/menus/my_board_name-activitypub.hjson`
 ```
 
-This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`.
+This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`. See [Configuration Files Include Statements](./docs/_docs/configuration/config-files.md#includes) for more information on using `include`.
 
-> :information_source: See [Configuration Files Include Statements](./docs/_docs/configuration/config-files.md#includes) for more information on using `include`.
+* ⚠ The menu flag `noHistory` has been revamped to work as expected. Some menu entires now need this flag. Look for any "NoResults" entries and remove `menuFlags`. For example, here is the (updated) default `fileBaseListEntriesNoResults` menu:
+
+```hjson
+fileBaseListEntriesNoResults: {
+    desc: Browsing Files
+    art: FBNORES
+    config: {
+        pause: true
+        // no menuFlags here
+    }
+}
+```
+
+See also: [Menu Modules](./docs/_docs/modding/menu-module.md).
 
 
 ## 0.0.12-beta to 0.0.13-beta

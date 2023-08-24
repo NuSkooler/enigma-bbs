@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule = require('./menu_module.js').MenuModule;
+const { MenuModule, MenuFlags } = require('./menu_module.js');
 const ansi = require('./ansi_term.js');
 const FileEntry = require('./file_entry.js');
 const stringFormat = require('./string_format.js');
@@ -74,6 +74,8 @@ exports.getModule = class FileAreaList extends MenuModule {
         this.filterCriteria = _.get(options, 'extraArgs.filterCriteria');
         this.fileList = _.get(options, 'extraArgs.fileList');
         this.lastFileNextExit = _.get(options, 'extraArgs.lastFileNextExit', true);
+
+        this.setMergedFlag(MenuFlags.NoHistory);
 
         if (this.fileList) {
             //  we'll need to adjust position as well!
