@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule } = require('./menu_module.js');
+const { MenuModule, MenuFlags } = require('./menu_module.js');
 const FileEntry = require('./file_entry.js');
 const FileArea = require('./file_base_area.js');
 const { renderSubstr } = require('./string_util.js');
@@ -65,6 +65,9 @@ const MciViewIds = {
 exports.getModule = class FileBaseListExport extends MenuModule {
     constructor(options) {
         super(options);
+
+        this.setMergedFlag(MenuFlags.NoHistory);
+
         this.config = Object.assign(
             {},
             _.get(options, 'menuConfig.config'),
