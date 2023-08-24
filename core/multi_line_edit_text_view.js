@@ -288,18 +288,20 @@ function MultiLineEditTextView(options) {
 
     this.getOutputText = function (startIndex, endIndex, eolMarker, options) {
         const lines = self.getTextLines(startIndex, endIndex);
-        let text = '';
         const re = new RegExp('\\t{1,' + self.tabWidth + '}', 'g');
 
-        lines.forEach(line => {
-            text += line.text.replace(re, '\t');
-
-            if (options.forceLineTerms || (eolMarker && line.eol)) {
-                text += eolMarker;
-            }
-        });
-
-        return text;
+        return lines
+            .map((line, lineIndex) => {
+                let text = line.text.replace(re, '\t');
+                if (
+                    options.forceLineTerms ||
+                    (eolMarker && line.eol && lineIndex < lines.length - 1)
+                ) {
+                    text += eolMarker;
+                }
+                return text;
+            })
+            .join();
     };
 
     this.getContiguousText = function (startIndex, endIndex, includeEol) {
