@@ -22,6 +22,7 @@ exports.loadDatabaseForMod = loadDatabaseForMod;
 exports.getISOTimestampString = getISOTimestampString;
 exports.sanitizeString = sanitizeString;
 exports.initializeDatabases = initializeDatabases;
+exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
 
 exports.dbs = dbs;
 
@@ -515,3 +516,15 @@ dbs.message.run(
         return cb(null);
     },
 };
+
+function scheduledEventOptimizeDatabases(args, cb) {
+    async.forEachSeries(
+        Object.keys(dbs),
+        (db, nextDb) => {
+            return db.run('PRAGMA OPTIMIZE', nextDb);
+        },
+        err => {
+            return cb(err);
+        }
+    );
+}
