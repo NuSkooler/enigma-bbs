@@ -46,6 +46,16 @@ function getFontNameFromSAUCE(sauce) {
     }
 }
 
+function getWidthFromSAUCE(sauce) {
+    if (sauce.Character) {
+        let sauceWidth = _.toNumber(sauce.Character.characterWidth);
+        if(!(_.isNaN(sauceWidth) && sauceWidth > 0)) {
+            return sauceWidth;
+        }
+    }
+    return null;
+}
+
 function sliceAtEOF(data, eofMarker) {
     let eof = data.length;
     const stopPos = Math.max(data.length - 256, 0); //  256 = 2 * sizeof(SAUCE)
@@ -270,10 +280,18 @@ function display(client, art, options, cb) {
         }
     }
 
+    // Use width from SAUCE if available - if the width is less than the term width,
+    // we need to set that as the width for the parser so that wide terminals
+    // display correctly
+    let parseWidth = getWidthFromSAUCE(options.sauce);
+    if(_.isNil(parseWidth) || parseWidth > client.term.termWidth) {
+        parseWidth = client.term.termWidth;
+    }
+
     const ansiParser = new aep.ANSIEscapeParser({
         mciReplaceChar: options.mciReplaceChar,
         termHeight: client.term.termHeight,
-        termWidth: client.term.termWidth,
+        termWidth: parseWidth,
         trailingLF: options.trailingLF,
         startRow: options.startRow,
     });
