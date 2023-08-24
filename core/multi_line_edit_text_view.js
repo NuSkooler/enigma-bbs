@@ -301,7 +301,7 @@ function MultiLineEditTextView(options) {
                 }
                 return text;
             })
-            .join();
+            .join('');
     };
 
     this.getContiguousText = function (startIndex, endIndex, includeEol) {
