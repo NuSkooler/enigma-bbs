@@ -311,10 +311,13 @@ const PREDEFINED_MCI_GENERATORS = {
         return StatLog.getUserStatNumByClient(
             client,
             UserProps.NewAddressedToMessageCount
-        );
+        ).toString();
     },
     NP: function userNewPrivateMailCount(client) {
-        return StatLog.getUserStatNumByClient(client, UserProps.NewPrivateMailCount);
+        return StatLog.getUserStatNumByClient(
+            client,
+            UserProps.NewPrivateMailCount
+        ).toString();
     },
     IA: function userStatusAvailableIndicator(client) {
         const indicators = client.currentTheme.helpers.getStatusAvailIndicators();
