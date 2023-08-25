@@ -49,7 +49,7 @@ function getFontNameFromSAUCE(sauce) {
 function getWidthFromSAUCE(sauce) {
     if (sauce.Character) {
         let sauceWidth = _.toNumber(sauce.Character.characterWidth);
-        if(!(_.isNaN(sauceWidth) && sauceWidth > 0)) {
+        if(!(_.isNaN(sauceWidth)) && sauceWidth > 0) {
             return sauceWidth;
         }
     }
