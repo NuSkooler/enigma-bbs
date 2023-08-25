@@ -38,7 +38,9 @@ function ANSIEscapeParser(options) {
     this.termHeight = miscUtil.valueWithDefault(options.termHeight, 25);
     this.termWidth = miscUtil.valueWithDefault(options.termWidth, 80);
     this.breakWidth = this.termWidth;
-    if(!(_.isNil(options.artWidth)) && options.artWidth > 0 && options.artWidth < this.breakWidth) {
+    // toNumber takes care of null, undefined etc as well.
+    let artWidth = _.toNumber(options.artWidth);
+    if(!(_.isNaN(artWidth)) && artWidth > 0 && artWidth < this.breakWidth) {
         this.breakWidth = options.artWidth;
     }
     this.trailingLF = miscUtil.valueWithDefault(options.trailingLF, 'default');
@@ -122,7 +124,7 @@ function ANSIEscapeParser(options) {
                         self.emit('literal', text.slice(start, pos + 1));
                         start = pos + 1;
 
-                        // If the art is terminal, then we need to force the terminal to go to the next line.
+                        // If we hit breakWidth before termWidth then we need to force the terminal to go to the next line.
                         if(self.column < self.termWidth) {
                             self.emit('literal', '\r\n');
                         }
