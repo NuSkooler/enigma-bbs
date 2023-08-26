@@ -21,6 +21,7 @@ RUN apt-get update \
     lhasa \
     unrar-free \
     p7zip-full \
+    dos2unix \
     && npm install -g pm2 \
     && cd /enigma-bbs && npm install --only=production \
     && pm2 start main.js \
@@ -37,6 +38,7 @@ RUN apt-get update \
 
 # sexyz
 COPY docker/bin/sexyz /usr/local/bin
+RUN dos2unix /enigma-bbs/docker/bin/docker-entrypoint.sh && apt-get remove dos2unix -y
 RUN chmod +x /enigma-bbs/docker/bin/docker-entrypoint.sh
 
 # enigma storage mounts
