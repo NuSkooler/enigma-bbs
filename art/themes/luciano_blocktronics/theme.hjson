@@ -1322,7 +1322,11 @@
 				config: {
 					selectedActorInfoFormat: "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}"
 					statusFollowing: "|00|10√"
-					staticIndicatorDisabled: "|00|12X"
+					statusNotFollowing: "|00|12X"
+					helpTextFollowing: "|00|10SPC |08: |02Toggle Following"
+					helpTextFollowers: "|00|10DEL |08: |02Remove Follower"
+					helpTextFollowRequests: "|00|10SPC |08: |02Accept\r\n|10DEL |08: |02Deny"
+					mainInfoFormat10: "{helpText}"
 				}
 				0: {
 					mci: {
@@ -1331,8 +1335,8 @@
 							width: 35
 							itemFormat: "|00|03{subject}|00 {statusIndicator}"
 							focusItemFormat: "|00|19|15{subject!styleUpper}|00 {statusIndicator}"
-							itemFormat: "|00{statusIndicator} |00|03{subject}"
-							focusItemFormat: "|00{statusIndicator} |00|19|15{subject}"
+							itemFormat: "|00|08{statusIndicator} |00|03{subject}"
+							focusItemFormat: "|00|08{statusIndicator} |00|19|15{subject}"
 							textOverflow: "..."
 						}
 						MT2: {
@@ -1342,6 +1346,10 @@
 						HM3: {
 							focusTextStyle: first lower
 							styleSGR1: "|00|08"
+						}
+						MT10: {
+							width: 22
+							height: 2
 						}
 					}
 				}
