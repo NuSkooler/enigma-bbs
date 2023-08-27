@@ -1,0 +1,12 @@
+node_modules
+package-lock.json
+yarn.lock
+
+filebase
+db
+drop
+file_base
+logs
+mail
+docs/_site
+docs/.sass-cache

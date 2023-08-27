@@ -16,7 +16,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * CombatNet has shut down, so the module (`combatnet.js`) has been removed.
 * New `NewUserPrePersist` system event available to developers to 'hook' account creation and add their own properties/etc.
 * The signature for `viewValidationListener`'s callback has changed: It is now `(err, newFocusId)`. To ignore a validation error, implementors can simply call the callback with a `null` error, else they should forward it on.
-* The Menu Flag `popParent` has been removed and `noHistory` has been updated to work as expected. In general things should "Just Work", but do see [UPGRADE](UPGRADE.md)!
+* The Menu Flag `popParent` has been removed and `noHistory` has been updated to work as expected. In general things should "Just Work", but do see [UPGRADE](UPGRADE.md) for additional details.
+* Art handling has been changed to respect the art width contained in SAUCE when present in the case where the terminal width is greater than the art width. This fixes art files that assume wrapping at 80 columns on wide (mostly new utf8) terminals.
 
 ## 0.0.13-beta
 * **Note for contributors**: ENiGMA has switched to [Prettier](https://prettier.io) for formatting/style. Please see [CONTRIBUTING](CONTRIBUTING.md) and the Prettier website for more information.

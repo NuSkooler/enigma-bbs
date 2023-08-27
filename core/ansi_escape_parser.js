@@ -37,6 +37,12 @@ function ANSIEscapeParser(options) {
     this.mciReplaceChar = miscUtil.valueWithDefault(options.mciReplaceChar, '');
     this.termHeight = miscUtil.valueWithDefault(options.termHeight, 25);
     this.termWidth = miscUtil.valueWithDefault(options.termWidth, 80);
+    this.breakWidth = this.termWidth;
+    // toNumber takes care of null, undefined etc as well.
+    let artWidth = _.toNumber(options.artWidth);
+    if (!_.isNaN(artWidth) && artWidth > 0 && artWidth < this.breakWidth) {
+        this.breakWidth = options.artWidth;
+    }
     this.trailingLF = miscUtil.valueWithDefault(options.trailingLF, 'default');
 
     this.row = Math.min(options?.startRow ?? 1, this.termHeight);
@@ -90,8 +96,8 @@ function ANSIEscapeParser(options) {
 
             switch (charCode) {
                 case CR:
-                    self.emit('literal', text.slice(start, pos));
-                    start = pos;
+                    self.emit('literal', text.slice(start, pos + 1));
+                    start = pos + 1;
 
                     self.column = 1;
 
@@ -105,8 +111,8 @@ function ANSIEscapeParser(options) {
                         self.column = 1;
                     }
 
-                    self.emit('literal', text.slice(start, pos));
-                    start = pos;
+                    self.emit('literal', text.slice(start, pos + 1));
+                    start = pos + 1;
 
                     self.row += 1;
 
@@ -114,13 +120,16 @@ function ANSIEscapeParser(options) {
                     break;
 
                 default:
-                    if (self.column === self.termWidth) {
+                    if (self.column === self.breakWidth) {
                         self.emit('literal', text.slice(start, pos + 1));
                         start = pos + 1;
 
+                        // If we hit breakWidth before termWidth then we need to force the terminal to go to the next line.
+                        if (self.column < self.termWidth) {
+                            self.emit('literal', '\r\n');
+                        }
                         self.column = 1;
                         self.row += 1;
-
                         self.positionUpdated();
                     } else {
                         self.column += 1;
@@ -135,7 +144,7 @@ function ANSIEscapeParser(options) {
         //
         //  Finalize this chunk
         //
-        if (self.column > self.termWidth) {
+        if (self.column > self.breakWidth) {
             self.column = 1;
             self.row += 1;
 
