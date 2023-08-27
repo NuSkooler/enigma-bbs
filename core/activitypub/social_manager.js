@@ -7,8 +7,13 @@ const stringFormat = require('../string_format');
 const { pipeToAnsi } = require('../color_codes');
 const MultiLineEditTextView =
     require('../multi_line_edit_text_view').MultiLineEditTextView;
-const { sendFollowRequest, sendUnfollowRequest } = require('./follow_util');
+const {
+    sendFollowRequest,
+    sendUnfollowRequest,
+    acceptFollowRequest,
+} = require('./follow_util');
 const { Collections } = require('./const');
+const EnigAssert = require('../enigma_assert');
 
 // deps
 const async = require('async');
@@ -42,11 +47,37 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
 
         this.followingActors = [];
         this.followerActors = [];
+        this.followRequests = [];
         this.currentCollection = Collections.Following;
+        this.currentHelpText = '';
 
         this.menuMethods = {
-            spaceKeyPressed: (formData, extraArgs, cb) => {
-                return this._toggleSelectedActorStatus(cb);
+            actorListKeyPressed: (formData, extraArgs, cb) => {
+                switch (formData.key.name) {
+                    case 'space':
+                        {
+                            if (this.currentCollection === Collections.Following) {
+                                return this._toggleFollowing(cb);
+                            } else if (
+                                this.currentCollection === Collections.FollowRequests
+                            ) {
+                                return this._acceptFollowRequest(cb);
+                            }
+                        }
+                        break;
+
+                    case 'delete':
+                        {
+                            if (this.currentCollection === Collections.Followers) {
+                                return this._removeFollower(cb);
+                            } else if (
+                                this.currentCollection === Collections.FollowRequests
+                            ) {
+                                return this._denyFollowRequest(cb);
+                            }
+                        }
+                        break;
+                }
             },
             listKeyPressed: (formData, extraArgs, cb) => {
                 const actorListView = this.getView('main', MciViewIds.main.actorList);
@@ -110,32 +141,7 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                     );
                 },
                 callback => {
-                    this._fetchActorList(
-                        Collections.Following,
-                        (err, followingActors) => {
-                            if (err) {
-                                return callback(err);
-                            }
-                            return this._fetchActorList(
-                                Collections.Followers,
-                                (err, followerActors) => {
-                                    if (err) {
-                                        return callback(err);
-                                    }
-
-                                    const mapper = a => {
-                                        a.plainTextSummary = htmlToMessageBody(a.summary);
-                                        return a;
-                                    };
-
-                                    this.followingActors = followingActors.map(mapper);
-                                    this.followerActors = followerActors.map(mapper);
-
-                                    return callback(null);
-                                }
-                            );
-                        }
-                    );
+                    return this._populateActorLists(callback);
                 },
                 callback => {
                     const v = id => this.getView('main', id);
@@ -156,11 +162,12 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                     });
 
                     navMenuView.on('index update', index => {
-                        if (0 === index) {
-                            this._switchTo(Collections.Following);
-                        } else {
-                            this._switchTo(Collections.Followers);
-                        }
+                        const collectionName = [
+                            Collections.Following,
+                            Collections.Followers,
+                            Collections.FollowRequests,
+                        ][index];
+                        this._switchTo(collectionName);
                     });
 
                     return callback(null);
@@ -175,11 +182,28 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
     _switchTo(collectionName) {
         this.currentCollection = collectionName;
         const actorListView = this.getView('main', MciViewIds.main.actorList);
-        if (Collections.Following === collectionName) {
-            actorListView.setItems(this.followingActors);
-        } else {
-            actorListView.setItems(this.followerActors);
+
+        let list;
+        switch (collectionName) {
+            case Collections.Following:
+                list = this.followingActors;
+                this.currentHelpText =
+                    this.config.helpTextFollowing || 'SPC = Toggle Follower';
+                break;
+            case Collections.Followers:
+                list = this.followerActors;
+                this.currentHelpText =
+                    this.config.helpTextFollowers || 'DEL = Remove Follower';
+                break;
+            case Collections.FollowRequests:
+                list = this.followRequests;
+                this.currentHelpText =
+                    this.config.helpTextFollowRequests || 'SPC = Accept\r\nDEL = Deny';
+                break;
         }
+        EnigAssert(list);
+
+        actorListView.setItems(list);
         actorListView.redraw();
 
         const selectedActor = this._getSelectedActorItem(
@@ -193,14 +217,23 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
             this._updateSelectedActorInfo(selectedActorInfoView, selectedActor);
         } else {
             selectedActorInfoView.setText('');
+            this.updateCustomViewTextsWithFilter(
+                'main',
+                MciViewIds.main.customRangeStart,
+                this._getCustomInfoFormatObject(null),
+                { pipeSupport: true }
+            );
         }
     }
 
     _getSelectedActorItem(index) {
-        if (this.currentCollection === Collections.Following) {
-            return this.followingActors[index];
-        } else {
-            return this.followerActors[index];
+        switch (this.currentCollection) {
+            case Collections.Following:
+                return this.followingActors[index];
+            case Collections.Followers:
+                return this.followerActors[index];
+            case Collections.FollowRequests:
+                return this.followRequests[index];
         }
     }
 
@@ -231,11 +264,12 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
         this.updateCustomViewTextsWithFilter(
             'main',
             MciViewIds.main.customRangeStart,
-            this._getCustomInfoFormatObject(actorInfo)
+            this._getCustomInfoFormatObject(actorInfo),
+            { pipeSupport: true }
         );
     }
 
-    _toggleSelectedActorStatus(cb) {
+    _toggleFollowing(cb) {
         const actorListView = this.getView('main', MciViewIds.main.actorList);
         const selectedActor = this._getSelectedActorItem(
             actorListView.getFocusItemIndex()
@@ -272,6 +306,49 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                 }
             );
         }
+    }
+
+    _acceptFollowRequest(cb) {
+        EnigAssert(Collections.FollowRequests === this.currentCollection);
+
+        const actorListView = this.getView('main', MciViewIds.main.actorList);
+        const selectedActor = this._getSelectedActorItem(
+            actorListView.getFocusItemIndex()
+        );
+
+        if (!selectedActor) {
+            return cb(null);
+        }
+
+        const request = selectedActor.request;
+        EnigAssert(request);
+
+        acceptFollowRequest(this.client.user, selectedActor, request, err => {
+            if (err) {
+                this.client.log.error(
+                    { error: err.message },
+                    'Failed to fully accept Follow request'
+                );
+            }
+
+            const followingActor = this.followRequests.splice(
+                actorListView.getFocusItemIndex(),
+                1
+            )[0];
+            this.followerActors.push(followingActor); // move to followers
+
+            this._switchTo(this.currentCollection); // redraw
+
+            return cb(err);
+        });
+    }
+
+    _removeFollower(cb) {
+        return cb(null);
+    }
+
+    _denyFollowRequest(cb) {
+        return cb(null);
     }
 
     _followingActorToggled(actorInfo, cb) {
@@ -327,6 +404,7 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
             selectedActorStatus: actorInfo ? actorInfo.status : false,
             selectedActorStatusIndicator: v('statusIndicator'),
             text: v('name'),
+            helpText: this.currentHelpText,
         });
 
         return formatObj;
@@ -334,8 +412,90 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
 
     _getStatusIndicator(enabled) {
         return enabled
-            ? this.config.statusIndicatorEnabled || '√'
-            : this.config.statusIndicatorDisabled || 'X';
+            ? this.config.statusFollowing || '√'
+            : this.config.statusNotFollowing || 'X';
+    }
+
+    _populateActorLists(cb) {
+        async.waterfall(
+            [
+                callback => {
+                    return this._fetchActorList(Collections.Following, callback);
+                },
+                (following, callback) => {
+                    this._fetchActorList(Collections.Followers, (err, followers) => {
+                        return callback(err, following, followers);
+                    });
+                },
+                (following, followers, callback) => {
+                    this._fetchFollowRequestActors((err, followRequests) => {
+                        return callback(err, following, followers, followRequests);
+                    });
+                },
+                (following, followers, followRequests, callback) => {
+                    const mapper = a => {
+                        a.plainTextSummary = htmlToMessageBody(a.summary);
+                        return a;
+                    };
+
+                    this.followingActors = following.map(mapper);
+                    this.followerActors = followers.map(mapper);
+                    this.followRequests = followRequests.map(mapper);
+
+                    return callback(null);
+                },
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    _fetchFollowRequestActors(cb) {
+        Collection.followRequests(this.client.user, 'all', (err, collection) => {
+            if (err) {
+                return cb(err);
+            }
+
+            if (!collection.orderedItems || collection.orderedItems.length < 1) {
+                return cb(null, []);
+            }
+
+            const statusIndicator = this._getStatusIndicator(false);
+
+            async.mapLimit(
+                collection.orderedItems,
+                4,
+                (request, nextRequest) => {
+                    const actorId = request.actor;
+                    Actor.fromId(actorId, (err, actor, subject) => {
+                        if (err) {
+                            this.client.log.warn({ actorId }, 'Failed to retrieve Actor');
+                            return nextRequest(null, null);
+                        }
+
+                        //  Add some of our own properties
+                        Object.assign(actor, {
+                            subject,
+                            status: false,
+                            statusIndicator,
+                            text: actor.preferredUsername,
+                            request,
+                        });
+
+                        return nextRequest(null, actor);
+                    });
+                },
+                (err, actorsList) => {
+                    if (err) {
+                        return cb(err);
+                    }
+
+                    actorsList = actorsList.filter(f => f); //   drop nulls
+                    return cb(null, actorsList);
+                }
+            );
+        });
     }
 
     _fetchActorList(collectionName, cb) {

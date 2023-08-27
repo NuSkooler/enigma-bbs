@@ -6,6 +6,7 @@ const {
     getActorId,
     prepareLocalUserAsActor,
 } = require('../../../activitypub/util');
+const { acceptFollowRequest } = require('../../../activitypub/follow_util');
 const SysLog = require('../../../logger').log;
 const {
     ActivityStreamMediaType,
@@ -750,26 +751,36 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            //  User accepts any followers automatically
-            const activityPubSettings = ActivityPubSettings.fromUser(localUser);
-            if (!activityPubSettings.manuallyApproveFollowers) {
-                this._recordAcceptedFollowRequest(localUser, remoteActor, activity);
-                return this.webServer.accepted(resp);
-            }
-
-            //  User manually approves requests; add them to their requests collection
-            Collection.addFollowRequest(
-                localUser,
-                remoteActor,
-                true, // ignore dupes
-                err => {
+            const addReq = () => {
+                //  User manually approves requests; add them to their requests collection
+                //  :FIXME: We need to store the Activity and fetch the Actor as needed later;
+                //  when accepting a request, we send back the Activity!
+                Collection.addFollowRequest(localUser, activity, err => {
                     if (err) {
                         return this.internalServerError(resp, err);
                     }
 
                     return this.webServer.accepted(resp);
+                });
+            };
+
+            //  User accepts any followers automatically
+            const activityPubSettings = ActivityPubSettings.fromUser(localUser);
+            if (activityPubSettings.manuallyApproveFollowers) {
+                return addReq();
+            }
+
+            acceptFollowRequest(localUser, remoteActor, activity, err => {
+                if (err) {
+                    this.log.warn(
+                        { error: err.message },
+                        'Failed to post Accept. Recording to requests instead.'
+                    );
+                    return addReq();
                 }
-            );
+
+                return this.webServer.accepted(resp);
+            });
         });
     }
 
@@ -1103,81 +1114,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
             return this.webServer.ok(resp, note.content);
         });
-    }
-
-    _recordAcceptedFollowRequest(localUser, remoteActor, requestActivity) {
-        async.series(
-            [
-                callback => {
-                    return Collection.addFollower(
-                        localUser,
-                        remoteActor,
-                        true, // ignore dupes
-                        callback
-                    );
-                },
-                callback => {
-                    Actor.fromLocalUser(localUser, (err, localActor) => {
-                        if (err) {
-                            this.log.warn(
-                                { inbox: remoteActor.inbox, error: err.message },
-                                'Failed to load local Actor for "Accept"'
-                            );
-                            return callback(err);
-                        }
-
-                        const accept = Activity.makeAccept(
-                            localActor.id,
-                            requestActivity
-                        );
-
-                        accept.sendTo(
-                            remoteActor.inbox,
-                            localUser,
-                            (err, respBody, res) => {
-                                if (err) {
-                                    this.log.warn(
-                                        {
-                                            inbox: remoteActor.inbox,
-                                            error: err.message,
-                                        },
-                                        'Failed POSTing "Accept" to inbox'
-                                    );
-                                    return callback(null); // just a warning
-                                }
-
-                                if (res.statusCode !== 202 && res.statusCode !== 200) {
-                                    this.log.warn(
-                                        {
-                                            inbox: remoteActor.inbox,
-                                            statusCode: res.statusCode,
-                                        },
-                                        'Unexpected status code'
-                                    );
-                                    return callback(null); // just a warning
-                                }
-
-                                this.log.info(
-                                    { inbox: remoteActor.inbox },
-                                    'Remote server received our "Accept" successfully'
-                                );
-
-                                return callback(null);
-                            }
-                        );
-                    });
-                },
-            ],
-            err => {
-                if (err) {
-                    //  :TODO: move this request to the "Request queue" for the user to try later
-                    this.log.error(
-                        { error: err.message },
-                        'Failed processing Follow request'
-                    );
-                }
-            }
-        );
     }
 
     _selfAsActorHandler(localUser, localActor, req, resp) {

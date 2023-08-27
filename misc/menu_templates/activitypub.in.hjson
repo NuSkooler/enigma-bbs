@@ -209,7 +209,7 @@
             MT2: {mode: "preview", acceptsFocus: false, acceptsInput: false}
             TM3: {
               focus: true
-              items: ["following", "followers"]
+              items: ["following", "followers", "pending requests"]
             }
           }
           actionKeys: [

@@ -73,6 +73,17 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
+    static followRequests(owningUser, page, cb) {
+        return Collection.ownedOrderedByUser(
+            Collections.FollowRequests,
+            owningUser,
+            true, // private
+            page,
+            null, // return full Follow Request Activity
+            cb
+        );
+    }
+
     static outbox(collectionId, page, cb) {
         return Collection.publicOrderedById(
             Collections.Outbox,
@@ -97,16 +108,16 @@ module.exports = class Collection extends ActivityPubObject {
         );
     }
 
-    static addFollowRequest(owningUser, requestingActor, ignoreDupes, cb) {
-        const collectionId = Endpoints.makeUserUrl(owningUser) + 'follow-requests';
+    static addFollowRequest(owningUser, requestActivity, cb) {
+        const collectionId = Endpoints.makeUserUrl(owningUser) + '/follow-requests';
         return Collection.addToCollection(
             Collections.FollowRequests,
             owningUser,
             collectionId,
-            requestingActor.id, // Actor requesting to follow owningUser
-            requestingActor,
-            true,
-            ignoreDupes,
+            requestActivity.id,
+            requestActivity,
+            true, // private
+            true, // ignoreDupes
             cb
         );
     }
@@ -549,7 +560,12 @@ module.exports = class Collection extends ActivityPubObject {
                     return cb(err);
                 }
 
-                entries = entries || [];
+                try {
+                    entries = (entries || []).map(e => JSON.parse(e.object_json));
+                } catch (e) {
+                    Log.error(`Collection "${collectionId}" error: ${e.message}`);
+                }
+
                 if (mapper && entries.length > 0) {
                     entries = entries.map(mapper);
                 }

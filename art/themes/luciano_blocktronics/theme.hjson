@@ -1321,7 +1321,7 @@
 			activityPubSocialManager: {
 				config: {
 					selectedActorInfoFormat: "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}"
-					statusIndicatorEnabled: "|00|10√"
+					statusFollowing: "|00|10√"
 					staticIndicatorDisabled: "|00|12X"
 				}
 				0: {
@@ -1339,7 +1339,7 @@
 							height: 15
 							width: 34
 						}
-						TM3: {
+						HM3: {
 							focusTextStyle: first lower
 							styleSGR1: "|00|08"
 						}

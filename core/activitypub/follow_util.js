@@ -3,9 +3,14 @@ const ActivityPubObject = require('./object');
 const UserProps = require('../user_property');
 const { Errors } = require('../enig_error');
 const Collection = require('./collection');
+const Actor = require('./actor');
+const Activity = require('./activity');
+
+const async = require('async');
 
 exports.sendFollowRequest = sendFollowRequest;
 exports.sendUnfollowRequest = sendUnfollowRequest;
+exports.acceptFollowRequest = acceptFollowRequest;
 
 function sendFollowRequest(fromUser, toActor, cb) {
     const fromActorId = fromUser.getProperty(UserProps.ActivityPubActorId);
@@ -78,6 +83,58 @@ function sendUnfollowRequest(fromUser, toActor, cb) {
                     return undoRequest.sendTo(toActor.inbox, fromUser, cb);
                 }
             );
+        }
+    );
+}
+
+function acceptFollowRequest(localUser, remoteActor, requestActivity, cb) {
+    async.series(
+        [
+            callback => {
+                return Collection.addFollower(
+                    localUser,
+                    remoteActor,
+                    true, // ignore dupes
+                    callback
+                );
+            },
+            callback => {
+                Actor.fromLocalUser(localUser, (err, localActor) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    const accept = Activity.makeAccept(localActor.id, requestActivity);
+
+                    accept.sendTo(remoteActor.inbox, localUser, (err, respBody, res) => {
+                        if (err) {
+                            return callback(Errors.HttpError(err.message, err.code));
+                        }
+
+                        if (res.statusCode !== 202 && res.statusCode !== 200) {
+                            return callback(
+                                Errors.HttpError(
+                                    `Unexpected HTTP status code ${res.statusCode}`
+                                )
+                            );
+                        }
+
+                        return callback(null);
+                    });
+                });
+            },
+            callback => {
+                // remove from local requests Collection
+                return Collection.removeOwnedById(
+                    Collections.FollowRequests,
+                    localUser,
+                    requestActivity.id,
+                    callback
+                );
+            },
+        ],
+        err => {
+            return cb(err);
         }
     );
 }

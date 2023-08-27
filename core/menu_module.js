@@ -13,6 +13,7 @@ const MultiLineEditTextView =
 const Errors = require('../core/enig_error.js').Errors;
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
+const { pipeToAnsi } = require('./color_codes.js');
 
 //  deps
 const async = require('async');
@@ -774,10 +775,25 @@ exports.MenuModule = class MenuModule extends PluginModule {
             const format = config[view.key];
             const text = stringFormat(format, fmtObj);
 
-            if (options.appendMultiLine && view instanceof MultiLineEditTextView) {
-                view.addText(text);
+            if (view instanceof MultiLineEditTextView) {
+                if (options.appendMultiLine) {
+                    view.addText(text);
+                } else {
+                    if (options.pipeSupport) {
+                        const ansi = pipeToAnsi(text, this.client);
+                        if (view.getData() !== ansi) {
+                            view.setAnsi(ansi);
+                        } else {
+                            view.redraw();
+                        }
+                    } else if (view.getData() !== text) {
+                        view.setText(text);
+                    } else {
+                        view.redraw();
+                    }
+                }
             } else {
-                if (view.getData() != text) {
+                if (view.getData() !== text) {
                     view.setText(text);
                 } else {
                     view.redraw();
