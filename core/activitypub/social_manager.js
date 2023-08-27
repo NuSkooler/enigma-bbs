@@ -11,6 +11,7 @@ const {
     sendFollowRequest,
     sendUnfollowRequest,
     acceptFollowRequest,
+    rejectFollowRequest,
 } = require('./follow_util');
 const { Collections } = require('./const');
 const EnigAssert = require('../enigma_assert');
@@ -53,14 +54,14 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
 
         this.menuMethods = {
             actorListKeyPressed: (formData, extraArgs, cb) => {
+                const collection = this.currentCollection;
                 switch (formData.key.name) {
                     case 'space':
                         {
-                            if (this.currentCollection === Collections.Following) {
+                            if (collection === Collections.Following) {
                                 return this._toggleFollowing(cb);
-                            } else if (
-                                this.currentCollection === Collections.FollowRequests
-                            ) {
+                            }
+                            if (collection === Collections.FollowRequests) {
                                 return this._acceptFollowRequest(cb);
                             }
                         }
@@ -68,16 +69,18 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
 
                     case 'delete':
                         {
-                            if (this.currentCollection === Collections.Followers) {
+                            if (collection === Collections.Followers) {
                                 return this._removeFollower(cb);
-                            } else if (
-                                this.currentCollection === Collections.FollowRequests
-                            ) {
-                                return this._denyFollowRequest(cb);
+                            }
+
+                            if (collection === Collections.FollowRequests) {
+                                return this._rejectFollowRequest(cb);
                             }
                         }
                         break;
                 }
+
+                return cb(null);
             },
             listKeyPressed: (formData, extraArgs, cb) => {
                 const actorListView = this.getView('main', MciViewIds.main.actorList);
@@ -308,6 +311,19 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
         }
     }
 
+    _removeSelectedFollowRequest(actorListView, moveToFollowers) {
+        const followingActor = this.followRequests.splice(
+            actorListView.getFocusItemIndex(),
+            1
+        )[0];
+
+        if (moveToFollowers) {
+            this.followerActors.push(followingActor);
+        }
+
+        this._switchTo(this.currentCollection); // redraw
+    }
+
     _acceptFollowRequest(cb) {
         EnigAssert(Collections.FollowRequests === this.currentCollection);
 
@@ -327,28 +343,48 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
             if (err) {
                 this.client.log.error(
                     { error: err.message },
-                    'Failed to fully accept Follow request'
+                    'Error Accepting Follow request'
                 );
             }
 
-            const followingActor = this.followRequests.splice(
-                actorListView.getFocusItemIndex(),
-                1
-            )[0];
-            this.followerActors.push(followingActor); // move to followers
-
-            this._switchTo(this.currentCollection); // redraw
+            this._removeSelectedFollowRequest(actorListView, true); // true=move to followers
 
             return cb(err);
         });
     }
 
     _removeFollower(cb) {
+        // :TODO: Send a Undo
         return cb(null);
     }
 
-    _denyFollowRequest(cb) {
-        return cb(null);
+    _rejectFollowRequest(cb) {
+        EnigAssert(Collections.FollowRequests === this.currentCollection);
+
+        const actorListView = this.getView('main', MciViewIds.main.actorList);
+        const selectedActor = this._getSelectedActorItem(
+            actorListView.getFocusItemIndex()
+        );
+
+        if (!selectedActor) {
+            return cb(null);
+        }
+
+        const request = selectedActor.request;
+        EnigAssert(request);
+
+        rejectFollowRequest(this.client.user, selectedActor, request, err => {
+            if (err) {
+                this.client.log.error(
+                    { error: err.message },
+                    'Error Rejecting Follow request'
+                );
+            }
+
+            this._removeSelectedFollowRequest(actorListView, false); // false=do not move to followers
+
+            return cb(err);
+        });
     }
 
     _followingActorToggled(actorInfo, cb) {

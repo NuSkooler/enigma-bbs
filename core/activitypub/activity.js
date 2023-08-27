@@ -27,12 +27,21 @@ module.exports = class Activity extends ActivityPubObject {
     }
 
     // https://www.w3.org/TR/activitypub/#accept-activity-inbox
-    static makeAccept(localActor, followRequest) {
+    static makeAccept(localActor, activity) {
         return new Activity({
             id: Activity.activityObjectId(),
             type: WellKnownActivity.Accept,
             actor: localActor,
-            object: followRequest, // previous request Activity
+            object: activity, // previous request Activity
+        });
+    }
+
+    static makeReject(localActor, activity) {
+        return new Activity({
+            id: Activity.activityObjectId(),
+            type: WellKnownActivity.Reject,
+            actor: localActor.id,
+            object: activity,
         });
     }
 

@@ -11,6 +11,7 @@ const async = require('async');
 exports.sendFollowRequest = sendFollowRequest;
 exports.sendUnfollowRequest = sendUnfollowRequest;
 exports.acceptFollowRequest = acceptFollowRequest;
+exports.rejectFollowRequest = rejectFollowRequest;
 
 function sendFollowRequest(fromUser, toActor, cb) {
     const fromActorId = fromUser.getProperty(UserProps.ActivityPubActorId);
@@ -107,6 +108,49 @@ function acceptFollowRequest(localUser, remoteActor, requestActivity, cb) {
                     const accept = Activity.makeAccept(localActor.id, requestActivity);
 
                     accept.sendTo(remoteActor.inbox, localUser, (err, respBody, res) => {
+                        if (err) {
+                            return callback(Errors.HttpError(err.message, err.code));
+                        }
+
+                        if (res.statusCode !== 202 && res.statusCode !== 200) {
+                            return callback(
+                                Errors.HttpError(
+                                    `Unexpected HTTP status code ${res.statusCode}`
+                                )
+                            );
+                        }
+
+                        return callback(null);
+                    });
+                });
+            },
+            callback => {
+                // remove from local requests Collection
+                return Collection.removeOwnedById(
+                    Collections.FollowRequests,
+                    localUser,
+                    requestActivity.id,
+                    callback
+                );
+            },
+        ],
+        err => {
+            return cb(err);
+        }
+    );
+}
+
+function rejectFollowRequest(localUser, requestActor, requestActivity, cb) {
+    async.series(
+        [
+            callback => {
+                Actor.fromLocalUser(localUser, (err, localActor) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    const reject = Activity.makeReject(localActor, localActor);
+                    reject.sendTo(requestActor.inbox, localUser, (err, respBody, res) => {
                         if (err) {
                             return callback(Errors.HttpError(err.message, err.code));
                         }
