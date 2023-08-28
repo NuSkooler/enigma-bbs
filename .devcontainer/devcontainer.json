@@ -1,14 +1,19 @@
 {
   "name": "Basic Node.js",
   "build": { "dockerfile": "Dockerfile" },
-"remoteUser": "node",
+"remoteUser": "root",
+"forwardPorts": [8888, 4000],
+"postCreateCommand": "gem install jekyll bundler && /bin/rm -rf node_modules && npm install && cd docs && bundle install && cd ..",
 "features": {
 	"ghcr.io/devcontainers/features/python:1": {
 		"installTools": true,
-		"version": "3.11"
+		"version": "latest"
 	},
 	"ghcr.io/devcontainers-contrib/features/curl-apt-get:1": {},
 	"ghcr.io/jungaretti/features/ripgrep:1": {},
-	"ghcr.io/warrenbuckley/codespace-features/sqlite:1": {}
+	"ghcr.io/warrenbuckley/codespace-features/sqlite:1": {},
+	"ghcr.io/devcontainers/features/ruby:1": {
+		"version": "3.1"
+	}
 }
 }
