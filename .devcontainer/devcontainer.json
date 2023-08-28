@@ -15,5 +15,10 @@
 	"ghcr.io/devcontainers/features/ruby:1": {
 		"version": "3.1"
 	}
+},
+"customizations": {
+	"vscode": {
+		"extensions": ["ms-azuretools.vscode-docker","alexcvzz.vscode-sqlite","yzhang.markdown-all-in-one", "DavidAnson.vscode-markdownlint", "christian-kohler.npm-intellisense", "dbaeumer.vscode-eslint", "bierner.markdown-yaml-preamble"]
+	}
 }
 }
