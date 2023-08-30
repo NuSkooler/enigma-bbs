@@ -982,11 +982,7 @@ exports.FullScreenEditorModule =
                                     const area = getMessageAreaByTag(self.messageAreaTag);
                                     if (fromView !== undefined) {
                                         if (area && area.realNames) {
-                                            fromView.setText(
-                                                self.client.user.properties[
-                                                    UserProps.RealName
-                                                ] || self.client.user.username
-                                            );
+                                            fromView.setText(self.client.user.realName());
                                         } else {
                                             fromView.setText(self.client.user.username);
                                         }
