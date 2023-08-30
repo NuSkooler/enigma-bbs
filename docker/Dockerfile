@@ -1,4 +1,4 @@
-FROM node:14-buster-slim
+FROM node:18-buster-slim
 
 LABEL maintainer="dave@force9.org"
 
@@ -21,8 +21,10 @@ RUN apt-get update \
     lhasa \
     unrar-free \
     p7zip-full \
+    dos2unix \
+    && npm install -g npm@latest \
     && npm install -g pm2 \
-    && cd /enigma-bbs && npm install --only=production \
+    && cd /enigma-bbs && npm install \
     && pm2 start main.js \
     && mkdir -p /enigma-bbs-pre/art \
     && mkdir /enigma-bbs-pre/mods \
@@ -37,6 +39,7 @@ RUN apt-get update \
 
 # sexyz
 COPY docker/bin/sexyz /usr/local/bin
+RUN dos2unix /enigma-bbs/docker/bin/docker-entrypoint.sh && apt-get remove dos2unix -y
 RUN chmod +x /enigma-bbs/docker/bin/docker-entrypoint.sh
 
 # enigma storage mounts

@@ -41,9 +41,19 @@ const SUPPORTED_ART_TYPES = {
 };
 
 function getFontNameFromSAUCE(sauce) {
-    if (sauce.Character) {
+    if (sauce && sauce.Character) {
         return sauce.Character.fontName;
     }
+}
+
+function getWidthFromSAUCE(sauce) {
+    if (sauce && sauce.Character) {
+        let sauceWidth = _.toNumber(sauce.Character.characterWidth);
+        if(!(_.isNaN(sauceWidth)) && sauceWidth > 0) {
+            return sauceWidth;
+        }
+    }
+    return null;
 }
 
 function sliceAtEOF(data, eofMarker) {
@@ -274,6 +284,7 @@ function display(client, art, options, cb) {
         mciReplaceChar: options.mciReplaceChar,
         termHeight: client.term.termHeight,
         termWidth: client.term.termWidth,
+        artWidth: getWidthFromSAUCE(options.sauce),
         trailingLF: options.trailingLF,
         startRow: options.startRow,
     });
