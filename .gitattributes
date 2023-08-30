@@ -6,3 +6,13 @@
 *.TXT	eol=crlf
 *.diz	eol=crlf
 *.DIZ	eol=crlf
+
+# Don't mess with shell script line endings
+*.sh text eol=lf
+
+# Same thing for optutil.js which functions as a shell script
+optutil.js text eol=lf
+
+# The devcontainer is also unix
+.devcontainer/Dockerfile text eol=lf
+.devcontainer/devcontainer.json text eol=lf
