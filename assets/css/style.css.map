@@ -3,9 +3,9 @@
 	"file": "style.css",
 	"sources": [
 		"style.scss",
-		"docs/_sass/jekyll-theme-hacker.scss",
-		"docs/_sass/rouge-base16-dark.scss",
-		"docs/_sass/_default_colors.scss"
+		"_sass/jekyll-theme-hacker.scss",
+		"_sass/rouge-base16-dark.scss",
+		"_sass/_default_colors.scss"
 	],
 	"sourcesContent": [
 		"@import 'jekyll-theme-hacker';\n\n.active-nav {\n  font-weight: bolder;\n}\n\n@media (max-width: 767px) {\n  html {\n    scroll-behavior: smooth;\n  }\n\n  .mobile-divide {\n    border-top: 1px dashed #b5e853;\n  }\n\n  .sidebar {\n    order: 2;\n    float: none;\n    width: 100%;\n    position: relative !important;\n  }\n\n  .main_area {\n    padding-left: 0px !important;\n  }\n\n  #container {\n    display: flex;\n    flex-direction: column;\n    display:flex;\n  }\n\n}\n\n@media (min-width: 768px) {\n  .menu_button {\n    display: none;\n  }\n\n  .mobile-divide {\n    display: none;\n  }\n}\n",

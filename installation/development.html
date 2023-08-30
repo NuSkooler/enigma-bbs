@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Testing Your Installation | ENiGMA½ BBS Software</title>
+<title>Development Environment Setup | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Testing Your Installation" />
+<meta property="og:title" content="Development Environment Setup" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Once you’ve completed your chosen installation method, it’s time to test!" />
-<meta property="og:description" content="Once you’ve completed your chosen installation method, it’s time to test!" />
+<meta name="description" content="Note: This is only useful for people who are looking to contribute to the ENiGMA½ source base itself. Those that are just setting up a new BBS system do not need this section." />
+<meta property="og:description" content="Note: This is only useful for people who are looking to contribute to the ENiGMA½ source base itself. Those that are just setting up a new BBS system do not need this section." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2023-08-30T21:37:29+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Testing Your Installation" />
+<meta property="twitter:title" content="Development Environment Setup" />
 <script type="application/ld+json">
-{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"Once you’ve completed your chosen installation method, it’s time to test!","url":"/enigma-bbs/installation/testing.html","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/testing.html"},"headline":"Testing Your Installation","dateModified":"2023-08-30T21:37:29+00:00","datePublished":"2023-08-30T21:37:29+00:00","@context":"https://schema.org"}</script>
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"Note: This is only useful for people who are looking to contribute to the ENiGMA½ source base itself. Those that are just setting up a new BBS system do not need this section.","url":"/enigma-bbs/installation/development.html","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/development.html"},"headline":"Development Environment Setup","dateModified":"2023-08-30T21:37:29+00:00","datePublished":"2023-08-30T21:37:29+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -240,7 +240,7 @@
 
 
     
-      <li class="active-nav">Testing Your Installation</li>
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
     
 
 
@@ -290,7 +290,7 @@
 
 
     
-    <li><a href="/enigma-bbs/installation/development.html">Development Environment Setup</a></li>
+      <li class="active-nav">Development Environment Setup</li>
     
 
 
@@ -2300,75 +2300,62 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/network.html">&laquo; Network Setup</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/production.html">&laquo; Production Installation</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/installation/production.html">Production Installation &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files &raquo;</a>
               
               <br clear="both" />
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Testing Your Installation</h1>
-    <p>Once you’ve completed your chosen installation method, it’s time to test!</p>
+    <h1 class="page-title">Development Environment Setup</h1>
+    <p><em>Note:</em> This is only useful for people who are looking to contribute to the ENiGMA½ source base itself. Those that are just setting up a new BBS system do not need this section.</p>
 
-<p><em>Note that if you’ve used the <a href="/enigma-bbs/installation/docker.html">Docker</a> installation method, you’ve already done this.</em></p>
-
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./main.js
-</code></pre></div></div>
-
-<p>If everything went OK:</p>
-
-<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ENiGMA½ Copyright (c) 2014-2022, Bryan Ashby
-_____________________   _____  ____________________    __________\_   /
-\__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
-//   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
-/____       _____|      __________       ___|__|      ____|     \   /  _____  \
----- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
-                                                                     /__   _\
- &lt;*&gt;   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   &lt;*&gt;       /__/
-
--------------------------------------------------------------------------------
-
-System started!
-</code></pre></div></div>
-<p>Grab your favourite telnet client, connect to localhost:8888 and test out your installation.</p>
-
-<p>To shut down the server, press Ctrl-C.</p>
-
-<h2 id="points-of-interest">Points of Interest</h2>
+<p>The easiest way to get started with development on ENiGMA½ is via the pre-configured Visual Studio Code remote docker container environment. This setup will download and configure everything needed with minimal interaction. It also works cross-platform.</p>
 
 <ul>
-  <li>The default port for Telnet is 8888 and 8889 for SSH.
-    <ul>
-      <li>Note that on *nix systems port such as telnet/23 are privileged (e.g. require root). See
-<a href="http://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode">this Stack Overflow article</a> for some tips on using these ports on your system if desired.</li>
-    </ul>
-  </li>
-  <li>The first user you create when logging in will be automatically be added to the <code class="language-plaintext highlighter-rouge">sysops</code> group.</li>
+  <li>Install <a href="https://code.visualstudio.com/download">Visual Studio Code</a></li>
+  <li>Install <a href="https://docs.docker.com/engine/install/">Docker</a></li>
+  <li>Clone the <a href="https://github.com/NuSkooler/enigma-bbs">ENiGMA½</a> repository.</li>
+  <li>Choose “Open Folder” from Visual Studio Code and open the location where you cloned the repository.</li>
 </ul>
 
-<h2 id="telnet-software">Telnet Software</h2>
-<p>If you don’t have any telnet software, these are compatible with ENiGMA½:</p>
+<p>That’s it! Visual Studio Code should prompt you for everything else that is needed, including some useful extensions for development.</p>
 
-<ul>
-  <li><a href="http://syncterm.bbsdev.net/">SyncTERM</a></li>
-  <li><a href="https://github.com/M-griffin/EtherTerm">EtherTerm</a></li>
-  <li><a href="http://mysticbbs.com/downloads.html">NetRunner</a></li>
-  <li><a href="https://magickabbs.com/utils/">MagiTerm</a></li>
-  <li><a href="https://github.com/codewar65/VTX_ClientServer">VTX</a> (Browser based)</li>
-  <li><a href="https://www.ftelnet.ca/">fTelnet</a> (Browser based)</li>
-</ul>
+<h2 id="tasks">Tasks</h2>
+
+<p>Once it completes, there are a few tasks and run-configs that are useful.  Open up the command pallete and search/choose “Tasks&gt; Run Task”. From there you can run the following tasks:</p>
+
+<h3 id="start-jekyll-enigma-documentation-server">Start Jekyll (ENiGMA½ documentation server)</h3>
+
+<p>This task will start the Jekyll server to perform local testing of changes to documentation. After running this task, open a browser to (http://localhost:4000/enigma-bbs/) to see the documentation.</p>
+
+<h3 id="rebuild-jekyll-bundles">(re)build Jekyll bundles</h3>
+
+<p>When the image is created the Jekyll bundles are installed, so in general there shouldn’t be much need to run this task. This is available however in case soemthing goes wrong or you are working on the Jekyll setup itself.</p>
+
+<h3 id="rebuild-node-modules">(re)build node modules</h3>
+
+<p>Used to re-generate the node modules. Generally shouldn’t be necessary unless something is broken or you are adding/changing versions of dependencies.</p>
+
+<h3 id="enigma-new-configuration">ENiGMA½ new configuration</h3>
+
+<p>This task executes <code class="language-plaintext highlighter-rouge">oputil.js</code> in order to create a new BBS configuration (useful if you have just checked out the code and haven’t setup any configuration yet.)</p>
+
+<h2 id="run--debug-config">Run / Debug config</h2>
+
+<p>There is also a default “Launch Program” config (hotkey access via F5 / Ctrl-Shift-D.) This will launch ENiGMA½. Once it has launched, access the system via telnet, port 8888 as usual.</p>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/network.html">&laquo; Network Setup</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/production.html">&laquo; Production Installation</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/installation/production.html">Production Installation &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files &raquo;</a>
               
               <br clear="both" />
               </div>
