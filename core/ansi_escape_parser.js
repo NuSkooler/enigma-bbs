@@ -24,7 +24,7 @@ function ANSIEscapeParser(options) {
     this.graphicRendition = {};
 
     this.parseState = {
-        re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g, //  eslint-disable-line no-control-regex
+        re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsutEFGST])/g, //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
@@ -231,7 +231,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g, //  eslint-disable-line no-control-regex
+            re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsutEFGST])/g, //  eslint-disable-line no-control-regex
             stop: false,
         };
     };
