@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="TIC Support" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping TIC areas to local file areas." />
-<meta property="og:description" content="TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping TIC areas to local file areas." />
+<meta name="description" content="TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas." />
+<meta property="og:description" content="TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2023-09-03T05:03:17+00:00" />
+<meta property="article:published_time" content="2023-09-03T17:03:19+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="TIC Support" />
 <script type="application/ld+json">
-{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping TIC areas to local file areas.","url":"/enigma-bbs/filebase/tic-support.html","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/tic-support.html"},"headline":"TIC Support","dateModified":"2023-09-03T05:03:17+00:00","datePublished":"2023-09-03T05:03:17+00:00","@context":"https://schema.org"}</script>
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.","url":"/enigma-bbs/filebase/tic-support.html","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/tic-support.html"},"headline":"TIC Support","dateModified":"2023-09-03T17:03:19+00:00","datePublished":"2023-09-03T17:03:19+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -30,9 +30,9 @@
     
     <div id="container">
         <div class="sidebar" id="sidebar">
-        <hr class="mobile-divide" />
+        <hr class="mobile-divide">
             <div class="container">
-          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
             </div>
             
             <ul>
@@ -2300,19 +2300,19 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/filebase/web-access.html">&laquo; Web Access</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/filebase/web-access.html">« Web Access</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts & Symlinks &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks »</a>
               
-              <br clear="both" />
+              <br clear="both">
               </div>
 
                 <div class="page">
     <h1 class="page-title">TIC Support</h1>
     <h2 id="tic-support">TIC Support</h2>
-<p>ENiGMA½ supports FidoNet-Style TIC file attachments by mapping TIC areas to local file areas.</p>
+<p>ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.</p>
 
 <p>Under a given node defined in the <code class="language-plaintext highlighter-rouge">ftn_bso</code> config section in <code class="language-plaintext highlighter-rouge">config.hjson</code> (see
 <a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import/Export</a>), TIC configuration may be supplied:</p>
@@ -2325,9 +2325,9 @@
           packetPassword: mypass
           encoding: cp437
           archiveType: zip
-          tic: {
+          tic: { // &lt;--- General TIC config for 46:*
             password: TESTY-TEST
-            uploadBy: Agoranet TIC
+            uploadBy: AgoraNet TIC
             allowReplace: true
           }
         }
@@ -2337,7 +2337,36 @@
 }
 </code></pre>
 
-<p>You then need to configure the mapping between TIC areas you want to carry, and the file base area and storage tag for them to be tossed to. Optionally you can also add hashtags to the tossed files to assist users in searching for files:</p>
+<p>Valid <code class="language-plaintext highlighter-rouge">tic</code> members:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">password</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>TIC packet password, if required</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">uploadedBy</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Sets the “uploaded by” field for TIC attachments, for example “AgoraNet TIC”</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">allowReplace</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to allow TIC attachments to replace each other. This is especially handy for things like weekly node list attachments</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Next, we need to configure the mapping between TIC areas you want to carry, and the file base area (and, optionally, specific storage tag) for them to be tossed to. You can also add hashtags to the tossed files to assist users in searching for files:</p>
 
 <pre><code class="language-hjson">ticAreas: {
     agn_node: {
@@ -2348,10 +2377,44 @@
 }
 
 </code></pre>
-<p>Multiple TIC areas can be mapped to a single file base area.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Note that in the example above <code class="language-plaintext highlighter-rouge">agn_node</code> represents the <strong>external</strong> network area tag, usually represented in all caps. In this case, <code class="language-plaintext highlighter-rouge">AGN_NODE</code>.</p>
+</blockquote>
+
+<p>Valid <code class="language-plaintext highlighter-rouge">ticAreas</code> members under a given node mapping are as follows:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">areaTag</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Specifies the local areaTag in which to place TIC attachments</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">storageTag</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Optionally, set a specific storageTag. If not set, the default for this area will be used.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hashTags</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>One or more optional hash tags to assign TIC attachments in this area.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>💡 Multiple TIC areas can be mapped to a single file base area.</p>
 
 <h3 id="example-configuration">Example Configuration</h3>
-<p>An example configuration linking file base areas, FTN BSO node configuration and TIC area configuration.</p>
+<p>Example configuration fragments mapping file base areas, FTN BSO node configuration and TIC area configuration.</p>
 
 <pre><code class="language-hjson">fileBase: {
     areaStoragePrefix: /home/bbs/file_areas/
@@ -2385,22 +2448,24 @@ scannerTossers: {
                 }
             }
         }
+
+        ticAreas: {
+            // here we map AgoraNet AGN_NODE -&gt; local msgNetworks file area
+            agn_node: {
+                areaTag: msgNetworks
+                storageTag: msg_network
+                hashTags: agoranet,nodelist
+            }
+            agn_info: {
+                areaTag: msgNetworks
+                storageTag: msg_network
+                hashTags: agoranet,infopack
+            }
+        }
     }
 }
 
 
-ticAreas: {
-    agn_node: {
-        areaTag: msgNetworks
-        storageTag: msg_network
-        hashTags: agoranet,nodelist
-    }
-    agn_info: {
-        areaTag: msgNetworks
-        storageTag: msg_network
-        hashTags: agoranet,infopack
-    }
-}
 </code></pre>
 
 <h2 id="see-also">See Also</h2>
@@ -2410,12 +2475,12 @@ ticAreas: {
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/filebase/web-access.html">&laquo; Web Access</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/filebase/web-access.html">« Web Access</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts & Symlinks &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks »</a>
               
-              <br clear="both" />
+              <br clear="both">
               </div>
             </section>
           </div>
