@@ -95,9 +95,7 @@ module.exports = class User2FA_OTPWebRegister {
                     }
 
                     const message = {
-                        to: `${
-                            user.getProperty(UserProps.RealName) || user.username
-                        } <${user.getProperty(UserProps.EmailAddress)}>`,
+                        to: user.emailAddress(),
                         //  from will be filled in
                         subject: '2-Factor Authentication Registration',
                         text: textTemplate,

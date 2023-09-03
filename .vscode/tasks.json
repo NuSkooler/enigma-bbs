@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Jekyll (ENiGMA½ documentation server)",
+            "command": "cd docs && bundle exec jekyll serve",
+            "isBackground": true,
+            "type": "shell"
+        },
+        {
+            "label": "(re)build Jekyll bundles",
+            "command": "cd docs && bundle install",
+            "type": "shell"
+        },
+        {
+            "label": "(re)build node modules",
+            "command": "/bin/rm -rf node_modules && npm install",
+            "type": "shell"
+        },
+        {
+            "label": "ENiGMA½ new configuration",
+            "command": "./oputil.js config new",
+            "type": "shell"
+        }
+    ]
+}

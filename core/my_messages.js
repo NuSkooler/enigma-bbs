@@ -4,7 +4,6 @@
 //  ENiGMA½
 const { MenuModule, MenuFlags } = require('./menu_module');
 const Message = require('./message.js');
-const UserProps = require('./user_property.js');
 const { filterMessageListByReadACS } = require('./message_area.js');
 
 exports.moduleInfo = {
@@ -21,10 +20,7 @@ exports.getModule = class MyMessagesModule extends MenuModule {
 
     initSequence() {
         const filter = {
-            toUserName: [
-                this.client.user.username,
-                this.client.user.getProperty(UserProps.RealName),
-            ],
+            toUserName: [this.client.user.username, this.client.user.realName()],
             sort: 'modTimestamp',
             resultType: 'messageList',
             limit: 1024 * 16, //  we want some sort of limit...

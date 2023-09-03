@@ -54,6 +54,7 @@ collections:
       - installation/network.md
       - installation/testing.md
       - installation/production.md
+      - installation/development.md
       - configuration/creating-config.md
       - configuration/sysop-setup.md
       - configuration/config-files.md

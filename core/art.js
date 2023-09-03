@@ -41,13 +41,13 @@ const SUPPORTED_ART_TYPES = {
 };
 
 function getFontNameFromSAUCE(sauce) {
-    if (sauce.Character) {
+    if (sauce && sauce.Character) {
         return sauce.Character.fontName;
     }
 }
 
 function getWidthFromSAUCE(sauce) {
-    if (sauce.Character) {
+    if (sauce && sauce.Character) {
         let sauceWidth = _.toNumber(sauce.Character.characterWidth);
         if (!_.isNaN(sauceWidth) && sauceWidth > 0) {
             return sauceWidth;

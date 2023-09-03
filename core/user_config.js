@@ -116,15 +116,15 @@ exports.getModule = class UserConfigModule extends MenuModule {
                 formData = _.clone(formData);
 
                 const newProperties = {
-                    [UserProps.RealName]: formData.value.realName,
+                    [UserProps.RealName]: formData.value.realName || '',
                     [UserProps.Birthdate]: getISOTimestampString(
-                        formData.value.birthdate
+                        formData.value.birthdate || moment()
                     ),
-                    [UserProps.Sex]: formData.value.sex,
-                    [UserProps.Location]: formData.value.location,
-                    [UserProps.Affiliations]: formData.value.affils,
-                    [UserProps.EmailAddress]: formData.value.email,
-                    [UserProps.WebAddress]: formData.value.web,
+                    [UserProps.Sex]: formData.value.sex || '',
+                    [UserProps.Location]: formData.value.location || '',
+                    [UserProps.Affiliations]: formData.value.affils || '',
+                    [UserProps.EmailAddress]: formData.value.email || '',
+                    [UserProps.WebAddress]: formData.value.web || '',
                     [UserProps.TermHeight]: formData.value.termHeight.toString(),
                     [UserProps.ThemeId]:
                         self.availThemeInfo[formData.value.theme].themeId,
@@ -237,7 +237,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         self.setViewText(
                             'menu',
                             MciCodeIds.RealName,
-                            user.properties[UserProps.RealName]
+                            user.realName(false) || ''
                         );
                         self.setViewText(
                             'menu',
