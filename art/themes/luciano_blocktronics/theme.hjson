@@ -187,7 +187,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 15,
+						height: 14
 						width: 50
 						itemFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{location:<19.19}|03{lastLoginTs}"
 						focusItemFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}"
@@ -343,7 +343,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 14
+						height: 13
 						width: 70
 						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}"
 						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}"
@@ -416,7 +416,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 14
+						height: 12
 						width: 70
 						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}"
 						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
@@ -618,7 +618,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 16
+						height: 12
 						width: 71
 						itemFormat:      "|00|15  {msgNum:<4.4} |03{subject:<34.33} {fromUserName:<19.18} |03{ts:<12.12}"
 						focusItemFormat: "|00|19> |15{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}"
@@ -783,7 +783,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 14
+						height: 12
 						width: 70
 						itemFormat: "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}"
 						focusItemFormat: "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}"
@@ -1214,7 +1214,7 @@
 				2: {
 					mci: {
 						MT1: {
-							height: 14
+							height: 13
 							width: 45
 						}
 
