@@ -1,0 +1,1367 @@
+{
+	info: {
+		name: Mystery Skull
+		author: Luciano Ayres
+		group: blocktronics
+		enabled: true
+
+		//
+		//	Also check out Luciano's ANSIGARDEN:
+		//	http://www.ansigarden.com/
+		//
+	}
+
+	customization: {
+
+		defaults: {
+			passwordChar: *
+
+			dateTimeFormat: {
+				short: MMM Do hh:mm a
+			}
+		}
+
+		menus: {
+			matrix: {
+				mci: {
+					VM1: {
+						itemFormat:			"|03{text}"
+						focusItemFormat:	"|11{text!styleFirstLower}"
+					}
+				}
+			}
+
+			newUserApplication: {
+				mci: {
+					ET1: { width: 23 }
+					ET2: { width: 23 }
+					ET5: { width: 23 }
+					ET6: { width: 23 }
+
+					ET7: { width: 23 }
+					ET8: { width: 23 }
+					ET9: { width: 23 }
+					ET10: { width: 23 }
+
+					TM12: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			newUserApplicationSsh: {
+				mci: {
+					ET1: { width: 23 }
+					ET2: { width: 23 }
+					ET5: { width: 23 }
+					ET6: { width: 23 }
+
+					ET7: { width: 23 }
+					ET8: { width: 23 }
+					ET9: { width: 23 }
+					ET10: { width: 23 }
+
+					TM12: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			newUserFeedbackToSysOp: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
+			login: {
+				mci: {
+					ET1: { width: 14 }
+					ET2: { width: 14 }
+				}
+			}
+
+			fullLoginSequenceOnelinerz: {
+				config: {
+					dateTimeFormat: ddd hh:mma
+				}
+				0: {
+					mci: {
+						VM1: {
+							height: 10
+							width: 20
+							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+						}
+						TM2: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+				1: {
+					mci: {
+						ET1: { width: 60 }
+						TL2: { width: 60 }
+						TM3: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
+			mainMenuUserAchievementsEarned: {
+				config: {
+					dateTimeFormat: MMM Do hh:mma
+					achievementsInfoFormat10: "|00|07\"|11{title}|07\""
+					achievementsInfoFormat11: "|00|03{text}"
+				}
+				mci: {
+					VM1: {
+						height: 11
+						width: 76
+						itemFormat: "|00|15{ts} |07- |03{title:<47.46} |15{points:,}|07 pts"
+						focusItemFormat: "|00|19|15{ts} - {title:<47.46} {points:,} pts"
+					}
+					TL10: {
+						width: 76
+					}
+					TL11: {
+						width: 76
+					}
+				}
+			}
+
+			mainMenuUserStats: {
+				mci: {
+					UN1: { width: 15 }
+					UR2: { width: 15 }
+					LO3: { width: 15 }
+					UF4: { width: 15 }
+					UG5: { width: 15 }
+					UT6: { width: 15 }
+					UC7: { width: 15 }
+					ST8: { width: 15 }
+				}
+			}
+
+			mainMenuSystemStats: {
+				mci: {
+					BN1: { width: 17 }
+					VN2: { width: 17 }
+					OS3: { width: 33 }
+					SC4: { width: 33 }
+					AN7: { width: 6 }
+					ND8: { width: 6 }
+					TC9: { width: 6 }
+					TT11: { width: 6 }
+					PT12: { width: 6 }
+					TP13: { width: 6 }
+					NV14: { width: 17 }
+				}
+			}
+
+
+			mainMenuLastCallers: {
+				config: {
+					dateTimeFormat: MMM Do hh:mma
+				}
+				mci: {
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}"
+					}
+				}
+			}
+
+			mainMenuUserList: {
+				config: {
+					dateTimeFormat: MMM Do hh:mma
+				}
+				mci: {
+					VM1: {
+						height: 15,
+						width: 50
+						itemFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{location:<19.19}|03{lastLoginTs}"
+						focusItemFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}"
+					}
+				}
+			}
+
+			mainMenuWhosOnline: {
+				mci: {
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
+					}
+				}
+			}
+
+			mainMenuFeedbackToSysOp: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
+			mainMenuOnelinerz: {
+				config: {
+					dateTimeFormat: ddd hh:mma
+				}
+				0: {
+					mci: {
+						VM1: {
+							height: 10
+							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+						}
+						TM2: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+				1: {
+					mci: {
+						ET1: { width: 60 }
+						TL2: { width: 60 }
+						TM3: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
+			mainMenuWaitingForCaller: {
+				config: {
+					// formats
+					quickLogTimestampFormat: "|01|03MM|08/|03DD hh:mm:ssa"
+					nowDateTimeFormat: "|00|10ddd|08, |10MMMM Do YYYY|08, |10h|08:|10mm|02a"
+					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
+
+					// header
+					mainInfoFormat10: "|00|10{now}    |10{currentUserName} |08- |02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo} |08- |02Avail|08:|10{availIndicator} |02Vis|07:|10{visIndicator}"
+
+					// today
+					mainInfoFormat11: "|00|15{callsToday:>5}"
+					mainInfoFormat12: "|00|15{postsToday:>5}"
+					mainInfoFormat13: "|00|15{newUsersToday:>5}"
+					mainInfoFormat14: "|00|15{uploadsToday:<4}"
+					mainInfoFormat15: "|00|15{downloadsToday:<4}"
+					mainInfoFormat16: "|00|15{uploadBytesToday!sizeWithoutAbbr:<5} |07{uploadBytesToday!sizeAbbr}"
+					mainInfoFormat17: "|00|15{downloadBytesToday!sizeWithoutAbbr:<5} |07{downloadBytesToday!sizeAbbr}"
+
+
+					// last login
+					mainInfoFormat18: "|00|15{lastLoginUserName:<26} |07{lastLogin}"
+
+					// system stats
+					mainInfoFormat20: "|00|15{freeMemoryBytes!sizeWithoutAbbr} |07{freeMemoryBytes!sizeAbbr} free |08/ |15{totalMemoryBytes!sizeWithoutAbbr} |07{totalMemoryBytes!sizeAbbr}"
+					mainInfoFormat22: "|00|15{systemCurrentLoad} |07% |08/ |15{systemAvgLoad} |07load avg|08."
+					mainInfoFormat24: "|00|15{processUptimeSeconds!durationSeconds} |08/ |15{processBytesIngress!sizeWithoutAbbr:>4} |07{processBytesIngress!sizeAbbr}|08/|15{processBytesEgress!sizeWithoutAbbr:>4} |07{processBytesEgress!sizeAbbr}"
+
+					// totals
+					mainInfoFormat19: "|00|15{totalCalls:>5}"
+					mainInfoFormat21: "|00|15{totalPosts:>7}"
+					mainInfoFormat23: "|00|15{totalUsers:>5}"
+					mainInfoFormat25: "|00|15{totalFiles:>4} |08/ |15{totalFileBytes!sizeWithoutAbbr:>4} |07{totalFileBytes!sizeAbbr}"
+
+					quickLogLevel: info
+					quickLogLevelIndicators: {
+						trace : |00|02T
+						debug: |00|03D
+						info: |00|15I
+						warn: |00|14W
+						error: |00|12E
+						fatal: |00|28F
+					}
+					quickLogLevelMessagePrefixes: {
+						trace : |00|02
+						debug: |00|03
+						info: |00|07
+						warn: |00|14
+						error: |00|12
+						fatal: |00|28
+					}
+					statusAvailableIndicators: [ "N", "Y" ]
+					statusVisibleIndicators: [ "N", "Y" ]
+
+					nodeStatusSelectionFormat: "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}"
+				}
+				0: {
+					mci: {
+						TL16: {
+							fillChar: .
+						}
+						TL20: { width: 30 }
+						TL22: { width: 30 }
+						TL24: { width: 30 }
+
+						// node status
+						VM1: {
+							height: 5
+							width: 37
+							itemFormat:      "|00  |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							focusItemFormat: "|00|10> |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							focusItemAtTop: false
+						}
+						// quick log
+						VM2: {
+							height: 5
+							width: 73
+							itemFormat: "|00|07{nodeId} {levelIndicator} |02{timestamp} {message:<51.50}"
+						}
+
+						MT3: {
+							mode: preview
+							autoScroll: false
+							height: 5
+							width: 12
+						}
+					}
+				}
+			}
+
+			messageBaseMessageList: {
+				config: {
+					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 70
+						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}"
+						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}"
+					}
+				}
+			}
+
+			messageBaseChangeCurrentConference: {
+				mci: {
+					VM1: {
+						width: 26
+						height: 19
+						itemFormat: "|00|15{index} |07- |03{name}"
+						focusItemFormat: "|00|19|15{index} - {name}"
+					}
+				}
+			}
+
+			messageBaseChangeCurrentArea: {
+				mci: {
+					VM1: {
+						width: 26
+						height: 19
+						itemFormat: "|00|15{index:.2} |07- |03{name}"
+						focusItemFormat: "|00|09|15{index:.2} - {name}"
+					}
+				}
+			}
+
+			messageBaseSetNewScanDate: {
+				mci: {
+					SM2: {
+						width: 54
+						itemFormat: "|00|07{conf.name} |08- |07{area.name}"
+						focusItemFormat: "|00|15{conf.name} |07- |15{area.name}"
+					}
+				}
+			}
+
+			qwkExportPacketCurrentConfig: {
+				mci: {
+					TL1: {
+						width: 70
+					}
+					TL2: {
+						width: 70
+					}
+				}
+			}
+
+			privateMailMenuCreateMessage: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
+			privateMailMenuInbox: {
+				config: {
+					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 70
+						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}"
+						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
+					}
+					XY2: {
+						width: 30
+					}
+				}
+			}
+
+			mainMenuRumorz: {
+				0: {
+					mci: {
+						VM1: {
+							height: 14,
+							width: 70
+							itemFormat:      "|00|11  {rumor}"
+							focusItemFormat: "|00|15> |14{rumor}"
+						}
+						TM2: {
+							focusTextStyle: upper
+							items: [ "yes", "no" ]
+						}
+					}
+				}
+				1: {
+					mci: {
+						ET1: { width: 60 }
+						TL2: { width: 60 }
+						TM3: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
+			bbsList: {
+				0: {
+					mci: {
+						VM1: {
+							height: 11
+							width: 22
+							focusTextStyle: first upper
+							itemFormat: "|00|07{bbsName}"
+							focusItemFormat: "|00|19|15{bbsName!styleFirstLower}"
+						}
+						TL2: { width: 28 }
+						TL3: { width: 28 }
+						TL4: { width: 28 }
+						TL5: { width: 28 }
+						TL6: { width: 28 }
+						TL7: { width: 28 }
+						TL8: { width: 28 }
+						TL9: { width: 28 }
+					}
+				},
+				1: {
+					mci: {
+						ET1: { width: 32 }
+						ET2: { width: 32 }
+						ET3: { width: 32 }
+						ET4: { width: 32 }
+						ET5: { width: 32 }
+						ET6: { width: 32 }
+						ET7: { width: 32 }
+						ET8: { width: 32 }
+
+						TM17: {
+							focusTextStyle: first upper
+						}
+					}
+				}
+			}
+
+			userTwoFactorAuthOTPConfig: {
+				config: {
+					menuInfoFormat10: "{infoText}"
+					infoText: {
+						disabled: Enabling 2-factor authentication can greatly increase account security.
+					}
+				}
+				mci: {
+					TM1: {
+						width: 20
+						items: [
+							"disabled"
+							"enabled"
+						]
+						focusTextStyle: upper
+						styleSGR1: |08
+					}
+					SM2: {
+						width: 20
+						focusTextStyle: upper
+						styleSGR1: |08
+						items: [
+						//	order is important:
+							"Time-Based - TOTP"
+							"HMAC-Based - HOTP"
+							"Google Auth"
+						]
+					}
+					TM3: {
+						focusTextStyle: upper
+						styleSGR1: |00|08
+					}
+					MT10: {
+						width: 31
+						height: 3
+						mode: preview
+						acceptsFocus: false
+					}
+				}
+			}
+
+			nodeMessage: {
+				config: {
+					messageFormat: "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}"
+				}
+				0: {
+					mci: {
+						SM1: {
+							width: 25
+							itemFormat: "|00|03node |07{text} |08(|07{userName}|08)"
+							focusItemFormat: "|00|11node |15{text} |07(|15{userName}|07)"
+						}
+						ET2: {
+							width: 65
+						}
+						TL3: {
+							width: 65
+						}
+					}
+				}
+			}
+
+			editAutoSignature: {
+				0: {
+					mci: {
+						MT1: {
+							height: 8
+							width: 73
+						}
+						BT2: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
+			messageSearch: {
+				0: {
+					mci: {
+						ET1: {
+							width: 42
+						}
+						BT2: {
+							focusTextStyle: upper
+						}
+						SM3: {
+							width: 42
+						}
+						SM4: {
+							width: 42
+						}
+						ET5: {
+							width: 42
+						}
+						ET6: {
+							width: 42
+						}
+						BT7: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
+			messageBaseSearchResultsMessageList: {
+				config: {
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+					//	Fri Sep 25th
+					dateTimeFormat: ddd MMM Do
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 71
+						itemFormat:      "|00|15  {msgNum:<4.4} |03{subject:<27.26} |07{toUserName:<13.12} {fromUserName:<13.12} |03{ts:<12.12}"
+						focusItemFormat: "|00|19> |15{msgNum:<4.4} {subject:<27.26} {toUserName:<13.12} {fromUserName:<13.12} {ts:<12.12}"
+					}
+				}
+			}
+
+			messageBaseMyMessagesList: {
+				config: {
+					//	Fri Sep 25th
+					dateTimeFormat: ddd MMM Do
+				}
+				mci: {
+					VM1: {
+						height: 16
+						width: 71
+						itemFormat:      "|00|15  {msgNum:<4.4} |03{subject:<34.33} {fromUserName:<19.18} |03{ts:<12.12}"
+						focusItemFormat: "|00|19> |15{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}"
+					}
+				}
+			}
+
+			//	The 'msg_list' module looks for this entry by default
+			messageAreaViewPost: {
+				config: {
+					quoteStyleLevel1: [
+						"|00|11",
+						"|00|08",
+						"|00|03",
+					]
+					tearLineStyle: [
+						"|00|08",
+						"|00|02",
+					]
+					originStyle: [
+						"|00|08",
+						"|00|06",
+						"|00|03",
+					]
+				}
+
+				0: {
+					mci: {
+						TL1: {
+							width: 19
+							textOverflow: ...
+						}
+						TL2: {
+							width: 19
+							textOverflow: ...
+						}
+						TL3: {
+							width: 19
+							textOverflow: ...
+						}
+						TL5: {
+							width: 19
+							textOverflow: ...
+						}
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+				4: {
+					mci: {
+						HM1: {
+							focusTextStyle: first upper
+						}
+					}
+				}
+			}
+
+			messageBaseNewPost: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+						//TL4: { width: 25 }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
+			messageBaseReplyPost: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+						TL4: { width: 25, textOverflow: "..." }
+					}
+				}
+				1: {
+					mci: {
+						HM1: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
+
+			fullLoginSequenceLastCallers: {
+				config: {
+					dateTimeFormat: MMM Do hh:mma
+				}
+				mci: {
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}"
+					}
+				}
+			}
+
+			fullLoginSequenceWhosOnline: {
+				mci: {
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
+					}
+				}
+			}
+
+			fullLoginSequenceSysStats: {
+
+			}
+
+			fullLoginSequenceUserStats: {
+				mci: {
+					UN1: { width: 15 }
+					UR2: { width: 15 }
+					LO3: { width: 15 }
+					UF4: { width: 15 }
+					UG5: { width: 15 }
+					UT6: { width: 15 }
+					UC7: { width: 15 }
+					ST8: { width: 15 }
+				}
+			}
+
+			mainMenuUserConfig: {
+				mci: {
+					ET1: { width: 27 }
+					ME2: { width: 27 }
+					ME3: { width: 27 }
+					ET4: { width: 27 }
+					ET5: { width: 27 }
+					ET6: { width: 27 }
+					ET7: { width: 27 }
+					ET8: { width: 27 }
+					ET9: { width: 27 }
+					ET10: { width: 18 }
+					ET11: { width: 18 }
+					TL20: { width: 71 }
+					TL21: { width: 43 }
+
+					TM25: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			newScanMessageList: {
+				config: {
+					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 70
+						itemFormat: "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}"
+						focusItemFormat: "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}"
+					}
+				}
+			}
+
+			//////////////////// file base ////////////////////////////////
+
+			fileBase: {
+				mci: {
+					FN4: {
+						width: 18
+						textOverflow: ...
+					}
+				}
+			}
+
+			fileBaseListEntries: {
+				config: {
+					hashTagsSep: "|08, |07"
+					browseInfoFormat10: "|00|10{fileName:<.44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat11: "|00|15{areaName}"
+					browseInfoFormat12: "|00|07{hashTags}"
+					browseInfoFormat13: "|00|07{estReleaseYear}"
+					browseInfoFormat14: "|00|07{dlCount}"
+					browseInfoFormat15: "{userRatingString}"
+					browseInfoFormat16: "{isQueued}"
+					browseInfoFormat17: "{webDlLink}{webDlExpire}"
+
+					webDlExpireTimeFormat: " [|08- |07exp] ddd, MMM Do @ h:mm a"
+					webDlLinkNeedsGenerated: "|08(|07press |10W |07to generate link|08)"
+
+					isQueuedIndicator: "|00|10YES"
+					isNotQueuedIndicator: "|00|07no"
+
+					userRatingTicked: "|00|15*"
+					userRatingUnticked: "|00|07-"
+
+					detailsGeneralInfoFormat10: "{fileName}"
+					detailsGeneralInfoFormat11: "|00|07{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08(|03{byteSize:,} |11B|08)"
+					detailsGeneralInfoFormat12: "|00|07{hashTags}"
+					detailsGeneralInfoFormat13: "{estReleaseYear}"
+					detailsGeneralInfoFormat14: "{dlCount}"
+					detailsGeneralInfoFormat15: "{userRatingString}"
+					detailsGeneralInfoFormat16: "{fileCrc32}"
+					detailsGeneralInfoFormat17: "{fileMd5}"
+					detailsGeneralInfoFormat18: "{fileSha1}"
+					detailsGeneralInfoFormat19: "{fileSha256}"
+					detailsGeneralInfoFormat20: "{uploadByUsername}"
+					detailsGeneralInfoFormat21: "{uploadTimestamp}"
+					detailsGeneralInfoFormat22: "{archiveTypeDesc}"
+
+					notAnArchiveFormat: "|00|08( |07{fileName} is not an archive |08)"
+				}
+
+				0: {
+					mci: {
+						MT1: {
+							height: 16
+							width: 45
+						}
+						HM2: {
+							focusTextStyle: first lower
+						}
+
+						TL11: {
+							width: 21
+							textOverflow: ...
+						}
+
+						TL12: {
+							width: 21
+							textOverflow: ...
+						}
+						TL13: { width: 21 }
+						TL14: { width: 21 }
+						TL15: { width: 21 }
+						TL16: { width: 21 }
+						TL17: { width: 73 }
+
+					}
+				}
+
+				1: {
+					mci: {
+						HM1: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+
+				2: {
+
+				}
+
+				3: {
+					//	details - nfo/readme
+					mci: {
+						MT1: {
+							height: 19
+							width: 79
+						}
+					}
+				}
+
+				4: {
+					mci: {
+						VM1: {
+							height: 17
+							width: 79
+							itemFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
+						}
+					}
+				}
+			}
+
+			newScanFileBaseList: {
+				config: {
+					hashTagsSep: "|08, |07"
+					browseInfoFormat10: "|00|10{fileName:<44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat11: "|00|15{areaName}"
+					browseInfoFormat12: "|00|07{hashTags}"
+					browseInfoFormat13: "|00|07{estReleaseYear}"
+					browseInfoFormat14: "|00|07{dlCount}"
+					browseInfoFormat15: "{userRatingString}"
+					browseInfoFormat16: "{isQueued}"
+					browseInfoFormat17: "{webDlLink}{webDlExpire}"
+
+					webDlExpireTimeFormat: " [|08- |07exp] ddd, MMM Do @ h:mm a"
+					webDlLinkNeedsGenerated: "|08(|07press |10W |07to generate link|08)"
+
+					isQueuedIndicator: "|00|10YES"
+					isNotQueuedIndicator: "|00|07no"
+
+					userRatingTicked: "|00|15*"
+					userRatingUnticked: "|00|07-"
+
+					detailsGeneralInfoFormat10: "{fileName}"
+					detailsGeneralInfoFormat11: "|00|07{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08(|03{byteSize:,} |11B|08)"
+					detailsGeneralInfoFormat12: "|00|07{hashTags}"
+					detailsGeneralInfoFormat13: "{estReleaseYear}"
+					detailsGeneralInfoFormat14: "{dlCount}"
+					detailsGeneralInfoFormat15: "{userRatingString}"
+					detailsGeneralInfoFormat16: "{fileCrc32}"
+					detailsGeneralInfoFormat17: "{fileMd5}"
+					detailsGeneralInfoFormat18: "{fileSha1}"
+					detailsGeneralInfoFormat19: "{fileSha256}"
+					detailsGeneralInfoFormat20: "{uploadByUsername}"
+					detailsGeneralInfoFormat21: "{uploadTimestamp}"
+					detailsGeneralInfoFormat22: "{archiveTypeDesc}"
+
+					notAnArchiveFormat: "|00|08( |07{fileName} is not an archive |08)"
+				}
+
+				0: {
+					mci: {
+						MT1: {
+							height: 16
+							width: 45
+						}
+						HM2: {
+							focusTextStyle: first lower
+						}
+
+						TL11: {
+							width: 21
+							textOverflow: ...
+						}
+
+						TL12: {
+							width: 21
+							textOverflow: ...
+						}
+						TL13: { width: 21 }
+						TL14: { width: 21 }
+						TL15: { width: 21 }
+						TL16: { width: 21 }
+						TL17: { width: 73 }
+
+					}
+				}
+
+				1: {
+					mci: {
+						HM1: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+
+				2: {
+
+				}
+
+				3: {
+					//	details - nfo/readme
+					mci: {
+						MT1: {
+							height: 19
+							width: 79
+						}
+					}
+				}
+
+				4: {
+					mci: {
+						VM1: {
+							height: 17
+							width: 79
+							itemFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
+						}
+					}
+				}
+			}
+
+			fileBaseBrowseByAreaSelect: {
+				0: {
+					mci: {
+						VM1: {
+							height: 15
+							width: 30
+							focusTextStyle: first lower
+							itemFormat: "|00|03{name}"
+							focusItemFormat: "|00|19|15{name}"
+						}
+					}
+				}
+			}
+
+			fileBaseSearch: {
+				mci: {
+					ET1: {
+						width: 42
+					}
+					BT2: {
+						focusTextStyle: first lower
+					}
+					ET3: {
+						width: 42
+					}
+					SM4: {
+						width: 14
+						justify: left
+					}
+					SM5: {
+						width: 14
+						justify: left
+					}
+					SM6: {
+						width: 14
+						justify: left
+					}
+					BT7: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			fileBaseExportListFilter: {
+				mci: {
+					ET1: {
+						width: 42
+					}
+					BT2: {
+						focusTextStyle: first lower
+					}
+					ET3: {
+						width: 42
+					}
+					SM4: {
+						width: 14
+						justify: left
+					}
+					SM5: {
+						width: 14
+						justify: left
+					}
+					SM6: {
+						width: 14
+						justify: left
+					}
+					BT7: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			fileBaseExportList: {
+				config: {
+					progBarChar: "|15▒"
+					mainInfoFormat10: "|07{currentFile} |08/ |07{totalFileCount} |08(|07{progress} %|08)"
+				}
+				mci: {
+					TL1: {
+						width: 60
+					}
+					TL2: {
+						width: 56
+						fillChar: "|06░"
+					}
+				}
+			}
+
+			fileBaseFilterEditor: {
+				mci: {
+					ET1: {
+						width: 26
+					}
+					ET2: {
+						width: 26
+					}
+					SM3: {
+						width: 14
+						justify: left
+					}
+					SM4: {
+						width: 14
+						justify: left
+					}
+					SM5: {
+						width: 14
+						justify: left
+					}
+					ET6: {
+						width: 26
+					}
+					HM7: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			fileBaseDownloadManager: {
+				0: {
+					mci: {
+						VM1: {
+							height: 11
+							width: 69
+							itemFormat: "|00|03{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
+						}
+						HM2: {
+							width: 50
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
+			fileBaseWebDownloadManager: {
+				config: {
+					queueManagerInfoFormat10: "|03batch|08: |03{webBatchDlLink}"
+					queueManagerInfoFormat11: "|03exp  |08: |03{webBatchDlExpire}"
+				}
+
+				0: {
+					mci: {
+						VM1: {
+							height: 8
+							itemFormat: "|00|03{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
+						}
+						HM2: {
+							width: 50
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
+			fileBaseUploadFiles: {
+				config: {
+					//	processing
+					processingInfoFormat10: "{stepIndicatorText}"
+					processingInfoFormat11: "|00|15{fileName} |08- |11{currentFileNum} |08/ |11{totalFileNum}"
+
+					//	details entry
+					fileDetailsInfoFormat10: "{fileName} |02■"
+
+					//	dupes
+					dupeInfoFormat: "|00|11{fileName:<53.52}|03{areaName}"
+				}
+
+				//	options
+				0: {
+					mci: {
+						SM1: {
+							width: 14
+							justify: left
+							focusTextStyle: first lower
+						}
+
+						TM2: {
+							focusTextStyle: first lower
+							styleSGR1: |00|08
+						}
+
+						ET3: {
+							width: 40
+						}
+
+						HM4: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+
+				//	processing/scanning
+				1: {
+					mci: {
+						TL1: { width: 48 }
+						TL2: { width: 48 }
+						TL3: { width: 48 }
+						MT4: {
+							height: 6
+							width: 68
+							mode: preview
+						}
+						TL10: { width: 48 }
+						TL11: { width: 48 }
+					}
+				}
+
+				//	file details
+				2: {
+					mci: {
+						MT1: {
+							height: 14
+							width: 45
+						}
+
+						ET2: {
+							width: 25
+						}
+
+						ME3: {
+							width: 4
+						}
+
+						BT4: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+
+				//	dupes
+				3: {
+					mci: {
+						VM1: {
+							height: 17
+							width: 75
+						}
+					}
+				}
+			}
+
+			fileTransferProtocolSelection: {
+				0: {
+					mci: {
+						VM1: {
+							height: 15
+							width: 30
+							focusTextStyle: first lower
+							itemFormat: "|00|03{name}"
+							focusItemFormat: "|00|19|15{name}"
+						}
+					}
+				}
+			}
+
+			mrc: {
+				config: {
+					messageFormat: "|00|10<|02{fromUserName}|10>|00 |03{message}|00"
+					privateMessageFormat: "|00|10<|02{fromUserName}|15->{toUserName}|10>|00 |03{message}|00"
+				}
+				0: {
+					mci: {
+						MT1: {
+							width: 72
+							height: 18
+						}
+                        ET2: {
+                            width: 69 // fnarr!
+                            maxLength: 140
+                        }
+                        TL3: {
+                            width: 20
+                        }
+                        TL4: {
+                            width: 20
+                        }
+						TL5: {
+                            width: 2
+                        }
+                        TL6: {
+                            width: 2
+                        }
+					}
+				}
+			}
+
+			irc: {
+				config: {
+					messageFormat: "|00|10<|02{fromUserName}|10>|00 |03{message}|00"
+					privateMessageFormat: "|00|10<|02{fromUserName}|15->{toUserName}|10>|00 |03{message}|00"
+				}
+				0: {
+					mci: {
+						MT1: {
+							width: 72
+							height: 17
+						}
+                        ET2: {
+                            width: 69 // fnarr!
+                            maxLength: 140
+                        }
+                        TL3: {
+                            width: 20
+                        }
+                        TL4: {
+                            width: 20
+                        }
+						TL5: {
+                            width: 2
+                        }
+                        TL6: {
+                            width: 2
+                        }
+					}
+				}
+			}
+		}
+
+		prompts: {
+			messageMenuCommand: {
+				mci: {
+					TL1: {
+						text: "|00|15|MD|08: |03|MC|08>>|11|MA"
+					}
+				}
+			}
+
+			fileMenuCommand: {
+				mci: {
+					TL1: {
+						text: "|00|15|MD|08 >> |03active filter|08: |10|FN"
+					}
+				}
+			}
+		}
+
+		achievements: {
+			defaults: {
+				format: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n   {message}"
+				globalFormat: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n  {message}"
+				titleSGR: "|10"
+				pointsSGR: "|12"
+				textSGR: "|00|03"
+				globalTextSGR: "|03"
+				boardNameSGR: "|10"
+				userNameSGR: "|11"
+				achievedValueSGR: "|15"
+			}
+
+			overrides: {
+				user_login_count: {
+					match: {
+						2: {
+							//
+							//	You may override title, text, and globalText here
+							//
+						}
+					}
+				}
+			}
+		}
+	}
+}
