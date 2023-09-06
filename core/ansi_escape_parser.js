@@ -308,87 +308,58 @@ function ANSIEscapeParser(options) {
         self.emit('complete');
     };
 
-    /*
-    self.parse = function(buffer, savedRe) {
-        //  :TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
-        //  :TODO: move this to "constants" section @ top
-        var re  = /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
-        var pos = 0;
-        var match;
-        var opCode;
-        var args;
-
-        //  ignore anything past EOF marker, if any
-        buffer = buffer.split(String.fromCharCode(0x1a), 1)[0];
-
-        do {
-            pos     = re.lastIndex;
-            match   = re.exec(buffer);
-
-            if(null !== match) {
-                if(match.index > pos) {
-                    parseMCI(buffer.slice(pos, match.index));
-                }
-
-                opCode  = match[2];
-                args    = getArgArray(match[1].split(';'));
-
-                escape(opCode, args);
-
-                self.emit('chunk', match[0]);
-            }
-
-
-
-        } while(0 !== re.lastIndex);
-
-        if(pos < buffer.length) {
-            parseMCI(buffer.slice(pos));
-        }
-
-        self.emit('complete');
-    };
-    */
-
     function escape(opCode, args) {
         let arg;
 
         switch (opCode) {
-            //  cursor up
+            //  scroll down / cursor up
+            case 'T':
             case 'A':
-                //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(0, -arg);
                 break;
 
-            //  cursor down
+            //  scroll up / cursor down
+            case 'S':
             case 'B':
-                //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(0, arg);
                 break;
 
             //  cursor forward/right
             case 'C':
-                //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(arg, 0);
                 break;
 
             //  cursor back/left
             case 'D':
-                //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(-arg, 0);
                 break;
 
+            case 'E':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                // Act like one or more LF
+                self.moveCursor(1-this.column, arg);
+                break;
+
+            case 'F':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                // Act like one or more LF, but backwards
+                self.moveCursor(1-this.column, -arg);
+                break;
+
+            case 'G':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                // Move n spaces from left - 1
+                self.moveCursor(arg-1, 0);
+                break;
+
             case 'f': //  horiz & vertical
             case 'H': //  cursor position
-                //self.row  = args[0] || 1;
-                //self.column   = args[1] || 1;
                 self.row = isNaN(args[0]) ? 1 : args[0];
                 self.column = isNaN(args[1]) ? 1 : args[1];
-                //self.rowUpdated();
                 self.positionUpdated();
                 break;
 
@@ -427,8 +398,6 @@ function ANSIEscapeParser(options) {
                                 delete self.graphicRendition.bg;
 
                                 self.graphicRendition.reset = true;
-                                //self.graphicRendition.fg = 39;
-                                //self.graphicRendition.bg = 49;
                                 break;
 
                             case 1:
@@ -470,8 +439,6 @@ function ANSIEscapeParser(options) {
 
                 self.emit('sgr update', self.graphicRendition);
                 break; //  m
-
-            //  :TODO: s, u, K
 
             //  erase display/screen
             case 'J':
