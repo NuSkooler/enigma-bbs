@@ -118,10 +118,12 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 };
 
                 const defaultTheme = _.get(config, 'theme.default');
-                if ('*' === defaultTheme) {
+                const selectedTheme = theme.findMatching(self.client, defaultTheme);
+
+                if ('*' === selectedTheme) {
                     newUser.properties[UserProps.ThemeId] = theme.getRandomTheme();
                 } else {
-                    newUser.properties[UserProps.ThemeId] = defaultTheme;
+                    newUser.properties[UserProps.ThemeId] = selectedTheme;
                 }
 
                 //  :TODO: User.create() should validate email uniqueness!

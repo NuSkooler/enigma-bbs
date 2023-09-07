@@ -14,6 +14,7 @@ const UserProps = require('./user_property.js');
 
 const ConfigLoader = require('./config_loader');
 const { getConfigPath } = require('./config_util');
+const theme = require('./theme.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -26,6 +27,8 @@ exports.getThemeArt = getThemeArt;
 exports.getAvailableThemes = getAvailableThemes;
 exports.getRandomTheme = getRandomTheme;
 exports.setClientTheme = setClientTheme;
+exports.findMatching = findMatching;
+exports.selectDefaultTheme = selectDefaultTheme;
 exports.displayPreparedArt = displayPreparedArt;
 exports.displayThemeArt = displayThemeArt;
 exports.displayThemedPause = displayThemedPause;
@@ -415,6 +418,34 @@ function getRandomTheme() {
         return themeIds[Math.floor(Math.random() * themeIds.length)];
     }
 }
+function selectDefaultTheme(client) {
+    const selectedTheme = theme.findMatching(client, Config().theme.default);
+    if ('*' === selectedTheme) {
+        return theme.getRandomTheme() || '';
+    } else {
+        return selectedTheme;
+    }
+
+}
+
+function findMatching(client, themeSection) {
+    if (!(_.isArray(themeSection))) {
+        Log.debug({ theme: themeSection }, 'Setting the theme from a simple string');
+        return themeSection;
+    }
+
+    Log.debug('Finding a matching theme from ACS settings');
+    const matchingTheme = client.acs.getConditionalValue(themeSection, 'name');
+    if (_.isNil(matchingTheme)) {
+        Log.warn('No matching theme in configuration found.');
+        // Default to random if nothing found
+        return '*';
+    }
+    else {
+        Log.debug({ theme: matchingTheme }, 'Found matching theme');
+        return matchingTheme;
+    }
+}
 
 function setClientTheme(client, themeId) {
     const availThemes = getAvailableThemes();
@@ -422,10 +453,11 @@ function setClientTheme(client, themeId) {
     let msg;
     let setThemeId;
     const config = Config();
+    const defaultTheme = selectDefaultTheme(client);
     if (availThemes.has(themeId)) {
         msg = 'Set client theme';
         setThemeId = themeId;
-    } else if (availThemes.has(config.theme.default)) {
+    } else if (availThemes.has(defaultTheme)) {
         msg = 'Failed setting theme by supplied ID; Using default';
         setThemeId = config.theme.default;
     } else {
@@ -461,7 +493,9 @@ function getThemeArt(options, cb) {
         options.themeId = options.client.user.properties[UserProps.ThemeId];
     }
 
-    options.themeId = options.themeId || config.theme.default;
+    if (!options.themeId) {
+        options.themeId = this.selectDefaultTheme(options.client);
+    }
 
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
     //  :TODO: Some of these options should only be set if not provided!
@@ -514,8 +548,8 @@ function getThemeArt(options, cb) {
                 if (artInfo || config.theme.default === options.themeId) {
                     return callback(null, artInfo);
                 }
-
-                options.basePath = paths.join(config.paths.themes, config.theme.default);
+                const defaultTheme = selectDefaultTheme(options.client);
+                options.basePath = paths.join(config.paths.themes, defaultTheme);
                 art.getArt(options.name, options, (err, artInfo) => {
                     return callback(null, artInfo);
                 });

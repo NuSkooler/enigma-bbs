@@ -11,6 +11,7 @@ const UserProps = require('./user_property.js');
 //  deps
 const _ = require('lodash');
 const moment = require('moment');
+const Log = require('./logger.js');
 
 module.exports = class LoginServerModule extends ServerModule {
     constructor() {
@@ -30,10 +31,12 @@ module.exports = class LoginServerModule extends ServerModule {
         //  Choose initial theme before we have user context
         //
         const preLoginTheme = _.get(Config(), 'theme.preLogin');
-        if ('*' === preLoginTheme) {
+        const selectedTheme = theme.findMatching(client, preLoginTheme);
+
+        if ('*' === selectedTheme) {
             client.user.properties[UserProps.ThemeId] = theme.getRandomTheme() || '';
         } else {
-            client.user.properties[UserProps.ThemeId] = preLoginTheme;
+            client.user.properties[UserProps.ThemeId] = selectedTheme;
         }
 
         theme.setClientTheme(client, client.user.properties[UserProps.ThemeId]);
