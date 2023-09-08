@@ -87,6 +87,10 @@ class ACS {
         }
     }
 
+    matches(acs) {
+        return checkAcs(acs, {subject: this.subject});
+    }
+
     getConditionalValue(condArray, memberName) {
         if (!Array.isArray(condArray)) {
             //  no cond array, just use the value
