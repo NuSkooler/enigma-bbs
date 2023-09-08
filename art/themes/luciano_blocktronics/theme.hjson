@@ -4,6 +4,8 @@
 		author: Luciano Ayres
 		group: blocktronics
 		enabled: true
+		// this theme requires at least 80 columns
+		acs: TW80
 
 		//
 		//	Also check out Luciano's ANSIGARDEN:

@@ -27,6 +27,7 @@ exports.getThemeArt = getThemeArt;
 exports.getAvailableThemes = getAvailableThemes;
 exports.getRandomTheme = getRandomTheme;
 exports.setClientTheme = setClientTheme;
+exports.themeAcsMatches = themeAcsMatches;
 exports.findMatching = findMatching;
 exports.selectDefaultTheme = selectDefaultTheme;
 exports.displayPreparedArt = displayPreparedArt;
@@ -50,9 +51,9 @@ exports.ThemeManager = class ThemeManager {
                 themeManagerInstance
                     .getAvailableThemes()
                     .forEach((themeConfig, themeId) => {
-                        const { name, author, group } = themeConfig.get().info;
+                        const { name, author, group, acs } = themeConfig.get().info;
                         Log.info(
-                            { themeId, themeName: name, author, group },
+                            { themeId, themeName: name, author: author, group: group, acs: acs },
                             'Theme loaded'
                         );
                     });
@@ -420,10 +421,27 @@ function getRandomTheme() {
 }
 function selectDefaultTheme(client) {
     const selectedTheme = theme.findMatching(client, Config().theme.default);
-    if ('*' === selectedTheme) {
+    if (_.isNil(selectedTheme) || '*' === selectedTheme) {
         return theme.getRandomTheme() || '';
     } else {
         return selectedTheme;
+    }
+
+}
+
+function themeAcsMatches(client, themeName) {
+    const themeConfig = getAvailableThemes().get(themeName);
+    if (!_.isNil(themeConfig)) {
+        if (_.has(themeConfig, 'info.acs')) {
+            return client.acs.matches(themeConfig.info.acs);
+
+        }
+        else {
+            return true; // No ACS means anything can use it
+        }
+    }
+    else {
+        return false;
     }
 
 }
@@ -435,16 +453,11 @@ function findMatching(client, themeSection) {
     }
 
     Log.debug('Finding a matching theme from ACS settings');
-    const matchingTheme = client.acs.getConditionalValue(themeSection, 'name');
-    if (_.isNil(matchingTheme)) {
-        Log.warn('No matching theme in configuration found.');
-        // Default to random if nothing found
-        return '*';
-    }
-    else {
-        Log.debug({ theme: matchingTheme }, 'Found matching theme');
-        return matchingTheme;
-    }
+    let matchingTheme = themeSection.find((themeName) => {
+        return themeAcsMatches(client, themeName);
+    });
+
+    return matchingTheme;
 }
 
 function setClientTheme(client, themeId) {
@@ -456,10 +469,18 @@ function setClientTheme(client, themeId) {
     const defaultTheme = selectDefaultTheme(client);
     if (availThemes.has(themeId)) {
         msg = 'Set client theme';
-        setThemeId = themeId;
+        setThemeId = themeAcsMatches(client, themeId);
+        if (_.isNil(setThemeId)) {
+            Log.warn('No theme matching acs found, setting to first theme.');
+            setThemeId = availThemes.keys().next().value;
+        }
     } else if (availThemes.has(defaultTheme)) {
         msg = 'Failed setting theme by supplied ID; Using default';
-        setThemeId = config.theme.default;
+        setThemeId = findMatching(client, config.theme.default);
+        if (_.isNil(setThemeId)) {
+            Log.warn('No theme matching acs found, setting to first theme.');
+            setThemeId = availThemes.keys().next().value;
+        }
     } else {
         msg =
             'Failed setting theme by system default ID; Using the first one we can find';
@@ -545,8 +566,20 @@ function getThemeArt(options, cb) {
                 });
             },
             function fromDefaultTheme(artInfo, callback) {
-                if (artInfo || config.theme.default === options.themeId) {
+                if (artInfo) {
                     return callback(null, artInfo);
+                }
+
+                if (!_.isArray(config.theme.default)) {
+                    if (config.theme.default === options.themeId) {
+                        return callback(null, artInfo);
+                    }
+                }
+                else {
+                    if (config.theme.default.includes(options.themeId)) {
+                        return callback(null, artInfo);
+
+                    }
                 }
                 const defaultTheme = selectDefaultTheme(options.client);
                 options.basePath = paths.join(config.paths.themes, defaultTheme);

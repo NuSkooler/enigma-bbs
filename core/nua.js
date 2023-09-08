@@ -120,7 +120,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 const defaultTheme = _.get(config, 'theme.default');
                 const selectedTheme = theme.findMatching(self.client, defaultTheme);
 
-                if ('*' === selectedTheme) {
+                if (_.isNil(selectedTheme) || '*' === selectedTheme) {
                     newUser.properties[UserProps.ThemeId] = theme.getRandomTheme();
                 } else {
                     newUser.properties[UserProps.ThemeId] = selectedTheme;

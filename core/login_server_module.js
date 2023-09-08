@@ -33,7 +33,7 @@ module.exports = class LoginServerModule extends ServerModule {
         const preLoginTheme = _.get(Config(), 'theme.preLogin');
         const selectedTheme = theme.findMatching(client, preLoginTheme);
 
-        if ('*' === selectedTheme) {
+        if (_.isNil(selectedTheme) || '*' === selectedTheme) {
             client.user.properties[UserProps.ThemeId] = theme.getRandomTheme() || '';
         } else {
             client.user.properties[UserProps.ThemeId] = selectedTheme;
