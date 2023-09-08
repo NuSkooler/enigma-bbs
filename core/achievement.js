@@ -569,7 +569,7 @@ class Achievements {
             }
             const getArtOpts = {
                 name: spec,
-                client: this.client,
+                client: info.client,
                 random: false,
             };
             getThemeArt(getArtOpts, (err, artInfo) => {
