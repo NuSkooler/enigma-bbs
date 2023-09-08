@@ -11,7 +11,6 @@ const UserProps = require('./user_property.js');
 //  deps
 const _ = require('lodash');
 const moment = require('moment');
-const Log = require('./logger.js');
 
 module.exports = class LoginServerModule extends ServerModule {
     constructor() {

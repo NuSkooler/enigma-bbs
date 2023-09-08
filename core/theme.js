@@ -14,7 +14,6 @@ const UserProps = require('./user_property.js');
 
 const ConfigLoader = require('./config_loader');
 const { getConfigPath } = require('./config_util');
-const theme = require('./theme.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -420,9 +419,9 @@ function getRandomTheme() {
     }
 }
 function selectDefaultTheme(client) {
-    const selectedTheme = theme.findMatching(client, Config().theme.default);
+    const selectedTheme = findMatching(client, Config().theme.default);
     if (_.isNil(selectedTheme) || '*' === selectedTheme) {
-        return theme.getRandomTheme() || '';
+        return getRandomTheme() || '';
     } else {
         return selectedTheme;
     }
