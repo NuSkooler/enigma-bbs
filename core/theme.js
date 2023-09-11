@@ -50,9 +50,9 @@ exports.ThemeManager = class ThemeManager {
                 themeManagerInstance
                     .getAvailableThemes()
                     .forEach((themeConfig, themeId) => {
-                        const { name, author, group, acs } = themeConfig.get().info;
+                        const { name, author, group } = themeConfig.get().info;
                         Log.info(
-                            { themeId, themeName: name, author: author, group: group, acs: acs },
+                            { themeId, themeName: name, author, group },
                             'Theme loaded'
                         );
                     });
@@ -431,8 +431,8 @@ function selectDefaultTheme(client) {
 function themeAcsMatches(client, themeName) {
     const themeConfig = getAvailableThemes().get(themeName);
     if (!_.isNil(themeConfig)) {
-        if (_.has(themeConfig, 'info.acs')) {
-            return client.acs.matches(themeConfig.info.acs);
+        if (_.has(themeConfig, 'current.info.acs')) {
+            return client.acs.matches(themeConfig.current.info.acs);
 
         }
         else {
@@ -464,18 +464,13 @@ function setClientTheme(client, themeId) {
 
     let msg;
     let setThemeId;
-    const config = Config();
     const defaultTheme = selectDefaultTheme(client);
-    if (availThemes.has(themeId)) {
+    if (availThemes.has(themeId) && themeAcsMatches(client, themeId)) {
         msg = 'Set client theme';
-        setThemeId = themeAcsMatches(client, themeId);
-        if (_.isNil(setThemeId)) {
-            Log.warn('No theme matching acs found, setting to first theme.');
-            setThemeId = availThemes.keys().next().value;
-        }
+        setThemeId = themeId;
     } else if (availThemes.has(defaultTheme)) {
         msg = 'Failed setting theme by supplied ID; Using default';
-        setThemeId = findMatching(client, config.theme.default);
+        setThemeId = defaultTheme;
         if (_.isNil(setThemeId)) {
             Log.warn('No theme matching acs found, setting to first theme.');
             setThemeId = availThemes.keys().next().value;
@@ -506,15 +501,16 @@ function getThemeArt(options, cb) {
     //      random
     //
     const config = Config();
-    if (
-        !options.themeId &&
-        _.has(options, ['client', 'user', 'properties', UserProps.ThemeId])
-    ) {
-        options.themeId = options.client.user.properties[UserProps.ThemeId];
-    }
-
-    if (!options.themeId) {
-        options.themeId = this.selectDefaultTheme(options.client);
+    if ( !options.themeId) {
+        if(_.has(options, ['client','currentTheme','info','themeId'])) {
+            options.themeId = options.client.currentTheme.info.themeId;
+        }
+        else if(_.has(options, ['client', 'user', 'properties', UserProps.ThemeId])) {
+            options.themeId = options.client.user.properties[UserProps.ThemeId];
+        }
+        else {
+            options.themeId = selectDefaultTheme(options.client);
+        }
     }
 
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
