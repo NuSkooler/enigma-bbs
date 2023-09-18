@@ -309,48 +309,6 @@ function ANSIEscapeParser(options) {
         self.emit('complete');
     };
 
-    /*
-    self.parse = function(buffer, savedRe) {
-        //  :TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
-        //  :TODO: move this to "constants" section @ top
-        var re  = /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
-        var pos = 0;
-        var match;
-        var opCode;
-        var args;
-
-        //  ignore anything past EOF marker, if any
-        buffer = buffer.split(String.fromCharCode(0x1a), 1)[0];
-
-        do {
-            pos     = re.lastIndex;
-            match   = re.exec(buffer);
-
-            if(null !== match) {
-                if(match.index > pos) {
-                    parseMCI(buffer.slice(pos, match.index));
-                }
-
-                opCode  = match[2];
-                args    = getArgArray(match[1].split(';'));
-
-                escape(opCode, args);
-
-                self.emit('chunk', match[0]);
-            }
-
-
-
-        } while(0 !== re.lastIndex);
-
-        if(pos < buffer.length) {
-            parseMCI(buffer.slice(pos));
-        }
-
-        self.emit('complete');
-    };
-    */
-
     function escape(opCode, args) {
         let arg;
 
