@@ -5,6 +5,7 @@
             art: MAILMNU
             prompt: menuCommand
             config: {
+                trailingLF: no
                 interrupt: realtime
             }
             submit: [

@@ -78,6 +78,7 @@
             prompt: menuCommand
             config: {
                 font: cp437
+                trailingLF: no
                 interrupt: realtime
             }
             submit: [
