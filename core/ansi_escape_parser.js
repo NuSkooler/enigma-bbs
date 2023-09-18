@@ -77,6 +77,7 @@ function ANSIEscapeParser(options) {
     self.clearScreen = function () {
         self.column = 1;
         self.row = 1;
+        self.positionUpdated();
         self.emit('clear screen');
     };
 
@@ -281,8 +282,8 @@ function ANSIEscapeParser(options) {
         if (pos < buffer.length) {
             var lastBit = buffer.slice(pos);
 
-            //  :TODO: check for various ending LF's, not just DOS \r\n
-            if ('\r\n' === lastBit.slice(-2).toString()) {
+            //  handles either \r\n or \n
+            if ('\n' === lastBit.slice(-1).toString()) {
                 switch (self.trailingLF) {
                     case 'default':
                         //
@@ -290,14 +291,14 @@ function ANSIEscapeParser(options) {
                         //  if we're going to end on termHeight
                         //
                         if (this.termHeight === self.row) {
-                            lastBit = lastBit.slice(0, -2);
+                            lastBit = lastBit.slice(0, -1);
                         }
                         break;
 
                     case 'omit':
                     case 'no':
                     case false:
-                        lastBit = lastBit.slice(0, -2);
+                        lastBit = lastBit.slice(0, -1);
                         break;
                 }
             }
@@ -382,6 +383,18 @@ function ANSIEscapeParser(options) {
                 self.moveCursor(-arg, 0);
                 break;
 
+            // line feed
+            case 'E':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                if(this.row + arg > this.termHeight) {
+                    this.emit('scroll', arg - (this.termHeight - this.row));
+                    self.moveCursor(0, this.termHeight);
+                }
+                else {
+                    self.moveCursor(0, arg);
+                }
+                break;
+
             case 'f': //  horiz & vertical
             case 'H': //  cursor position
                 //self.row  = args[0] || 1;
@@ -392,14 +405,19 @@ function ANSIEscapeParser(options) {
                 self.positionUpdated();
                 break;
 
-            //  save position
-            case 's':
-                self.saveCursorPosition();
+
+            //  erase display/screen
+            case 'J':
+                //  :TODO: Handle other 'J' types!
+                if (2 === args[0]) {
+                    self.clearScreen();
+                }
                 break;
 
-            //  restore position
-            case 'u':
-                self.restoreCursorPosition();
+            // insert line
+            case 'L':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('insert line', self.row, arg);
                 break;
 
             //  set graphic rendition
@@ -471,15 +489,47 @@ function ANSIEscapeParser(options) {
                 self.emit('sgr update', self.graphicRendition);
                 break; //  m
 
-            //  :TODO: s, u, K
-
-            //  erase display/screen
-            case 'J':
-                //  :TODO: Handle other 'J' types!
-                if (2 === args[0]) {
-                    self.clearScreen();
-                }
+            //  save position
+            case 's':
+                self.saveCursorPosition();
                 break;
+
+            // Scroll up
+            case 'S':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('scroll', arg);
+                break;
+
+            // Scroll down
+            case 'T':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('scroll', -arg);
+                break;
+
+            //  restore position
+            case 'u':
+                self.restoreCursorPosition();
+                break;
+
+            // clear
+            case 'U':
+                self.clearScreen();
+                break;
+
+            // delete line
+            // TODO: how should we handle 'M'?
+            case 'Y':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('delete line', self.row, arg);
+                break;
+
+            // back tab
+            case 'Z':
+                // calculate previous tabstop
+                self.column = Math.max( 1, self.column - (self.column % 8 || 8) );
+                self.positionUpdated();
+                break;
+
         }
     }
 }
