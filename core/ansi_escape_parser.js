@@ -24,7 +24,7 @@ function ANSIEscapeParser(options) {
     this.graphicRendition = {};
 
     this.parseState = {
-        re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsutEFGST])/g, //  eslint-disable-line no-control-regex
+        re: /(?:\x1b)(\x5b?)([?=;0-9]*?)([ABCDEfHJLmMsSTuUYZ])/g, //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
@@ -232,7 +232,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsutEFGST])/g, //  eslint-disable-line no-control-regex
+            re: /(?:\x1b)(\x5b?)([?=;0-9]*?)([ABCDEfHJLmMsSTuUYZ])/g, //  eslint-disable-line no-control-regex
             stop: false,
         };
     };
@@ -269,8 +269,25 @@ function ANSIEscapeParser(options) {
                     parseMCI(buffer.slice(pos, match.index));
                 }
 
-                opCode = match[2];
-                args = match[1].split(';').map(v => parseInt(v, 10)); //  convert to array of ints
+                opCode = match[3];
+                args = match[2].split(';').map(v => parseInt(v, 10)); //  convert to array of ints
+
+                if(_.isNil(match[1])) {
+                    // no bracket
+                    switch(opCode) {
+                        // scroll up
+                        case 'D':
+                            opCode = 'S';
+                            args = [1];
+                            break;
+
+                        // scroll down
+                        case 'M':
+                            opCode = 'T';
+                            args = [1];
+                            break;
+                    }
+                }
 
                 escape(opCode, args);
 
