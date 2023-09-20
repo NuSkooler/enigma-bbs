@@ -1050,7 +1050,7 @@ exports.FullScreenEditorModule =
                     posView.setText(
                         _.padStart(String(pos.row + 1), 2, '0') +
                             ',' +
-                            _.padEnd(String(pos.col + 1), 2, '0')
+                            _.padStart(String(pos.col + 1), 2, '0')
                     );
                     this.client.term.rawWrite(ansi.restorePos());
                 }
