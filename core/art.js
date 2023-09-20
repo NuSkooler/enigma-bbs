@@ -322,6 +322,29 @@ function display(client, art, options, cb) {
         });
     });
 
+    ansiParser.on('insert line', (row, numLines) => {
+        _.forEach(mciMap, (mciInfo) => {
+            if (mciInfo.position[0] >= row) {
+                mciInfo.position[0] += numLines;
+            }
+        });
+    });
+
+    ansiParser.on('delete line', (row, numLines) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (mciInfo.position[0] >= row) {
+                if(mciInfo.position[0] < row + numLines) {
+                    // unlike scrolling, the rows are actually gone,
+                    // so we need to delete any MCI's that are in them
+                    delete mciMap[mapKey];
+                }
+                else {
+                    mciInfo.position[0] -= numLines;
+                }
+            }
+        });
+    });
+
     ansiParser.on('literal', literal => client.term.write(literal, false));
     ansiParser.on('control', control => client.term.rawWrite(control));
 
