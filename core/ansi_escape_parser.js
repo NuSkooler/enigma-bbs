@@ -28,7 +28,7 @@ function ANSIEscapeParser(options) {
     this.graphicRendition = {};
 
     this.parseState = {
-        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEfHJLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
+        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
@@ -266,7 +266,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEfHJLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
+            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
             stop: false,
         };
     };
@@ -423,6 +423,25 @@ function ANSIEscapeParser(options) {
                 else {
                     self.moveCursor(0, arg);
                 }
+                break;
+
+            // reverse line feed
+            case 'F':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                if(this.row - arg < 1) {
+                    this.emit('scroll', -(arg - this.row));
+                    self.moveCursor(0, 1 - this.row);
+                }
+                else {
+                    self.moveCursor(0, -arg);
+                }
+                break;
+
+            // absolute horizontal cursor position
+            case 'G':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.column = Math.max(1, arg);
+                self.positionUpdated();
                 break;
 
             case 'f': //  horiz & vertical
