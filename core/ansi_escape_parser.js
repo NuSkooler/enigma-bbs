@@ -27,7 +27,7 @@ function ANSIEscapeParser(options) {
     this.graphicRendition = {};
 
     this.parseState = {
-        re: /(?:\x1b)(\x5b?)([?=;0-9]*?)([ABCDEfHJLmMsSTuUYZ])/g, //  eslint-disable-line no-control-regex
+        re: /(?:\x1b)(\x5b?)([?=;0-9]*?)([78ABCDEfHJLmMsSTuUYZ])/g, //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
@@ -257,7 +257,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b)(\x5b?)([?=;0-9]*?)([ABCDEfHJLmMsSTuUYZ])/g, //  eslint-disable-line no-control-regex
+            re: /(?:\x1b)(\x5b?)([?=;0-9]*?)([78ABCDEfHJLmMsSTuUYZ])/g, //  eslint-disable-line no-control-regex
             stop: false,
         };
     };
@@ -300,23 +300,41 @@ function ANSIEscapeParser(options) {
                 if(_.isNil(match[1])) {
                     // no bracket
                     switch(opCode) {
+                        // save cursor position
+                        case '7':
+                            escape('s', args);
+                            break;
+                        // restore cursor position
+                        case '8':
+                            escape('u', args);
+                            break;
+
                         // scroll up
                         case 'D':
-                            opCode = 'S';
-                            args = [1];
+                            escape('S', [1]);
+                            break;
+
+                        // move to next line
+                        case 'E':
+                            // functonality is the same as ESC [ E
+                            escape(opCode, [1]);
+                            break;
+
+                        // create a tab at current cursor position
+                        case 'H':
+                            literal('\t');
                             break;
 
                         // scroll down
                         case 'M':
-                            opCode = 'T';
-                            args = [1];
+                            escape('T', [1]);
                             break;
                     }
                 }
+                else {
+                    escape(opCode, args);
+                }
 
-                escape(opCode, args);
-
-                //self.emit('chunk', match[0]);
                 self.emit('control', match[0], opCode, args);
             }
         } while (0 !== re.lastIndex);
