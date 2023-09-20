@@ -86,6 +86,20 @@ function ANSIEscapeParser(options) {
     };
 
     self.positionUpdated = function () {
+        if(self.row > self.termHeight) {
+            if(this.savedPosition) {
+                this.savedPosition.row -= self.row - self.termHeight;
+            }
+            self.emit('scroll', self.row - self.termHeight);
+            self.row = self.termHeight;
+        }
+        else if(self.row < 1) {
+            if(this.savedPosition) {
+                this.savedPosition.row -= self.row - 1;
+            }
+            self.emit('scroll', -(self.row - 1));
+            self.row = 1;
+        }
         self.emit('position update', self.row, self.column);
     };
 

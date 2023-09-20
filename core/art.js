@@ -316,6 +316,12 @@ function display(client, art, options, cb) {
         }
     });
 
+    ansiParser.on('scroll', (scrollY) => {
+        _.forEach(mciMap, (mciInfo) => {
+            mciInfo.position[0] -= scrollY;
+        });
+    });
+
     ansiParser.on('literal', literal => client.term.write(literal, false));
     ansiParser.on('control', control => client.term.rawWrite(control));
 
