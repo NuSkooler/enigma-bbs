@@ -316,6 +316,35 @@ function display(client, art, options, cb) {
         }
     });
 
+    // Remove any MCI's that are in erased rows
+    ansiParser.on('erase row', (startRow, endRow) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (mciInfo.position[0] >= startRow && mciInfo.position[0] <= endRow) {
+                delete mciMap[mapKey];
+            }
+        });
+    });
+
+    // Remove any MCI's that are in erased columns
+    ansiParser.on('erase columns', (row, startCol, endCol) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (
+                mciInfo.position[0] === row &&
+                mciInfo.position[1] >= startCol &&
+                mciInfo.position[1] <= endCol
+            ) {
+                delete mciMap[mapKey];
+            }
+        });
+    });
+
+    // Clear the screen, removing any MCI's
+    ansiParser.on('clear screen', () => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            delete mciMap[mapKey];
+        });
+    });
+
     ansiParser.on('scroll', (scrollY) => {
         _.forEach(mciMap, (mciInfo) => {
             mciInfo.position[0] -= scrollY;

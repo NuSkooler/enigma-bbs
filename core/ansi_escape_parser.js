@@ -28,7 +28,7 @@ function ANSIEscapeParser(options) {
     this.graphicRendition = {};
 
     this.parseState = {
-        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
+        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
@@ -280,7 +280,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
+            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
             stop: false,
         };
     };
@@ -471,9 +471,27 @@ function ANSIEscapeParser(options) {
 
             //  erase display/screen
             case 'J':
-                //  :TODO: Handle other 'J' types!
-                if (2 === args[0]) {
+                if(isNaN(args[0]) || 0 === args[0]) {
+                    self.emit('erase rows', self.row, self.termHeight);
+                }
+                else if (1 === args[0]) {
+                    self.emit('erase rows', 1, self.row);
+                }
+                else if (2 === args[0]) {
                     self.clearScreen();
+                }
+                break;
+
+            // erase text in line
+            case 'K':
+                if(isNaN(args[0]) || 0 === args[0]) {
+                    self.emit('erase columns', self.row, self.column, self.termWidth);
+                }
+                else if (1 === args[0]) {
+                    self.emit('erase columns', self.row, 1, self.column);
+                }
+                else if (2 === args[0]) {
+                    self.emit('erase columns', self.row, 1, self.termWidth);
                 }
                 break;
 
