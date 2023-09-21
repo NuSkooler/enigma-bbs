@@ -2178,10 +2178,10 @@ supports-color@^7.1.0:
   dependencies:
     has-flag "^4.0.0"
 
-systeminformation@5.12.3:
-  version "5.12.3"
-  resolved "https://registry.npmjs.org/systeminformation/-/systeminformation-5.12.3.tgz"
-  integrity sha512-aPyTDzK/VjEheGEODprxFTMahIWTHGyWXxTsh9EOHjeekVltrIWrle4dOZouOlOYgtKM1pDoHkrR+IssgYCK/A==
+systeminformation@5.21.7:
+  version "5.21.7"
+  resolved "https://registry.yarnpkg.com/systeminformation/-/systeminformation-5.21.7.tgz#53ef75daaf5d756d015f4bb02e059126ccac74f2"
+  integrity sha512-K3LjnajrazTLTD61+87DFg8IXFk5ljx6nSBqB8pQLtC1UPivAjDtTYGPZ8jaBFxcesPaCOkvLRtBq+RFscrsLw==
 
 tar@^6.0.2, tar@^6.1.11, tar@^6.1.2:
   version "6.1.11"
