@@ -179,6 +179,10 @@ TextView.prototype.setText = function (text, redraw) {
 };
 
 TextView.prototype.clearText = function () {
+    if (this.text) {
+        this.setText(' '.repeat(this.text.length));
+    }
+
     this.setText('');
 };
 
