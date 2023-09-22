@@ -12,12 +12,9 @@ const _ = require('lodash');
 
 exports.ANSIEscapeParser = ANSIEscapeParser;
 
-const BS = 0x08;
 const TAB = 0x09;
 const CR = 0x0d;
 const LF = 0x0a;
-const FF = 0x0c;
-const BKSP = 0x08;
 
 function ANSIEscapeParser(options) {
     var self = this;
@@ -114,14 +111,6 @@ function ANSIEscapeParser(options) {
             charCode = text.charCodeAt(pos) & 0xff; //  8bit clean
 
             switch (charCode) {
-                case BS:
-                    self.emit('literal', text.slice(start, pos + 1));
-                    start = pos + 1;
-
-                    self.column = Math.max(1, self.column - 1);
-
-                    self.positionUpdated();
-                    break;
                 case TAB:
                     self.emit('literal', text.slice(start, pos + 1));
                     start = pos + 1;
@@ -129,20 +118,6 @@ function ANSIEscapeParser(options) {
                     self.column += 8 - ((self.column - 1) % 8);
 
                     self.positionUpdated();
-                    break;
-                case BKSP:
-                    self.emit('literal', text.slice(start, pos + 1));
-                    start = pos + 1;
-
-                    self.column = Math.max(1, self.column - 1);
-
-                    self.positionUpdated();
-                    break;
-                case FF:
-                    self.emit('literal', text.slice(start, pos + 1));
-                    start = pos + 1;
-
-                    self.clearScreen();
                     break;
                 case CR:
                     self.emit('literal', text.slice(start, pos + 1));
