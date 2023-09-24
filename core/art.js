@@ -338,6 +338,17 @@ function display(client, art, options, cb) {
         });
     });
 
+    ansiParser.on('insert columns', (row, startCol, numCols) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (mciInfo.position[0] === row && mciInfo.position[1] >= startCol) {
+                mciInfo.position[1] += numCols;
+                if(mciInfo.position[1] > client.term.termWidth) {
+                    delete mciMap[mapKey];
+                }
+            }
+        });
+    });
+
     // Clear the screen, removing any MCI's
     ansiParser.on('clear screen', () => {
         _.forEach(mciMap, (mciInfo, mapKey) => {

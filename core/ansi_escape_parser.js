@@ -12,7 +12,6 @@ const _ = require('lodash');
 
 exports.ANSIEscapeParser = ANSIEscapeParser;
 
-const TAB = 0x09;
 const CR = 0x0d;
 const LF = 0x0a;
 
@@ -25,7 +24,7 @@ function ANSIEscapeParser(options) {
     this.graphicRendition = {};
 
     this.parseState = {
-        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
+        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZt@PX]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
@@ -111,14 +110,6 @@ function ANSIEscapeParser(options) {
             charCode = text.charCodeAt(pos) & 0xff; //  8bit clean
 
             switch (charCode) {
-                case TAB:
-                    self.emit('literal', text.slice(start, pos + 1));
-                    start = pos + 1;
-
-                    self.column += 8 - ((self.column - 1) % 8);
-
-                    self.positionUpdated();
-                    break;
                 case CR:
                     self.emit('literal', text.slice(start, pos + 1));
                     start = pos + 1;
@@ -255,7 +246,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZ]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
+            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZt@PX]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
             stop: false,
         };
     };
@@ -584,6 +575,11 @@ function ANSIEscapeParser(options) {
                 // calculate previous tabstop
                 self.column = Math.max( 1, self.column - (self.column % 8 || 8) );
                 self.positionUpdated();
+                break;
+            case '@':
+                // insert column(s)
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('insert columns', self.row, self.column, arg);
                 break;
 
         }
