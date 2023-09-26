@@ -7,7 +7,6 @@ const Config = require('./config.js').get;
 const Log = require('./logger.js').log;
 const { getAddressedToInfo } = require('./mail_util.js');
 const Message = require('./message.js');
-const Errors = require('./enig_error.js').Errors;
 
 //  deps
 const fs = require('graceful-fs');
