@@ -7,6 +7,7 @@ const Config = require('./config.js').get;
 const Log = require('./logger.js').log;
 const { getAddressedToInfo } = require('./mail_util.js');
 const Message = require('./message.js');
+const Errors = require('./enig_error.js').Errors;
 
 //  deps
 const fs = require('graceful-fs');
@@ -83,19 +84,23 @@ function validateUserNameOrRealNameExists(data, cb) {
 }
 
 function validateGeneralMailAddressedTo(data, cb) {
-    //
-    //  Allow any supported addressing:
-    //  - Local username or real name
-    //  - Supported remote flavors such as FTN, email, ...
-    //
-    //  :TODO: remove hard-coded FTN check here. We need a decent way to register global supported flavors with modules.
-    const addressedToInfo = getAddressedToInfo(data);
+    try {
+        //
+        //  Allow any supported addressing:
+        //  - Local username or real name
+        //  - Supported remote flavors such as FTN, email, ...
+        //
+        //  :TODO: remove hard-coded FTN check here. We need a decent way to register global supported flavors with modules.
+        const addressedToInfo = getAddressedToInfo(data);
 
-    if (Message.AddressFlavor.FTN === addressedToInfo.flavor) {
-        return cb(null);
+        if (Message.AddressFlavor.FTN === addressedToInfo.flavor) {
+            return cb(null);
+        }
+
+        return validateUserNameOrRealNameExists(data, cb);
+    } catch (e) {
+        return cb(Errors.Invalid('Address'));
     }
-
-    return validateUserNameOrRealNameExists(data, cb);
 }
 
 function validateEmailAvail(data, cb) {
