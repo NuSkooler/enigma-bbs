@@ -91,7 +91,7 @@ function validateGeneralMailAddressedTo(data, cb) {
     //  :TODO: remove hard-coded FTN check here. We need a decent way to register global supported flavors with modules.
     const addressedToInfo = getAddressedToInfo(data);
 
-    if (Message.AddressFlavor.FTN === addressedToInfo.flavor) {
+    if (Message.AddressFlavor.Local !== addressedToInfo.flavor) {
         return cb(null);
     }
 

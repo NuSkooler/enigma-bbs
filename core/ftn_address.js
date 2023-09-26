@@ -135,7 +135,7 @@ module.exports = class Address {
     static fromString(addrStr) {
         const m = FTN_ADDRESS_REGEXP.exec(addrStr);
 
-        if (m) {
+        if (m && m[2] && m[3]) {
             //  start with a 2D
             let addr = {
                 net: parseInt(m[2]),
