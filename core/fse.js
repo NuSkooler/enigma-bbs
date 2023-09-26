@@ -167,6 +167,7 @@ exports.FullScreenEditorModule =
                     var newFocusViewId;
                     if (errMsgView) {
                         if (err) {
+                            errMsgView.clearText();
                             errMsgView.setText(err.message);
 
                             if (MciViewIds.header.subject === err.view.getId()) {
