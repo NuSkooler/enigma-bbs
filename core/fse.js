@@ -183,6 +183,13 @@ exports.FullScreenEditorModule =
                     return cb(null);
                 },
                 editModeEscPressed: function (formData, extraArgs, cb) {
+                    const errMsgView = self.viewControllers.header.getView(
+                        MciViewIds.header.errorMsg
+                    );
+                    if (errMsgView) {
+                        errMsgView.clearText();
+                    }
+
                     self.footerMode =
                         'editor' === self.footerMode ? 'editorMenu' : 'editor';
 
