@@ -21,8 +21,10 @@ exports.validateEmailAvail = validateEmailAvail;
 exports.validateBirthdate = validateBirthdate;
 exports.validatePasswordSpec = validatePasswordSpec;
 
+const emptyFieldError = () => new Error('Field cannot be empty');
+
 function validateNonEmpty(data, cb) {
-    return cb(data && data.length > 0 ? null : new Error('Field cannot be empty'));
+    return cb(data && data.length > 0 ? null : emptyFieldError);
 }
 
 function validateMessageSubject(data, cb) {
@@ -90,6 +92,10 @@ function validateGeneralMailAddressedTo(data, cb) {
     //
     //  :TODO: remove hard-coded FTN check here. We need a decent way to register global supported flavors with modules.
     const addressedToInfo = getAddressedToInfo(data);
+
+    if (addressedToInfo.name.length === 0) {
+        return cb(emptyFieldError());
+    }
 
     if (Message.AddressFlavor.Local !== addressedToInfo.flavor) {
         return cb(null);
