@@ -124,6 +124,15 @@ const PREDEFINED_MCI_GENERATORS = {
     UN: function userName(client) {
         return client.user.username;
     },
+    UZ: function sanitizedUserName(client) {
+        return client.user.getSanitizedName();
+    },
+    UM: function userComment(client) {
+        return userStatAsString(client, UserProps.UserComment, '');
+    },
+    LL: function legacyUserLevel(client) {
+        return client.user.getLegacySecurityLevel().toString();
+    },
     UI: function userId(client) {
         return client.user.userId.toString();
     },

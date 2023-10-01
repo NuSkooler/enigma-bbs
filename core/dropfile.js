@@ -6,14 +6,19 @@ const Config = require('./config.js').get;
 const StatLog = require('./stat_log.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
+const paths = require('path');
+const Log = require('./logger.js').log;
+const getPredefinedMCIFormatObject =
+    require('./predefined_mci').getPredefinedMCIFormatObject;
+const stringFormat = require('./string_format');
 
 //  deps
 const fs = require('graceful-fs');
-const paths = require('path');
 const _ = require('lodash');
 const moment = require('moment');
 const iconv = require('iconv-lite');
 const { mkdirs } = require('fs-extra');
+const { stripMciColorCodes } = require('./color_codes.js');
 
 //
 //  Resources
@@ -32,6 +37,12 @@ module.exports = class DropFile {
         this.client = client;
         this.fileType = fileType.toUpperCase();
         this.baseDir = baseDir;
+
+
+        this.dropFileFormatDirectory = paths.join(
+            __dirname,
+            'dropfile_formats'
+        );
     }
 
     static dropFileDirectory(baseDir, client) {
@@ -60,6 +71,8 @@ module.exports = class DropFile {
             JUMPER: 'JUMPER.DAT', //  2AM BBS
             SXDOOR: 'SXDOOR.' + _.pad(this.client.node.toString(), 3, '0'), //  System/X, dESiRE
             INFO: 'INFO.BBS', //  Phoenix BBS
+            SOLARREALMS: 'DOORFILE.SR',
+            XTRN: 'XTRN.DAT',
         }[this.fileType];
     }
 
@@ -68,16 +81,50 @@ module.exports = class DropFile {
     }
 
     getHandler() {
-        return {
-            DOOR: this.getDoorSysBuffer,
-            DOOR32: this.getDoor32Buffer,
-            DORINFO: this.getDoorInfoDefBuffer,
-        }[this.fileType];
+        // TODO: Replace with a switch statement once we have binary handlers as well
+
+        // Read the directory containing the dropfile formats, and return undefined if we don't have the format
+        const fileName = this.fileName();
+        if (!fileName) {
+            Log.info({fileType: this.fileType}, 'Dropfile format not supported.');
+            return undefined;
+        }
+        const filePath = paths.join(this.dropFileFormatDirectory, fileName);
+        fs.access(filePath, fs.constants.R_OK, err => {
+            if (err) {
+                Log.info({filename: fileName}, 'Dropfile format not found.');
+                return undefined;
+            }
+        });
+
+        // Return the handler to get the dropfile, because in the future we may have additional handlers
+        return this.getDropfile;
     }
 
     getContents() {
         const handler = this.getHandler().bind(this);
         return handler();
+    }
+
+    getDropfile() {
+        // Get the filename to read
+        const fileName = paths.join(this.dropFileFormatDirectory, this.fileName());
+
+        // Read file, or return empty string if it doesn't exist
+        fs.readFile(fileName, (err, data) => {
+            if (err) {
+                Log.warn({filename: fileName}, 'Error reading dropfile format file.');
+                return '';
+            }
+            let text = data;
+            // Format the data with string_format and predefined_mci
+            const formatObj = getPredefinedMCIFormatObject(this.client, data);
+            if (formatObj) {
+                // Expand the text
+                text = stringFormat(text, formatObj, true);
+            }
+            return text;
+        });
     }
 
     getDoorInfoFileName() {

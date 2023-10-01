@@ -12,7 +12,7 @@ N
 555 555-5555
 555 555-5555
 NOT PROVIDED
-1
+%LL
 %UC
 %DT
 9999
@@ -33,7 +33,7 @@ Y
 C:\DATA
 C:\DATA
 %SR
-%UN
+%UZ
 %CT
 Y
 Y
@@ -47,6 +47,6 @@ Y
 %DD
 0
 0
-A user
+%UM
 %DR
 32767
