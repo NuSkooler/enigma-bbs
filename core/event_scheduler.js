@@ -166,8 +166,8 @@ class ScheduledEvent {
                 });
                 return cb(e);
             }
-
-            proc.once('exit', exitCode => {
+            
+            proc.onExit(exitCode => {
                 if (exitCode) {
                     Log.warn(
                         { eventName: this.name, action: this.action, exitCode: exitCode },
