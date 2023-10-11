@@ -3,9 +3,13 @@ layout: page
 title: SSH Server
 ---
 ## SSH Login Server
+
 The ENiGMA½ SSH *login server* allows secure user logins over SSH (ssh://).
 
+*Note:* If you run into any troubles during SSH setup, please see [Troubleshooting SSH](../../troubleshooting/ssh-troubleshooting.md)
+
 ## Configuration
+
 Entries available under `config.loginServers.ssh`:
 
 | Item | Required | Description |
@@ -20,9 +24,7 @@ Entries available under `config.loginServers.ssh`:
 | `algorithms` | :-1: | Configuration block for SSH algorithms. Includes keys of `kex`, `cipher`, `hmac`, and `compress`. See the algorithms section in the [ssh2-streams](https://github.com/mscdex/ssh2-streams#ssh2stream-methods) documentation for details. For defaults set by ENiGMA½, see `core/config_default.js`.
 | `traceConnections` | :-1: | Set to `true` to enable full trace-level information on SSH connections.
 
-
 * *IMPORTANT* With the `privateKeyPass` option set, make sure that you verify that the config file is not readable by other users!
-
 
 ### Example Configuration
 
@@ -40,42 +42,93 @@ Entries available under `config.loginServers.ssh`:
 ```
 
 ## Generate a SSH Private Key
+
 To utilize the SSH server, an SSH Private Key (PK) will need generated. OpenSSH or (with some versions) OpenSSL can be used for this task:
 
-### OpenSSH
+### OpenSSH (Preferred)
 
-```bash
-ssh-keygen -m PEM -h -f config/ssh_private_key.pem
+#### OpenSSH Install - Linux / Mac
+
+If it is not already available, install OpenSSH using the package manager of your choice (should be pre-installed on most distributions.)
+
+#### Running OpenSSH - Linux / Mac
+
+From the root directory of the Enigma BBS, run the following:
+
+```shell
+mkdir -p config/security
+ssh-keygen -t rsa -m PEM -h -f config/security/ssh_private_key.pem
 ```
+
+#### Windows Install - OpenSSH
+
+OpenSSH may already be installed, try running `ssh-keygen.exe`. If not, see this page: [Install OpenSSH for Windows](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse?tabs=gui)
+
+#### Running OpenSSH - Windows
+
+After installation, go to the root directory of your enigma project and run:
+
+```powershell
+mkdir .\config\security -ErrorAction SilentlyContinue
+ssh-keygen.exe -t rsa -m PEM -h -f .\config\security\ssh_private_key.pem
+```
+
+#### ssh-keygen options
 
 Option descriptions:
 
 | Option | Description |
 |------|-------------|
+| `-t rsa` | Use the RSA algorithm needed for the `ssh2` library |
 | `-m PEM` | Set the output format to `PEM`, compatible with the `ssh2` library |
 | `-h` | Generate a host key |
 | `-f config/ssh_private_key.pem` | Filename for the private key. Used in the `privateKeyPem` option in the configuration |
 
 When you execute the `ssh-keygen` command it will ask for a passphrase (and a confirmation.) This should then be used as the value for `privateKeyPass` in the configuration.
 
-
 ### OpenSSL
 
-If you do not have OpenSSH installed or if you have trouble with the above OpenSSH commands, using some versions for OpenSSL (before version 3) the following commands may work as well:
+#### Open SSL Install - Linux / Mac
 
+If not already installed, install via the `openssl` package on most package managers.
 
-```bash
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa -out ./config/ssh_private_key.pem -aes128
+#### Open SSL Install - Windows
+
+```powershell
+winget install -e --id ShiningLight.OpenSSL
 ```
 
-Or for even older OpenSSL versions:
+#### Running OpenSSL
 
-```bash
+*Note:* Using `ssh-keygen` from OpenSSL is recommended where possible. If you have trouble with the above OpenSSH commands, using some versions for OpenSSL (before version 3) the following commands may work as well:
+
+#### Running OpenSSL - Linux / Mac
+
+Run the following from the root directory of Enigma
+
+```shell
+mkdir -p config/security
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa -out ./config/security/ssh_private_key.pem -aes128
+```
+
+#### Running OpenSSL - Windows
+
+Run the following from the root directory of Enigma (note: you may need to specify the full path to openssl.exe if it isn't in your system path, on my system it was `C:\Program Files\OpenSSL-Win64\bin\openssl.exe`):
+
+```powershell
+mkdir .\config\security -ErrorAction SilentlyContinue
+openssl.exe genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl.exe rsa -out ./config/security/ssh_private_key.pem -aes128
+```
+
+#### Running Older OpenSSL
+
+For older OpenSSL versions, the following command has been known to work:
+
+```shell
 openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
 ```
 
-Note that you may need `-3des` for very old implementations or SSH clients!
-
+*Note:* that you may need `-3des` for very old implementations or SSH clients!
 
 ## Prompt
 

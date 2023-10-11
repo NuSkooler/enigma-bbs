@@ -11,3 +11,5 @@ mail/
 node_modules/
 docs/_site/
 docs/.sass-cache/
+
+docs/.jekyll-cache/
