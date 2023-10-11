@@ -39,3 +39,7 @@ Some ssh clients connect, but Netrunner (and other older clients) get a connecti
 ```shell
 "level":40,"error":"Group exchange not implemented for server","msg":"SSH connection error"
 ```
+
+***Solution:***
+
+Remove the following encryption protocols from your `config.hjson`: `diffie-hellman-group-exchange-sha256` and `diffie-hellman-group-exchange-sha1`
