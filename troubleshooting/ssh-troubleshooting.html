@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Node to Node Messaging | ENiGMA½ BBS Software</title>
+<title>Troubleshooting SSH | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Node to Node Messaging" />
+<meta property="og:title" content="Troubleshooting SSH" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="The Node to Node Messaging Module The node to node messaging (node_msg) module allows users to send messages to one or more users on different nodes. Messages delivered to nodes follow standard User Interruption rules." />
-<meta property="og:description" content="The Node to Node Messaging Module The node to node messaging (node_msg) module allows users to send messages to one or more users on different nodes. Messages delivered to nodes follow standard User Interruption rules." />
+<meta name="description" content="Stuck with errors trying to get your SSH setup configured? See below for some common problems. Or as always, reach out to us by creating an Issue or start a Discussion" />
+<meta property="og:description" content="Stuck with errors trying to get your SSH setup configured? See below for some common problems. Or as always, reach out to us by creating an Issue or start a Discussion" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2023-10-12T01:43:58+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Node to Node Messaging" />
+<meta property="twitter:title" content="Troubleshooting SSH" />
 <script type="application/ld+json">
-{"datePublished":"2023-10-12T01:43:58+00:00","description":"The Node to Node Messaging Module The node to node messaging (node_msg) module allows users to send messages to one or more users on different nodes. Messages delivered to nodes follow standard User Interruption rules.","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/node-msg.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/node-msg.html","@type":"BlogPosting","headline":"Node to Node Messaging","dateModified":"2023-10-12T01:43:58+00:00","@context":"https://schema.org"}</script>
+{"datePublished":"2023-10-12T01:43:58+00:00","description":"Stuck with errors trying to get your SSH setup configured? See below for some common problems. Or as always, reach out to us by creating an Issue or start a Discussion","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/troubleshooting/ssh-troubleshooting.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/troubleshooting/ssh-troubleshooting.html","@type":"BlogPosting","headline":"Troubleshooting SSH","dateModified":"2023-10-12T01:43:58+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2029,7 +2029,7 @@
 
 
     
-      <li class="active-nav">Node to Node Messaging</li>
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
     
 
 
@@ -2307,7 +2307,7 @@
 
 
     
-    <li><a href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">Troubleshooting SSH</a></li>
+      <li class="active-nav">Troubleshooting SSH</li>
     
 
 
@@ -2325,75 +2325,61 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/set-newscan-date.html">&laquo; Set Newscan Date Module</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/monitoring-logs.html">&laquo; Monitoring Logs</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
-              
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/top-x.html">TopX &raquo;</a>
               
               <br clear="both" />
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Node to Node Messaging</h1>
-    <h2 id="the-node-to-node-messaging-module">The Node to Node Messaging Module</h2>
-<p>The node to node messaging (<code class="language-plaintext highlighter-rouge">node_msg</code>) module allows users to send messages to one or more users on different nodes. Messages delivered to nodes follow standard <a href="/enigma-bbs/misc/user-interrupt.html">User Interruption</a> rules.</p>
+    <h1 class="page-title">Troubleshooting SSH</h1>
+    <p>Stuck with errors trying to get your SSH setup configured? See below for some common problems. Or as always, reach out to us by creating an <a href="https://github.com/NuSkooler/enigma-bbs/issues">Issue</a> or start a <a href="https://github.com/NuSkooler/enigma-bbs/discussions">Discussion</a></p>
 
-<h2 id="configuration">Configuration</h2>
-<h3 id="config-block">Config Block</h3>
-<p>Available <code class="language-plaintext highlighter-rouge">config</code> block entries:</p>
-<ul>
-  <li><code class="language-plaintext highlighter-rouge">dateTimeFormat</code>: <a href="https://momentjs.com">moment.js</a> style format. Defaults to current theme → system <code class="language-plaintext highlighter-rouge">short</code> format.</li>
-  <li><code class="language-plaintext highlighter-rouge">messageFormat</code>: Format string for sent messages. Defaults to <code class="language-plaintext highlighter-rouge">Message from {fromUserName} on node {fromNodeId}:\r\n{message}</code>. The following format object members are available:
-    <ul>
-      <li><code class="language-plaintext highlighter-rouge">fromUserName</code>: Username who sent the message.</li>
-      <li><code class="language-plaintext highlighter-rouge">fromRealName</code>: Real name of user who sent the message.</li>
-      <li><code class="language-plaintext highlighter-rouge">fromNodeId</code>: Node ID where the message was sent from.</li>
-      <li><code class="language-plaintext highlighter-rouge">message</code>: User entered message. May contain pipe color codes.</li>
-      <li><code class="language-plaintext highlighter-rouge">timestamp</code>: A timestamp formatted using <code class="language-plaintext highlighter-rouge">dateTimeFormat</code> above.</li>
-    </ul>
-  </li>
-  <li><code class="language-plaintext highlighter-rouge">art</code>: Block containing:
-    <ul>
-      <li><code class="language-plaintext highlighter-rouge">header</code>: Art spec for header to display with message.</li>
-      <li><code class="language-plaintext highlighter-rouge">footer</code>: Art spec for footer to display with message.</li>
-    </ul>
-  </li>
-</ul>
+<h2 id="no-such-file-or-directory">No Such File or Directory</h2>
 
-<h2 id="theming">Theming</h2>
-<h3 id="mci-codes">MCI Codes</h3>
+<p><strong><em>Symptom:</em></strong>
+BBS not starting with an error similar to the following:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Error initializing: Error: ENOENT: no such file or directory, open <span class="s1">'&lt;path&gt;/config/security/ssh_private_key.pem'</span>
+</code></pre></div></div>
+
+<p><strong><em>Solution:</em></strong>
+Several things can cause this:</p>
+
 <ol>
-  <li>Node selection. Must be a View that allows lists such as <code class="language-plaintext highlighter-rouge">SpinnerMenuView</code> (<code class="language-plaintext highlighter-rouge">%SM1</code>), <code class="language-plaintext highlighter-rouge">HorizontalMenuView</code> (<code class="language-plaintext highlighter-rouge">%HM1</code>), etc.</li>
-  <li>Message entry (<code class="language-plaintext highlighter-rouge">%ET2</code>).</li>
-  <li>Message preview (<code class="language-plaintext highlighter-rouge">%TL3</code>). A rendered (that is, pipe codes resolved) preview of the text in <code class="language-plaintext highlighter-rouge">%ET2</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">ssh_private_key.pem</code> was installed to the wrong location. Make sure that it is in the <code class="language-plaintext highlighter-rouge">config/security</code> directory and has the name matching the error message. You can also change your <code class="language-plaintext highlighter-rouge">config.hjson</code> if you prefer to point to the location of the key file.</li>
+  <li><code class="language-plaintext highlighter-rouge">ssh_private_key.pem</code> has the wrong file permissions. Verify that the file will be readable by the user that the BBS is running as. Because it is a cryptographic key however, we do recommend that access is restricted only to that user.</li>
 </ol>
 
-<p>10+: Custom using <code class="language-plaintext highlighter-rouge">itemFormat</code>. See below.</p>
+<h2 id="error-with-netrunner">Error With Netrunner</h2>
 
-<h3 id="item-format">Item Format</h3>
-<p>The following <code class="language-plaintext highlighter-rouge">itemFormat</code> object is provided for MCI 1 and 10+ for the currently selected item/node:</p>
-<ul>
-  <li><code class="language-plaintext highlighter-rouge">text</code>: Node ID or “-ALL-“ (All nodes).</li>
-  <li><code class="language-plaintext highlighter-rouge">node</code>: Node ID or <code class="language-plaintext highlighter-rouge">-1</code> in the case of all nodes.</li>
-  <li><code class="language-plaintext highlighter-rouge">userId</code>: User ID.</li>
-  <li><code class="language-plaintext highlighter-rouge">action</code>: User’s action.</li>
-  <li><code class="language-plaintext highlighter-rouge">userName</code>: Username.</li>
-  <li><code class="language-plaintext highlighter-rouge">realName</code>: Real name.</li>
-  <li><code class="language-plaintext highlighter-rouge">location</code>: User’s location.</li>
-  <li><code class="language-plaintext highlighter-rouge">affils</code>: Affiliations.</li>
-  <li><code class="language-plaintext highlighter-rouge">timeOn</code>: How long the user has been online (approx).</li>
-</ul>
+<p><strong><em>Symptom:</em></strong>
+Some ssh clients connect, but Netrunner (and other older clients) get a connection failed message and the following is in the log:</p>
 
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s2">"level"</span>:40,<span class="s2">"error"</span>:<span class="s2">"Handshake failed"</span>,<span class="s2">"code"</span>:2,<span class="s2">"msg"</span>:<span class="s2">"SSH connection error"</span>
+</code></pre></div></div>
+
+<p><strong><em>Solution:</em></strong></p>
+
+<p>The key was most likely not generated with the <code class="language-plaintext highlighter-rouge">-t rsa</code> option, and is using a newer algorithm that is not supported by Netrunner and similar clients. Regenerate the certificate with the <code class="language-plaintext highlighter-rouge">-t rsa</code> option.</p>
+
+<p><strong><em>Symptom:</em></strong>
+Some ssh clients connect, but Netrunner (and other older clients) get a connection failed message and the following is in the log:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s2">"level"</span>:40,<span class="s2">"error"</span>:<span class="s2">"Group exchange not implemented for server"</span>,<span class="s2">"msg"</span>:<span class="s2">"SSH connection error"</span>
+</code></pre></div></div>
+
+<p><strong><em>Solution:</em></strong></p>
+
+<p>Remove the following encryption protocols from your <code class="language-plaintext highlighter-rouge">config.hjson</code>: <code class="language-plaintext highlighter-rouge">diffie-hellman-group-exchange-sha256</code> and <code class="language-plaintext highlighter-rouge">diffie-hellman-group-exchange-sha1</code></p>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/set-newscan-date.html">&laquo; Set Newscan Date Module</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/monitoring-logs.html">&laquo; Monitoring Logs</a>
               
-              
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/top-x.html">TopX &raquo;</a>
               
               <br clear="both" />
               </div>

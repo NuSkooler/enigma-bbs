@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="SSH Server" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="SSH Login Server The ENiGMA½ SSH login server allows secure user logins over SSH (ssh://)." />
-<meta property="og:description" content="SSH Login Server The ENiGMA½ SSH login server allows secure user logins over SSH (ssh://)." />
+<meta name="description" content="SSH Login Server" />
+<meta property="og:description" content="SSH Login Server" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2023-10-10T22:56:24+00:00" />
+<meta property="article:published_time" content="2023-10-12T01:43:58+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="SSH Server" />
 <script type="application/ld+json">
-{"datePublished":"2023-10-10T22:56:24+00:00","description":"SSH Login Server The ENiGMA½ SSH login server allows secure user logins over SSH (ssh://).","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/loginservers/ssh.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/loginservers/ssh.html","@type":"BlogPosting","headline":"SSH Server","dateModified":"2023-10-10T22:56:24+00:00","@context":"https://schema.org"}</script>
+{"datePublished":"2023-10-12T01:43:58+00:00","description":"SSH Login Server","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/loginservers/ssh.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/loginservers/ssh.html","@type":"BlogPosting","headline":"SSH Server","dateModified":"2023-10-12T01:43:58+00:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2288,6 +2288,31 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">Troubleshooting SSH</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2312,9 +2337,13 @@
                 <div class="page">
     <h1 class="page-title">SSH Server</h1>
     <h2 id="ssh-login-server">SSH Login Server</h2>
+
 <p>The ENiGMA½ SSH <em>login server</em> allows secure user logins over SSH (ssh://).</p>
 
+<p><em>Note:</em> If you run into any troubles during SSH setup, please see <a href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">Troubleshooting SSH</a></p>
+
 <h2 id="configuration">Configuration</h2>
+
 <p>Entries available under <code class="language-plaintext highlighter-rouge">config.loginServers.ssh</code>:</p>
 
 <table>
@@ -2395,12 +2424,36 @@
 </code></pre>
 
 <h2 id="generate-a-ssh-private-key">Generate a SSH Private Key</h2>
+
 <p>To utilize the SSH server, an SSH Private Key (PK) will need generated. OpenSSH or (with some versions) OpenSSL can be used for this task:</p>
 
-<h3 id="openssh">OpenSSH</h3>
+<h3 id="openssh-preferred">OpenSSH (Preferred)</h3>
 
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ssh-keygen <span class="nt">-m</span> PEM <span class="nt">-h</span> <span class="nt">-f</span> config/ssh_private_key.pem
+<h4 id="openssh-install---linux--mac">OpenSSH Install - Linux / Mac</h4>
+
+<p>If it is not already available, install OpenSSH using the package manager of your choice (should be pre-installed on most distributions.)</p>
+
+<h4 id="running-openssh---linux--mac">Running OpenSSH - Linux / Mac</h4>
+
+<p>From the root directory of the Enigma BBS, run the following:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">mkdir</span> <span class="nt">-p</span> config/security
+ssh-keygen <span class="nt">-t</span> rsa <span class="nt">-m</span> PEM <span class="nt">-h</span> <span class="nt">-f</span> config/security/ssh_private_key.pem
 </code></pre></div></div>
+
+<h4 id="windows-install---openssh">Windows Install - OpenSSH</h4>
+
+<p>OpenSSH may already be installed, try running <code class="language-plaintext highlighter-rouge">ssh-keygen.exe</code>. If not, see this page: <a href="https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse?tabs=gui">Install OpenSSH for Windows</a></p>
+
+<h4 id="running-openssh---windows">Running OpenSSH - Windows</h4>
+
+<p>After installation, go to the root directory of your enigma project and run:</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mkdir</span><span class="w"> </span><span class="o">.</span><span class="nx">\config\security</span><span class="w"> </span><span class="nt">-ErrorAction</span><span class="w"> </span><span class="nx">SilentlyContinue</span><span class="w">
+</span><span class="n">ssh-keygen.exe</span><span class="w"> </span><span class="nt">-t</span><span class="w"> </span><span class="nx">rsa</span><span class="w"> </span><span class="nt">-m</span><span class="w"> </span><span class="nx">PEM</span><span class="w"> </span><span class="nt">-h</span><span class="w"> </span><span class="nt">-f</span><span class="w"> </span><span class="o">.</span><span class="nx">\config\security\ssh_private_key.pem</span><span class="w">
+</span></code></pre></div></div>
+
+<h4 id="ssh-keygen-options">ssh-keygen options</h4>
 
 <p>Option descriptions:</p>
 
@@ -2412,6 +2465,10 @@
     </tr>
   </thead>
   <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">-t rsa</code></td>
+      <td>Use the RSA algorithm needed for the <code class="language-plaintext highlighter-rouge">ssh2</code> library</td>
+    </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">-m PEM</code></td>
       <td>Set the output format to <code class="language-plaintext highlighter-rouge">PEM</code>, compatible with the <code class="language-plaintext highlighter-rouge">ssh2</code> library</td>
@@ -2431,17 +2488,43 @@
 
 <h3 id="openssl">OpenSSL</h3>
 
-<p>If you do not have OpenSSH installed or if you have trouble with the above OpenSSH commands, using some versions for OpenSSL (before version 3) the following commands may work as well:</p>
+<h4 id="open-ssl-install---linux--mac">Open SSL Install - Linux / Mac</h4>
 
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl genpkey <span class="nt">-algorithm</span> RSA <span class="nt">-pkeyopt</span> rsa_keygen_bits:2048 <span class="nt">-pkeyopt</span> rsa_keygen_pubexp:65537 | openssl rsa <span class="nt">-out</span> ./config/ssh_private_key.pem <span class="nt">-aes128</span>
+<p>If not already installed, install via the <code class="language-plaintext highlighter-rouge">openssl</code> package on most package managers.</p>
+
+<h4 id="open-ssl-install---windows">Open SSL Install - Windows</h4>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">winget</span><span class="w"> </span><span class="nx">install</span><span class="w"> </span><span class="nt">-e</span><span class="w"> </span><span class="nt">--id</span><span class="w"> </span><span class="nx">ShiningLight.OpenSSL</span><span class="w">
+</span></code></pre></div></div>
+
+<h4 id="running-openssl">Running OpenSSL</h4>
+
+<p><em>Note:</em> Using <code class="language-plaintext highlighter-rouge">ssh-keygen</code> from OpenSSL is recommended where possible. If you have trouble with the above OpenSSH commands, using some versions for OpenSSL (before version 3) the following commands may work as well:</p>
+
+<h4 id="running-openssl---linux--mac">Running OpenSSL - Linux / Mac</h4>
+
+<p>Run the following from the root directory of Enigma</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">mkdir</span> <span class="nt">-p</span> config/security
+openssl genpkey <span class="nt">-algorithm</span> RSA <span class="nt">-pkeyopt</span> rsa_keygen_bits:2048 <span class="nt">-pkeyopt</span> rsa_keygen_pubexp:65537 | openssl rsa <span class="nt">-out</span> ./config/security/ssh_private_key.pem <span class="nt">-aes128</span>
 </code></pre></div></div>
 
-<p>Or for even older OpenSSL versions:</p>
+<h4 id="running-openssl---windows">Running OpenSSL - Windows</h4>
 
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl genrsa <span class="nt">-aes128</span> <span class="nt">-out</span> ./config/ssh_private_key.pem 2048
+<p>Run the following from the root directory of Enigma (note: you may need to specify the full path to openssl.exe if it isn’t in your system path, on my system it was <code class="language-plaintext highlighter-rouge">C:\Program Files\OpenSSL-Win64\bin\openssl.exe</code>):</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mkdir</span><span class="w"> </span><span class="o">.</span><span class="nx">\config\security</span><span class="w"> </span><span class="nt">-ErrorAction</span><span class="w"> </span><span class="nx">SilentlyContinue</span><span class="w">
+</span><span class="n">openssl.exe</span><span class="w"> </span><span class="nx">genpkey</span><span class="w"> </span><span class="nt">-algorithm</span><span class="w"> </span><span class="nx">RSA</span><span class="w"> </span><span class="nt">-pkeyopt</span><span class="w"> </span><span class="nx">rsa_keygen_bits:2048</span><span class="w"> </span><span class="nt">-pkeyopt</span><span class="w"> </span><span class="nx">rsa_keygen_pubexp:65537</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">openssl.exe</span><span class="w"> </span><span class="nx">rsa</span><span class="w"> </span><span class="nt">-out</span><span class="w"> </span><span class="o">.</span><span class="nx">/config/security/ssh_private_key.pem</span><span class="w"> </span><span class="nt">-aes128</span><span class="w">
+</span></code></pre></div></div>
+
+<h4 id="running-older-openssl">Running Older OpenSSL</h4>
+
+<p>For older OpenSSL versions, the following command has been known to work:</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl genrsa <span class="nt">-aes128</span> <span class="nt">-out</span> ./config/ssh_private_key.pem 2048
 </code></pre></div></div>
 
-<p>Note that you may need <code class="language-plaintext highlighter-rouge">-3des</code> for very old implementations or SSH clients!</p>
+<p><em>Note:</em> that you may need <code class="language-plaintext highlighter-rouge">-3des</code> for very old implementations or SSH clients!</p>
 
 <h2 id="prompt">Prompt</h2>
 
