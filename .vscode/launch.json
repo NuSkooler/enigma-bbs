@@ -6,6 +6,7 @@
     "configurations": [
         {
             "type": "node",
+            "runtimeExecutable": "/home/nuskooler/.local/share/rtx/installs/nodejs/16.20.2/bin/node",
             "request": "launch",
             "name": "Launch Program",
             "skipFiles": ["<node_internals>/**"],

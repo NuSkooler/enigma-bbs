@@ -57,8 +57,10 @@ module.exports = class Door {
     run(exeInfo, cb) {
         this.encoding = (exeInfo.encoding || 'cp437').toLowerCase();
 
-        if ('socket' === this.io && !this.sockServer) {
-            return cb(Errors.UnexpectedState('Socket server is not running'));
+        if ('socket' === this.io) {
+            if (!this.sockServer) {
+                return cb(Errors.UnexpectedState('Socket server is not running'));
+            }
         } else if ('stdio' !== this.io) {
             return cb(Errors.Invalid(`"${this.io}" is not a valid io type!`));
         }

@@ -45,6 +45,10 @@ fileBaseListEntriesNoResults: {
 See also: [Menu Modules](./docs/_docs/modding/menu-module.md).
 
 
+* Due to changes to supported algorithms in newer versions of openssl, the default list of supported algorithms for the ssh login server has changed. There are both removed ciphers as well as optional new kex algorithms available now. ***NOTE:*** Changes to supported algorithms are only needed to support keys generated with new versions of openssl, if you already have a ssl key in use you should not have to make any changes to your config.
+  * Removed ciphers: 'blowfish-cbc', 'arcfour256', 'arcfour128', and 'cast128-cbc'
+  * Added kex: 'curve25519-sha256', 'curve25519-sha256@libssh.org', 'curve25519-sha256', 'curve25519-sha256@libssh.org', 'ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521'
+
 ## 0.0.12-beta to 0.0.13-beta
 * To enable the new Waiting for Caller (WFC) support, please see [WFC](docs/modding/wfc.md).
 * :exclamation: The SSH server's `ssh2` module has gone through a major upgrade. Existing users will need to comment out two SSH KEX algorithms from their `config.hjson` if present else clients such as NetRunner will not be able to connect over SSH. Comment out `diffie-hellman-group-exchange-sha256` and `diffie-hellman-group-exchange-sha1`

@@ -22,6 +22,8 @@ exports.validateEmailAvail = validateEmailAvail;
 exports.validateBirthdate = validateBirthdate;
 exports.validatePasswordSpec = validatePasswordSpec;
 
+const emptyFieldError = () => new Error('Field cannot be empty');
+
 function validateNonEmpty(data, cb) {
     return cb(
         data && data.length > 0
@@ -136,6 +138,11 @@ function validateGeneralMailAddressedTo(data, cb) {
     //  - Supported remote flavors such as FTN, email, ...
     //
     const addressedToInfo = getAddressedToInfo(data);
+
+    if (addressedToInfo.name.length === 0) {
+        return cb(emptyFieldError());
+    }
+
     if (Message.AddressFlavor.Local !== addressedToInfo.flavor) {
         return cb(null);
     }

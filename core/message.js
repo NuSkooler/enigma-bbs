@@ -778,6 +778,11 @@ module.exports = class Message {
     }
 
     persist(cb) {
+        const containsNonWhitespaceCharacterRegEx = /\S/;
+        if (!containsNonWhitespaceCharacterRegEx.test(this.message)) {
+            return cb(Errors.Invalid('Empty message'));
+        }
+
         if (!this.isValid()) {
             return cb(Errors.Invalid('Cannot persist invalid message!'));
         }

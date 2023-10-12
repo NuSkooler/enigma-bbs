@@ -195,7 +195,12 @@ exports.FullScreenEditorModule =
                     );
                     if (errMsgView) {
                         if (err) {
-                            errMsgView.setText(err.friendlyText);
+                            errMsgView.clearText();
+                            errMsgView.setText(err.friendlyText || err.message);
+
+                            if (MciViewIds.header.subject === err.view.getId()) {
+                                //  :TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
+                            }
                         } else {
                             errMsgView.clearText();
                         }
@@ -208,6 +213,13 @@ exports.FullScreenEditorModule =
                     return cb(null);
                 },
                 editModeEscPressed: function (formData, extraArgs, cb) {
+                    const errMsgView = self.viewControllers.header.getView(
+                        MciViewIds.header.errorMsg
+                    );
+                    if (errMsgView) {
+                        errMsgView.clearText();
+                    }
+
                     self.footerMode =
                         'editor' === self.footerMode ? 'editorMenu' : 'editor';
 
@@ -1085,7 +1097,7 @@ exports.FullScreenEditorModule =
                     posView.setText(
                         _.padStart(String(pos.row + 1), 2, '0') +
                             ',' +
-                            _.padEnd(String(pos.col + 1), 2, '0')
+                            _.padStart(String(pos.col + 1), 2, '0')
                     );
                     this.client.term.rawWrite(ansi.restorePos());
                 }
