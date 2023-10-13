@@ -316,6 +316,74 @@ function display(client, art, options, cb) {
         }
     });
 
+    // Remove any MCI's that are in erased rows
+    ansiParser.on('erase row', (startRow, endRow) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (mciInfo.position[0] >= startRow && mciInfo.position[0] <= endRow) {
+                delete mciMap[mapKey];
+            }
+        });
+    });
+
+    // Remove any MCI's that are in erased columns
+    ansiParser.on('erase columns', (row, startCol, endCol) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (
+                mciInfo.position[0] === row &&
+                mciInfo.position[1] >= startCol &&
+                mciInfo.position[1] <= endCol
+            ) {
+                delete mciMap[mapKey];
+            }
+        });
+    });
+
+    ansiParser.on('insert columns', (row, startCol, numCols) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (mciInfo.position[0] === row && mciInfo.position[1] >= startCol) {
+                mciInfo.position[1] += numCols;
+                if (mciInfo.position[1] > client.term.termWidth) {
+                    delete mciMap[mapKey];
+                }
+            }
+        });
+    });
+
+    // Clear the screen, removing any MCI's
+    ansiParser.on('clear screen', () => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            delete mciMap[mapKey];
+        });
+    });
+
+    ansiParser.on('scroll', scrollY => {
+        _.forEach(mciMap, mciInfo => {
+            mciInfo.position[0] -= scrollY;
+        });
+    });
+
+    ansiParser.on('insert line', (row, numLines) => {
+        _.forEach(mciMap, mciInfo => {
+            if (mciInfo.position[0] >= row) {
+                mciInfo.position[0] += numLines;
+            }
+        });
+    });
+
+    ansiParser.on('delete line', (row, numLines) => {
+        _.forEach(mciMap, (mciInfo, mapKey) => {
+            if (mciInfo.position[0] >= row) {
+                if (mciInfo.position[0] < row + numLines) {
+                    // unlike scrolling, the rows are actually gone,
+                    // so we need to delete any MCI's that are in them
+                    delete mciMap[mapKey];
+                } else {
+                    mciInfo.position[0] -= numLines;
+                }
+            }
+        });
+    });
+
     ansiParser.on('literal', literal => client.term.write(literal, false));
     ansiParser.on('control', control => client.term.rawWrite(control));
 

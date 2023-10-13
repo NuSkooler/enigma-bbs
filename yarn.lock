@@ -1921,12 +1921,12 @@ node-int64@^0.4.0:
   resolved "https://registry.yarnpkg.com/node-int64/-/node-int64-0.4.0.tgz#87a9065cdb355d3182d8f94ce11188b825c68a3b"
   integrity sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==
 
-node-pty@0.10.1:
-  version "0.10.1"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.1.tgz#cd05d03a2710315ec40221232ec04186f6ac2c6d"
-  integrity sha512-JTdtUS0Im/yRsWJSx7yiW9rtpfmxqxolrtnyKwPLI+6XqTAPW/O2MjS8FYL4I5TsMbH2lVgDb2VMjp+9LoQGNg==
+node-pty@1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.0.0.tgz#7daafc0aca1c4ca3de15c61330373af4af5861fd"
+  integrity sha512-wtBMWWS7dFZm/VgqElrTvtfMq4GzJ6+edFI0Y0zyzygUSZMgZdraDUMUhCIvkjhJjme15qWmbyJbtAx4ot4uZA==
   dependencies:
-    nan "^2.14.0"
+    nan "^2.17.0"
 
 nodemailer@6.7.7:
   version "6.7.7"
