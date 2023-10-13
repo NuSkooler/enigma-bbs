@@ -216,7 +216,7 @@ module.exports = class ArchiveUtil {
 
         proc.onExit(exitEvent => {
             return cb(
-                exitCode
+                exitEvent.exitCode
                     ? Errors.ExternalProcess(
                           `${action} failed with exit code: ${exitEvent.exitCode}`
                       )
