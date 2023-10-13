@@ -214,11 +214,11 @@ module.exports = class ArchiveUtil {
             }
         });
 
-        proc.onExit(exitCode => {
+        proc.onExit(exitEvent => {
             return cb(
                 exitCode
                     ? Errors.ExternalProcess(
-                          `${action} failed with exit code: ${exitCode}`
+                          `${action} failed with exit code: ${exitEvent.exitCode}`
                       )
                     : err
             );
@@ -358,10 +358,10 @@ module.exports = class ArchiveUtil {
             output += data;
         });
 
-        proc.onExit(exitCode => {
-            if (exitCode) {
+        proc.onExit(exitEvent => {
+            if (exitEvent.exitCode) {
                 return cb(
-                    Errors.ExternalProcess(`List failed with exit code: ${exitCode}`)
+                    Errors.ExternalProcess(`List failed with exit code: ${exitEvent.exitCode}`)
                 );
             }
 

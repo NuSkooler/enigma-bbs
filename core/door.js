@@ -113,9 +113,10 @@ module.exports = class Door {
                             spawnOptions
                         );
 
-                        prePty.onExit(exitCode => {
+                        prePty.onExit(exitEvent => {
+                            const {exitCode, signal} = exitEvent;
                             this.client.log.info(
-                                { exitCode: exitCode },
+                                { exitCode, signal },
                                 'Door pre-command exited'
                             );
                             return callback(null);
@@ -165,7 +166,7 @@ module.exports = class Door {
 
                         this.doorPty.onData(this.doorDataHandler.bind(this));
 
-                        this.doorPty.onExit(exitCode => {
+                        this.doorPty.onExit( (/*exitEvent*/) => {
                             return this.restoreIo(this.doorPty);
                         });
                     } else if ('socket' === this.io) {
@@ -178,8 +179,9 @@ module.exports = class Door {
                         );
                     }
 
-                    this.doorPty.onExit(exitCode => {
-                        this.client.log.info({ exitCode: exitCode }, 'Door exited');
+                    this.doorPty.onExit(exitEvent => {
+                        const {exitCode, signal} = exitEvent;
+                        this.client.log.info({ exitCode, signal }, 'Door exited');
 
                         if (this.sockServer) {
                             this.sockServer.close();
