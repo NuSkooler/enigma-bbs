@@ -24,7 +24,7 @@ function ANSIEscapeParser(options) {
     this.graphicRendition = {};
 
     this.parseState = {
-        re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsutEFGST])/g, //  eslint-disable-line no-control-regex
+        re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZt@PXhlnpt]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
@@ -77,10 +77,25 @@ function ANSIEscapeParser(options) {
     self.clearScreen = function () {
         self.column = 1;
         self.row = 1;
+        self.positionUpdated();
         self.emit('clear screen');
     };
 
     self.positionUpdated = function () {
+        if(self.row > self.termHeight) {
+            if(this.savedPosition) {
+                this.savedPosition.row -= self.row - self.termHeight;
+            }
+            self.emit('scroll', self.row - self.termHeight);
+            self.row = self.termHeight;
+        }
+        else if(self.row < 1) {
+            if(this.savedPosition) {
+                this.savedPosition.row -= self.row - 1;
+            }
+            self.emit('scroll', -(self.row - 1));
+            self.row = 1;
+        }
         self.emit('position update', self.row, self.column);
     };
 
@@ -231,7 +246,7 @@ function ANSIEscapeParser(options) {
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer: input.split(String.fromCharCode(0x1a), 1)[0],
-            re: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsutEFGST])/g, //  eslint-disable-line no-control-regex
+            re: /(?:\x1b)(?:(?:\x5b([?=;0-9]*?)([ABCDEFGfHJKLmMsSTuUYZt@PXhlnpt]))|([78DEHM]))/g, //  eslint-disable-line no-control-regex
             stop: false,
         };
     };
@@ -271,9 +286,47 @@ function ANSIEscapeParser(options) {
                 opCode = match[2];
                 args = match[1].split(';').map(v => parseInt(v, 10)); //  convert to array of ints
 
-                escape(opCode, args);
+                // Handle the case where there is no bracket
+                if(!(_.isNil(match[3]))) {
+                    opCode = match[3];
+                    args = [];
+                    // no bracket
+                    switch(opCode) {
+                        // save cursor position
+                        case '7':
+                            escape('s', args);
+                            break;
+                        // restore cursor position
+                        case '8':
+                            escape('u', args);
+                            break;
 
-                //self.emit('chunk', match[0]);
+                        // scroll up
+                        case 'D':
+                            escape('S', args);
+                            break;
+
+                        // move to next line
+                        case 'E':
+                            // functonality is the same as ESC [ E
+                            escape(opCode, args);
+                            break;
+
+                        // create a tab at current cursor position
+                        case 'H':
+                            literal('\t');
+                            break;
+
+                        // scroll down
+                        case 'M':
+                            escape('T', args);
+                            break;
+                    }
+                }
+                else {
+                    escape(opCode, args);
+                }
+
                 self.emit('control', match[0], opCode, args);
             }
         } while (0 !== re.lastIndex);
@@ -281,8 +334,8 @@ function ANSIEscapeParser(options) {
         if (pos < buffer.length) {
             var lastBit = buffer.slice(pos);
 
-            //  :TODO: check for various ending LF's, not just DOS \r\n
-            if ('\r\n' === lastBit.slice(-2).toString()) {
+            //  handles either \r\n or \n
+            if ('\n' === lastBit.slice(-1).toString()) {
                 switch (self.trailingLF) {
                     case 'default':
                         //
@@ -290,14 +343,14 @@ function ANSIEscapeParser(options) {
                         //  if we're going to end on termHeight
                         //
                         if (this.termHeight === self.row) {
-                            lastBit = lastBit.slice(0, -2);
+                            lastBit = lastBit.slice(0, -1);
                         }
                         break;
 
                     case 'omit':
                     case 'no':
                     case false:
-                        lastBit = lastBit.slice(0, -2);
+                        lastBit = lastBit.slice(0, -1);
                         break;
                 }
             }
@@ -307,48 +360,6 @@ function ANSIEscapeParser(options) {
 
         self.emit('complete');
     };
-
-    /*
-    self.parse = function(buffer, savedRe) {
-        //  :TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
-        //  :TODO: move this to "constants" section @ top
-        var re  = /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
-        var pos = 0;
-        var match;
-        var opCode;
-        var args;
-
-        //  ignore anything past EOF marker, if any
-        buffer = buffer.split(String.fromCharCode(0x1a), 1)[0];
-
-        do {
-            pos     = re.lastIndex;
-            match   = re.exec(buffer);
-
-            if(null !== match) {
-                if(match.index > pos) {
-                    parseMCI(buffer.slice(pos, match.index));
-                }
-
-                opCode  = match[2];
-                args    = getArgArray(match[1].split(';'));
-
-                escape(opCode, args);
-
-                self.emit('chunk', match[0]);
-            }
-
-
-
-        } while(0 !== re.lastIndex);
-
-        if(pos < buffer.length) {
-            parseMCI(buffer.slice(pos));
-        }
-
-        self.emit('complete');
-    };
-    */
 
     function escape(opCode, args) {
         let arg;
@@ -382,6 +393,37 @@ function ANSIEscapeParser(options) {
                 self.moveCursor(-arg, 0);
                 break;
 
+            // line feed
+            case 'E':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                if(this.row + arg > this.termHeight) {
+                    this.emit('scroll', arg - (this.termHeight - this.row));
+                    self.moveCursor(0, this.termHeight);
+                }
+                else {
+                    self.moveCursor(0, arg);
+                }
+                break;
+
+            // reverse line feed
+            case 'F':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                if(this.row - arg < 1) {
+                    this.emit('scroll', -(arg - this.row));
+                    self.moveCursor(0, 1 - this.row);
+                }
+                else {
+                    self.moveCursor(0, -arg);
+                }
+                break;
+
+            // absolute horizontal cursor position
+            case 'G':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.column = Math.max(1, arg);
+                self.positionUpdated();
+                break;
+
             case 'f': //  horiz & vertical
             case 'H': //  cursor position
                 //self.row  = args[0] || 1;
@@ -392,14 +434,37 @@ function ANSIEscapeParser(options) {
                 self.positionUpdated();
                 break;
 
-            //  save position
-            case 's':
-                self.saveCursorPosition();
+
+            //  erase display/screen
+            case 'J':
+                if(isNaN(args[0]) || 0 === args[0]) {
+                    self.emit('erase rows', self.row, self.termHeight);
+                }
+                else if (1 === args[0]) {
+                    self.emit('erase rows', 1, self.row);
+                }
+                else if (2 === args[0]) {
+                    self.clearScreen();
+                }
                 break;
 
-            //  restore position
-            case 'u':
-                self.restoreCursorPosition();
+            // erase text in line
+            case 'K':
+                if(isNaN(args[0]) || 0 === args[0]) {
+                    self.emit('erase columns', self.row, self.column, self.termWidth);
+                }
+                else if (1 === args[0]) {
+                    self.emit('erase columns', self.row, 1, self.column);
+                }
+                else if (2 === args[0]) {
+                    self.emit('erase columns', self.row, 1, self.termWidth);
+                }
+                break;
+
+            // insert line
+            case 'L':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('insert line', self.row, arg);
                 break;
 
             //  set graphic rendition
@@ -471,15 +536,52 @@ function ANSIEscapeParser(options) {
                 self.emit('sgr update', self.graphicRendition);
                 break; //  m
 
-            //  :TODO: s, u, K
-
-            //  erase display/screen
-            case 'J':
-                //  :TODO: Handle other 'J' types!
-                if (2 === args[0]) {
-                    self.clearScreen();
-                }
+            //  save position
+            case 's':
+                self.saveCursorPosition();
                 break;
+
+            // Scroll up
+            case 'S':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('scroll', arg);
+                break;
+
+            // Scroll down
+            case 'T':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('scroll', -arg);
+                break;
+
+            //  restore position
+            case 'u':
+                self.restoreCursorPosition();
+                break;
+
+            // clear
+            case 'U':
+                self.clearScreen();
+                break;
+
+            // delete line
+            // TODO: how should we handle 'M'?
+            case 'Y':
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('delete line', self.row, arg);
+                break;
+
+            // back tab
+            case 'Z':
+                // calculate previous tabstop
+                self.column = Math.max( 1, self.column - (self.column % 8 || 8) );
+                self.positionUpdated();
+                break;
+            case '@':
+                // insert column(s)
+                arg = isNaN(args[0]) ? 1 : args[0];
+                self.emit('insert columns', self.row, self.column, arg);
+                break;
+
         }
     }
 }
