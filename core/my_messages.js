@@ -21,10 +21,7 @@ exports.getModule = class MyMessagesModule extends MenuModule {
 
     initSequence() {
         const filter = {
-            toUserName: [
-                this.client.user.username,
-                this.client.user.getProperty(UserProps.RealName),
-            ],
+            toUserName: [this.client.user.username, this.client.user.realName()],
             sort: 'modTimestamp',
             resultType: 'messageList',
             limit: 1024 * 16, //  we want some sort of limit...

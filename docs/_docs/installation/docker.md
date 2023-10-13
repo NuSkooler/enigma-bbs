@@ -71,5 +71,9 @@ Customising the Docker image is easy!
 1. Clone the ENiGMA-BBS source.
 2. Build the image
 ```bash
-docker build -f ./docker/Dockerfile .
+docker build -t enigmabbs -f ./docker/Dockerfile .
+```
+3. Run the image
+```bash
+docker run -it -p 8888:8888 --name "ENiGMABBS" -v "$(pwd)/config:/enigma-bbs/config" -v "$(pwd)/db:/enigma-bbs/db" -v "$(pwd)/logs:/enigma-bbs/logs" -v "$(pwd)/filebase:/enigma-bbs/filebase" -v "$(pwd)/art:/enigma-bbs/art" -v "$(pwd)/mods:/enigma-bbs/mods" -v "$(pwd)/mail:/mail" enigmabbs
 ```
