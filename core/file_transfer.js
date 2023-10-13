@@ -485,11 +485,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
             }
         });
 
-        externalProc.once('close', () => {
-            return this.restorePipeAfterExternalProc();
-        });
-
-        externalProc.once('exit', exitCode => {
+        externalProc.onExit(exitCode => {
             this.client.log.debug(
                 { cmd: cmd, args: args, exitCode: exitCode },
                 'Process exited'
