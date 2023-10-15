@@ -208,17 +208,17 @@ module.exports = class ArchiveUtil {
         //  pty.js doesn't currently give us a error when things fail,
         //  so we have this horrible, horrible hack:
         let err;
-        proc.once('data', d => {
+        proc.onData(d => {
             if (_.isString(d) && d.startsWith('execvp(3) failed.')) {
                 err = Errors.ExternalProcess(`${action} failed: ${d.trim()}`);
             }
         });
 
-        proc.once('exit', exitCode => {
+        proc.onExit(exitEvent => {
             return cb(
-                exitCode
+                exitEvent.exitCode
                     ? Errors.ExternalProcess(
-                          `${action} failed with exit code: ${exitCode}`
+                          `${action} failed with exit code: ${exitEvent.exitCode}`
                       )
                     : err
             );
@@ -358,10 +358,10 @@ module.exports = class ArchiveUtil {
             output += data;
         });
 
-        proc.once('exit', exitCode => {
-            if (exitCode) {
+        proc.onExit(exitEvent => {
+            if (exitEvent.exitCode) {
                 return cb(
-                    Errors.ExternalProcess(`List failed with exit code: ${exitCode}`)
+                    Errors.ExternalProcess(`List failed with exit code: ${exitEvent.exitCode}`)
                 );
             }
 
