@@ -42,6 +42,7 @@ RUN dos2unix /enigma-bbs/docker/bin/docker-entrypoint.sh \
     && apt-get remove dos2unix -y \
     && chmod +x /enigma-bbs/docker/bin/docker-entrypoint.sh \
     && cp -f /enigma-bbs/docker/bin/sexyz /usr/local/bin \
+    && cd /enigma-bbs \
     && pm2 start main.js \
     && mkdir -p /enigma-bbs-pre/art \
     && mkdir /enigma-bbs-pre/mods \
