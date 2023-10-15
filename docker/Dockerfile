@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 
 # Just copy the package.json so it only needs to build once
-COPY package.json /enigma-bbs
+COPY package.json /enigma-bbs/
 
 # Install APT and NPM packages
 RUN apt-get update \
