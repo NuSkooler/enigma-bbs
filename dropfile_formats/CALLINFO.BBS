@@ -1,36 +1,36 @@
-%UR
+{UR}
 4
-%SL
-%LL
+{SL}
+{LL}
 999
 COLOR
 NOTPROVIDED
-%UI
+{UI}
 0
-%CT
-%CT %DT
-%MC
-%DN
+{CT}
+{CT} {DT}
+{MC}
+{DN}
 999
 0
 999999
 555-555-5555
-%DT %CT
+{DT} {CT}
 NOVICE
 All
-%DT
-%UC
-%SH
+{DT}
+{UC}
+{SH}
 0
-%UP
-%DN
+{UP}
+{DN}
 8
 REMOTE
 1
-%BD
+{BD}
 38400
 FALSE
 Normal Connection
-%DT %CT
-%ND
+{DT} {CT}
+{ND}
 0

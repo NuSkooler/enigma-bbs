@@ -20,6 +20,8 @@ const iconv = require('iconv-lite');
 const { mkdirs } = require('fs-extra');
 const { stripMciColorCodes } = require('./color_codes.js');
 
+const parseFullName = require('parse-full-name').parseFullName;
+
 //
 //  Resources
 //  * https://github.com/NuSkooler/ansi-bbs/tree/master/docs/dropfile_formats
@@ -125,6 +127,43 @@ module.exports = class DropFile {
             }
             return text;
         });
+    }
+
+
+    _getFirstName(fullname) {
+        return parseFullName(fullname).first;
+    }
+
+    _getLastName(fullname) {
+        return parseFullName(fullname).last;
+    }
+
+    getSysopFirstName() {
+        return this._getFirstName(StatLog.getSystemStat(SysProps.SysOpRealName));
+    }
+
+    getSysopLastName() {
+        return this._getLastName(StatLog.getSystemStat(SysProps.SysOpRealName));
+    }
+
+    _userStatAsString(statName, defaultValue) {
+        return (StatLog.getUserStat(this.client.user, statName) || defaultValue).toLocaleString();
+    }
+
+    _getUserRealName() {
+        return this._userStatAsString(UserProps.RealName, 'Unknown Unknown');
+    }
+
+    getUserFirstName() {
+        return this._getFirstName(this._getUserRealName);
+    }
+
+    getUserLastName() {
+        return this._getLastName(this._getUserRealName);
+    }
+
+    getUserTotalDownloadK() {
+        return StatLog.getUserStatNum(this.client.user, UserProps.FileDlTotalBytes) / 1024;
     }
 
     getDoorInfoFileName() {

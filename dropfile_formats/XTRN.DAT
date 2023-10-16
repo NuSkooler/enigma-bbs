@@ -1,20 +1,20 @@
-%UR
-%BN
-%SN
+{UR}
+{BN}
+{SN}
 The Guru
 C:\CONTROL
 C:\DATA
 99
-%ND
+{ND}
 99999
 Yes
-%SH
+{SH}
 209087929
-%LL
+{LL}
 1
-%BD
+{BD}
 M
-%UI
+{UI}
 555-555-5555
 1
 4
@@ -62,5 +62,5 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZ
 
 
 0
-%UR
+{UR}
 38400
