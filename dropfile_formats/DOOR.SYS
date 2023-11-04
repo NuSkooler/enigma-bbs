@@ -14,7 +14,7 @@ N
 NOT PROVIDED
 {LL}
 {UC}
-{DT}
+{getCurrentDateMMDDYY}
 9999
 999
 GR
@@ -27,9 +27,9 @@ N
 Y
 {UP}
 {DN}
-0
+{getSystemDailyDownloadK}
 9999999
-{BD}
+{getUserBirthDateMMDDYY}
 C:\DATA
 C:\DATA
 {SR}
@@ -40,13 +40,13 @@ Y
 Y
 7
 32767
-{DT}
+{getCurrentDateMMDDYY}
 {CT}
 {CT}
 9999
 {DD}
-0
-0
-{UM}
+{getUserTotalUploadK}
+{getUserTotalDownloadK}
+
 {DR}
 32767

@@ -1,11 +1,11 @@
 {BN}
-UNKNOWN
-UNKNOWN
+{getSysopFirstName}
+{getSysopLastName}
 COM1
 19200 BAUD,N,8,1
 0
-UNKNOWN
-UNKNOWN
+{getUserFirstName}
+{getUserLastName}
 {LO}
 1
 {LL}

@@ -5,7 +5,7 @@
 {UA}
 M
 {AP}
-{DT}
+{getCurrentDateMMDDYY}
 {SW}
 {SH}
 {LL}
@@ -24,8 +24,8 @@ C:\DATA\BBS.LOG
 {SR}
 1
 0
-0
+{getUserTotalUploadK}
 {UP}
-0
+{getUserTotalDownloadK}
 {DN}
 8N1

@@ -16,9 +16,7 @@ const stringFormat = require('./string_format');
 const fs = require('graceful-fs');
 const _ = require('lodash');
 const moment = require('moment');
-const iconv = require('iconv-lite');
 const { mkdirs } = require('fs-extra');
-const { stripMciColorCodes } = require('./color_codes.js');
 
 const parseFullName = require('parse-full-name').parseFullName;
 
@@ -43,6 +41,7 @@ module.exports = class DropFile {
 
         this.dropFileFormatDirectory = paths.join(
             __dirname,
+            '..',
             'dropfile_formats'
         );
     }
@@ -86,7 +85,7 @@ module.exports = class DropFile {
         // TODO: Replace with a switch statement once we have binary handlers as well
 
         // Read the directory containing the dropfile formats, and return undefined if we don't have the format
-        const fileName = this.fileName();
+        const fileName = this.fileName;
         if (!fileName) {
             Log.info({fileType: this.fileType}, 'Dropfile format not supported.');
             return undefined;
@@ -105,28 +104,39 @@ module.exports = class DropFile {
 
     getContents() {
         const handler = this.getHandler().bind(this);
-        return handler();
+        const contents = handler();
+        return contents;
     }
 
     getDropfile() {
         // Get the filename to read
-        const fileName = paths.join(this.dropFileFormatDirectory, this.fileName());
+        const fileName = paths.join(this.dropFileFormatDirectory, this.fileName);
 
-        // Read file, or return empty string if it doesn't exist
-        fs.readFile(fileName, (err, data) => {
-            if (err) {
-                Log.warn({filename: fileName}, 'Error reading dropfile format file.');
-                return '';
-            }
-            let text = data;
-            // Format the data with string_format and predefined_mci
-            const formatObj = getPredefinedMCIFormatObject(this.client, data);
-            if (formatObj) {
-                // Expand the text
-                text = stringFormat(text, formatObj, true);
-            }
-            return text;
-        });
+        let text = fs.readFileSync(fileName);
+
+        // Format the data with string_format and predefined_mci
+        let formatObj = getPredefinedMCIFormatObject(this.client, text);
+
+        const additionalFormatObj = {
+            'getSysopFirstName': this.getSysopFirstName(),
+            'getSysopLastName': this.getSysopLastName(),
+            'getUserFirstName': this.getUserFirstName(),
+            'getUserLastName': this.getUserLastName(),
+            'getUserTotalDownloadK': this.getUserTotalDownloadK(),
+            'getUserTotalUploadK': this.getUserTotalUploadK(),
+            'getCurrentDateMMDDYY': this.getCurrentDateMMDDYY(),
+            'getSystemDailyDownloadK': this.getSystemDailyDownloadK(),
+            'getUserBirthDateMMDDYY': this.getUserBirthDateMMDDYY(),
+        };
+
+        // Add additional format objects to the format object
+        formatObj = _.merge(formatObj, additionalFormatObj);
+
+        if (formatObj) {
+            // Expand the text
+            text = stringFormat(text, formatObj, true);
+        }
+        return text;
     }
 
 
@@ -166,6 +176,24 @@ module.exports = class DropFile {
         return StatLog.getUserStatNum(this.client.user, UserProps.FileDlTotalBytes) / 1024;
     }
 
+    getSystemDailyDownloadK() {
+        return StatLog.getSystemStatNum(SysProps.getSystemDailyDownloadK) / 1024;
+    }
+
+    getUserTotalUploadK() {
+        return StatLog.getUserStatNum(this.client.user, UserProps.FileUlTotalBytes) / 1024;
+    }
+
+    getCurrentDateMMDDYY() {
+        // Return current date in MM/DD/YY format
+        return moment().format('MM/DD/YY');
+    }
+
+    getUserBirthDateMMDDYY() {
+        // Return user's birthdate in MM/DD/YY format
+        return moment(this.client.user.properties[UserProps.Birthdate]).format('MM/DD/YY');
+    }
+
     getDoorInfoFileName() {
         let x;
         const node = this.client.node;
@@ -179,13 +207,14 @@ module.exports = class DropFile {
         return 'DORINFO' + x + '.DEF';
     }
 
-
     createFile(cb) {
         mkdirs(paths.dirname(this.fullPath), err => {
             if (err) {
                 return cb(err);
             }
-            return fs.writeFile(this.fullPath, this.getContents(), cb);
+            const fullPath = this.fullPath;
+            const contents = this.getContents();
+            return fs.writeFile(fullPath, contents, cb);
         });
     }
 };
