@@ -8,17 +8,17 @@ NOTPROVIDED
 {UI}
 0
 {CT}
-{CT} {DT}
+{CT} {getCurrentDateMMDDYY}
 {MC}
 {DN}
 999
 0
 999999
 555-555-5555
-{DT} {CT}
+{getCurrentDateMMDDYY} {CT}
 NOVICE
 All
-{DT}
+{getCurrentDateMMDDYY}
 {UC}
 {SH}
 0
@@ -31,6 +31,6 @@ REMOTE
 38400
 FALSE
 Normal Connection
-{DT} {CT}
+{getCurrentDateMMDDYY} {CT}
 {ND}
 0

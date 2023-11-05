@@ -91,19 +91,21 @@ module.exports = class DropFile {
             return undefined;
         }
         const filePath = paths.join(this.dropFileFormatDirectory, fileName);
-        fs.access(filePath, fs.constants.R_OK, err => {
-            if (err) {
-                Log.info({filename: fileName}, 'Dropfile format not found.');
-                return undefined;
-            }
-        });
+        if(!fs.existsSync(filePath)) {
+            Log.info({filename: fileName}, 'Dropfile format not found or readable.');
+            return undefined;
+        }
 
         // Return the handler to get the dropfile, because in the future we may have additional handlers
         return this.getDropfile;
     }
 
     getContents() {
-        const handler = this.getHandler().bind(this);
+        const handlerRef = this.getHandler();
+        if(!handlerRef) {
+            return undefined;
+        }
+        const handler = handlerRef.bind(this);
         const contents = handler();
         return contents;
     }

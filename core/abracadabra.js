@@ -158,6 +158,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                         fileType: self.config.dropFileType,
                     });
 
+                    if(!(self.dropFile.isSupported())) {
+                        // Return error so complete will log and return
+                        return callback(Errors.AccessDenied('Dropfile format not supported'));
+                    }
+
                     return self.dropFile.createFile(callback);
                 },
             ],
