@@ -98,7 +98,7 @@ function ansiSgrFromCnetStyleColorCode(cc) {
 }
 
 function renegadeToAnsi(s, client) {
-    if (-1 == s.indexOf('|')) {
+    if (s == null || -1 == s.indexOf('|')) {
         return s; //  no pipe codes present
     }
 

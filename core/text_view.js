@@ -151,7 +151,7 @@ TextView.prototype.getData = function () {
 TextView.prototype.setText = function (text, redraw) {
     redraw = _.isBoolean(redraw) ? redraw : true;
 
-    if (!_.isString(text)) {
+    if (text != null && !_.isString(text)) {
         //  allow |text| to be numbers/etc.
         text = text.toString();
     }

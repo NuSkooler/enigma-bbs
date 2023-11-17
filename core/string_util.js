@@ -45,6 +45,9 @@ const SIMPLE_ELITE_MAP = {
 };
 
 function stylizeString(s, style) {
+    if (s == null) {
+        return s;
+    }
     var len = s.length;
     var c;
     var i;
@@ -214,6 +217,9 @@ function containsNonLatinCodepoints(s) {
 }
 
 function stripAllLineFeeds(s) {
+    if (s == null) {
+        return s;
+    }
     return s.replace(/\r?\n|[\r\u2028\u2029]/g, '');
 }
 
@@ -247,7 +253,7 @@ const ANSI_OR_PIPE_REGEXP = new RegExp(
 //
 function renderSubstr(str, start, length) {
     //  shortcut for empty strings
-    if (0 === str.length) {
+    if (str == null || 0 === str.length) {
         return str;
     }
 
