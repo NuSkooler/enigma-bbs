@@ -70,6 +70,14 @@ exports.getModule = class MessageListModule extends (
 
         this.menuMethods = {
             selectMessage: (formData, extraArgs, cb) => {
+                if (!Array.isArray(this.config?.messageList)) {
+                    this.client.log.error(
+                        { formData },
+                        'No message list is available to select from!'
+                    );
+                    return cb(null);
+                }
+
                 if (MciViewIds.allViews.msgList === formData.submitId) {
                     //  'messageIndex' or older deprecated 'message' member
                     this.initialFocusIndex = _.get(
@@ -315,9 +323,16 @@ exports.getModule = class MessageListModule extends (
                         let msgNum = 1;
                         self.config.messageList.forEach((listItem, index) => {
                             listItem.msgNum = msgNum++;
-                            listItem.ts = moment(listItem.modTimestamp).format(
-                                dateTimeFormat
-                            );
+                            try {
+                                listItem.ts = moment(listItem.modTimestamp).format(
+                                    dateTimeFormat
+                                );
+                            } catch (e) {
+                                self.client.log.warn(
+                                    `Error parsing "${listItem.modTimestamp}"; expected timestamp: ${e.message}`
+                                );
+                                listItem.ts = moment().format(dateTimeFormat);
+                            }
                             const isNew = _.isBoolean(listItem.isNew)
                                 ? listItem.isNew
                                 : listItem.messageId > self.lastReadId;

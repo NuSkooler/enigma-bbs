@@ -114,7 +114,7 @@ class ScheduledEvent {
     executeAction(reason, cb) {
         Log.info(
             { eventName: this.name, action: this.action, reason: reason },
-            'Executing scheduled event action...'
+            `Executing scheduled event "${this.name}"...`
         );
 
         if ('method' === this.action.type) {
@@ -167,17 +167,17 @@ class ScheduledEvent {
                 return cb(e);
             }
 
-            proc.once('exit', exitCode => {
-                if (exitCode) {
+            proc.onExit(exitEvent => {
+                if (exitEvent.exitCode) {
                     Log.warn(
-                        { eventName: this.name, action: this.action, exitCode: exitCode },
+                        { eventName: this.name, action: this.action, exitCode: exitEvent.exitCode },
                         'Bad exit code while performing scheduled event action'
                     );
                 }
                 return cb(
-                    exitCode
+                    exitEvent.exitCode
                         ? Errors.ExternalProcess(
-                              `Bad exit code while performing scheduled event action: ${exitCode}`
+                              `Bad exit code while performing scheduled event action: ${exitEvent.exitCode}`
                           )
                         : null
                 );

@@ -5,7 +5,7 @@ title: BSO Import / Export
 ## BSO Import / Export
 The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers.ftn_bso`.
 
-:information_source: ENiGMA½'s `ftn_bso` module is not a mailer and **makes no attempts to perform packet transport**! An external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd) is required for this task!
+> :information_source: ENiGMA½'s `ftn_bso` module is not a mailer and **makes no attempts to perform packet transport**! An external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd) is required for this task!
 
 ### Configuration
 Let's look at some of the basic configuration:
@@ -179,7 +179,7 @@ kill-old-partial-files 86400
 prescan
 
 # fsxNet - Agency HUB
-node 21:1/100@fsxnet -md agency.bbs.nz:24556 SOMEPASS c
+node 21:1/100@fsxnet -md fsxnet.nz:24556 SOMEPASS c
 
 # ArakNet
 node 10:101/0@araknet -md whq.araknet.xyz:24556 SOMEPASS c

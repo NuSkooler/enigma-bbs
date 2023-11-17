@@ -150,7 +150,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
                 this.client.log.info(
                     { sentFiles: sentFiles },
-                    `Successfully sent ${sentFiles.length} file(s)`
+                    `User "${this.client.user.username}" downloaded ${sentFiles.length} file(s)`
                 );
             }
             return cb(err);
@@ -485,13 +485,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
             }
         });
 
-        externalProc.once('close', () => {
-            return this.restorePipeAfterExternalProc();
-        });
-
-        externalProc.once('exit', exitCode => {
+        externalProc.onExit(exitEvent => {
+            const {exitCode, signal} = exitEvent;
             this.client.log.debug(
-                { cmd: cmd, args: args, exitCode: exitCode },
+                { cmd: cmd, args: args, exitCode, signal },
                 'Process exited'
             );
 

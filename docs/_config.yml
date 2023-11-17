@@ -54,6 +54,7 @@ collections:
       - installation/network.md
       - installation/testing.md
       - installation/production.md
+      - installation/development.md
       - configuration/creating-config.md
       - configuration/sysop-setup.md
       - configuration/config-files.md
@@ -92,7 +93,6 @@ collections:
       - art/views/horizontal_menu_view.md
       - art/views/mask_edit_text_view.md
       - art/views/multi_line_edit_text_view.md
-      - art/views/predefined_label_view.md
       - art/views/spinner_menu_view.md
       - art/views/text_view.md
       - art/views/toggle_menu_view.md
@@ -127,7 +127,9 @@ collections:
       - modding/autosig-edit.md
       - modding/menu-modules.md
       - admin/administration.md
+      - modding/wfc.md
       - admin/oputil.md
       - admin/updating.md
       - troubleshooting/monitoring-logs.md
+      - troubleshooting/ssh-troubleshooting.md
 

@@ -16,7 +16,7 @@ QWK must be considered a semi-standard as there are many implementations. What f
 ### Configuration
 QWK configuration occurs in the `messageNetworks.qwk` config block of `config.hjson`. As QWK wants to deal with conference numbers and ENiGMA½ uses area tags (conferences and conference tags are only used for logical grouping), a mapping can be made.
 
-:information_source: During a regular, non QWK-Net exports, conference numbers can be auto-generated. Note that for QWK-Net style networks, you will need to create mappings however.
+> :information_source: During a regular, non QWK-Net exports, conference numbers can be auto-generated. Note that for QWK-Net style networks, you will need to create mappings however.
 
 Example:
 ```hjson

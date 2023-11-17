@@ -9,6 +9,7 @@ const ansi = require('./ansi_term.js');
 const { Errors } = require('./enig_error.js');
 const { trackDoorRunBegin, trackDoorRunEnd } = require('./door_util.js');
 const Log = require('./logger').log;
+const Config = require('./config.js').get;
 
 //  deps
 const async = require('async');
@@ -108,7 +109,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                                 name: self.config.name,
                                 activeCount: activeDoorNodeInstances[self.config.name],
                             },
-                            'Too many active instances'
+                            `Too many active instances of door "${self.config.name}"`
                         );
 
                         if (_.isString(self.config.tooManyArt)) {
@@ -179,7 +180,10 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         this.client.term.write(ansi.resetScreen());
 
         const exeInfo = {
+            name: this.config.name,
             cmd: this.config.cmd,
+            preCmd: this.config.preCmd,
+            preCmdArgs: this.config.preCmdArgs,
             cwd: this.config.cwd || paths.dirname(this.config.cmd),
             args: this.config.args,
             io: this.config.io || 'stdio',
@@ -188,49 +192,84 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             env: this.config.env,
         };
 
+        exeInfo.dropFileDir = DropFile.dropFileDirectory(
+            Config().paths.dropFiles,
+            this.client
+        );
+        exeInfo.userAreaDir = paths.join(
+            exeInfo.dropFileDir,
+            this.client.user.getSanitizedName(),
+            this.config.name.toLowerCase()
+        );
+
         if (this.dropFile) {
             exeInfo.dropFile = this.dropFile.fileName;
             exeInfo.dropFilePath = this.dropFile.fullPath;
         }
 
-        const doorTracking = trackDoorRunBegin(this.client, this.config.name);
-
-        this.doorInstance.run(exeInfo, () => {
-            trackDoorRunEnd(doorTracking);
-            this.decrementActiveDoorNodeInstances();
-
-            //  Clean up dropfile, if any
-            if (exeInfo.dropFilePath) {
-                fs.unlink(exeInfo.dropFilePath, err => {
-                    if (err) {
-                        Log.warn(
-                            { error: err, path: exeInfo.dropFilePath },
-                            'Failed to remove drop file.'
-                        );
-                    }
-                });
+        this._makeDropDirs([exeInfo.dropFileDir, exeInfo.userAreaDir], err => {
+            if (err) {
+                Log.warn(
+                    `Failed creating directory ${exeInfo.dropFilePath}: ${err.message}`
+                );
             }
 
-            //  client may have disconnected while process was active -
-            //  we're done here if so.
-            if (!this.client.term.output) {
-                return;
-            }
+            const doorTracking = trackDoorRunBegin(this.client, this.config.name);
 
-            //
-            //  Try to clean up various settings such as scroll regions that may
-            //  have been set within the door
-            //
-            this.client.term.rawWrite(
-                ansi.normal() +
-                    ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
-                    ansi.setScrollRegion() +
-                    ansi.goto(this.client.term.termHeight, 0) +
-                    '\r\n\r\n'
-            );
+            this.doorInstance.run(exeInfo, err => {
+                if (err) {
+                    Log.error(`Error running "${this.config.name}": ${err.message}`);
+                }
 
-            this.autoNextMenu();
+                trackDoorRunEnd(doorTracking);
+                this.decrementActiveDoorNodeInstances();
+
+                //  Clean up dropfile, if any
+                if (exeInfo.dropFilePath) {
+                    fs.unlink(exeInfo.dropFilePath, err => {
+                        if (err) {
+                            Log.warn(
+                                { error: err, path: exeInfo.dropFilePath },
+                                'Failed to remove drop file.'
+                            );
+                        }
+                    });
+                }
+
+                //  client may have disconnected while process was active -
+                //  we're done here if so.
+                if (!this.client.term.output) {
+                    return;
+                }
+
+                //
+                //  Try to clean up various settings such as scroll regions that may
+                //  have been set within the door
+                //
+                this.client.term.rawWrite(
+                    ansi.normal() +
+                        ansi.goto(
+                            this.client.term.termHeight,
+                            this.client.term.termWidth
+                        ) +
+                        ansi.setScrollRegion() +
+                        ansi.goto(this.client.term.termHeight, 0) +
+                        '\r\n\r\n'
+                );
+
+                this.autoNextMenu();
+            });
         });
+    }
+
+    _makeDropDirs(dirs, cb) {
+        async.forEach(
+            dirs,
+            (dir, nextDir) => {
+                fs.mkdir(dir, { recursive: true }, nextDir);
+            },
+            cb
+        );
     }
 
     leave() {

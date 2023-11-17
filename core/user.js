@@ -20,10 +20,6 @@ const moment = require('moment');
 const sanatizeFilename = require('sanitize-filename');
 const ssh2 = require('ssh2');
 
-exports.isRootUserId = function (id) {
-    return 1 === id;
-};
-
 module.exports = class User {
     constructor() {
         this.userId = 0;
@@ -31,6 +27,7 @@ module.exports = class User {
         this.properties = {}; //  name:value
         this.groups = []; //  group membership(s)
         this.authFactor = User.AuthFactors.None;
+        this.statusFlags = User.StatusFlags.None;
     }
 
     //  static property accessors
@@ -70,6 +67,14 @@ module.exports = class User {
             inactive: 1, //  inactive, aka requires +op approval/activation
             active: 2, //  standard, active
             locked: 3, //  locked out (too many bad login attempts, etc.)
+        };
+    }
+
+    static get StatusFlags() {
+        return {
+            None: 0x00000000,
+            NotAvailable: 0x00000001, //  Not currently available for chat, message, page, etc.
+            NotVisible: 0x00000002, //  Invisible -- does not show online, last callers, etc.
         };
     }
 
@@ -119,10 +124,51 @@ module.exports = class User {
         return isMember;
     }
 
+    realName(withUsernameFallback = true) {
+        const realName = this.getProperty(UserProps.RealName);
+        if (realName) {
+            return realName;
+        }
+        if (withUsernameFallback) {
+            return this.username;
+        }
+    }
+
     getSanitizedName(type = 'username') {
-        const name =
-            'real' === type ? this.getProperty(UserProps.RealName) : this.username;
+        const name = 'real' === type ? this.realName(true) : this.username;
         return sanatizeFilename(name) || `user${this.userId.toString()}`;
+    }
+
+    emailAddress() {
+        const email = this.getProperty(UserProps.EmailAddress);
+        if (email) {
+            const realName = this.realName(false);
+            return realName ? `${realName} <${email}>` : email;
+        }
+    }
+
+    isAvailable() {
+        return (this.statusFlags & User.StatusFlags.NotAvailable) == 0;
+    }
+
+    isVisible() {
+        return (this.statusFlags & User.StatusFlags.NotVisible) == 0;
+    }
+
+    setAvailability(available) {
+        if (available) {
+            this.statusFlags &= ~User.StatusFlags.NotAvailable;
+        } else {
+            this.statusFlags |= User.StatusFlags.NotAvailable;
+        }
+    }
+
+    setVisibility(visible) {
+        if (visible) {
+            this.statusFlags &= ~User.StatusFlags.NotVisible;
+        } else {
+            this.statusFlags |= User.StatusFlags.NotVisible;
+        }
     }
 
     getLegacySecurityLevel() {
@@ -703,6 +749,47 @@ module.exports = class User {
         );
     }
 
+    static getUserInfo(userId, propsList, cb) {
+        if (!cb && _.isFunction(propsList)) {
+            cb = propsList;
+            propsList = [
+                UserProps.RealName,
+                UserProps.Sex,
+                UserProps.EmailAddress,
+                UserProps.Location,
+                UserProps.Affiliations,
+            ];
+        }
+
+        async.waterfall(
+            [
+                callback => {
+                    return User.getUserName(userId, callback);
+                },
+                (userName, callback) => {
+                    User.loadProperties(userId, { names: propsList }, (err, props) => {
+                        return callback(
+                            err,
+                            Object.assign({}, props, { user_name: userName })
+                        );
+                    });
+                },
+            ],
+            (err, userProps) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                const userInfo = {};
+                Object.keys(userProps).forEach(key => {
+                    userInfo[_.camelCase(key)] = userProps[key] || 'N/A';
+                });
+
+                return cb(null, userInfo);
+            }
+        );
+    }
+
     static isRootUserId(userId) {
         return User.RootUserID === userId;
     }
@@ -831,6 +918,19 @@ module.exports = class User {
             },
             () => {
                 return cb(null, userIds);
+            }
+        );
+    }
+
+    static getUserCount(cb) {
+        userDb.get(
+            `SELECT count() AS user_count
+            FROM user;`,
+            (err, row) => {
+                if (err) {
+                    return cb(err);
+                }
+                return cb(null, row.user_count);
             }
         );
     }

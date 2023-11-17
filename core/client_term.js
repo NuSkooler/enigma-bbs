@@ -2,19 +2,19 @@
 'use strict';
 
 //  ENiGMA½
-var Log = require('./logger.js').log;
-var renegadeToAnsi = require('./color_codes.js').renegadeToAnsi;
+const Log = require('./logger.js').log;
+const renegadeToAnsi = require('./color_codes.js').renegadeToAnsi;
 const Config = require('./config.js').get;
-var iconv = require('iconv-lite');
-var assert = require('assert');
-var _ = require('lodash');
+const iconv = require('iconv-lite');
+const assert = require('assert');
+const _ = require('lodash');
 
 exports.ClientTerminal = ClientTerminal;
 
 function ClientTerminal(output) {
     this.output = output;
 
-    var outputEncoding = 'cp437';
+    let outputEncoding = 'cp437';
     assert(iconv.encodingExists(outputEncoding));
 
     //  convert line feeds such as \n -> \r\n
@@ -26,10 +26,10 @@ function ClientTerminal(output) {
     //  Some terminal we handle specially
     //  They can also be found in this.env{}
     //
-    var termType = 'unknown';
-    var termHeight = 0;
-    var termWidth = 0;
-    var termClient = 'unknown';
+    let termType = 'unknown';
+    let termHeight = 0;
+    let termWidth = 0;
+    let termClient = 'unknown';
 
     this.currentSyncFont = 'not_set';
 
@@ -42,6 +42,10 @@ function ClientTerminal(output) {
         },
         set: function (enc) {
             if (iconv.encodingExists(enc)) {
+                Log.info(
+                    { encoding: enc, currentEncoding: outputEncoding },
+                    `Output encoding changed to ${enc}`
+                );
                 outputEncoding = enc;
             } else {
                 Log.warn({ encoding: enc }, 'Unknown encoding');
@@ -56,21 +60,20 @@ function ClientTerminal(output) {
         set: function (ttype) {
             termType = ttype.toLowerCase();
 
-            if (this.isANSI()) {
-                this.outputEncoding = 'cp437';
-            } else {
-                //  :TODO: See how x84 does this -- only set if local/remote are binary
+            Log.debug(
+                { encoding: this.outputEncoding },
+                `Terminal type changed to ${termType}; Adjusting output encoding`
+            );
+
+            if (this.isNixTerm()) {
                 this.outputEncoding = 'utf8';
+            } else {
+                this.outputEncoding = 'cp437';
             }
 
             //  :TODO: according to this: http://mud-dev.wikidot.com/article:telnet-client-identification
             //  Windows telnet will send "VTNT". If so, set termClient='windows'
             //  there are some others on the page as well
-
-            Log.debug(
-                { encoding: this.outputEncoding },
-                'Set output encoding due to terminal type change'
-            );
         },
     });
 

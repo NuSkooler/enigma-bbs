@@ -12,12 +12,30 @@ const MultiLineEditTextView =
     require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 const Errors = require('../core/enig_error.js').Errors;
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
+const EnigAssert = require('./enigma_assert');
 
 //  deps
 const async = require('async');
 const assert = require('assert');
 const _ = require('lodash');
 const iconvDecode = require('iconv-lite').decode;
+
+const MenuFlags = {
+    // When leaving this menu to load/chain to another, remove this
+    // menu from history. In other words, the fallback from
+    // the next menu would *not* be this one, but the previous.
+    NoHistory: 'noHistory',
+
+    // Generally used in code only: Request that any flags from menu.hjson
+    // are merged in to the total set of flags vs overriding the default.
+    MergeFlags: 'mergeFlags',
+
+    //  Forward this menu's 'extraArgs' to the next.
+    ForwardArgs: 'forwardArgs',
+};
+
+exports.MenuFlags = MenuFlags;
+
 
 exports.MenuModule = class MenuModule extends PluginModule {
     constructor(options) {
@@ -39,6 +57,17 @@ exports.MenuModule = class MenuModule extends PluginModule {
         if (MenuModule.InterruptTypes.Realtime === this.interrupt) {
             this.realTimeInterrupt = 'blocked';
         }
+    }
+
+    setConfigWithExtraArgs(options) {
+        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), {
+            extraArgs: options.extraArgs,
+        });
+    }
+
+    setMergedFlag(flag) {
+        this.menuConfig.config.menuFlags.push(flag);
+        this.menuConfig.config.menuFlags = [...new Set([...this.menuConfig.config.menuFlags, MenuFlags.MergeFlags])];
     }
 
     static get InterruptTypes() {
@@ -574,8 +603,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
             }
         }
 
-        //let artHeight;
+        const originalSubmitNotify = options.submitNotify;
+
         options.submitNotify = () => {
+            if (_.isFunction(originalSubmitNotify)) {
+                originalSubmitNotify();
+            }
+
             if (prevVc) {
                 prevVc.setFocus(true);
             }
@@ -596,6 +630,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
         options.viewController.setFocus(true);
 
         this.optionalMoveToPosition(position);
+        if (!options.position) {
+            options.position = position;
+        }
         theme.displayThemedPrompt(promptName, this.client, options, (err, artInfo) => {
             /*
             if(artInfo) {
@@ -606,6 +643,70 @@ exports.MenuModule = class MenuModule extends PluginModule {
         });
     }
 
+    displayArtAndPrepViewController(name, formId, options, cb) {
+        const config = this.menuConfig.config;
+        EnigAssert(_.isObject(config));
+
+        async.waterfall(
+            [
+                callback => {
+                    if (options.clearScreen) {
+                        this.client.term.rawWrite(ansi.resetScreen());
+                    }
+
+                    theme.displayThemedAsset(
+                        config.art[name],
+                        this.client,
+                        { font: this.menuConfig.font, trailingLF: false },
+                        (err, artData) => {
+                            return callback(err, artData);
+                        }
+                    );
+                },
+                (artData, callback) => {
+                    if (_.isUndefined(this.viewControllers[name])) {
+                        const vcOpts = {
+                            client: this.client,
+                            formId: formId,
+                        };
+
+                        if (!_.isUndefined(options.noInput)) {
+                            vcOpts.noInput = options.noInput;
+                        }
+
+                        const vc = this.addViewController(
+                            name,
+                            new ViewController(vcOpts)
+                        );
+
+                        if (_.isFunction(options.artDataPrep)) {
+                            try {
+                                options.artDataPrep(name, artData, vc);
+                            } catch (e) {
+                                return callback(e);
+                            }
+                        }
+
+                        const loadOpts = {
+                            callingMenu: this,
+                            mciMap: artData.mciMap,
+                            formId: formId,
+                            viewOffsets: options.viewOffsets,
+                        };
+
+                        return vc.loadFromMenuConfig(loadOpts, callback);
+                    }
+
+                    this.viewControllers[name].setFocus(true);
+                    return callback(null);
+                },
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
     setViewText(formName, mciId, text, appendMultiLine) {
         const view = this.getView(formName, mciId);
         if (!view) {
@@ -613,7 +714,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
 
         if (appendMultiLine && view instanceof MultiLineEditTextView) {
-            view.addText(text);
+            view.setAnsi(text);
         } else {
             view.setText(text);
         }
@@ -624,17 +725,19 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return form && form.getView(id);
     }
 
-    updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
+    getCustomViewsWithFilter(formName, startId, options) {
         options = options || {};
 
-        let textView;
+        const views = [];
+
+        let view;
         let customMciId = startId;
         const config = this.menuConfig.config;
         const endId = options.endId || 99; //  we'll fail to get a view before 99
 
         while (
             customMciId <= endId &&
-            (textView = this.viewControllers[formName].getView(customMciId))
+            (view = this.viewControllers[formName].getView(customMciId))
         ) {
             const key = `${formName}InfoFormat${customMciId}`; //  e.g. "mainInfoFormat10"
             const format = config[key];
@@ -643,20 +746,35 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 format &&
                 (!options.filter || options.filter.find(f => format.indexOf(f) > -1))
             ) {
-                const text = stringFormat(format, fmtObj);
-
-                if (
-                    options.appendMultiLine &&
-                    textView instanceof MultiLineEditTextView
-                ) {
-                    textView.addText(text);
-                } else {
-                    textView.setText(text);
-                }
+                view.key = key; // cache
+                views.push(view);
             }
 
             ++customMciId;
         }
+
+        return views;
+    }
+
+    updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
+        options = options || {};
+        const views = this.getCustomViewsWithFilter(formName, startId, options);
+        const config = this.menuConfig.config;
+
+        views.forEach(view => {
+            const format = config[view.key];
+            const text = stringFormat(format, fmtObj);
+
+            if (options.appendMultiLine && view instanceof MultiLineEditTextView) {
+                view.addText(text);
+            } else {
+                if (view.getData() != text) {
+                    view.setText(text);
+                } else {
+                    view.redraw();
+                }
+            }
+        });
     }
 
     refreshPredefinedMciViewsByCode(formName, mciCodes) {
@@ -750,6 +868,28 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 : Errors.Invalid(
                       `Invalid or missing config option "${firstBadKey}" (${badReason})`
                   )
+        );
+    }
+
+    //  Various common helpers
+    getDateFormat(defaultStyle = 'short') {
+        return (
+            this.config.dateFormat ||
+            this.client.currentTheme.helpers.getDateFormat(defaultStyle)
+        );
+    }
+
+    getTimeFormat(defaultStyle = 'short') {
+        return (
+            this.config.timeFormat ||
+            this.client.currentTheme.helpers.getTimeFormat(defaultStyle)
+        );
+    }
+
+    getDateTimeFormat(defaultStyle = 'short') {
+        return (
+            this.config.dateTimeFormat ||
+            this.client.currentTheme.helpers.getDateTimeFormat(defaultStyle)
         );
     }
 };

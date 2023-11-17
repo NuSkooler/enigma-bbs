@@ -22,7 +22,7 @@ const _ = require('lodash');
 
 const PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT = `%USERNAME%:
 A password reset has been requested for your account on %BOARDNAME%.
-    
+
     * If this was not you, please ignore this email.
     * Otherwise, follow this link: %RESET_URL%
 `;
@@ -121,7 +121,7 @@ class WebPasswordReset {
                     const sendMail = require('./email.js').sendMail;
 
                     const resetUrl = webServer.instance.buildUrl(
-                        `/reset_password?token=${
+                        `/_internal/reset_password?token=${
                             user.properties[UserProps.EmailPwResetToken]
                         }`
                     );
@@ -143,9 +143,7 @@ class WebPasswordReset {
                     }
 
                     const message = {
-                        to: `${user.properties[UserProps.RealName] || user.username} <${
-                            user.properties[UserProps.EmailAddress]
-                        }>`,
+                        to: user.emailAddress(),
                         //  from will be filled in
                         subject: 'Forgot Password',
                         text: textTemplate,
@@ -194,13 +192,13 @@ class WebPasswordReset {
             {
                 //  this is the page displayed to user when they GET it
                 method: 'GET',
-                path: '^\\/reset_password\\?token\\=[a-f0-9]+$', //  Config.contentServers.web.forgotPasswordPageTemplate
+                path: /^\/_internal\/reset_password\?token=[a-f0-9]+$/,
                 handler: WebPasswordReset.routeResetPasswordGet,
             },
             //  POST handler for performing the actual reset
             {
                 method: 'POST',
-                path: '^\\/reset_password$',
+                path: /^\/_internal\/reset_password$/,
                 handler: WebPasswordReset.routeResetPasswordPost,
             },
         ].forEach(r => {
@@ -269,7 +267,7 @@ class WebPasswordReset {
                 );
             }
 
-            const postResetUrl = webServer.instance.buildUrl('/reset_password');
+            const postResetUrl = webServer.instance.buildUrl('/_internal/reset_password');
 
             const config = Config();
             return webServer.instance.routeTemplateFilePage(

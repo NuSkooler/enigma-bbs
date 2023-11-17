@@ -187,7 +187,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 15,
+						height: 14
 						width: 50
 						itemFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{location:<19.19}|03{lastLoginTs}"
 						focusItemFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}"
@@ -246,6 +246,96 @@
 				}
 			}
 
+			mainMenuWaitingForCaller: {
+				config: {
+					// formats
+					quickLogTimestampFormat: "|01|03MM|08/|03DD hh:mm:ssa"
+					nowDateTimeFormat: "|00|10ddd|08, |10MMMM Do YYYY|08, |10h|08:|10mm|02a"
+					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
+
+					// header
+					mainInfoFormat10: "|00|10{now}    |10{currentUserName} |08- |02Prv|08:|10{newPrivateMail} |02Addr|08:|10{newMessagesAddrTo} |08- |02Avail|08:|10{availIndicator} |02Vis|07:|10{visIndicator}"
+
+					// today
+					mainInfoFormat11: "|00|15{callsToday:>5}"
+					mainInfoFormat12: "|00|15{postsToday:>5}"
+					mainInfoFormat13: "|00|15{newUsersToday:>5}"
+					mainInfoFormat14: "|00|15{uploadsToday:<4}"
+					mainInfoFormat15: "|00|15{downloadsToday:<4}"
+					mainInfoFormat16: "|00|15{uploadBytesToday!sizeWithoutAbbr:<5} |07{uploadBytesToday!sizeAbbr}"
+					mainInfoFormat17: "|00|15{downloadBytesToday!sizeWithoutAbbr:<5} |07{downloadBytesToday!sizeAbbr}"
+
+
+					// last login
+					mainInfoFormat18: "|00|15{lastLoginUserName:<26} |07{lastLogin}"
+
+					// system stats
+					mainInfoFormat20: "|00|15{freeMemoryBytes!sizeWithoutAbbr} |07{freeMemoryBytes!sizeAbbr} free |08/ |15{totalMemoryBytes!sizeWithoutAbbr} |07{totalMemoryBytes!sizeAbbr}"
+					mainInfoFormat22: "|00|15{systemCurrentLoad} |07% |08/ |15{systemAvgLoad} |07load avg|08."
+					mainInfoFormat24: "|00|15{processUptimeSeconds!durationSeconds} |08/ |15{processBytesIngress!sizeWithoutAbbr:>4} |07{processBytesIngress!sizeAbbr}|08/|15{processBytesEgress!sizeWithoutAbbr:>4} |07{processBytesEgress!sizeAbbr}"
+
+					// totals
+					mainInfoFormat19: "|00|15{totalCalls:>5}"
+					mainInfoFormat21: "|00|15{totalPosts:>7}"
+					mainInfoFormat23: "|00|15{totalUsers:>5}"
+					mainInfoFormat25: "|00|15{totalFiles:>4} |08/ |15{totalFileBytes!sizeWithoutAbbr:>4} |07{totalFileBytes!sizeAbbr}"
+
+					quickLogLevel: info
+					quickLogLevelIndicators: {
+						trace : |00|02T
+						debug: |00|03D
+						info: |00|15I
+						warn: |00|14W
+						error: |00|12E
+						fatal: |00|28F
+					}
+					quickLogLevelMessagePrefixes: {
+						trace : |00|02
+						debug: |00|03
+						info: |00|07
+						warn: |00|14
+						error: |00|12
+						fatal: |00|28
+					}
+					statusAvailableIndicators: [ "N", "Y" ]
+					statusVisibleIndicators: [ "N", "Y" ]
+
+					nodeStatusSelectionFormat: "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}"
+				}
+				0: {
+					mci: {
+						TL16: {
+							fillChar: .
+						}
+						TL20: { width: 30 }
+						TL22: { width: 30 }
+						TL24: { width: 30 }
+
+						// node status
+						VM1: {
+							height: 5
+							width: 37
+							itemFormat:      "|00  |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							focusItemFormat: "|00|10> |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							focusItemAtTop: false
+						}
+						// quick log
+						VM2: {
+							height: 5
+							width: 73
+							itemFormat: "|00|07{nodeId} {levelIndicator} |02{timestamp} {message:<51.50}"
+						}
+
+						MT3: {
+							mode: preview
+							autoScroll: false
+							height: 5
+							width: 12
+						}
+					}
+				}
+			}
+
 			messageBaseMessageList: {
 				config: {
 					dateTimeFormat: ddd MMM Do
@@ -253,7 +343,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 14
+						height: 13
 						width: 70
 						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}"
 						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}"
@@ -326,7 +416,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 14
+						height: 12
 						width: 70
 						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}"
 						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
@@ -505,7 +595,7 @@
 				}
 			}
 
-			messageBaseSearchMessageList: {
+			messageBaseSearchResultsMessageList: {
 				config: {
 					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 					//	Fri Sep 25th
@@ -528,7 +618,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 16
+						height: 12
 						width: 71
 						itemFormat:      "|00|15  {msgNum:<4.4} |03{subject:<34.33} {fromUserName:<19.18} |03{ts:<12.12}"
 						focusItemFormat: "|00|19> |15{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}"
@@ -693,7 +783,7 @@
 				}
 				mci: {
 					VM1: {
-						height: 14
+						height: 12
 						width: 70
 						itemFormat: "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}"
 						focusItemFormat: "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}"
@@ -1124,7 +1214,7 @@
 				2: {
 					mci: {
 						MT1: {
-							height: 14
+							height: 13
 							width: 45
 						}
 

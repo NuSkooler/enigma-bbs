@@ -188,22 +188,15 @@ module.exports = () => {
                 //
                 //  1 - Generate a Private Key (PK):
                 //  Currently ENiGMA 1/2 requires a PKCS#1 PEM formatted PK.
-                //  To generate a secure PK, issue the following command:
-                //
-                //  > openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
-                //      -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa \
-                //      -out ./config/security/ssh_private_key.pem -aes128
-                //
-                //  (The above is a more modern equivalent of the following):
-                //  > openssl genrsa -aes128 -out ./config/security/ssh_private_key.pem 2048
+                //  For information on generating a key, see:
+                //  https://nuskooler.github.io/enigma-bbs/servers/loginservers/ssh.html#generate-a-ssh-private-key
                 //
                 //  2 - Set 'privateKeyPass' to the password you used in step #1
                 //
                 //  3 - Finally, set 'enabled' to 'true'
                 //
                 //  Additional reading:
-                //  - https://blog.sleeplessbeastie.eu/2017/12/28/how-to-generate-private-key/
-                //  - https://gist.github.com/briansmith/2ee42439923d8e65a266994d0f70180b
+                //  - https://nuskooler.github.io/enigma-bbs/servers/loginservers/ssh.html
                 //
                 privateKeyPem: paths.join(
                     __dirname,
@@ -222,14 +215,18 @@ module.exports = () => {
                 //
                 algorithms: {
                     kex: [
+                        'curve25519-sha256',
+                        'curve25519-sha256@libssh.org',
                         'ecdh-sha2-nistp256',
                         'ecdh-sha2-nistp384',
                         'ecdh-sha2-nistp521',
                         'diffie-hellman-group14-sha1',
                         'diffie-hellman-group1-sha1',
-                        //  Group exchange not currnetly supported
-                        //  'diffie-hellman-group-exchange-sha256',
-                        //  'diffie-hellman-group-exchange-sha1',
+                        'curve25519-sha256',
+                        'curve25519-sha256@libssh.org',
+                        'ecdh-sha2-nistp256',
+                        'ecdh-sha2-nistp384',
+                        'ecdh-sha2-nistp521',
                     ],
                     cipher: [
                         'aes128-ctr',
@@ -242,12 +239,7 @@ module.exports = () => {
                         'aes256-cbc',
                         'aes192-cbc',
                         'aes128-cbc',
-                        'blowfish-cbc',
                         '3des-cbc',
-                        'arcfour256',
-                        'arcfour128',
-                        'cast128-cbc',
-                        'arcfour',
                     ],
                     hmac: [
                         'hmac-sha2-256',
@@ -945,8 +937,10 @@ module.exports = () => {
             ],
 
             web: {
-                path: '/f/',
-                routePath: '/f/[a-zA-Z0-9]+$',
+                //  if you change the /_f/ prefix here, ensure something
+                //  non-colliding with other routes is utilized
+                path: '/_f/',
+                routePath: '^/_f/[a-zA-Z0-9]+$',
                 expireMinutes: 1440, //  1 day
             },
 

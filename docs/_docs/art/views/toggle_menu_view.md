@@ -9,9 +9,9 @@ A toggle menu view supports displaying a list of options on a screen horizontall
 
 Items can be selected on a menu via the left and right cursor keys, or by selecting them via a `hotKey` - see ***Hot Keys*** below.
 
-:information_source: A toggle menu view is defined with a percent (%) and the characters TM, followed by the view number (if used.) For example: `%TM1`
+> :information_source: A toggle menu view is defined with a percent (%) and the characters TM, followed by the view number (if used.) For example: `%TM1`
 
-:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 

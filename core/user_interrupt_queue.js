@@ -26,7 +26,12 @@ module.exports = class UserInterruptQueue {
                 omitNodes = [opts.omit];
             }
             omitNodes = omitNodes.map(n => (_.isNumber(n) ? n : n.node));
-            opts.clients = getActiveConnections(true).filter(
+            const connOpts = {
+                authUsersOnly: true,
+                visibleOnly: true,
+                availOnly: true,
+            };
+            opts.clients = getActiveConnections(connOpts).filter(
                 ac => !omitNodes.includes(ac.node)
             );
         }

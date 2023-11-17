@@ -11,4 +11,5 @@ mail/
 node_modules/
 docs/_site/
 docs/.sass-cache/
-.vscode/
+
+docs/.jekyll-cache/

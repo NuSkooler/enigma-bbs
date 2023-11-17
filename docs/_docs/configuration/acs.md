@@ -6,6 +6,16 @@ title: Access Condition System (ACS)
 ## Access Condition System (ACS)
 ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has it's own style. With ACS, SysOp's are able to control access to various areas of the system based on various conditions such as group membership, connection type, etc. Various touch points in the system are configured to allow for `acs` checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow to define what conditions must be true for certain _rights_ such as `read` and `write` (though others exist as well).
 
+## Group Membership
+ENiGMA½ does not utilize legacy "security levels" (see note below) but instead utilizes a group system. Users may be long to one or more groups which can be checked by the `GM` ACS (See [ACS Codes](#acs-codes) below). Two special groups exist out of the box:
+1. `users`: Any regular user
+2. `sysops`: System Operators. The first user (your root, or admin) will alwasy belong to this group.
+
+You do not need to explicitly create groups: By checking for them via ACS, and adding members to a group, they implicitly exist within the system. You may use as many groups within your system as you would like. See ['optuil user group'](../admin/oputil.md#user) for information adding and removing users to groups.
+
+> :information_source: Many dropfile formats require a security level. As such, the following apply: Root user or users in `sysops` group receive a security level of `100` while standard `users` receive `30`.
+
+
 ## ACS Codes
 The following are ACS codes available as of this writing:
 
@@ -24,7 +34,7 @@ The following are ACS codes available as of this writing:
 | TW<i>width</i> | Terminal width is >= _width_ |
 | TM[_themeId_,...] | User's current theme ID is one of [_themeId_,...] (e.g. `luciano_blocktronics`) |
 | TT[_termType_,...] | User's current terminal type is one of [_termType_,...] (`ANSI-BBS`, `utf8`, `xterm`, etc.) |
-| ID<i>id</i>, ID[_id_,...] | User's ID is _id_ or oen of [_id_,...] |
+| ID<i>id</i>, ID[_id_,...] | User's ID is _id_ or one of [_id_,...] |
 | WD<i>weekDay</i>, WD[_weekDay_,...] | Current day of week is _weekDay_ or one of [_weekDay_,...] where `0` is Sunday, `1` is Monday, and so on. |
 | AA<i>days</i> | Account is >= _days_ old |
 | BU<i>bytes</i> | User has uploaded >= _bytes_ |

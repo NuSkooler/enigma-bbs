@@ -8,7 +8,7 @@ ENiGMA½ configuration files such as the [system config](config-hjson.md), [menu
 ## Hot-Reload
 Nearly all of ENiGMA½'s configuration can be hot-reloaded. That is, a live system can have it's configuration modified and it will be loaded in place.
 
-:bulb: [Monitoring live logs](../troubleshooting/monitoring-logs.md) is useful when making live changes. The system will complain if something is wrong!
+> :bulb: [Monitoring live logs](../troubleshooting/monitoring-logs.md) is useful when making live changes. The system will complain if something is wrong!
 
 ## Common Directives
 ### Includes
@@ -71,7 +71,7 @@ Consider `actionKeys` in a menu. Often times you may show a screen and the user 
 }
 ```
 
-:information_source: An unresolved `@reference` will be left intact.
+> :information_source: An unresolved `@reference` will be left intact.
 
 ### Environment Variables
 Especially in a container environment such as [Docker](../installation/docker.md), environment variable access in configuration files can become very handy. ENiGMA½ provides a flexible way to access variables using the `@environment` directive. The most basic form of `@environment:VAR_NAME` produces a string value. Additionally a `:type` suffix can be supplied to coerece the value to a particular type. Variables pointing to a comma separated list can be turned to arrays using an additional `:array` suffix.
@@ -97,11 +97,11 @@ Below is a table of the various forms:
 | `@environment:SOME_VAR:timestamp` | "2020-01-05" | A [moment](https://momentjs.com/) object representing 2020-01-05 |
 | `@environment:SOME_VAR:timestamp:array` | "2020-01-05,2016-05-16T01:15:37'" | An array of [moment](https://momentjs.com/) objects representing 2020-01-05 and 2016-05-16T01:15:37 |
 
-:bulb: `bool` may be used as an alias to `boolean`.
+> :bulb: `bool` may be used as an alias to `boolean`.
 
-:bulb: `timestamp` values can be in any form that [moment can parse](https://momentjs.com/docs/#/parsing/).
+> :bulb: `timestamp` values can be in any form that [moment can parse](https://momentjs.com/docs/#/parsing/).
 
-:information_source: An unresolved or invalid `@environment` will be left intact.
+> :information_source: An unresolved or invalid `@environment` will be left intact.
 
 Consider the following fragment:
 ```hjson

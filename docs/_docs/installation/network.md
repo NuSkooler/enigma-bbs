@@ -2,9 +2,9 @@
 layout: page
 title: Network Setup
 ---
-## Hosting an ENIGMA instance from your Home Network
+## Hosting an ENiGMA instance from your Home Network
 
-If you are hosting your ENGIMA instance from inside your local network, you'll need to open your chosen ports on your router, so people outside your local area network can access the BBS.
+If you are hosting your ENGiMA instance from inside your local network, you'll need to open your chosen ports on your router, so people outside your local area network can access the BBS.
 
 Each router has a different way of doing this, but this [comprehensive resource](https://portforward.com/) explains how to port forward on most common brand routers.
 

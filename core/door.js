@@ -11,6 +11,7 @@ const decode = require('iconv-lite').decode;
 const createServer = require('net').createServer;
 const paths = require('path');
 const _ = require('lodash');
+const async = require('async');
 
 module.exports = class Door {
     constructor(client) {
@@ -32,7 +33,7 @@ module.exports = class Door {
             });
 
             conn.once('error', err => {
-                this.client.log.info(
+                this.client.log.warn(
                     { error: err.message },
                     'Door socket server connection'
                 );
@@ -56,8 +57,12 @@ module.exports = class Door {
     run(exeInfo, cb) {
         this.encoding = (exeInfo.encoding || 'cp437').toLowerCase();
 
-        if ('socket' === this.io && !this.sockServer) {
-            return cb(Errors.UnexpectedState('Socket server is not running'));
+        if ('socket' === this.io) {
+            if(!this.sockServer) {
+                return cb(Errors.UnexpectedState('Socket server is not running'));
+            }
+        } else if ('stdio' !== this.io) {
+            return cb(Errors.Invalid(`"${this.io}" is not a valid io type!`));
         }
 
         const cwd = exeInfo.cwd || paths.dirname(exeInfo.cmd);
@@ -65,91 +70,141 @@ module.exports = class Door {
         const formatObj = {
             dropFile: exeInfo.dropFile,
             dropFilePath: exeInfo.dropFilePath,
+            dropFileDir: exeInfo.dropFileDir,
+            userAreaDir: exeInfo.userAreaDir,
             node: exeInfo.node.toString(),
             srvPort: this.sockServer ? this.sockServer.address().port.toString() : '-1',
             userId: this.client.user.userId.toString(),
             userName: this.client.user.getSanitizedName(),
             userNameRaw: this.client.user.username,
+            termWidth: this.client.term.termWidth,
+            termHeight: this.client.term.termHeight,
             cwd: cwd,
         };
 
         const args = exeInfo.args.map(arg => stringFormat(arg, formatObj));
 
-        this.client.log.info(
-            { cmd: exeInfo.cmd, args, io: this.io },
-            'Executing external door process'
-        );
+        const spawnOptions = {
+            cols: this.client.term.termWidth,
+            rows: this.client.term.termHeight,
+            cwd: cwd,
+            env: exeInfo.env,
+            encoding: null, //  we want to handle all encoding ourself
+        };
 
-        try {
-            this.doorPty = pty.spawn(exeInfo.cmd, args, {
-                cols: this.client.term.termWidth,
-                rows: this.client.term.termHeight,
-                cwd: cwd,
-                env: exeInfo.env,
-                encoding: null, //  we want to handle all encoding ourself
-            });
-        } catch (e) {
-            return cb(e);
-        }
+        async.series(
+            [
+                callback => {
+                    if (!_.isString(exeInfo.preCmd)) {
+                        return callback(null);
+                    }
 
-        //
-        //  PID is launched. Make sure it's killed off if the user disconnects.
-        //
-        Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
-            if (
-                this.doorPty &&
-                this.client.session.uniqueId === _.get(evt, 'client.session.uniqueId')
-            ) {
-                this.client.log.info(
-                    { pid: this.doorPty.pid },
-                    'User has disconnected; Killing door process.'
-                );
-                this.doorPty.kill();
-            }
-        });
+                    const preCmdArgs = (exeInfo.preCmdArgs || []).map(arg =>
+                        stringFormat(arg, formatObj)
+                    );
 
-        this.client.log.debug(
-            { processId: this.doorPty.pid },
-            'External door process spawned'
-        );
+                    this.client.log.info(
+                        { cmd: exeInfo.preCmd, args: preCmdArgs },
+                        `Executing external door pre-command (${exeInfo.name})`
+                    );
 
-        if ('stdio' === this.io) {
-            this.client.log.debug('Using stdio for door I/O');
+                    try {
+                        const prePty = pty.spawn(
+                            exeInfo.preCmd,
+                            preCmdArgs,
+                            spawnOptions
+                        );
 
-            this.client.term.output.pipe(this.doorPty);
-
-            this.doorPty.onData(this.doorDataHandler.bind(this));
-
-            this.doorPty.once('close', () => {
-                return this.restoreIo(this.doorPty);
-            });
-        } else if ('socket' === this.io) {
-            this.client.log.debug(
-                {
-                    srvPort: this.sockServer.address().port,
-                    srvSocket: this.sockServerSocket,
+                        prePty.onExit(exitEvent => {
+                            const {exitCode, signal} = exitEvent;
+                            this.client.log.info(
+                                { exitCode, signal },
+                                'Door pre-command exited'
+                            );
+                            return callback(null);
+                        });
+                    } catch (e) {
+                        return callback(e);
+                    }
                 },
-                'Using temporary socket server for door I/O'
-            );
-        }
+                callback => {
+                    this.client.log.info(
+                        { cmd: exeInfo.cmd, args, io: this.io },
+                        `Executing external door (${exeInfo.name})`
+                    );
 
-        this.doorPty.once('exit', exitCode => {
-            this.client.log.info({ exitCode: exitCode }, 'Door exited');
+                    try {
+                        this.doorPty = pty.spawn(exeInfo.cmd, args, spawnOptions);
+                    } catch (e) {
+                        return cb(e);
+                    }
 
-            if (this.sockServer) {
-                this.sockServer.close();
+                    //
+                    //  PID is launched. Make sure it's killed off if the user disconnects.
+                    //
+                    Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
+                        if (
+                            this.doorPty &&
+                            this.client.session.uniqueId ===
+                                _.get(evt, 'client.session.uniqueId')
+                        ) {
+                            this.client.log.info(
+                                { pid: this.doorPty.pid },
+                                'User has disconnected; Killing door process.'
+                            );
+                            this.doorPty.kill();
+                        }
+                    });
+
+                    this.client.log.debug(
+                        { processId: this.doorPty.pid },
+                        'External door process spawned'
+                    );
+
+                    if ('stdio' === this.io) {
+                        this.client.log.debug('Using stdio for door I/O');
+
+                        this.client.term.output.pipe(this.doorPty);
+
+                        this.doorPty.onData(this.doorDataHandler.bind(this));
+
+                        this.doorPty.onExit( (/*exitEvent*/) => {
+                            return this.restoreIo(this.doorPty);
+                        });
+                    } else if ('socket' === this.io) {
+                        this.client.log.debug(
+                            {
+                                srvPort: this.sockServer.address().port,
+                                srvSocket: this.sockServerSocket,
+                            },
+                            'Using temporary socket server for door I/O'
+                        );
+                    }
+
+                    this.doorPty.onExit(exitEvent => {
+                        const {exitCode, signal} = exitEvent;
+                        this.client.log.info({ exitCode, signal }, 'Door exited');
+
+                        if (this.sockServer) {
+                            this.sockServer.close();
+                        }
+
+                        //  we may not get a close
+                        if ('stdio' === this.io) {
+                            this.restoreIo(this.doorPty);
+                        }
+
+                        this.doorPty.removeAllListeners();
+                        delete this.doorPty;
+
+                        return callback(null);
+                    });
+                },
+            ],
+            () => {
+                return cb(null);
             }
-
-            //  we may not get a close
-            if ('stdio' === this.io) {
-                this.restoreIo(this.doorPty);
-            }
-
-            this.doorPty.removeAllListeners();
-            delete this.doorPty;
-
-            return cb(null);
-        });
+        );
     }
 
     doorDataHandler(data) {

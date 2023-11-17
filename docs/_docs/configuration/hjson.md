@@ -40,7 +40,7 @@ See https://hjson.org/users.html for more more editors & plugins.
 ### Hot-Reload A.K.A. Live Editing
 ENiGMA½'s configuration, menu, and theme files can edited while your BBS is running. When a file is saved, it is hot-reloaded into the running system. If users are currently connected and you change a menu for example, the next reload of that menu will show the changes.
 
-:information_source: See also [Configuration Files](../configuration/config-files.md)
+> :information_source: See also [Configuration Files](../configuration/config-files.md)
 
 ### CaSe SeNsiTiVE
 Configuration keys are **case sensitive**. That means if a configuration key is `boardName` for example, `boardname`, or `BOARDNAME` **will not work**.

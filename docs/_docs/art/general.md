@@ -149,12 +149,12 @@ Other "fonts" also available:
 * `iso8859_1`
 * `cp1131`
 
-:information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+> :information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
 #### SyncTERM Style Baud Rates
 The `baudRate` member can set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.
 
-:information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+> :information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
 ### Common Example
 ```hjson

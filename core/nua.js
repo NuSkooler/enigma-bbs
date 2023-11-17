@@ -13,6 +13,7 @@ const UserProps = require('./user_property.js');
 
 //  deps
 const _ = require('lodash');
+const moment = require('moment');
 
 exports.moduleInfo = {
     name: 'NUA',
@@ -95,15 +96,15 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 areaTag = areaTag || '';
 
                 newUser.properties = {
-                    [UserProps.RealName]: formData.value.realName,
+                    [UserProps.RealName]: formData.value.realName || '',
                     [UserProps.Birthdate]: getISOTimestampString(
-                        formData.value.birthdate
+                        formData.value.birthdate || moment()
                     ),
-                    [UserProps.Sex]: formData.value.sex,
-                    [UserProps.Location]: formData.value.location,
-                    [UserProps.Affiliations]: formData.value.affils,
-                    [UserProps.EmailAddress]: formData.value.email,
-                    [UserProps.WebAddress]: formData.value.web,
+                    [UserProps.Sex]: formData.value.sex || '',
+                    [UserProps.Location]: formData.value.location || '',
+                    [UserProps.Affiliations]: formData.value.affils || '',
+                    [UserProps.EmailAddress]: formData.value.email || '',
+                    [UserProps.WebAddress]: formData.value.web || '',
                     [UserProps.AccountCreated]: getISOTimestampString(),
 
                     [UserProps.MessageConfTag]: confTag,
@@ -130,7 +131,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 };
                 newUser.create(createUserInfo, err => {
                     if (err) {
-                        self.client.log.info(
+                        self.client.log.warn(
                             { error: err, username: formData.value.username },
                             'New user creation failed'
                         );
@@ -144,7 +145,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                     } else {
                         self.client.log.info(
                             { username: formData.value.username, userId: newUser.userId },
-                            'New user created'
+                            `New user "${formData.value.username}" created`
                         );
 
                         //  Cache SysOp information now

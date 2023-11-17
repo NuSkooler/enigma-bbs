@@ -40,6 +40,7 @@ exports.filterMessageListByReadACS = filterMessageListByReadACS;
 exports.tempChangeMessageConfAndArea = tempChangeMessageConfAndArea;
 exports.getMessageListForArea = getMessageListForArea;
 exports.getNewMessageCountInAreaForUser = getNewMessageCountInAreaForUser;
+exports.getNewMessageCountAddressedToUser = getNewMessageCountAddressedToUser;
 exports.getNewMessagesInAreaForUser = getNewMessagesInAreaForUser;
 exports.getMessageIdNewerThanTimestampByArea = getMessageIdNewerThanTimestampByArea;
 exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
@@ -362,7 +363,7 @@ function changeMessageConference(client, confTag, cb) {
             if (!err) {
                 client.log.info(
                     { confTag: confTag, confName: conf.name, areaTag: areaInfo.areaTag },
-                    'Current message conference changed'
+                    `${client.node} changed message conference to ${areaInfo.areaTag}`
                 );
             } else {
                 client.log.warn(
@@ -411,9 +412,9 @@ function changeMessageAreaWithOptions(client, areaTag, options, cb) {
         ],
         function complete(err, area) {
             if (!err) {
-                client.log.info(
+                client.log.debug(
                     { areaTag: areaTag, area: area },
-                    'Current message area changed'
+                    `Node ${client.node} changed message area to ${areaTag}`
                 );
             } else {
                 client.log.warn(
@@ -529,6 +530,36 @@ function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
             return cb(err, count);
         });
     });
+}
+
+// New message count -- for all areas available to the user
+// that are addressed to that user (ie: matching username)
+// Does NOT Include private messages.
+function getNewMessageCountAddressedToUser(client, cb) {
+    const areaTags = getAllAvailableMessageAreaTags(client).filter(
+        areaTag => areaTag !== Message.WellKnownAreaTags.Private
+    );
+
+    let newMessageCount = 0;
+    async.forEach(
+        areaTags,
+        (areaTag, nextAreaTag) => {
+            getMessageAreaLastReadId(client.user.userId, areaTag, (_, lastMessageId) => {
+                lastMessageId = lastMessageId || 0;
+                getNewMessageCountInAreaForUser(
+                    client.user.userId,
+                    areaTag,
+                    (err, count) => {
+                        newMessageCount += count;
+                        return nextAreaTag(err);
+                    }
+                );
+            });
+        },
+        () => {
+            return cb(null, newMessageCount);
+        }
+    );
 }
 
 function getNewMessagesInAreaForUser(userId, areaTag, cb) {

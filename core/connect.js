@@ -157,9 +157,7 @@ const ansiQuerySyncTermFontSupport = (client, cb) => {
             const [_, w] = pos;
             if (w === 1) {
                 // cursor didn't move
-                client.log.info(
-                    'Client supports SyncTERM fonts or properly ignores unknown ESC sequence'
-                );
+                client.log.info(`SyncTERM font support enabled on node ${client.node}`);
                 client.term.syncTermFontsEnabled = true;
             }
         },

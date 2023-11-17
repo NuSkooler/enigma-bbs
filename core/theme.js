@@ -373,6 +373,22 @@ exports.ThemeManager = class ThemeManager {
                     format
                 );
             },
+            getStatusAvailIndicators: function () {
+                const format = Config().theme.statusAvailableIndicators || ['Y', 'N'];
+                return _.get(
+                    theme,
+                    'customization.defaults.statusAvailableIndicators',
+                    format
+                );
+            },
+            getStatusVisibleIndicators: function () {
+                const format = Config().theme.statusVisibleIndicators || ['Y', 'N'];
+                return _.get(
+                    theme,
+                    'customization.defaults.statusVisibleIndicators',
+                    format
+                );
+            },
         };
     }
 
@@ -380,7 +396,7 @@ exports.ThemeManager = class ThemeManager {
         async.each([...this.availableThemes.keys()], (themeId, nextThemeId) => {
             this._loadTheme(themeId, err => {
                 if (!err) {
-                    Log.info({ themeId }, 'Theme reloaded');
+                    Log.info({ themeId }, `Theme "${themeId}" reloaded`);
                 }
                 return nextThemeId(null); //  always proceed
             });
@@ -634,6 +650,16 @@ function displayThemedPrompt(name, client, options, cb) {
                 const assocViewController = usingTempViewController
                     ? new ViewController({ client: client })
                     : options.viewController;
+
+                // adjust MCI positions relative to |position|
+                if (options.position) {
+                    _.forEach(artInfo.mciMap, mci => {
+                        if (mci.position) {
+                            mci.position[0] = options.position.row;
+                            mci.position[1] += options.position.col;
+                        }
+                    });
+                }
 
                 const loadOpts = {
                     promptName: name,

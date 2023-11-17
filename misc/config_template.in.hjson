@@ -262,11 +262,19 @@
 
             //
             //  The Gopher Content Server can export message base
-            //  conferences and areas via the "messageConferences" key.
+            //  conferences and areas via the 'exposedConfAreas1 key
+            //  and 'include' and optional 'exclude' directives.
             //
             //  Example:
-            //  messageConferences: {
-            //      some_conf: [ "area_tag1", "area_tag2" ]
+            //  exposedConfAreas: {
+            //      some_conf: {
+            //          include: [ "*" ] // all
+            //          exclude: [ "not_this_one" ] // except...
+            //      }
+            //      another_conf: {
+            //          include: [ "foo", "bar", "baz" ]
+            //          exclude: [ "bazbang*" ]
+            //      }
             //  }
             //
         }
@@ -307,6 +315,8 @@
     chatServers: {
         // multi relay chat settings. No need to sign up, just enable it.
         // More info: https://bbswiki.bottomlessabyss.net/index.php?title=MRC_Chat_platform
+        // Make sure to adjust 'prettyBoardName' to your liking in your config before enabling
+
         mrc: {
             enabled             : false
             serverHostname      : 'mrc.bottomlessabyss.net'

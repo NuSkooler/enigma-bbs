@@ -55,6 +55,7 @@ const ADDRESS_FLAVOR = {
     FTN: 'ftn', //  FTN style
     Email: 'email', //  From email
     QWK: 'qwk', //  QWK packet
+    NNTP: 'nntp', // NNTP article POST; often a email address
 };
 
 const STATE_FLAGS0 = {
@@ -762,6 +763,11 @@ module.exports = class Message {
     }
 
     persist(cb) {
+        const containsNonWhitespaceCharacterRegEx = /\S/;
+        if (!containsNonWhitespaceCharacterRegEx.test(this.message)) {
+            return cb(Errors.Invalid('Empty message'));
+        }
+
         if (!this.isValid()) {
             return cb(Errors.Invalid('Cannot persist invalid message!'));
         }

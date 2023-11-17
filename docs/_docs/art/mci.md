@@ -8,9 +8,9 @@ ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce info
 ## General Information
 MCI codes are composed of two characters and are prefixed with a percent (%) symbol.
 
-:information_source: To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: `%BN1`.
+> :information_source: To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: `%BN1`.
 
-:information_source: Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:
+> :information_source: Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:
 
 ![Example](../assets/images/mci-example1.png "MCI Colors")
 
@@ -88,9 +88,29 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `SU` | Total uploads, system wide |
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) |
 | `TF` | Total number of files on the system |
-| `TB` | Total amount of files on the system (formatted to appropriate bytes/megs/gigs/etc.) |
+| `TB` | Total file base size (formatted to appropriate bytes/megs/gigs/etc.) |
 | `TP` | Total messages posted/imported to the system *currently* |
 | `PT` | Total messages posted/imported to the system *today* |
+| `FT` | Total number of uploads to the system *today* |
+| `FB` | Total upload amount *today* (formatted to appropriate bytes/megs/etc. ) |
+| `DD` | Total number of downloads from the system *today* |
+| `DB` | Total download amount *today* (formatted to appropriate bytes/megs/etc. ) |
+| `MB` | System memory |
+| `MF` | System _free_ memory |
+| `LA` | System load average (e.g. 0.25)<br>(May not be available on some platforms) |
+| `CL` | System current load percentage<br>(May not be available on some platforms) |
+| `UU` | System uptime in friendly format |
+| `LC` | Last caller to the system (username) |
+| `LT` | Time of last caller |
+| `LD` | Date of last caller |
+| `TU` | Total number of users on the system |
+| `NT` | Total *new* users *today* |
+| `NM` | Count of new messages **address to the current user** across all message areas in which they have access |
+| `NP` | Count of new private mail to the current user |
+| `IA` | Indicator as to rather the current user is **available** or not. See also `getStatusAvailIndicators()` in [Themes](themes.md) |
+| `IV` | Indicator as to rather the current user is **visible** or not. See also `getStatusVisibleIndicators()` in [Themes](themes.md) |
+| `PI` | Ingress bytes for the current process (since ENiGMA started up) |
+| `PE` | Egress bytes for the current process (since ENiGMA started up) |
 
 Some additional special case codes also exist:
 
@@ -103,11 +123,9 @@ Some additional special case codes also exist:
 | `XY`   | A special code that may be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen. |
 
 
-:information_source: More are added all
-the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js)
-for a full listing.
+> :information_source: More are added all the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) for a full listing.
 
-:memo: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
+> :memo: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
 
 
 ## Views
@@ -123,13 +141,12 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `BT` | Button               | A button | ...it's a button. See [Button](views/button_view.md) |
 | `VM` | Vertical Menu        | A vertical menu | AKA a vertical lightbar; Useful for lists. See [Vertical Menu](views/vertical_menu_view.md) |
 | `HM` | Horizontal Menu      | A horizontal menu | AKA a horizontal lightbar. See [Horizontal Menu](views/horizontal_menu_view.md) |
-| `FM` | Full Menu      | A menu that can go both vertical and horizontal. | See [Full Menu](views/full_menu_view.md) | 
+| `FM` | Full Menu      | A menu that can go both vertical and horizontal. | See [Full Menu](views/full_menu_view.md) |
 | `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options. See [Spinner Menu](views/spinner_menu_view.md) |
 | `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input. See [Toggle Menu](views/toggle_menu_view.md)|
-| `PL` | Predefined Label    | Show environment information | See [Predefined Label](views/predefined_label_view.md)|
 | `KE` | Key Entry            | A *single* key input control | Think hotkeys |
 
-:information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
+> :information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
 
 ### Mask Edits
 Mask Edits (`%ME`) use the special `maskPattern` property to control a _mask_. This can be useful for gathering dates, phone numbers, so on.
@@ -163,21 +180,21 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 
 | Property    | Description  |
 |-------------|--------------|
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** below |
-| `focusTextStyle` | Sets focus text style. See **Text Styles** below. |
+| `textStyle` | Sets the standard (non-focus) text style. See [Text Styles](#text-styles) below |
+| `focusTextStyle` | Sets focus text style. See [Text Styles](#text-styles) below |
 | `itemSpacing` | Used to separate items in menus such as Vertical Menu and Horizontal Menu Views. |
 | `height` | Sets the height of views such as menus that may be > 1 character in height |
 | `width` | Sets the width of a view |
 | `focus` | If set to `true`, establishes initial focus |
-| `text` | (initial) text of a view |
+| `text` | Set's the view's text if applicable, such as a [TextView](./views/text_view.md) or [EditTextView](./views/edit_text_view.md) amongst others. See [MCI Formatting](#mci-formatting) below for advanced formatting options using the |
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
-| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** below |
-| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** below |
+| `itemFormat` | Sets the format for a list entry. See [Entry Formatting](#entry-formatting) below |
+| `focusItemFormat` | Sets the format for a focused list entry. See [Entry Formatting](#entry-formatting) below |
 
 These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default `menu.hjson` and `theme.hjson` files!
 
 ### Custom Properties
-Often a module will provide custom properties that receive format objects (See **Entry Formatting** below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
+Often a module will provide custom properties that receive format objects (See [Entry Formatting](#entry-formatting) below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
 
 ### Text Styles
 
@@ -198,6 +215,21 @@ Standard style types available for `textStyle` and `focusTextStyle`:
 
 ### Entry Formatting
 Various strings can be formatted using a syntax that allows width & precision specifiers, text styling, etc. Depending on the context, various elements can be referenced by `{name}`. Additional text styles can be supplied as well. The syntax is largely modeled after Python's [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language).
+
+#### MCI Formatting
+For more advanced layouts, you may want to apply formatting to MCI codes. In this case, an alternative syntax is supported similar to standard [Entry Formatting](#entry-formatting).
+
+MCI codes can be surrounded by `{` and `}` in the `text` field in your `theme.hjson` for a Text Label (`%TL` aka [Text View](./views/text_view.md)). Some examples:
+```hjson
+text: "|00|07{BN!stylel33t}" // render board name in "l33t" text
+
+// MCI codes that produce a number can use appropriate stylers as well
+text: "|00|07{SD:,}"
+// ...or perhaps
+text: "|00:07{SD!countWithAbbr}"
+```
+
+> :bulb: MCI formatting also applies when programmatically calling [setText()](https://github.com/NuSkooler/enigma-bbs/blob/6710bf8c084487be2ee1d46d72a05d17a7b166f4/core/text_view.js#L148) of [TextView's](./views/text_view.md) and derived views.
 
 ### Additional Text Styles
 Some of the text styles mentioned above are also available in the mini format language:
@@ -235,4 +267,4 @@ Suppose a format object contains the following elements: `userName` and `affils`
 
 ![Example](../assets/images/text-format-example1.png "Text Format")
 
-:bulb: Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".
+> :bulb: Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".

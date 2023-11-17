@@ -1129,7 +1129,10 @@ function FTNMessageScanTossModule() {
                     ],
                     err => {
                         if (err) {
-                            Log.warn({ error: err.message }, 'Error exporting message');
+                            Log.warn(
+                                { error: err.message },
+                                `Error exporting message: ${err.message}`
+                            );
                         }
                         return nextMessageOrUuid(null);
                     }
@@ -1600,6 +1603,7 @@ function FTNMessageScanTossModule() {
         const packetOpts = { keepTearAndOrigin: false }; //  needed so we can calc message UUID without these; we'll add later
 
         let importStats = {
+            packetPath,
             areaSuccess: {}, //  areaTag->count
             areaFail: {}, //  areaTag->count
             otherFail: 0,
@@ -1639,10 +1643,10 @@ function FTNMessageScanTossModule() {
                             //
                             //  No local area configured for this import
                             //
-                            //  :TODO: Handle the "catch all" area bucket case if configured
+                            //  :TODO: Handle the "catch all" area bucket case if configured -> email with area info/etc.? catchAll: enabled, areaTag, prefixMsg
                             Log.warn(
                                 { areaTag: areaTag },
-                                'No local area configured for this packet file!'
+                                `No local message area for "${areaTag}"`
                             );
 
                             //  bump generic failure
@@ -1675,9 +1679,7 @@ function FTNMessageScanTossModule() {
 
                     self.appendTearAndOrigin(message);
 
-                    const importConfig = {
-                        localAreaTag: localAreaTag,
-                    };
+                    const importConfig = { localAreaTag };
 
                     self.importMailToArea(importConfig, packetHeader, message, err => {
                         if (err) {
@@ -1699,7 +1701,7 @@ function FTNMessageScanTossModule() {
                                         uuid: message.messageUuid,
                                         MSGID: msgId,
                                     },
-                                    'Not importing non-unique message'
+                                    `Not importing non-unique message "${message.subject}" to ${localAreaTag}`
                                 );
 
                                 return next(null);
@@ -1718,15 +1720,34 @@ function FTNMessageScanTossModule() {
                 //
                 //  try to produce something helpful in the log
                 //
-                const finalStats = Object.assign(importStats, { packetPath: packetPath });
-                if (err || Object.keys(finalStats.areaFail).length > 0) {
-                    if (err) {
-                        Object.assign(finalStats, { error: err.message });
-                    }
+                const makeCount = obj => {
+                    return obj
+                        ? _.reduce(
+                              obj,
+                              (sum, c) => {
+                                  return sum + c;
+                              },
+                              0
+                          )
+                        : 0;
+                };
 
-                    Log.warn(finalStats, 'Import completed with error(s)');
+                const totalFail = makeCount(importStats.areaFail) + importStats.otherFail;
+                const packetFileName = paths.basename(packetPath);
+                if (err || totalFail > 0) {
+                    if (err) {
+                        Object.assign(importStats, { error: err.message });
+                    }
+                    Log.warn(
+                        importStats,
+                        `Packet ${packetFileName} import reported ${totalFail} error(s)`
+                    );
                 } else {
-                    Log.info(finalStats, 'Import complete');
+                    const totalSuccess = makeCount(importStats.areaSuccess);
+                    Log.info(
+                        importStats,
+                        `Packet ${packetFileName} imported with ${totalSuccess} new message(s)`
+                    );
                 }
 
                 cb(err);
@@ -1816,7 +1837,9 @@ function FTNMessageScanTossModule() {
                                                 path: paths.join(importDir, packetFile),
                                                 error: err.toString(),
                                             },
-                                            'Failed to import packet file'
+                                            `Failed to import packet file "${paths.basename(
+                                                packetFile
+                                            )}"`
                                         );
 
                                         rejects.push(packetFile);
@@ -2360,7 +2383,9 @@ function FTNMessageScanTossModule() {
                             reason: err.reason,
                             tic: ticFileInfo.filePath,
                         },
-                        'Failed to import/update TIC'
+                        `Failed to import/update TIC for "${paths.basename(
+                            ticFileInfo.filePath
+                        )}"`
                     );
                 } else {
                     Log.info(
@@ -2369,7 +2394,9 @@ function FTNMessageScanTossModule() {
                             file: ticFileInfo.filePath,
                             area: localInfo.areaTag,
                         },
-                        'TIC imported successfully'
+                        `TIC imported "${paths.basename(ticFileInfo.filePath)}" -> ${
+                            localInfo.areaTag
+                        }`
                     );
                 }
                 return cb(err);
@@ -2738,6 +2765,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
             const importSchedule = this.parseScheduleString(
                 this.moduleConfig.schedule.import
             );
+
             if (importSchedule) {
                 Log.debug(
                     {
@@ -2766,14 +2794,17 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                         glob: `**/${paths.basename(importSchedule.watchFile)}`,
                     });
 
+                    const makeImportMsg = (e, path) => {
+                        return `Import/toss due to @watch[${e}] "${paths.basename(
+                            path
+                        )}"`;
+                    };
+
                     ['change', 'add', 'delete'].forEach(event => {
                         watcher.on(event, (fileName, fileRoot) => {
                             const eventPath = paths.join(fileRoot, fileName);
-                            if (
-                                paths.join(fileRoot, fileName) ===
-                                importSchedule.watchFile
-                            ) {
-                                tryImportNow('Performing import/toss due to @watch', {
+                            if (eventPath === importSchedule.watchFile) {
+                                tryImportNow(makeImportMsg(event, eventPath), {
                                     eventPath,
                                     event,
                                 });
@@ -2785,12 +2816,16 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
                     //  If the watch file already exists, kick off now
                     //  https://github.com/NuSkooler/enigma-bbs/issues/122
                     //
-                    fse.exists(importSchedule.watchFile, exists => {
-                        if (exists) {
-                            tryImportNow('Performing import/toss due to @watch', {
-                                eventPath: importSchedule.watchFile,
-                                event: 'initial exists',
-                            });
+                    fse.access(importSchedule.watchFile, fse.constants.R_OK, err => {
+                        if (!err) {
+                            // exists and we can read
+                            tryImportNow(
+                                makeImportMsg('exists', importSchedule.watchFile),
+                                {
+                                    eventPath: importSchedule.watchFile,
+                                    event: 'exists',
+                                }
+                            );
                         }
                     });
                 }

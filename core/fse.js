@@ -167,6 +167,7 @@ exports.FullScreenEditorModule =
                     var newFocusViewId;
                     if (errMsgView) {
                         if (err) {
+                            errMsgView.clearText();
                             errMsgView.setText(err.message);
 
                             if (MciViewIds.header.subject === err.view.getId()) {
@@ -183,6 +184,13 @@ exports.FullScreenEditorModule =
                     return cb(null);
                 },
                 editModeEscPressed: function (formData, extraArgs, cb) {
+                    const errMsgView = self.viewControllers.header.getView(
+                        MciViewIds.header.errorMsg
+                    );
+                    if (errMsgView) {
+                        errMsgView.clearText();
+                    }
+
                     self.footerMode =
                         'editor' === self.footerMode ? 'editorMenu' : 'editor';
 
@@ -982,11 +990,7 @@ exports.FullScreenEditorModule =
                                     const area = getMessageAreaByTag(self.messageAreaTag);
                                     if (fromView !== undefined) {
                                         if (area && area.realNames) {
-                                            fromView.setText(
-                                                self.client.user.properties[
-                                                    UserProps.RealName
-                                                ] || self.client.user.username
-                                            );
+                                            fromView.setText(self.client.user.realName());
                                         } else {
                                             fromView.setText(self.client.user.username);
                                         }
@@ -1054,7 +1058,7 @@ exports.FullScreenEditorModule =
                     posView.setText(
                         _.padStart(String(pos.row + 1), 2, '0') +
                             ',' +
-                            _.padEnd(String(pos.col + 1), 2, '0')
+                            _.padStart(String(pos.col + 1), 2, '0')
                     );
                     this.client.term.rawWrite(ansi.restorePos());
                 }
@@ -1299,6 +1303,10 @@ exports.FullScreenEditorModule =
                                 callingMenu: self,
                                 formId: formId,
                                 mciMap: artData.mciMap,
+                                viewOffsets: {
+                                    col: 0,
+                                    row: self.header.height,
+                                },
                             };
 
                             self.addViewController(

@@ -5,9 +5,9 @@ title: Menu HSJON
 ## Menu HJSON
 The core of a ENiGMA½ based BBS is it's menus driven by what will be referred to as `menu.hjson`. Throughout ENiGMA½ documentation, when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format.
 
-:information_source: See also [HJSON General Information](hjson.md) for more information on the HJSON file format.
+> :information_source: See also [HJSON General Information](hjson.md) for more information on the HJSON file format.
 
-:bulb: Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
+> :bulb: Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
 
 * Classical navigation and menus such as Main, Messages, and Files.
 * Art file display.
@@ -24,7 +24,7 @@ showSomeArt: {
 ```
 As you can see a menu can be very simple.
 
-:information_source: Remember that the top level menu may include additional files using the `includes` directive. See [Configuration Files](config-files.md) for more information on this.
+> :information_source: Remember that the top level menu may include additional files using the `includes` directive. See [Configuration Files](config-files.md) for more information on this.
 
 ## Common Menu Entry Members
 Below is a table of **common** menu entry members. These members apply to most entries, though entries that are backed by a specialized module (ie: `module: bbs_list`) may differ. Menus that use their own module contain a `module` declaration:
@@ -59,13 +59,15 @@ The `config` block for a menu entry can contain common members as well as a per-
 | `menuFlags` | An array of menu flag(s) controlling menu behavior. See **Menu Flags** below.
 
 #### Menu Flags
-The `menuFlags` field of a `config` block can change default behavior of a particular menu.
+The `menuFlags` field of a `config` block can change default behavior of a particular menu:
 
 | Flag | Description |
 |------|-------------|
-| `noHistory` | Prevents the menu from remaining in the menu stack / history. When this flag is set, when the **next** menu falls back, this menu will be skipped and the previous menu again displayed instead. Example: menuA -> menuB(noHistory) -> menuC: Exiting menuC returns the user to menuA. |
-| `popParent` | When *this* menu is exited, fall back beyond the parent as well. Often used in combination with `noHistory`. |
-| `forwardArgs` | If set, when the next menu is entered, forward any `extraArgs` arguments to *this* menu on to it. |
+| `noHistory` | When leaving the current menu to load/chain to another, remove this menu from history. In other words, the fallback from the next menu would *not* be this one, but the previous. |
+| `mergeFlags` | Generally used in code only: Request that any flags from `menu.hjson` |
+| `forwardArgs` | Forward this menu's `extraArgs` to the next. |
+
+> 💡 In JavaScript code, `MenuFlags` from `menu_module.js` contains constants for these flags.
 
 
 ## Forms
@@ -76,7 +78,7 @@ Menus may also support more than one layout type by using a *MCI key*. A MCI key
 For more information on views and associated MCI codes, see [MCI Codes](../art/mci.md).
 
 ## Submit Handlers
-When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed.
+When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed. Note: Setting the value explicitly to null matches against any value.
 
 ### Submit Actions
 Submit actions are declared using the `action` member of a submit handler block. Actions can be kick off system/global or local-to-module methods, launch other menus, etc.
@@ -125,6 +127,7 @@ Many built in global/system methods exist. Below are a few. See [system_menu_met
 | `nextConf` | Sets the users message conference to the next available. |
 | `prevArea` | Sets the users message area to the previous available. |
 | `nextArea` | Sets the users message area to the next available. |
+| `setClientEncoding` | Sets the client encoding (such as cp437 and utf-8.) |
 
 ## Example
 Let's look a couple basic menu entries:
@@ -362,3 +365,167 @@ newUserApplicationPre: {
     // note that the rest of this menu is omitted for clarity
 }
 ```
+
+## Case Study: Manual Encoding Selection
+
+Enigma½ tries to automatically determine the proper encoding for a client when it connects. Unfortunately, there are cases where the wrong encoding can be selected, resulting in terminal programs that are not supported. If your user base contains users that would like to connect with unsupported clients, one solution is to offer manual encoding selection.
+
+This can be accomplished with the system method `@systemMethod:setClientEncoding`.
+
+### Simple example
+
+A basic config to use this could look something like the following:
+
+
+```hjson
+telnetConnected: {
+    art: CONNECT
+    next: clientSelectEncoding
+    config: { nextTimeout: 1500 }
+}
+
+clientSelectEncoding: {
+    art: CLTSEL.ASC
+    next: matrix
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}
+```
+
+The artfile for this should not contain extended characters, a simple file list the following should work:
+
+```
+Choose your encoding:
+
+%HM1
+```
+
+### Auto selection example
+The above example can be further extended to default to the automatically detected encoding by using a slightly more complicated menu system:
+
+
+```hjson
+telnetConnected: {
+    art: CONNECT
+    next: [
+      {
+        acs: EC0
+        next: clientSelectCP437
+      }
+      {
+        next: clientSelectUTF8
+      }
+    ]
+    config: { nextTimeout: 1500 }
+}
+
+clientSelectUTF8: {
+    art: CLTSEL.ASC
+    next: matrix
+    config: { font: utf-8 }
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    focusItemIndex: 0
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}
+
+clientSelectCP437: {
+    art: CLTSEL.ASC
+    next: matrix
+    config: { font: cp437 }
+    form: {
+        0: {
+            mci: {
+                HM1: {
+                    submit: true
+                    hotKeys: { U: 0, C: 1 }
+                    hotKeysSubmit: true
+                    focus: true
+                    argName: encoding
+                    focusItemIndex: 1
+                    items: [
+                      {
+                          text: U) UTF-8
+                          data: utf-8
+                      }
+                      {
+                          text: C) CP437
+                          data: cp437
+                      }
+                    ]
+                }
+            }
+            submit: {
+              *: [
+                {
+                  value: { encoding: null }
+                  action: @systemMethod:setClientEncoding
+                }
+              ]
+            }
+        }
+    }
+}
+```
+Use the same artfile as the previous example.
+
+*Note*: This example can be shortened by using @reference sections if desired.
+
+The `acs:` sections above will send the user to a different menu depending on whether they have encoding CP437 using `EC0` or anything else sent to the UTF8 menu. From there `focusItemIndex` chooses the default item.

@@ -8,10 +8,10 @@ const theme = require('./theme.js');
 const sysValidate = require('./system_view_validate.js');
 const UserProps = require('./user_property.js');
 const { getISOTimestampString } = require('./database.js');
+const EnigAssert = require('./enigma_assert');
 
 //  deps
 const async = require('async');
-const assert = require('assert');
 const _ = require('lodash');
 const moment = require('moment');
 
@@ -109,24 +109,27 @@ exports.getModule = class UserConfigModule extends MenuModule {
             //  Handlers
             //
             saveChanges: function (formData, extraArgs, cb) {
-                assert(formData.value.password === formData.value.passwordConfirm);
+                EnigAssert(formData.value.password === formData.value.passwordConfirm);
+
+                //  cache a copy of |formData| as changing a theme below can invalidate it
+                formData = _.clone(formData);
 
                 const newProperties = {
-                    [UserProps.RealName]: formData.value.realName,
+                    [UserProps.RealName]: formData.value.realName || '',
                     [UserProps.Birthdate]: getISOTimestampString(
-                        formData.value.birthdate
+                        formData.value.birthdate || moment()
                     ),
-                    [UserProps.Sex]: formData.value.sex,
-                    [UserProps.Location]: formData.value.location,
-                    [UserProps.Affiliations]: formData.value.affils,
-                    [UserProps.EmailAddress]: formData.value.email,
-                    [UserProps.WebAddress]: formData.value.web,
+                    [UserProps.Sex]: formData.value.sex || '',
+                    [UserProps.Location]: formData.value.location || '',
+                    [UserProps.Affiliations]: formData.value.affils || '',
+                    [UserProps.EmailAddress]: formData.value.email || '',
+                    [UserProps.WebAddress]: formData.value.web || '',
                     [UserProps.TermHeight]: formData.value.termHeight.toString(),
                     [UserProps.ThemeId]:
                         self.availThemeInfo[formData.value.theme].themeId,
                 };
 
-                //  runtime set theme
+                //  Runtime set theme
                 theme.setClientTheme(self.client, newProperties.theme_id);
 
                 //  persist all changes
@@ -139,11 +142,14 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         //  :TODO: warn end user!
                         return self.prevMenu(cb);
                     }
+
+                    self.client.log.info(
+                        `User "${self.client.user.username}" updated configuration`
+                    );
+
                     //
                     //  New password if it's not empty
                     //
-                    self.client.log.info('User updated properties');
-
                     if (formData.value.password.length > 0) {
                         self.client.user.setNewAuthCredentials(
                             formData.value.password,
@@ -155,7 +161,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                                     );
                                 } else {
                                     self.client.log.info(
-                                        'User changed authentication credentials'
+                                        `User "${self.client.user.username}" updated authentication credentials`
                                     );
                                 }
                                 return self.prevMenu(cb);
@@ -227,11 +233,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                     function populateViews(callback) {
                         const user = self.client.user;
 
-                        self.setViewText(
-                            'menu',
-                            MciCodeIds.RealName,
-                            user.properties[UserProps.RealName]
-                        );
+                        self.setViewText('menu', MciCodeIds.RealName, user.realName(false) || '');
                         self.setViewText(
                             'menu',
                             MciCodeIds.BirthDate,

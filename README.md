@@ -4,35 +4,37 @@
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
-## Features Available Now
- * Multi platform: Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
+## Features
+Below are just some of the features ENiGMA½ supports out of the box:
+ * **Multi platform** — Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
  * Unlimited multi node support (for all those BBS "callers"!)
- * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based [mods](docs/modding/existing-mods.md)
- * [MCI support](docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
+ * **Highly customizable** via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based [mods](./docs/_docs/modding/existing-mods.md)
+ * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
  * [SyncTERM](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support.
- * Renegade style [pipe color codes](./docs/configuration/colour-codes.md).
+ * Renegade style [pipe color codes](./docs/_docs/configuration/colour-codes.md).
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
- * Support for 2-Factor Authentication with One-Time-Passwords
- * [Door support](docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), [Exodus](https://oddnetwork.org/exodus/) and [CombatNet](http://combatnet.us/) support!
- * [Bunyan](https://github.com/trentm/node-bunyan) logging!
- * [Message networks](docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be exposed via [Gopher](docs/servers/gopher.md), or [NNTP](docs/servers/nntp.md)!
- * [Gazelle](https://github.com/WhatCD/Gazelle) inspired File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](docs/servers/web-server.md). Legacy X/Y/Z modem also supported!
+ * Support for **2-Factor Authentication** with One-Time-Passwords
+ * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
+ * Structured [Bunyan](https://github.com/trentm/node-bunyan) logging!
+ * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md), or [NNTP](./docs/_docs/servers/contentservers/nntp.md)!
+ * [Gazelle](https://github.com/WhatCD/Gazelle) inspired File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](./docs/_docs/servers/contentservers/web-server.md). Legacy X/Y/Z modem also supported!
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
  * ANSI support in the Full Screen Editor (FSE), file descriptions, etc.
- * A built in achievement system. BBSing gamified!
+ * Expandable **achievement system** — BBSing gamified!
+ * A remote accessible [Waiting For Caller (WFC)](./docs/_docs/modding/wfc.md)!
 
  ...and much much more. Please check out [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features!
 
 ## Documentation
-[Browse the docs online](https://nuskooler.github.io/enigma-bbs/). Be sure to checkout the [/docs/](./docs/) folder as well for the latest and greatest documentation.
+[Browse the docs online](https://nuskooler.github.io/enigma-bbs/). Be sure to checkout the [/docs/](./docs/_docs/) folder as well for the latest and greatest documentation.
 
 ## Installation
 On most *nix systems simply run the following from your terminal:
-```
+```bash
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
@@ -47,7 +49,7 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 * See [Discussions](https://github.com/NuSkooler/enigma-bbs/discussions) and [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
 * IRC: **#enigma-bbs** on **irc.libera.chat:6697(TLS)** ([webchat](https://web.libera.chat/gamja/?channels=#enigma-bbs))
-* FSX_ENG on [fsxNet](http://bbs.geek.nz/#fsxNet) or ARK_ENIG on [ArakNet](https://www.araknet.xyz/) available on many fine boards
+* `FSX_ENG` on [fsxNet](https://fsxnet.nz) or `ARK_ENIG` on [ArakNet](https://www.araknet.xyz/) available on many fine boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
 
@@ -75,7 +77,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [Luciano Ayres](http://www.lucianoayres.com.br/) of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
 * Sudndeath for Xibalba ANSI work!
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
-* Avon of [Agency BBS](http://bbs.geek.nz/) and [fsxNet](http://bbs.geek.nz/#fsxNet) for putting up with my experiments to his system and for FSX_ENG!
+* Avon of [Agency BBS](http://bbs.nz/) and [fsxNet](https://fsxnet.nz) for putting up with my experiments to his system and for FSX_ENG!
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
 * [Apam](https://github.com/apamment) of [Magicka](https://magickabbs.com/)
 * [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!

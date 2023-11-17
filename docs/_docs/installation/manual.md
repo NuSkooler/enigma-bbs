@@ -24,13 +24,13 @@ Node Version Manager (NVM) is an excellent way to install and manage Node.js ver
 ```bash
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash
 ```
-:information_source: Do not cut+paste the above command! Visit the [NVM](https://github.com/creationix/nvm) page and run the latest version!
+> :information_source: Do not cut+paste the above command! Visit the [NVM](https://github.com/creationix/nvm) page and run the latest version!
 
 Next, install Node.js with NVM:
 ```bash
-nvm install 12
-nvm use 12
-nvm alias default 12
+nvm install 14
+nvm use 14
+nvm alias default 14
 ```
 
 If the above steps completed without errors, you should now have `nvm`, `node`, and `npm` installed and in your environment.
@@ -52,9 +52,9 @@ npm install # yarn also works
 ## Other Recommended Packages
 ENiGMA BBS makes use of a few packages for archive and legacy protocol support. They're not pre-requisites for running ENiGMA, but without them you'll miss certain functionality. Once installed, they should be made available on your systems `PATH`.
 
-:information_source: Please see [External Binaries](../configuration/external-binaries.md) for information on setting these up.
+> :information_source: Please see [External Binaries](../configuration/external-binaries.md) for information on setting these up.
 
-:information_source: Additional information in [Archivers](../configuration/archivers.md) and [File Transfer Protocols](../configuration/file-transfer-protocols.md)
+> :information_source: Additional information in [Archivers](../configuration/archivers.md) and [File Transfer Protocols](../configuration/file-transfer-protocols.md)
 
 ## Config Files
 You'll need a basic configuration to get started. The main system configuration is handled via `config/config.hjson`. This is an [HJSON](http://hjson.org/) file (compliant JSON is also OK). See [Configuration](../configuration/hjson.md) for more information.

@@ -15,6 +15,7 @@ const fs = require('graceful-fs');
 const paths = require('path');
 const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
+const findSeries = require('async/findSeries');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
@@ -74,14 +75,6 @@ exports.getModule = class WebServerModule extends ServerModule {
         this.enableHttps = config.contentServers.web.https.enabled || false;
 
         this.routes = {};
-
-        if (this.isEnabled() && config.contentServers.web.staticRoot) {
-            this.addRoute({
-                method: 'GET',
-                path: '/static/.*$',
-                handler: this.routeStaticFile.bind(this),
-            });
-        }
     }
 
     buildUrl(pathAndQuery) {
@@ -210,13 +203,21 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     routeRequest(req, resp) {
-        const route = _.find(this.routes, r => r.matchesRequest(req));
+        let route = _.find(this.routes, r => r.matchesRequest(req));
 
-        if (!route && '/' === req.url) {
-            return this.routeIndex(req, resp);
+        if (route) {
+            return route.handler(req, resp);
+        } else {
+            this.tryStaticRoute(req, resp, wasHandled => {
+                if (!wasHandled) {
+                    this.tryRouteIndex(req, resp, wasHandled => {
+                        if (!wasHandled) {
+                            return this.fileNotFound(resp);
+                        }
+                    });
+                }
+            });
         }
-
-        return route ? route.handler(req, resp) : this.accessDenied(resp);
     }
 
     respondWithError(resp, code, bodyText, title) {
@@ -256,27 +257,57 @@ exports.getModule = class WebServerModule extends ServerModule {
         return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
     }
 
-    routeIndex(req, resp) {
-        const filePath = paths.join(Config().contentServers.web.staticRoot, 'index.html');
-        return this.returnStaticPage(filePath, resp);
+    tryRouteIndex(req, resp, cb) {
+        const tryFiles = Config().contentServers.web.tryFiles || [
+            'index.html',
+            'index.htm',
+        ];
+
+        findSeries(
+            tryFiles,
+            (tryFile, nextTryFile) => {
+                const fileName = paths.join(
+                    req.url.substr(req.url.lastIndexOf('/', 1)),
+                    tryFile
+                );
+                const filePath = this.resolveStaticPath(fileName);
+
+                fs.stat(filePath, (err, stats) => {
+                    if (err || !stats.isFile()) {
+                        return nextTryFile(null, false);
+                    }
+
+                    const headers = {
+                        'Content-Type':
+                            mimeTypes.contentType(paths.basename(filePath)) ||
+                            mimeTypes.contentType('.bin'),
+                        'Content-Length': stats.size,
+                    };
+
+                    const readStream = fs.createReadStream(filePath);
+                    resp.writeHead(200, headers);
+                    readStream.pipe(resp);
+
+                    return nextTryFile(null, true);
+                });
+            },
+            (_, wasHandled) => {
+                return cb(wasHandled);
+            }
+        );
     }
 
-    routeStaticFile(req, resp) {
-        const fileName = req.url.substr(req.url.indexOf('/', 1));
+    tryStaticRoute(req, resp, cb) {
+        const fileName = req.url.substr(req.url.lastIndexOf('/', 1));
         const filePath = this.resolveStaticPath(fileName);
-        return this.returnStaticPage(filePath, resp);
-    }
-
-    returnStaticPage(filePath, resp) {
-        const self = this;
 
         if (!filePath) {
-            return this.fileNotFound(resp);
+            return cb(false);
         }
 
         fs.stat(filePath, (err, stats) => {
             if (err || !stats.isFile()) {
-                return self.fileNotFound(resp);
+                return cb(false);
             }
 
             const headers = {
@@ -288,7 +319,9 @@ exports.getModule = class WebServerModule extends ServerModule {
 
             const readStream = fs.createReadStream(filePath);
             resp.writeHead(200, headers);
-            return readStream.pipe(resp);
+            readStream.pipe(resp);
+
+            return cb(true);
         });
     }
 

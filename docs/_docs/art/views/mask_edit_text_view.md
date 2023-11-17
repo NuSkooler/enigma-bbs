@@ -7,9 +7,9 @@ A mask edit text view supports editing form values on a screen. This can be for 
 
 ## General Information
 
-:information_source: A mask edit text view is defined with a percent (%) and the characters ME, followed by the view number. For example: `%ME1`. This is generally used on a form in order to allow a user to enter or edit a text value.
+> :information_source: A mask edit text view is defined with a percent (%) and the characters ME, followed by the view number. For example: `%ME1`. This is generally used on a form in order to allow a user to enter or edit a text value.
 
-:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
@@ -45,7 +45,7 @@ Any value other than the entries above is treated like a literal value to be dis
 | `##-AAA-####` | Matches a date of type day-month-year (i.e. 01-MAR-2010) |
 | `# foot ## inches`| Matches a height in feet and inches (i.e. 6 foot 2 inches) |
 
- 
+
 ## Example
 
 ![Example](../../assets/images/mask_edit_text_view_example1.gif "Masked Text Edit View")

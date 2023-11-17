@@ -34,8 +34,15 @@ module.exports = class DropFile {
         this.baseDir = baseDir;
     }
 
+    static dropFileDirectory(baseDir, client) {
+        return paths.join(baseDir, 'node' + client.node);
+    }
+
     get fullPath() {
-        return paths.join(this.baseDir, 'node' + this.client.node, this.fileName);
+        return paths.join(
+            DropFile.dropFileDirectory(this.baseDir, this.client),
+            this.fileName
+        );
     }
 
     get fileName() {

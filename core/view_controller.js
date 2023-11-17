@@ -150,6 +150,8 @@ function ViewController(options) {
     };
 
     this.createViewsFromMCI = function (mciMap, cb) {
+        const views = [];
+
         async.each(
             Object.keys(mciMap),
             (name, nextItem) => {
@@ -161,6 +163,7 @@ function ViewController(options) {
                         view.on('action', self.viewActionListener);
                     }
 
+                    views.push(view);
                     self.addView(view);
                 }
 
@@ -168,7 +171,7 @@ function ViewController(options) {
             },
             err => {
                 self.setViewOrder();
-                return cb(err);
+                return cb(err, views);
             }
         );
     };
@@ -281,9 +284,7 @@ function ViewController(options) {
                 const view = self.getView(viewId);
 
                 if (!view) {
-                    self.client.log.warn({ viewId: viewId }, 'Cannot find view');
-                    nextItem(null);
-                    return;
+                    return nextItem(null);
                 }
 
                 const mciConf = config.mci[mci];
@@ -303,14 +304,9 @@ function ViewController(options) {
             err => {
                 //  default to highest ID if no 'submit' entry present
                 if (!submitId) {
-                    var highestIdView = self.getView(highestId);
+                    const highestIdView = self.getView(highestId);
                     if (highestIdView) {
                         highestIdView.submit = true;
-                    } else {
-                        self.client.log.warn(
-                            { highestId: highestId },
-                            'View does not exist'
-                        );
                     }
                 }
 
@@ -498,6 +494,27 @@ ViewController.prototype.resetInitialFocus = function () {
     }
 };
 
+ViewController.prototype.applyViewOffsets = function (
+    views,
+    offsetCol,
+    offsetRow,
+    force = false
+) {
+    if (!Array.isArray(views)) {
+        views = [views];
+    }
+
+    views.forEach(view => {
+        if (force || !view.offsetsApplied) {
+            view.offsetsApplied = true;
+            view.setPosition({
+                col: view.position.col + offsetCol,
+                row: view.position.row + offsetRow,
+            });
+        }
+    });
+};
+
 ViewController.prototype.switchFocus = function (id) {
     //
     //  Perform focus switching validation now
@@ -596,7 +613,7 @@ ViewController.prototype.loadFromPromptConfig = function (options, cb) {
                 });
             },
             function applyViewConfiguration(callback) {
-                if (_.isObject(promptConfig.mci)) {
+                if (promptConfig && _.isObject(promptConfig.mci)) {
                     self.applyViewConfig(promptConfig, function configApplied(err, info) {
                         initialFocusId = info.initialFocusId;
                         callback(err);
@@ -766,7 +783,14 @@ ViewController.prototype.loadFromMenuConfig = function (options, cb) {
                 );
             },
             function createViews(callback) {
-                self.createViewsFromMCI(options.mciMap, function viewsCreated(err) {
+                self.createViewsFromMCI(options.mciMap, (err, views) => {
+                    if (!err && _.isObject(options.viewOffsets)) {
+                        self.applyViewOffsets(
+                            views,
+                            options.viewOffsets.col,
+                            options.viewOffsets.row
+                        );
+                    }
                     callback(err);
                 });
             },

@@ -332,7 +332,10 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         publicExportAreas,
                         (exportArea, nextExportArea) => {
                             const area = getMessageAreaByTag(exportArea.areaTag);
-                            const conf = getMessageConferenceByTag(area.confTag);
+                            let conf;
+                            if (area) {
+                                conf = getMessageConferenceByTag(area.confTag);
+                            }
                             if (!area || !conf) {
                                 //  :TODO: remove from user properties - this area does not exist
                                 this.client.log.warn(

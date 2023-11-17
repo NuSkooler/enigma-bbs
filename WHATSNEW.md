@@ -1,12 +1,32 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.14-beta
+* The [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made some possibly breaking changes:
+    * `/static/` prefixes are no longer required. This was a ugly hack.
+    * Some internal routes such as those used for password resets live within `/_internal/`.
+    * Routes for the file base now default to `/_f/` prefixed instead of just `/f/`. If `/f/` is in your `config.hjson` you are encouraged to update it!
+    * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
+* CombatNet has shut down, so the module (`combatnet.js`) has been removed.
+* The Menu Flag `popParent` has been removed and `noHistory` has been updated to work as expected. In general things should "Just Work", but check your `menu.hjson` entries if you see menu stack issues.
+* Various New User Application (NUA) properties are now optional. If you would like to reduce the information users are required, remove optional fields from NUA artwork and collect less. These properties will be stored as "" (empty). Optional properties are as follows: Real name, Birth date, Sex, Location, Affiliations (Affils), Email, and Web address.
+* Art handling has been changed to respect the art width contained in SAUCE when present in the case where the terminal width is greater than the art width. This fixes art files that assume wrapping at 80 columns on wide (mostly new utf8) terminals.
+
 ## 0.0.13-beta
 * **Note for contributors**: ENiGMA has switched to [Prettier](https://prettier.io) for formatting/style. Please see [CONTRIBUTING](CONTRIBUTING.md) and the Prettier website for more information.
 * Removed terminal `cursor position reports` from most locations in the code. This should greatly increase the number of terminal programs that work with Enigma 1/2. For more information, see [Issue #222](https://github.com/NuSkooler/enigma-bbs/issues/222). This may also resolve other issues, such as [Issue #365](https://github.com/NuSkooler/enigma-bbs/issues/365), and [Issue #320](https://github.com/NuSkooler/enigma-bbs/issues/320). Anyone that previously had terminal incompatibilities please re-check and let us know!
 * Bumped up the minimum [Node.js](https://nodejs.org/en/) version to v14. This will allow more expressive Javascript programming syntax with ECMAScript 2020 to improve the development experience.
-* Added new configuration options for `term.checkUtf8Encoding`, `term.checkAnsiHomePostion`, `term.cp437TermList`, and `term.utf8TermList`. More information on these options is available in [UPGRADE](UPGRADE.md).
+* **New Waiting For Caller (WFC)** support via the `wfc.js` module.
+* Added new configuration options for `term.checkUtf8Encoding`, `term.checkAnsiHomePosition`, `term.cp437TermList`, and `term.utf8TermList`. More information on these options is available in [UPGRADE](UPGRADE.md).
+* Many new system statistics available via the StatLog such as current and average load, memory, etc.
+* Many new MCI codes: `MB`, `MF`, `LA`, `CL`, `UU`, `FT`, `DD`, `FB`, `DB`, `LC`, `LT`, `LD`, and more. See [MCI](./docs/art/mci.md).
+* SyncTERM style font support detection.
+* Added a system method to support setting the client encoding from menus, `@systemMethod:setClientEncoding`.
 * Many additional backward-compatible bug fixes since the first release of 0.0.12-beta. See the [project repository](https://github.com/NuSkooler/enigma-bbs) for more information.
+* Deprecated Gopher's `messageConferences` configuration key in favor of a easier to deal with `exposedConfAreas` allowing wildcards and exclusions. See [Gopher](./docs/servers/contentservers/gopher.md).
+* NNTP write (aka POST) access support for authenticated users over TLS.
+* [Advanced MCI formatting](./docs/art/mci.md#mci-formatting)!
+* Additional options in the `abracadabra` module for launching doors. See [Local Doors](./docs/modding/local-doors.md)
 
 ## 0.0.12-beta
 * The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
@@ -16,6 +36,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * An explicit prompt file previously specified by `general.promptFile` in `config.hjson` is no longer necessary. Instead, this now simply part of the `prompts` section in `menu.hjson`. The default setup still creates a separate prompt HJSON file, but it is `includes`ed in `menu.hjson`. With the removal of prompts the `PromptsChanged` event will no longer be fired.
 * New `PV` ACS check for arbitrary user properties. See [ACS](./docs/configuration/acs.md) for details.
 * The `message` arg used by `msg_list` has been deprecated. Please starting using `messageIndex` for this purpose. Support for `message` will be removed in the future.
+* A number of new MCI codes (see [MCI](./docs/art/mci.md))
 * Added ability to export/download messages. This is enabled in the default menu. See `messageAreaViewPost` in [the default message base template](./misc/menu_templates/message_base.in.hjson) and look for the download options (`@method:addToDownloadQueue`, etc.) for details on adding to your system!
 * The Gopher server has had a revamp! Standard `gophermap` files are now served along with any other content you configure for your Gopher Hole! A default [gophermap](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) can be found [in the misc directory](./misc/gophermap) that behaves like the previous implementation. See [Gopher docs](./docs/servers/gopher.md) for more information.
 * Default file browser up/down/pageUp/pageDown scrolls description (e.g. FILE_ID.DIZ). If you want to expose this on an existing system see the `fileBaseListEntries` in the default `file_base.in.hjson` template.

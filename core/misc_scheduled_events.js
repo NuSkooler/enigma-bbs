@@ -10,7 +10,14 @@ function dailyMaintenanceScheduledEvent(args, cb) {
     //
     //  Various stats need reset daily
     //
-    [SysProps.LoginsToday, SysProps.MessagesToday].forEach(prop => {
+    //  :TODO: files/etc. here
+    const resetProps = [
+        SysProps.LoginsToday,
+        SysProps.MessagesToday,
+        SysProps.NewUsersTodayCount,
+    ];
+
+    resetProps.forEach(prop => {
         StatLog.setNonPersistentSystemStat(prop, 0);
     });
 

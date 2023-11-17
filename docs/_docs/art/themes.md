@@ -51,6 +51,8 @@ Override system defaults.
 | `dateFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for dates. |
 | `timeFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for times. |
 | `dateTimeFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for date/time combinations. |
+| `getStatusAvailIndicators` | An array[2] of **availability** status indicators. Defaults to `[ 'Y', 'N' ]`. |
+| `getStatusVisibleIndicators` | An array[2] of **visibility** status indicators. Defaults to `[ 'Y', 'N' ]`. |
 
 Example:
 ```hjson

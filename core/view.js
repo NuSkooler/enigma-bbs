@@ -49,6 +49,7 @@ function View(options) {
     this.position = { x: 0, y: 0 };
     this.textStyle = options.textStyle || 'normal';
     this.focusTextStyle = options.focusTextStyle || this.textStyle;
+    this.offsetsApplied = false;
 
     if (options.id) {
         this.setId(options.id);
@@ -130,7 +131,7 @@ View.prototype.setPosition = function (pos) {
     //
     //  Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
     //
-    if (util.isArray(pos)) {
+    if (Array.isArray(pos)) {
         this.position.row = pos[0];
         this.position.col = pos[1];
     } else if (_.isNumber(pos.row) && _.isNumber(pos.col)) {
