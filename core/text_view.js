@@ -153,7 +153,11 @@ TextView.prototype.setText = function (text, redraw) {
 
     if (!_.isString(text)) {
         //  allow |text| to be numbers/etc.
-        text = text.toString();
+        if (_.isUndefined(text) || null === text) {
+            text = '';
+        } else {
+            text = text.toString();
+        }
     }
 
     const formatObj = getPredefinedMCIFormatObject(this.client, text);
