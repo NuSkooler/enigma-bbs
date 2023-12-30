@@ -17,11 +17,11 @@
 <meta property="og:description" content="The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2023-12-24T01:12:58+00:00" />
+<meta property="article:published_time" content="2023-12-30T17:37:58+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Waiting For Caller (WFC)" />
 <script type="application/ld+json">
-{"description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","headline":"Waiting For Caller (WFC)","url":"/enigma-bbs/modding/wfc.html","dateModified":"2023-12-24T01:12:58+00:00","@type":"BlogPosting","datePublished":"2023-12-24T01:12:58+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@context":"https://schema.org"}</script>
+{"description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","headline":"Waiting For Caller (WFC)","url":"/enigma-bbs/modding/wfc.html","dateModified":"2023-12-30T17:37:58+00:00","@type":"BlogPosting","datePublished":"2023-12-30T17:37:58+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2360,7 +2360,7 @@
 </blockquote>
 
 <p>Adding your user to the <code class="language-plaintext highlighter-rouge">wfc</code> group:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Repalce USERNAME with your leet +op username</span>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Replace USERNAME with your leet +op username</span>
 ./oputil.js user group USERNAME <span class="s2">"+wfc"</span>
 </code></pre></div></div>
 
@@ -2383,15 +2383,50 @@
 
 <h2 id="configuration">Configuration</h2>
 <h3 id="config-block">Config Block</h3>
-<p>The WFC <code class="language-plaintext highlighter-rouge">config</code> block allows for the following keys:
-| Key | Required | Description |
-|—–|———-|————-|
-| <code class="language-plaintext highlighter-rouge">acs</code> | <img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"> | See <a href="#security">Security</a> above. |
-| <code class="language-plaintext highlighter-rouge">opVisibility</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Boolean. Set to <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> in order to change visbility when entering the WFC |
-| <code class="language-plaintext highlighter-rouge">quickLogLevel</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Sets the log level for the quick log view. Defaults to <code class="language-plaintext highlighter-rouge">info</code>. See also <a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a>. |
-| <code class="language-plaintext highlighter-rouge">art</code> | <img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"> | An Object containing art information: <code class="language-plaintext highlighter-rouge">main</code> for the WFC main view itself and <code class="language-plaintext highlighter-rouge">help</code> for a help screen. |
-| <code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Override the prompt name used for the “Kick selected node?” prompt. Defaults to <code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code> |
-|</p>
+<p>The WFC <code class="language-plaintext highlighter-rouge">config</code> block allows for the following keys:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">acs</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>See <a href="#security">Security</a> above.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">opVisibility</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Boolean. Set to <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> in order to change visbility when entering the WFC</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">quickLogLevel</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Sets the log level for the quick log view. Defaults to <code class="language-plaintext highlighter-rouge">info</code>. See also <a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">art</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>An Object containing art information: <code class="language-plaintext highlighter-rouge">main</code> for the WFC main view itself and <code class="language-plaintext highlighter-rouge">help</code> for a help screen.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Override the prompt name used for the “Kick selected node?” prompt. Defaults to <code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code>
+</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td> </td>
+      <td> </td>
+    </tr>
+  </tbody>
+</table>
 
 <h2 id="theming">Theming</h2>
 <p>The following MCI codes are available:</p>
