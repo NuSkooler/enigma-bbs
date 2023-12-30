@@ -34,7 +34,7 @@ Commands break up operations by groups:
 
 Global arguments apply to most commands and actions:
 * `--config`: Specify configuration directory if it is not the default of `./config/`.
-* `--no-prompt`: Assume defaults and do not prompt when posisible.
+* `--no-prompt`: Assume defaults and do not prompt when possible.
 
 Type `./oputil.js <command> --help` for additional help on a particular command. The following sections will describe them.
 
