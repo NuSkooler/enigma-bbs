@@ -7,6 +7,7 @@ const { WellKnownRecipientFields } = require('./const');
 const Log = require('../logger').log;
 const { getWebDomain } = require('../web_util');
 const Endpoints = require('./endpoint');
+const anyAscii = require('../anyascii/any-ascii');
 
 // deps
 const _ = require('lodash');
@@ -220,8 +221,9 @@ function messageToHtml(message) {
 }
 
 function htmlToMessageBody(html) {
-    const res = stripHtml(decode(html));
-    return res.result;
+    let res = stripHtml(decode(html));
+    res = anyAscii(res.result);
+    return res;
 }
 
 function userNameFromSubject(subject) {
