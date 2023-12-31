@@ -15,6 +15,7 @@ const {
 } = require('./follow_util');
 const { Collections } = require('./const');
 const EnigAssert = require('../enigma_assert');
+const { wordWrapText } = require('../word_wrap');
 
 // deps
 const async = require('async');
@@ -251,14 +252,27 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
             const selectedActorInfoFormat =
                 this.config.selectedActorInfoFormat || '{text}';
 
-            const s = stringFormat(selectedActorInfoFormat, actorInfo);
+            let s = stringFormat(selectedActorInfoFormat, actorInfo);
 
             if (view instanceof MultiLineEditTextView) {
+                // word wrap individual lines to prevent losing the original LFs
+                let lines = s.split('\n');
+                let wrapped = '';
+                for (let line of lines) {
+                    wrapped +=
+                        (
+                            wordWrapText(line, {
+                                width: view.dimens.width,
+                                pipeCodeSupport: true,
+                            }).wrapped || []
+                        ).join('\n') + '\n';
+                }
+
                 const opts = {
                     prepped: false,
                     forceLineTerm: true,
                 };
-                view.setAnsi(pipeToAnsi(s, this.client), opts);
+                view.setAnsi(pipeToAnsi(wrapped, this.client), opts);
             } else {
                 view.setText(s);
             }
