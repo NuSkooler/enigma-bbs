@@ -39,7 +39,7 @@
         }
         {
           value: {command: "Q"}
-          action: @menu:mainMenu
+          action: @systemMethod:prevMenu
         }
         {
           value: { command: "E" }
