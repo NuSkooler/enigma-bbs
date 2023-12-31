@@ -295,6 +295,9 @@ module.exports = class Message {
         - areaTags filter ignored
         - if NOT present, private areas are skipped
 
+        filter.resultType == messageList only:
+        - genMissingSubjects: generate missing subject lines by inspecting the message contents
+
         *=NYI
     */
     static findMessages(filter, cb) {
@@ -329,11 +332,20 @@ module.exports = class Message {
             sql = `SELECT COUNT() AS count
                 FROM message m`;
         } else {
-            sql = `SELECT DISTINCT m.${field}${
+            let additionalFields =
                 filter.extraFields.length > 0
                     ? ', ' + filter.extraFields.map(f => `m.${f}`).join(', ')
-                    : ''
+                    : '';
+
+            if (true === filter.genMissingSubjects) {
+                additionalFields += `, CASE WHEN LENGTH(m.subject) > 0 THEN
+                        m.subject
+                    ELSE
+                        REPLACE(REPLACE(SUBSTR(m.message,1,32),CHAR(10),""),CHAR(13),"") || "..."
+                    END gen_subject`;
             }
+
+            sql = `SELECT DISTINCT m.${field}${additionalFields}
                 FROM message m`;
         }
 
