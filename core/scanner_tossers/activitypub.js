@@ -309,13 +309,22 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                 4,
                 (actorId, nextActorId) => {
                     Actor.fromId(actorId, (err, actor) => {
-                        return nextActorId(err, actor);
+                        if (err) {
+                            this.log.warn(
+                                { error: err.message, actorId },
+                                'Failed to fetch actor from ID; skipping'
+                            );
+                            return nextActorId(null, null);
+                        }
+                        return nextActorId(null, actor);
                     });
                 },
                 (err, followerActors) => {
                     if (err) {
                         return cb(err);
                     }
+
+                    followerActors = followerActors.filter(v => v); //  drop any missing actors
 
                     const sharedInboxEndpoints = Array.from(
                         new Set(
