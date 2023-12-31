@@ -30,6 +30,7 @@ const FileArea = require('./file_base_area.js');
 const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
 const EngiAssert = require('./enigma_assert.js');
+const MessageConst = require('./message_const');
 
 //  deps
 const async = require('async');
@@ -458,7 +459,9 @@ exports.FullScreenEditorModule =
             //  Append auto-signature, if enabled for the area & the user has one
             //
             const msgInfo = messageInfoFromAddressedToInfo(
-                getAddressedToInfo(headerValues.to)
+                Message.WellKnownAreaTags.Private === area.addressFlavor
+                    ? { flavor: MessageConst.AddressFlavor.ActivityPub }
+                    : getAddressedToInfo(headerValues.to)
             );
             if (false !== msgInfo.autoSignatures) {
                 if (false !== area.autoSignatures) {

@@ -181,7 +181,7 @@ function messageInfoFromAddressedToInfo(addressInfo) {
             const maxMessageLength = get(config, 'activityPub.maxMessageLength', 500);
             const autoSignatures = get(config, 'activityPub.autoSignatures', false);
 
-            // Additionally, it's ot necessary to supply a subject
+            // Additionally, it's not necessary to supply a subject
             // (aka summary) with a 'Note' Activity
             return { subjectOptional: true, maxMessageLength, autoSignatures };
         }
