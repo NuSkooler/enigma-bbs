@@ -459,7 +459,7 @@ exports.FullScreenEditorModule =
             //  Append auto-signature, if enabled for the area & the user has one
             //
             const msgInfo = messageInfoFromAddressedToInfo(
-                Message.WellKnownAreaTags.Private === area.addressFlavor
+                MessageConst.AddressFlavor.ActivityPub === area.addressFlavor
                     ? { flavor: MessageConst.AddressFlavor.ActivityPub }
                     : getAddressedToInfo(headerValues.to)
             );
