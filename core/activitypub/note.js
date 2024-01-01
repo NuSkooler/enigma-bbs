@@ -126,6 +126,8 @@ module.exports = class Note extends ActivityPubObject {
                         ? 'text/x-ansi' // ye ol' https://lists.freedesktop.org/archives/xdg/2006-March/006214.html
                         : 'text/plain';
 
+                    const htmlMessage = messageToHtml(message);
+
                     // https://docs.joinmastodon.org/spec/activitypub/#properties-used
                     const obj = {
                         id: ActivityPubObject.makeObjectId('note'),
@@ -134,7 +136,11 @@ module.exports = class Note extends ActivityPubObject {
                         to,
                         attributedTo: fromActor.id,
                         summary: message.subject.trim(),
-                        content: messageToHtml(message),
+                        content: htmlMessage,
+                        contentMap: {
+                            en: htmlMessage, // English only, for now
+                        },
+                        // original message source
                         source: {
                             content: message.message,
                             mediaType: sourceMediaType,
