@@ -23,6 +23,10 @@ module.exports = new (class Events extends events.EventEmitter {
         return super.addListener(event, listener);
     }
 
+    listenerCount(event, listener) {
+        return super.listenerCount(event, listener);
+    }
+
     emit(event, ...args) {
         Log.trace({ event: event }, 'Emitting event');
         return super.emit(event, ...args);
