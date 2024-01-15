@@ -18,10 +18,10 @@ to get it written to an SD card.
     2. Enable SSH (option 5, option P2)
     3. Expand the filesystem to use the entire SD card (option 7, option A1)
 
-3. Update & upgrade all packages: `apt-get update && apt-get upgrade`
+3. Update & upgrade all packages: `sudo apt-get update && sudo apt-get upgrade`
 
-4. Install required packages: `sudo apt install lrzsz p7zip-full`
+4. Install required packages: `sudo apt install git lrzsz p7zip-full`
 
-5. Follow the [installation instructions](../installation/) to install ENiGMA½.
+5. Follow the [installation instructions](../install-script.html) to install ENiGMA½.
 
 6. Profit!
