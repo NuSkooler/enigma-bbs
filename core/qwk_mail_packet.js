@@ -1076,7 +1076,7 @@ class QWKPacketWriter extends EventEmitter {
                     }
 
                     //  First block is a space padded ID
-                    const id = `Created with ENiGMA 1/2 BBS v${enigmaVersion} Copyright (c) 2015-2022 Bryan Ashby`;
+                    const id = `Created with ENiGMA 1/2 BBS v${enigmaVersion} Copyright (c) 2015-2024 Bryan Ashby`;
                     this.messagesStream.write(
                         id.padEnd(QWKMessageBlockSize, ' '),
                         'ascii'

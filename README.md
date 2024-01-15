@@ -92,7 +92,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
 
-Copyright (c) 2015-2022, Bryan D. Ashby
+Copyright (c) 2015-2024, Bryan D. Ashby
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
