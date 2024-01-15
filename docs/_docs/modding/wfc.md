@@ -22,7 +22,7 @@ The system allows any user with the proper security to access the WFC / system o
 
 Adding your user to the `wfc` group:
 ```bash
-# Repalce USERNAME with your leet +op username
+# Replace USERNAME with your leet +op username
 ./oputil.js user group USERNAME "+wfc"
 ```
 
@@ -43,6 +43,7 @@ mainMenuWaitingForCaller: {
 ## Configuration
 ### Config Block
 The WFC `config` block allows for the following keys:
+
 | Key | Required | Description |
 |-----|----------|-------------|
 | `acs` | :+1: | See [Security](#security) above. |

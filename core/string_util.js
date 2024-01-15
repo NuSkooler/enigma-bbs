@@ -46,6 +46,10 @@ const SIMPLE_ELITE_MAP = {
 };
 
 function stylizeString(s, style) {
+    if (!s) {
+        return '';
+    }
+
     var len = s.length;
     var c;
     var i;
