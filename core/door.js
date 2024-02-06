@@ -161,16 +161,42 @@ module.exports = class Door {
                         'External door process spawned'
                     );
 
+                    const exitHandler = () => {
+                        if (this.sockServer) {
+                            this.sockServer.close();
+                        }
+
+                        //  we may not get a close
+                        if ('stdio' === this.io) {
+                            this.restoreIo(this.doorPty);
+                        }
+
+                        if (this.doorPty) {
+                            this.doorPty.removeAllListeners();
+                            delete this.doorPty;
+                        }
+
+                        return callback(null);
+                    };
+
+                    this.doorPty.on('error', err => {
+                        this.client.log.warn(
+                            { error: err.message },
+                            'Door exited with error'
+                        );
+                    });
+
                     if ('stdio' === this.io) {
                         this.client.log.debug('Using stdio for door I/O');
 
                         this.client.term.output.pipe(this.doorPty);
 
-                        this.doorPty.onData(this.doorDataHandler.bind(this));
+                        // dumb hack around node-pty; under nix, if we bail at the
+                        // right time, listenerCount will be referenced, but does
+                        // not exist!
+                        this.doorPty.listenerCount = () => 1;
 
-                        this.doorPty.onExit( (/*exitEvent*/) => {
-                            return this.restoreIo(this.doorPty);
-                        });
+                        this.doorPty.onData(this.doorDataHandler.bind(this));
                     } else if ('socket' === this.io) {
                         this.client.log.debug(
                             {
@@ -184,20 +210,7 @@ module.exports = class Door {
                     this.doorPty.onExit(exitEvent => {
                         const {exitCode, signal} = exitEvent;
                         this.client.log.info({ exitCode, signal }, 'Door exited');
-
-                        if (this.sockServer) {
-                            this.sockServer.close();
-                        }
-
-                        //  we may not get a close
-                        if ('stdio' === this.io) {
-                            this.restoreIo(this.doorPty);
-                        }
-
-                        this.doorPty.removeAllListeners();
-                        delete this.doorPty;
-
-                        return callback(null);
+                        exitHandler();
                     });
                 },
             ],
