@@ -17,6 +17,7 @@ const webServerPackageName = require('./servers/content/web.js').moduleInfo.pack
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_menu_method.js');
+const { buildUrl } = require('./web_util');
 
 //  deps
 const hashids = require('hashids/cjs');
@@ -202,11 +203,11 @@ class FileAreaWebAccess {
     buildSingleFileTempDownloadLink(client, fileEntry, hashId) {
         hashId = hashId || this.getSingleFileHashId(client, fileEntry);
 
-        return this.webServer.instance.buildUrl(`${Config().fileBase.web.path}${hashId}`);
+        return buildUrl(`${Config().fileBase.web.path}${hashId}`);
     }
 
     buildBatchArchiveTempDownloadLink(client, hashId) {
-        return this.webServer.instance.buildUrl(`${Config().fileBase.web.path}${hashId}`);
+        return buildUrl(`${Config().fileBase.web.path}${hashId}`);
     }
 
     getExistingTempDownloadServeItem(client, fileEntry, cb) {

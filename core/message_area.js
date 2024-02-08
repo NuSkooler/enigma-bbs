@@ -11,6 +11,13 @@ const sortAreasOrConfs = require('./conf_area_util.js').sortAreasOrConfs;
 const UserProps = require('./user_property.js');
 const StatLog = require('./stat_log.js');
 const SysProps = require('./system_property.js');
+const {
+    SystemInternalConfTags,
+    WellKnownConfTags,
+    WellKnownAreaTags,
+} = require('./message_const');
+const Collection = require('./activitypub/collection');
+const { Collections } = require('./activitypub/const');
 
 //  deps
 const async = require('async');
@@ -93,9 +100,9 @@ function getAvailableMessageConferences(client, options) {
 
     assert(client || true === options.noClient);
 
-    //  perform ACS check per conf & omit system_internal if desired
+    //  perform ACS check per conf & omit "System Internal" if desired
     return _.omitBy(Config().messageConferences, (conf, confTag) => {
-        if (!options.includeSystemInternal && 'system_internal' === confTag) {
+        if (!options.includeSystemInternal && SystemInternalConfTags.includes(confTag)) {
             return true;
         }
 
@@ -178,7 +185,7 @@ function getDefaultMessageConferenceTag(client, disableAcsCheck) {
     //
     //  It's possible that we end up with nothing here!
     //
-    //  Note that built in 'system_internal' is always ommited here
+    //  Note that built in "System Internal" are always omitted here
     //
     const config = Config();
     let defaultConf = _.findKey(config.messageConferences, o => o.default);
@@ -192,7 +199,7 @@ function getDefaultMessageConferenceTag(client, disableAcsCheck) {
     //  just use anything we can
     defaultConf = _.findKey(config.messageConferences, (conf, confTag) => {
         return (
-            'system_internal' !== confTag &&
+            !SystemInternalConfTags.includes(confTag) &&
             (true === disableAcsCheck || client.acs.hasMessageConfRead(conf))
         );
     });
@@ -512,8 +519,13 @@ function filterMessageListByReadACS(client, messageList) {
     });
 }
 
-function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
-    getMessageAreaLastReadId(userId, areaTag, (err, lastMessageId) => {
+function getNewMessageCountInAreaForUser(
+    user,
+    areaTag,
+    options = { addrToOnly: false },
+    cb
+) {
+    getMessageAreaLastReadId(user.userId, areaTag, (err, lastMessageId) => {
         lastMessageId = lastMessageId || 0;
 
         const filter = {
@@ -523,7 +535,9 @@ function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
         };
 
         if (Message.isPrivateAreaTag(areaTag)) {
-            filter.privateTagUserId = userId;
+            filter.privateTagUserId = user.userId;
+        } else if (options.addrToOnly) {
+            filter.toUserName = user.username;
         }
 
         Message.findMessages(filter, (err, count) => {
@@ -545,10 +559,11 @@ function getNewMessageCountAddressedToUser(client, cb) {
         areaTags,
         (areaTag, nextAreaTag) => {
             getMessageAreaLastReadId(client.user.userId, areaTag, (_, lastMessageId) => {
-                lastMessageId = lastMessageId || 0;
+                lastMessageId = lastMessageId || 0; // eslint-disable-line no-unused-vars
                 getNewMessageCountInAreaForUser(
-                    client.user.userId,
+                    client.user,
                     areaTag,
+                    { addrToOnly: true },
                     (err, count) => {
                         newMessageCount += count;
                         return nextAreaTag(err);
@@ -819,18 +834,69 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 return callback(null, areaInfos);
             },
             function trimGeneralAreas(areaInfos, callback) {
+                const cbWrap = (e, t, c) => {
+                    if (e) {
+                        Log.warn({ error: e.message, type: t }, `Failed trimming (${t})`);
+                    }
+                    return c(null);
+                };
+
+                const ApSharedAreaTag = Message.WellKnownAreaTags.ActivityPubShared;
+
+                //  Clean up messages, and any associated ActivityPub 'SharedInbox'
+                //  Notes (ie: the source of said messages)
                 async.each(
                     areaInfos,
-                    (areaInfo, next) => {
-                        trimMessageAreaByMaxMessages(areaInfo, err => {
-                            if (err) {
-                                return next(err);
+                    (areaInfo, nextArea) => {
+                        async.series(
+                            [
+                                next => {
+                                    trimMessageAreaByMaxMessages(areaInfo, err => {
+                                        return cbWrap(err, 'Messages:MaxCount', next);
+                                    });
+                                },
+                                next => {
+                                    if (areaInfo.areaTag !== ApSharedAreaTag) {
+                                        return next(null);
+                                    }
+                                    Collection.removeByMaxCount(
+                                        Collections.SharedInbox,
+                                        areaInfo.maxMessages,
+                                        err => {
+                                            return cbWrap(
+                                                err,
+                                                'ActivityPubShared:MaxCount',
+                                                next
+                                            );
+                                        }
+                                    );
+                                },
+                                next => {
+                                    trimMessageAreaByMaxAgeDays(areaInfo, err => {
+                                        return cbWrap(err, 'Messages:MaxAgeDays', next);
+                                    });
+                                },
+                                next => {
+                                    if (areaInfo.areaTag !== ApSharedAreaTag) {
+                                        return next(null);
+                                    }
+                                    Collection.removeByMaxAgeDays(
+                                        Collections.SharedInbox,
+                                        areaInfo.maxAgeDays,
+                                        err => {
+                                            return cbWrap(
+                                                err,
+                                                'ActivityPubShared:MaxAgeDays',
+                                                next
+                                            );
+                                        }
+                                    );
+                                },
+                            ],
+                            err => {
+                                return nextArea(err);
                             }
-
-                            trimMessageAreaByMaxAgeDays(areaInfo, err => {
-                                return next(err);
-                            });
-                        });
+                        );
                     },
                     callback
                 );
@@ -847,7 +913,13 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 //
                 const maxExternalSentAgeDays = _.get(
                     Config,
-                    'messageConferences.system_internal.areas.private_mail.maxExternalSentAgeDays',
+                    [
+                        'messageConferences',
+                        WellKnownConfTags.SystemInternal,
+                        'areas',
+                        WellKnownAreaTags.Private,
+                        'maxExternalSentAgeDays',
+                    ],
                     30
                 );
 

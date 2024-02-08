@@ -388,7 +388,6 @@
             art: FEMPTYQ
             config: {
                 pause: true
-                menuFlags: [ "noHistory" ]
             }
         }
 
@@ -852,7 +851,6 @@
             art: ULNOAREA
             config: {
                 pause: true
-                menuFlags: [ "noHistory" ]
             }
         }
 

@@ -10,6 +10,7 @@ const handleFileBaseCommand = require('./oputil_file_base.js').handleFileBaseCom
 const handleMessageBaseCommand =
     require('./oputil_message_base.js').handleMessageBaseCommand;
 const handleConfigCommand = require('./oputil_config.js').handleConfigCommand;
+const handleApCommand = require('./activitypub').handleUserCommand;
 const getHelpFor = require('./oputil_help.js').getHelpFor;
 
 module.exports = function () {
@@ -32,6 +33,8 @@ module.exports = function () {
             return handleFileBaseCommand();
         case 'mb':
             return handleMessageBaseCommand();
+        case 'ap':
+            return handleApCommand();
         default:
             return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.BAD_COMMAND);
     }

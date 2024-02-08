@@ -16,23 +16,31 @@ const { MessageAreaConfTempSwitcher } = require('./mod_mixins.js');
 const { isAnsi, stripAnsiControlCodes, insert } = require('./string_util.js');
 const { stripMciColorCodes, controlCodesToAnsi } = require('./color_codes.js');
 const Config = require('./config.js').get;
-const { getAddressedToInfo } = require('./mail_util.js');
+const {
+    getAddressedToInfo,
+    messageInfoFromAddressedToInfo,
+    setExternalAddressedToInfo,
+    copyExternalAddressedToInfo,
+    getReplyToMessagePrefix,
+} = require('./mail_util.js');
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
 const FileArea = require('./file_base_area.js');
 const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
+const EngiAssert = require('./enigma_assert.js');
+const MessageConst = require('./message_const');
 
 //  deps
 const async = require('async');
-const assert = require('assert');
 const _ = require('lodash');
 const moment = require('moment');
 const fse = require('fs-extra');
 const fs = require('graceful-fs');
 const paths = require('path');
-const sanatizeFilename = require('sanitize-filename');
+const sanitizeFilename = require('sanitize-filename');
+const { ErrorReasons } = require('./enig_error.js');
 
 exports.moduleInfo = {
     name: 'Full Screen Editor (FSE)',
@@ -117,7 +125,7 @@ exports.FullScreenEditorModule =
             this.editorMode = config.editorMode;
 
             if (config.messageAreaTag) {
-                //  :TODO: swtich to this.config.messageAreaTag so we can follow Object.assign pattern for config/extraArgs
+                //  :TODO: switch to this.config.messageAreaTag so we can follow Object.assign pattern for config/extraArgs
                 this.messageAreaTag = config.messageAreaTag;
             }
 
@@ -160,15 +168,36 @@ exports.FullScreenEditorModule =
                 //
                 //  Validation stuff
                 //
-                viewValidationListener: function (err, cb) {
-                    var errMsgView = self.viewControllers.header.getView(
+                viewValidationListener: (err, cb) => {
+                    if (
+                        err &&
+                        err.view.getId() === MciViewIds.header.subject &&
+                        err.reasonCode === ErrorReasons.ValueTooShort
+                    ) {
+                        // Ignore validation errors if this is the subject field
+                        // and it's optional
+                        const areaInfo = getMessageAreaByTag(this.messageAreaTag);
+                        if (true === areaInfo.subjectOptional) {
+                            return cb(null, null);
+                        }
+
+                        // private messages are a little different...
+                        const toView = this.getView('header', MciViewIds.header.to);
+                        const msgInfo = messageInfoFromAddressedToInfo(
+                            getAddressedToInfo(toView.getData())
+                        );
+                        if (true === msgInfo.subjectOptional) {
+                            return cb(null, null);
+                        }
+                    }
+
+                    const errMsgView = this.viewControllers.header.getView(
                         MciViewIds.header.errorMsg
                     );
-                    var newFocusViewId;
                     if (errMsgView) {
                         if (err) {
                             errMsgView.clearText();
-                            errMsgView.setText(err.message);
+                            errMsgView.setText(err.friendlyText || err.message);
 
                             if (MciViewIds.header.subject === err.view.getId()) {
                                 //  :TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
@@ -177,7 +206,8 @@ exports.FullScreenEditorModule =
                             errMsgView.clearText();
                         }
                     }
-                    cb(newFocusViewId);
+
+                    return cb(err, null);
                 },
                 headerSubmit: function (formData, extraArgs, cb) {
                     self.switchToBody();
@@ -235,7 +265,7 @@ exports.FullScreenEditorModule =
                     if (self.newQuoteBlock) {
                         self.newQuoteBlock = false;
 
-                        //  :TODO: If replying to ANSI, add a blank sepration line here
+                        //  :TODO: If replying to ANSI, add a blank separation line here
 
                         quoteMsgView.addText(self.getQuoteByHeader());
                     }
@@ -334,7 +364,7 @@ exports.FullScreenEditorModule =
             return {
                 //  :TODO: ensure we show real names for form/to if they are enforced in the area
                 fromUserName: this.message.fromUserName,
-                toUserName: this.message.toUserName,
+                toUserName: this._viewModeToField(),
                 //  :TODO:
                 //fromRealName
                 //toRealName
@@ -428,10 +458,17 @@ exports.FullScreenEditorModule =
             //
             //  Append auto-signature, if enabled for the area & the user has one
             //
-            if (false != area.autoSignatures) {
-                const sig = this.client.user.getProperty(UserProps.AutoSignature);
-                if (sig) {
-                    messageBody += `\r\n-- \r\n${sig}`;
+            const msgInfo = messageInfoFromAddressedToInfo(
+                MessageConst.AddressFlavor.ActivityPub === area.addressFlavor
+                    ? { flavor: MessageConst.AddressFlavor.ActivityPub }
+                    : getAddressedToInfo(headerValues.to)
+            );
+            if (false !== msgInfo.autoSignatures) {
+                if (false !== area.autoSignatures) {
+                    const sig = this.client.user.getProperty(UserProps.AutoSignature);
+                    if (sig) {
+                        messageBody += `\r\n-- \r\n${sig}`;
+                    }
                 }
             }
 
@@ -459,106 +496,108 @@ exports.FullScreenEditorModule =
             this.message = message;
 
             this.updateLastReadId(() => {
-                if (this.isReady) {
-                    this.initHeaderViewMode();
-                    this.initFooterViewMode();
+                if (!this.isReady) {
+                    return;
+                }
 
-                    const bodyMessageView = this.viewControllers.body.getView(
-                        MciViewIds.body.message
-                    );
-                    let msg = this.message.message;
+                this.initHeaderViewMode();
+                this.initFooterViewMode();
 
-                    if (bodyMessageView && _.has(this, 'message.message')) {
+                const bodyMessageView = this.viewControllers.body.getView(
+                    MciViewIds.body.message
+                );
+                let msg = this.message.message;
+
+                if (bodyMessageView && _.has(this, 'message.message')) {
+                    //
+                    //  We handle ANSI messages differently than standard messages -- this is required as
+                    //  we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
+                    //  how the author wanted it
+                    //
+                    if (isAnsi(msg)) {
                         //
-                        //  We handle ANSI messages differently than standard messages -- this is required as
-                        //  we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
-                        //  how the author wanted it
+                        //  Find tearline - we want to color it differently.
                         //
-                        if (isAnsi(msg)) {
-                            //
-                            //  Find tearline - we want to color it differently.
-                            //
-                            const tearLinePos = Message.getTearLinePosition(msg);
+                        const tearLinePos = Message.getTearLinePosition(msg);
 
-                            if (tearLinePos > -1) {
-                                msg = insert(
-                                    msg,
-                                    tearLinePos,
-                                    bodyMessageView.getSGRFor('text')
-                                );
+                        if (tearLinePos > -1) {
+                            msg = insert(
+                                msg,
+                                tearLinePos,
+                                bodyMessageView.getTextSgrPrefix()
+                            );
+                        }
+
+                        bodyMessageView.setAnsi(
+                            msg.replace(/\r?\n/g, '\r\n'), //  messages are stored with CRLF -> LF
+                            {
+                                prepped: false,
+                                forceLineTerm: true,
                             }
+                        );
+                    } else {
+                        msg = stripAnsiControlCodes(msg); //  start clean
 
-                            bodyMessageView.setAnsi(
-                                msg.replace(/\r?\n/g, '\r\n'), //  messages are stored with CRLF -> LF
-                                {
-                                    prepped: false,
-                                    forceLineTerm: true,
+                        const styleToArray = (style, len) => {
+                            if (!Array.isArray(style)) {
+                                style = [style];
+                            }
+                            while (style.length < len) {
+                                style.push(style[0]);
+                            }
+                            return style;
+                        };
+
+                        //
+                        //  In *View* mode, if enabled, do a little prep work so we can stylize:
+                        //  - Quote indicators
+                        //  - Tear lines
+                        //  - Origins
+                        //
+                        if (this.menuConfig.config.quoteStyleLevel1) {
+                            //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
+                            //  Non-standard (as for BBSes) single > TEXT, omitting space before XX, etc. are allowed
+                            const styleL1 = styleToArray(
+                                this.menuConfig.config.quoteStyleLevel1,
+                                3
+                            );
+
+                            const QuoteRegex =
+                                /^([ ]?)([!-~]{0,2})>([ ]*)([^\r\n]*\r?\n)/gm;
+                            msg = msg.replace(
+                                QuoteRegex,
+                                (m, spc1, initials, spc2, text) => {
+                                    return `${spc1}${styleL1[0]}${initials}${styleL1[1]}>${spc2}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
                                 }
                             );
-                        } else {
-                            msg = stripAnsiControlCodes(msg); //  start clean
-
-                            const styleToArray = (style, len) => {
-                                if (!Array.isArray(style)) {
-                                    style = [style];
-                                }
-                                while (style.length < len) {
-                                    style.push(style[0]);
-                                }
-                                return style;
-                            };
-
-                            //
-                            //  In *View* mode, if enabled, do a little prep work so we can stylize:
-                            //  - Quote indicators
-                            //  - Tear lines
-                            //  - Origins
-                            //
-                            if (this.menuConfig.config.quoteStyleLevel1) {
-                                //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
-                                //  Non-standard (as for BBSes) single > TEXT, omitting space before XX, etc. are allowed
-                                const styleL1 = styleToArray(
-                                    this.menuConfig.config.quoteStyleLevel1,
-                                    3
-                                );
-
-                                const QuoteRegex =
-                                    /^([ ]?)([!-~]{0,2})>([ ]*)([^\r\n]*\r?\n)/gm;
-                                msg = msg.replace(
-                                    QuoteRegex,
-                                    (m, spc1, initials, spc2, text) => {
-                                        return `${spc1}${styleL1[0]}${initials}${styleL1[1]}>${spc2}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
-                                    }
-                                );
-                            }
-
-                            if (this.menuConfig.config.tearLineStyle) {
-                                //  '---' and TEXT
-                                const style = styleToArray(
-                                    this.menuConfig.config.tearLineStyle,
-                                    2
-                                );
-
-                                const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
-                                msg = msg.replace(TearLineRegex, (m, text) => {
-                                    return `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`;
-                                });
-                            }
-
-                            if (this.menuConfig.config.originStyle) {
-                                const style = styleToArray(
-                                    this.menuConfig.config.originStyle,
-                                    3
-                                );
-
-                                const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
-                                msg = msg.replace(OriginRegex, (m, spc, text) => {
-                                    return `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`;
-                                });
-                            }
-
-                            bodyMessageView.setText(controlCodesToAnsi(msg));
                         }
+
+                        if (this.menuConfig.config.tearLineStyle) {
+                            //  '---' and TEXT
+                            const style = styleToArray(
+                                this.menuConfig.config.tearLineStyle,
+                                2
+                            );
+
+                            const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
+                            msg = msg.replace(TearLineRegex, (m, text) => {
+                                return `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        if (this.menuConfig.config.originStyle) {
+                            const style = styleToArray(
+                                this.menuConfig.config.originStyle,
+                                3
+                            );
+
+                            const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
+                            msg = msg.replace(OriginRegex, (m, spc, text) => {
+                                return `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        bodyMessageView.setText(controlCodesToAnsi(msg));
                     }
                 }
             });
@@ -579,7 +618,11 @@ exports.FullScreenEditorModule =
                     function populateLocalUserInfo(callback) {
                         self.message.setLocalFromUserId(self.client.user.userId);
 
-                        if (!self.isPrivateMail()) {
+                        const areaInfo = getMessageAreaByTag(self.messageAreaTag);
+                        if (
+                            !self.isPrivateMail() &&
+                            true !== areaInfo.alwaysExportExternal
+                        ) {
                             return callback(null);
                         }
 
@@ -597,15 +640,9 @@ exports.FullScreenEditorModule =
                             self.replyToMessage &&
                             self.replyToMessage.isFromRemoteUser()
                         ) {
-                            self.message.setRemoteToUser(
-                                self.replyToMessage.meta.System[
-                                    Message.SystemMetaNames.RemoteFromUser
-                                ]
-                            );
-                            self.message.setExternalFlavor(
-                                self.replyToMessage.meta.System[
-                                    Message.SystemMetaNames.ExternalFlavor
-                                ]
+                            copyExternalAddressedToInfo(
+                                self.replyToMessage,
+                                self.message
                             );
                             return callback(null);
                         }
@@ -613,26 +650,31 @@ exports.FullScreenEditorModule =
                         //
                         //  Detect if the user is attempting to send to a remote mail type that we support
                         //
-                        //  :TODO: how to plug in support without tying to various types here? isSupportedExteranlType() or such
                         const addressedToInfo = getAddressedToInfo(
                             self.message.toUserName
                         );
-                        if (
-                            addressedToInfo.name &&
-                            Message.AddressFlavor.FTN === addressedToInfo.flavor
-                        ) {
-                            self.message.setRemoteToUser(addressedToInfo.remote);
-                            self.message.setExternalFlavor(addressedToInfo.flavor);
-                            self.message.toUserName = addressedToInfo.name;
+
+                        if (setExternalAddressedToInfo(addressedToInfo, self.message)) {
+                            // setExternalAddressedToInfo() did what we need
                             return callback(null);
                         }
 
-                        //  we need to look it up
+                        //  Local user -- we need to look it up
                         User.getUserIdAndNameByLookup(
                             self.message.toUserName,
                             (err, toUserId) => {
                                 if (err) {
-                                    return callback(err);
+                                    if (self.message.isPrivate()) {
+                                        return callback(err);
+                                    }
+
+                                    if (areaInfo.addressFlavor) {
+                                        self.message.setExternalFlavor(
+                                            areaInfo.addressFlavor
+                                        );
+                                    }
+
+                                    return callback(null);
                                 }
 
                                 self.message.setLocalToUserId(toUserId);
@@ -825,7 +867,7 @@ exports.FullScreenEditorModule =
             const self = this;
             var art = self.menuConfig.config.art;
 
-            assert(_.isObject(art));
+            EngiAssert(_.isObject(art));
 
             async.waterfall(
                 [
@@ -1080,6 +1122,24 @@ exports.FullScreenEditorModule =
             this.setViewText('header', id, text);
         }
 
+        _viewModeToField() {
+            //  Imported messages may have no explicit 'to' on various public forums
+            if (this.message.toUserName) {
+                return this.message.toUserName;
+            }
+
+            const toRemoteUser = _.get(this.message, 'meta.System.remote_to_user');
+            if (toRemoteUser) {
+                return toRemoteUser;
+            }
+
+            if (this.message.isPublic()) {
+                return '(Public)';
+            }
+
+            this.menuConfig.config.remoteUserNotAvail || 'N/A';
+        }
+
         initHeaderViewMode() {
             // Only set header text for from view if it is on the form
             if (
@@ -1087,7 +1147,7 @@ exports.FullScreenEditorModule =
             ) {
                 this.setHeaderText(MciViewIds.header.from, this.message.fromUserName);
             }
-            this.setHeaderText(MciViewIds.header.to, this.message.toUserName);
+            this.setHeaderText(MciViewIds.header.to, this._viewModeToField());
             this.setHeaderText(MciViewIds.header.subject, this.message.subject);
 
             this.setHeaderText(
@@ -1115,7 +1175,7 @@ exports.FullScreenEditorModule =
         }
 
         initHeaderReplyEditMode() {
-            assert(_.isObject(this.replyToMessage));
+            EngiAssert(_.isObject(this.replyToMessage));
 
             this.setHeaderText(MciViewIds.header.to, this.replyToMessage.fromUserName);
 
@@ -1129,6 +1189,20 @@ exports.FullScreenEditorModule =
             }
 
             this.setHeaderText(MciViewIds.header.subject, newSubj);
+        }
+
+        initBodyReplyEditMode() {
+            EngiAssert(_.isObject(this.replyToMessage));
+
+            const bodyMessageView = this.viewControllers.body.getView(
+                MciViewIds.body.message
+            );
+
+            const messagePrefix = getReplyToMessagePrefix(
+                this.replyToMessage.fromUserName
+            );
+
+            bodyMessageView.setText(messagePrefix);
         }
 
         initFooterViewMode() {
@@ -1171,7 +1245,7 @@ exports.FullScreenEditorModule =
 
             const outputFileName = paths.join(
                 sysTempDownloadDir,
-                sanatizeFilename(
+                sanitizeFilename(
                     `(${msgInfo.messageId}) ${
                         msgInfo.subject
                     }_(${this.message.modTimestamp.format('YYYY-MM-DD')}).txt`
@@ -1402,6 +1476,20 @@ exports.FullScreenEditorModule =
         }
 
         switchToBody() {
+            const to = this.getView('header', MciViewIds.header.to).getData();
+            const msgInfo = messageInfoFromAddressedToInfo(getAddressedToInfo(to));
+            const bodyView = this.getView('body', MciViewIds.body.message);
+
+            if (msgInfo.maxMessageLength > 0) {
+                bodyView.maxLength = msgInfo.maxMessageLength;
+            }
+
+            // first pass through, init body (we may need header values set)
+            const bodyText = bodyView.getData();
+            if (!bodyText && this.isReply()) {
+                this.initBodyReplyEditMode();
+            }
+
             this.viewControllers.header.setFocus(false);
             this.viewControllers.body.switchFocus(1);
 
@@ -1443,7 +1531,7 @@ exports.FullScreenEditorModule =
                     const bodyMessageView = this.viewControllers.body.getView(
                         MciViewIds.body.message
                     );
-                    quoteLines += `${ansi.normal()}${bodyMessageView.getSGRFor('text')}`;
+                    quoteLines += `${ansi.normal()}${bodyMessageView.getTextSgrPrefix()}`;
                 }
                 msgView.addText(`${quoteLines}\n\n`);
             }
