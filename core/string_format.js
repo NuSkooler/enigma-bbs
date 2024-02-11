@@ -14,6 +14,8 @@ const {
     formatCountAbbr,
 } = require('./string_util.js');
 
+const colorCodes = require('./color_codes.js');
+
 //  deps
 const _ = require('lodash');
 const moment = require('moment');
@@ -210,7 +212,7 @@ function formatNumberHelper(n, precision, type) {
 function formatNumber(value, tokens) {
     const fill = tokens.fill || (tokens['0'] ? '0' : ' ');
     const align = tokens.align || (tokens['0'] ? '=' : '>');
-    const width = Number(tokens.width);
+    const width = Number(tokens.width);value.replace(/\x1b\[[0-9;]*m/g, '');
     const type = tokens.type || (tokens.precision ? 'g' : '');
 
     if (['c', 'd', 'b', 'o', 'x', 'X'].indexOf(type) > -1) {
@@ -299,6 +301,7 @@ const transformers = {
     styleSmallI: s => stylizeString(s, 'small i'),
     styleMixed: s => stylizeString(s, 'mixed'),
     styleL33t: s => stylizeString(s, 'l33t'),
+    sanitized: s => stylizeString(s, 'sanitized'),
 
     //  :TODO:
     //  toMegs(), toKilobytes(), ...
@@ -337,7 +340,7 @@ function getValue(obj, path) {
     throw new KeyError(quote(path));
 }
 
-module.exports = function format(fmt, obj) {
+module.exports = function format(fmt, obj, stripMciColorCodes = false) {
     const re = REGEXP_BASIC_FORMAT;
     re.lastIndex = 0; //  reset from prev
 
@@ -367,6 +370,11 @@ module.exports = function format(fmt, obj) {
                 value = getValue(obj, objPath);
                 if (transformer) {
                     value = transformValue(transformer, value);
+                }
+
+                // This is used in cases where the output shouldn't allow color codes
+                if (stripMciColorCodes) {
+                    value = colorCodes.stripMciColorCodes(value);
                 }
 
                 tokens = tokenizeFormatSpec(formatSpec || '');
