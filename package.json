@@ -30,7 +30,7 @@
     "dependencies": {
         "@breejs/later": "4.1.0",
         "async": "3.2.4",
-        "bbs-door-runner": "^0.0.1",
+        "bbs-door-runner": "^0.0.3",
         "binary-parser": "2.1.0",
         "buffers": "github:NuSkooler/node-buffers",
         "bunyan": "1.8.15",

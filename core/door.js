@@ -19,6 +19,7 @@ module.exports = class Door {
     constructor(client) {
         this.client = client;
         this.restored = false;
+        this.v86ImageDirectory = paths.join(__dirname, '..', 'v86_images');
     }
 
     prepare(ioType, cb) {
@@ -145,17 +146,17 @@ module.exports = class Door {
                     try {
                         if(_.isBoolean(exeInfo.internalRunner) && exeInfo.internalRunner) {
                             this.bbsDoorRunner = new BbsDoorRunner({
-                                biosPath: '',
-                                vgaBiosPath: '',
-                                bootDiskPath: '',
-                                hdaDiskPath: '',
+                                biosPath: paths.join(this.v86ImageDirectory, 'seabios.bin'),
+                                vgaBiosPath: paths.join(this.v86ImageDirectory, 'vgabios.bin'),
+                                bootDiskPath: paths.join(this.v86ImageDirectory, 'freedos722.img'),
+                                hdaDiskPath: paths.join(this.v86ImageDirectory, 'freedos20mb.img'),
                             });
                             this.bbsDoorRunner.run();
 
                             this.doorPty = BbsDoorRunner.connect({
                                 port: 0,
-                                dropFileSrcPath: '',
-                                dropFileDestPath: '',
+                                dropFileSrcPath: paths.join(exeInfo.dropFileDir, exeInfo.dropFile),
+                                dropFileDestPath: exeInfo.dropFilePath,
                             });
                         }
                         else {
