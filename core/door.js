@@ -6,12 +6,14 @@ const { Errors } = require('./enig_error.js');
 const Events = require('./events');
 
 //  deps
-const pty = require('node-pty');
+const nodePty = require('node-pty');
+const BbsDoorRunner = require('bbs-door-runner');
 const decode = require('iconv-lite').decode;
 const createServer = require('net').createServer;
 const paths = require('path');
 const _ = require('lodash');
 const async = require('async');
+const { log } = require('console');
 
 module.exports = class Door {
     constructor(client) {
@@ -99,6 +101,12 @@ module.exports = class Door {
                         return callback(null);
                     }
 
+                    // We don't support precommands with v86 (for now?)
+                    if(_.isBoolean(exeInfo.internalRunner) && exeInfo.internalRunner) {
+                        log.info('Precommands are not supported with v86');
+                        return callback(null);
+                    }
+
                     const preCmdArgs = (exeInfo.preCmdArgs || []).map(arg =>
                         stringFormat(arg, formatObj)
                     );
@@ -109,7 +117,8 @@ module.exports = class Door {
                     );
 
                     try {
-                        const prePty = pty.spawn(
+
+                        const prePty = nodePty.spawn(
                             exeInfo.preCmd,
                             preCmdArgs,
                             spawnOptions
@@ -134,7 +143,24 @@ module.exports = class Door {
                     );
 
                     try {
-                        this.doorPty = pty.spawn(exeInfo.cmd, args, spawnOptions);
+                        if(_.isBoolean(exeInfo.internalRunner) && exeInfo.internalRunner) {
+                            this.bbsDoorRunner = new BbsDoorRunner({
+                                biosPath: '',
+                                vgaBiosPath: '',
+                                bootDiskPath: '',
+                                hdaDiskPath: '',
+                            });
+                            this.bbsDoorRunner.run();
+
+                            this.doorPty = BbsDoorRunner.connect({
+                                port: 0,
+                                dropFileSrcPath: '',
+                                dropFileDestPath: '',
+                            });
+                        }
+                        else {
+                            this.doorPty = nodePty.spawn(exeInfo.cmd, args, spawnOptions);
+                        }
                     } catch (e) {
                         return cb(e);
                     }
