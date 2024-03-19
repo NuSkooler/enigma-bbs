@@ -71,6 +71,25 @@ class WebSocketClient extends TelnetClient {
         })(ws);
 
         super(wsDuplex);
+
+        Log.trace({ headers: req.headers }, 'WebSocket connection headers');
+
+        //
+        //  If the config allows it, look for 'x-forwarded-proto' as "https"
+        //  to override |isSecure|
+        //
+        if (
+            true === _.get(Config(), 'loginServers.webSocket.proxied') &&
+            'https' === req.headers['x-forwarded-proto']
+        ) {
+            Log.debug(
+                `Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`
+            );
+            this.proxied = true;
+        } else {
+            this.proxied = false;
+        }
+
         wsDuplex.setClient(this, req);
 
         //  fudge remoteAddress on socket, which is now TelnetSocket
@@ -90,24 +109,6 @@ class WebSocketClient extends TelnetClient {
             Log.trace(`Pong from ${wsDuplex.remoteAddress}`);
             ws.isConnectionAlive = true;
         });
-
-        Log.trace({ headers: req.headers }, 'WebSocket connection headers');
-
-        //
-        //  If the config allows it, look for 'x-forwarded-proto' as "https"
-        //  to override |isSecure|
-        //
-        if (
-            true === _.get(Config(), 'loginServers.webSocket.proxied') &&
-            'https' === req.headers['x-forwarded-proto']
-        ) {
-            Log.debug(
-                `Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`
-            );
-            this.proxied = true;
-        } else {
-            this.proxied = false;
-        }
 
         //  start handshake process
         this.banner();
