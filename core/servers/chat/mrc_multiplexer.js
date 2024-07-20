@@ -112,8 +112,6 @@ exports.getModule = class MrcModule extends ServerModule {
             this.mrcConnectOpts.port = this.mrcConfig.sslport;
         }
 
-        console.log(this.mrcConnectOpts);
-
         // Create connection
         this.mrcSocket = net.createConnection(
             this.mrcConnectOpts,
