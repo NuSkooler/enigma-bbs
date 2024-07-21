@@ -15,7 +15,7 @@ const _ = require('lodash');
 const os = require('os');
 
 // MRC
-const protocolVersion = '1.2.9';
+const clientVersion = '1.3.1';
 const lineDelimiter = new RegExp('\r\n|\r|\n'); //  eslint-disable-line no-control-regex
 
 const ModuleInfo = (exports.moduleInfo = {
@@ -35,12 +35,24 @@ exports.getModule = class MrcModule extends ServerModule {
         this.log = Log.child({ server: 'MRC' });
 
         const config = Config();
-        this.boardName = config.general.prettyBoardName || config.general.boardName;
-        this.mrcConnectOpts = {
+        this.boardName = config.general.boardName;
+
+        // Use prettyBoardName only if non-default
+        if (config.general.prettyBoardName != '|08XXXXX') this.boardName = config.general.prettyBoardName;
+
+        this.mrcConfig = {
             host: config.chatServers.mrc.serverHostname || 'mrc.bottomlessabyss.net',
             port: config.chatServers.mrc.serverPort || 5000,
+            sslport: config.chatServers.mrc.serverSslPort || 5001,
             retryDelay: config.chatServers.mrc.retryDelay || 10000,
+            useSsl: config.chatServers.mrc.useSsl || false,
         };
+
+        this.mrcConnectOpts = {
+            host: this.mrcConfig.host,
+            port: this.mrcConfig.port,
+            retryDelay: this.mrcConfig.retryDelay
+        }
     }
 
     _connectionHandler() {
@@ -48,7 +60,7 @@ exports.getModule = class MrcModule extends ServerModule {
 
         const handshake = `${
             this.boardName
-        }~${enigmaVersion}/${os.platform()}.${os.arch()}/${protocolVersion}`;
+        }~${enigmaVersion}/${os.platform()}.${os.arch()}/${clientVersion}`;
         this.log.debug({ handshake: handshake }, 'Handshaking with MRC server');
 
         this.sendRaw(handshake);
@@ -96,13 +108,27 @@ exports.getModule = class MrcModule extends ServerModule {
     connectToMrc() {
         const self = this;
 
-        // create connection to MRC server
-        this.mrcClient = net.createConnection(
+        if (this.mrcConfig.useSsl) {
+            this.mrcConnectOpts.port = this.mrcConfig.sslport;
+        }
+
+        // Create connection
+        this.mrcSocket = net.createConnection(
             this.mrcConnectOpts,
             self._connectionHandler.bind(self)
         );
 
-        this.mrcClient.requestedDisconnect = false;
+        this.mrcSocket.requestedDisconnect = false;
+
+        // Check if we upgrade the connection to SSL
+        if (this.mrcConfig.useSsl) {
+            const tls = require('tls')
+            this.mrcSecureSocket = new tls.TLSSocket(this.mrcSocket, { isServer: false });
+            this.mrcClient = this.mrcSecureSocket;
+        }
+        else {
+            this.mrcClient = this.mrcSocket;
+        }
 
         // do things when we get data from MRC central
         let buffer = new Buffer.from('');

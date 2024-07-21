@@ -318,9 +318,13 @@
         // Make sure to adjust 'prettyBoardName' to your liking in your config before enabling
 
         mrc: {
-            enabled             : false
-            serverHostname      : 'mrc.bottomlessabyss.net'
-            serverPort          : 5000
+            enabled         : false
+            serverHostname  : 'mrc.bottomlessabyss.net'
+            serverPort      : 5000
+            serverSslPort   : 5001
+            useSsl          : true
+            retryDelay      : 10000
+            multiplexerPort : 5000
         }
     }
 

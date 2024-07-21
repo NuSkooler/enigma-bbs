@@ -365,6 +365,8 @@ module.exports = () => {
                 enabled: false,
                 serverHostname: 'mrc.bottomlessabyss.net',
                 serverPort: 5000,
+                serverSslPort: 5001,
+                useSsl: false,
                 retryDelay: 10000,
                 multiplexerPort: 5000,
             },
