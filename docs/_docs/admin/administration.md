@@ -6,7 +6,7 @@ title: Administration
 # Administration
 
 ## Keeping Up to Date
-See [Updating](updating.md).
+See [Upgrading](upgrading.md).
 
 ## Viewing Activity
 Monitor your system via the [Waiting For Caller (WFC)](../modding/wfc.md) screen and learn how to [monitoring logs](../troubleshooting/monitoring-logs.md).

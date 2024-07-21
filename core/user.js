@@ -19,6 +19,9 @@ const _ = require('lodash');
 const moment = require('moment');
 const sanatizeFilename = require('sanitize-filename');
 const ssh2 = require('ssh2');
+const AvatarGenerator = require('avatar-generator');
+const paths = require('path');
+const fse = require('fs-extra');
 
 module.exports = class User {
     constructor() {
@@ -45,6 +48,7 @@ module.exports = class User {
 
     static get PBKDF2() {
         return {
+            //  :TODO: bump up iterations for all new PWs
             iterations: 1000,
             keyLen: 128,
             saltLen: 32,
@@ -531,12 +535,33 @@ module.exports = class User {
 
                     return callback(null, trans);
                 },
+                function newUserPreEvent(trans, callback) {
+                    const eventName = Events.getSystemEvents().NewUserPrePersist;
+                    const subCount = Events.listenerCount(eventName);
+                    if (subCount < 1) {
+                        return callback(null, trans);
+                    }
+
+                    let returned = 0;
+                    const cbWrapper = e => {
+                        ++returned;
+                        if (returned >= subCount) {
+                            return callback(e, trans);
+                        }
+                    };
+
+                    Events.emit(eventName, {
+                        user: self,
+                        sessionId: createUserInfo.sessionId,
+                        callback: cbWrapper,
+                    });
+                },
                 function saveAll(trans, callback) {
                     self.persistWithTransaction(trans, err => {
                         return callback(err, trans);
                     });
                 },
-                function sendEvent(trans, callback) {
+                function newUserEvent(trans, callback) {
                     Events.emit(Events.getSystemEvents().NewUser, {
                         user: Object.assign({}, self, {
                             sessionId: createUserInfo.sessionId,
@@ -651,6 +676,102 @@ module.exports = class User {
                 if (cb) {
                     return cb(err);
                 }
+            }
+        );
+    }
+
+    updateActivityPubKeyPairProperties(cb) {
+        crypto.generateKeyPair(
+            'rsa',
+            {
+                modulusLength: 4096,
+                publicKeyEncoding: {
+                    type: 'spki',
+                    format: 'pem',
+                },
+                privateKeyEncoding: {
+                    type: 'pkcs8',
+                    format: 'pem',
+                },
+            },
+            (err, publicKey, privateKey) => {
+                if (!err) {
+                    this.setProperty(UserProps.PrivateActivityPubSigningKey, privateKey);
+                    this.setProperty(UserProps.PublicActivityPubSigningKey, publicKey);
+                }
+                return cb(err);
+            }
+        );
+    }
+
+    generateNewRandomAvatar(cb) {
+        const spritesPath = _.get(Config(), 'users.avatars.spritesPath');
+        const storagePath = _.get(Config(), 'users.avatars.storagePath');
+
+        if (!spritesPath || !storagePath) {
+            return cb(
+                Errors.MissingConfig(
+                    'Cannot generate new avatar: Missing path(s) in configuration'
+                )
+            );
+        }
+
+        async.waterfall(
+            [
+                callback => {
+                    return fse.mkdirs(storagePath, err => {
+                        return callback(err);
+                    });
+                },
+                callback => {
+                    const avatar = new AvatarGenerator({
+                        parts: [
+                            'background',
+                            'face',
+                            'clothes',
+                            'head',
+                            'hair',
+                            'eye',
+                            'mouth',
+                        ],
+                        partsLocation: spritesPath,
+                        imageExtension: '.png',
+                    });
+
+                    const userSex = (
+                        this.getProperty(UserProps.Sex) || 'M'
+                    ).toUpperCase();
+
+                    const variant = userSex[0] === 'M' ? 'male' : 'female';
+                    const stableId = `user#${this.userId.toString()}`;
+
+                    avatar
+                        .generate(stableId, variant)
+                        .then(image => {
+                            const filename = `user-avatar-${this.userId}.png`;
+                            const outPath = paths.join(storagePath, filename);
+                            image.resize(640, 640);
+                            image.toFile(outPath, err => {
+                                if (!err) {
+                                    Log.info(
+                                        {
+                                            userId: this.userId,
+                                            username: this.username,
+                                            outPath,
+                                        },
+                                        `New avatar generated for ${this.username}`
+                                    );
+                                }
+                                return callback(err, outPath);
+                            });
+                        })
+                        .catch(err => {
+                            return callback(err);
+                        });
+                },
+            ],
+            (err, outPath) => {
+                return cb(err, outPath);
             }
         );
     }
@@ -814,6 +935,15 @@ module.exports = class User {
         );
     }
 
+    static getUserByUsername(username, cb) {
+        User.getUserIdAndName(username, (err, userId) => {
+            if (err) {
+                return cb(err);
+            }
+            return User.getUser(userId, cb);
+        });
+    }
+
     static getUserIdAndNameByRealName(realName, cb) {
         userDb.get(
             `SELECT id, user_name
@@ -916,8 +1046,8 @@ module.exports = class User {
                     userIds.push(row.user_id);
                 }
             },
-            () => {
-                return cb(null, userIds);
+            err => {
+                return cb(err, userIds);
             }
         );
     }

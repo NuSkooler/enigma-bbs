@@ -12,7 +12,6 @@ const Config = require('./config.js').get;
 
 //  deps
 const async = require('async');
-const _ = require('lodash');
 const moment = require('moment');
 
 exports.moduleInfo = {

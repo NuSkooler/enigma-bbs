@@ -361,7 +361,9 @@ module.exports = class ArchiveUtil {
         proc.onExit(exitEvent => {
             if (exitEvent.exitCode) {
                 return cb(
-                    Errors.ExternalProcess(`List failed with exit code: ${exitEvent.exitCode}`)
+                    Errors.ExternalProcess(
+                        `List failed with exit code: ${exitEvent.exitCode}`
+                    )
                 );
             }
 

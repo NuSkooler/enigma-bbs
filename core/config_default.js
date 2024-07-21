@@ -100,6 +100,7 @@ module.exports = () => {
                 'server',
                 'client',
                 'notme',
+                'public',
             ],
 
             preAuthIdleLogoutSeconds: 60 * 3, //  3m
@@ -129,6 +130,20 @@ module.exports = () => {
                         '../www/otp_register.template.html'
                     ),
                 },
+            },
+
+            // path to avatar generation parts
+            avatars: {
+                storagePath: paths.join(__dirname, '../userdata/avatars/'),
+                spritesPath: paths.join(__dirname, '../misc/avatar-sprites/'),
+            },
+
+            // See also ./core/activitypub/settings.js
+            activityPub: {
+                enabled: false, // ActivityPub enabled for this user?
+                manuallyApproveFollowers: false,
+                hideSocialGraph: false,
+                showRealName: true,
             },
         },
 
@@ -160,6 +175,7 @@ module.exports = () => {
             mods: paths.join(__dirname, './../mods/'),
             loginServers: paths.join(__dirname, './servers/login/'),
             contentServers: paths.join(__dirname, './servers/content/'),
+            webHandlers: paths.join(__dirname, './servers/content/web_handlers'),
             chatServers: paths.join(__dirname, './servers/chat/'),
 
             scannerTossers: paths.join(__dirname, './scanner_tossers/'),
@@ -279,6 +295,34 @@ module.exports = () => {
 
                 staticRoot: paths.join(__dirname, './../www'),
 
+                // Logging block works the same way the system logger does
+                logging: {
+                    rotatingFile: {
+                        level: 'info',
+                        type: 'rotating-file',
+                        fileName: 'enigma-bbs.web.log',
+                        period: '1d',
+                        count: 3,
+                    },
+                },
+
+                handlers: {
+                    systemGeneral: {
+                        enabled: true,
+                    },
+                    nodeInfo2: {
+                        enabled: true,
+                    },
+                    webFinger: {
+                        enabled: false,
+                        profileTemplate: './wf/profile.template.html',
+                    },
+                    activityPub: {
+                        enabled: false,
+                        selfTemplate: './wf/profile.template.html',
+                    },
+                },
+
                 resetPassword: {
                     //
                     //  The following templates have these variables available to them:
@@ -370,6 +414,18 @@ module.exports = () => {
                 retryDelay: 10000,
                 multiplexerPort: 5000,
             },
+        },
+
+        // General ActivityPub integration configuration
+        activityPub: {
+            // by default, don't include auto-signatures in AP outgoing
+            autoSignatures: false,
+
+            // Mimics Mastodon max 500 characters for *outgoing* Notes
+            // (messages destined for ActivityPub); This is a soft limit;
+            // Implementations including Mastodon should still display
+            // longer messages, but this keeps us as a "good citizen"
+            maxMessageLength: 500,
         },
 
         infoExtractUtils: {
@@ -853,6 +909,27 @@ module.exports = () => {
                     },
                 },
             },
+
+            activitypub_internal: {
+                name: 'ActivityPub',
+                desc: 'Public ActivityPub messages',
+
+                acs: {
+                    read: 'GM[users]SE[activitypub]AE1',
+                },
+
+                areas: {
+                    activitypub_shared: {
+                        name: 'ActivityPub Public',
+                        desc: 'Public inbox for ActivityPub',
+                        alwaysExportExternal: true,
+                        subjectOptional: true,
+                        addressFlavor: 'activitypub',
+                        maxAgeDays: 365,
+                        maxMessages: 10000,
+                    },
+                },
+            },
         },
 
         scannerTossers: {
@@ -1012,6 +1089,12 @@ module.exports = () => {
                         'auth_factor2_otp_register',
                         '24 hours', //  expire time
                     ],
+                },
+
+                //  Removes old Actor records
+                activityPubActorCacheMaintenance: {
+                    schedule: 'every 24 hours',
+                    action: '@method:/core/activitypub/actor.js:actorCacheMaintenanceTask',
                 },
 
                 //

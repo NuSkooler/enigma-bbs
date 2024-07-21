@@ -127,6 +127,14 @@ View.prototype.getId = function () {
     return this.id;
 };
 
+View.prototype.getWidth = function () {
+    return this.dimens.width;
+};
+
+View.prototype.getHeight = function () {
+    return this.dimens.height;
+};
+
 View.prototype.setPosition = function (pos) {
     //
     //  Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
@@ -142,7 +150,7 @@ View.prototype.setPosition = function (pos) {
         this.position.col = parseInt(arguments[1], 10);
     }
 
-    //  sanatize
+    //  sanitize
     this.position.row = Math.max(this.position.row, 1);
     this.position.col = Math.max(this.position.col, 1);
     this.position.row = Math.min(this.position.row, this.client.term.termHeight);
