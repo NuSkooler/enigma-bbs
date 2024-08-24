@@ -62,7 +62,7 @@ The following MCI codes are available:
     * `affils`: Any affiliations related to the if `authenticated`, else "N/A".
     * `authenticated`: Boolean rather the node is authenticated (logged in) or not.
     * `availIndicator`: Indicator of availability (e.g. for messaging)? Displayed via `statusAvailableIndicators` or system theme. See also [Themes](../art/themes.md).
-    * `isAvailalbe`: Boolean rather the node is availalbe (e.g. for messaging) or not.
+    * `isAvailable`: Boolean rather the node is availalbe (e.g. for messaging) or not.
     * `isSecure`: Is the node securely connected (ie: SSL)?
     * `isVisible`: Boolean rather the node is visible to others or not.
     * `node`: The node ID.
