@@ -60,11 +60,11 @@ The following MCI codes are available:
     * `text`: Username or `*Pre Auth*`.
     * `action`: Current action/menu.
     * `affils`: Any affiliations related to the if `authenticated`, else "N/A".
-    * `authenticated`: Boolean rather the node is authenticated (logged in) or not.
+    * `authenticated`: Boolean whether the node is authenticated (logged in) or not.
     * `availIndicator`: Indicator of availability (e.g. for messaging)? Displayed via `statusAvailableIndicators` or system theme. See also [Themes](../art/themes.md).
-    * `isAvailalbe`: Boolean rather the node is availalbe (e.g. for messaging) or not.
+    * `isAvailable`: Boolean whether the node is available (e.g. for messaging) or not.
     * `isSecure`: Is the node securely connected (ie: SSL)?
-    * `isVisible`: Boolean rather the node is visible to others or not.
+    * `isVisible`: Boolean whether the node is visible to others or not.
     * `node`: The node ID.
     * `realName`: Real name of authenticated user, or "N/A".
     * `serverName`: Name of connected server such as "Telnet" or "SSH".
@@ -90,7 +90,7 @@ The following MCI codes are available:
     * `quickLogLevelMessagePrefixes`: A **map** of log level names (see above) to message prefixes. Commonly used for changing message color with pipe codes, such as `|04` for red errors.
     * `message`: Log message.
 * `MT3` or `ET3`: Selected node status information. May be a single or multi line view.
-    * Set `nodeStatusSelectionFormat` to the format desired including `\n` for line feeds in as `MT` view. The availalbe format keys are the same as the node status list above.
+    * Set `nodeStatusSelectionFormat` to the format desired including `\n` for line feeds in as `MT` view. The available format keys are the same as the node status list above.
 * MCI 10...99: Custom entries with the following format keys available:
     * `nowDate`: Current date in the `dateFormat` style, defaulting to `short`.
     * `nowTime`: Current time in the `timeFormat` style, defaulting to `short`.
@@ -121,7 +121,7 @@ The following MCI codes are available:
     * `systemCurrentLoad`: System current load.
     * `newPrivateMail`: Number of new **private** mail for current user.
     * `newMessagesAddrTo`: Number of new messages **addressed to the current user**.
-    * `availIndicator`: Is the current user availalbe? Displayed via `statusAvailableIndicators` or system theme. See also [Themes](../art/themes.md).
+    * `availIndicator`: Is the current user available? Displayed via `statusAvailableIndicators` or system theme. See also [Themes](../art/themes.md).
     * `visIndicator`: Is the current user visible? Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).
     * `processBytesIngress`: Ingress bytes since ENiGMA started.
     * `processBytesEgress`: Egress bytes since ENiGMA started.
