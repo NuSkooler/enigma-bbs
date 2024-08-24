@@ -107,8 +107,8 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `NT` | Total *new* users *today* |
 | `NM` | Count of new messages **address to the current user** across all message areas in which they have access |
 | `NP` | Count of new private mail to the current user |
-| `IA` | Indicator as to rather the current user is **available** or not. See also `getStatusAvailIndicators()` in [Themes](themes.md) |
-| `IV` | Indicator as to rather the current user is **visible** or not. See also `getStatusVisibleIndicators()` in [Themes](themes.md) |
+| `IA` | Indicator as to whether the current user is **available** or not. See also `getStatusAvailIndicators()` in [Themes](themes.md) |
+| `IV` | Indicator as to whether the current user is **visible** or not. See also `getStatusVisibleIndicators()` in [Themes](themes.md) |
 | `PI` | Ingress bytes for the current process (since ENiGMA started up) |
 | `PE` | Egress bytes for the current process (since ENiGMA started up) |
 
