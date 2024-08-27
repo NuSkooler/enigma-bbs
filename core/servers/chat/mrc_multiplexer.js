@@ -337,8 +337,7 @@ exports.getModule = class MrcModule extends ServerModule {
 
         // Make sure to_user is always uppercase
         try {
-            let to_user_uc = to_user.toUpperCase();
-            to_user = to_user_uc;
+            to_user = to_user.toUpperCase();
         }
         catch (e) {}
 
