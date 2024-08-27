@@ -275,21 +275,7 @@ exports.getModule = class mrcModule extends MenuModule {
             const chatLogView = this.viewControllers.mrcChat.getView(
                 MciViewIds.mrcChat.chatLog
             );
-            const messageLength = stripMciColorCodes(msg).length;
-            const chatWidth = chatLogView.dimens.width;
-            let padAmount = 0;
-            let spaces = 2;
-
-            if (messageLength > chatWidth) {
-                padAmount = chatWidth - (messageLength % chatWidth) - spaces;
-            } else {
-                padAmount = chatWidth - messageLength - spaces;
-            }
-
-            if (padAmount < 0) padAmount = 0;
-
-            const padding = ' |00' + ' '.repeat(padAmount);
-            chatLogView.addText(pipeToAnsi(msg + padding));
+            chatLogView.addText(pipeToAnsi(msg));
 
             if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
                 chatLogView.deleteLine(0);
@@ -380,7 +366,7 @@ exports.getModule = class mrcModule extends MenuModule {
 
                 // Deliver PrivMsg
                 else if (
-                    message.to_user.toLowerCase() == this.state.alias.toLowerCase()
+                    message.to_user.toUpperCase() == this.state.alias.toUpperCase()
                 ) {
                     const currentTime = moment().format(
                         this.client.currentTheme.helpers.getTimeFormat()
@@ -450,6 +436,14 @@ exports.getModule = class mrcModule extends MenuModule {
             } else {
                 // pm
                 formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
+
+                // Echo PrivMSG to chat log (the server does not echo it back)
+                const currentTime =moment().format(
+                    this.client.currentTheme.helpers.getTimeFormat()
+                );
+                this.addMessageToChatLog(
+                    '|08' + currentTime + '|00 ' + formattedMessage + '|00'
+                );
             }
 
             try {
@@ -562,6 +556,7 @@ exports.getModule = class mrcModule extends MenuModule {
             /**
              * Process known additional server commands directly
              */
+
             case 'afk':
                 this.sendServerMessage(`AFK ${message.substr(5)}`);
                 break;
@@ -593,6 +588,30 @@ exports.getModule = class mrcModule extends MenuModule {
             case 'routing':
                 this.sendServerMessage(cmd[0].toUpperCase());
                 break;
+
+            /**
+             * MRC Trust commands
+             */
+
+            case 'trust':
+                this.sendServerMessage(`REGISTER ${message.substr(7)}`);
+                break;
+
+            case 'register':
+                this.sendServerMessage(`REGISTER ${message.substr(10)}`);
+                break;
+
+            case 'identify':
+                this.sendServerMessage(`IDENTIFY ${message.substr(10)}`);
+                break;
+
+            case 'update':
+                this.sendServerMessage(`UPDATE ${message.substr(8)}`);
+                break;
+
+            /**
+             * Local client commands
+             */
 
             case 'quit':
                 return this.prevMenu();
@@ -666,12 +685,25 @@ exports.getModule = class mrcModule extends MenuModule {
     }
 
     /**
+     * MRC Server flood protection requires messages to be spaced in time
+     */
+    msgDelay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    /**
      * Things that happen when a local user connects to the MRC multiplexer
      */
-    clientConnect() {
-        this.sendServerMessage('MOTD');
-        this.joinRoom('lobby');
-        this.sendServerMessage('STATS');
+    async clientConnect() {
         this.sendHeartbeat();
+        await this.msgDelay(100);
+
+        this.sendServerMessage('MOTD');
+        await this.msgDelay(100);
+
+        this.joinRoom('lobby');
+        await this.msgDelay(100);
+
+        this.sendServerMessage('STATS');
     }
 };
