@@ -245,8 +245,7 @@ exports.getModule = class MrcModule extends ServerModule {
         connectedSockets.forEach(client => {
             if (
                 message.to_user == '' ||
-                // Fix PrivMSG delivery on case mismatch
-                message.to_user.toUpperCase() == client.username.toUpperCase() ||
+                message.to_user == client.username.toUpperCase() ||
                 message.to_user == 'CLIENT' ||
                 message.from_user == client.username ||
                 message.to_user == 'NOTME'
@@ -335,6 +334,13 @@ exports.getModule = class MrcModule extends ServerModule {
         // if (msg.length < 7) {
         //     return;
         // }
+
+        // Make sure to_user is always uppercase
+        try {
+            let to_user_uc = to_user.toUpperCase();
+            to_user = to_user_uc;
+        }
+        catch (e) {}
 
         return { from_user, from_site, from_room, to_user, to_site, to_room, body };
     }
