@@ -17,11 +17,11 @@
 <meta property="og:description" content="General Information In ENiGMA½, a message base is divided into two logical grouping components: Message Conferences and Areas. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2024-08-27T16:09:28+00:00" />
+<meta property="article:published_time" content="2024-08-27T19:12:24+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Message Base" />
 <script type="application/ld+json">
-{"description":"General Information In ENiGMA½, a message base is divided into two logical grouping components: Message Conferences and Areas. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag.","headline":"Message Base","url":"/enigma-bbs/messageareas/configuring-a-message-area.html","dateModified":"2024-08-27T16:09:28+00:00","@type":"BlogPosting","datePublished":"2024-08-27T16:09:28+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/configuring-a-message-area.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@context":"https://schema.org"}</script>
+{"description":"General Information In ENiGMA½, a message base is divided into two logical grouping components: Message Conferences and Areas. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag.","headline":"Message Base","url":"/enigma-bbs/messageareas/configuring-a-message-area.html","dateModified":"2024-08-27T19:12:24+00:00","@type":"BlogPosting","datePublished":"2024-08-27T19:12:24+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/configuring-a-message-area.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2454,6 +2454,16 @@
       <td>A standard <a href="/enigma-bbs/configuration/acs.html">ACS</a> block. See <strong>ACS</strong> below.</td>
     </tr>
     <tr>
+      <td><code class="language-plaintext highlighter-rouge">maxMessages</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>The maximum number of messages to keep in the area. Defaults to <code class="language-plaintext highlighter-rouge">1024</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">maxAgeDays</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>The maximum age of messages to keep in the area. Defaults to <code class="language-plaintext highlighter-rouge">0</code>, which means unlimited.</td>
+    </tr>
+    <tr>
       <td><code class="language-plaintext highlighter-rouge">autoSignatures</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
       <td>Set to <code class="language-plaintext highlighter-rouge">false</code> to disable auto-signatures in this area.</td>
@@ -2465,6 +2475,8 @@
     </tr>
   </tbody>
 </table>
+
+<p>The default values for <code class="language-plaintext highlighter-rouge">maxMessages</code> and <code class="language-plaintext highlighter-rouge">maxAgeDays</code> can be changed globally in <code class="language-plaintext highlighter-rouge">core/config_default.js</code>, they’re located in the section <code class="language-plaintext highlighter-rouge">messageAreaDefaults</code>. The same file also defines several default events to be scheduled, which are located under <code class="language-plaintext highlighter-rouge">eventScheduler</code>. For example, the <code class="language-plaintext highlighter-rouge">trimMessageAreas</code> event is run every 24 hours and defines that the action <code class="language-plaintext highlighter-rouge">trimMessageAreasScheduledEvent</code> is performed.</p>
 
 <h3 id="acs-1">ACS</h3>
 <p>An optional standard <a href="/enigma-bbs/configuration/acs.html">ACS</a> block can be supplied with the following rules:</p>
@@ -2486,6 +2498,8 @@
         desc: ENiGMA 1/2 development and discussion!
         sort: 1
         default: true
+        maxMessages: 2000 // keep at most 2000 messages
+        maxAgeDays: 365   // delete anything older than 1 year
         acs: {
           read: GM[users] // default
           write: GM[l33t] // super elite ENiGMA 1/2 users!
