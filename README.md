@@ -59,7 +59,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [SyncTERM](http://syncterm.bbsdev.net/)
 * [EtherTerm](https://github.com/M-griffin/EtherTerm)
 * [NetRunner](http://mysticbbs.com/downloads.html)
-* [MagiTerm](https://magickabbs.com/index.php/magiterm/)
+* [MagiTerm](https://gitlab.com/magickabbs/MagiTerm)
 
 ## Some Boards
 * :skull: [Xibalba - ENiGMA WHQ](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
