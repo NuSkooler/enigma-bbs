@@ -59,7 +59,7 @@ Message Areas are topic specific containers for messages that live within a part
 | `autoSignatures` | :-1: | Set to `false` to disable auto-signatures in this area. |
 | `realNames` | :-1:      | Set to `true` to use real names in this area. |
 
-The default values for `maxMessages` and `maxAgeDays` can be changed globally in `core/config_default.js`, they're located in the section `messageAreaDefaults`.
+The default values for `maxMessages` and `maxAgeDays` can be changed globally in `core/config_default.js`, they're located in the section `messageAreaDefaults`. The same file also defines several default events to be scheduled, which are located under `eventScheduler`. For example, the `trimMessageAreas` event is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is run.
 
 ### ACS
 An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
