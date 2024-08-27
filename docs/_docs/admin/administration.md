@@ -35,7 +35,7 @@ There are many backup solutions available across all platforms. Configuration of
 
 ## General Maintenance 
 ### Default Maintenance Tasks
-Several default maintenance tasks are defined as events in `core/config_default.js`, in the section `eventScheduler`. These events run at various times and perform several maintenance tasks. An example is the `trimMessageAreas` event, which is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is run.
+Several default maintenance tasks are defined as events in `core/config_default.js`, in the section `eventScheduler`. These events run at various times and perform several maintenance tasks. An example is the `trimMessageAreas` event, which is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed.
 
 ### Vacuuming Database Files
 SQLite database files become less performant over time and waste space. It is recommended to periodically vacuum your databases. Before proceeding, you should make a backup!
