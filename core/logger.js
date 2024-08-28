@@ -27,20 +27,26 @@ module.exports = class Log {
             logStreams.push(Config.logging.rotatingFile);
         }
 
+        const serializers = Log.standardSerializers();
+
+        this.log = bunyan.createLogger({
+            name: 'ENiGMA½',
+            streams: logStreams,
+            serializers: serializers,
+        });
+    }
+
+    static standardSerializers() {
         const serializers = {
             err: bunyan.stdSerializers.err, //  handle 'err' fields with stack/etc.
         };
 
         //  try to remove sensitive info by default, e.g. 'password' fields
-        ['formData', 'formValue'].forEach(keyName => {
+        ['formData', 'formValue', 'user'].forEach(keyName => {
             serializers[keyName] = fd => Log.hideSensitive(fd);
         });
 
-        this.log = bunyan.createLogger({
-            name: 'ENiGMA½ BBS',
-            streams: logStreams,
-            serializers: serializers,
-        });
+        return serializers;
     }
 
     static checkLogPath(logPath) {
@@ -65,9 +71,10 @@ module.exports = class Log {
             //
             return JSON.parse(
                 JSON.stringify(obj).replace(
-                    /"(password|passwordConfirm|key|authCode)"\s?:\s?"([^"]+)"/,
-                    (match, valueName) => {
-                        return `"${valueName}":"********"`;
+                    // note that we match against key names here
+                    /"(password|passwordConfirm|key|authCode)"\s?:\s?"([^"]+)"/g,
+                    (match, keyName) => {
+                        return `"${keyName}":"********"`;
                     }
                 )
             );

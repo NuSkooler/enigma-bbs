@@ -1,0 +1,288 @@
+{
+  menus: {
+    activityPubMenu: {
+      desc: ActivityPub Menu
+      art: activitypub_menu
+      prompt: activityPubMenuCommand
+      submit: [
+        {
+          value: { command: "G" }
+          action: @menu:fullLogoffSequence
+        }
+        {
+          value: {command: "S"}
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubActorSearch
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
+        }
+        {
+          value: {command: "C"}
+          action: @menu:activityPubUserConfig
+        }
+        {
+          value: {command: "M"}
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubSocialManager
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
+        }
+        {
+          value: {command: "Q"}
+          action: @systemMethod:prevMenu
+        }
+        {
+          value: { command: "E" }
+          action: @menu:privateMailMenu
+        }
+        {
+          value: { command: "P" }
+          action: @menu:activityPubPublicMessages
+        }
+      ]
+    }
+
+    activityPubActorSearch: {
+      desc: ActivityPub Search
+      module: activitypub/actor_search
+      config: {
+        cls: true
+        art: {
+          main: activitypub_actor_search_main
+          view: activitypub_actor_view
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            ET1: {
+              focus: true
+              maxLength: 70
+              argName: searchQuery
+              submit: true
+            }
+          }
+          submit: {
+            *: [
+              {
+                value: {searchQuery: null}
+                action: @method:search
+              }
+            ]
+          }
+          actionKeys: [
+            {
+              keys: ["escape"]
+              action: @systemMethod:prevMenu
+            }
+          ]
+        }
+        1: {
+          mci: {}
+          actionKeys: [
+            {
+              keys: ["escape", "q", "shift + q"]
+              action: @method:backKeyPressed
+            }
+            {
+              keys: ["space"]
+              action: @method:toggleFollowKeyPressed
+            }
+          ]
+        }
+      }
+    }
+
+    activityPubUserConfig: {
+      desc: ActivityPub Config
+      module: ./activitypub/user_config
+      config: {
+        art: {
+          main: activitypub_user_config_main
+          images: activitypub_user_config_images
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            TM1: {
+              focus: true
+              items: ["no", "yes"]
+              argName: enabled
+            }
+            TM2: {
+              items: ["no", "yes"]
+              argName: manuallyApproveFollowers
+            }
+            TM3: {
+              items: ["no", "yes"]
+              argName: hideSocialGraph
+            }
+            TM4: {
+              items: ["no", "yes"]
+              argName: showRealName
+            }
+            TL5: {argName: "image"}
+            TL6: {argName: "icon"}
+            BT7: {
+              text: manage images
+              argName: manageImages
+              submit: true
+              justify: center
+            }
+            TM8: {
+              items: ["save", "cancel"]
+              submit: true
+              argName: saveOrCancel
+            }
+          }
+          submit: {
+            *: [
+              {
+                                // :TODO: we need a way to just want the argName *for the submitting item* and drop others
+                value: {manageImages: null}
+                action: @method:mainSubmit
+              }
+            ]
+          }
+          actionKeys: @reference:common.escToPrev
+        }
+        1: {
+          mci: {
+            ML1: {
+              argName: imageUrl
+              mode: edit
+              scrollMode: start
+              focus: true
+              tabSwitchesView: true
+            }
+            ML2: {
+              argName: iconUrl
+              mode: edit
+              scrollMode: start
+              tabSwitchesView: true
+            }
+            TM3: {
+              items: ["save", "cancel"]
+              submit: true
+              argName: imagesSaveOrCancel
+            }
+          }
+          submit: {
+            *: [
+              {
+                value: {imagesSaveOrCancel: null}
+                action: @method:imagesSubmit
+              }
+            ]
+          }
+          actionKeys: [
+            {
+              keys: ["escape"]
+              action: @method:backToMain
+            }
+          ]
+        }
+      }
+    }
+
+    activityPubSocialManager: {
+      desc: ActivityPub Social Manager
+      module: ./activitypub/social_manager
+      config: {
+        art: {main: "activitypub_social_manager"}
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {}
+            MT2: {mode: "preview", acceptsFocus: false, acceptsInput: false}
+            TM3: {
+              focus: true
+              items: ["following", "followers", "pending requests"]
+            }
+          }
+          actionKeys: [
+            {
+              keys: ["space"]
+              action: @method:spaceKeyPressed
+            }
+            {
+              keys: ["down arrow", "up arrow"]
+              action: @method:listKeyPressed
+            }
+            {
+              keys: ["escape"]
+              action: @systemMethod:prevMenu
+            }
+          ]
+        }
+      }
+    }
+
+    activityPubPublicMessages: {
+      desc: ActivityPub Public
+      module: msg_list
+      art: MSGLIST
+      config: {
+        messageAreaTag: activitypub_shared
+        menuViewPost: messageAreaViewPost
+      }
+      form: {
+        0: {
+          mci:  {
+            VM1: {
+              focus: true
+              submit: true
+              argName: messageIndex
+            }
+          }
+          submit: {
+            *: [
+              {
+                  value: { messageIndex: null }
+                  action: @method:selectMessage
+              }
+            ]
+          }
+          actionKeys: @reference:common.quitToPrev
+        }
+      }
+    }
+
+    activityPubNotEnabled: {
+      desc: ActivityPub Not Enabled
+      art: activitypub_not_enabled
+      config: {
+        cls: true
+        pause: true
+      }
+    }
+  }
+
+  prompts: {
+    activityPubMenuCommand: {
+        art: activitypub_menu_prompt
+        mci:  {
+          ET2: {
+            argName: command
+            width: 20
+            maxLength: 20
+            submit: true
+            textStyle: upper
+            focus: true
+        }
+      }
+    }
+  }
+}

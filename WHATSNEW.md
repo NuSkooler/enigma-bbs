@@ -2,13 +2,21 @@
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
 ## 0.0.14-beta
-* The [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made some possibly breaking changes:
+* **ActivityPub & Mastodon Support**
+    * A new [ActivityPub Web Handler](./docs/_docs/servers/contentservers/activitypub-handler.md) has been added
+* [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made many changes, **some possibly breaking**:
     * `/static/` prefixes are no longer required. This was a ugly hack.
-    * Some internal routes such as those used for password resets live within `/_internal/`.
+    * Some internal routes such as those used for password resets live within `/_enig/`.
     * Routes for the file base now default to `/_f/` prefixed instead of just `/f/`. If `/f/` is in your `config.hjson` you are encouraged to update it!
     * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
+    * Web activity now has it's own logging configuration under `contentHandlers.web.logging`; The format is the same as the systems standard logging and defaults to a `enigma-bbs.web.log` rotating file at `info` level.
+    * Smaller [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md) modules are now easy to add, a number of which exist by default.
+    * [WebFinger](/docs/_docs/servers/contentservers/webfinger-handler.md) support (Web Handler)
+* New users now have randomly generated avatars assigned to them that can be served up via the new System General [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md).
 * CombatNet has shut down, so the module (`combatnet.js`) has been removed.
-* The Menu Flag `popParent` has been removed and `noHistory` has been updated to work as expected. In general things should "Just Work", but check your `menu.hjson` entries if you see menu stack issues.
+* New `NewUserPrePersist` system event available to developers to 'hook' account creation and add their own properties/etc.
+* The signature for `viewValidationListener`'s callback has changed: It is now `(err, newFocusId)`. To ignore a validation error, implementors can simply call the callback with a `null` error, else they should forward it on.
+* The Menu Flag `popParent` has been removed and `noHistory` has been updated to work as expected. In general things should "Just Work", but do see [UPGRADE](UPGRADE.md) for additional details.
 * Various New User Application (NUA) properties are now optional. If you would like to reduce the information users are required, remove optional fields from NUA artwork and collect less. These properties will be stored as "" (empty). Optional properties are as follows: Real name, Birth date, Sex, Location, Affiliations (Affils), Email, and Web address.
 * Art handling has been changed to respect the art width contained in SAUCE when present in the case where the terminal width is greater than the art width. This fixes art files that assume wrapping at 80 columns on wide (mostly new utf8) terminals.
 
@@ -29,7 +37,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Additional options in the `abracadabra` module for launching doors. See [Local Doors](./docs/modding/local-doors.md)
 
 ## 0.0.12-beta
-* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
+* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Upgrading](./docs/admin/upgrading.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
 * Development now occurs against [Node.js 14 LTS](https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V14.md).
 * The default configuration has been moved to [config_default.js](/core/config_default.js).
 * A full configuration revamp has taken place. Configuration files such as `config.hjson`, `menu.hjson`, and `theme.hjson` can now utilize includes via the `includes` directive, reference 'self' sections using `@reference:` and import environment variables with `@environment`.

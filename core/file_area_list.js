@@ -344,7 +344,7 @@ exports.getModule = class FileAreaList extends MenuModule {
         );
     }
 
-    displayArtDataPrepCallback(name, artData, viewController) {
+    displayArtDataPrepCallback(name, artData) {
         if (name === 'details') {
             try {
                 this.detailsInfoArea = {
