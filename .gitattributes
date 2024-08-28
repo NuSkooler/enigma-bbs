@@ -16,3 +16,7 @@ optutil.js text eol=lf
 # The devcontainer is also unix
 .devcontainer/Dockerfile text eol=lf
 .devcontainer/devcontainer.json text eol=lf
+
+
+# All dropfiles are DOS
+dropfile_formats/* eol=crlf

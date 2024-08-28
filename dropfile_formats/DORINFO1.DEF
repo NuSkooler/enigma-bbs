@@ -1,0 +1,13 @@
+{BN}
+{getSysopFirstName}
+{getSysopLastName}
+COM1
+19200 BAUD,N,8,1
+0
+{getUserFirstName}
+{getUserLastName}
+{LO}
+1
+{LL}
+999
+-1
