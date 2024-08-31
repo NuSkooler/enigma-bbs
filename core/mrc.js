@@ -47,7 +47,7 @@ const MciViewIds = {
 const helpText = `
 |15General Chat|08:
 |03/|11rooms |08& |03/|11join |03<room>      |08- |07List all or join a room
-|03/|11pm |03<user> <message>       |08- |07Send a private message
+|03/|11pm |03<user> <message>       |08- |07Send a private message |08(/t /tell /msg)
 ----
 |03/|11whoon                     |08- |07Who's on what BBS
 |03/|11chatters                  |08- |07Who's in what room
@@ -57,6 +57,7 @@ const helpText = `
 |03/|11meetups                   |08- |07Info about MRC MeetUps
 |03/|11quote                     |08- |07Send raw command to server
 |03/|11help                      |08- |07Server-side commands help
+|03/|11quit                      |08- |07Quit MRC |08(/q)
 ---
 |03/|11l33t |03<your message>       |08- |07l337 5p34k
 |03/|11kewl |03<your message>       |08- |07BBS KeWL SPeaK
@@ -423,11 +424,11 @@ exports.getModule = class mrcModule extends MenuModule {
 
             const messageFormat =
                 this.config.messageFormat ||
-                '|00|10<|02{fromUserName}|10>|00 |03{message}|00';
+                '|00|10<|02{fromUserName}|10>|00 |03{message}';
 
             const privateMessageFormat =
                 this.config.outgoingPrivateMessageFormat ||
-                '|00|10<|02{fromUserName}|10|14->|02{toUserName}>|00 |03{message}|00';
+                '|00|10<|02{fromUserName}|10|14->|02{toUserName}>|00 |03{message}';
 
             let formattedMessage = '';
             if (to_user == undefined) {
@@ -471,6 +472,9 @@ exports.getModule = class mrcModule extends MenuModule {
         cmd[0] = cmd[0].substr(1).toLowerCase();
 
         switch (cmd[0]) {
+            case 't':
+            case 'tell':
+            case 'msg':
             case 'pm':
                 const newmsg = cmd.slice(2).join(' ');
                 this.processOutgoingMessage(newmsg, cmd[1]);
@@ -573,6 +577,10 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.sendServerMessage(`STATUS ${message.substr(8)}`);
                 break;
 
+            case 'topics':
+                this.sendServerMessage(`TOPICS ${message.substr(8)}`);
+                break;
+
             case 'lastseen':
                 this.sendServerMessage(`LASTSEEN ${message.substr(10)}`);
                 break;
@@ -594,7 +602,7 @@ exports.getModule = class mrcModule extends MenuModule {
              */
 
             case 'trust':
-                this.sendServerMessage(`REGISTER ${message.substr(7)}`);
+                this.sendServerMessage(`TRUST ${message.substr(7)}`);
                 break;
 
             case 'register':
@@ -613,6 +621,7 @@ exports.getModule = class mrcModule extends MenuModule {
              * Local client commands
              */
 
+            case 'q':
             case 'quit':
                 return this.prevMenu();
 
@@ -638,6 +647,13 @@ exports.getModule = class mrcModule extends MenuModule {
             MciViewIds.mrcChat.chatLog
         );
         chatLogView.setText('');
+    }
+
+    /**
+     * MRC Server flood protection requires messages to be spaced in time
+     */
+    msgDelay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**
@@ -676,19 +692,14 @@ exports.getModule = class mrcModule extends MenuModule {
     /**
      * Joins a room, unsurprisingly
      */
-    joinRoom(room) {
+    async joinRoom(room) {
         // room names are displayed with a # but referred to without. confusing.
         room = room.replace(/^#/, '');
         this.state.room = room;
         this.sendServerMessage(`NEWROOM:${this.state.room}:${room}`);
-        this.sendServerMessage('USERLIST');
-    }
 
-    /**
-     * MRC Server flood protection requires messages to be spaced in time
-     */
-    msgDelay(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
+        await this.msgDelay(100);
+        this.sendServerMessage('USERLIST');
     }
 
     /**
@@ -696,9 +707,6 @@ exports.getModule = class mrcModule extends MenuModule {
      */
     async clientConnect() {
         this.sendHeartbeat();
-        await this.msgDelay(100);
-
-        this.sendServerMessage('MOTD');
         await this.msgDelay(100);
 
         this.joinRoom('lobby');
