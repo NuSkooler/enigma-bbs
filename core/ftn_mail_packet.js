@@ -634,13 +634,23 @@ function Packet(options) {
         try {
             msgData = MessageHeaderParser.parse(packetBuffer);
         } catch (e) {
-            return cb(Errors.Invalid(`Failed to parse FTN message header: ${e.message}`));
+            return iterator(
+                'pkt_error',
+                `Failed to parse FTN message header: ${e.message}`,
+                cb
+            );
+            //return cb(Errors.Invalid(`Failed to parse FTN message header: ${e.message}`));
         }
 
         if (FTN_PACKET_MESSAGE_TYPE != msgData.messageType) {
-            return cb(
-                Errors.Invalid(`Unsupported FTN message type: ${msgData.messageType}`)
+            return iterator(
+                'pkt_error',
+                `Unsupported FTN message type: ${msgData.messageType}`,
+                cb
             );
+            // return cb(
+            //     Errors.Invalid(`Unsupported FTN message type: ${msgData.messageType}`)
+            // );
         }
 
         //
@@ -658,32 +668,52 @@ function Packet(options) {
         //  later on.
         //
         if (msgData.modDateTime.length != 20) {
-            return cb(
-                Errors.Invalid(
-                    `FTN packet DateTime field must be 20 bytes (got ${msgData.modDateTime.length})`
-                )
+            return iterator(
+                'pkt_error',
+                `FTN packet DateTime field must be 20 bytes (got ${msgData.modDateTime.length})`,
+                cb
             );
+            // return cb(
+            //     Errors.Invalid(
+            //         `FTN packet DateTime field must be 20 bytes (got ${msgData.modDateTime.length})`
+            //     )
+            // );
         }
         if (msgData.toUserName.length > 36) {
-            return cb(
-                Errors.Invalid(
-                    `FTN packet toUserName field must be 36 bytes max (got ${msgData.toUserName.length})`
-                )
+            return iterator(
+                'pkt_error',
+                `FTN packet toUserName field must be 36 bytes max (got ${msgData.toUserName.length})`,
+                cb
             );
+            // return cb(
+            //     Errors.Invalid(
+            //         `FTN packet toUserName field must be 36 bytes max (got ${msgData.toUserName.length})`
+            //     )
+            // );
         }
         if (msgData.fromUserName.length > 36) {
-            return cb(
-                Errors.Invalid(
-                    `FTN packet fromUserName field must be 36 bytes max (got ${msgData.fromUserName.length})`
-                )
+            return iterator(
+                'pkt_error',
+                `FTN packet fromUserName field must be 36 bytes max (got ${msgData.fromUserName.length})`,
+                cb
             );
+            // return cb(
+            //     Errors.Invalid(
+            //         `FTN packet fromUserName field must be 36 bytes max (got ${msgData.fromUserName.length})`
+            //     )
+            // );
         }
         if (msgData.subject.length > 72) {
-            return cb(
-                Errors.Invalid(
-                    `FTN packet subject field must be 72 bytes max (got ${msgData.subject.length})`
-                )
+            return iterator(
+                'pkt_error',
+                `FTN packet subject field must be 72 bytes max (got ${msgData.subject.length})`,
+                cb
             );
+            // return cb(
+            //     Errors.Invalid(
+            //         `FTN packet subject field must be 72 bytes max (got ${msgData.subject.length})`
+            //     )
+            // );
         }
 
         //  Arrays of CP437 bytes -> String

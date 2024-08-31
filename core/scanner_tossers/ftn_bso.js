@@ -1607,6 +1607,7 @@ function FTNMessageScanTossModule() {
             areaSuccess: {}, //  areaTag->count
             areaFail: {}, //  areaTag->count
             otherFail: 0,
+            pktErrors: 0,
         };
 
         new ftnMailPacket.Packet(packetOpts).read(
@@ -1714,6 +1715,10 @@ function FTNMessageScanTossModule() {
 
                         return next(err);
                     });
+                } else if ('pkt_error' == entryType) {
+                    Log.warn({ error: entryData }, 'Packet import error');
+                    importStats.pktErrors += 1;
+                    return next(null);
                 }
             },
             err => {
@@ -1732,18 +1737,24 @@ function FTNMessageScanTossModule() {
                         : 0;
                 };
 
+                // if we got any PKT import errors, even if some messages successfully
+                // imported, include this in rejects
+                if (importStats.pktErrors > 0) {
+                    err = Errors.General('One or more PKT errors occurred');
+                }
+
                 const totalFail = makeCount(importStats.areaFail) + importStats.otherFail;
                 const packetFileName = paths.basename(packetPath);
+                const totalSuccess = makeCount(importStats.areaSuccess);
                 if (err || totalFail > 0) {
                     if (err) {
                         Object.assign(importStats, { error: err.message });
                     }
                     Log.warn(
                         importStats,
-                        `Packet ${packetFileName} import reported ${totalFail} error(s)`
+                        `Packet ${packetFileName} import reported ${importStats.pktErrors} PKT errors and ${totalFail} total failure(s); ${totalSuccess} messages were imported.`
                     );
                 } else {
-                    const totalSuccess = makeCount(importStats.areaSuccess);
                     Log.info(
                         importStats,
                         `Packet ${packetFileName} imported with ${totalSuccess} new message(s)`
