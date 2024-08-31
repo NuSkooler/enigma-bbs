@@ -16,7 +16,7 @@ const os = require('os');
 
 // MRC
 const clientVersion = '1.3.1';
-const lineDelimiter = new RegExp('\r\n|\r|\n'); //  eslint-disable-line no-control-regex
+const lineDelimiter = new RegExp('\r\n|\r|\n|\n\r'); //  eslint-disable-line no-control-regex
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'MRC',
@@ -245,8 +245,7 @@ exports.getModule = class MrcModule extends ServerModule {
         connectedSockets.forEach(client => {
             if (
                 message.to_user == '' ||
-                // Fix PrivMSG delivery on case mismatch
-                message.to_user.toUpperCase() == client.username.toUpperCase() ||
+                message.to_user == client.username.toUpperCase() ||
                 message.to_user == 'CLIENT' ||
                 message.from_user == client.username ||
                 message.to_user == 'NOTME'
@@ -328,13 +327,17 @@ exports.getModule = class MrcModule extends ServerModule {
      * Takes an MRC message and parses it into something usable
      */
     parseMessage(line) {
-        const [from_user, from_site, from_room, to_user, to_site, to_room, body] =
+        let [from_user, from_site, from_room, to_user, to_site, to_room, body] =
             line.split('~');
 
         // const msg = line.split('~');
         // if (msg.length < 7) {
         //     return;
         // }
+
+        // Make sure to_user and from_user are always uppercase
+        to_user = (to_user || '').toUpperCase();
+        from_user = (from_user || '').toUpperCase();
 
         return { from_user, from_site, from_room, to_user, to_site, to_room, body };
     }
