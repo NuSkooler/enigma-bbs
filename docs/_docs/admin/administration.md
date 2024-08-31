@@ -42,5 +42,7 @@ SQLite database files become less performant over time and waste space. It is re
 
 Example:
 ```bash
-sqlite3 ./db/message.sqlite3 "vacuum;"
+for dbfile in /path/to/enigma-bbs/db/*.sqlite3; do
+    sqlite3 ./db/message.sqlite3 "vacuum;"
+done
 ```
