@@ -40,7 +40,7 @@ function ANSIEscapeParser(options) {
     this.breakWidth = this.termWidth;
     // toNumber takes care of null, undefined etc as well.
     let artWidth = _.toNumber(options.artWidth);
-    if(!(_.isNaN(artWidth)) && artWidth > 0 && artWidth < this.breakWidth) {
+    if (!_.isNaN(artWidth) && artWidth > 0 && artWidth < this.breakWidth) {
         this.breakWidth = options.artWidth;
     }
     this.trailingLF = miscUtil.valueWithDefault(options.trailingLF, 'default');
@@ -82,15 +82,14 @@ function ANSIEscapeParser(options) {
     };
 
     self.positionUpdated = function () {
-        if(self.row > self.termHeight) {
-            if(this.savedPosition) {
+        if (self.row > self.termHeight) {
+            if (this.savedPosition) {
                 this.savedPosition.row -= self.row - self.termHeight;
             }
             self.emit('scroll', self.row - self.termHeight);
             self.row = self.termHeight;
-        }
-        else if(self.row < 1) {
-            if(this.savedPosition) {
+        } else if (self.row < 1) {
+            if (this.savedPosition) {
                 this.savedPosition.row -= self.row - 1;
             }
             self.emit('scroll', -(self.row - 1));
@@ -140,7 +139,7 @@ function ANSIEscapeParser(options) {
                         start = pos + 1;
 
                         // If we hit breakWidth before termWidth then we need to force the terminal to go to the next line.
-                        if(self.column < self.termWidth) {
+                        if (self.column < self.termWidth) {
                             self.emit('literal', '\r\n');
                         }
                         self.column = 1;
@@ -287,11 +286,11 @@ function ANSIEscapeParser(options) {
                 args = match[1].split(';').map(v => parseInt(v, 10)); //  convert to array of ints
 
                 // Handle the case where there is no bracket
-                if(!(_.isNil(match[3]))) {
+                if (!_.isNil(match[3])) {
                     opCode = match[3];
                     args = [];
                     // no bracket
-                    switch(opCode) {
+                    switch (opCode) {
                         // save cursor position
                         case '7':
                             escape('s', args);
@@ -322,8 +321,7 @@ function ANSIEscapeParser(options) {
                             escape('T', args);
                             break;
                     }
-                }
-                else {
+                } else {
                     escape(opCode, args);
                 }
 
@@ -396,11 +394,10 @@ function ANSIEscapeParser(options) {
             // line feed
             case 'E':
                 arg = isNaN(args[0]) ? 1 : args[0];
-                if(this.row + arg > this.termHeight) {
+                if (this.row + arg > this.termHeight) {
                     this.emit('scroll', arg - (this.termHeight - this.row));
                     self.moveCursor(0, this.termHeight);
-                }
-                else {
+                } else {
                     self.moveCursor(0, arg);
                 }
                 break;
@@ -408,11 +405,10 @@ function ANSIEscapeParser(options) {
             // reverse line feed
             case 'F':
                 arg = isNaN(args[0]) ? 1 : args[0];
-                if(this.row - arg < 1) {
+                if (this.row - arg < 1) {
                     this.emit('scroll', -(arg - this.row));
                     self.moveCursor(0, 1 - this.row);
-                }
-                else {
+                } else {
                     self.moveCursor(0, -arg);
                 }
                 break;
@@ -434,29 +430,24 @@ function ANSIEscapeParser(options) {
                 self.positionUpdated();
                 break;
 
-
             //  erase display/screen
             case 'J':
-                if(isNaN(args[0]) || 0 === args[0]) {
+                if (isNaN(args[0]) || 0 === args[0]) {
                     self.emit('erase rows', self.row, self.termHeight);
-                }
-                else if (1 === args[0]) {
+                } else if (1 === args[0]) {
                     self.emit('erase rows', 1, self.row);
-                }
-                else if (2 === args[0]) {
+                } else if (2 === args[0]) {
                     self.clearScreen();
                 }
                 break;
 
             // erase text in line
             case 'K':
-                if(isNaN(args[0]) || 0 === args[0]) {
+                if (isNaN(args[0]) || 0 === args[0]) {
                     self.emit('erase columns', self.row, self.column, self.termWidth);
-                }
-                else if (1 === args[0]) {
+                } else if (1 === args[0]) {
                     self.emit('erase columns', self.row, 1, self.column);
-                }
-                else if (2 === args[0]) {
+                } else if (2 === args[0]) {
                     self.emit('erase columns', self.row, 1, self.termWidth);
                 }
                 break;
@@ -573,7 +564,7 @@ function ANSIEscapeParser(options) {
             // back tab
             case 'Z':
                 // calculate previous tabstop
-                self.column = Math.max( 1, self.column - (self.column % 8 || 8) );
+                self.column = Math.max(1, self.column - (self.column % 8 || 8));
                 self.positionUpdated();
                 break;
             case '@':
@@ -581,7 +572,6 @@ function ANSIEscapeParser(options) {
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.emit('insert columns', self.row, self.column, arg);
                 break;
-
         }
     }
 }

@@ -49,7 +49,7 @@ function getFontNameFromSAUCE(sauce) {
 function getWidthFromSAUCE(sauce) {
     if (sauce && sauce.Character) {
         let sauceWidth = _.toNumber(sauce.Character.characterWidth);
-        if(!(_.isNaN(sauceWidth)) && sauceWidth > 0) {
+        if (!_.isNaN(sauceWidth) && sauceWidth > 0) {
             return sauceWidth;
         }
     }
@@ -342,7 +342,7 @@ function display(client, art, options, cb) {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             if (mciInfo.position[0] === row && mciInfo.position[1] >= startCol) {
                 mciInfo.position[1] += numCols;
-                if(mciInfo.position[1] > client.term.termWidth) {
+                if (mciInfo.position[1] > client.term.termWidth) {
                     delete mciMap[mapKey];
                 }
             }
@@ -356,14 +356,14 @@ function display(client, art, options, cb) {
         });
     });
 
-    ansiParser.on('scroll', (scrollY) => {
-        _.forEach(mciMap, (mciInfo) => {
+    ansiParser.on('scroll', scrollY => {
+        _.forEach(mciMap, mciInfo => {
             mciInfo.position[0] -= scrollY;
         });
     });
 
     ansiParser.on('insert line', (row, numLines) => {
-        _.forEach(mciMap, (mciInfo) => {
+        _.forEach(mciMap, mciInfo => {
             if (mciInfo.position[0] >= row) {
                 mciInfo.position[0] += numLines;
             }
@@ -373,12 +373,11 @@ function display(client, art, options, cb) {
     ansiParser.on('delete line', (row, numLines) => {
         _.forEach(mciMap, (mciInfo, mapKey) => {
             if (mciInfo.position[0] >= row) {
-                if(mciInfo.position[0] < row + numLines) {
+                if (mciInfo.position[0] < row + numLines) {
                     // unlike scrolling, the rows are actually gone,
                     // so we need to delete any MCI's that are in them
                     delete mciMap[mapKey];
-                }
-                else {
+                } else {
                     mciInfo.position[0] -= numLines;
                 }
             }

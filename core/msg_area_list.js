@@ -52,7 +52,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
                                 extraArgs: {
                                     areaTag: area.areaTag,
                                 },
-                                menuFlags: [ MenuFlags.NoHistory ],
+                                menuFlags: [MenuFlags.NoHistory],
                             };
 
                             return this.gotoMenu(

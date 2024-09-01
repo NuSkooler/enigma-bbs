@@ -52,7 +52,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
                                     extraArgs: {
                                         confTag: conf.confTag,
                                     },
-                                    menuFlags: [ MenuFlags.NoHistory ],
+                                    menuFlags: [MenuFlags.NoHistory],
                                 };
 
                                 return this.gotoMenu(

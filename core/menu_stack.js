@@ -48,13 +48,13 @@ module.exports = class MenuStack {
             return cb(
                 Array.isArray(menuConfig.next)
                     ? Errors.MenuStack(
-                        'No matching condition for "next"',
-                        ErrorReasons.NoConditionMatch
-                    )
+                          'No matching condition for "next"',
+                          ErrorReasons.NoConditionMatch
+                      )
                     : Errors.MenuStack(
-                        'Invalid or missing "next" member in menu config',
-                        ErrorReasons.InvalidNextMenu
-                    )
+                          'Invalid or missing "next" member in menu config',
+                          ErrorReasons.InvalidNextMenu
+                      )
             );
         }
 
@@ -120,7 +120,10 @@ module.exports = class MenuStack {
             client: self.client,
         };
 
-        if (currentModuleInfo && currentModuleInfo.menuFlags.includes(MenuFlags.ForwardArgs)) {
+        if (
+            currentModuleInfo &&
+            currentModuleInfo.menuFlags.includes(MenuFlags.ForwardArgs)
+        ) {
             loadOpts.extraArgs = currentModuleInfo.extraArgs;
         } else {
             loadOpts.extraArgs = options.extraArgs || _.get(options, 'formData.value');

@@ -36,7 +36,6 @@ const MenuFlags = {
 
 exports.MenuFlags = MenuFlags;
 
-
 exports.MenuModule = class MenuModule extends PluginModule {
     constructor(options) {
         super(options);
@@ -67,7 +66,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     setMergedFlag(flag) {
         this.menuConfig.config.menuFlags.push(flag);
-        this.menuConfig.config.menuFlags = [...new Set([...this.menuConfig.config.menuFlags, MenuFlags.MergeFlags])];
+        this.menuConfig.config.menuFlags = [
+            ...new Set([...this.menuConfig.config.menuFlags, MenuFlags.MergeFlags]),
+        ];
     }
 
     static get InterruptTypes() {
