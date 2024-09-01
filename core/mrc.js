@@ -527,7 +527,8 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'bbses':
-                this.sendServerMessage('CONNECTED');
+		const args = cmd.slice(1).join(' ');
+                this.sendServerMessage(`CONNECTED ${args}`);
                 break;
 
             case 'topic':
@@ -541,6 +542,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'join':
+            case 'j':
                 this.joinRoom(cmd[1]);
                 break;
 
@@ -560,6 +562,18 @@ exports.getModule = class mrcModule extends MenuModule {
             /**
              * Process known additional server commands directly
              */
+
+            case 'identify':
+                this.sendServerMessage(`IDENTIFY ${message.substr(10)}`);
+                break;
+
+            case 'register':
+                this.sendServerMessage(`REGISTER ${message.substr(10)}`);
+                break;
+
+            case 'update':
+                this.sendServerMessage(`UPDATE ${message.substr(8)}`);
+                break;
 
             case 'afk':
                 this.sendServerMessage(`AFK ${message.substr(5)}`);
