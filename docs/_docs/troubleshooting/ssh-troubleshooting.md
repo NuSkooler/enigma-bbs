@@ -20,7 +20,25 @@ Several things can cause this:
 1. `ssh_private_key.pem` was installed to the wrong location. Make sure that it is in the `config/security` directory and has the name matching the error message. You can also change your `config.hjson` if you prefer to point to the location of the key file.
 2. `ssh_private_key.pem` has the wrong file permissions. Verify that the file will be readable by the user that the BBS is running as. Because it is a cryptographic key however, we do recommend that access is restricted only to that user.
 
-## Error With Netrunner
+## Cannot parse privateKey: Unsupported key format
+
+***Symptom:***
+BBS not starting with an error similar to the following:
+
+```shell
+Error initializing: Error: Cannot parse privateKey: Unsupported key format
+```
+
+***Solution:***
+Depending on the OpenSSL version, a specific key format is used to generate the private key. The error above is observed on Debian 12 (Bookworm), but might present itself on other Debian 12 derivatives.
+
+Convert the unsupported key to a supported one:
+
+```shell
+openssl rsa -in unsupported.key -out converted.key -traditional
+```
+
+## Errors With Netrunner
 
 ***Symptom:***
 Some ssh clients connect, but Netrunner (and other older clients) get a connection failed message and the following is in the log:
