@@ -205,10 +205,6 @@ ansi-styles@^6.0.0:
   resolved "https://registry.npmjs.org/ansi-styles/-/ansi-styles-6.2.1.tgz"
   integrity sha512-bN798gFfQX+viw3R7yrGWRqnrN2oRkEkUjjl4JNn4E8GxxbjtG3FbrEIIY3l8/hrwUwIeCZvi4QuOTP4MErVug==
 
-"any-ascii@https://github.com/zane-dmax/anyascii.git#cjs":
-  version "0.0.0"
-  resolved "https://github.com/zane-dmax/anyascii.git#664b44b87f3718cfa454aa391eded418e5f16d22"
-
 anymatch@^3.1.1:
   version "3.1.2"
   resolved "https://registry.npmjs.org/anymatch/-/anymatch-3.1.2.tgz"
