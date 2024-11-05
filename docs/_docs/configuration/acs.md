@@ -7,7 +7,7 @@ title: Access Condition System (ACS)
 ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has it's own style. With ACS, SysOp's are able to control access to various areas of the system based on various conditions such as group membership, connection type, etc. Various touch points in the system are configured to allow for `acs` checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow to define what conditions must be true for certain _rights_ such as `read` and `write` (though others exist as well).
 
 ## Group Membership
-ENiGMA½ does not utilize legacy "security levels" (see note below) but instead utilizes a group system. Users may be long to one or more groups which can be checked by the `GM` ACS (See [ACS Codes](#acs-codes) below). Two special groups exist out of the box:
+ENiGMA½ does not utilize legacy "security levels" (see note below) but instead utilizes a group system. Users may belong to one or more groups which can be checked by the `GM` ACS (See [ACS Codes](#acs-codes) below). Two special groups exist out of the box:
 1. `users`: Any regular user
 2. `sysops`: System Operators. The first user (your root, or admin) will alwasy belong to this group.
 

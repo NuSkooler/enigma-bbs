@@ -53,9 +53,13 @@ Message Areas are topic specific containers for messages that live within a part
 | `desc`      | :+1:     | Friendly area description. |
 | `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
 | `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users) |
-| `acs`       | :-1: | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
+| `acs`       | :-1:     | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
+| `maxMessages` | :-1:   | The maximum number of messages to keep in the area. Defaults to `1024`. |
+| `maxAgeDays` | :-1:    | The maximum age of messages to keep in the area. Defaults to `0`, which means unlimited. |
 | `autoSignatures` | :-1: | Set to `false` to disable auto-signatures in this area. |
 | `realNames` | :-1:      | Set to `true` to use real names in this area. |
+
+The default values for `maxMessages` and `maxAgeDays` can be changed globally in `core/config_default.js`, they're located in the section `messageAreaDefaults`. The same file also defines several default events to be scheduled, which are located under `eventScheduler`. For example, the `trimMessageAreas` event is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed.
 
 ### ACS
 An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
@@ -74,6 +78,8 @@ messageConferences: {
         desc: ENiGMA 1/2 development and discussion!
         sort: 1
         default: true
+        maxMessages: 2000 // keep at most 2000 messages
+        maxAgeDays: 365   // delete anything older than 1 year
         acs: {
           read: GM[users] // default
           write: GM[l33t] // super elite ENiGMA 1/2 users!

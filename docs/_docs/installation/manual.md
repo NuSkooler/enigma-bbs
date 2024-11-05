@@ -22,21 +22,22 @@ are OK) for Windows users. Note that you **should only need the Visual C++ compo
 Node Version Manager (NVM) is an excellent way to install and manage Node.js versions on most UNIX-like environments. [Get the latest version here](https://github.com/creationix/nvm). The nvm install may look _something_ like this:
 
 ```bash
-curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 ```
 > :information_source: Do not cut+paste the above command! Visit the [NVM](https://github.com/creationix/nvm) page and run the latest version!
 
 Next, install Node.js with NVM:
 ```bash
-nvm install 14
-nvm use 14
-nvm alias default 14
+nvm install 18
+nvm use 18
+nvm alias default 18
 ```
 
 If the above steps completed without errors, you should now have `nvm`, `node`, and `npm` installed and in your environment.
 
 For Windows nvm-like systems exist ([nvm-windows](https://github.com/coreybutler/nvm-windows), ...) or [just download the installer](https://nodejs.org/en/download/).
 
+> :information_source: Please note that Node v18 is the latest release that is supported for ENiGMA BBS. Support for Node v20 is being worked on in [this Github issue](https://github.com/NuSkooler/enigma-bbs/issues/539).
 
 ## ENiGMA BBS
 ```bash
@@ -48,6 +49,7 @@ git clone https://github.com/NuSkooler/enigma-bbs.git
 cd enigma-bbs
 npm install # yarn also works
 ```
+> :information_source: At the moment you might see a few warnings about packages being deprecated or replaced. This is a known issue that will be resolved in the future.
 
 ## Other Recommended Packages
 ENiGMA BBS makes use of a few packages for archive and legacy protocol support. They're not pre-requisites for running ENiGMA, but without them you'll miss certain functionality. Once installed, they should be made available on your systems `PATH`.

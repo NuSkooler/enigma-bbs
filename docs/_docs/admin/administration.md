@@ -33,11 +33,16 @@ done
 ### Backup Tools
 There are many backup solutions available across all platforms. Configuration of such tools is outside the scope of this documentation. With that said, the author has had great success with [Borg](https://www.borgbackup.org/).
 
-## General Maintenance Tasks
+## General Maintenance 
+### Default Maintenance Tasks
+Several default maintenance tasks are defined as events in `core/config_default.js`, in the section `eventScheduler`. These events run at various times and perform several maintenance tasks. An example is the `trimMessageAreas` event, which is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed.
+
 ### Vacuuming Database Files
 SQLite database files become less performant over time and waste space. It is recommended to periodically vacuum your databases. Before proceeding, you should make a backup!
 
 Example:
 ```bash
-sqlite3 ./db/message.sqlite3 "vacuum;"
+for dbfile in /path/to/enigma-bbs/db/*.sqlite3; do
+    sqlite3 ./db/message.sqlite3 "vacuum;"
+done
 ```

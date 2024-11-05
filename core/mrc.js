@@ -47,7 +47,7 @@ const MciViewIds = {
 const helpText = `
 |15General Chat|08:
 |03/|11rooms |08& |03/|11join |03<room>      |08- |07List all or join a room
-|03/|11pm |03<user> <message>       |08- |07Send a private message
+|03/|11pm |03<user> <message>       |08- |07Send a private message |08(/t /tell /msg)
 ----
 |03/|11whoon                     |08- |07Who's on what BBS
 |03/|11chatters                  |08- |07Who's in what room
@@ -57,6 +57,7 @@ const helpText = `
 |03/|11meetups                   |08- |07Info about MRC MeetUps
 |03/|11quote                     |08- |07Send raw command to server
 |03/|11help                      |08- |07Server-side commands help
+|03/|11quit                      |08- |07Quit MRC |08(/q)
 ---
 |03/|11l33t |03<your message>       |08- |07l337 5p34k
 |03/|11kewl |03<your message>       |08- |07BBS KeWL SPeaK
@@ -275,21 +276,7 @@ exports.getModule = class mrcModule extends MenuModule {
             const chatLogView = this.viewControllers.mrcChat.getView(
                 MciViewIds.mrcChat.chatLog
             );
-            const messageLength = stripMciColorCodes(msg).length;
-            const chatWidth = chatLogView.dimens.width;
-            let padAmount = 0;
-            let spaces = 2;
-
-            if (messageLength > chatWidth) {
-                padAmount = chatWidth - (messageLength % chatWidth) - spaces;
-            } else {
-                padAmount = chatWidth - messageLength - spaces;
-            }
-
-            if (padAmount < 0) padAmount = 0;
-
-            const padding = ' |00' + ' '.repeat(padAmount);
-            chatLogView.addText(pipeToAnsi(msg + padding));
+            chatLogView.addText(pipeToAnsi(msg));
 
             if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
                 chatLogView.deleteLine(0);
@@ -380,7 +367,7 @@ exports.getModule = class mrcModule extends MenuModule {
 
                 // Deliver PrivMsg
                 else if (
-                    message.to_user.toLowerCase() == this.state.alias.toLowerCase()
+                    message.to_user.toUpperCase() == this.state.alias.toUpperCase()
                 ) {
                     const currentTime = moment().format(
                         this.client.currentTheme.helpers.getTimeFormat()
@@ -437,11 +424,11 @@ exports.getModule = class mrcModule extends MenuModule {
 
             const messageFormat =
                 this.config.messageFormat ||
-                '|00|10<|02{fromUserName}|10>|00 |03{message}|00';
+                '|00|10<|02{fromUserName}|10>|00 |03{message}';
 
             const privateMessageFormat =
                 this.config.outgoingPrivateMessageFormat ||
-                '|00|10<|02{fromUserName}|10|14->|02{toUserName}>|00 |03{message}|00';
+                '|00|10<|02{fromUserName}|10|14->|02{toUserName}>|00 |03{message}';
 
             let formattedMessage = '';
             if (to_user == undefined) {
@@ -450,6 +437,14 @@ exports.getModule = class mrcModule extends MenuModule {
             } else {
                 // pm
                 formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
+
+                // Echo PrivMSG to chat log (the server does not echo it back)
+                const currentTime =moment().format(
+                    this.client.currentTheme.helpers.getTimeFormat()
+                );
+                this.addMessageToChatLog(
+                    '|08' + currentTime + '|00 ' + formattedMessage + '|00'
+                );
             }
 
             try {
@@ -477,6 +472,9 @@ exports.getModule = class mrcModule extends MenuModule {
         cmd[0] = cmd[0].substr(1).toLowerCase();
 
         switch (cmd[0]) {
+            case 't':
+            case 'tell':
+            case 'msg':
             case 'pm':
                 const newmsg = cmd.slice(2).join(' ');
                 this.processOutgoingMessage(newmsg, cmd[1]);
@@ -562,6 +560,7 @@ exports.getModule = class mrcModule extends MenuModule {
             /**
              * Process known additional server commands directly
              */
+
             case 'afk':
                 this.sendServerMessage(`AFK ${message.substr(5)}`);
                 break;
@@ -576,6 +575,10 @@ exports.getModule = class mrcModule extends MenuModule {
 
             case 'status':
                 this.sendServerMessage(`STATUS ${message.substr(8)}`);
+                break;
+
+            case 'topics':
+                this.sendServerMessage(`TOPICS ${message.substr(8)}`);
                 break;
 
             case 'lastseen':
@@ -594,6 +597,31 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.sendServerMessage(cmd[0].toUpperCase());
                 break;
 
+            /**
+             * MRC Trust commands
+             */
+
+            case 'trust':
+                this.sendServerMessage(`TRUST ${message.substr(7)}`);
+                break;
+
+            case 'register':
+                this.sendServerMessage(`REGISTER ${message.substr(10)}`);
+                break;
+
+            case 'identify':
+                this.sendServerMessage(`IDENTIFY ${message.substr(10)}`);
+                break;
+
+            case 'update':
+                this.sendServerMessage(`UPDATE ${message.substr(8)}`);
+                break;
+
+            /**
+             * Local client commands
+             */
+
+            case 'q':
             case 'quit':
                 return this.prevMenu();
 
@@ -619,6 +647,13 @@ exports.getModule = class mrcModule extends MenuModule {
             MciViewIds.mrcChat.chatLog
         );
         chatLogView.setText('');
+    }
+
+    /**
+     * MRC Server flood protection requires messages to be spaced in time
+     */
+    msgDelay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**
@@ -657,21 +692,26 @@ exports.getModule = class mrcModule extends MenuModule {
     /**
      * Joins a room, unsurprisingly
      */
-    joinRoom(room) {
+    async joinRoom(room) {
         // room names are displayed with a # but referred to without. confusing.
         room = room.replace(/^#/, '');
         this.state.room = room;
         this.sendServerMessage(`NEWROOM:${this.state.room}:${room}`);
+
+        await this.msgDelay(100);
         this.sendServerMessage('USERLIST');
     }
 
     /**
      * Things that happen when a local user connects to the MRC multiplexer
      */
-    clientConnect() {
-        this.sendServerMessage('MOTD');
-        this.joinRoom('lobby');
-        this.sendServerMessage('STATS');
+    async clientConnect() {
         this.sendHeartbeat();
+        await this.msgDelay(100);
+
+        this.joinRoom('lobby');
+        await this.msgDelay(100);
+
+        this.sendServerMessage('STATS');
     }
 };

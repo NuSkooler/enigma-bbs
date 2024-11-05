@@ -25,8 +25,8 @@ exports.getModule = class GoldmineModule extends MenuModule {
         this.setConfigWithExtraArgs(options);
 
         //  http://goldminebbs.com/
-        this.config.host = this.config.host || '165.232.153.209';
-        this.config.rloginPort = this.config.rloginPort || 513;
+        this.config.host = this.config.host || 'goldminedoors.com';
+        this.config.rloginPort = this.config.rloginPort || 2513;
     }
 
     initSequence() {

@@ -90,7 +90,7 @@ webserver, and unpack it to a temporary directory.
         xScale: 1,
         initStr: "",
         defPageAttr: 0x1010,
-        defCrsrAttr: 0x0207,
+        defCrsrAttr: ['thick', 'horizontal'],
         defCellAttr: 0x0007,
         telnet: 1,
         autoConnect: 0
