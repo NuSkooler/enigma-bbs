@@ -36,7 +36,7 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
                     extraArgs: {
                         filterCriteria: filterCriteria,
                     },
-                    menuFlags: [ MenuFlags.NoHistory ],
+                    menuFlags: [MenuFlags.NoHistory],
                 };
 
                 return this.gotoMenu(

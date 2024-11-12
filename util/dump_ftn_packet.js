@@ -40,6 +40,9 @@ function main() {
                 console.info('--- raw message ---');
                 console.info(data);
                 console.info('---------------');
+            } else if ('pkt_error' == dataType) {
+                console.warn('--- PACKET ERROR ---');
+                console.warn(data);
             }
 
             return next(null);

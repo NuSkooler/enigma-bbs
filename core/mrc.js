@@ -439,7 +439,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
 
                 // Echo PrivMSG to chat log (the server does not echo it back)
-                const currentTime =moment().format(
+                const currentTime = moment().format(
                     this.client.currentTheme.helpers.getTimeFormat()
                 );
                 this.addMessageToChatLog(
@@ -653,7 +653,7 @@ exports.getModule = class mrcModule extends MenuModule {
      * MRC Server flood protection requires messages to be spaced in time
      */
     msgDelay(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
