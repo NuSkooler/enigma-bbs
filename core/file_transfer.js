@@ -486,7 +486,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
         });
 
         externalProc.onExit(exitEvent => {
-            const {exitCode, signal} = exitEvent;
+            const { exitCode, signal } = exitEvent;
             this.client.log.debug(
                 { cmd: cmd, args: args, exitCode, signal },
                 'Process exited'

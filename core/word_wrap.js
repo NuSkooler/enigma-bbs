@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-const { ansiRenderStringLength } = require('./string_util');
+const { renderStringLength, ansiRenderStringLength } = require('./string_util');
 
 //  deps
 const assert = require('assert');
@@ -52,10 +52,15 @@ function wordWrapText(text, options) {
     //  sequence if present!
     //
     //  :TODO: Need to create ansi.getMatchRegex or something - this is used all over
+    const pipeGobble = options.pipeCodeSupport
+        ? `|.{0,${options.width}}\\|[A-Z\\d]{2}`
+        : '';
     const REGEXP_GOBBLE = new RegExp(
-        `.{0,${options.width}}\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]|.{0,${options.width}}`,
+        `.{0,${options.width}}\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]${pipeGobble}|.{0,${options.width}}`,
         'g'
     );
+
+    const lenFunc = options.pipeCodeSupport ? renderStringLength : ansiRenderStringLength;
 
     let m;
     let word;
@@ -72,7 +77,7 @@ function wordWrapText(text, options) {
 
     function appendWord() {
         word.match(REGEXP_GOBBLE).forEach(w => {
-            renderLen = ansiRenderStringLength(w);
+            renderLen = lenFunc(w);
 
             if (result.renderLen[i] + renderLen > options.width) {
                 if (0 === i) {

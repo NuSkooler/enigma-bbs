@@ -105,7 +105,7 @@ function ansiAttemptDetectUTF8(client, cb) {
             withCursorPositionReport(
                 client,
                 pos => {
-                    const [_, w] = pos;
+                    const [, w] = pos;
                     const len = w - initialPosition[1];
                     if (!isNaN(len) && len >= ASCIIPortion.length + 6) {
                         //  CP437 displays 3 chars each Unicode skull
@@ -154,7 +154,7 @@ const ansiQuerySyncTermFontSupport = (client, cb) => {
     withCursorPositionReport(
         client,
         pos => {
-            const [_, w] = pos;
+            const [, w] = pos;
             if (w === 1) {
                 // cursor didn't move
                 client.log.info(`SyncTERM font support enabled on node ${client.node}`);
