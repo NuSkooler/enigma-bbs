@@ -85,23 +85,18 @@ function main() {
                     //  then it's a fatal error
                     //
                     if (err) {
+                        errorDisplayed = true;
+                        console.error(`Configuration error: ${err.message}`); //  eslint-disable-line no-console
+
                         if ('ENOENT' === err.code) {
-                            if (configPathSupplied) {
-                                console.error(
-                                    'Configuration file does not exist: ' + configFile
-                                );
-                            } else {
-                                configPathSupplied = null; //  make non-fatal; we'll go with defaults
-                            }
-                        } else {
-                            errorDisplayed = true;
-                            console.error(`Configuration error: ${err.message}`); //  eslint-disable-line no-console
-                            if (err.hint) {
-                                console.error(`Hint: ${err.hint}`);
-                            }
-                            if (err.configPath) {
-                                console.error(`Note: ${err.configPath}`);
-                            }
+                            console.error("\nConfiguration file does not exist: '" + configFile + "'\n\nIf this is a new installation please run './oputil.js config new' from the enigma-bbs directory");
+                        }
+
+                        if (err.hint) {
+                            console.error(`Hint: ${err.hint}`);
+                        }
+                        if (err.configPath) {
+                            console.error(`Note: ${err.configPath}`);
                         }
                     }
                     return callback(err);
@@ -134,7 +129,7 @@ function main() {
 
             if (err && !errorDisplayed) {
                 console.error('Error initializing: ' + util.inspect(err));
-                return process.exit();
+                return process.exit(1);
             }
         }
     );
