@@ -15,7 +15,7 @@ const getHelpFor = require('./oputil_help.js').getHelpFor;
 
 //	deps
 const async = require('async');
-const fs = require('graceful-fs');
+const fs = require('fs-extra');
 const exec = require('child_process').exec;
 const inq = require('inquirer');
 const _ = require('lodash');
@@ -47,8 +47,6 @@ const QUESTIONS = {
 };
 
 function execute(ui, command) {
-    ui.log.write("Ping!");
-    ui.log.write(command);
     exec(
         command,
         function (error, stdout, stderr) {
@@ -75,8 +73,6 @@ function execute(ui, command) {
 function createNew(cb) {
     const ui = new inq.ui.BottomBar();
 
-    let sslPassword;
-
     async.waterfall(
         [
             function init(callback) {
@@ -89,8 +85,8 @@ function createNew(cb) {
                     }
 
                     // Get Answer Value
-                    sslPassword = answers.password;
-                    if (!sslPassword || sslPassword.replaceAll(" ", "") == "") {
+                    const sslPassword = answers.password.trim();
+                    if (!sslPassword || sslPassword == "") {
                         ui.log.write('Password must be set.');
 
                         return callback('exit');
@@ -106,31 +102,16 @@ function createNew(cb) {
                     const sshKeyFilename = "ssh_private_key.pem";
                     const targetKeyFile = sshKeyPath + sshKeyFilename;
 
-                    // Check if Keyfile Exists
-                    if (fs.existsSync(targetKeyFile)) {
-                        ui.log.write(`${targetKeyFile} already exists.`)
-
-                        return callback('exit');
-                    }
-
                     ui.log.write(`Creating SSH Key: ${targetKeyFile}`);
 
                     // Create Dir
-                    if (!fs.existsSync(sshKeyPath)) {
+                    if (!fs.pathExists(sshKeyPath)) {
                         ui.log.write(`Creating Directory: ${sshKeyPath}`);
                         exec(`mkdir -p ${sshKeyPath}`);
                     }
 
-                    // Check if OpenSSL binary is installed
-                    const binaryPath = "/usr/bin/openssl";
-                    if (!fs.existsSync(binaryPath)) {
-                        ui.log.write(`${binaryPath} was not found in your path`);
-
-                        return callback('exit');
-                    }
-
                     // Create SSH Keys
-                    const command = `${binaryPath} genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa -out ./${targetKeyFile} -aes128 -traditional -passout pass:`;
+                    const command = `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa -out ./${targetKeyFile} -aes128 -traditional -passout pass:`;
                     execute(ui, `${command}${sslPassword}`);
                 });
             },
