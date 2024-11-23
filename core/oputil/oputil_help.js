@@ -20,6 +20,7 @@ Commands:
   config                    Configuration management
   fb                        File base management
   mb                        Message base management
+  ssh                       SSH key management
 `,
     User: `usage: oputil.js user <action> [<arguments>]
 
@@ -219,6 +220,11 @@ qwk-export arguments:
                               TIMESTAMP.
   --no-qwke                   Disable QWKE extensions.
   --no-synchronet             Disable Synchronet style extensions.
+`,
+    SSH: `usage: oputil.js ssh <action>
+
+Actions:
+  create                      Create new SSH Keys
 `,
 });
 
