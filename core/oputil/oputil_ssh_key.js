@@ -105,10 +105,8 @@ function createNew(cb) {
                     ui.log.write(`Creating SSH Key: ${targetKeyFile}`);
 
                     // Create Dir
-                    if (!fs.pathExists(sshKeyPath)) {
-                        ui.log.write(`Creating Directory: ${sshKeyPath}`);
-                        exec(`mkdir -p ${sshKeyPath}`);
-                    }
+                    ui.log.write(`Creating Directory: ${sshKeyPath}`);
+                    fs.ensureDirSync(sshKeyPath);
 
                     // Create SSH Keys
                     const command = `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa -out ./${targetKeyFile} -aes128 -traditional -passout pass:`;
