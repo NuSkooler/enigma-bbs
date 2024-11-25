@@ -3,12 +3,12 @@
 { # this ensures the entire script is downloaded before execution
 
 ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=18}
+ENIGMA_PYTHON_VERSION="3.10"
 ENIGMA_BRANCH=${ENIGMA_BRANCH:=master}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
 WAIT_BEFORE_INSTALL=10
-PYTHON_VERSION="3.10"
 
 enigma_header() {
     clear
@@ -26,7 +26,8 @@ _____________________   _____  ____________________    __________\\_   /
 Installing ENiGMA½:
   Source     : ${ENIGMA_SOURCE} (${ENIGMA_BRANCH} branch)
   Destination: ${ENIGMA_INSTALL_DIR}
-  Node.js    : ${ENIGMA_NODE_VERSION}.x via NVM (If you have NVM it will be updated to the latest version)
+  Node.js    : ${ENIGMA_NODE_VERSION} via mise-en-place
+  Python     : ${ENIGMA_PYTHON_VERSION} via mise-en-place
 
 >> If this isn't what you were expecting, hit CTRL-C now!
 >> Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
@@ -67,6 +68,16 @@ enigma_install_needs() {
     enigma_install_needs_ex $1 "Examples:\n  sudo apt install $1 # Debian/Ubuntu\n  sudo yum install $1 # CentOS"
 }
 
+enigma_has_mise() {
+    echo -ne "Checking for an installation of mise-en-place (https://mise.jdx.dev/)"
+    if check_exists "mise"; then
+        echo " Found!"
+    else
+        echo ""
+        fatal_error "ENiGMA½ requires mise-enplace to install dependencies."
+    fi
+}
+
 log()  {
     printf "${TIME_FORMAT} %b\n" "$*";
 }
@@ -80,16 +91,19 @@ enigma_install_init() {
     enigma_install_needs gcc
 }
 
-install_nvm() {
-    log "Installing nvm"
-    curl -o- https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+install_mise_en_place() {
+    curl https://mise.run | sh
+    echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
+    eval ~/.local/bin/mise activate bash
 }
 
-configure_nvm() {
-    log "Installing Node ${ENIGMA_NODE_VERSION} via nvm"
-    . ~/.nvm/nvm.sh
-    nvm install ${ENIGMA_NODE_VERSION}
-    nvm use ${ENIGMA_NODE_VERSION}
+install_node_runtime_environment() {
+    mise use --global node@$ENIGMA_NODE_VERSION
+}
+
+install_python_runtime_environment() {
+    mise settings python.compile=1
+    mise use --global python@$ENIGMA_PYTHON_VERSION
 }
 
 download_enigma_source() {
@@ -117,14 +131,6 @@ is_arch_arm() {
     fi
 }
 
-extra_npm_install_args() {
-    if is_arch_arm ; then
-        echo "--build-from-source"
-    else
-        echo ""
-    fi
-}
-
 install_node_packages() {
     log "Installing required Node packages..."
     log "Note that on some systems such as RPi, this can take a VERY long time. Be patient!"
@@ -140,32 +146,10 @@ install_node_packages() {
 }
 
 copy_template_files() {
+    echo $ENIGMA_INSTALL_DIR
     if [[ ! -f "$ENIGMA_INSTALL_DIR/gopher/gophermap" ]]; then
         cp "$ENIGMA_INSTALL_DIR/misc/gophermap" "$ENIGMA_INSTALL_DIR/gopher/gophermap"
     fi
-}
-
-install_python_environment() {
-    log "Installing required Python Runtime Environment..."
-    log "Note that on some systems such as RPi, this can take a VERY long time. Be patient!"
-
-    cd ${ENIGMA_INSTALL_DIR}
-    curl -o- https://pyenv.run | bash
-    export PYENV_ROOT="$HOME/.pyenv"
-    [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-
-    if [ $? -eq 0 ]; then
-        log "Python 3.10 installation complete"
-    else
-        log "NOTE: The following build dependencies must be installed:"
-        log "bzip2 libncurses-dev libffi-dev libz-dev libssl-dev libbz2-dev libreadline-dev libsqlite3-dev liblzma-dev"
-
-        fatal_error "Failed to install Python 3.10 runtime environment. Please report this!"
-    fi
-
-    eval "$(pyenv init -)"
-    pyenv install $PYTHON_VERSION
-    pyenv local $PYTHON_VERSION
 }
 
 enigma_footer() {
@@ -209,20 +193,11 @@ EndOfMessage
     echo -e "\e[39m"
 }
 
-countdown() {
-    SECS=10
-    while [ $SECS -gt 0 ]; do
-        echo -ne "${SECS}... "
-        sleep 1
-        ((SECS --))
-    done
-    echo ""
-}
-
-install_node_runtime_environment() {
+install_dependencies() {
     enigma_install_init
-    install_nvm
-    configure_nvm
+    install_mise_en_place
+    install_node_runtime_environment
+    install_python_runtime_environment
     install_node_packages
 }
 
@@ -232,13 +207,9 @@ install_bbs() {
 }
 
 install_everything() {
-    countdown
-    enigma_install_init
-    install_nvm
-    configure_nvm
+    install_dependencies
     download_enigma_source
     install_node_packages
-    install_python_environment
     copy_template_files
 }
 
@@ -246,8 +217,7 @@ menu() {
     title="Installation Options"
     prompt="Pick an option:"
     options=(
-        "Install Python $PYTHON_VERSION Runtime Environment"
-        "Install Node $ENIGMA_NODE_VERSION Runtime Environment"
+        "Install Dependencies"
         "Install ENiGMA½"
         "Install Everything"
     )
@@ -256,10 +226,9 @@ menu() {
     PS3="$prompt "
     select opt in "${options[@]}" "Quit"; do
         case "$REPLY" in
-        1) enigma_install_init; install_python_environment; break;;
-        2) enigma_install_init; install_node_runtime_environment; break;;
-        3) install_bbs; break;;
-        4) enigma_install_init; install_everything; break;;
+        1) enigma_install_init; install_dependencies; break;;
+        2) install_bbs; break;;
+        3) enigma_install_init; install_everything; break;;
         $((${#options[@]}+1))) echo "Goodbye!"; break;;
         *) echo "Invalid option. Try another one.";continue;;
         esac
