@@ -93,7 +93,6 @@ enigma_install_init() {
 
 install_mise_en_place() {
     curl https://mise.run | sh
-    echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
     eval ~/.local/bin/mise activate bash
 }
 
@@ -128,6 +127,14 @@ is_arch_arm() {
         true
     else
         false
+    fi
+}
+
+extra_npm_install_args() {
+    if is_arch_arm ; then
+        echo "--build-from-source"
+    else
+        echo ""
     fi
 }
 
