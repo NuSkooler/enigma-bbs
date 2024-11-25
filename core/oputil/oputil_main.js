@@ -11,6 +11,7 @@ const handleMessageBaseCommand =
     require('./oputil_message_base.js').handleMessageBaseCommand;
 const handleConfigCommand = require('./oputil_config.js').handleConfigCommand;
 const handleApCommand = require('./activitypub').handleUserCommand;
+const handleSSHKeyCommand = require('./oputil_ssh_key.js').handleSSHKeyCommand;
 const getHelpFor = require('./oputil_help.js').getHelpFor;
 
 module.exports = function () {
@@ -35,6 +36,8 @@ module.exports = function () {
             return handleMessageBaseCommand();
         case 'ap':
             return handleApCommand();
+        case 'ssh':
+            return handleSSHKeyCommand();
         default:
             return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.BAD_COMMAND);
     }

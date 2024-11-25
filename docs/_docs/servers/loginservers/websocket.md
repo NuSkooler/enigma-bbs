@@ -78,22 +78,24 @@ webserver, and unpack it to a temporary directory.
 
     ````javascript
     var vtxdata = {
-        sysName: "Your Awesome BBS",
-        wsConnect: "wss://your-hostname.here:8811",
-        term: "ansi-bbs",
-        codePage: "CP437",
-        fontName: "UVGA16",
-        fontSize: "24px",
-        crtCols: 80,
-        crtRows: 25,
-        crtHistory: 500,
-        xScale: 1,
-        initStr: "",
-        defPageAttr: 0x1010,
-        defCrsrAttr: ['thick', 'horizontal'],
-        defCellAttr: 0x0007,
-        telnet: 1,
-        autoConnect: 0
+        sysName:       "Your Awesome BBS",
+        wsConnect:     "wss://your-hostname.here:8811",
+        term:          "ansi-bbs",
+        codePage:      "CP437",
+        fontName:      "UVGA16",
+        fontSize:      "24px",
+        crtCols:       80,
+        crtRows:       25,
+        crtHistory:    500,
+        xScale:        1,
+        initStr:       "",
+        defPageAttr:   0x1010,
+        defCrsrAttr:   ['thick', 'horizontal'],
+        defCellAttr:   0x0007,
+        telnet:        1,
+        autoConnect:   0,
+        wsProtocol:    'telnet',
+        wsDataType:    'arraybuffer',
     };
     ````
 
