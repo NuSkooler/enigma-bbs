@@ -225,10 +225,12 @@ menu() {
         1) enigma_install_init; install_dependencies; break;;
         2) install_bbs; break;;
         3) enigma_install_init; install_everything; break;;
-        $((${#options[@]}+1))) echo "Goodbye!"; break;;
+        $((${#options[@]}+1))) echo "Goodbye!"; exit 0;;
         *) echo "Invalid option. Try another one.";continue;;
         esac
-    done
+    done < /dev/tty
+
+    unset PS3
 }
 
 enigma_header
