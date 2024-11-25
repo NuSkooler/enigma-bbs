@@ -5,12 +5,7 @@ ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 AUTOEXEC_LOGFILE="$ENIGMA_INSTALL_DIR/logs/autoexec.log"
 
 # Mise en place
-eval "$(~/.local/bin/mise activate bash)"
-export PYTHON_VENV_PATH="$HOME/enigma-bbs/.venv/bin"
-export PYTHON_PATH="$HOME/.local/share/mise/installs/python/$ENIGMA_PYTHON_VERSION/bin"
-export MISE_PATH="$HOME/.local/bin"
-export NODE_PATH="$HOME/.local/share/mise/installs/node/$ENIGMA_NODE_VERSION/bin"
-export PATH="$PYTHON_VENV_PATH:$PYTHON_PATH:$MISE_PATH:$NODE_PATH:$PATH"
+~/.local/bin/mise activate bash >> bash
 
 # Environment Versions
 ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=$(toml get --toml-path=$ENIGMA_INSTALL_DIR/mise.toml tools.node)}
