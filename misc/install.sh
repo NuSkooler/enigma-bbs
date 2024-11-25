@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
 
 { # this ensures the entire script is downloaded before execution
-
-ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=18}
-ENIGMA_PYTHON_VERSION="3.10"
 ENIGMA_BRANCH=${ENIGMA_BRANCH:=master}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
-WAIT_BEFORE_INSTALL=10
 
 enigma_header() {
     clear
@@ -26,8 +22,6 @@ _____________________   _____  ____________________    __________\\_   /
 Installing ENiGMA½:
   Source     : ${ENIGMA_SOURCE} (${ENIGMA_BRANCH} branch)
   Destination: ${ENIGMA_INSTALL_DIR}
-  Node.js    : ${ENIGMA_NODE_VERSION} via mise-en-place
-  Python     : ${ENIGMA_PYTHON_VERSION} via mise-en-place
 
 >> If this isn't what you were expecting, hit CTRL-C now!
 >> Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
@@ -93,16 +87,13 @@ enigma_install_init() {
 
 install_mise_en_place() {
     curl https://mise.run | sh
-    eval ~/.local/bin/mise activate bash
+
+    mise install
 }
 
-install_node_runtime_environment() {
-    mise use --global node@$ENIGMA_NODE_VERSION
-}
-
-install_python_runtime_environment() {
-    mise settings python.compile=1
-    mise use --global python@$ENIGMA_PYTHON_VERSION
+install_tools() {
+    # Used to read toml files from bash scripts
+    python -m pip install toml-cli
 }
 
 download_enigma_source() {
@@ -196,25 +187,6 @@ ADDITIONAL ACTIONS ARE REQUIRED!
 
     ./autoexec.sh
 
-5 - Enable Automatic Startup via systemd (optional)
-
-    Write a file in /etc/systemd/system/bbs.service containing:
-        [Unit]
-        Description=Enigma½ BBS
-        
-        [Install]
-        WantedBy=multi-user.target
-        
-        [Service]
-        ExecStart=/home/<YOURUSERNAME>/enigma-bbs/autoexec.sh
-        Type=simple
-        User=<YOURUSERNAME>
-        Group=<YOURUSERNAME>
-        WorkingDirectory=/home/<YOURUSERNAME>/enigma-bbs/
-        Restart=on-failure
-
-    Run 'sudo systemctl enable bbs.service' to start at boot
-
 EndOfMessage
     echo -e "\e[39m"
 }
@@ -222,8 +194,6 @@ EndOfMessage
 install_dependencies() {
     enigma_install_init
     install_mise_en_place
-    install_node_runtime_environment
-    install_python_runtime_environment
     install_node_packages
 }
 
