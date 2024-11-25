@@ -1,7 +1,7 @@
 #	Don't check in SSH keys!
 *.pem
 
-#	Various directories
+#	Exclude User-Customized Directories
 config/
 db/
 drop/
@@ -11,5 +11,10 @@ mail/
 node_modules/
 docs/_site/
 docs/.sass-cache/
-
 docs/.jekyll-cache/
+
+#   Ignore Web Assets not included with enigma-bbs
+www/*
+www/assets/*
+!www/otp_register_template.html
+!www/reset_password.template.html
