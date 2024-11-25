@@ -8,7 +8,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 Below are just some of the features ENiGMA½ supports out of the box:
  * **Multi platform** — Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
  * Unlimited multi node support (for all those BBS "callers"!)
- * **Highly customizable** via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based [mods](./docs/_docs/modding/existing-mods.md)
+ * **Highly customizable** via [HJSON](https://hjson.github.io/) based configuration, menus, and themes in addition to JavaScript based [mods](./docs/_docs/modding/existing-mods.md)
  * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output

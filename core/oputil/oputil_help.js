@@ -21,6 +21,7 @@ Commands:
   fb                        File base management
   mb                        Message base management
   ap                        ActivityPub management
+  ssh                       SSH key management
 `,
     User: `usage: oputil.js user <action> [<arguments>]
 
@@ -228,7 +229,11 @@ Actions:
   Instead of an actual USERNAME, the '*' character may be substituted.
 
 condition arguments:
-  --force                     Force condition; overrides any existing settings
+  --force                     Force condition; overrides any existing settings`,
+    SSH: `usage: oputil.js ssh <action>
+
+Actions:
+  create                      Create new SSH Keys
 `,
 });
 
