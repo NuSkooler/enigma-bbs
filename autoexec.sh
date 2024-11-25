@@ -5,8 +5,8 @@ ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 AUTOEXEC_LOGFILE="$ENIGMA_INSTALL_DIR/logs/autoexec.log"
 
 # Environment Versions (would be awesome to read this from mise.toml)
-ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=18}
-ENIGMA_PYTHON_VERSION=${ENIGMA_PYTHON_VERSION:=3.10}
+ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=$(toml get --toml-path=$ENIGMA_INSTALL_DIR/mise.toml tools.node)}
+ENIGMA_PYTHON_VERSION=${ENIGMA_PYTHON_VERSION:=$(toml get --toml-path=$ENIGMA_INSTALL_DIR/mise.toml tools.python)}
 
 # Mise en place
 eval "$(~/.local/bin/mise activate bash)"
