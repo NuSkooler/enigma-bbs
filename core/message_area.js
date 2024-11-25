@@ -848,6 +848,11 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 async.each(
                     areaInfos,
                     (areaInfo, nextArea) => {
+                        Log.info(
+                            { areaInfo },
+                            `Trimming message area "${areaInfo.areaTag}"...`
+                        );
+
                         async.series(
                             [
                                 next => {
