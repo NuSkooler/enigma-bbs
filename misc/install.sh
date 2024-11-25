@@ -140,7 +140,6 @@ install_node_packages() {
 }
 
 copy_template_files() {
-    echo $ENIGMA_INSTALL_DIR
     if [[ ! -f "$ENIGMA_INSTALL_DIR/gopher/gophermap" ]]; then
         cp "$ENIGMA_INSTALL_DIR/misc/gophermap" "$ENIGMA_INSTALL_DIR/gopher/gophermap"
     fi
