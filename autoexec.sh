@@ -26,6 +26,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - CURRENT DIR: ${PWD##}" | tee -a $AUTOEXEC_L
 if ! command -v "mise" 2>&1 >/dev/null
 then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - mise is not in your PATH, activating" | tee -a $AUTOEXEC_LOGFILE
+    eval "$(~/.local/bin/mise activate bash)"
 fi
 
 if ! command -v "node" 2>&1 >/dev/null
