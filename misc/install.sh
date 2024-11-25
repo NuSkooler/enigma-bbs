@@ -89,6 +89,8 @@ install_mise_en_place() {
     curl https://mise.run | sh
 
     mise install
+
+    ~/.local/bin/mise activate bash >> bash
 }
 
 install_tools() {
@@ -195,6 +197,7 @@ install_dependencies() {
     enigma_install_init
     install_mise_en_place
     install_node_packages
+    install_tools
 }
 
 install_bbs() {
@@ -203,9 +206,8 @@ install_bbs() {
 }
 
 install_everything() {
-    install_dependencies
     download_enigma_source
-    install_node_packages
+    install_dependencies
     copy_template_files
 }
 
