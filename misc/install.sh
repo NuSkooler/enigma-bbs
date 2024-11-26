@@ -95,14 +95,12 @@ install_mise_en_place() {
 
     mise install
 
-    NODE_PATH="~/.local/share/mise/installs/node/latest/bin"
-    PYTHON_PATH="~/.local/share/mise/installs/python/latest/bin"
-    export PATH=$NODE_PATH:$PYTHON_PATH:$PATH
+    PATH="$HOME/.local/share/mise/shims:$PATH"
 }
 
 install_tools() {
     # Used to read toml files from bash scripts
-    ~/.local/share/mise/installs/python/latest/bin/python -m pip install toml-cli
+    python -m pip install toml-cli
 }
 
 download_enigma_source() {
