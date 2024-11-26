@@ -95,7 +95,7 @@ install_mise_en_place() {
 
     mise install
 
-    PATH="$HOME/.local/share/mise/shims:$PATH"
+    export PATH="$HOME/.local/share/mise/shims:$PATH"
 }
 
 install_tools() {
@@ -219,11 +219,21 @@ EndOfMessage
     echo -e "\e[39m"
 }
 
+post_install() {
+    MISE_SHIM_PATH_COMMAND='export PATH="$HOME/.local/share/mise/shims:$PATH"'
+    if ! grep -Fxq "$MISE_SHIM_PATH_COMMAND" ~/.bashrc
+    then
+        echo $MISE_SHIM_PATH_COMMAND >> ~/.bashrc
+        echo -e "\e[0;32mInstalled Mise Shims into your ~/.bashrc\e[39m"
+    fi
+}
+
 install_dependencies() {
     enigma_install_init
     install_mise_en_place
     install_tools
     install_node_packages
+    post_install
 }
 
 install_bbs() {
