@@ -88,14 +88,21 @@ enigma_install_init() {
 install_mise_en_place() {
     curl https://mise.run | sh
 
+    # ~/.local/bin/mise activate bash >> bash
+    eval "$(~/.local/bin/mise activate bash)"
+
+    cd $ENIGMA_INSTALL_DIR
+
     mise install
 
-    ~/.local/bin/mise activate bash >> bash
+    NODE_PATH="~/.local/share/mise/installs/node/latest/bin"
+    PYTHON_PATH="~/.local/share/mise/installs/python/latest/bin"
+    export PATH=$NODE_PATH:$PYTHON_PATH:$PATH
 }
 
 install_tools() {
     # Used to read toml files from bash scripts
-    python -m pip install toml-cli
+    ~/.local/share/mise/installs/python/latest/bin/python -m pip install toml-cli
 }
 
 download_enigma_source() {
@@ -137,7 +144,9 @@ install_node_packages() {
 
     cd ${ENIGMA_INSTALL_DIR}
     local EXTRA_NPM_ARGS=$(extra_npm_install_args)
-    git checkout ${ENIGMA_BRANCH} && npm install ${EXTRA_NPM_ARGS}
+    git checkout ${ENIGMA_BRANCH}
+
+    npm install ${EXTRA_NPM_ARGS}
     if [ $? -eq 0 ]; then
         log "npm package installation complete"
     else
@@ -196,8 +205,8 @@ EndOfMessage
 install_dependencies() {
     enigma_install_init
     install_mise_en_place
-    install_node_packages
     install_tools
+    install_node_packages
 }
 
 install_bbs() {
