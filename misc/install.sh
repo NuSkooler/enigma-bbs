@@ -196,6 +196,25 @@ ADDITIONAL ACTIONS ARE REQUIRED!
 
     ./autoexec.sh
 
+5 - Enable Automated Startup on Boot (optional)
+
+    Create a file in /etc/systemd/system/bbs.service with the following contents:
+        [Unit]
+        Description=Enigma½ BBS
+        
+        [Install]
+        WantedBy=multi-user.target
+        
+        [Service]
+        ExecStart=/home/<YOUR_USERNAME>/enigma-bbs/autoexec.sh
+        Type=simple
+        User=<YOUR_USERNAME>
+        Group=<YOUR_USERNAME>
+        WorkingDirectory=/home/<YOUR_USERNAME>/enigma-bbs/
+        Restart=on-failure
+
+    Run 'sudo systemctl enable bbs.service'
+
 EndOfMessage
     echo -e "\e[39m"
 }
