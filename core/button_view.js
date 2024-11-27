@@ -5,6 +5,9 @@ const TextView = require('./text_view.js').TextView;
 const miscUtil = require('./misc_util.js');
 const util = require('util');
 
+//   deps
+const { isString } = require('lodash');
+
 exports.ButtonView = ButtonView;
 
 function ButtonView(options) {
@@ -32,4 +35,19 @@ ButtonView.prototype.onKeyPress = function (ch, key) {
 
 ButtonView.prototype.getData = function () {
     return this.submitData || null;
+};
+
+ButtonView.prototype.setPropertyValue = function (propName, value) {
+    switch (propName) {
+        case 'itemFormat':
+        case 'focusItemFormat':
+            if (isString(value)) {
+                this[propName] = value;
+            }
+            break;
+        default:
+            break;
+    }
+
+    ButtonView.super_.prototype.setPropertyValue.call(this, propName, value);
 };

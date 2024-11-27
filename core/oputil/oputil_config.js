@@ -250,6 +250,7 @@ function buildNewConfig() {
             'new_user.in.hjson',
             'doors.in.hjson',
             'file_base.in.hjson',
+            'activitypub.in.hjson',
         ];
 
         let includeFiles = [];

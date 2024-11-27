@@ -2,9 +2,8 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule, MenuFlags }  = require('./menu_module');
+const { MenuModule, MenuFlags } = require('./menu_module');
 const Message = require('./message.js');
-const UserProps = require('./user_property.js');
 const { filterMessageListByReadACS } = require('./message_area.js');
 
 exports.moduleInfo = {
@@ -46,7 +45,7 @@ exports.getModule = class MyMessagesModule extends MenuModule {
     finishedLoading() {
         if (!this.messageList || 0 === this.messageList.length) {
             return this.gotoMenu(
-                this.menuConfig.config.noResultsMenu || 'messageSearchNoResults',
+                this.menuConfig.config.noResultsMenu || 'messageSearchNoResults'
             );
         }
 
