@@ -204,7 +204,7 @@ enigma_footer() {
 ADDITIONAL ACTIONS ARE REQUIRED!
 --------------------------------
 
-1 - If you did not have Node.js and/or NVM installed previous to this please open a new shell/terminal now!
+1 - If you did not have Node.js and/or mise installed previous to this please open a new shell/terminal now!
   (!) Not doing so will prevent 'nvm', 'node', or 'python' commands from functioning!
 
 2 - If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration:
