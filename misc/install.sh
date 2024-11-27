@@ -47,7 +47,7 @@ BACKGROUND_STRONG_WHITE="\e[107m"
 
 enigma_header() {
     clear
-    echo -e "$FOREGROUND_STRONG_WHITE"
+    printf "$FOREGROUND_STRONG_WHITE"
     cat << EndOfMessage
                                                                  ______
 _____________________   _____  ____________________    __________\\_   /
@@ -64,11 +64,11 @@ ENiGMA½:
   Destination: ${ENIGMA_INSTALL_DIR}
 
 EndOfMessage
-    echo -e "$RESET"
+    printf "$RESET"
 }
 
 fatal_error() {
-    echo -e "${TIME_FORMAT} \e[41mERROR:\033[0m %b\n" "$*" >&2;
+    log "${TIME_FORMAT} ERROR: %b\n $*" >&2;
     exit 1
 }
 
@@ -77,12 +77,11 @@ check_exists() {
 }
 
 enigma_install_needs_ex() {
-    echo -ne "${FOREGROUND_GREEN}Checking for '$1'...${RESET}"
+    log "Checking for '$1'...${RESET}"
     if check_exists $1 ; then
-        echo -e "${FOREGROUND_STRONG_GREEN} Found!${RESET}"
+        log " Found!"
     else
-        echo ""
-        fatal_error "${FOREGROUND_STRONG_RED}ENiGMA½ requires '$1' but it was not found. Please install it and/or make sure it is in your path then restart the installer.\n\n$2${RESET}"
+        fatal_error "ENiGMA½ requires '$1' but it was not found. Please install it and/or make sure it is in your path then restart the installer.\n\n$2"
     fi
 }
 
@@ -91,17 +90,30 @@ enigma_install_needs() {
 }
 
 enigma_has_mise() {
-    echo -e "${FOREGROUND_GREEN}Checking for an installation of mise-en-place (https://mise.jdx.dev/)${RESET}"
+    log "Checking for an installation of mise-en-place (https://mise.jdx.dev/)"
     if check_exists "mise"; then
-        echo -e "${FOREGROUND_STRONG_GREEN} Found!${RESET}"
+        log "Found!"
     else
-        echo ""
-        fatal_error "${FOREGROUND_STRONG_RED}ENiGMA½ requires mise-enplace to install dependencies.${RESET}"
+        log ""
+        fatal_error "ENiGMA½ requires mise-enplace to install dependencies."
     fi
 }
 
-log()  {
-    echo -e "${TIME_FORMAT} %b\n" "$*";
+log() {
+    local LOG_CONTENT=$1
+
+    local COLOUR=""
+    case $LOG_CONTENT in
+        "ERROR")
+            COLOUR="${FOREGROUND_STRONG_RED}"
+            ;;
+        *)
+            COLOUR="${FOREGROUND_GREEN}"
+            ;;
+    esac
+
+    printf "${TIME_FORMAT} %b\n" "${COLOUR}${LOG_CONTENT}${RESET}";
+    echo $LOG_CONTENT >> $ENIGMA_INSTALL_LOG
 }
 
 enigma_install_init() {
@@ -135,14 +147,14 @@ download_enigma_source() {
     INSTALL_DIR=${ENIGMA_INSTALL_DIR}
 
     if [ -d "$INSTALL_DIR/.git" ]; then
-        log "${FOREGROUND_YELLOW}ENiGMA½ is already installed in $INSTALL_DIR, trying to update using git...${RESET}"
+        log "ENiGMA½ is already installed in $INSTALL_DIR, trying to update using git..."
         command git --git-dir="$INSTALL_DIR"/.git --work-tree="$INSTALL_DIR" fetch 2> /dev/null ||
-            fatal_error "${FOREGROUND_STRONG_RED}Failed to update ENiGMA½, run 'git fetch' in $INSTALL_DIR yourself.${RESET}"
+            fatal_error "Failed to update ENiGMA½, run 'git fetch' in $INSTALL_DIR yourself."
     else
-        log "${FOREGROUND_GREEN}Downloading ENiGMA½ from git to '$INSTALL_DIR'${RESET}"
+        log "Downloading ENiGMA½ from git to '$INSTALL_DIR'"
         mkdir -p "$INSTALL_DIR"
         command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" ||
-            fatal_error "${FOREGROUND_STRONG_RED}Failed to clone ENiGMA½ repo. Please report this!${RESET}"
+            fatal_error "Failed to clone ENiGMA½ repo. Please report this!"
     fi
 }
 
@@ -157,15 +169,15 @@ is_arch_arm() {
 
 extra_npm_install_args() {
     if is_arch_arm ; then
-        echo "--build-from-source"
+        printf "--build-from-source"
     else
-        echo ""
+        printf ""
     fi
 }
 
 install_node_packages() {
-    log "${FOREGROUND_GREEN}Installing required Node packages...${RESET}"
-    log "${FOREGROUND_YELLOW}Note that on some systems such as RPi, this can take a VERY long time. Be patient!${RESET}"
+    log "Installing required Node packages..."
+    printf "Note that on some systems such as RPi, this can take a VERY long time. Be patient!"
 
     cd ${ENIGMA_INSTALL_DIR}
     local EXTRA_NPM_ARGS=$(extra_npm_install_args)
@@ -173,15 +185,14 @@ install_node_packages() {
 
     npm install ${EXTRA_NPM_ARGS} >> $ENIGMA_INSTALL_LOG
     if [ $? -eq 0 ]; then
-        log "${FOREGROUND_STRONG_GREEN}npm package installation complete${RESET}"
+        log "npm package installation complete"
     else
-        fatal_error "${FOREGROUND_STRONG_RED}Failed to install ENiGMA½ npm packages. Please report this and refer to ~/enigma-install.log!{$RESET}"
+        fatal_error "Failed to install ENiGMA½ npm packages. Please report this and refer to ${ENIGMA_INSTALL_LOG}!"
     fi
 }
 
 copy_template_files() {
-    log "${FOREGROUND_GREEN}Copying Template Files to ${ENIGMA_INSTALL_DIR}/misc/gophermap${RESET}"
-    echo $ENIGMA_INSTALL_DIR
+    log "Copying Template Files to ${ENIGMA_INSTALL_DIR}/misc/gophermap"
     if [[ ! -f "$ENIGMA_INSTALL_DIR/gopher/gophermap" ]]; then
         cp "$ENIGMA_INSTALL_DIR/misc/gophermap" "$ENIGMA_INSTALL_DIR/gopher/gophermap"
     fi
@@ -189,7 +200,7 @@ copy_template_files() {
 
 enigma_footer() {
     log "ENiGMA½ installation complete!"
-    echo -e "${FOREGROUND_YELLOW}"
+    printf "${FOREGROUND_YELLOW}"
     cat << EndOfMessage
 
 ADDITIONAL ACTIONS ARE REQUIRED!
@@ -244,22 +255,22 @@ ADDITIONAL ACTIONS ARE REQUIRED!
     Run 'sudo systemctl enable bbs.service'
 
 EndOfMessage
-    echo -e "${RESET}"
+    printf "${RESET}"
 }
 
 post_install() {
     MISE_SHIM_PATH_COMMAND='export PATH="$HOME/.local/share/mise/shims:$PATH"'
     if grep -Fxq "$MISE_SHIM_PATH_COMMAND" ~/.bashrc
     then
-        log "${FOREGROUND_STRONG_GREEN}Mise Shims found in your ~/.bashrc${RESET}"
+        log "Mise Shims found in your ~/.bashrc"
     else
         echo $MISE_SHIM_PATH_COMMAND >> ~/.bashrc
-        log "${FOREGROUND_STRONG_YELLOW}Installed Mise Shims into your ~/.bashrc${RESET}"
+        log "Installed Mise Shims into your ~/.bashrc"
     fi
 }
 
 install_dependencies() {
-    log "${FOREGROUND_GREEN}Installing Dependencies...$RESET"
+    log "Installing Dependencies..."
 
     enigma_install_init
     install_mise_en_place
@@ -269,14 +280,14 @@ install_dependencies() {
 }
 
 install_bbs() {
-    log "${FOREGROUND_GREEN}Installing ENiGMA½...$RESET"
+    log "Installing ENiGMA½..."
 
     download_enigma_source
     copy_template_files
 }
 
 install_everything() {
-    log "${FOREGROUND_STRONG_GREEN}Installing Everything...$RESET"
+    log "Installing Everything..."
     download_enigma_source
     install_dependencies
     copy_template_files
@@ -284,7 +295,7 @@ install_everything() {
 
 menu() {
     title="Installation Options"
-    prompt="Pick an option:"
+    prompt="Select>"
     options=(
         "Install Dependencies"
         "Install ENiGMA½"
@@ -298,8 +309,8 @@ menu() {
         1) enigma_install_init; install_dependencies; break;;
         2) install_bbs; break;;
         3) enigma_install_init; install_everything; break;;
-        $((${#options[@]}+1))) echo "Goodbye!"; exit 0;;
-        *) echo -e "${FOREGROUND_STRONG_RED}Invalid option.${RESET}";continue;;
+        $((${#options[@]}+1))) printf "Goodbye!"; exit 0;;
+        *) printf "${FOREGROUND_STRONG_RED}Invalid option.${RESET}\n";continue;;
         esac
     done < /dev/tty
 
