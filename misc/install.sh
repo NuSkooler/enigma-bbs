@@ -4,7 +4,6 @@
 ENIGMA_BRANCH=${ENIGMA_BRANCH:=master}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
-ENIGMA_INSTALL_LOG=~/enigma-install.log
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
 
 # ANSI Codes
@@ -113,7 +112,6 @@ log() {
     esac
 
     printf "${TIME_FORMAT} %b\n" "${COLOUR}${LOG_CONTENT}${RESET}";
-    echo $LOG_CONTENT >> $ENIGMA_INSTALL_LOG
 }
 
 enigma_install_init() {
@@ -132,7 +130,7 @@ install_mise_en_place() {
 
     cd $ENIGMA_INSTALL_DIR
 
-    mise install >> ${ENIGMA_INSTALL_LOG}
+    mise install
 
     export PATH="$HOME/.local/share/mise/shims:$PATH"
 }
@@ -183,11 +181,11 @@ install_node_packages() {
     local EXTRA_NPM_ARGS=$(extra_npm_install_args)
     git checkout ${ENIGMA_BRANCH}
 
-    npm install ${EXTRA_NPM_ARGS} >> $ENIGMA_INSTALL_LOG
+    npm install ${EXTRA_NPM_ARGS}
     if [ $? -eq 0 ]; then
         log "npm package installation complete"
     else
-        fatal_error "Failed to install ENiGMA½ npm packages. Please report this and refer to ${ENIGMA_INSTALL_LOG}!"
+        fatal_error "Failed to install ENiGMA½ npm packages. Please report this!"
     fi
 }
 
@@ -316,9 +314,6 @@ menu() {
 
     unset PS3
 }
-
-# Reset Logfile
-rm $ENIGMA_INSTALL_LOG
 
 enigma_header
 menu
