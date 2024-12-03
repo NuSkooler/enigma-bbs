@@ -102,7 +102,7 @@ Actions:
   cat                      Write current configuration to stdout
 
 cat arguments:
-  --no-color               Disable color
+  --no-colors              Disable color
   --no-comments            Strip any comments
 `,
     FileBase: `usage: oputil.js fb <action> [<arguments>]
