@@ -6,7 +6,9 @@ AUTOEXEC_LOGFILE="$ENIGMA_INSTALL_DIR/logs/autoexec.log"
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
 
 # Mise en place
-~/.local/bin/mise activate bash >> bash
+export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+export PATH="$HOME/.local/share/mise/installs/python/latest/bin:$PATH"
 
 # Environment Versions
 ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=$(toml get --toml-path=$ENIGMA_INSTALL_DIR/mise.toml tools.node)}
@@ -32,8 +34,9 @@ log "- CURRENT DIR: ${PWD##}"
 
 if ! command -v "mise" 2>&1 >/dev/null
 then
-    log "mise is not in your PATH, activating"
-    eval "$(~/.local/bin/mise activate bash)"
+    log "mise is not in your PATH"
+    log "ERROR END"
+    exit 1
 fi
 
 if ! command -v "node" 2>&1 >/dev/null
