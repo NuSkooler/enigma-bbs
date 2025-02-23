@@ -1,6 +1,6 @@
 [tools]
-node = '18'
-python = '3.10'
+node = '22'
+python = "3.12"
 
 [env]
 NODE_ENV = 'production'
