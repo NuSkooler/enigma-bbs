@@ -1,11 +1,10 @@
-/* jslint node: true */
-'use strict';
-
 //  ENiGMA½
-const Log = require('../../logger.js').log;
+const SysLogger = require('../../logger.js').log;
 const ServerModule = require('../../server_module.js').ServerModule;
 const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
+const { loadModulesForCategory, moduleCategories } = require('../../module_util');
+const WebHandlerModule = require('../../web_handler_module');
 
 //  deps
 const http = require('http');
@@ -16,6 +15,7 @@ const paths = require('path');
 const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
+const WebLog = require('../../web_log.js');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
@@ -23,6 +23,11 @@ const ModuleInfo = (exports.moduleInfo = {
     author: 'NuSkooler',
     packageName: 'codes.l33t.enigma.web.server',
 });
+
+exports.WellKnownLocations = {
+    Rfc5785: '/.well-known', //  https://www.rfc-editor.org/rfc/rfc5785
+    Internal: '/_enig', //  location of most enigma provided routes
+};
 
 class Route {
     constructor(route) {
@@ -35,7 +40,7 @@ class Route {
         try {
             this.pathRegExp = new RegExp(this.path);
         } catch (e) {
-            Log.debug({ route: route }, 'Invalid regular expression for route path');
+            this.log.error({ route: route }, 'Invalid regular expression for route path');
         }
     }
 
@@ -70,6 +75,8 @@ exports.getModule = class WebServerModule extends ServerModule {
     constructor() {
         super();
 
+        this.log = WebLog.createWebLog();
+
         const config = Config();
         this.enableHttp = config.contentServers.web.http.enabled || false;
         this.enableHttps = config.contentServers.web.https.enabled || false;
@@ -77,36 +84,8 @@ exports.getModule = class WebServerModule extends ServerModule {
         this.routes = {};
     }
 
-    buildUrl(pathAndQuery) {
-        //
-        //  Create a URL such as
-        //  https://l33t.codes:44512/ + |pathAndQuery|
-        //
-        //  Prefer HTTPS over HTTP. Be explicit about the port
-        //  only if non-standard. Allow users to override full prefix in config.
-        //
-        const config = Config();
-        if (_.isString(config.contentServers.web.overrideUrlPrefix)) {
-            return `${config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
-        }
-
-        let schema;
-        let port;
-        if (config.contentServers.web.https.enabled) {
-            schema = 'https://';
-            port =
-                443 === config.contentServers.web.https.port
-                    ? ''
-                    : `:${config.contentServers.web.https.port}`;
-        } else {
-            schema = 'http://';
-            port =
-                80 === config.contentServers.web.http.port
-                    ? ''
-                    : `:${config.contentServers.web.http.port}`;
-        }
-
-        return `${schema}${config.contentServers.web.domain}${port}${pathAndQuery}`;
+    logger() {
+        return this.log;
     }
 
     isEnabled() {
@@ -115,9 +94,12 @@ exports.getModule = class WebServerModule extends ServerModule {
 
     createServer(cb) {
         if (this.enableHttp) {
-            this.httpServer = http.createServer((req, resp) =>
-                this.routeRequest(req, resp)
-            );
+            this.httpServer = http.createServer((req, resp) => {
+                resp.on('error', err => {
+                    this.log.error({ error: err.message }, 'Response error');
+                });
+                this.routeRequest(req, resp);
+            });
         }
 
         const config = Config();
@@ -138,6 +120,47 @@ exports.getModule = class WebServerModule extends ServerModule {
         return cb(null);
     }
 
+    beforeListen(cb) {
+        if (!this.isEnabled()) {
+            return cb(null);
+        }
+
+        loadModulesForCategory(
+            moduleCategories.WebHandlers,
+            (module, nextModule) => {
+                const moduleInst = new module.getModule();
+                try {
+                    const normalizedName = _.camelCase(module.moduleInfo.name);
+                    if (!WebHandlerModule.isEnabled(normalizedName)) {
+                        SysLogger.info(
+                            { moduleName: normalizedName },
+                            'Web handler module not enabled'
+                        );
+                        return nextModule(null);
+                    }
+
+                    SysLogger.info(
+                        { moduleName: normalizedName },
+                        'Initializing web handler module'
+                    );
+
+                    moduleInst.init(this, err => {
+                        return nextModule(err);
+                    });
+                } catch (e) {
+                    SysLogger.error(
+                        { error: e.message },
+                        'Exception caught loading web handler'
+                    );
+                    return nextModule(e);
+                }
+            },
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
     listen(cb) {
         const config = Config();
         forEachSeries(
@@ -147,12 +170,12 @@ exports.getModule = class WebServerModule extends ServerModule {
                 if (this[name]) {
                     const port = parseInt(config.contentServers.web[service].port);
                     if (isNaN(port)) {
-                        Log.warn(
+                        SysLogger.error(
                             {
                                 port: config.contentServers.web[service].port,
                                 server: ModuleInfo.name,
                             },
-                            `Invalid port (${service})`
+                            `Invalid web port (${service})`
                         );
                         return nextService(
                             Errors.Invalid(
@@ -182,16 +205,13 @@ exports.getModule = class WebServerModule extends ServerModule {
         route = new Route(route);
 
         if (!route.isValid()) {
-            Log.warn(
-                { route: route },
-                'Cannot add route: missing or invalid required members'
-            );
+            SysLogger.error({ route: route }, 'Cannot add invalid route');
             return false;
         }
 
         const routeKey = route.getRouteKey();
         if (routeKey in this.routes) {
-            Log.warn(
+            SysLogger.warn(
                 { route: route, routeKey: routeKey },
                 'Cannot add route: duplicate method/path combination exists'
             );
@@ -203,6 +223,8 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     routeRequest(req, resp) {
+        this.log.trace({ req }, 'Request');
+
         let route = _.find(this.routes, r => r.matchesRequest(req));
 
         if (route) {
@@ -249,12 +271,59 @@ exports.getModule = class WebServerModule extends ServerModule {
         });
     }
 
+    ok(resp, body = '', headers = { 'Content-Type': 'text/html' }) {
+        if (body && !headers['Content-Length']) {
+            headers['Content-Length'] = Buffer.from(body).length;
+        }
+        resp.writeHead(200, 'OK', body ? headers : null);
+        return resp.end(body);
+    }
+
+    created(resp, body = '', headers = { 'Content-Type': 'text/html' }) {
+        resp.writeHead(201, 'Created', body ? headers : null);
+        return resp.end(body);
+    }
+
+    accepted(resp, body = '', headers = { 'Content-Type': 'text/html' }) {
+        resp.writeHead(202, 'Accepted', body ? headers : null);
+        return resp.end(body);
+    }
+
+    badRequest(resp) {
+        return this.respondWithError(resp, 400, 'Bad request.', 'Bad Request');
+    }
+
     accessDenied(resp) {
         return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
     }
 
     fileNotFound(resp) {
         return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+    }
+
+    resourceNotFound(resp) {
+        return this.respondWithError(
+            resp,
+            404,
+            'Resource not found.',
+            'Resource Not Found'
+        );
+    }
+
+    internalServerError(resp, err) {
+        if (err) {
+            this.log.error({ error: err.message }, 'Internal server error');
+        }
+        return this.respondWithError(
+            resp,
+            500,
+            'Internal server error.',
+            'Internal Server Error'
+        );
+    }
+
+    notImplemented(resp) {
+        return this.respondWithError(resp, 501, 'Not implemented.', 'Not Implemented');
     }
 
     tryRouteIndex(req, resp, cb) {
@@ -270,8 +339,8 @@ exports.getModule = class WebServerModule extends ServerModule {
                     req.url.substr(req.url.lastIndexOf('/', 1)),
                     tryFile
                 );
-                const filePath = this.resolveStaticPath(fileName);
 
+                const filePath = this.resolveStaticPath(fileName);
                 fs.stat(filePath, (err, stats) => {
                     if (err || !stats.isFile()) {
                         return nextTryFile(null, false);
@@ -330,6 +399,18 @@ exports.getModule = class WebServerModule extends ServerModule {
         const path = paths.resolve(staticRoot, `.${requestPath}`);
         if (path.startsWith(staticRoot)) {
             return path;
+        }
+    }
+
+    resolveTemplatePath(path) {
+        if (paths.isAbsolute(path)) {
+            return path;
+        }
+
+        const staticRoot = _.get(Config(), 'contentServers.web.staticRoot');
+        const resolved = paths.resolve(staticRoot, path);
+        if (resolved.startsWith(staticRoot)) {
+            return resolved;
         }
     }
 

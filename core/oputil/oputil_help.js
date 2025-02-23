@@ -1,5 +1,5 @@
 /* jslint node: true */
-/* eslint-disable no-console */
+
 'use strict';
 
 const getDefaultConfigPath = require('./oputil_common.js').getDefaultConfigPath;
@@ -20,6 +20,7 @@ Commands:
   config                    Configuration management
   fb                        File base management
   mb                        Message base management
+  ap                        ActivityPub management
   ssh                       SSH key management
 `,
     User: `usage: oputil.js user <action> [<arguments>]
@@ -221,6 +222,14 @@ qwk-export arguments:
   --no-qwke                   Disable QWKE extensions.
   --no-synchronet             Disable Synchronet style extensions.
 `,
+    ActivityPub: `usage: oputil.js ap <action> [<arguments>]
+Actions:
+  condition USERNAME          Condition user with system ActivityPub defaults
+
+  Instead of an actual USERNAME, the '*' character may be substituted.
+
+condition arguments:
+  --force                     Force condition; overrides any existing settings`,
     SSH: `usage: oputil.js ssh <action>
 
 Actions:

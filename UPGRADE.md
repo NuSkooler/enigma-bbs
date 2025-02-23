@@ -1,39 +1,49 @@
 # Introduction
-This document covers basic upgrade notes for major ENiGMA½ version updates.
-
-> :information_source: **Be sure to read the version-to-version upgrade notes below** for each upgrade!
+This document covers information for keeping your system updated through periodic upgrades as well as version-to-version upgrade notes. **Be sure to read these notes for _any_ upgrade!**
 
 # Before Upgrading
-* Always back up your system! (See [Administration](./docs/admin/administration.md))
-* Seriously, always back up your system!
+1. Always back up your system! (See [Administration - Backing Up Your System](./docs/_docs/admin/administration.md#backing-up-your-system))
+2. Seriously, always back up your system!
+3. Review the version to version release notes within this document.
+4. [Upgrade](./docs/_docs/admin/upgrading.md)
 
-# General Notes
-## Configuration File Updates
-In general, look at template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
+# The Upgrade Process
+ENiGMA½ does not currently have much of a "release process" in that instead, it is expected that if you want new features, you will `git pull` them to your system.
 
-### Menus & Theme Updates
-Upgrades often come with changes to the default menu templates found in `misc/menu_tempaltes`. You can use these as references for changes and additions to the default menu sets. This also applies to the default `luciano_blocktronics` theme and it's `theme.hjson` file.
-
-See [Updating](./docs/admin/updating.md) for details on menu files/etc.
-
-# Upgrading the Code
-Upgrading from GitHub is easy:
-
-```bash
-cd /path/to/enigma-bbs
-git pull
-rm -rf npm_modules # do this any time you update Node.js itself
-npm install # or simply 'yarn'
-```
+Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this process.
 
 # Problems
 1. Check [TROUBLESHOOTING](TROUBLESHOOTING.md) first.
-2. Report your issue on Xibalba BBS, hop in #`enigma-bbs` on FreeNode and chat, or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues) if you believe you've found a bug or missing feature.
+2. Report your issue on [Xibalba BBS](https://xibalba.l33t.codes), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues)!
+
 
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
 ## 0.0.13-beta to 0.0.14-beta
+* A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:
+
+```bash
+cp ./misc/menu_templates/activitypub.in.hjson ./config/menus/my_board_name-activitypub.hjson`
+```
+
+This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`. See [Configuration Files Include Statements](./docs/_docs/configuration/config-files.md#includes) for more information on using `include`.
+
+* ⚠ The menu flag `noHistory` has been revamped to work as expected. Some menu entires now need this flag. Look for any "NoResults" entries and remove `menuFlags`. For example, here is the (updated) default `fileBaseListEntriesNoResults` menu:
+
+```hjson
+fileBaseListEntriesNoResults: {
+    desc: Browsing Files
+    art: FBNORES
+    config: {
+        pause: true
+        // no menuFlags here
+    }
+}
+```
+
+See also: [Menu Modules](./docs/_docs/modding/menu-module.md).
+
 
 * Due to changes to supported algorithms in newer versions of openssl, the default list of supported algorithms for the ssh login server has changed. There are both removed ciphers as well as optional new kex algorithms available now. ***NOTE:*** Changes to supported algorithms are only needed to support keys generated with new versions of openssl, if you already have a ssl key in use you should not have to make any changes to your config.
   * Removed ciphers: 'blowfish-cbc', 'arcfour256', 'arcfour128', and 'cast128-cbc'
@@ -52,7 +62,7 @@ npm install # or simply 'yarn'
     // position reports, which are not supported on all terminals.
     // Using this with a terminal that does not support cursor
     // position reports results in a 2 second delay during the
-    // connect process, but provides better autoconfiguration of utf-8
+    // connect process, but provides better auto configuration of utf-8
     checkUtf8Encoding: true
 
 
