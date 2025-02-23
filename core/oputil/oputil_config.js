@@ -1,5 +1,5 @@
 /* jslint node: true */
-/* eslint-disable no-console */
+
 'use strict';
 
 //	ENiGMA½
@@ -226,6 +226,7 @@ const copyFileSyncSilent = (to, from, flags) => {
         fs.copyFileSync(to, from, flags);
     } catch (e) {
         /* absorb! */
+        console.error(e);
     }
 };
 
@@ -297,6 +298,15 @@ function catCurrentConfig() {
             colors: false === argv.colors ? false : true,
             keepWsc: false === argv.comments ? false : true,
         });
+
+        if (argv.meow) {
+            console.info(
+                `    /\\_/\\
+   ( o.o )
+    > ^ < ... mrow...`
+            );
+            return;
+        }
 
         console.log(hjson.stringify(config, hjsonOpts));
     } catch (e) {

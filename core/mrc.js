@@ -4,7 +4,7 @@
 //  ENiGMA½
 const Log = require('./logger.js').log;
 const { MenuModule } = require('./menu_module.js');
-const { pipeToAnsi, stripMciColorCodes } = require('./color_codes.js');
+const { pipeToAnsi } = require('./color_codes.js');
 const stringFormat = require('./string_format.js');
 const StringUtil = require('./string_util.js');
 const Config = require('./config.js').get;
@@ -292,6 +292,10 @@ exports.getModule = class mrcModule extends MenuModule {
             try {
                 message = JSON.parse(message);
             } catch (e) {
+                this.log.debug(
+                    { error: e.message },
+                    'Failed parsing received message JSON'
+                );
                 return;
             }
 
@@ -439,7 +443,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
 
                 // Echo PrivMSG to chat log (the server does not echo it back)
-                const currentTime =moment().format(
+                const currentTime = moment().format(
                     this.client.currentTheme.helpers.getTimeFormat()
                 );
                 this.addMessageToChatLog(
@@ -475,10 +479,11 @@ exports.getModule = class mrcModule extends MenuModule {
             case 't':
             case 'tell':
             case 'msg':
-            case 'pm':
+            case 'pm': {
                 const newmsg = cmd.slice(2).join(' ');
                 this.processOutgoingMessage(newmsg, cmd[1]);
                 break;
+            }
 
             case 'rainbow': {
                 // this is brutal, but i love it
@@ -653,7 +658,7 @@ exports.getModule = class mrcModule extends MenuModule {
      * MRC Server flood protection requires messages to be spaced in time
      */
     msgDelay(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**

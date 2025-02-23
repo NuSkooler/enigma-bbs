@@ -1,5 +1,5 @@
 /* jslint node: true */
-/* eslint-disable no-console */
+
 'use strict';
 
 const getDefaultConfigPath = require('./oputil_common.js').getDefaultConfigPath;
@@ -103,7 +103,7 @@ Actions:
   cat                      Write current configuration to stdout
 
 cat arguments:
-  --no-color               Disable color
+  --no-colors              Disable color
   --no-comments            Strip any comments
 `,
     FileBase: `usage: oputil.js fb <action> [<arguments>]

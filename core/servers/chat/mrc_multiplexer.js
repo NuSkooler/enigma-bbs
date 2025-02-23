@@ -16,7 +16,7 @@ const os = require('os');
 
 // MRC
 const clientVersion = '1.3.1';
-const lineDelimiter = new RegExp('\r\n|\r|\n|\n\r'); //  eslint-disable-line no-control-regex
+const lineDelimiter = new RegExp('\r\n|\r|\n|\n\r');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'MRC',
@@ -38,7 +38,8 @@ exports.getModule = class MrcModule extends ServerModule {
         this.boardName = config.general.boardName;
 
         // Use prettyBoardName only if non-default
-        if (config.general.prettyBoardName != '|08XXXXX') this.boardName = config.general.prettyBoardName;
+        if (config.general.prettyBoardName != '|08XXXXX')
+            this.boardName = config.general.prettyBoardName;
 
         this.mrcConfig = {
             host: config.chatServers.mrc.serverHostname || 'mrc.bottomlessabyss.net',
@@ -51,8 +52,8 @@ exports.getModule = class MrcModule extends ServerModule {
         this.mrcConnectOpts = {
             host: this.mrcConfig.host,
             port: this.mrcConfig.port,
-            retryDelay: this.mrcConfig.retryDelay
-        }
+            retryDelay: this.mrcConfig.retryDelay,
+        };
     }
 
     _connectionHandler() {
@@ -122,11 +123,10 @@ exports.getModule = class MrcModule extends ServerModule {
 
         // Check if we upgrade the connection to SSL
         if (this.mrcConfig.useSsl) {
-            const tls = require('tls')
+            const tls = require('tls');
             this.mrcSecureSocket = new tls.TLSSocket(this.mrcSocket, { isServer: false });
             this.mrcClient = this.mrcSecureSocket;
-        }
-        else {
+        } else {
             this.mrcClient = this.mrcSocket;
         }
 
@@ -358,7 +358,7 @@ exports.getModule = class MrcModule extends ServerModule {
             );
         } catch (e) {
             Log.debug(
-                { server: 'MRC', user: username, message: message },
+                { error: e.message, server: 'MRC', user: username, message: message },
                 'Dodgy message received from client'
             );
         }
