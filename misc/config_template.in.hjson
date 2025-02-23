@@ -157,7 +157,15 @@
             //
             //  3 - Finally, set 'enabled' to 'true'
             //
+            //  ! - If you receive the following error when starting ENiGMA:
+            //  "Error initializing: Error: Cannot parse privateKey: Unsupported key format"
+            //  You might need to convert your key. This can be done as follows:
+            //
+            //  > openssl rsa -in unsupported.key -out converted.key -traditional 
+            //
+            //
             //  Additional reading:
+            //  - https://nuskooler.github.io/enigma-bbs/troubleshooting/ssh-troubleshooting.html
             //  - https://blog.sleeplessbeastie.eu/2017/12/28/how-to-generate-private-key/
             //  - https://gist.github.com/briansmith/2ee42439923d8e65a266994d0f70180b
             //

@@ -297,6 +297,14 @@ function catCurrentConfig() {
             keepWsc: false === argv.comments ? false : true,
         });
 
+        if (argv.meow) {
+            console.info(
+`    /\\_/\\
+   ( o.o )
+    > ^ < ... mrow...`);
+            return;
+        }
+        
         console.log(hjson.stringify(config, hjsonOpts));
     } catch (e) {
         if ('ENOENT' == e.code) {
