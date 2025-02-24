@@ -106,7 +106,7 @@ exports.getModule = class MrcModule extends ServerModule {
                 if (inUse) {
                     console.error(`${COLOUR_CODES.BRIGHT_RED}CHAT SERVER: ${COLOUR_CODES.RED}${ModuleInfo.name} Cannot Start! Port is in use: ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
 
-                    return cb(Errors.Invalid(`Port is in use: ${port} at address ${address}`))
+                    return cb(Errors.UnexpectedState(`Port is in use: ${port} at address ${address}`))
                 }
             },
             function(err) {
