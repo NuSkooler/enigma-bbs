@@ -132,11 +132,13 @@
         //  Remember kids, Telnet is insecure!
         telnet: {
             //  It's best to use non-privileged ports and NAT/foward to them
-            port: XXXXX
+            address: 0.0.0.0
+            port: XXXXX,
         }
 
         //  ...but SSH *is* secure!
         ssh: {
+            address: 0.0.0.0
             port: XXXXX
 
             //
@@ -161,7 +163,7 @@
             //  "Error initializing: Error: Cannot parse privateKey: Unsupported key format"
             //  You might need to convert your key. This can be done as follows:
             //
-            //  > openssl rsa -in unsupported.key -out converted.key -traditional 
+            //  > openssl rsa -in unsupported.key -out converted.key -traditional
             //
             //
             //  Additional reading:
@@ -245,10 +247,12 @@
             }
 
             http: {
+                address: 0.0.0.0
                 port: XXXXX
             }
 
             https: {
+                address: 0.0.0.0
                 port: XXXXX
                 enabled: XXXXX
 
@@ -262,6 +266,7 @@
 
         //  Ladies and gentlemen, a Gopher server!
         gopher: {
+            address: 0.0.0.0
             port: XXXXX
             enabled: false
 
@@ -303,12 +308,14 @@
             // non-secure
             nntp: {
                 enabled: false
+                address: 0.0.0.0
                 port: XXXXX
             }
 
             //  secure (TLS)
             nntps: {
                 enabled: false
+                address: 0.0.0.0
                 port: XXXXX
 
                 //

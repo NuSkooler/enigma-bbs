@@ -25,6 +25,7 @@ const { stripMciColorCodes } = require('../../color_codes.js');
 const ACS = require('../../acs');
 
 //  deps
+const COLOUR_CODES = require('../../constants/ansi/colour_codes').COLOUR_CODES;
 const NNTPServerBase = require('nntp-server');
 const _ = require('lodash');
 const fs = require('fs-extra');
@@ -36,6 +37,7 @@ const asyncWaterfall = require('async/waterfall');
 const LRU = require('lru-cache');
 const sqlite3 = require('sqlite3');
 const paths = require('path');
+const tcpPortUsed = require('tcp-port-used');
 
 //
 //  Network News Transfer Protocol (NNTP)
@@ -1412,6 +1414,29 @@ exports.getModule = class NNTPServerModule extends ServerModule {
                 const server = this[`${service}Server`];
                 if (server) {
                     const port = config.contentServers.nntp[service].port;
+                    const address = config.contentServers.nntp[service].address;
+
+                    tcpPortUsed
+                        .check(port, address)
+                        .then(function(inUse) {
+                            if (inUse) {
+                                console.error(`${COLOUR_CODES.BRIGHT_RED}CONTENT SERVER: ${COLOUR_CODES.RED}${ModuleInfo.name} Cannot Start! Port is in use: ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+                                return cb(Errors.UnexpectedState(`Port is in use: ${port} at address ${address}`))
+                            }
+                        },
+                        function(err) {
+                            return cb(err);
+                        }
+                    );
+
+                    console.info(`${COLOUR_CODES.BRIGHT_GREEN}CONTENT SERVER: ${COLOUR_CODES.GREEN}${service} Listening on Port ${COLOUR_CODES.BRIGHT_WHITE}${port}${COLOUR_CODES.WHITE}`)
+
+                    Log.info(
+                        { server: service, port: port, address: address },
+                        'NNTP starting up'
+                    );
+
                     server
                         .listen(this.listenURI(port, service))
                         .catch(e => {
@@ -1424,6 +1449,8 @@ exports.getModule = class NNTPServerModule extends ServerModule {
                         .then(() => {
                             return nextService(null);
                         });
+
+
                 } else {
                     return nextService(null);
                 }

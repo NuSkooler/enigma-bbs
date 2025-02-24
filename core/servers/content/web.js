@@ -8,6 +8,7 @@ const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
 
 //  deps
+const COLOUR_CODES = require('../../constants/ansi/colour_codes').COLOUR_CODES;
 const http = require('http');
 const https = require('https');
 const _ = require('lodash');
@@ -16,6 +17,7 @@ const paths = require('path');
 const mimeTypes = require('mime-types');
 const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
+const tcpPortUsed = require('tcp-port-used');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
@@ -161,9 +163,32 @@ exports.getModule = class WebServerModule extends ServerModule {
                         );
                     }
 
+                    const address = config.contentServers.web[service].address;
+
+                    tcpPortUsed
+                        .check(port, address)
+                        .then(function(inUse) {
+                            if (inUse) {
+                                console.error(`${COLOUR_CODES.BRIGHT_RED}CONTENT SERVER: ${COLOUR_CODES.RED}${ModuleInfo.name} Cannot Start! Port is in use: ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+                                return cb(Errors.UnexpectedState(`Port is in use: ${port} at address ${address}`))
+                            }
+                        },
+                        function(err) {
+                            return cb(err);
+                        }
+                    );
+
+                    console.info(`${COLOUR_CODES.BRIGHT_GREEN}CONTENT SERVER: ${COLOUR_CODES.GREEN}${service} Listening on Port ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+                    Log.info(
+                        { server: ModuleInfo.name, port: port, address: address },
+                        `WebServer ${service} starting up`
+                    );
+
                     this[name].listen(
                         port,
-                        config.contentServers.web[service].address,
+                        address,
                         err => {
                             return nextService(err);
                         }
