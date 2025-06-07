@@ -79,6 +79,77 @@ class MessageAreaWebAccess {
                config.contentServers.web.messageAreaApi !== false;  // default to true if not specified
     }
 
+    isConferenceExposed(confTag) {
+        const config = require('./config.js').get();
+        const exposedConfAreas = config.contentServers?.web?.exposedConfAreas || {};
+
+        // If no configuration is set, expose all conferences
+        if (Object.keys(exposedConfAreas).length === 0) {
+            return true;
+        }
+
+        // Check if this conference is explicitly configured
+        return Object.prototype.hasOwnProperty.call(exposedConfAreas, confTag);
+    }
+
+    isAreaExposed(confTag, areaTag) {
+        const config = require('./config.js').get();
+        const exposedConfAreas = config.contentServers?.web?.exposedConfAreas || {};
+
+        // If no configuration is set, expose all areas (except private ones handled elsewhere)
+        if (Object.keys(exposedConfAreas).length === 0) {
+            return true;
+        }
+
+        // Check if conference is configured
+        const confConfig = exposedConfAreas[confTag];
+        if (!confConfig) {
+            return false;
+        }
+
+        // Check include patterns
+        const includes = confConfig.include || [];
+        const excludes = confConfig.exclude || [];
+
+        // Must match at least one include pattern
+        let included = false;
+        for (const pattern of includes) {
+            if (this.matchesPattern(areaTag, pattern)) {
+                included = true;
+                break;
+            }
+        }
+
+        if (!included) {
+            return false;
+        }
+
+        // Must not match any exclude patterns
+        for (const pattern of excludes) {
+            if (this.matchesPattern(areaTag, pattern)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    matchesPattern(str, pattern) {
+        // Simple wildcard matching - convert '*' to regex
+        if (pattern === '*') {
+            return true;
+        }
+
+        if (pattern.includes('*')) {
+            const regexPattern = pattern.replace(/\*/g, '.*');
+            const regex = new RegExp(`^${regexPattern}$`, 'i');
+            return regex.test(str);
+        }
+
+        // Exact match (case insensitive)
+        return str.toLowerCase() === pattern.toLowerCase();
+    }
+
     sendJsonResponse(resp, data, statusCode = 200) {
         const json = JSON.stringify(data, null, 2);
         const headers = {
@@ -103,16 +174,18 @@ class MessageAreaWebAccess {
         const conferences = getAvailableMessageConferences(null, { noClient: true });
 
         const response = {
-            conferences: Object.keys(conferences).map(confTag => {
-                const conf = conferences[confTag];
-                return {
-                    confTag,
-                    name: conf.name,
-                    desc: conf.desc,
-                    sort: conf.sort,
-                    areaCount: Object.keys(conf.areas || {}).length
-                };
-            })
+            conferences: Object.keys(conferences)
+                .filter(confTag => this.isConferenceExposed(confTag))
+                .map(confTag => {
+                    const conf = conferences[confTag];
+                    return {
+                        confTag,
+                        name: conf.name,
+                        desc: conf.desc,
+                        sort: conf.sort,
+                        areaCount: Object.keys(conf.areas || {}).length
+                    };
+                })
         };
 
         return this.sendJsonResponse(resp, response);
@@ -124,6 +197,11 @@ class MessageAreaWebAccess {
         }
         const confTag = pathMatches[1];
 
+        //  Check if conference is exposed
+        if (!this.isConferenceExposed(confTag)) {
+            return this.sendError(resp, 'Conference not found', 404);
+        }
+
         //  Validate conference exists
         const conference = getMessageConferenceByTag(confTag);
         if (!conference) {
@@ -133,9 +211,10 @@ class MessageAreaWebAccess {
         //  Get areas in this conference
         const areas = getAvailableMessageAreasByConfTag(confTag, { noAcsCheck: true });
 
-        //  Filter out private areas
-        const publicAreas = Object.keys(areas)
+        //  Filter areas based on configuration and privacy
+        const exposedAreas = Object.keys(areas)
             .filter(areaTag => !Message.isPrivateAreaTag(areaTag))
+            .filter(areaTag => this.isAreaExposed(confTag, areaTag))
             .map(areaTag => {
                 const area = areas[areaTag];
                 return {
@@ -153,7 +232,7 @@ class MessageAreaWebAccess {
                 name: conference.name,
                 desc: conference.desc
             },
-            areas: publicAreas
+            areas: exposedAreas
         };
 
         return this.sendJsonResponse(resp, response);
@@ -196,6 +275,11 @@ class MessageAreaWebAccess {
 
         if (Message.isPrivateAreaTag(areaTag)) {
             return this.sendError(resp, 'Access denied', 403);
+        }
+
+        //  Check if area is exposed through configuration
+        if (!this.isAreaExposed(area.confTag, areaTag)) {
+            return this.sendError(resp, 'Area not found', 404);
         }
 
         //  Parse pagination parameters
@@ -327,6 +411,11 @@ class MessageAreaWebAccess {
             const area = getMessageAreaByTag(message.areaTag);
             if (!area) {
                 return this.sendError(resp, 'Area not found', 404);
+            }
+
+            //  Check if area is exposed through configuration
+            if (!this.isAreaExposed(area.confTag, message.areaTag)) {
+                return this.sendError(resp, 'Message not found', 404);
             }
 
             //  Get replies to this message

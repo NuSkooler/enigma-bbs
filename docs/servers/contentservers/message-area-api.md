@@ -194,7 +194,45 @@ Error response format:
 
 ### Configuration
 
-The API is automatically enabled when the web server is configured. To disable the API, set `messageAreaApi` to `false` in your `config.hjson`:
+The Message Area Web API can be enabled/disabled and configured via the configuration:
+
+```hjson
+contentServers: {
+    web: {
+        // Enable/disable the message area API (defaults to true when web server is enabled)
+        messageAreaApi: true
+
+        // Control which conferences and areas are exposed through the API
+        exposedConfAreas: {
+            local: {
+                include: [ "*" ]        // all areas in 'local' conference
+                exclude: [ "private*" ] // except those starting with 'private'
+            }
+            another_sample_conf: {
+                include: [ "general", "help" ]  // only specific areas
+            }
+        }
+    }
+}
+```
+
+#### Configuration Options
+
+- `messageAreaApi`: Set to `false` to disable the API entirely. Defaults to `true` when the web server is enabled.
+
+- `exposedConfAreas`: Controls which conferences and areas are accessible through the API. If not specified, all non-private conferences and areas are exposed.
+
+  - **Conference Level**: Only conferences listed in `exposedConfAreas` will be accessible
+  - **Area Level**: For each conference, you can specify:
+    - `include`: Array of area patterns to include (supports wildcards with `*`)
+    - `exclude`: Array of area patterns to exclude (supports wildcards with `*`)
+  
+  Pattern matching is case-insensitive and supports wildcards:
+  - `"*"` matches all areas
+  - `"general"` matches exactly "general"
+  - `"private*"` matches any area starting with "private"
+
+For backwards compatibility, the API is automatically enabled when the web server is configured. To disable the API completely, set `messageAreaApi` to `false`:
 
 ```hjson
 contentServers: {

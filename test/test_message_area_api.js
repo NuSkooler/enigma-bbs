@@ -2,8 +2,31 @@
 /* jslint node: true */
 'use strict';
 
-// Test script for Message Area Web API
-// Run this after starting ENiGMA½ with the web server enabled
+//
+// Simple test script for the Message Area Web API
+//
+// To test the exposedConfAreas configuration, add this to your config.hjson:
+//
+// contentServers: {
+//     web: {
+//         exposedConfAreas: {
+//             local: {
+//                 include: [ "*" ]
+//                 exclude: [ ]
+//             }
+//         }
+//     }
+// }
+//
+// This will only expose the 'local' conference. To test exclusions, you could do:
+//
+//         exposedConfAreas: {
+//             local: {
+//                 include: [ "*" ]
+//                 exclude: [ "general" ]  // exclude the general area
+//             }
+//         }
+//
 
 const http = require('http');
 
