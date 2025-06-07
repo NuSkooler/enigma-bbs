@@ -25,6 +25,10 @@ class MessageAreaWebAccess {
         }
 
         if (!this.isEnabled()) {
+            const config = require('./config.js').get();
+            if (config.contentServers.web.messageAreaApi === false) {
+                self.log.info('Message area web API is disabled by configuration');
+            }
             return cb(null);
         }
 
@@ -67,7 +71,7 @@ class MessageAreaWebAccess {
         return cb(null);
     }
 
-        isEnabled() {
+    isEnabled() {
         const config = require('./config.js').get();
         return this.webServer &&
                this.webServer.instance.isEnabled() &&
