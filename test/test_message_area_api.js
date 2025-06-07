@@ -107,13 +107,11 @@ async function testAPI() {
         console.log(`   Error: ${errorResult2.data.message}`);
 
         console.log('\nAll tests completed successfully!');
+        
+        console.log('\n\nTo test with the API disabled:');
+        console.log('1. Set messageAreaApi: false in your config.hjson under contentServers.web');
+        console.log('2. Restart ENiGMA½');
+        console.log('3. Run this test again - all endpoints should return 404');
 
     } catch (err) {
-        console.error(`\nError during testing: ${err.message}`);
-        console.error('Make sure ENiGMA½ is running with the web server enabled on port 8080');
-        process.exit(1);
-    }
-}
-
-// Run tests
-testAPI(); 
+        console.error(`
