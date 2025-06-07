@@ -10,6 +10,7 @@ const getServer = require('./listening_server.js').getServer;
 const webServerPackageName = require('./servers/content/web.js').moduleInfo.packageName;
 const Log = require('./logger.js').log;
 const { Errors } = require('./enig_error.js');
+const moment = require('moment');
 
 class MessageAreaWebAccess {
     constructor() {
@@ -36,22 +37,22 @@ class MessageAreaWebAccess {
         const routes = [
             {
                 method: 'GET',
-                path: '^/api/v1/message-areas/conferences/?$',
+                path: '^/api/v1/message-areas/conferences/?(?:\\?.*)?$',
                 handler: this.listConferencesHandler.bind(this),
             },
             {
                 method: 'GET',
-                path: '^/api/v1/message-areas/conferences/([^/]+)/areas/?$',
+                path: '^/api/v1/message-areas/conferences/([^/]+)/areas/?(?:\\?.*)?$',
                 handler: this.listAreasHandler.bind(this),
             },
             {
                 method: 'GET',
-                path: '^/api/v1/message-areas/areas/([^/]+)/messages/?$',
+                path: '^/api/v1/message-areas/areas/([^/]+)/messages/?(?:\\?.*)?$',
                 handler: this.listMessagesHandler.bind(this),
             },
             {
                 method: 'GET',
-                path: '^/api/v1/message-areas/messages/([a-f0-9-]+)/?$',
+                path: '^/api/v1/message-areas/messages/([a-f0-9-]+)/?(?:\\?.*)?$',
                 handler: this.getMessageHandler.bind(this),
             }
         ];
@@ -118,6 +119,9 @@ class MessageAreaWebAccess {
     }
 
     listAreasHandler(req, resp, pathMatches) {
+        if (!pathMatches || pathMatches.length < 2) {
+            return this.sendError(resp, 'Invalid conference tag', 400);
+        }
         const confTag = pathMatches[1];
 
         //  Validate conference exists
@@ -177,6 +181,10 @@ class MessageAreaWebAccess {
     }
 
     listMessagesHandler(req, resp, pathMatches) {
+        if (!pathMatches || pathMatches.length < 2) {
+            return this.sendError(resp, 'Invalid area tag', 400);
+        }
+
         const areaTag = pathMatches[1];
         const queryParams = this.parseQueryParams(req.url);
 
@@ -194,6 +202,7 @@ class MessageAreaWebAccess {
         const page = parseInt(queryParams.page) || 1;
         const limit = Math.min(parseInt(queryParams.limit) || 50, 200); // max 200 messages per page
         const offset = (page - 1) * limit;
+        const includeReplies = queryParams.include_replies === 'true';
 
         //  Build filter for message list
         const filter = {
@@ -218,38 +227,89 @@ class MessageAreaWebAccess {
             //  Apply offset manually since the DB query doesn't support it directly
             const paginatedMessages = messages.slice(offset, offset + limit);
 
-            //  Transform messages for response
-            const messageList = paginatedMessages.map(msg => ({
-                messageId: msg.messageId,
-                messageUuid: msg.messageUuid,
-                subject: msg.subject,
-                fromUserName: msg.fromUserName,
-                toUserName: msg.toUserName,
-                modTimestamp: msg.modTimestamp.format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
-                replyToMsgId: msg.replyToMsgId || null
-            }));
+            if (!includeReplies) {
+                //  Transform messages for response without replies (faster)
+                const messageList = paginatedMessages.map(msg => ({
+                    messageId: msg.messageId,
+                    messageUuid: msg.messageUuid,
+                    subject: msg.subject,
+                    fromUserName: msg.fromUserName,
+                    toUserName: msg.toUserName,
+                    modTimestamp: this.formatTimestamp(msg.modTimestamp),
+                    replyToMsgId: msg.replyToMsgId || null
+                }));
 
-            const response = {
-                area: {
-                    areaTag: area.areaTag,
-                    confTag: area.confTag,
-                    name: area.name,
-                    desc: area.desc
-                },
-                pagination: {
-                    page,
-                    limit,
-                    hasMore: offset + limit < messages.length || hasMore,
-                    total: null // We don't have an efficient way to get total count
-                },
-                messages: messageList
-            };
+                const response = {
+                    area: {
+                        areaTag: area.areaTag,
+                        confTag: area.confTag,
+                        name: area.name,
+                        desc: area.desc
+                    },
+                    pagination: {
+                        page,
+                        limit,
+                        hasMore: offset + limit < messages.length || hasMore,
+                        total: null // We don't have an efficient way to get total count
+                    },
+                    messages: messageList
+                };
 
-            return this.sendJsonResponse(resp, response);
+                return this.sendJsonResponse(resp, response);
+            } else {
+                //  Include replies - requires additional queries
+                const async = require('async');
+                async.map(paginatedMessages, (msg, nextMsg) => {
+                    this.getRepliesForMessage(msg.messageId, msg.areaTag, (err, replies) => {
+                        if (err) {
+                            replies = []; // Continue without replies if lookup fails
+                        }
+
+                        const messageWithReplies = {
+                            messageId: msg.messageId,
+                            messageUuid: msg.messageUuid,
+                            subject: msg.subject,
+                            fromUserName: msg.fromUserName,
+                            toUserName: msg.toUserName,
+                            modTimestamp: this.formatTimestamp(msg.modTimestamp),
+                            replyToMsgId: msg.replyToMsgId || null,
+                            replies: replies
+                        };
+
+                        return nextMsg(null, messageWithReplies);
+                    });
+                }, (err, messageList) => {
+                    if (err) {
+                        return this.sendError(resp, 'Failed to retrieve message replies', 500);
+                    }
+
+                    const response = {
+                        area: {
+                            areaTag: area.areaTag,
+                            confTag: area.confTag,
+                            name: area.name,
+                            desc: area.desc
+                        },
+                        pagination: {
+                            page,
+                            limit,
+                            hasMore: offset + limit < messages.length || hasMore,
+                            total: null // We don't have an efficient way to get total count
+                        },
+                        messages: messageList
+                    };
+
+                    return this.sendJsonResponse(resp, response);
+                });
+            }
         });
     }
 
     getMessageHandler(req, resp, pathMatches) {
+        if (!pathMatches || pathMatches.length < 2) {
+            return this.sendError(resp, 'Invalid message UUID', 400);
+        }
+
         const messageUuid = pathMatches[1];
 
         const message = new Message();
@@ -269,29 +329,81 @@ class MessageAreaWebAccess {
                 return this.sendError(resp, 'Area not found', 404);
             }
 
-            //  Build response
-            const response = {
-                message: {
-                    messageId: message.messageId,
-                    messageUuid: message.messageUuid,
-                    areaTag: message.areaTag,
-                    subject: message.subject,
-                    fromUserName: message.fromUserName,
-                    toUserName: message.toUserName,
-                    modTimestamp: message.modTimestamp.format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
-                    replyToMsgId: message.replyToMsgId || null,
-                    message: message.message,
-                    meta: message.meta || {}
-                },
-                area: {
-                    areaTag: area.areaTag,
-                    confTag: area.confTag,
-                    name: area.name,
-                    desc: area.desc
+            //  Get replies to this message
+            this.getRepliesForMessage(message.messageId, message.areaTag, (err, replies) => {
+                if (err) {
+                    this.log.warn({ error: err.message }, 'Failed to load replies');
+                    replies = []; // Continue without replies if lookup fails
                 }
-            };
 
-            return this.sendJsonResponse(resp, response);
+                //  Build response
+                const response = {
+                    message: {
+                        messageId: message.messageId,
+                        messageUuid: message.messageUuid,
+                        areaTag: message.areaTag,
+                        subject: message.subject,
+                        fromUserName: message.fromUserName,
+                        toUserName: message.toUserName,
+                        modTimestamp: this.formatTimestamp(message.modTimestamp),
+                        replyToMsgId: message.replyToMsgId || null,
+                        message: message.message,
+                        meta: message.meta || {},
+                        replies: replies
+                    },
+                    area: {
+                        areaTag: area.areaTag,
+                        confTag: area.confTag,
+                        name: area.name,
+                        desc: area.desc
+                    }
+                };
+
+                return this.sendJsonResponse(resp, response);
+            });
+        });
+    }
+
+    formatTimestamp(timestamp) {
+        if (moment.isMoment(timestamp)) {
+            return timestamp.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+        } else if (timestamp instanceof Date) {
+            return moment(timestamp).format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+        } else if (typeof timestamp === 'string') {
+            return moment(timestamp).format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+        } else if (typeof timestamp === 'number') {
+            return moment.unix(timestamp).format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+        } else {
+            return moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ'); // fallback to current time
+        }
+    }
+
+    getRepliesForMessage(messageId, areaTag, cb) {
+        const filter = {
+            areaTag,
+            replyToMessageId: messageId,
+            resultType: 'messageList',
+            sort: 'messageId',
+            order: 'ascending'  // replies in chronological order
+        };
+
+        Message.findMessages(filter, (err, replies) => {
+            if (err) {
+                return cb(err);
+            }
+
+            const replyList = replies
+                .filter(reply => !Message.isPrivateAreaTag(reply.areaTag))  // ensure no private areas
+                .map(reply => ({
+                    messageId: reply.messageId,
+                    messageUuid: reply.messageUuid,
+                    subject: reply.subject,
+                    fromUserName: reply.fromUserName,
+                    toUserName: reply.toUserName,
+                    modTimestamp: this.formatTimestamp(reply.modTimestamp)
+                }));
+
+            return cb(null, replyList);
         });
     }
 }

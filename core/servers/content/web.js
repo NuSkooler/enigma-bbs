@@ -206,7 +206,9 @@ exports.getModule = class WebServerModule extends ServerModule {
         let route = _.find(this.routes, r => r.matchesRequest(req));
 
         if (route) {
-            return route.handler(req, resp);
+            // Extract path matches from the regex
+            const matches = route.pathRegExp.exec(req.url);
+            return route.handler(req, resp, matches);
         } else {
             this.tryStaticRoute(req, resp, wasHandled => {
                 if (!wasHandled) {

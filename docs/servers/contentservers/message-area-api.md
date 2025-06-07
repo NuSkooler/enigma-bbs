@@ -76,76 +76,95 @@ Returns all public message areas within a specific conference.
 
 #### List Messages in Area
 ```
-GET /api/v1/message-areas/areas/:areaTag/messages
+GET /api/v1/message-areas/areas/:areaTag/messages?page=1&limit=20&include_replies=false
 ```
 
-Returns a paginated list of messages in a specific area.
+Returns a paginated list of messages in the specified area.
 
 **Query Parameters:**
-- `page` - Page number (default: 1)
-- `limit` - Messages per page (default: 50, max: 200)
-- `order` - Sort order: 'ascending' or 'descending' (default: 'descending')
+- `page` (optional): Page number, defaults to 1
+- `limit` (optional): Messages per page, defaults to 50, maximum 200  
+- `order` (optional): `ascending` or `descending` (default)
+- `include_replies` (optional): `true` to include reply lists, `false` (default) for better performance
 
 **Response:**
 ```json
 {
   "area": {
     "areaTag": "general",
-    "confTag": "local",
-    "name": "General Discussion",
-    "desc": "General discussion area"
+    "confTag": "local", 
+    "name": "General",
+    "desc": "General chit-chat"
   },
   "pagination": {
     "page": 1,
-    "limit": 50,
-    "hasMore": true,
+    "limit": 20,
+    "hasMore": false,
     "total": null
   },
   "messages": [
     {
-      "messageId": 1234,
-      "messageUuid": "5c88b10e-d211-4e5e-8b5e-6a2a3c7d1f89",
-      "subject": "Welcome to ENiGMA½!",
-      "fromUserName": "SysOp",
+      "messageId": 123,
+      "messageUuid": "12345678-1234-1234-1234-123456789abc",
+      "subject": "Hello World",
+      "fromUserName": "admin", 
       "toUserName": "All",
-      "modTimestamp": "2024-01-15T10:30:00.000Z",
-      "replyToMsgId": null
+      "modTimestamp": "2023-01-01T12:00:00.000Z",
+      "replyToMsgId": null,
+      "replies": [
+        {
+          "messageId": 124,
+          "messageUuid": "87654321-4321-4321-4321-cba987654321",
+          "subject": "Re: Hello World",
+          "fromUserName": "user1",
+          "toUserName": "admin", 
+          "modTimestamp": "2023-01-01T12:30:00.000Z"
+        }
+      ]
     }
   ]
 }
 ```
+
+**Note:** The `replies` array is only included when `include_replies=true`. For performance, the default behavior excludes replies.
 
 #### Get Message Details
 ```
 GET /api/v1/message-areas/messages/:messageUuid
 ```
 
-Returns the full details of a specific message by UUID.
+Returns the full content of a specific message by UUID.
 
 **Response:**
 ```json
 {
   "message": {
-    "messageId": 1234,
-    "messageUuid": "5c88b10e-d211-4e5e-8b5e-6a2a3c7d1f89",
+    "messageId": 123,
+    "messageUuid": "12345678-1234-1234-1234-123456789abc",
     "areaTag": "general",
-    "subject": "Welcome to ENiGMA½!",
-    "fromUserName": "SysOp",
-    "toUserName": "All",
-    "modTimestamp": "2024-01-15T10:30:00.000Z",
+    "subject": "Hello World",
+    "fromUserName": "admin",
+    "toUserName": "All", 
+    "modTimestamp": "2023-01-01T12:00:00.000Z",
     "replyToMsgId": null,
-    "message": "Welcome to the ENiGMA½ BBS!\n\nThis is your general discussion area...",
-    "meta": {
-      "System": {
-        "export_timestamp": "2024-01-15T10:35:00.000Z"
+    "message": "Welcome to the message area!",
+    "meta": {},
+    "replies": [
+      {
+        "messageId": 124,
+        "messageUuid": "87654321-4321-4321-4321-cba987654321",
+        "subject": "Re: Hello World",
+        "fromUserName": "user1",
+        "toUserName": "admin",
+        "modTimestamp": "2023-01-01T12:30:00.000Z"
       }
-    }
+    ]
   },
   "area": {
     "areaTag": "general",
     "confTag": "local",
-    "name": "General Discussion", 
-    "desc": "General discussion area"
+    "name": "General",
+    "desc": "General chit-chat"
   }
 }
 ```

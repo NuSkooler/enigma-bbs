@@ -72,24 +72,37 @@ async function testAPI() {
                 const firstArea = areasResult.data.areas[0];
                 console.log(`   First area: ${firstArea.name} (${firstArea.areaTag})`);
 
-                // Test 3: List messages in first area
-                console.log(`\n3. Testing GET /api/v1/message-areas/areas/${firstArea.areaTag}/messages`);
-                const msgsResult = await makeRequest(`${API_BASE}/areas/${firstArea.areaTag}/messages?limit=5`);
-                console.log(`   Status: ${msgsResult.status}`);
-                console.log(`   Found ${msgsResult.data.messages.length} messages`);
-                console.log(`   Has more: ${msgsResult.data.pagination.hasMore}`);
+                // Test message list without replies (default, faster)
+                console.log('\n3. Testing message list (without replies):');
+                const messagesResult = await makeRequest(`${API_BASE}/areas/${firstArea.areaTag}/messages?page=1&limit=5`);
+                console.log(`   Status: ${messagesResult.status}`);
+                if (messagesResult.status === 200) {
+                    console.log(`   Found ${messagesResult.data.messages.length} messages`);
+                    console.log(`   First message has replies field: ${messagesResult.data.messages[0] && 'replies' in messagesResult.data.messages[0]}`);
 
-                if (msgsResult.data.messages.length > 0) {
-                    const firstMsg = msgsResult.data.messages[0];
-                    console.log(`   First message: "${firstMsg.subject}" by ${firstMsg.fromUserName}`);
+                    if (messagesResult.data.messages.length > 0) {
+                        // Test specific message details (includes replies automatically)
+                        console.log('\n4. Testing specific message details:');
+                        const messageUuid = messagesResult.data.messages[0].messageUuid;
+                        const messageResult = await makeRequest(`${API_BASE}/messages/${messageUuid}`);
+                        console.log(`   Status: ${messageResult.status}`);
+                        console.log(`   Message has replies field: ${'replies' in messageResult.data.message}`);
+                        if (messageResult.data.message.replies) {
+                            console.log(`   Reply count: ${messageResult.data.message.replies.length}`);
+                        }
 
-                    // Test 4: Get specific message
-                    console.log(`\n4. Testing GET /api/v1/message-areas/messages/${firstMsg.messageUuid}`);
-                    const msgResult = await makeRequest(`${API_BASE}/messages/${firstMsg.messageUuid}`);
-                    console.log(`   Status: ${msgResult.status}`);
-                    console.log(`   Subject: ${msgResult.data.message.subject}`);
-                    console.log(`   From: ${msgResult.data.message.fromUserName}`);
-                    console.log(`   Message preview: ${msgResult.data.message.message.substring(0, 50)}...`);
+                        // Test message list WITH replies (slower but includes threading)
+                        console.log('\n5. Testing message list (with replies):');
+                        const messagesWithRepliesResult = await makeRequest(`${API_BASE}/areas/${firstArea.areaTag}/messages?page=1&limit=5&include_replies=true`);
+                        console.log(`   Status: ${messagesWithRepliesResult.status}`);
+                        if (messagesWithRepliesResult.status === 200) {
+                            console.log(`   Found ${messagesWithRepliesResult.data.messages.length} messages`);
+                            console.log(`   First message has replies field: ${messagesWithRepliesResult.data.messages[0] && 'replies' in messagesWithRepliesResult.data.messages[0]}`);
+                            if (messagesWithRepliesResult.data.messages[0] && messagesWithRepliesResult.data.messages[0].replies) {
+                                console.log(`   First message reply count: ${messagesWithRepliesResult.data.messages[0].replies.length}`);
+                            }
+                        }
+                    }
                 }
             }
         }
