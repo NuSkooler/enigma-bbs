@@ -114,4 +114,11 @@ async function testAPI() {
         console.log('3. Run this test again - all endpoints should return 404');
 
     } catch (err) {
-        console.error(`
+        console.error(`\nError during testing: ${err.message}`);
+        console.error('Make sure ENiGMA½ is running with the web server enabled on port 8080');
+        process.exit(1);
+    }
+}
+
+// Run tests
+testAPI();
