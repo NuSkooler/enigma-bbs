@@ -13,6 +13,7 @@ const SysLogKeys = require('./system_log.js');
 const UserLogNames = require('./user_log_name');
 
 //  deps
+const COLOUR_CODES = require('./constants/ansi/colour_codes').COLOUR_CODES;
 const async = require('async');
 const util = require('util');
 const _ = require('lodash');
@@ -53,6 +54,8 @@ function printVersionAndExit() {
 }
 
 function main() {
+    console.info(`${COLOUR_CODES.GREEN}Starting up...${COLOUR_CODES.WHITE}\n`);
+
     let errorDisplayed = false;
 
     async.waterfall(
@@ -86,17 +89,17 @@ function main() {
                     //
                     if (err) {
                         errorDisplayed = true;
-                        console.error(`Configuration error: ${err.message}`); //  eslint-disable-line no-console
+                        console.error(`${COLOUR_CODES.RED}Configuration error: ${err.message}${COLOUR_CODES.WHITE}`); //  eslint-disable-line no-console
 
                         if ('ENOENT' === err.code) {
-                            console.error("\nConfiguration file does not exist: '{configFile}'\n\nIf this is a new installation please run './oputil.js config new' from the enigma-bbs directory");
+                            console.error(`\n${COLOUR_CODES.BRIGHT_RED}Configuration file does not exist: '{configFile}'\n\nIf this is a new installation please run './oputil.js config new' from the enigma-bbs directory${COLOUR_CODES.WHITE}`);
                         }
 
                         if (err.hint) {
-                            console.error(`Hint: ${err.hint}`);
+                            console.error(`${COLOUR_CODES.YELLOW}Hint: ${COLOUR_CODES.WHITE}${err.hint}`);
                         }
                         if (err.configPath) {
-                            console.error(`Note: ${err.configPath}`);
+                            console.error(`${COLOUR_CODES.YELLOW}Note: ${COLOUR_CODES.WHITE}${err.configPath}`);
                         }
                     }
                     return callback(err);
@@ -105,7 +108,7 @@ function main() {
             function initSystem(callback) {
                 initialize(function init(err) {
                     if (err) {
-                        console.error('Error initializing: ' + util.inspect(err));
+                        console.error(`${COLOUR_CODES.BRIGHT_RED}Error initializing: ${COLOUR_CODES.WHITE}${util.inspect(err)}`);
                     }
                     return callback(err);
                 });
@@ -118,17 +121,17 @@ function main() {
                     paths.join(__dirname, '../misc/startup_banner.asc'),
                     'utf8',
                     (err, banner) => {
-                        console.info(FULL_COPYRIGHT);
+                        console.info('\n' + FULL_COPYRIGHT);
                         if (!err) {
                             console.info(banner);
                         }
-                        console.info('System started!');
+                        console.info(`${COLOUR_CODES.BRIGHT_GREEN}System started!${COLOUR_CODES.WHITE}`);
                     }
                 );
             }
 
             if (err && !errorDisplayed) {
-                console.error('Error initializing: ' + util.inspect(err));
+                console.error(`${COLOUR_CODES.BRIGHT_RED}Error initializing: ${COLOUR_CODES.WHITE}${util.inspect(err)}`);
                 return process.exit(1);
             }
         }
@@ -137,7 +140,7 @@ function main() {
 
 function shutdownSystem() {
     const msg = 'Process interrupted. Shutting down...';
-    console.info(msg);
+    console.info(`${COLOUR_CODES.RED}${msg}${COLOUR_CODES.WHITE}`);
     logger.log.info(msg);
 
     async.series(
@@ -183,7 +186,7 @@ function shutdownSystem() {
             },
         ],
         () => {
-            console.info('Goodbye!');
+            console.info(`${COLOUR_CODES.YELLOW}Goodbye!${COLOUR_CODES.WHITE}`);
             return process.exit();
         }
     );
@@ -200,10 +203,12 @@ function initialize(cb) {
                         mkdirs(Config.paths[pathKey], function dirCreated(err) {
                             if (err) {
                                 console.error(
+                                    COLOUR_CODES.RED +
                                     'Could not create path: ' +
-                                        Config.paths[pathKey] +
-                                        ': ' +
-                                        err.toString()
+                                    Config.paths[pathKey] +
+                                    ': ' +
+                                    err.toString() +
+                                    COLOUR_CODES.WHITE
                                 );
                             }
                             return next(err);
