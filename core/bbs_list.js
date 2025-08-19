@@ -80,13 +80,13 @@ exports.getModule = class BBSListModule extends MenuModule {
                 const errMsgView = self.viewControllers.add.getView(MciViewIds.add.Error);
                 if (errMsgView) {
                     if (err) {
-                        errMsgView.setText(err.message);
+                        errMsgView.setText(err.friendlyText);
                     } else {
                         errMsgView.clearText();
                     }
                 }
 
-                return cb(null);
+                return cb(err, null);
             },
 
             //
@@ -119,7 +119,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                 }
 
                 self.database.run(
-                    `DELETE FROM bbs_list 
+                    `DELETE FROM bbs_list
                     WHERE id=?;`,
                     [entry.id],
                     err => {
@@ -162,7 +162,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                 }
 
                 self.database.run(
-                    `INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes) 
+                    `INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes)
                     VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
                     [
                         formData.value.name,

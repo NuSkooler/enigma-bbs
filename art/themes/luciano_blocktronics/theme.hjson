@@ -97,7 +97,7 @@
 					mci: {
 						VM1: {
 							height: 10
-							width: 20
+							width: 71
 							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
 						}
 						TM2: {
@@ -229,6 +229,7 @@
 						VM1: {
 							height: 10
 							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+							width: 71
 						}
 						TM2: {
 							focusTextStyle: first lower
@@ -400,6 +401,7 @@
 						TL1: { width: 19, textOverflow: "..." }
 						ET2: { width: 19, textOverflow: "..." }
 						ET3: { width: 19, textOverflow: "..." }
+						ET4: { width: 21, textOverflow: "..." }
 					}
 				}
 				1: {
@@ -459,7 +461,7 @@
 						VM1: {
 							height: 11
 							width: 22
-							focusTextStyle: first upper
+							focusTextStyle: first lower
 							itemFormat: "|00|07{bbsName}"
 							focusItemFormat: "|00|19|15{bbsName!styleFirstLower}"
 						}
@@ -485,7 +487,7 @@
 						ET8: { width: 32 }
 
 						TM17: {
-							focusTextStyle: first upper
+							focusTextStyle: first lower
 						}
 					}
 				}
@@ -673,7 +675,7 @@
 				4: {
 					mci: {
 						HM1: {
-							focusTextStyle: first upper
+							focusTextStyle: first lower
 						}
 					}
 				}
@@ -685,6 +687,7 @@
 						TL1: { width: 19, textOverflow: "..." }
 						ET2: { width: 19, textOverflow: "..." }
 						ET3: { width: 19, textOverflow: "..." }
+						ET4: { width: 21, textOverflow: "..." }
 						//TL4: { width: 25 }
 					}
 				}
@@ -1257,6 +1260,182 @@
 				}
 			}
 
+			//
+			// ActivityPub
+			//
+			activityPubUserConfig: {
+				config: {
+					mainInfoFormat10: "{subject}"
+				}
+				0: {
+					mci: {
+						TM1: {
+							focusTextStyle: first lower
+						}
+						TM2: {
+							focusTextStyle: first lower
+						}
+						TM3: {
+							focusTextStyle: first lower
+						}
+						TM4: {
+							focusTextStyle: first lower
+						}
+						TL5: {
+							width: 70
+						}
+						TL6: {
+							width: 70
+						}
+						BT7: {
+							width: 20
+							itemFormat: "|00|08[ |03{text} |08]"
+							focusItemFormat: "|00|15[ |19|15{text}|16 |15]"
+							focusTextStyle: first lower
+						}
+						TM8: {
+							focusTextStyle: first lower
+						}
+						TL10: {
+							width: 40
+						}
+					}
+				}
+				1: {
+					mci: {
+						ML1: {
+							height: 4
+							width: 70
+						}
+						ML2: {
+							height: 4
+							width: 70
+						}
+						TM3: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
+			activityPubSocialManager: {
+				config: {
+					selectedActorInfoFormat: "|00|15{preferredUsername} |08(|02{name}|08)\n|07following|08: {statusIndicator}\n\n|06{plainTextSummary}"
+					statusFollowing: "|00|10√"
+					statusNotFollowing: "|00|12X"
+					helpTextFollowing: "|00|10SPC |08: |02Toggle Following"
+					helpTextFollowers: "|00|10DEL |08: |02Remove Follower"
+					helpTextFollowRequests: "|00|10SPC |08: |02Accept\r\n|10DEL |08: |02Deny"
+					mainInfoFormat10: "{helpText}"
+				}
+				0: {
+					mci: {
+						VM1: {
+							height: 15
+							width: 35
+							itemFormat: "|00|03{subject}|00 {statusIndicator}"
+							focusItemFormat: "|00|19|15{subject!styleUpper}|00 {statusIndicator}"
+							itemFormat: "|00|08{statusIndicator} |00|03{subject}"
+							focusItemFormat: "|00|08{statusIndicator} |00|19|15{subject}"
+							textOverflow: "..."
+						}
+						MT2: {
+							height: 15
+							width: 34
+						}
+						HM3: {
+							focusTextStyle: first lower
+							styleSGR1: "|00|08"
+						}
+						MT10: {
+							width: 22
+							height: 2
+						}
+					}
+				}
+			}
+
+			activityPubActorSearch: {
+				config: {
+					followingIndicator: "|00|14FOLLOWING"
+					notFollowingIndicator: "|00|12not following"
+					viewInfoFormat10: "{actorFollowingIndicator}"
+				}
+				0: {
+					mci: {
+						TL1: {
+							width: 70
+							submit: true
+						}
+					}
+				}
+				1: {
+					mci: {
+						TL1: {
+							width: 70
+						}
+						TL2: {
+							width: 70
+						}
+						TL3: {
+							width: 70
+						}
+						TL4: {
+							width: 10
+						}
+						TL5: {
+							width: 4
+						}
+						TL6: {
+							width: 4
+						}
+						MT7: {
+							focus: true
+							width: 69
+							height: 3
+							mode: preview
+						}
+						TL10: {
+							width: 24
+
+						}
+					}
+				}
+			}
+
+			activityPubPostPublicMessage: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+						ET4: { width: 21, textOverflow: "..." }
+						//TL4: { width: 25 }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
+			activityPubPublicMessages: {
+				config: {
+					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 70
+						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}"
+						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}"
+					}
+				}
+			}
+
+			// MRC
 			mrc: {
 				config: {
 					messageFormat: "|00|10<|02{fromUserName}|10>|00 |03{message}|00"
@@ -1333,6 +1512,14 @@
 				mci: {
 					TL1: {
 						text: "|00|15|MD|08 >> |03active filter|08: |10|FN"
+					}
+				}
+			}
+
+			activityPubMenuCommand: {
+				mci: {
+					TL1: {
+						text: "|00|08(|11|AS|08)"
 					}
 				}
 			}

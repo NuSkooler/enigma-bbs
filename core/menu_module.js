@@ -13,6 +13,7 @@ const MultiLineEditTextView =
 const Errors = require('../core/enig_error.js').Errors;
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const EnigAssert = require('./enigma_assert');
+const { pipeToAnsi } = require('./color_codes.js');
 
 //  deps
 const async = require('async');
@@ -35,7 +36,6 @@ const MenuFlags = {
 };
 
 exports.MenuFlags = MenuFlags;
-
 
 exports.MenuModule = class MenuModule extends PluginModule {
     constructor(options) {
@@ -67,7 +67,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     setMergedFlag(flag) {
         this.menuConfig.config.menuFlags.push(flag);
-        this.menuConfig.config.menuFlags = [...new Set([...this.menuConfig.config.menuFlags, MenuFlags.MergeFlags])];
+        this.menuConfig.config.menuFlags = [
+            ...new Set([...this.menuConfig.config.menuFlags, MenuFlags.MergeFlags]),
+        ];
     }
 
     static get InterruptTypes() {
@@ -654,6 +656,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         this.client.term.rawWrite(ansi.resetScreen());
                     }
 
+                    if (!_.has(config.art, name)) {
+                        const artKeys = _.keys(config.art);
+                        this.client.log.warn(
+                            { requestedArtName: name, availableArtKeys: artKeys },
+                            'Art name is not set! Check configuration for typos.'
+                        );
+                    }
+
                     theme.displayThemedAsset(
                         config.art[name],
                         this.client,
@@ -765,10 +775,25 @@ exports.MenuModule = class MenuModule extends PluginModule {
             const format = config[view.key];
             const text = stringFormat(format, fmtObj);
 
-            if (options.appendMultiLine && view instanceof MultiLineEditTextView) {
-                view.addText(text);
+            if (view instanceof MultiLineEditTextView) {
+                if (options.appendMultiLine) {
+                    view.addText(text);
+                } else {
+                    if (options.pipeSupport) {
+                        const ansi = pipeToAnsi(text, this.client);
+                        if (view.getData() !== ansi) {
+                            view.setAnsi(ansi);
+                        } else {
+                            view.redraw();
+                        }
+                    } else if (view.getData() !== text) {
+                        view.setText(text);
+                    } else {
+                        view.redraw();
+                    }
+                }
             } else {
-                if (view.getData() != text) {
+                if (view.getData() !== text) {
                     view.setText(text);
                 } else {
                     view.redraw();

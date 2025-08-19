@@ -170,7 +170,11 @@ class ScheduledEvent {
             proc.onExit(exitEvent => {
                 if (exitEvent.exitCode) {
                     Log.warn(
-                        { eventName: this.name, action: this.action, exitCode: exitEvent.exitCode },
+                        {
+                            eventName: this.name,
+                            action: this.action,
+                            exitCode: exitEvent.exitCode,
+                        },
                         'Bad exit code while performing scheduled event action'
                     );
                 }

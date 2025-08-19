@@ -284,9 +284,18 @@ exports.getModule = class MessageListModule extends (
                             );
                         }
 
+                        const filter = {
+                            areaTag: self.config.messageAreaTag,
+                            resultType: 'messageList',
+                            sort: 'messageId',
+                            order: 'ascending',
+                            genMissingSubjects: self.config.genMissingSubjects,
+                        };
+
                         messageArea.getMessageListForArea(
                             self.client,
                             self.config.messageAreaTag,
+                            filter,
                             function msgs(err, msgList) {
                                 if (!msgList || 0 === msgList.length) {
                                     return callback(new Error('No messages in area'));
@@ -343,6 +352,10 @@ exports.getModule = class MessageListModule extends (
                                 listItem.messageId > self.lastReadId
                             ) {
                                 self.initialFocusIndex = index;
+                            }
+
+                            if (!listItem.subject && self.config.genMissingSubjects) {
+                                listItem.subject = listItem.genSubject || '';
                             }
 
                             listItem.text = `${listItem.msgNum} - ${listItem.subject} from ${listItem.fromUserName}`; //  default text

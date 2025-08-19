@@ -18,17 +18,11 @@ const async = require('async');
 const fs = require('fs-extra');
 const exec = require('child_process').exec;
 const inq = require('inquirer');
-const _ = require('lodash');
-
 
 exports.handleSSHKeyCommand = handleSSHKeyCommand;
 
-const ConfigIncludeKeys = [
-    'loginServers.ssh',
-    'loginServers.ssh.privateKeyPem',
-];
-
 const MINIMUM_PASSWORD_LENGTH = 8;
+
 const QUESTIONS = {
     Create: [
         {
@@ -40,34 +34,23 @@ const QUESTIONS = {
         {
             name: 'password',
             message: 'SSL Password:',
-            default: "",
+            default: '',
             when: answers => answers.createNew,
         },
     ],
 };
 
 function execute(ui, command) {
-    exec(
-        command,
-        function (error, stdout, stderr) {
-            ui.log.write(error);
+    exec(command, function (error) {
+        ui.log.write(error);
 
-            if (error) {
-                const reason = error ? error.message : 'OpenSSL Error';
-                logDebug(
-                    {
-                        reason: reason,
-                        cmd: util.cmd,
-                        args: args
-                    },
-                    `openssl command failed`
-                );
-            }
-            else {
-                ui.log.write("SSH Keys Generated")
-            }
+        if (error) {
+            const reason = error ? error.message : 'OpenSSL Error';
+            ui.log.write(`openssl command failed: ${reason}`);
+        } else {
+            ui.log.write('SSH Keys Generated');
         }
-    );
+    });
 }
 
 function createNew(cb) {
@@ -86,20 +69,22 @@ function createNew(cb) {
 
                     // Get Answer Value
                     const sslPassword = answers.password.trim();
-                    if (!sslPassword || sslPassword == "") {
+                    if (!sslPassword || sslPassword == '') {
                         ui.log.write('Password must be set.');
 
                         return callback('exit');
                     }
                     if (sslPassword.length < MINIMUM_PASSWORD_LENGTH) {
-                        ui.log.write(`Password must be at least ${MINIMUM_PASSWORD_LENGTH} characters.`);
+                        ui.log.write(
+                            `Password must be at least ${MINIMUM_PASSWORD_LENGTH} characters.`
+                        );
 
                         return callback('exit');
                     }
 
                     // Check if Keyfiles Exist
-                    const sshKeyPath = "config/security/";
-                    const sshKeyFilename = "ssh_private_key.pem";
+                    const sshKeyPath = 'config/security/';
+                    const sshKeyFilename = 'ssh_private_key.pem';
                     const targetKeyFile = sshKeyPath + sshKeyFilename;
 
                     ui.log.write(`Creating SSH Key: ${targetKeyFile}`);
@@ -115,7 +100,7 @@ function createNew(cb) {
             },
         ],
         err => {
-            return cb(err, configPath, config);
+            return cb(err);
         }
     );
 }
