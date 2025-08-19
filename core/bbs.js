@@ -89,7 +89,7 @@ function main() {
                         console.error(`Configuration error: ${err.message}`); //  eslint-disable-line no-console
 
                         if ('ENOENT' === err.code) {
-                            console.error("\nConfiguration file does not exist: '{configFile}'\n\nIf this is a new installation please run './oputil.js config new' from the enigma-bbs directory");
+                            console.error('\nConfiguration file does not exist: \'{configFile}\'\n\nIf this is a new installation please run \'./oputil.js config new\' from the enigma-bbs directory');
                         }
 
                         if (err.hint) {
@@ -423,6 +423,9 @@ function initialize(cb) {
             },
             function readyFileAreaWeb(callback) {
                 return require('./file_area_web.js').startup(callback);
+            },
+            function readyMessageAreaWeb(callback) {
+                return require('./message_area_web.js').startup(callback);
             },
             function readyPasswordReset(callback) {
                 const WebPasswordReset =

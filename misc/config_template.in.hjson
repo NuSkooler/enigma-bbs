@@ -223,6 +223,7 @@
         //  * Web downloads from the file base
         //  * Password reset forms (sent to users in PW reset emails; see
         //    "email" block below)
+        //  * Message Area JSON API
         //
         web: {
             //  Set to your public FQDN
@@ -230,6 +231,15 @@
 
             //  Standard issue "www" folder. Place static content here
             staticRoot: XXXXX
+
+            //
+            //  Message Area Web API
+            //  Provides a read-only JSON API for viewing public conferences,
+            //  areas, and messages. 
+            //  Set to false to disable the API. Defaults to true when http or
+            //  https is enabled.
+            //
+            //  messageAreaApi: true
 
             //
             //  This block configures password reset emails. Template files
@@ -361,7 +371,7 @@
 
     //  Message conferences and areas are within this block
     messageConferences: {
-        //  An entry here prepresents a conference taka aka confTag
+        //  An entry here prerepresents a conference taka aka confTag
         another_sample_conf: {
             name: "Another Sample Conference"
             desc: "Another conf sample. Change me!"
