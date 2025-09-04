@@ -17,8 +17,6 @@ module.exports = class LoginServerModule extends ServerModule {
         super();
     }
 
-    //  :TODO: we need to max connections -- e.g. from config 'maxConnections'
-
     prepareClient(client, cb) {
         if (client.user.isAuthenticated()) {
             return cb(null);
@@ -58,6 +56,18 @@ module.exports = class LoginServerModule extends ServerModule {
         client.session.isSecure = _.isBoolean(client.isSecure)
             ? client.isSecure
             : modInfo.isSecure || false;
+
+        var {maxConnections} = Config().general;
+
+        if (
+            maxConnections > 0
+            && clientConns.clientConnections.length >= maxConnections
+        )
+        {
+            client.term.write('\nAll nodes are busy. Try again later...\n');
+            client.end();
+            return;
+        }
 
         clientConns.addNewClient(client, clientSock);
 
