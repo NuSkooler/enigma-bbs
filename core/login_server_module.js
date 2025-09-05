@@ -54,13 +54,14 @@ module.exports = class LoginServerModule extends ServerModule {
             client.session = {};
         }
 
+        client.rawSocket = clientSock;
+
         if (maxConnections > 0 && numConnections >= maxConnections) {
             client.term.write('\nAll nodes are busy. Try again later...\n');
             client.end();
             return;
         }
 
-        client.rawSocket = clientSock;
         client.session.serverName = modInfo.name;
         client.session.isSecure = _.isBoolean(client.isSecure)
             ? client.isSecure
