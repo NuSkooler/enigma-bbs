@@ -65,6 +65,9 @@
 
         // Short board description
         description     : 'Yet another awesome ENiGMA½ BBS'
+
+        // Max active nodes (0 = unlimited)
+        maxConnections	: 0
     }
 
     term: {
