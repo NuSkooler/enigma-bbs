@@ -84,6 +84,13 @@ exports.getModule = class UploadModule extends MenuModule {
             this.recvFilePaths = options.lastMenuResult.recvFilePaths;
         }
 
+        if (_.has(options, 'lastMenuResult.tempRecvDirectory')) {
+            this.tempRecvDirectory = options.lastMenuResult.tempRecvDirectory;
+            this.client.log.debug('Restored temp directory from menu result', {
+                tempRecvDirectory: this.tempRecvDirectory,
+            });
+        }
+
         this.availAreas = getSortedAvailableFileAreas(this.client, { writeAcs: true });
 
         this.menuMethods = {
@@ -122,13 +129,13 @@ exports.getModule = class UploadModule extends MenuModule {
                 );
                 if (errView) {
                     if (err) {
-                        errView.setText(err.friendlyText);
+                        errView.setText(err.message);
                     } else {
                         errView.clearText();
                     }
                 }
 
-                return cb(err, null);
+                return cb(null);
             },
         };
     }
@@ -196,6 +203,21 @@ exports.getModule = class UploadModule extends MenuModule {
 
     finishedLoading() {
         if (this.isFileTransferComplete()) {
+            //  When files are already transferred (bypassing options form),
+            //  ensure areaInfo is set to the first available area
+            if (!this.areaInfo && this.availAreas.length > 0) {
+                this.areaInfo = this.availAreas[0];
+                this.uploadType = 'blind'; // Default to blind upload when bypassing form
+
+                this.client.log.debug('Set default areaInfo for bypassed form', {
+                    areaTag: this.areaInfo.areaTag,
+                    storageTags: this.areaInfo.storageTags,
+                    hasStorageTags: Array.isArray(this.areaInfo.storageTags),
+                    firstStorageTag: this.areaInfo.storageTags
+                        ? this.areaInfo.storageTags[0]
+                        : 'undefined',
+                });
+            }
             return this.processUploadedFiles();
         }
     }
@@ -439,11 +461,44 @@ exports.getModule = class UploadModule extends MenuModule {
         const areaStorageDir = getAreaDefaultStorageDirectory(this.areaInfo);
         const self = this;
 
+        if (!areaStorageDir) {
+            const error = new Error('Cannot determine storage directory for area');
+            this.client.log.error('Storage directory resolution failed', {
+                areaInfo: this.areaInfo,
+                areaTag: this.areaInfo ? this.areaInfo.areaTag : 'undefined',
+                storageTags: this.areaInfo ? this.areaInfo.storageTags : 'undefined',
+            });
+            return self.handleUploadError(error);
+        }
+
+        this.client.log.debug('Moving files to area storage', {
+            areaStorageDir: areaStorageDir,
+            fileCount: newEntries.length,
+        });
+
+        this.client.log.debug('About to process entries', {
+            tempRecvDirectory: self.tempRecvDirectory,
+            entriesCount: newEntries.length,
+            firstEntry:
+                newEntries.length > 0 ? { fileName: newEntries[0].fileName } : 'none',
+        });
+
         async.eachSeries(
             newEntries,
             (newEntry, nextEntry) => {
+                self.client.log.debug('Processing entry', {
+                    fileName: newEntry.fileName,
+                    tempRecvDirectory: self.tempRecvDirectory,
+                    areaStorageDir: areaStorageDir,
+                });
+
                 const src = paths.join(self.tempRecvDirectory, newEntry.fileName);
                 const dst = paths.join(areaStorageDir, newEntry.fileName);
+
+                self.client.log.debug('File paths constructed', {
+                    src: src,
+                    dst: dst,
+                });
 
                 moveFileWithCollisionHandling(src, dst, (err, finalPath) => {
                     if (err) {
@@ -686,7 +741,7 @@ exports.getModule = class UploadModule extends MenuModule {
                     self.cleanupTempFiles(); //  normally called after moveAndPersistUploadsToDatabase() is completed.
                 }
 
-                return self.prevMenu();
+                return self.gotoMenu('fileBaseMainMenu');
             }
         );
     }
