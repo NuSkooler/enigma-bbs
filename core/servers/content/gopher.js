@@ -24,11 +24,13 @@ const { wordWrapText } = require('../../word_wrap.js');
 const { stripMciColorCodes } = require('../../color_codes.js');
 
 //  deps
+const COLOUR_CODES = require('../../constants/ansi/colour_codes').COLOUR_CODES;
 const net = require('net');
 const _ = require('lodash');
 const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
+const tcpPortUsed = require('tcp-port-used');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Gopher',
@@ -131,7 +133,30 @@ exports.getModule = class GopherModule extends ServerModule {
             );
         }
 
-        return this.server.listen(port, config.contentServers.gopher.address, cb);
+        const address = config.contentServers.gopher.address;
+
+        tcpPortUsed
+            .check(port, address)
+            .then(function(inUse) {
+                if (inUse) {
+                    console.error(`${COLOUR_CODES.BRIGHT_RED}CONTENT SERVER: ${COLOUR_CODES.RED}${ModuleInfo.name} Cannot Start! Port is in use: ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+                    return cb(Errors.UnexpectedState(`Port is in use: ${port} at address ${address}`))
+                }
+            },
+            function(err) {
+                return cb(err);
+            }
+        );
+
+        console.info(`${COLOUR_CODES.BRIGHT_GREEN}CONTENT SERVER: ${COLOUR_CODES.GREEN}Gopher Listening on Port ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+        Log.info(
+            { server: ModuleInfo.name, port: port, address: address },
+            'Gopher starting up'
+        );
+
+        return this.server.listen(port, address, cb);
     }
 
     get enabled() {

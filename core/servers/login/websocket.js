@@ -9,6 +9,7 @@ const LoginServerModule = require('../../login_server_module.js');
 const { Errors } = require('../../enig_error.js');
 
 //  deps
+const COLOUR_CODES = require('../../constants/ansi/colour_codes').COLOUR_CODES;
 const _ = require('lodash');
 const WebSocketServer = require('ws').Server;
 const http = require('http');
@@ -226,7 +227,29 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                     return nextServerType(Errors.Invalid(`Invalid port: ${confPort}`));
                 }
 
-                server.httpServer.listen(port, conf.address, err => {
+                const address = conf.address;
+
+                tcpPortUsed
+                    .check(port, address)
+                    .then(function(inUse) {
+                        if (inuse)
+                        {
+                            console.error(`${COLOUR_CODES.BRIGHT_RED}LOGIN SERVER: ${COLOUR_CODES.RED}${ModuleInfo.name} Cannot Start! Port is in use: ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+                            return cb(Errors.UnexpectedState(`Port is in use: ${port} at address ${address}`))
+                        }
+                    },
+                    function(err) {
+                        return cb(err);
+                    }
+                );
+
+                Log.info(
+                    { server: ModuleInfo.name, port: port, address: address },
+                    'WebSocket Server starting up'
+                );
+
+                server.httpServer.listen(port, address, err => {
                     if (err) {
                         return nextServerType(err);
                     }
@@ -240,8 +263,10 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                         );
                     });
 
+                    console.info(`${COLOUR_CODES.BRIGHT_GREEN}LOGIN SERVER: ${COLOUR_CODES.GREEN}${serverName} Listening on Port ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
                     Log.info(
-                        { server: serverName, port: port },
+                        { server: serverName, port: port, address: address },
                         'Listening for connections'
                     );
                     return nextServerType(null);

@@ -6,12 +6,15 @@ const { log: Log } = require('../../logger');
 const { Errors } = require('../../enig_error');
 
 //  deps
+const COLOUR_CODES = require('../../constants/ansi/colour_codes').COLOUR_CODES;
 const net = require('net');
 const {
     TelnetSocket,
     TelnetSpec: { Options, Commands },
 } = require('telnet-socket');
 const { inherits } = require('util');
+const tcpPortUsed = require('tcp-port-used');
+const { log } = require('easy-table');
 
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Telnet',
@@ -276,15 +279,39 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
             return cb(Errors.Invalid(`Invalid port: ${config.loginServers.telnet.port}`));
         }
 
-        this.server.listen(port, config.loginServers.telnet.address, err => {
+        const address = config.loginServers.telnet.address;
+
+        tcpPortUsed
+            .check(port, address)
+            .then(function(inUse) {
+                if (inUse) {
+                    console.error(`${COLOUR_CODES.BRIGHT_RED}LOGIN SERVER: ${COLOUR_CODES.RED}${ModuleInfo.name} Cannot Start! Port is in use: ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+                    return cb(Errors.UnexpectedState(`Port is in use: ${port} at address ${address}`))
+                }
+            },
+            function(err) {
+                return cb(err);
+            }
+        );
+
+        Log.info(
+            { server: ModuleInfo.name, port: port, address: address },
+            'Telnet starting up'
+        );
+
+        this.server.listen(port, address, err => {
             if (!err) {
+                console.info(`${COLOUR_CODES.BRIGHT_GREEN}LOGIN SERVER: ${COLOUR_CODES.GREEN}${ModuleInfo.name} Listening on Port ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${config.loginServers.telnet.address}${COLOUR_CODES.WHITE}`)
+
                 Log.info(
-                    { server: ModuleInfo.name, port: port },
+                    { server: ModuleInfo.name, port: port, address: address },
                     'Listening for connections'
                 );
             }
             return cb(err);
         });
+
     }
 };
 

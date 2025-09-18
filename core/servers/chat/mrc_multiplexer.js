@@ -10,9 +10,11 @@ const SysProps = require('../../system_property.js');
 const StatLog = require('../../stat_log.js');
 
 //  deps
+const COLOUR_CODES = require('../../constants/ansi/colour_codes').COLOUR_CODES;
 const net = require('net');
 const _ = require('lodash');
 const os = require('os');
+const tcpPortUsed = require('tcp-port-used');
 
 // MRC
 const clientVersion = '1.3.1';
@@ -95,10 +97,30 @@ exports.getModule = class MrcModule extends ServerModule {
                 Errors.Invalid(`Invalid port: ${config.chatServers.mrc.multiplexerPort}`)
             );
         }
+
+        const address = "0.0.0.0";
+
+        tcpPortUsed
+            .check(port, address)
+            .then(function(inUse) {
+                if (inUse) {
+                    console.error(`${COLOUR_CODES.BRIGHT_RED}CHAT SERVER: ${COLOUR_CODES.RED}${ModuleInfo.name} Cannot Start! Port is in use: ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
+                    return cb(Errors.UnexpectedState(`Port is in use: ${port} at address ${address}`))
+                }
+            },
+            function(err) {
+                return cb(err);
+            }
+        );
+
+        console.info(`${COLOUR_CODES.BRIGHT_GREEN}CHAT SERVER: ${COLOUR_CODES.GREEN}${ModuleInfo.name} Listening on Port ${COLOUR_CODES.BRIGHT_WHITE}${port} at address ${address}${COLOUR_CODES.WHITE}`)
+
         Log.info(
-            { server: ModuleInfo.name, port: config.chatServers.mrc.multiplexerPort },
+            { server: ModuleInfo.name, port: port, address: address },
             'MRC multiplexer starting up'
         );
+
         return this.server.listen(port, cb);
     }
 
