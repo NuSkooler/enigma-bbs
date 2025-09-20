@@ -1,0 +1,40 @@
+@startuml
+
+state "Entering" as Entering {
+  state "enter()" as enter
+
+  [*] --> enter
+  enter -> InitSequence
+
+  state "initSequence()" as InitSequence {
+    displayQueuedInterruptions : Any queued interruptions displayed first
+
+    state "beforeArt()" as beforeArt : called before art is displayed
+    state "mciReady()" as mciReady
+    state "finishedLoading()" as finishedLoading
+
+    displayQueuedInterruptions --> beforeArt
+    beforeArt --> mciReady : MCI codes are prepared
+    mciReady --> displayArt : Display any art assets
+    displayArt --> pausePrompt : Pause if configured
+    displayArt --> finishedLoading
+    pausePrompt --> finishedLoading
+    finishedLoading --> autoNextMenu : Auto-next if configured
+    finishedLoading -> [*] : Finished until explicit call if no auto-next
+    autoNextMenu -> Leaving
+  }
+}
+
+state "Leaving" as Leaving {
+    state "leave()" as leave
+    state "nextMenu()" as nextMenu
+    state "prevMenu()" as prevMenu
+
+    leave --> nextMenu
+    leave --> prevMenu
+
+   nextMenu --> [*]
+   prevMenu --> [*]
+}
+
+@enduml
