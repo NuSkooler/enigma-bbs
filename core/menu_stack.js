@@ -48,13 +48,13 @@ module.exports = class MenuStack {
             return cb(
                 Array.isArray(menuConfig.next)
                     ? Errors.MenuStack(
-                        'No matching condition for "next"',
-                        ErrorReasons.NoConditionMatch
-                    )
+                          'No matching condition for "next"',
+                          ErrorReasons.NoConditionMatch
+                      )
                     : Errors.MenuStack(
-                        'Invalid or missing "next" member in menu config',
-                        ErrorReasons.InvalidNextMenu
-                    )
+                          'Invalid or missing "next" member in menu config',
+                          ErrorReasons.InvalidNextMenu
+                      )
             );
         }
 
@@ -75,7 +75,7 @@ module.exports = class MenuStack {
 
         this.pop().instance.leave(); //  leave & remove current
 
-        const previousModuleInfo = this.pop(); //  get previous
+        const previousModuleInfo = this.pop(); //  get previous; we'll re-create a instance
 
         if (previousModuleInfo) {
             const opts = {
@@ -93,15 +93,13 @@ module.exports = class MenuStack {
     }
 
     goto(name, options, cb) {
-        const currentModuleInfo = this.top();
-
         if (!cb && _.isFunction(options)) {
             cb = options;
             options = {};
         }
-
         options = options || {};
-        const self = this;
+
+        const currentModuleInfo = this.top();
 
         if (currentModuleInfo && name === currentModuleInfo.name) {
             if (cb) {
@@ -117,10 +115,13 @@ module.exports = class MenuStack {
 
         const loadOpts = {
             name: name,
-            client: self.client,
+            client: this.client,
         };
 
-        if (currentModuleInfo && currentModuleInfo.menuFlags.includes(MenuFlags.ForwardArgs)) {
+        if (
+            currentModuleInfo &&
+            currentModuleInfo.menuFlags.includes(MenuFlags.ForwardArgs)
+        ) {
             loadOpts.extraArgs = currentModuleInfo.extraArgs;
         } else {
             loadOpts.extraArgs = options.extraArgs || _.get(options, 'formData.value');
@@ -129,10 +130,10 @@ module.exports = class MenuStack {
 
         loadMenu(loadOpts, (err, modInst) => {
             if (err) {
-                const errCb = cb || self.client.defaultHandlerMissingMod();
+                const errCb = cb || this.client.defaultHandlerMissingMod();
                 errCb(err);
             } else {
-                self.client.log.debug({ menuName: name }, 'Goto menu module');
+                this.client.log.debug({ menuName: name }, 'Goto menu module');
 
                 if (!this.client.acs.hasMenuModuleAccess(modInst)) {
                     if (cb) {
@@ -168,11 +169,11 @@ module.exports = class MenuStack {
                     currentModuleInfo.instance.leave();
 
                     if (currentModuleInfo.menuFlags.includes(MenuFlags.NoHistory)) {
-                        this.pop().instance.leave(); // leave & remove current from stack
+                        this.pop();
                     }
                 }
 
-                self.push({
+                this.push({
                     name: name,
                     instance: modInst,
                     extraArgs: loadOpts.extraArgs,
@@ -184,8 +185,8 @@ module.exports = class MenuStack {
                     modInst.restoreSavedState(options.savedState);
                 }
 
-                if (self.client.log.level() <= bunyan.TRACE) {
-                    const stackEntries = self.stack.map(stackEntry => {
+                if (this.client.log.level() <= bunyan.TRACE) {
+                    const stackEntries = this.stack.map(stackEntry => {
                         let name = stackEntry.name;
                         if (stackEntry.instance.menuConfig.config.menuFlags.length > 0) {
                             name += ` (${stackEntry.instance.menuConfig.config.menuFlags.join(
@@ -195,7 +196,7 @@ module.exports = class MenuStack {
                         return name;
                     });
 
-                    self.client.log.trace({ stack: stackEntries }, 'Updated menu stack');
+                    this.client.log.trace({ stack: stackEntries }, 'Updated menu stack');
                 }
 
                 modInst.enter();

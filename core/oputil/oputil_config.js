@@ -1,5 +1,5 @@
 /* jslint node: true */
-/* eslint-disable no-console */
+
 'use strict';
 
 //	ENiGMA½
@@ -226,6 +226,7 @@ const copyFileSyncSilent = (to, from, flags) => {
         fs.copyFileSync(to, from, flags);
     } catch (e) {
         /* absorb! */
+        console.error(e);
     }
 };
 
@@ -250,6 +251,7 @@ function buildNewConfig() {
             'new_user.in.hjson',
             'doors.in.hjson',
             'file_base.in.hjson',
+            'activitypub.in.hjson',
         ];
 
         let includeFiles = [];
@@ -299,12 +301,13 @@ function catCurrentConfig() {
 
         if (argv.meow) {
             console.info(
-`    /\\_/\\
+                `    /\\_/\\
    ( o.o )
-    > ^ < ... mrow...`);
+    > ^ < ... mrow...`
+            );
             return;
         }
-        
+
         console.log(hjson.stringify(config, hjsonOpts));
     } catch (e) {
         if ('ENOENT' == e.code) {

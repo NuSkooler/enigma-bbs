@@ -22,6 +22,7 @@ exports.loadDatabaseForMod = loadDatabaseForMod;
 exports.getISOTimestampString = getISOTimestampString;
 exports.sanitizeString = sanitizeString;
 exports.initializeDatabases = initializeDatabases;
+exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
 
 exports.dbs = dbs;
 
@@ -109,7 +110,7 @@ function sanitizeString(s) {
 
 function initializeDatabases(cb) {
     async.eachSeries(
-        ['system', 'user', 'message', 'file'],
+        ['system', 'user', 'message', 'file', 'activitypub'],
         (dbName, next) => {
             dbs[dbName] = sqlite3Trans.wrap(
                 new sqlite3.Database(getDatabasePath(dbName), err => {
@@ -242,7 +243,6 @@ const DB_INIT_TABLE = {
 
         return cb(null);
     },
-
     message: cb => {
         enableForeignKeys(dbs.message);
 
@@ -312,22 +312,22 @@ const DB_INIT_TABLE = {
 
         //  :TODO: need SQL to ensure cleaned up if delete from message?
         /*
-        dbs.message.run(
-            `CREATE TABLE IF NOT EXISTS hash_tag (
-                hash_tag_id     INTEGER PRIMARY KEY,
-                hash_tag_name   VARCHAR NOT NULL,
-                UNIQUE(hash_tag_name)
-            );`
-        );
+dbs.message.run(
+    `CREATE TABLE IF NOT EXISTS hash_tag (
+        hash_tag_id     INTEGER PRIMARY KEY,
+        hash_tag_name   VARCHAR NOT NULL,
+        UNIQUE(hash_tag_name)
+    );`
+);
 
-        //  :TODO: need SQL to ensure cleaned up if delete from message?
-        dbs.message.run(
-            `CREATE TABLE IF NOT EXISTS message_hash_tag (
-                hash_tag_id INTEGER NOT NULL,
-                message_id  INTEGER NOT NULL,
-            );`
-        );
-        */
+//  :TODO: need SQL to ensure cleaned up if delete from message?
+dbs.message.run(
+    `CREATE TABLE IF NOT EXISTS message_hash_tag (
+        hash_tag_id INTEGER NOT NULL,
+        message_id  INTEGER NOT NULL,
+    );`
+);
+*/
 
         dbs.message.run(
             `CREATE TABLE IF NOT EXISTS user_message_area_last_read (
@@ -471,4 +471,60 @@ const DB_INIT_TABLE = {
 
         return cb(null);
     },
+    activitypub: cb => {
+        enableForeignKeys(dbs.activitypub);
+
+        //  ActivityPub Collections of various types such as followers, following, likes, ...
+        dbs.activitypub.run(
+            `CREATE TABLE IF NOT EXISTS collection (
+                collection_id       VARCHAR NOT NULL,       -- ie: http://somewhere.com/_enig/ap/users/NuSkooler/followers
+                name                VARCHAR NOT NULL,       -- examples: followers, follows, ...
+                timestamp           DATETIME NOT NULL,      -- Timestamp in which this entry was created
+                owner_actor_id      VARCHAR NOT NULL,       -- Local, owning Actor ID, or the #Public magic collection ID
+                object_id           VARCHAR NOT NULL,       -- Object ID from obj_json.id
+                object_json         VARCHAR NOT NULL,       -- Object varies by collection (obj_json.type)
+                is_private          INTEGER NOT NULL,       -- Is this object private to |owner_actor_id|?
+
+                UNIQUE(name, collection_id, object_id)
+            );`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS collection_entry_by_name_actor_id_index0
+            ON collection (name, owner_actor_id);`
+        );
+
+        dbs.activitypub.run(
+            `CREATE INDEX IF NOT EXISTS collection_entry_by_name_collection_id_index0
+            ON collection (name, collection_id);`
+        );
+
+        //  Collection meta contains 0:N additional metadata records for a object_id in a collection
+        dbs.activitypub.run(
+            `CREATE TABLE IF NOT EXISTS collection_object_meta (
+                collection_id   VARCHAR NOT NULL,
+                name            VARCHAR NOT NULL,
+                object_id       VARCHAR NOT NULL,
+                meta_name       VARCHAR NOT NULL,
+                meta_value      VARCHAR NOT NULL,
+
+                UNIQUE(collection_id, object_id, meta_name),
+                FOREIGN KEY(name, collection_id, object_id) REFERENCES collection(name, collection_id, object_id) ON DELETE CASCADE
+            );`
+        );
+
+        return cb(null);
+    },
 };
+
+function scheduledEventOptimizeDatabases(args, cb) {
+    async.forEachSeries(
+        Object.keys(dbs),
+        (db, nextDb) => {
+            return db.run('PRAGMA OPTIMIZE', nextDb);
+        },
+        err => {
+            return cb(err);
+        }
+    );
+}

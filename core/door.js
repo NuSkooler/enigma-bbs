@@ -58,7 +58,7 @@ module.exports = class Door {
         this.encoding = (exeInfo.encoding || 'cp437').toLowerCase();
 
         if ('socket' === this.io) {
-            if(!this.sockServer) {
+            if (!this.sockServer) {
                 return cb(Errors.UnexpectedState('Socket server is not running'));
             }
         } else if ('stdio' !== this.io) {
@@ -116,7 +116,7 @@ module.exports = class Door {
                         );
 
                         prePty.onExit(exitEvent => {
-                            const {exitCode, signal} = exitEvent;
+                            const { exitCode, signal } = exitEvent;
                             this.client.log.info(
                                 { exitCode, signal },
                                 'Door pre-command exited'
@@ -208,7 +208,7 @@ module.exports = class Door {
                     }
 
                     this.doorPty.onExit(exitEvent => {
-                        const {exitCode, signal} = exitEvent;
+                        const { exitCode, signal } = exitEvent;
                         this.client.log.info({ exitCode, signal }, 'Door exited');
                         exitHandler();
                     });

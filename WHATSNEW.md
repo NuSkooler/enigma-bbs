@@ -2,15 +2,43 @@
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
 ## 0.0.14-beta
-* The [Web Server](/docs/_docs/servers/contentservers/web-server.md) has made some possibly breaking changes:
-    * `/static/` prefixes are no longer required. This was a ugly hack.
-    * Some internal routes such as those used for password resets live within `/_internal/`.
-    * Routes for the file base now default to `/_f/` prefixed instead of just `/f/`. If `/f/` is in your `config.hjson` you are encouraged to update it!
-    * Finally, the system will search for `index.html` and `index.htm` in that order, if another suitable route cannot be established.
-* CombatNet has shut down, so the module (`combatnet.js`) has been removed.
-* The Menu Flag `popParent` has been removed and `noHistory` has been updated to work as expected. In general things should "Just Work", but check your `menu.hjson` entries if you see menu stack issues.
-* Various New User Application (NUA) properties are now optional. If you would like to reduce the information users are required, remove optional fields from NUA artwork and collect less. These properties will be stored as "" (empty). Optional properties are as follows: Real name, Birth date, Sex, Location, Affiliations (Affils), Email, and Web address.
-* Art handling has been changed to respect the art width contained in SAUCE when present in the case where the terminal width is greater than the art width. This fixes art files that assume wrapping at 80 columns on wide (mostly new utf8) terminals.
+
+* **ActivityPub & Mastodon Support (Experimental)**
+
+  * A new [ActivityPub Web Handler](./docs/_docs/servers/contentservers/activitypub-handler.md) has been added.
+  * ⚠️ **WARNING**: ActivityPub is **disabled by default**. There may be **security implications**, federation may be **unstable**, and some parts may not work yet. **Use at your own risk!**
+  * Provides groundwork for federated features: WebFinger discovery, NodeInfo2, actor profiles/avatars, inbox/outbox/shared inbox, and handling of common ActivityPub object types (`Note`, `Accept`, `Undo`, followers/following).
+  * **WebFinger** and **NodeInfo2** handlers are also disabled by default. These may be useful for inter-BBS or other integrations, but note: WebFinger may still “advertise” ActivityPub endpoints even if AP itself is off.
+  * Cool new functionality arrives with or without AP enabled:
+
+    * **PNG Avatars**: users now get avatars (including **auto-generated defaults**) that can be served via the web frontend.
+    * Message editor and timeline improvements:
+
+      * Recognition of `@user@domain` addressing (Fediverse general)
+      * Unicode → ASCII transliteration for federated messages (via AnyAscii). ...but we can use it for any <-> web!
+    * **Better routing** for web handlers and `.well-known` paths.
+    * **Dedicated web logging** under `contentHandlers.web.logging`.
+    * TONS of fixes and improvements to the code base
+
+    The fate of full ActivityPub support in ENiGMA is till up in the air...
+
+* **[Web Server](/docs/_docs/servers/contentservers/web-server.md) Changes** (⚠️ some may be breaking):
+
+  * `/static/` prefixes are no longer required (ugly hack removed).
+  * Internal routes (e.g. password reset) now live under `/_enig/`.
+  * File base routes now default to `/_f/` instead of `/f/`. If your `config.hjson` still uses `/f/`, update it.
+  * The system will now search for `index.html` then `index.htm` if a suitable route cannot be found.
+  * [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md) modules are now easier to add; several exist by default.
+
+* **Other Additions & Changes**
+
+  * New users now have randomly generated avatars assigned (served via System General [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md)).
+  * CombatNet has shut down; the module (`combatnet.js`) has been removed.
+  * New `NewUserPrePersist` system event available for developers to hook into account creation.
+  * `viewValidationListener` callback signature has changed: now `(err, newFocusId)`. To ignore a validation error, call with `null` for `err`.
+  * The Menu Flag `popParent` has been removed; `noHistory` has been updated to work as expected. See [UPGRADE](UPGRADE.md).
+  * Various New User Application (NUA) properties are now optional. Remove optional fields from NUA artwork if you wish to collect less information (stored as empty string). Optional properties: Real name, Birth date, Sex, Location, Affiliations (Affils), Email, Web address.
+  * Art handling now respects art width from SAUCE metadata when terminal width is greater, fixing display issues on wide UTF-8 terminals.
 
 ## 0.0.13-beta
 * **Note for contributors**: ENiGMA has switched to [Prettier](https://prettier.io) for formatting/style. Please see [CONTRIBUTING](CONTRIBUTING.md) and the Prettier website for more information.
@@ -29,7 +57,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Additional options in the `abracadabra` module for launching doors. See [Local Doors](./docs/modding/local-doors.md)
 
 ## 0.0.12-beta
-* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
+* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Upgrading](./docs/admin/upgrading.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
 * Development now occurs against [Node.js 14 LTS](https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V14.md).
 * The default configuration has been moved to [config_default.js](/core/config_default.js).
 * A full configuration revamp has taken place. Configuration files such as `config.hjson`, `menu.hjson`, and `theme.hjson` can now utilize includes via the `includes` directive, reference 'self' sections using `@reference:` and import environment variables with `@environment`.

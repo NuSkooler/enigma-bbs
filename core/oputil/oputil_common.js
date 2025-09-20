@@ -10,6 +10,7 @@ const async = require('async');
 const inq = require('inquirer');
 const fs = require('fs');
 const hjson = require('hjson');
+const log = require('../../core/logger');
 
 const packageJson = require('../../package.json');
 
@@ -81,6 +82,7 @@ function initConfigAndDatabases(cb) {
                 initConfig(callback);
             },
             function initDb(callback) {
+                log.init();
                 db.initializeDatabases(callback);
             },
             function initArchiveUtil(callback) {

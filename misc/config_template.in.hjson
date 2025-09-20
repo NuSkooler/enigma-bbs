@@ -164,7 +164,7 @@
             //  "Error initializing: Error: Cannot parse privateKey: Unsupported key format"
             //  You might need to convert your key. This can be done as follows:
             //
-            //  > openssl rsa -in unsupported.key -out converted.key -traditional 
+            //  > openssl rsa -in unsupported.key -out converted.key -traditional
             //
             //
             //  Additional reading:
@@ -233,6 +233,23 @@
 
             //  Standard issue "www" folder. Place static content here
             staticRoot: XXXXX
+
+            //  Configuration for individual web handlers
+            handlers: {
+                //  webFinger is needed for activityPub support, or can
+                //  be used standalone.
+                //  See https://www.rfc-editor.org/rfc/rfc7033
+                webFinger: {
+                    enabled: false
+                }
+
+                //  Handler for ActivityPub support used by Mastadon and
+                //  others.
+                //  See https://www.w3.org/TR/activitypub/
+                activityPub: {
+                    enabled: false
+                }
+            }
 
             //
             //  This block configures password reset emails. Template files
