@@ -18,6 +18,9 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
       * Unicode → ASCII transliteration for federated messages (via AnyAscii). ...but we can use it for any <-> web!
     * **Better routing** for web handlers and `.well-known` paths.
     * **Dedicated web logging** under `contentHandlers.web.logging`.
+    * TONS of fixes and improvements to the code base
+
+    The fate of full ActivityPub support in ENiGMA is till up in the air...
 
 * **[Web Server](/docs/_docs/servers/contentservers/web-server.md) Changes** (⚠️ some may be breaking):
 
