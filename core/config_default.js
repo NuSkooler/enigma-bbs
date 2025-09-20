@@ -309,10 +309,10 @@ module.exports = () => {
 
                 handlers: {
                     systemGeneral: {
-                        enabled: true,
+                        enabled: false,
                     },
                     nodeInfo2: {
-                        enabled: true,
+                        enabled: false,
                     },
                     webFinger: {
                         enabled: false,
