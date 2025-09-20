@@ -13,6 +13,7 @@ const Log = require('./logger.js').log;
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
+const { TelnetSocket } = require('telnet-socket');
 
 //  deps
 const async = require('async');
@@ -392,9 +393,37 @@ exports.getModule = class TransferFileModule extends MenuModule {
         const cmd = external[`${this.direction}Cmd`];
 
         //  support for handlers that need IACs taken care of over Telnet/etc.
-        const processIACs = external.processIACs || external.escapeTelnet; //  deprecated name
+        const configProcessIACs = external.processIACs || external.escapeTelnet; //  deprecated name
 
-        //  :TODO: we should only do this when over Telnet (or derived, such as WebSockets)?
+        //  Only process IACs for Telnet-based connections (Telnet, WebSocket), not SSH
+        //  Use robust detection instead of fragile constructor.name checking
+        let isTelnetBased = false;
+
+        if (!this.client || typeof this.client !== 'object') {
+            Log.warn('Invalid client object in file transfer');
+            return cb(new Error('Invalid client object'));
+        }
+
+        //  Check if client uses TelnetSocket (most reliable indicator)
+        if (this.client.socket && this.client.socket instanceof TelnetSocket) {
+            isTelnetBased = true;
+        }
+        //  Fallback: Check if client has telnet-specific methods/properties
+        else if (this.client.banner && typeof this.client.banner === 'function') {
+            //  TelnetClient and WebSocketClient have banner() method, SSH clients don't
+            isTelnetBased = true;
+        }
+        //  Additional fallback: Check for telnet-specific socket methods
+        else if (
+            this.client.socket &&
+            typeof this.client.socket.writeData === 'function' &&
+            typeof this.client.socket.negotiateOptions === 'function'
+        ) {
+            //  These are TelnetSocket-specific methods
+            isTelnetBased = true;
+        }
+
+        const processIACs = configProcessIACs && isTelnetBased;
 
         const IAC = Buffer.from([255]);
         const EscapedIAC = Buffer.from([255, 255]);
@@ -405,6 +434,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 args: args,
                 tempDir: this.recvDirectory,
                 direction: this.direction,
+                processIACs: processIACs,
+                isTelnetBased: isTelnetBased,
+                clientType: this.client.constructor.name,
+                hasTelnetSocket: this.client.socket instanceof TelnetSocket,
+                hasBannerMethod: typeof this.client.banner === 'function',
             },
             'Executing external protocol'
         );
