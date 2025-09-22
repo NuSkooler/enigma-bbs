@@ -534,6 +534,31 @@
 				}
 			}
 
+			userSSHKeyConfig: {
+				config: {
+					cls: true
+				}
+				mci: {
+					MT1: {
+						width: 70
+						height: 4
+						mode: preview
+						acceptsFocus: false
+					}
+					ET2: {
+						width: 70
+						maxLength: 600
+					}
+					TM3: {
+						focusTextStyle: upper
+						styleSGR1: |08
+					}
+					TL4: {
+						width: 70
+					}
+				}
+			}
+
 			nodeMessage: {
 				config: {
 					messageFormat: "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}"

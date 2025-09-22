@@ -179,6 +179,19 @@
                     ]
                 }
                 {
+                    value: { command: "SSH" }
+                    action: [
+                        {
+                            //  Allow SSH key management only from secure transports
+                            acs: SC
+                            action: @menu:userSSHKeyConfig
+                        }
+                        {
+                            action: @menu:userSSHKeyConfigSecConnRequired
+                        }
+                    ]
+                }
+                {
                     value: { command: "MSG" }
                     action: @menu:nodeMessage
                 }
@@ -387,6 +400,72 @@
                         }
                     ]
                 }
+            }
+        }
+
+        userSSHKeyConfig: {
+            desc: SSH Public Keys
+            module: user_ssh_key_config
+            art: SSHKEYCFG
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+                            argName: infoText
+                            focus: false
+                        }
+                        ET2: {
+                            argName: publicKey
+                            focus: true
+                        }
+                        TM3: {
+                            argName: submit
+                            items: [
+                                "save/update key"
+                                "remove key"
+                                "cancel"
+                            ]
+                            submit: true
+                        }
+                        TL4: {
+                            argName: statusText
+                            focus: false
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { submit: 0 }
+                                action: @method:saveKey
+                            }
+                            {
+                                value: { submit: 1 }
+                                action: @method:removeKey
+                            }
+                            {
+                                value: { submit: 2 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        userSSHKeyConfigSecConnRequired: {
+            desc: Insecure Warning
+            art: SSHKEYSEC
+            config: {
+                cls: true
+                pause: true
             }
         }
 
