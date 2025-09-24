@@ -15,7 +15,7 @@ module.exports = () => {
 
             menuFile: 'menu.hjson', //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
             achievementFile: 'achievements.hjson',
-            maxConnections: 0 //  0 or less means 'unlimited'
+            maxConnections: 0, //  0 or less means 'unlimited'
         },
 
         term: {

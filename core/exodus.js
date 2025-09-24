@@ -61,8 +61,8 @@ exports.getModule = class ExodusModule extends MenuModule {
 
         this.config = options.menuConfig.config || {};
         this.config.ticketHost = this.config.ticketHost || 'oddnetwork.org';
-        (this.config.ticketPort = this.config.ticketPort || 1984),
-            (this.config.ticketPath = this.config.ticketPath || '/exodus');
+        ((this.config.ticketPort = this.config.ticketPort || 1984),
+            (this.config.ticketPath = this.config.ticketPath || '/exodus'));
         this.config.rejectUnauthorized = _.get(this.config, 'rejectUnauthorized', true);
         this.config.sshHost = this.config.sshHost || this.config.ticketHost;
         this.config.sshPort = this.config.sshPort || 22;

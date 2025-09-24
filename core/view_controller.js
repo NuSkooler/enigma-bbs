@@ -201,10 +201,9 @@ function ViewController(options) {
                             //  :TODO: handle propAsset.location for @method script specification
                             if ('systemMethod' === propAsset.type) {
                                 //  :TODO: implementation validation @systemMethod handling!
-                                var methodModule = require(paths.join(
-                                    __dirname,
-                                    'system_view_validate.js'
-                                ));
+                                var methodModule = require(
+                                    paths.join(__dirname, 'system_view_validate.js')
+                                );
                                 if (_.isFunction(methodModule[propAsset.asset])) {
                                     propValue = methodModule[propAsset.asset];
                                 }

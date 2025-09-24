@@ -65,8 +65,8 @@ function SpinnerMenuView(options) {
             sgr = this.focusItemFormat
                 ? ''
                 : this.hasFocus
-                ? this.getFocusSGR()
-                : self.getSGR();
+                  ? this.getFocusSGR()
+                  : self.getSGR();
         } else {
             text = strUtil.stylizeString(
                 item.text,

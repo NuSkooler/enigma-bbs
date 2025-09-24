@@ -88,8 +88,8 @@ function VerticalMenuView(options) {
             sgr = this.focusItemFormat
                 ? ''
                 : index === self.focusedItemIndex
-                ? self.getFocusSGR()
-                : self.getSGR();
+                  ? self.getFocusSGR()
+                  : self.getSGR();
         } else {
             text = strUtil.stylizeString(
                 item.text,
