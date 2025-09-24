@@ -1,6 +1,3 @@
-/* jslint node: true */
-'use strict';
-
 //  ENiGMA½
 const { MenuModule } = require('./menu_module.js');
 const UserProps = require('./user_property.js');
@@ -13,7 +10,7 @@ const _ = require('lodash');
 exports.moduleInfo = {
     name: 'User SSH Key Configuration',
     desc: 'Module for managing SSH public key authentication',
-    author: 'NuSkooler',
+    author: 'stlalpha/spaceman@themcbros.com',
 };
 
 const FormIds = {

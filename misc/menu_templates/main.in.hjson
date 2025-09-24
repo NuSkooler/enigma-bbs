@@ -407,6 +407,7 @@
             desc: SSH Public Keys
             module: user_ssh_key_config
             art: SSHKEYCFG
+            acs: SC
             form: {
                 0: {
                     mci: {
