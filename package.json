@@ -12,7 +12,7 @@
         "start": "node main.js",
         "oputil": "node ./oputil.js",
         "pretty": "npx prettier --write .",
-        "prepare": "husky install"
+        "prepare": "npm run prepare"
     },
     "repository": {
         "type": "git",
