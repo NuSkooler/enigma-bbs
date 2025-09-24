@@ -1076,7 +1076,7 @@ class QWKPacketWriter extends EventEmitter {
                     }
 
                     //  First block is a space padded ID
-                    const id = `Created with ENiGMA 1/2 BBS v${enigmaVersion} Copyright (c) 2015-2024 Bryan Ashby`;
+                    const id = `Created with ENiGMA 1/2 BBS v${enigmaVersion} Copyright (c) 2015-2025 Bryan Ashby`;
                     this.messagesStream.write(
                         id.padEnd(QWKMessageBlockSize, ' '),
                         'ascii'
@@ -1113,7 +1113,7 @@ class QWKPacketWriter extends EventEmitter {
             this.emit(
                 'warning',
                 Errors.General(
-                    `Failed to encode buffer using ${encoding}; Falling back to 'ascii'`
+                    `Failed to encode buffer using ${encoding}: ${e.message}; Falling back to 'ascii'`
                 )
             );
             return iconv.encode(s, 'ascii');
