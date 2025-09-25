@@ -1,0 +1,8 @@
+[0m+----------------------------------------------+
+|  SSH public key management requires a        |
+|  secure connection. Please reconnect via     |
+|  SSH, RLogin over TLS, or secure WebSocket   |
+|  and retry this command.                     |
+|                                              |
+|  Press any key to return.                    |
++----------------------------------------------+
