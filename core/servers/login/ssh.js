@@ -52,7 +52,8 @@ function SSHClient(clientConn) {
         const safeContextReject = param => {
             try {
                 return ctx.reject(param);
-            } catch (e) {
+            } catch (err) {
+                self.log.trace({ error: err.message }, 'SSH context reject failed');
                 return;
             }
         };
@@ -147,10 +148,17 @@ function SSHClient(clientConn) {
                 });
             } else {
                 //  step 2: verify signature
-                const pubKeyActual = ssh2.utils.parseKey(
-                    self.user.getProperty(UserProps.AuthPubKey)
-                );
-                if (!pubKeyActual || !pubKeyActual.verify(ctx.blob, ctx.signature)) {
+                const storedKey = self.user.getProperty(UserProps.SSHPubKey);
+                if (!storedKey) {
+                    return slowTerminateConnection();
+                }
+
+                const pubKeyActual = ssh2.utils.parseKey(storedKey);
+                if (
+                    !pubKeyActual ||
+                    pubKeyActual instanceof Error ||
+                    !pubKeyActual.verify(ctx.blob, ctx.signature)
+                ) {
                     return slowTerminateConnection();
                 }
                 return ctx.accept();

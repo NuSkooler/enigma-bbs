@@ -57,11 +57,7 @@ module.exports = class User {
 
     static get StandardPropertyGroups() {
         return {
-            auth: [
-                UserProps.PassPbkdf2Salt,
-                UserProps.PassPbkdf2Dk,
-                UserProps.AuthPubKey,
-            ],
+            auth: [UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk, UserProps.SSHPubKey],
         };
     }
 
@@ -288,18 +284,50 @@ module.exports = class User {
         };
 
         const validatePubKey = (props, callback) => {
-            const pubKeyActual = ssh2.utils.parseKey(props[UserProps.AuthPubKey]);
-            if (!pubKeyActual) {
+            const storedKey = props[UserProps.SSHPubKey];
+            if (!storedKey) {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
 
-            if (
-                authInfo.pubKey.key.algo != pubKeyActual.type ||
-                !crypto.timingSafeEqual(
-                    authInfo.pubKey.key.data,
-                    pubKeyActual.getPublicSSH()
-                )
-            ) {
+            const parsedKey = ssh2.utils.parseKey(storedKey);
+            if (!parsedKey || parsedKey instanceof Error) {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            const pubKeyActual = Array.isArray(parsedKey) ? parsedKey[0] : parsedKey;
+            if (!pubKeyActual || !pubKeyActual.getPublicSSH) {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            const parts = storedKey.trim().split(/\s+/);
+            if (parts.length < 2) {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            let storedKeyData;
+            try {
+                storedKeyData = Buffer.from(parts[1], 'base64');
+            } catch (err) {
+                Log.warn(
+                    { error: err.message, username: this.username },
+                    'Failed to parse stored SSH public key'
+                );
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            if (authInfo.pubKey.key.algo != pubKeyActual.type) {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            if (!crypto.timingSafeEqual(authInfo.pubKey.key.data, storedKeyData)) {
+                Log.warn(
+                    {
+                        expected: parts[1],
+                        provided: authInfo.pubKey.key.data.toString('base64'),
+                        algo: authInfo.pubKey.key.algo,
+                    },
+                    'SSH public key mismatch'
+                );
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
 
@@ -826,6 +854,39 @@ module.exports = class User {
                 return cb(err);
             });
         });
+    }
+
+    setPublicSSHKey(pubKey, cb) {
+        cb = cb || (() => {});
+
+        if (!_.isString(pubKey)) {
+            pubKey = pubKey ? String(pubKey) : '';
+        }
+
+        const trimmedKey = pubKey.trim();
+
+        if (0 === trimmedKey.length) {
+            return this.removeProperty(UserProps.SSHPubKey, cb);
+        }
+
+        const parsedKey = ssh2.utils.parseKey(trimmedKey);
+        if (!parsedKey || parsedKey instanceof Error) {
+            const err =
+                parsedKey instanceof Error
+                    ? parsedKey
+                    : new Error('Invalid SSH public key');
+            return cb(err);
+        }
+
+        //  When an OpenSSH public key is provided, parseKey returns an object with getPublicSSH().
+        //  If an array is returned, use the first key.
+        const keyObject = Array.isArray(parsedKey) ? parsedKey[0] : parsedKey;
+        if (!keyObject || !keyObject.getPublicSSH) {
+            const err = new Error('Invalid SSH public key');
+            return cb(err);
+        }
+
+        return this.persistProperty(UserProps.SSHPubKey, trimmedKey, cb);
     }
 
     getAge() {
