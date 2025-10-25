@@ -7,6 +7,7 @@ const stringFormat = require('./string_format.js');
 const Errors = require('./enig_error.js').Errors;
 const resolveMimeType = require('./mime_util.js').resolveMimeType;
 const Events = require('./events.js');
+const { validateFilePath, validateCommandArgs } = require('./security_util.js');
 
 //  base/modules
 const fs = require('graceful-fs');
@@ -237,6 +238,21 @@ module.exports = class ArchiveUtil {
             workDir = null;
         }
 
+        // Security: Validate archive path
+        const baseDir = workDir || process.cwd();
+        const pathValidation = validateFilePath(archivePath, baseDir);
+        if (!pathValidation.valid) {
+            return cb(Errors.Invalid(`Invalid archive path: ${pathValidation.error}`));
+        }
+
+        // Security: Validate file paths
+        for (const file of files) {
+            const fileValidation = validateFilePath(file, baseDir);
+            if (!fileValidation.valid) {
+                return cb(Errors.Invalid(`Invalid file path: ${fileValidation.error}`));
+            }
+        }
+
         const fmtObj = {
             archivePath: archivePath,
             fileList: files.join(' '), //  :TODO: probably need same hack as extractTo here!
@@ -251,6 +267,12 @@ module.exports = class ArchiveUtil {
         if (fileListPos > -1) {
             //  replace {fileList} with 0:n sep file list arguments
             args.splice.apply(args, [fileListPos, 1].concat(files));
+        }
+
+        // Security: Validate command arguments
+        const argsValidation = validateCommandArgs(args);
+        if (!argsValidation.valid) {
+            return cb(Errors.Invalid(`Invalid command arguments: ${argsValidation.error}`));
         }
 
         let proc;
@@ -286,6 +308,18 @@ module.exports = class ArchiveUtil {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
+        // Security: Validate paths to prevent path traversal
+        const baseDir = process.cwd();
+        const archiveValidation = validateFilePath(archivePath, baseDir);
+        if (!archiveValidation.valid) {
+            return cb(Errors.Invalid(`Invalid archive path: ${archiveValidation.error}`));
+        }
+
+        const extractValidation = validateFilePath(extractPath, baseDir);
+        if (!extractValidation.valid) {
+            return cb(Errors.Invalid(`Invalid extract path: ${extractValidation.error}`));
+        }
+
         const fmtObj = {
             archivePath: archivePath,
             extractPath: extractPath,
@@ -307,6 +341,12 @@ module.exports = class ArchiveUtil {
         if (fileListPos > -1) {
             //  replace {fileList} with 0:n sep file list arguments
             args.splice.apply(args, [fileListPos, 1].concat(fileList));
+        }
+
+        // Security: Validate command arguments
+        const argsValidation = validateCommandArgs(args);
+        if (!argsValidation.valid) {
+            return cb(Errors.Invalid(`Invalid command arguments: ${argsValidation.error}`));
         }
 
         let proc;
