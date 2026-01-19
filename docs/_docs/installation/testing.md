@@ -13,14 +13,14 @@ _Note that if you've used the [Docker](docker.md) installation method, you've al
 If everything went OK:
 
 ```text
-ENiGMA½ Copyright (c) 2014-2025, Bryan Ashby
+ENiGMA½ Copyright (c) 2014-2025, Bryan Ashby                     ______
 _____________________   _____  ____________________    __________\_   /
 \__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
-//   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
+ //   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
 /____       _____|      __________       ___|__|      ____|     \   /  _____  \
 ---- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
-                                                                     /__   _\
- <*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
+                                                                       /__   _\
+ <*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>         /__/
 
 -------------------------------------------------------------------------------
 
