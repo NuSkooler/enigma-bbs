@@ -57,7 +57,7 @@
         "moment": "2.30.1",
         "nntp-server": "3.1.0",
         "node-pty": "1.0.0",
-        "nodemailer": "^6.10.0",
+        "nodemailer": "^7.0.11",
         "otplib": "11.0.1",
         "qrcode-generator": "^1.4.4",
         "rlogin": "^1.0.0",
