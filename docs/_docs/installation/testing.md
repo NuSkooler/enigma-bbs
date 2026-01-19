@@ -13,7 +13,7 @@ _Note that if you've used the [Docker](docker.md) installation method, you've al
 If everything went OK:
 
 ```text
-ENiGMA½ Copyright (c) 2014-2025, Bryan Ashby                     ______
+ENiGMA½ Copyright (c) 2014-2026, Bryan Ashby                     ______
 _____________________   _____  ____________________    __________\_   /
 \__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
  //   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
