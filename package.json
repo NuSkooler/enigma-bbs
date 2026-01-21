@@ -33,7 +33,7 @@
         "add": "^2.0.6",
         "async": "3.2.6",
         "avatar-generator": "^2.0.4",
-        "binary-parser": "2.2.1",
+        "binary-parser": "2.3.0",
         "buffers": "github:NuSkooler/node-buffers",
         "bunyan": "1.8.15",
         "deepdash": "^5.3.9",
