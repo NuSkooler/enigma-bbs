@@ -48,10 +48,12 @@ module.exports = class User {
 
     static get PBKDF2() {
         return {
-            //  :TODO: bump up iterations for all new PWs
-            iterations: 1000,
+            //  Increased iterations from 1000 to 100000 for enhanced security (OWASP recommendation)
+            //  Using SHA-256 instead of SHA-1 for better cryptographic strength
+            iterations: 100000,
             keyLen: 128,
             saltLen: 32,
+            algorithm: 'sha256', //  Upgraded from sha1 for better security
         };
     }
 
@@ -1195,7 +1197,7 @@ module.exports = class User {
             salt,
             User.PBKDF2.iterations,
             User.PBKDF2.keyLen,
-            'sha1',
+            User.PBKDF2.algorithm,
             (err, dk) => {
                 if (err) {
                     return cb(err);
