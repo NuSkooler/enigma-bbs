@@ -3,7 +3,7 @@ layout: page
 title: HJSON Config Files
 ---
 ## JSON for Humans!
-HJSON is the configuration file format used by ENiGMA½ for [System Configuration](config-hjson.md), [Menus](menu-hjson.md), etc. [HJSON](https://hjson.org/) is is [JSON](https://json.org/) for humans!
+HJSON is the configuration file format used by ENiGMA½ for [System Configuration](config-hjson.md), [Menus](menu-hjson.md), etc. [HJSON](https://hjson.github.io/) is is [JSON](https://json.org/) for humans!
 
 For those completely unfamiliar, JSON stands for JavaScript Object Notation. But don't let that scare you! JSON is simply a text file format with a bit of structure ― kind of like a fancier INI file. HJSON on the other hand as mentioned previously, is JSON for humans. That is, it has the following features and more:
 
@@ -11,7 +11,7 @@ For those completely unfamiliar, JSON stands for JavaScript Object Notation. But
 * Strings generally do not need to be quoted. Multi-line strings are also supported!
 * Comments are supported (JSON doesn't allow this!): `#`, `//` and `/* ... */` style comments are allowed.
 * Keys never need to be quoted
-* ...much more! See [the official HJSON website](https://hjson.org/).
+* ...much more! See [the official HJSON website](https://hjson.github.io/).
 
 ## Terminology
 Through the documentation, some terms regarding HJSON and configuration files will be used:
@@ -35,7 +35,7 @@ It is **highly** recommended to use a text editor that has HJSON support. A few 
 * [Visual Studio Code](https://code.visualstudio.com/) via the `vscode-hjson` plugin.
 * [Notepad++](https://notepad-plus-plus.org) via the `npp-hjson` plugin.
 
-See https://hjson.org/users.html for more more editors & plugins.
+See https://hjson.github.io/users.html for more more editors & plugins.
 
 ### Hot-Reload A.K.A. Live Editing
 ENiGMA½'s configuration, menu, and theme files can edited while your BBS is running. When a file is saved, it is hot-reloaded into the running system. If users are currently connected and you change a menu for example, the next reload of that menu will show the changes.

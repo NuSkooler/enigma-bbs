@@ -8,7 +8,7 @@ ENiGMA½ comes with an advanced theming system allowing system operators to high
 ## General Information
 Themes live in `art/themes/`. Each theme (and thus it's *theme ID*) is a directory within the `themes` directory. The theme itself is simply a collection of art files, and a `theme.hjson` file that further defines layout, colors & formatting, etc.
 
-ENiGMA½ comes with a default theme by [Luciano Ayres](http://blocktronics.org/tag/luciano-ayres/) of [Blocktronics](http://blocktronics.org/) called Mystery Skull. This theme is in `art/themes/luciano_blocktronics`, and thus it's *theme ID* is `luciano_blocktronics`.
+ENiGMA½ comes with a default theme by [Luciano Ayres](https://16colo.rs/artist/luciano+ayres/) of [Blocktronics](https://16colo.rs/group/blocktronics) called Mystery Skull. This theme is in `art/themes/luciano_blocktronics`, and thus it's *theme ID* is `luciano_blocktronics`.
 
 ## Art
 For information on art files, see [General Art Information](general.md). In general, to theme a piece of art, create a version of it in your themes directory.

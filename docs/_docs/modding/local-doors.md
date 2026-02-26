@@ -162,12 +162,12 @@ Pre-built binaries of bivrost! have been released under [Phenom Productions](htt
 Alternative workarounds include [Telnet Bridge module](telnet-bridge.md) to hook up Telnet-accessible (including local) door servers -- It may also be possible bridge via [NET2BBS](http://pcmicro.com/netfoss/guide/net2bbs.html).
 
 ### QEMU with abracadabra
-[QEMU](http://wiki.qemu.org/Main_Page) provides a robust, cross platform solution for launching doors under many platforms (likely anywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: **Multiple instances of a particular door/OS image should not be run at once!** Being more flexible means being a bit more complex. Let's look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.
+[QEMU](https://www.qemu.org/) provides a robust, cross platform solution for launching doors under many platforms (likely anywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: **Multiple instances of a particular door/OS image should not be run at once!** Being more flexible means being a bit more complex. Let's look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.
 
 Basically we'll be creating a bootstrap shell script that generates a temporary node specific `GO.BAT` to launch our door. This will be called from `AUTOEXEC.BAT` within our QEMU FreeDOS partition.
 
 #### Step 1: Create a FreeDOS image
-[FreeDOS](http://www.freedos.org/) is a free mostly MS-DOS compatible DOS package that works well for running 16bit doors. Follow the [QEMU/FreeDOS](https://en.wikibooks.org/wiki/QEMU/FreeDOS) guide for creating an `freedos_c.img`. This will contain FreeDOS itself and installed BBS doors.
+[FreeDOS](https://www.freedos.org/) is a free mostly MS-DOS compatible DOS package that works well for running 16bit doors. Follow the [QEMU/FreeDOS](https://en.wikibooks.org/wiki/QEMU/FreeDOS) guide for creating an `freedos_c.img`. This will contain FreeDOS itself and installed BBS doors.
 
 After this is complete, copy LORD to C:\DOORS\LORD within FreeDOS. An easy way to tranfer files from host to DOS is to use QEMU's vfat as a drive. For example:
 ```bash
