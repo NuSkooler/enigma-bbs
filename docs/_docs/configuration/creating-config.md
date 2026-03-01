@@ -2,7 +2,7 @@
 layout: page
 title: Creating Initial Config Files
 ---
-Configuration files in ENiGMA½ are simple UTF-8 encoded [HJSON](http://hjson.org/) files. HJSON is just like JSON but simplified and much more resilient to human error.
+Configuration files in ENiGMA½ are simple UTF-8 encoded [HJSON](https://hjson.github.io/) files. HJSON is just like JSON but simplified and much more resilient to human error.
 
 ## Initial Configuration
 Your initial configuration skeleton can be created using the `oputil.js` command line utility. From your enigma-bbs root directory:

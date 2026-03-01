@@ -15,10 +15,10 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * [MCI support](_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
- * [SyncTERM](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
+ * [SyncTERM](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](https://raw.githubusercontent.com/SynchronetBBS/sbbs/master/src/conio/cterm.txt) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support.
  * Renegade style [pipe color codes](_docs/configuration/colour-codes.md).
- * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
+ * [SQLite](https://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
  * Support for 2-Factor Authentication with One-Time-Passwords
  * [Door support](_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
