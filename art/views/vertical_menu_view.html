@@ -17,11 +17,11 @@
 <meta property="og:description" content="Vertical Menu View A vertical menu view supports displaying a list of times on a screen vertically in a single column, similar to a lightbar. This type of control is often useful for lists of items or menu controls." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2024-08-31T17:30:28+00:00" />
+<meta property="article:published_time" content="2026-03-01T01:12:48+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Vertical Menu View" />
 <script type="application/ld+json">
-{"description":"Vertical Menu View A vertical menu view supports displaying a list of times on a screen vertically in a single column, similar to a lightbar. This type of control is often useful for lists of items or menu controls.","url":"/enigma-bbs/art/views/vertical_menu_view.html","@type":"BlogPosting","headline":"Vertical Menu View","dateModified":"2024-08-31T17:30:28+00:00","datePublished":"2024-08-31T17:30:28+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/vertical_menu_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@context":"https://schema.org"}</script>
+{"description":"Vertical Menu View A vertical menu view supports displaying a list of times on a screen vertically in a single column, similar to a lightbar. This type of control is often useful for lists of items or menu controls.","headline":"Vertical Menu View","dateModified":"2026-03-01T01:12:48+00:00","datePublished":"2026-03-01T01:12:48+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/vertical_menu_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/vertical_menu_view.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2149,45 +2149,6 @@
   
 
   
-    
-      </ul>
-    
-  <li>Administration</li>
-  <ul>
-
-  
-
-    
-
-
-    
-    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
-    
-
-
-  
-  
-
-  
-  
-
-  
-
-  
-  
-
-  
-
-  
-
-  
-    
-      </ul>
-    
-  <li>Modding</li>
-  <ul>
-
-  
 
     
 
@@ -2225,32 +2186,32 @@
 
 
     
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
     <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
-    
-
-
-  
-  
-
-  
-  
-
-  
-
-  
-  
-
-  
-
-  
-
-  
-
-    
-
-
-    
-    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
     
 
 
@@ -2313,7 +2274,126 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/upgrading.html">Upgrading</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger Web Handler</a></li>
+    
+
+
+  
+  
     </ul>
+    
+      </ul>
     
   
 
@@ -2414,6 +2494,10 @@
       <td>Specifies a character to fill extra space in the menu with. Defaults to an empty space</td>
     </tr>
     <tr>
+      <td><code class="language-plaintext highlighter-rouge">textOverflow</code></td>
+      <td>If an entry cannot be displayed due to <code class="language-plaintext highlighter-rouge">width</code>, set overflow characters. See <strong>Text Overflow</strong> below</td>
+    </tr>
+    <tr>
       <td><code class="language-plaintext highlighter-rouge">items</code></td>
       <td>List of items to show in the menu. See <strong>Items</strong> below.</td>
     </tr>
@@ -2456,6 +2540,22 @@ hotKeySubmit: true
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>["First item", "Second item", "Third Item"]
 </code></pre></div></div>
+
+<h3 id="text-overflow">Text Overflow</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">textOverflow</code> option is used to specify what happens when a text string is too long to fit in the <code class="language-plaintext highlighter-rouge">width</code> defined. If an entry is too long to display in the width specified</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> If <code class="language-plaintext highlighter-rouge">textOverflow</code> is not specified at all, a menu can become wider than the <code class="language-plaintext highlighter-rouge">width</code> if needed to display a single column.</p>
+</blockquote>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Setting <code class="language-plaintext highlighter-rouge">textOverflow</code> to an empty string <code class="language-plaintext highlighter-rouge">textOverflow: ""</code> will cause the item to be truncated if necessary without any characters displayed</p>
+</blockquote>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Otherwise, setting <code class="language-plaintext highlighter-rouge">textOverflow</code> to one or more characters will truncate the value if necessary and display those characters at the end. i.e. <code class="language-plaintext highlighter-rouge">textOverflow: ...</code></p>
+</blockquote>
 
 <h2 id="example">Example</h2>
 

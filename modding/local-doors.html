@@ -17,11 +17,11 @@
 <meta property="og:description" content="Local Doors ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The abracadabra module!" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2024-08-31T17:30:28+00:00" />
+<meta property="article:published_time" content="2026-03-01T01:12:48+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Local Doors" />
 <script type="application/ld+json">
-{"description":"Local Doors ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The abracadabra module!","url":"/enigma-bbs/modding/local-doors.html","@type":"BlogPosting","headline":"Local Doors","dateModified":"2024-08-31T17:30:28+00:00","datePublished":"2024-08-31T17:30:28+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@context":"https://schema.org"}</script>
+{"description":"Local Doors ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The abracadabra module!","headline":"Local Doors","dateModified":"2026-03-01T01:12:48+00:00","datePublished":"2026-03-01T01:12:48+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2149,45 +2149,6 @@
   
 
   
-    
-      </ul>
-    
-  <li>Administration</li>
-  <ul>
-
-  
-
-    
-
-
-    
-    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
-    
-
-
-  
-  
-
-  
-  
-
-  
-
-  
-  
-
-  
-
-  
-
-  
-    
-      </ul>
-    
-  <li>Modding</li>
-  <ul>
-
-  
 
     
 
@@ -2225,32 +2186,32 @@
 
 
     
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
     <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
-    
-
-
-  
-  
-
-  
-  
-
-  
-
-  
-  
-
-  
-
-  
-
-  
-
-    
-
-
-    
-    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
     
 
 
@@ -2313,7 +2274,126 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/upgrading.html">Upgrading</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger Web Handler</a></li>
+    
+
+
+  
+  
     </ul>
+    
+      </ul>
     
   
 
@@ -2630,12 +2710,12 @@ unix -e
 <p>Alternative workarounds include <a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge module</a> to hook up Telnet-accessible (including local) door servers – It may also be possible bridge via <a href="http://pcmicro.com/netfoss/guide/net2bbs.html">NET2BBS</a>.</p>
 
 <h3 id="qemu-with-abracadabra">QEMU with abracadabra</h3>
-<p><a href="http://wiki.qemu.org/Main_Page">QEMU</a> provides a robust, cross platform solution for launching doors under many platforms (likely anywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: <strong>Multiple instances of a particular door/OS image should not be run at once!</strong> Being more flexible means being a bit more complex. Let’s look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.</p>
+<p><a href="https://www.qemu.org/">QEMU</a> provides a robust, cross platform solution for launching doors under many platforms (likely anywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: <strong>Multiple instances of a particular door/OS image should not be run at once!</strong> Being more flexible means being a bit more complex. Let’s look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.</p>
 
 <p>Basically we’ll be creating a bootstrap shell script that generates a temporary node specific <code class="language-plaintext highlighter-rouge">GO.BAT</code> to launch our door. This will be called from <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code> within our QEMU FreeDOS partition.</p>
 
 <h4 id="step-1-create-a-freedos-image">Step 1: Create a FreeDOS image</h4>
-<p><a href="http://www.freedos.org/">FreeDOS</a> is a free mostly MS-DOS compatible DOS package that works well for running 16bit doors. Follow the <a href="https://en.wikibooks.org/wiki/QEMU/FreeDOS">QEMU/FreeDOS</a> guide for creating an <code class="language-plaintext highlighter-rouge">freedos_c.img</code>. This will contain FreeDOS itself and installed BBS doors.</p>
+<p><a href="https://www.freedos.org/">FreeDOS</a> is a free mostly MS-DOS compatible DOS package that works well for running 16bit doors. Follow the <a href="https://en.wikibooks.org/wiki/QEMU/FreeDOS">QEMU/FreeDOS</a> guide for creating an <code class="language-plaintext highlighter-rouge">freedos_c.img</code>. This will contain FreeDOS itself and installed BBS doors.</p>
 
 <p>After this is complete, copy LORD to C:\DOORS\LORD within FreeDOS. An easy way to tranfer files from host to DOS is to use QEMU’s vfat as a drive. For example:</p>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>qemu-system-i386 <span class="nt">-localtime</span> /home/enigma/dos/images/freedos_c.img <span class="nt">-hdb</span> fat:/path/to/downloads

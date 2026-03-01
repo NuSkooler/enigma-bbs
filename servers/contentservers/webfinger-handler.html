@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Creating Initial Config Files | ENiGMA½ BBS Software</title>
+<title>WebFinger Web Handler | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Creating Initial Config Files" />
+<meta property="og:title" content="WebFinger Web Handler" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Configuration files in ENiGMA½ are simple UTF-8 encoded HJSON files. HJSON is just like JSON but simplified and much more resilient to human error." />
-<meta property="og:description" content="Configuration files in ENiGMA½ are simple UTF-8 encoded HJSON files. HJSON is just like JSON but simplified and much more resilient to human error." />
+<meta name="description" content="The WebFinger (webfinger.js) Handler provides basic WebFinger (RFC7033) support, enabling servers such as those participating in the Mastodon Fediverse to discover basic information about a user." />
+<meta property="og:description" content="The WebFinger (webfinger.js) Handler provides basic WebFinger (RFC7033) support, enabling servers such as those participating in the Mastodon Fediverse to discover basic information about a user." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-03-01T01:12:48+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Creating Initial Config Files" />
+<meta property="twitter:title" content="WebFinger Web Handler" />
 <script type="application/ld+json">
-{"description":"Configuration files in ENiGMA½ are simple UTF-8 encoded HJSON files. HJSON is just like JSON but simplified and much more resilient to human error.","headline":"Creating Initial Config Files","dateModified":"2026-03-01T01:12:48+00:00","datePublished":"2026-03-01T01:12:48+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/creating-config.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/creating-config.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"The WebFinger (webfinger.js) Handler provides basic WebFinger (RFC7033) support, enabling servers such as those participating in the Mastodon Fediverse to discover basic information about a user.","headline":"WebFinger Web Handler","dateModified":"2026-03-01T01:12:48+00:00","datePublished":"2026-03-01T01:12:48+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/webfinger-handler.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/contentservers/webfinger-handler.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -30,9 +30,9 @@
     
     <div id="container">
         <div class="sidebar" id="sidebar">
-        <hr class="mobile-divide" />
+        <hr class="mobile-divide">
             <div class="container">
-          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
             </div>
             
             <ul>
@@ -322,7 +322,7 @@
 
 
     
-      <li class="active-nav">Creating Initial Config Files</li>
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
     
 
 
@@ -2385,7 +2385,7 @@
 
 
     
-    <li><a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger Web Handler</a></li>
+      <li class="active-nav">WebFinger Web Handler</li>
     
 
 
@@ -2405,37 +2405,126 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/development.html">&laquo; Development Environment Setup</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/contentservers/web-handlers.html">« Web Handlers</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup &raquo;</a>
-              
-              <br clear="both" />
+              <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Creating Initial Config Files</h1>
-    <p>Configuration files in ENiGMA½ are simple UTF-8 encoded <a href="https://hjson.github.io/">HJSON</a> files. HJSON is just like JSON but simplified and much more resilient to human error.</p>
+    <h1 class="page-title">WebFinger Web Handler</h1>
+    <p>The WebFinger (<a href="/core/servers/content/web_handlers/webfinger.js">webfinger.js</a>) <a href="/enigma-bbs/servers/contentservers/web-handlers.html">Handler</a> provides basic <a href="https://webfinger.net/">WebFinger</a> (<a href="https://www.rfc-editor.org/rfc/rfc7033">RFC7033</a>) support, enabling servers such as those participating in the <a href="https://en.wikipedia.org/wiki/Mastodon_(social_network)">Mastodon</a> <a href="https://en.wikipedia.org/wiki/Fediverse">Fediverse</a> to discover basic information about a user.</p>
 
-<h2 id="initial-configuration">Initial Configuration</h2>
-<p>Your initial configuration skeleton can be created using the <code class="language-plaintext highlighter-rouge">oputil.js</code> command line utility. From your enigma-bbs root directory:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js config new
+<h1 id="supported-features">Supported Features</h1>
+<ul>
+  <li><a href="https://webfinger.net/rel/profile-page/">profile-page</a></li>
+  <li>
+<a href="https://www.w3.org/TR/activitystreams-core/">ActivityStream URI</a> via rel of <code class="language-plaintext highlighter-rouge">self</code> and of type <code class="language-plaintext highlighter-rouge">application/activity+json</code>
+</li>
+  <li>Subscription URI template via rel of <code class="language-plaintext highlighter-rouge">http://ostatus.org/schema/1.0/subscribe</code>
+</li>
+</ul>
+
+<h1 id="configuration">Configuration</h1>
+<p>By default, the WebFinger handler is not enabled. To enable, at a minimum set <code class="language-plaintext highlighter-rouge">contentServers.web.handlers.webFinger.enabled</code> to <code class="language-plaintext highlighter-rouge">true</code> in <code class="language-plaintext highlighter-rouge">config.hjson</code>:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">contentServers</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nl">web</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">handlers</span><span class="p">:</span> <span class="p">{</span>
+            <span class="na">webFinger</span><span class="p">:</span> <span class="p">{</span>
+                <span class="na">enabled</span><span class="p">:</span> <span class="kc">true</span> <span class="c1">// wow, much nest!</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
 </code></pre></div></div>
 
-<p>You will be asked a series of questions to create an initial configuration, which will be saved to <code class="language-plaintext highlighter-rouge">/enigma-bbs-install-path/config/config.hjson</code>. This will also produce menu files under <code class="language-plaintext highlighter-rouge">config/menus/</code>. See <a href="/enigma-bbs/configuration/menu-hjson.html">Menu HJSON</a> for more information.</p>
+<h2 id="configuration-keys">Configuration Keys</h2>
+<p>| Key | Description |
+| —-|————-|
+| <code class="language-plaintext highlighter-rouge">enabled</code> | Boolean. Set to <code class="language-plaintext highlighter-rouge">true</code> to enable WebFinger services |
+| <code class="language-plaintext highlighter-rouge">profileTemplate</code> | String. Provide a fully qualified, or relative to <a href="/enigma-bbs/servers/contentservers/web-server.html#static-root">static root</a> path to a template file for fetching profile information. See <a href="#profile-template">Profile Template</a> for more information.</p>
 
+<h2 id="profile-template">Profile Template</h2>
+<p>A profile template file can offer flexibility as to what information, the format, and MIME type served by the <a href="https://webfinger.net/rel/profile-page/">profile-page</a> WebFinger query. Set the <code class="language-plaintext highlighter-rouge">profileTemplate</code> key in your <code class="language-plaintext highlighter-rouge">webFinger</code> configuration block to a path to serve as the template. The MIME type will be determined by the file’s extension:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">contentServers</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nl">web</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">handlers</span><span class="p">:</span> <span class="p">{</span>
+            <span class="na">webFinger</span><span class="p">:</span> <span class="p">{</span>
+                <span class="na">enabled</span><span class="p">:</span> <span class="kc">true</span>
+                <span class="na">profileTemplate</span><span class="p">:</span> <span class="dl">'</span><span class="s1">./wf/fancy-profile.html</span><span class="dl">'</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> A sample template can be found at <code class="language-plaintext highlighter-rouge">www/wf/profile.template.html</code></p>
+</blockquote>
+
+<h1 id="example-session">Example Session</h1>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># WebFinger query</span>
+<span class="o">&gt;</span> http get <span class="s1">'https://xibalba.l33t.codes/.well-known/webfinger?resource=acct:NuSkooler@xibalba.l33t.codes'</span>
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 558
+Content-Type: application/jrd+json
+Date: Mon, 02 Jan 2023 03:36:20 GMT
+Keep-Alive: <span class="nb">timeout</span><span class="o">=</span>5
+
+<span class="o">{</span>
+    <span class="s2">"aliases"</span>: <span class="o">[</span>
+        <span class="s2">"https://xibalba.l33t.codes/_enig/wf/@NuSkooler"</span>,
+        <span class="s2">"https://xibalba.l33t.codes/_enig/ap/users/NuSkooler"</span>
+    <span class="o">]</span>,
+    <span class="s2">"links"</span>: <span class="o">[</span>
+        <span class="o">{</span>
+            <span class="s2">"href"</span>: <span class="s2">"https://xibalba.l33t.codes/_enig/wf/@NuSkooler"</span>,
+            <span class="s2">"rel"</span>: <span class="s2">"https://webfinger.net/rel/profile-page"</span>,
+            <span class="s2">"type"</span>: <span class="s2">"text/plain"</span>
+        <span class="o">}</span>,
+        <span class="o">{</span>
+            <span class="s2">"href"</span>: <span class="s2">"https://xibalba.l33t.codes/_enig/ap/users/NuSkooler"</span>,
+            <span class="s2">"rel"</span>: <span class="s2">"self"</span>,
+            <span class="s2">"type"</span>: <span class="s2">"application/activity+json"</span>
+        <span class="o">}</span>,
+        <span class="o">{</span>
+            <span class="s2">"rel"</span>: <span class="s2">"http://ostatus.org/schema/1.0/subscribe"</span>,
+            <span class="s2">"template"</span>: <span class="s2">"http://xibalba.l33t.codes/_enig/ap/authorize_interaction?uri={uri}"</span>
+        <span class="o">}</span>
+    <span class="o">]</span>,
+    <span class="s2">"subject"</span>: <span class="s2">"acct:NuSkooler@xibalba.l33t.codes"</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Now we can fetch the profile</span>
+<span class="o">&gt;</span> http get <span class="s1">'https://xibalba.l33t.codes/_enig/wf/@NuSkooler'</span>
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 116
+Content-Type: text/plain
+Date: Mon, 02 Jan 2023 03:41:19 GMT
+Keep-Alive: <span class="nb">timeout</span><span class="o">=</span>5
+
+User information <span class="k">for</span>: NuSkooler
+
+Real Name: Bryan Ashby
+Login Count: 432
+Affiliations: ENiG
+Achievement Points: 405
+</code></pre></div></div>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/development.html">&laquo; Development Environment Setup</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/contentservers/web-handlers.html">« Web Handlers</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup &raquo;</a>
-              
-              <br clear="both" />
+              <br clear="both">
               </div>
             </section>
           </div>

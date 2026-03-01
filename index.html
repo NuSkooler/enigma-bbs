@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Home" />
 <script type="application/ld+json">
-{"description":"ENiGMA½ BBS is modern open source BBS software with a nostalgic flair, written in Node.js.","url":"/enigma-bbs/","@type":"WebSite","headline":"Home","name":"ENiGMA½ BBS Software","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"@context":"https://schema.org"}</script>
+{"name":"ENiGMA½ BBS Software","description":"ENiGMA½ BBS is modern open source BBS software with a nostalgic flair, written in Node.js.","headline":"Home","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/","@type":"WebSite","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2149,45 +2149,6 @@
   
 
   
-    
-      </ul>
-    
-  <li>Administration</li>
-  <ul>
-
-  
-
-    
-
-
-    
-    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
-    
-
-
-  
-  
-
-  
-  
-
-  
-
-  
-  
-
-  
-
-  
-
-  
-    
-      </ul>
-    
-  <li>Modding</li>
-  <ul>
-
-  
 
     
 
@@ -2225,32 +2186,32 @@
 
 
     
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
     <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
-    
-
-
-  
-  
-
-  
-  
-
-  
-
-  
-  
-
-  
-
-  
-
-  
-
-    
-
-
-    
-    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
     
 
 
@@ -2313,7 +2274,126 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/upgrading.html">Upgrading</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger Web Handler</a></li>
+    
+
+
+  
+  
     </ul>
+    
+      </ul>
     
   
 
@@ -2338,14 +2418,14 @@
 <ul>
   <li>Multi platform: Anywhere <a href="https://nodejs.org/">Node.js</a> runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)</li>
   <li>Unlimited multi node support (for all those BBS “callers”!)</li>
-  <li><strong>Highly</strong> customizable via <a href="http://hjson.org/">HJSON</a> based configuration, menus, and themes in addition to JavaScript based <a href="/enigma-bbs/modding/existing-mods.html">mods</a></li>
+  <li><strong>Highly</strong> customizable via <a href="https://hjson.github.io/">HJSON</a> based configuration, menus, and themes in addition to JavaScript based <a href="/enigma-bbs/modding/existing-mods.html">mods</a></li>
   <li><a href="/enigma-bbs/art/mci.html">MCI support</a> for lightbars, toggles, input areas, and so on plus many other other bells and whistles</li>
   <li>Telnet, <strong>SSH</strong>, and both secure and non-secure <a href="https://en.wikipedia.org/wiki/WebSocket">WebSocket</a> access built in! Additional servers are easy to implement</li>
   <li><a href="http://www.ascii-codes.com/">CP437</a> and UTF-8 output</li>
-  <li><a href="http://syncterm.bbsdev.net/">SyncTERM</a> style font and baud emulation support. Display PC/DOS and Amiga style artwork as it’s intended! In general, ANSI-BBS / <a href="http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&amp;revision=HEAD">cterm.txt</a> / <a href="http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt">bansi.txt</a> are followed for expected BBS behavior.</li>
+  <li><a href="http://syncterm.bbsdev.net/">SyncTERM</a> style font and baud emulation support. Display PC/DOS and Amiga style artwork as it’s intended! In general, ANSI-BBS / <a href="https://raw.githubusercontent.com/SynchronetBBS/sbbs/master/src/conio/cterm.txt">cterm.txt</a> / <a href="http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt">bansi.txt</a> are followed for expected BBS behavior.</li>
   <li>Full <a href="http://www.acid.org/info/sauce/sauce.htm">SAUCE</a> support.</li>
   <li>Renegade style <a href="/enigma-bbs/configuration/colour-codes.html">pipe color codes</a>.</li>
-  <li><a href="http://sqlite.org/">SQLite</a> storage of users, message areas, etc.</li>
+  <li><a href="https://sqlite.org/">SQLite</a> storage of users, message areas, etc.</li>
   <li>Strong <a href="https://en.wikipedia.org/wiki/PBKDF2">PBKDF2</a> backed password encryption.</li>
   <li>Support for 2-Factor Authentication with One-Time-Passwords</li>
   <li><a href="/enigma-bbs/modding/door-servers.html">Door support</a> including common dropfile formats for legacy DOS doors. Built in <a href="http://bbslink.net/">BBSLink</a>, <a href="http://forums.throwbackbbs.com/">DoorParty</a>, and <a href="https://oddnetwork.org/exodus/">Exodus</a>!</li>

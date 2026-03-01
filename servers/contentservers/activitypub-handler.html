@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Creating Initial Config Files | ENiGMA½ BBS Software</title>
+<title>ActivityPub Web Handler | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Creating Initial Config Files" />
+<meta property="og:title" content="ActivityPub Web Handler" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Configuration files in ENiGMA½ are simple UTF-8 encoded HJSON files. HJSON is just like JSON but simplified and much more resilient to human error." />
-<meta property="og:description" content="Configuration files in ENiGMA½ are simple UTF-8 encoded HJSON files. HJSON is just like JSON but simplified and much more resilient to human error." />
+<meta name="description" content="The ActivityPub (activitypub.js) provides ActivityPub support currently compatible with Mastodon and perhaps similar ActivityPub systems within the Fediverse allowing direct and public messaging, following/followers, etc. to be integrated with the ENiGMA½ BBS system." />
+<meta property="og:description" content="The ActivityPub (activitypub.js) provides ActivityPub support currently compatible with Mastodon and perhaps similar ActivityPub systems within the Fediverse allowing direct and public messaging, following/followers, etc. to be integrated with the ENiGMA½ BBS system." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-03-01T01:12:48+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Creating Initial Config Files" />
+<meta property="twitter:title" content="ActivityPub Web Handler" />
 <script type="application/ld+json">
-{"description":"Configuration files in ENiGMA½ are simple UTF-8 encoded HJSON files. HJSON is just like JSON but simplified and much more resilient to human error.","headline":"Creating Initial Config Files","dateModified":"2026-03-01T01:12:48+00:00","datePublished":"2026-03-01T01:12:48+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/creating-config.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/creating-config.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"The ActivityPub (activitypub.js) provides ActivityPub support currently compatible with Mastodon and perhaps similar ActivityPub systems within the Fediverse allowing direct and public messaging, following/followers, etc. to be integrated with the ENiGMA½ BBS system.","headline":"ActivityPub Web Handler","dateModified":"2026-03-01T01:12:48+00:00","datePublished":"2026-03-01T01:12:48+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/activitypub-handler.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/contentservers/activitypub-handler.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -322,7 +322,7 @@
 
 
     
-      <li class="active-nav">Creating Initial Config Files</li>
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
     
 
 
@@ -2335,7 +2335,7 @@
 
 
     
-    <li><a href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler</a></li>
+      <li class="active-nav">ActivityPub Web Handler</li>
     
 
 
@@ -2405,35 +2405,161 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/development.html">&laquo; Development Environment Setup</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/upgrading.html">&laquo; Upgrading</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers &raquo;</a>
               
               <br clear="both" />
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Creating Initial Config Files</h1>
-    <p>Configuration files in ENiGMA½ are simple UTF-8 encoded <a href="https://hjson.github.io/">HJSON</a> files. HJSON is just like JSON but simplified and much more resilient to human error.</p>
+    <h1 class="page-title">ActivityPub Web Handler</h1>
+    <p>The ActivityPub (<a href="/core/servers/content/web_handlers/activitypub.js">activitypub.js</a>) provides <a href="https://www.w3.org/TR/activitypub/">ActivityPub</a> support currently compatible with <a href="https://joinmastodon.org/">Mastodon</a> and perhaps similar ActivityPub systems within the <a href="https://en.wikipedia.org/wiki/Fediverse">Fediverse</a> allowing direct and public messaging, following/followers, etc. to be integrated with the ENiGMA½ BBS system.</p>
 
-<h2 id="initial-configuration">Initial Configuration</h2>
-<p>Your initial configuration skeleton can be created using the <code class="language-plaintext highlighter-rouge">oputil.js</code> command line utility. From your enigma-bbs root directory:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js config new
+<h1 id="supported-features">Supported Features</h1>
+<ul>
+  <li>ActivityPub with Mastodon support</li>
+  <li>Users are generated a random avatar once enabled with the ability to change them within their ActivityPub configuration</li>
+  <li>Social Manager</li>
+  <li>Actor search (that is, other users within the Fediverse)</li>
+  <li>Private and public messaging to/from the Fediverse</li>
+</ul>
+
+<h1 id="configuration">Configuration</h1>
+<h2 id="enabling-activitypub">Enabling ActivityPub</h2>
+<p>Full ActivityPub support requires the <a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a> module be enabled as well as a number of Web Handlers. Each handler configured within the <code class="language-plaintext highlighter-rouge">contentServers.web.handlers</code> block keys below of your <code class="language-plaintext highlighter-rouge">config.hjson</code> must be set to <code class="language-plaintext highlighter-rouge">enabled: true</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Handler</th>
+      <th>Key</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger</a></td>
+      <td><code class="language-plaintext highlighter-rouge">webFinger</code></td>
+      <td>Allows other servers to discover your user/Actors</td>
+      <td>disabled</td>
+    </tr>
+    <tr>
+      <td>System General</td>
+      <td><code class="language-plaintext highlighter-rouge">systemGeneral</code></td>
+      <td>Serves avatar images</td>
+      <td>enabled</td>
+    </tr>
+    <tr>
+      <td>NodeInfo2</td>
+      <td><code class="language-plaintext highlighter-rouge">nodeInfo2</code></td>
+      <td>Allows other systems to query information about your node</td>
+      <td>enabled</td>
+    </tr>
+    <tr>
+      <td>ActivityPub</td>
+      <td><code class="language-plaintext highlighter-rouge">activityPub</code></td>
+      <td>Described within this file</td>
+      <td>disabled</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Example</strong></p>
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">contentServers</span><span class="p">:</span> <span class="p">{</span>
+    <span class="nl">web</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">handlers</span><span class="p">:</span> <span class="p">{</span>
+            <span class="na">webFinger</span><span class="p">:</span> <span class="p">{</span>
+                <span class="na">enabled</span><span class="p">:</span> <span class="kc">true</span>
+            <span class="p">}</span>
+            <span class="c1">// ...</span>
+            <span class="nl">activityPub</span><span class="p">:</span> <span class="p">{</span>
+                <span class="na">enabled</span><span class="p">:</span> <span class="kc">true</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
 </code></pre></div></div>
 
-<p>You will be asked a series of questions to create an initial configuration, which will be saved to <code class="language-plaintext highlighter-rouge">/enigma-bbs-install-path/config/config.hjson</code>. This will also produce menu files under <code class="language-plaintext highlighter-rouge">config/menus/</code>. See <a href="/enigma-bbs/configuration/menu-hjson.html">Menu HJSON</a> for more information.</p>
+<h2 id="configuration-keys">Configuration Keys</h2>
+<p>| Key | Description |
+| —-|————-|
+| <code class="language-plaintext highlighter-rouge">enabled</code> | Boolean. Set to <code class="language-plaintext highlighter-rouge">true</code> to enable WebFinger services |
+| <code class="language-plaintext highlighter-rouge">selfTemplate</code> | String. Provide a fully qualified, or relative to <a href="/enigma-bbs/servers/contentservers/web-server.html#static-root">static root</a> path to a template file for fetching profile information. Defaults to the same file used for <a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger</a> queries; See <a href="/enigma-bbs/servers/contentservers/webfinger-handler.html#profile-template">WebFinger</a> for more information.</p>
+
+<h2 id="configuring-defaults">Configuring Defaults</h2>
+<h3 id="general">General</h3>
+<p>General ActivityPub configuration can be found within the <code class="language-plaintext highlighter-rouge">activityPub</code> block:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">autoSignatures</code></td>
+      <td>Include auto-signatures in ActivityPub outgoing message/Notes?</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">maxMessageLength</code></td>
+      <td>Max single message/Note length in characters. Note that longer lengths <em>are</em> generally allowed by remote systems.</td>
+      <td><code class="language-plaintext highlighter-rouge">500</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="default-user-settings">Default User Settings</h3>
+<p>Settings applied to new users or users first enabling ActivityPub are found within <code class="language-plaintext highlighter-rouge">users.activityPub</code> with the following members:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">enabled</code></td>
+      <td>Enabled for users by default?</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">manuallyApproveFollowers</code></td>
+      <td>Do users need to manually approve followers?</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hideSocialGraph</code></td>
+      <td>Hide users social graph? (followers, following, …)</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">showRealName</code></td>
+      <td>Show real name?</td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+    </tr>
+  </tbody>
+</table>
 
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/installation/development.html">&laquo; Development Environment Setup</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/upgrading.html">&laquo; Upgrading</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers &raquo;</a>
               
               <br clear="both" />
               </div>
