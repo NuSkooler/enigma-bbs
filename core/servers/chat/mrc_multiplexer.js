@@ -216,8 +216,11 @@ exports.getModule = class MrcModule extends ServerModule {
                     });
             });
 
-            socket.on('end', function () {
+            socket.on('end', () => {
                 connectedSockets.delete(socket);
+                if (socket.username) {
+                    this.sendToMrcServer(socket.username, '', 'SERVER', '', '', 'LOGOFF');
+                }
             });
 
             socket.on('error', err => {

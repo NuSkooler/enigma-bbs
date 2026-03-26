@@ -82,6 +82,15 @@ exports.getModule = class mrcModule extends MenuModule {
             room_topic: '',
             nicks: [],
             lastSentMsg: {}, //  used for latency est.
+            inputHistory: [],
+            historyIndex: -1,
+            pendingInput: '',
+            lastDmSender: null,
+            pendingPasswordCommand: null,
+            tabBase: '',
+            tabPrefix: null,
+            tabMatches: [],
+            tabIndex: -1,
         };
 
         this.customFormatObj = {
@@ -103,6 +112,31 @@ exports.getModule = class mrcModule extends MenuModule {
                 );
                 const inputData = inputAreaView.getData();
 
+                // If we're waiting for a masked password input, handle it now
+                if (this.state.pendingPasswordCommand) {
+                    const cmd = this.state.pendingPasswordCommand;
+                    this.state.pendingPasswordCommand = null;
+                    this._setInputPasswordMode(false);
+                    if (inputData) {
+                        this.sendServerMessage(`${cmd} ${inputData}`);
+                    }
+                    inputAreaView.clearText();
+                    this.state.historyIndex = -1;
+                    this.state.pendingInput = '';
+                    return cb(null);
+                }
+
+                // Don't save password commands to history
+                const isPasswordCmd = inputData && /^\/(?:identify|register|roompass|update\s+password)\b/i.test(inputData);
+                if (inputData && !isPasswordCmd) {
+                    this.state.inputHistory.push(inputData);
+                    if (this.state.inputHistory.length > 50) {
+                        this.state.inputHistory.shift();
+                    }
+                }
+                this.state.historyIndex = -1;
+                this.state.pendingInput = '';
+
                 this.processOutgoingMessage(inputData);
                 inputAreaView.clearText();
 
@@ -113,19 +147,42 @@ exports.getModule = class mrcModule extends MenuModule {
                 const bodyView = this.viewControllers.mrcChat.getView(
                     MciViewIds.mrcChat.chatLog
                 );
+                const inputAreaView = this.viewControllers.mrcChat.getView(
+                    MciViewIds.mrcChat.inputArea
+                );
+
                 switch (formData.key.name) {
-                    case 'down arrow':
-                        bodyView.scrollDocumentUp();
-                        break;
-                    case 'up arrow':
-                        bodyView.scrollDocumentDown();
+                    case 'tab':
+                        this.tabComplete();
                         break;
                     case 'page up':
-                        bodyView.keyPressPageUp();
+                        bodyView.scrollDocumentDown();
                         break;
                     case 'page down':
-                        bodyView.keyPressPageDown();
+                        bodyView.scrollDocumentUp();
                         break;
+                    case 'up arrow': {
+                        if (this.state.inputHistory.length === 0) break;
+                        if (this.state.historyIndex === -1) {
+                            this.state.pendingInput = inputAreaView.getData();
+                            this.state.historyIndex = this.state.inputHistory.length - 1;
+                        } else {
+                            this.state.historyIndex = Math.max(0, this.state.historyIndex - 1);
+                        }
+                        this.setViewText('mrcChat', MciViewIds.mrcChat.inputArea, this.state.inputHistory[this.state.historyIndex]);
+                        break;
+                    }
+                    case 'down arrow': {
+                        if (this.state.historyIndex === -1) break;
+                        this.state.historyIndex++;
+                        if (this.state.historyIndex >= this.state.inputHistory.length) {
+                            this.state.historyIndex = -1;
+                            this.setViewText('mrcChat', MciViewIds.mrcChat.inputArea, this.state.pendingInput);
+                        } else {
+                            this.setViewText('mrcChat', MciViewIds.mrcChat.inputArea, this.state.inputHistory[this.state.historyIndex]);
+                        }
+                        break;
+                    }
                 }
 
                 this.viewControllers.mrcChat.switchFocus(MciViewIds.mrcChat.inputArea);
@@ -166,6 +223,42 @@ exports.getModule = class mrcModule extends MenuModule {
                             [MciViewIds.mrcChat.chatLog, MciViewIds.mrcChat.inputArea],
                             callback
                         );
+                    },
+                    callback => {
+                        // Hook input view onKeyPress to enable inline password masking.
+                        // When the user types the trailing space that completes a password
+                        // command prefix (e.g. "/identify "), intercept it, clear the field,
+                        // and switch to masked input — subsequent chars show as *.
+                        const inputView = this.viewControllers.mrcChat.getView(
+                            MciViewIds.mrcChat.inputArea
+                        );
+                        if (inputView) {
+                            const origOnKeyPress = inputView.onKeyPress.bind(inputView);
+                            inputView.onKeyPress = (ch, key) => {
+                                if (!this.state.pendingPasswordCommand && ch) {
+                                    const current = inputView.getData() || '';
+                                    const withChar = current + ch;
+                                    const triggers = [
+                                        ['/identify ',        'IDENTIFY'],
+                                        ['/register ',        'REGISTER'],
+                                        ['/roompass ',        'ROOMPASS'],
+                                        ['/update password ', 'UPDATE password'],
+                                    ];
+                                    const hit = triggers.find(
+                                        ([p]) => withChar.toLowerCase() === p
+                                    );
+                                    if (hit) {
+                                        this.state.pendingPasswordCommand = hit[1];
+                                        inputView.clearText();        // clear before masking
+                                        this._setInputPasswordMode(true);
+                                        inputView.setFocus(true);     // reposition cursor to start
+                                        return; // consume the space; don't pass to view
+                                    }
+                                }
+                                origOnKeyPress(ch, key);
+                            };
+                        }
+                        return callback(null);
                     },
                     callback => {
                         const connectOpts = {
@@ -259,7 +352,7 @@ exports.getModule = class mrcModule extends MenuModule {
 
         if (this.state.socket) {
             this.sendServerMessage('LOGOFF');
-            this.state.socket.destroy();
+            this.state.socket.end();
             delete this.state.socket;
         }
     }
@@ -347,6 +440,13 @@ exports.getModule = class mrcModule extends MenuModule {
                         break;
                     }
 
+                    case 'PING':
+                    case 'PONG':
+                    case 'IMALIVE':
+                    case 'ROOM_OPEN':
+                    case 'ROOM_CLOSE':
+                        break;
+
                     default:
                         this.addMessageToChatLog(message.body);
                         break;
@@ -360,6 +460,10 @@ exports.getModule = class mrcModule extends MenuModule {
                 }
 
                 if (message.to_room == this.state.room) {
+                    // Track sender for tab completion
+                    if (message.from_user && !this.state.nicks.includes(message.from_user)) {
+                        this.state.nicks.push(message.from_user);
+                    }
                     // if we're here then we want to show it to the user
                     const currentTime = moment().format(
                         this.client.currentTheme.helpers.getTimeFormat()
@@ -373,6 +477,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 else if (
                     message.to_user.toUpperCase() == this.state.alias.toUpperCase()
                 ) {
+                    this.state.lastDmSender = message.from_user;
                     const currentTime = moment().format(
                         this.client.currentTheme.helpers.getTimeFormat()
                     );
@@ -418,6 +523,9 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.sendServerMessage('STATS');
                 return;
             }
+
+            // Tilde filter — ~ is the MRC field separator, replace to prevent packet corruption
+            message = message.replace(/~/g, ' ');
 
             // else just format and send
             const textFormatObj = {
@@ -485,6 +593,32 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
             }
 
+            case 'me': {
+                const action = cmd.slice(1).join(' ');
+                if (action) {
+                    const meMsg = `|15* |13${this.state.alias} ${action.replace(/~/g, ' ')}`;
+                    try {
+                        this.state.lastSentMsg = { msg: meMsg, time: moment() };
+                        this.sendMessageToMultiplexer('', '', this.state.room, meMsg);
+                    } catch (e) {
+                        this.client.log.warn({ error: e.message }, 'MRC error');
+                    }
+                }
+                break;
+            }
+
+            case 'r': {
+                if (!this.state.lastDmSender) {
+                    this.addMessageToChatLog('|08No recent DM to reply to.|00');
+                } else {
+                    const reply = cmd.slice(1).join(' ');
+                    if (reply) {
+                        this.processOutgoingMessage(reply, this.state.lastDmSender);
+                    }
+                }
+                break;
+            }
+
             case 'rainbow': {
                 // this is brutal, but i love it
                 const line = message
@@ -546,6 +680,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'join':
+            case 'j':
                 this.joinRoom(cmd[1]);
                 break;
 
@@ -575,7 +710,13 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'roompass':
-                this.sendServerMessage(`ROOMPASS ${message.substr(12)}`);
+                if (cmd.length > 1) {
+                    this.sendServerMessage(`ROOMPASS ${cmd.slice(1).join(' ')}`);
+                } else {
+                    this.addMessageToChatLog('|08Enter room password:|00');
+                    this.state.pendingPasswordCommand = 'ROOMPASS';
+                    this._setInputPasswordMode(true);
+                }
                 break;
 
             case 'status':
@@ -591,7 +732,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'help':
-                this.sendServerMessage(`HELP ${message.substr(6)}`);
+                this.sendServerMessage(message.substr(1));
                 break;
 
             case 'statistics':
@@ -611,16 +752,40 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'register':
-                this.sendServerMessage(`REGISTER ${message.substr(10)}`);
+                if (cmd.length > 1) {
+                    this.sendServerMessage(`REGISTER ${cmd.slice(1).join(' ')}`);
+                } else {
+                    this.addMessageToChatLog('|08Enter password to register:|00');
+                    this.state.pendingPasswordCommand = 'REGISTER';
+                    this._setInputPasswordMode(true);
+                }
                 break;
 
             case 'identify':
-                this.sendServerMessage(`IDENTIFY ${message.substr(10)}`);
+                if (cmd.length > 1) {
+                    this.sendServerMessage(`IDENTIFY ${cmd.slice(1).join(' ')}`);
+                } else {
+                    this.addMessageToChatLog('|08Enter your password:|00');
+                    this.state.pendingPasswordCommand = 'IDENTIFY';
+                    this._setInputPasswordMode(true);
+                }
                 break;
 
-            case 'update':
-                this.sendServerMessage(`UPDATE ${message.substr(8)}`);
+            case 'update': {
+                const subCmd = (cmd[1] || '').toLowerCase();
+                if (subCmd === 'password') {
+                    if (cmd.length > 2) {
+                        this.sendServerMessage(`UPDATE password ${cmd.slice(2).join(' ')}`);
+                    } else {
+                        this.addMessageToChatLog('|08Enter new password:|00');
+                        this.state.pendingPasswordCommand = 'UPDATE password';
+                        this._setInputPasswordMode(true);
+                    }
+                } else {
+                    this.sendServerMessage(`UPDATE ${message.substr(8)}`);
+                }
                 break;
+            }
 
             /**
              * Local client commands
@@ -639,6 +804,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             default:
+                this.sendServerMessage(message.substr(1));
                 break;
         }
 
@@ -652,6 +818,64 @@ exports.getModule = class mrcModule extends MenuModule {
             MciViewIds.mrcChat.chatLog
         );
         chatLogView.setText('');
+    }
+
+    tabComplete() {
+        const inputAreaView = this.viewControllers.mrcChat.getView(
+            MciViewIds.mrcChat.inputArea
+        );
+        const currentText = inputAreaView.getData() || '';
+
+        // Check if we're continuing a previous tab cycle
+        if (this.state.tabMatches.length > 0 && this.state.tabIndex >= 0) {
+            const prevNick = this.state.tabMatches[this.state.tabIndex];
+            const sep = this.state.tabBase.trim() === '' ? ': ' : ' ';
+            if (currentText === this.state.tabBase + prevNick + sep) {
+                this.state.tabIndex = (this.state.tabIndex + 1) % this.state.tabMatches.length;
+                const nick = this.state.tabMatches[this.state.tabIndex];
+                this.setViewText('mrcChat', MciViewIds.mrcChat.inputArea, this.state.tabBase + nick + sep);
+                return;
+            }
+        }
+
+        // New completion — find word being typed and build match list
+        const lastSpace = currentText.lastIndexOf(' ');
+        this.state.tabBase = lastSpace === -1 ? '' : currentText.substring(0, lastSpace + 1);
+        const word = lastSpace === -1 ? currentText : currentText.substring(lastSpace + 1);
+        this.state.tabPrefix = word.toLowerCase();
+        this.state.tabMatches = (this.state.nicks || []).filter(
+            n => n.toLowerCase().startsWith(this.state.tabPrefix) &&
+                 n.toLowerCase() !== (this.state.alias || '').toLowerCase()
+        );
+        this.state.tabIndex = -1;
+
+        if (this.state.tabMatches.length === 0) {
+            if (this.state.tabPrefix) {
+                this.addMessageToChatLog('|08No nicks matching "' + this.state.tabPrefix + '"|00');
+            }
+            return;
+        }
+
+        this.state.tabIndex = 0;
+        const nick = this.state.tabMatches[0];
+        const sep = this.state.tabBase.trim() === '' ? ': ' : ' ';
+        this.setViewText('mrcChat', MciViewIds.mrcChat.inputArea, this.state.tabBase + nick + sep);
+    }
+
+    _setInputPasswordMode(enabled) {
+        try {
+            const inputAreaView = this.viewControllers.mrcChat.getView(
+                MciViewIds.mrcChat.inputArea
+            );
+            if (inputAreaView) {
+                inputAreaView.textMaskChar = enabled ? '*' : null;
+                if (typeof inputAreaView.redraw === 'function') {
+                    inputAreaView.redraw();
+                }
+            }
+        } catch (e) {
+            this.log.debug({ error: e.message }, 'Password mask toggle failed');
+        }
     }
 
     /**
@@ -700,8 +924,9 @@ exports.getModule = class mrcModule extends MenuModule {
     async joinRoom(room) {
         // room names are displayed with a # but referred to without. confusing.
         room = room.replace(/^#/, '');
+        const oldRoom = this.state.room;
         this.state.room = room;
-        this.sendServerMessage(`NEWROOM:${this.state.room}:${room}`);
+        this.sendServerMessage(`NEWROOM:${oldRoom}:${room}`);
 
         await this.msgDelay(100);
         this.sendServerMessage('USERLIST');
