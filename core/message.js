@@ -412,6 +412,14 @@ module.exports = class Message {
             }
         }
 
+        // Edit by Delete and Edit Hack
+        // Hide soft-deleted messages (we mark them by subject = "[DELETED]")
+        // Set filter.includeDeleted = true if you ever want to include them again.
+        if (true !== filter.includeDeleted) {
+            appendWhereClause(`IFNULL(m.subject, '') <> '[DELETED]'`, 'AND');
+        }
+
+
         if (_.isNumber(filter.replyToMessageId)) {
             appendWhereClause(`m.reply_to_message_id=${filter.replyToMessageId}`);
         }
@@ -981,6 +989,32 @@ module.exports = class Message {
                 }
             }
         );
+    }
+
+    updateInPlace(cb) {
+    if (!this.isValid()) {
+        return cb(Errors.Invalid('Cannot update invalid message!'));
+    }
+    if (!this.messageUuid) {
+        return cb(Errors.Invalid("Cannot update without a valid 'messageUUID'"));
+    }
+
+    msgDb.run(
+        `UPDATE message
+        SET to_user_name = ?,
+            subject = ?,
+            message = ?,
+            modified_timestamp = ?
+        WHERE message_uuid = ?;`,
+        [
+        this.toUserName,
+        this.subject,
+        this.message,
+        getISOTimestampString(this.modTimestamp),
+        this.messageUuid,
+        ],
+        err => cb(err, this.messageId)
+    );
     }
 
     deleteMessage(requestingUser, cb) {
