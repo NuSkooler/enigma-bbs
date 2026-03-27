@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 { # this ensures the entire script is downloaded before execution
 ENIGMA_BRANCH=${ENIGMA_BRANCH:=master}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
-TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
+TIME_FORMAT=$(date "+%Y-%m-%d %H:%M:%S")
 
 # ANSI Codes
 RESET="\e[0m"
 BOLD="\e[1m"
 UNDERLINE="\e[4m"
-INVERSE="\e7m"
+INVERSE="\e[7m"
 FOREGROUND_BLACK="\e[30m"
 FOREGROUND_RED="\e[31m"
 FOREGROUND_GREEN="\e[32m"
@@ -27,7 +28,7 @@ BACKGROUND_BLUE="\e[44m"
 BACKGROUND_MAGENTA="\e[45m"
 BACKGROUND_CYAN="\e[46m"
 BACKGROUND_WHITE="\e[47m"
-FOREGROUND_STRONG_WHITE="\e[90m"
+FOREGROUND_STRONG_BLACK="\e[90m"
 FOREGROUND_STRONG_RED="\e[91m"
 FOREGROUND_STRONG_GREEN="\e[92m"
 FOREGROUND_STRONG_YELLOW="\e[93m"
@@ -39,7 +40,7 @@ BACKGROUND_STRONG_BLACK="\e[100m"
 BACKGROUND_STRONG_RED="\e[101m"
 BACKGROUND_STRONG_GREEN="\e[102m"
 BACKGROUND_STRONG_YELLOW="\e[103m"
-BACKGROUND_STRONG_BLUE="\w[104m"
+BACKGROUND_STRONG_BLUE="\e[104m"
 BACKGROUND_STRONG_MAGENTA="\e[105m"
 BACKGROUND_STRONG_CYAN="\e[106m"
 BACKGROUND_STRONG_WHITE="\e[107m"
@@ -72,12 +73,12 @@ fatal_error() {
 }
 
 check_exists() {
-    command -v $1 >/dev/null 2>&1 ;
+    command -v "$1" >/dev/null 2>&1
 }
 
 enigma_install_needs_ex() {
     log "Checking for '$1'...${RESET}"
-    if check_exists $1 ; then
+    if check_exists "$1" ; then
         log " Found!"
     else
         fatal_error "ENiGMA½ requires '$1' but it was not found. Please install it and/or make sure it is in your path then restart the installer.\n\n$2"
@@ -85,17 +86,7 @@ enigma_install_needs_ex() {
 }
 
 enigma_install_needs() {
-    enigma_install_needs_ex $1 "Examples:\n  sudo apt install $1 # Debian/Ubuntu\n  sudo yum install $1 # CentOS"
-}
-
-enigma_has_mise() {
-    log "Checking for an installation of mise-en-place (https://mise.jdx.dev/)"
-    if check_exists "mise"; then
-        log "Found!"
-    else
-        log ""
-        fatal_error "ENiGMA½ requires mise-enplace to install dependencies."
-    fi
+    enigma_install_needs_ex "$1" "Examples:\n  sudo apt install $1 # Debian/Ubuntu\n  sudo yum install $1 # CentOS"
 }
 
 log() {
@@ -122,24 +113,6 @@ enigma_install_init() {
     enigma_install_needs gcc
 }
 
-install_mise_en_place() {
-    curl https://mise.run | sh
-
-    # ~/.local/bin/mise activate bash >> bash
-    eval "$(~/.local/bin/mise activate bash)"
-
-    cd $ENIGMA_INSTALL_DIR
-
-    mise install
-
-    export PATH="$HOME/.local/share/mise/shims:$PATH"
-}
-
-install_tools() {
-    # Used to read toml files from bash scripts
-    python -m pip install toml-cli
-}
-
 download_enigma_source() {
     local INSTALL_DIR
     INSTALL_DIR=${ENIGMA_INSTALL_DIR}
@@ -151,13 +124,14 @@ download_enigma_source() {
     else
         log "Downloading ENiGMA½ from git to '$INSTALL_DIR'"
         mkdir -p "$INSTALL_DIR"
-        command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" ||
+        command git clone "${ENIGMA_SOURCE}" "$INSTALL_DIR" ||
             fatal_error "Failed to clone ENiGMA½ repo. Please report this!"
     fi
 }
 
 is_arch_arm() {
-    local ARCH=`arch`
+    local ARCH
+    ARCH=$(uname -m)
     if [[ $ARCH == "arm"* ]]; then
         true
     else
@@ -173,20 +147,61 @@ extra_npm_install_args() {
     fi
 }
 
+install_mise_en_place() {
+    if ! check_exists "mise"; then
+        log "Installing mise..."
+        curl -fsSL https://mise.jdx.dev/install.sh | sh
+        if ! grep -q 'mise activate bash' "${HOME}/.bashrc"; then
+            echo 'eval "$(~/.local/bin/mise activate bash)"' >> "${HOME}/.bashrc"
+        fi
+    fi
+
+    eval "$(~/.local/bin/mise activate bash)"
+    export PATH="$HOME/.local/share/mise/shims:$PATH"
+}
+
+setup_runtime_versions() {
+    log "Setting up Node 20 LTS and Python 3.11 via mise..."
+    mise install node@20
+    mise use -g node@20
+
+    mise install python@3.11
+    mise use -g python@3.11
+
+    local PYBIN
+    PYBIN="$(mise which python)"
+    export npm_config_python="$PYBIN"
+    export NODE_GYP_FORCE_PYTHON="$PYBIN"
+
+    log "Runtime ready. Node: $(node -v), Python: $("$PYBIN" -V)"
+}
+
+install_tools() {
+    local PYBIN
+    PYBIN="$(mise which python 2>/dev/null || command -v python3)"
+    "$PYBIN" -m pip install --user toml-cli || true
+}
+
 install_node_packages() {
     log "Installing required Node packages..."
-    printf "Note that on some systems such as RPi, this can take a VERY long time. Be patient!"
+    printf "Note that on some systems such as RPi, this can take a VERY long time. Be patient!\n"
 
-    cd ${ENIGMA_INSTALL_DIR}
-    local EXTRA_NPM_ARGS=$(extra_npm_install_args)
-    git checkout ${ENIGMA_BRANCH}
+    cd "${ENIGMA_INSTALL_DIR}"
+    local EXTRA_NPM_ARGS
+    EXTRA_NPM_ARGS=$(extra_npm_install_args)
+    git checkout "${ENIGMA_BRANCH}"
 
-    npm install ${EXTRA_NPM_ARGS}
-    if [ $? -eq 0 ]; then
-        log "npm package installation complete"
+    export HUSKY=0
+
+    rm -rf node_modules
+
+    if [ -f package-lock.json ]; then
+        npm ci ${EXTRA_NPM_ARGS}
     else
-        fatal_error "Failed to install ENiGMA½ npm packages. Please report this!"
+        npm install ${EXTRA_NPM_ARGS}
     fi
+
+    log "npm package installation complete"
 }
 
 copy_template_files() {
@@ -205,7 +220,9 @@ ADDITIONAL ACTIONS ARE REQUIRED!
 --------------------------------
 
 1 - If you did not have Node.js and/or mise installed previous to this please open a new shell/terminal now!
-  (!) Not doing so will prevent 'nvm', 'node', or 'python' commands from functioning!
+  (!) Not doing so will prevent 'node' or 'python' commands from functioning.
+  (!) To activate mise in your current shell without opening a new terminal:
+      eval "\$(~/.local/bin/mise activate bash)"
 
 2 - If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration:
 
@@ -238,10 +255,10 @@ ADDITIONAL ACTIONS ARE REQUIRED!
     Create a file in /etc/systemd/system/bbs.service with the following contents:
         [Unit]
         Description=Enigma½ BBS
-        
+
         [Install]
         WantedBy=multi-user.target
-        
+
         [Service]
         ExecStart=/home/<YOUR_USERNAME>/enigma-bbs/autoexec.sh
         Type=simple
@@ -262,7 +279,7 @@ post_install() {
     then
         log "Mise Shims found in your ~/.bashrc"
     else
-        echo $MISE_SHIM_PATH_COMMAND >> ~/.bashrc
+        echo "$MISE_SHIM_PATH_COMMAND" >> ~/.bashrc
         log "Installed Mise Shims into your ~/.bashrc"
     fi
 }
@@ -271,7 +288,9 @@ install_dependencies() {
     log "Installing Dependencies..."
 
     enigma_install_init
+    download_enigma_source
     install_mise_en_place
+    setup_runtime_versions
     install_tools
     install_node_packages
     post_install
