@@ -173,7 +173,7 @@ setup_runtime_versions() {
 install_tools() {
     local PYBIN
     PYBIN="$(mise which python 2>/dev/null || command -v python3)"
-    "$PYBIN" -m pip install --user toml-cli || true
+    "$PYBIN" -m pip install --user setuptools toml-cli || true
 }
 
 install_node_packages() {
