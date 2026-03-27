@@ -8,42 +8,44 @@ ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=$(date "+%Y-%m-%d %H:%M:%S")
 
 # ANSI Codes
-RESET="\e[0m"
-BOLD="\e[1m"
-UNDERLINE="\e[4m"
-INVERSE="\e[7m"
-FOREGROUND_BLACK="\e[30m"
-FOREGROUND_RED="\e[31m"
-FOREGROUND_GREEN="\e[32m"
-FOREGROUND_YELLOW="\e[33m"
-FOREGROUND_BLUE="\e[34m"
-FOREGROUND_MAGENTA="\e[35m"
-FOREGROUND_CYAN="\e[36m"
-FOREGROUND_WHITE="\e[37m"
-BACKGROUND_BLACK="\e[40m"
-BACKGROUND_RED="\e[41m"
-BACKGROUND_GREEN="\e[42m"
-BACKGROUND_YELLOW="\e[43m"
-BACKGROUND_BLUE="\e[44m"
-BACKGROUND_MAGENTA="\e[45m"
-BACKGROUND_CYAN="\e[46m"
-BACKGROUND_WHITE="\e[47m"
-FOREGROUND_STRONG_BLACK="\e[90m"
-FOREGROUND_STRONG_RED="\e[91m"
-FOREGROUND_STRONG_GREEN="\e[92m"
-FOREGROUND_STRONG_YELLOW="\e[93m"
-FOREGROUND_STRONG_BLUE="\e[94m"
-FOREGROUND_STRONG_MAGENTA="\e[95m"
-FOREGROUND_STRONG_CYAN="\e[96m"
-FOREGROUND_STRONG_WHITE="\e[97m"
-BACKGROUND_STRONG_BLACK="\e[100m"
-BACKGROUND_STRONG_RED="\e[101m"
-BACKGROUND_STRONG_GREEN="\e[102m"
-BACKGROUND_STRONG_YELLOW="\e[103m"
-BACKGROUND_STRONG_BLUE="\e[104m"
-BACKGROUND_STRONG_MAGENTA="\e[105m"
-BACKGROUND_STRONG_CYAN="\e[106m"
-BACKGROUND_STRONG_WHITE="\e[107m"
+readonly RESET="\e[0m"
+readonly BOLD="\e[1m"
+readonly UNDERLINE="\e[4m"
+readonly INVERSE="\e[7m"
+readonly FOREGROUND_BLACK="\e[30m"
+readonly FOREGROUND_RED="\e[31m"
+readonly FOREGROUND_GREEN="\e[32m"
+readonly FOREGROUND_YELLOW="\e[33m"
+readonly FOREGROUND_BLUE="\e[34m"
+readonly FOREGROUND_MAGENTA="\e[35m"
+readonly FOREGROUND_CYAN="\e[36m"
+readonly FOREGROUND_WHITE="\e[37m"
+readonly BACKGROUND_BLACK="\e[40m"
+readonly BACKGROUND_RED="\e[41m"
+readonly BACKGROUND_GREEN="\e[42m"
+readonly BACKGROUND_YELLOW="\e[43m"
+readonly BACKGROUND_BLUE="\e[44m"
+readonly BACKGROUND_MAGENTA="\e[45m"
+readonly BACKGROUND_CYAN="\e[46m"
+readonly BACKGROUND_WHITE="\e[47m"
+readonly FOREGROUND_STRONG_BLACK="\e[90m"
+readonly FOREGROUND_STRONG_RED="\e[91m"
+readonly FOREGROUND_STRONG_GREEN="\e[92m"
+readonly FOREGROUND_STRONG_YELLOW="\e[93m"
+readonly FOREGROUND_STRONG_BLUE="\e[94m"
+readonly FOREGROUND_STRONG_MAGENTA="\e[95m"
+readonly FOREGROUND_STRONG_CYAN="\e[96m"
+readonly FOREGROUND_STRONG_WHITE="\e[97m"
+readonly BACKGROUND_STRONG_BLACK="\e[100m"
+readonly BACKGROUND_STRONG_RED="\e[101m"
+readonly BACKGROUND_STRONG_GREEN="\e[102m"
+readonly BACKGROUND_STRONG_YELLOW="\e[103m"
+readonly BACKGROUND_STRONG_BLUE="\e[104m"
+readonly BACKGROUND_STRONG_MAGENTA="\e[105m"
+readonly BACKGROUND_STRONG_CYAN="\e[106m"
+readonly BACKGROUND_STRONG_WHITE="\e[107m"
+
+trap 'printf "\n${FOREGROUND_STRONG_RED}Installation failed at line ${LINENO}. Check the output above for details.${RESET}\n" >&2' ERR
 
 enigma_header() {
     clear
@@ -117,7 +119,7 @@ download_enigma_source() {
     local INSTALL_DIR
     INSTALL_DIR=${ENIGMA_INSTALL_DIR}
 
-    if [ -d "$INSTALL_DIR/.git" ]; then
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
         log "ENiGMA½ is already installed in $INSTALL_DIR, trying to update using git..."
         command git --git-dir="$INSTALL_DIR"/.git --work-tree="$INSTALL_DIR" fetch 2> /dev/null ||
             fatal_error "Failed to update ENiGMA½, run 'git fetch' in $INSTALL_DIR yourself."
@@ -139,14 +141,6 @@ is_arch_arm() {
     fi
 }
 
-extra_npm_install_args() {
-    if is_arch_arm ; then
-        printf "--build-from-source"
-    else
-        printf ""
-    fi
-}
-
 install_mise_en_place() {
     if ! check_exists "mise"; then
         log "Installing mise..."
@@ -156,7 +150,7 @@ install_mise_en_place() {
         fi
     fi
 
-    eval "$(~/.local/bin/mise activate bash)"
+    eval "$("$HOME/.local/bin/mise" activate bash)"
     export PATH="$HOME/.local/share/mise/shims:$PATH"
 }
 
@@ -187,18 +181,21 @@ install_node_packages() {
     printf "Note that on some systems such as RPi, this can take a VERY long time. Be patient!\n"
 
     cd "${ENIGMA_INSTALL_DIR}"
-    local EXTRA_NPM_ARGS
-    EXTRA_NPM_ARGS=$(extra_npm_install_args)
     git checkout "${ENIGMA_BRANCH}"
 
     export HUSKY=0
 
+    local -a extra_args=()
+    if is_arch_arm; then
+        extra_args+=(--build-from-source)
+    fi
+
     rm -rf node_modules
 
-    if [ -f package-lock.json ]; then
-        npm ci ${EXTRA_NPM_ARGS}
+    if [[ -f package-lock.json ]]; then
+        npm ci "${extra_args[@]}"
     else
-        npm install ${EXTRA_NPM_ARGS}
+        npm install "${extra_args[@]}"
     fi
 
     log "npm package installation complete"
@@ -279,7 +276,7 @@ post_install() {
     then
         log "Mise Shims found in your ~/.bashrc"
     else
-        echo "$MISE_SHIM_PATH_COMMAND" >> ~/.bashrc
+        printf '%s\n' "$MISE_SHIM_PATH_COMMAND" >> ~/.bashrc
         log "Installed Mise Shims into your ~/.bashrc"
     fi
 }
@@ -311,9 +308,9 @@ install_everything() {
 }
 
 menu() {
-    title="Installation Options"
-    prompt="Select>"
-    options=(
+    local title="Installation Options"
+    local prompt="Select>"
+    local options=(
         "Install Dependencies"
         "Install ENiGMA½"
         "Install Everything"
@@ -334,8 +331,12 @@ menu() {
     unset PS3
 }
 
-enigma_header
-menu
-enigma_footer
+main() {
+    enigma_header
+    menu
+    enigma_footer
+}
+
+main "$@"
 
 } # this ensures the entire script is downloaded before execution
