@@ -173,6 +173,12 @@ ClientTerminal.prototype.write = function (s, convertLineFeeds, cb) {
 };
 
 ClientTerminal.prototype.rawWrite = function (s, cb) {
+    if (this._writeBuf) {
+        //  Batch mode: accumulate instead of sending immediately.
+        this._writeBuf.push(Buffer.isBuffer(s) ? s : Buffer.from(s));
+        if (cb) { cb(null); }
+        return;
+    }
     if (this.output && this.output.writable) {
         this.output.write(s, err => {
             if (cb) {
@@ -182,6 +188,44 @@ ClientTerminal.prototype.rawWrite = function (s, cb) {
             if (err) {
                 Log.warn({ error: err.message }, 'Failed writing to socket');
             }
+        });
+    }
+};
+
+//  beginWrite() / commitWrite() — batch all terminal output into a single socket
+//  write so intermediate cursor positions are never rendered by the client.
+//  Calls may be nested; only the outermost commitWrite() flushes.
+ClientTerminal.prototype.beginWrite = function () {
+    if (!this._writeBuf) {
+        this._writeBuf = [];
+        this._writeBufDepth = 0;
+    }
+    this._writeBufDepth += 1;
+};
+
+ClientTerminal.prototype.commitWrite = function (cb) {
+    if (!this._writeBuf) {
+        if (cb) { cb(null); }
+        return;
+    }
+    this._writeBufDepth -= 1;
+    if (this._writeBufDepth > 0) {
+        //  Still inside an outer batch — wait for the outermost commitWrite.
+        if (cb) { cb(null); }
+        return;
+    }
+    const chunks = this._writeBuf;
+    this._writeBuf = null;
+    this._writeBufDepth = 0;
+    if (chunks.length === 0) {
+        if (cb) { cb(null); }
+        return;
+    }
+    const combined = Buffer.concat(chunks);
+    if (this.output && this.output.writable) {
+        this.output.write(combined, err => {
+            if (cb) { return cb(err); }
+            if (err) { Log.warn({ error: err.message }, 'Failed writing to socket'); }
         });
     }
 };

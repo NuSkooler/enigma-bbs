@@ -57,7 +57,9 @@ class ViewController extends events.EventEmitter {
                 }
             } else {
                 if (this.focusedView && this.focusedView.acceptsInput) {
+                    this.client.term.beginWrite();
                     this.focusedView.onKeyPress(ch, key);
+                    this.client.term.commitWrite();
                 }
             }
         };
@@ -516,6 +518,7 @@ class ViewController extends events.EventEmitter {
         const focusedView = this.focusedView;
 
         this.validateView(focusedView, (err, newFocusedViewId) => {
+            this.client.term.beginWrite();
             if (err) {
                 const newFocusedView = this.getView(newFocusedViewId) || focusedView;
                 this.setViewFocusWithEvents(newFocusedView, true);
@@ -528,6 +531,7 @@ class ViewController extends events.EventEmitter {
                 //  set to new
                 this.setViewFocusWithEvents(this.getView(id), true);
             }
+            this.client.term.commitWrite();
         });
     }
 

@@ -140,12 +140,18 @@ class TextView extends View {
         }
     }
 
+    //  Virtual hook: subclasses override to place the cursor at their preferred
+    //  position after a setFocus redraw (e.g. at an edit cursor rather than end-of-text).
+    _positionCursor(focused) {
+        this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
+    }
+
     setFocus(focused) {
         super.setFocus(focused);
 
         this.redraw();
 
-        this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
+        this._positionCursor(focused);
         this.client.term.write(this.getFocusSGR());
     }
 
