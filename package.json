@@ -1,6 +1,6 @@
 {
     "name": "enigma-bbs",
-    "version": "0.0.14-beta",
+    "version": "0.1.0-beta",
     "description": "ENiGMA½ Bulletin Board System",
     "author": "Bryan Ashby <bryan@l33t.codes>",
     "license": "BSD-2-Clause",
@@ -12,7 +12,8 @@
         "start": "node main.js",
         "oputil": "node ./oputil.js",
         "pretty": "npx prettier --write .",
-        "prepare": "husky"
+        "prepare": "husky",
+        "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000"
     },
     "repository": {
         "type": "git",
@@ -78,12 +79,14 @@
     "devDependencies": {
         "@eslint/eslintrc": "^3.3.1",
         "@eslint/js": "^9.36.0",
+        "chai": "^5.3.3",
         "eslint": "^9.36.0",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-json": "^4.0.1",
         "globals": "^16.4.0",
         "husky": "^8.0.0",
         "lint-staged": "^13.1.0",
+        "mocha": "^10.8.2",
         "prettier": "2.8.1"
     },
     "engines": {

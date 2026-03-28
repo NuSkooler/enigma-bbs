@@ -1,7 +1,6 @@
-/* jslint node: true */
 'use strict';
 
-const MenuView = require('./menu_view.js').MenuView;
+const { MenuView } = require('./menu_view.js');
 const strUtil = require('./string_util.js');
 const formatString = require('./string_format');
 const { pipeToAnsi } = require('./color_codes.js');
@@ -10,53 +9,51 @@ const { goto } = require('./ansi_term.js');
 const assert = require('assert');
 const _ = require('lodash');
 
-exports.HorizontalMenuView = HorizontalMenuView;
-
 //  :TODO: Update this to allow scrolling if number of items cannot fit in width (similar to VerticalMenuView)
 
-function HorizontalMenuView(options) {
-    options.cursor = options.cursor || 'hide';
+class HorizontalMenuView extends MenuView {
+    constructor(options) {
+        options.cursor = options.cursor || 'hide';
 
-    if (!_.isNumber(options.itemSpacing)) {
-        options.itemSpacing = 1;
+        if (!_.isNumber(options.itemSpacing)) {
+            options.itemSpacing = 1;
+        }
+
+        super(options);
+
+        this.dimens.height = 1; //  always the case
     }
 
-    MenuView.call(this, options);
+    getSpacer() {
+        return new Array(this.itemSpacing + 1).join(' ');
+    }
 
-    this.dimens.height = 1; //  always the case
-
-    var self = this;
-
-    this.getSpacer = function () {
-        return new Array(self.itemSpacing + 1).join(' ');
-    };
-
-    this.cachePositions = function () {
+    cachePositions() {
         if (this.positionCacheExpired) {
-            var col = self.position.col;
-            var spacer = self.getSpacer();
+            let col = this.position.col;
+            const spacer = this.getSpacer();
 
-            for (var i = 0; i < self.items.length; ++i) {
-                self.items[i].col = col;
-                col += spacer.length + self.items[i].text.length + spacer.length;
+            for (let i = 0; i < this.items.length; ++i) {
+                this.items[i].col = col;
+                col += spacer.length + this.items[i].text.length + spacer.length;
             }
         }
 
         this.positionCacheExpired = false;
-    };
+    }
 
-    this.drawItem = function (index) {
+    drawItem(index) {
         assert(!this.positionCacheExpired);
 
-        const item = self.items[index];
+        const item = this.items[index];
         if (!item) {
             return;
         }
 
         let text;
         let sgr;
-        if (item.focused && self.hasFocusItems()) {
-            const focusItem = self.focusItems[index];
+        if (item.focused && this.hasFocusItems()) {
+            const focusItem = this.focusItems[index];
             text = focusItem ? focusItem.text : item.text;
             sgr = '';
         } else if (this.complexItems) {
@@ -70,106 +67,106 @@ function HorizontalMenuView(options) {
             );
             sgr = this.focusItemFormat
                 ? ''
-                : index === self.focusedItemIndex
-                  ? self.getFocusSGR()
-                  : self.getSGR();
+                : index === this.focusedItemIndex
+                  ? this.getFocusSGR()
+                  : this.getSGR();
         } else {
             text = strUtil.stylizeString(
                 item.text,
-                item.focused ? self.focusTextStyle : self.textStyle
+                item.focused ? this.focusTextStyle : this.textStyle
             );
-            sgr = index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR();
+            sgr = index === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR();
         }
 
-        const drawWidth = strUtil.renderStringLength(text) + self.getSpacer().length * 2;
+        const drawWidth = strUtil.renderStringLength(text) + this.getSpacer().length * 2;
 
-        self.client.term.write(
-            `${goto(self.position.row, item.col)}${sgr}${strUtil.pad(
+        this.client.term.write(
+            `${goto(this.position.row, item.col)}${sgr}${strUtil.pad(
                 text,
                 drawWidth,
-                self.fillChar,
+                this.fillChar,
                 'center'
             )}`
         );
-    };
-}
-
-require('util').inherits(HorizontalMenuView, MenuView);
-
-HorizontalMenuView.prototype.setHeight = function (height) {
-    height = parseInt(height, 10);
-    assert(1 === height); //  nothing else allowed here
-    HorizontalMenuView.super_.prototype.setHeight(this, height);
-};
-
-HorizontalMenuView.prototype.redraw = function () {
-    HorizontalMenuView.super_.prototype.redraw.call(this);
-
-    this.cachePositions();
-
-    for (var i = 0; i < this.items.length; ++i) {
-        this.items[i].focused = this.focusedItemIndex === i;
-        this.drawItem(i);
-    }
-};
-
-HorizontalMenuView.prototype.setPosition = function (pos) {
-    HorizontalMenuView.super_.prototype.setPosition.call(this, pos);
-
-    this.positionCacheExpired = true;
-};
-
-HorizontalMenuView.prototype.setFocus = function (focused) {
-    HorizontalMenuView.super_.prototype.setFocus.call(this, focused);
-
-    this.redraw();
-};
-
-HorizontalMenuView.prototype.setItems = function (items) {
-    HorizontalMenuView.super_.prototype.setItems.call(this, items);
-
-    this.positionCacheExpired = true;
-};
-
-HorizontalMenuView.prototype.focusNext = function () {
-    if (this.items.length - 1 === this.focusedItemIndex) {
-        this.focusedItemIndex = 0;
-    } else {
-        this.focusedItemIndex++;
     }
 
-    //  :TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
-    this.redraw();
-
-    HorizontalMenuView.super_.prototype.focusNext.call(this);
-};
-
-HorizontalMenuView.prototype.focusPrevious = function () {
-    if (0 === this.focusedItemIndex) {
-        this.focusedItemIndex = this.items.length - 1;
-    } else {
-        this.focusedItemIndex--;
+    setHeight(height) {
+        height = parseInt(height, 10);
+        assert(1 === height); //  nothing else allowed here
+        super.setHeight(height);
     }
 
-    //  :TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
-    this.redraw();
+    redraw() {
+        super.redraw();
 
-    HorizontalMenuView.super_.prototype.focusPrevious.call(this);
-};
+        this.cachePositions();
 
-HorizontalMenuView.prototype.onKeyPress = function (ch, key) {
-    if (key) {
-        if (this.isKeyMapped('left', key.name)) {
-            this.focusPrevious();
-        } else if (this.isKeyMapped('right', key.name)) {
-            this.focusNext();
+        for (let i = 0; i < this.items.length; ++i) {
+            this.items[i].focused = this.focusedItemIndex === i;
+            this.drawItem(i);
         }
     }
 
-    HorizontalMenuView.super_.prototype.onKeyPress.call(this, ch, key);
-};
+    setPosition(pos) {
+        super.setPosition(pos);
 
-HorizontalMenuView.prototype.getData = function () {
-    const item = this.getItem(this.focusedItemIndex);
-    return _.isString(item.data) ? item.data : this.focusedItemIndex;
-};
+        this.positionCacheExpired = true;
+    }
+
+    setFocus(focused) {
+        super.setFocus(focused);
+
+        this.redraw();
+    }
+
+    setItems(items) {
+        super.setItems(items);
+
+        this.positionCacheExpired = true;
+    }
+
+    focusNext() {
+        if (this.items.length - 1 === this.focusedItemIndex) {
+            this.focusedItemIndex = 0;
+        } else {
+            this.focusedItemIndex++;
+        }
+
+        //  :TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
+        this.redraw();
+
+        super.focusNext();
+    }
+
+    focusPrevious() {
+        if (0 === this.focusedItemIndex) {
+            this.focusedItemIndex = this.items.length - 1;
+        } else {
+            this.focusedItemIndex--;
+        }
+
+        //  :TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
+        this.redraw();
+
+        super.focusPrevious();
+    }
+
+    onKeyPress(ch, key) {
+        if (key) {
+            if (this.isKeyMapped('left', key.name)) {
+                this.focusPrevious();
+            } else if (this.isKeyMapped('right', key.name)) {
+                this.focusNext();
+            }
+        }
+
+        super.onKeyPress(ch, key);
+    }
+
+    getData() {
+        const item = this.getItem(this.focusedItemIndex);
+        return _.isString(item.data) ? item.data : this.focusedItemIndex;
+    }
+}
+
+exports.HorizontalMenuView = HorizontalMenuView;

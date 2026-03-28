@@ -1,40 +1,40 @@
-/* jslint node: true */
 'use strict';
 
 //  ENiGMA½
-const MenuView = require('./menu_view.js').MenuView;
+const { MenuView } = require('./menu_view.js');
 const ansi = require('./ansi_term.js');
 const strUtil = require('./string_util.js');
 const formatString = require('./string_format');
-const pipeToAnsi = require('./color_codes.js').pipeToAnsi;
+const { pipeToAnsi } = require('./color_codes.js');
 
 //  deps
-const util = require('util');
 const _ = require('lodash');
 
-exports.FullMenuView = FullMenuView;
+class FullMenuView extends MenuView {
+    constructor(options) {
+        options.cursor = options.cursor || 'hide';
+        options.justify = options.justify || 'left';
 
-function FullMenuView(options) {
-    options.cursor = options.cursor || 'hide';
-    options.justify = options.justify || 'left';
+        super(options);
 
-    MenuView.call(this, options);
+        // Initialize paging
+        this.pages = [];
+        this.currentPage = 0;
 
-    // Initialize paging
-    this.pages = [];
-    this.currentPage = 0;
+        this.initDefaultWidth();
 
-    this.initDefaultWidth();
+        //  we want page up/page down by default
+        if (!_.isObject(options.specialKeyMap)) {
+            Object.assign(this.specialKeyMap, {
+                'page up': ['page up'],
+                'page down': ['page down'],
+            });
+        }
 
-    //  we want page up/page down by default
-    if (!_.isObject(options.specialKeyMap)) {
-        Object.assign(this.specialKeyMap, {
-            'page up': ['page up'],
-            'page down': ['page down'],
-        });
+        this.autoAdjustHeightIfEnabled();
     }
 
-    this.autoAdjustHeightIfEnabled = () => {
+    autoAdjustHeightIfEnabled() {
         if (this.autoAdjustHeight) {
             this.dimens.height =
                 this.items.length * (this.itemSpacing + 1) - this.itemSpacing;
@@ -45,11 +45,9 @@ function FullMenuView(options) {
         }
 
         this.positionCacheExpired = true;
-    };
+    }
 
-    this.autoAdjustHeightIfEnabled();
-
-    this.clearPage = () => {
+    clearPage() {
         let width = this.dimens.width;
         if (this.oldDimens) {
             if (this.oldDimens.width > width) {
@@ -67,9 +65,9 @@ function FullMenuView(options) {
                 )}${this.getSGR()}${text}`
             );
         }
-    };
+    }
 
-    this.cachePositions = () => {
+    cachePositions() {
         if (this.positionCacheExpired) {
             // first, clear the page
             this.clearPage();
@@ -157,7 +155,7 @@ function FullMenuView(options) {
                     let maxLength = 0;
                     for (let j = 0; j < this.itemsPerRow; j++) {
                         // TODO: handle complex items
-                        let itemLength = this.items[i - j].text.length;
+                        const itemLength = this.items[i - j].text.length;
                         if (itemLength > maxLength) {
                             maxLength = itemLength;
                         }
@@ -200,9 +198,9 @@ function FullMenuView(options) {
         }
 
         this.positionCacheExpired = false;
-    };
+    }
 
-    this.drawItem = index => {
+    drawItem(index) {
         const item = this.items[index];
         if (!item) {
             return;
@@ -262,7 +260,7 @@ function FullMenuView(options) {
             }
         }
 
-        let padLength = Math.min(item.fixedLength + 1, this.dimens.width);
+        const padLength = Math.min(item.fixedLength + 1, this.dimens.width);
 
         text = `${sgr}${strUtil.pad(
             text,
@@ -272,307 +270,307 @@ function FullMenuView(options) {
         )}${this.getSGR()}`;
         this.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);
-    };
-}
-
-util.inherits(FullMenuView, MenuView);
-
-FullMenuView.prototype.redraw = function () {
-    FullMenuView.super_.prototype.redraw.call(this);
-
-    this.cachePositions();
-
-    // In case we get in a bad state, try to recover
-    if (this.currentPage < 0) {
-        this.currentPage = 0;
     }
 
-    if (this.items.length) {
-        if (
-            this.currentPage > this.pages.length ||
-            !_.isObject(this.pages[this.currentPage])
-        ) {
-            this.client.log.warn(
-                { currentPage: this.currentPage, pagesLength: this.pages.length },
-                'Invalid state! in full menu redraw'
-            );
-        } else {
-            for (
-                let i = this.pages[this.currentPage].start;
-                i <= this.pages[this.currentPage].end;
-                ++i
+    redraw() {
+        super.redraw();
+
+        this.cachePositions();
+
+        // In case we get in a bad state, try to recover
+        if (this.currentPage < 0) {
+            this.currentPage = 0;
+        }
+
+        if (this.items.length) {
+            if (
+                this.currentPage > this.pages.length ||
+                !_.isObject(this.pages[this.currentPage])
             ) {
-                this.items[i].focused = this.focusedItemIndex === i;
-                this.drawItem(i);
+                this.client.log.warn(
+                    { currentPage: this.currentPage, pagesLength: this.pages.length },
+                    'Invalid state! in full menu redraw'
+                );
+            } else {
+                for (
+                    let i = this.pages[this.currentPage].start;
+                    i <= this.pages[this.currentPage].end;
+                    ++i
+                ) {
+                    this.items[i].focused = this.focusedItemIndex === i;
+                    this.drawItem(i);
+                }
             }
         }
     }
-};
 
-FullMenuView.prototype.setHeight = function (height) {
-    this.oldDimens = Object.assign({}, this.dimens);
+    setHeight(height) {
+        this.oldDimens = Object.assign({}, this.dimens);
 
-    FullMenuView.super_.prototype.setHeight.call(this, height);
+        super.setHeight(height);
 
-    this.positionCacheExpired = true;
-    this.autoAdjustHeight = false;
-};
+        this.positionCacheExpired = true;
+        this.autoAdjustHeight = false;
+    }
 
-FullMenuView.prototype.setWidth = function (width) {
-    this.oldDimens = Object.assign({}, this.dimens);
+    setWidth(width) {
+        this.oldDimens = Object.assign({}, this.dimens);
 
-    FullMenuView.super_.prototype.setWidth.call(this, width);
+        super.setWidth(width);
 
-    this.positionCacheExpired = true;
-};
+        this.positionCacheExpired = true;
+    }
 
-FullMenuView.prototype.setTextOverflow = function (overflow) {
-    FullMenuView.super_.prototype.setTextOverflow.call(this, overflow);
+    setTextOverflow(overflow) {
+        super.setTextOverflow(overflow);
 
-    this.positionCacheExpired = true;
-};
+        this.positionCacheExpired = true;
+    }
 
-FullMenuView.prototype.setPosition = function (pos) {
-    FullMenuView.super_.prototype.setPosition.call(this, pos);
+    setPosition(pos) {
+        super.setPosition(pos);
 
-    this.positionCacheExpired = true;
-};
+        this.positionCacheExpired = true;
+    }
 
-FullMenuView.prototype.setFocus = function (focused) {
-    FullMenuView.super_.prototype.setFocus.call(this, focused);
-    this.positionCacheExpired = true;
-    this.autoAdjustHeight = false;
+    setFocus(focused) {
+        super.setFocus(focused);
+        this.positionCacheExpired = true;
+        this.autoAdjustHeight = false;
 
-    this.redraw();
-};
+        this.redraw();
+    }
 
-FullMenuView.prototype.setFocusItemIndex = function (index) {
-    FullMenuView.super_.prototype.setFocusItemIndex.call(this, index); //  sets this.focusedItemIndex
-};
+    setFocusItemIndex(index) {
+        super.setFocusItemIndex(index); //  sets this.focusedItemIndex
+    }
 
-FullMenuView.prototype.onKeyPress = function (ch, key) {
-    if (key) {
-        if (this.isKeyMapped('up', key.name)) {
-            this.focusPrevious();
-        } else if (this.isKeyMapped('down', key.name)) {
-            this.focusNext();
-        } else if (this.isKeyMapped('left', key.name)) {
-            this.focusPreviousColumn();
-        } else if (this.isKeyMapped('right', key.name)) {
-            this.focusNextColumn();
-        } else if (this.isKeyMapped('page up', key.name)) {
-            this.focusPreviousPageItem();
-        } else if (this.isKeyMapped('page down', key.name)) {
-            this.focusNextPageItem();
-        } else if (this.isKeyMapped('home', key.name)) {
-            this.focusFirst();
-        } else if (this.isKeyMapped('end', key.name)) {
-            this.focusLast();
+    onKeyPress(ch, key) {
+        if (key) {
+            if (this.isKeyMapped('up', key.name)) {
+                this.focusPrevious();
+            } else if (this.isKeyMapped('down', key.name)) {
+                this.focusNext();
+            } else if (this.isKeyMapped('left', key.name)) {
+                this.focusPreviousColumn();
+            } else if (this.isKeyMapped('right', key.name)) {
+                this.focusNextColumn();
+            } else if (this.isKeyMapped('page up', key.name)) {
+                this.focusPreviousPageItem();
+            } else if (this.isKeyMapped('page down', key.name)) {
+                this.focusNextPageItem();
+            } else if (this.isKeyMapped('home', key.name)) {
+                this.focusFirst();
+            } else if (this.isKeyMapped('end', key.name)) {
+                this.focusLast();
+            }
         }
+
+        super.onKeyPress(ch, key);
     }
 
-    FullMenuView.super_.prototype.onKeyPress.call(this, ch, key);
-};
-
-FullMenuView.prototype.getData = function () {
-    const item = this.getItem(this.focusedItemIndex);
-    return _.isString(item.data) ? item.data : this.focusedItemIndex;
-};
-
-FullMenuView.prototype.setItems = function (items) {
-    //  if we have items already, save off their drawing area so we don't leave fragments at redraw
-    if (this.items && this.items.length) {
-        this.oldDimens = Object.assign({}, this.dimens);
+    getData() {
+        const item = this.getItem(this.focusedItemIndex);
+        return _.isString(item.data) ? item.data : this.focusedItemIndex;
     }
 
-    // Reset the page on new items
-    this.currentPage = 0;
-    this.focusedItemIndex = 0;
+    setItems(items) {
+        //  if we have items already, save off their drawing area so we don't leave fragments at redraw
+        if (this.items && this.items.length) {
+            this.oldDimens = Object.assign({}, this.dimens);
+        }
 
-    FullMenuView.super_.prototype.setItems.call(this, items);
-
-    this.positionCacheExpired = true;
-};
-
-FullMenuView.prototype.removeItem = function (index) {
-    if (this.items && this.items.length) {
-        this.oldDimens = Object.assign({}, this.dimens);
-    }
-
-    FullMenuView.super_.prototype.removeItem.call(this, index);
-    this.positionCacheExpired = true;
-};
-
-FullMenuView.prototype.focusNext = function () {
-    if (this.items.length - 1 === this.focusedItemIndex) {
-        this.clearPage();
-        this.focusedItemIndex = 0;
+        // Reset the page on new items
         this.currentPage = 0;
-    } else {
-        if (
-            this.currentPage > this.pages.length ||
-            !_.isObject(this.pages[this.currentPage])
-        ) {
-            this.client.log.warn(
-                { currentPage: this.currentPage, pagesLength: this.pages.length },
-                'Invalid state in focusNext for full menu view'
-            );
-        } else {
-            this.focusedItemIndex++;
-            if (this.focusedItemIndex > this.pages[this.currentPage].end) {
-                this.clearPage();
-                this.currentPage++;
-            }
-        }
+        this.focusedItemIndex = 0;
+
+        super.setItems(items);
+
+        this.positionCacheExpired = true;
     }
 
-    this.redraw();
+    removeItem(index) {
+        if (this.items && this.items.length) {
+            this.oldDimens = Object.assign({}, this.dimens);
+        }
 
-    FullMenuView.super_.prototype.focusNext.call(this);
-};
+        super.removeItem(index);
+        this.positionCacheExpired = true;
+    }
 
-FullMenuView.prototype.focusPrevious = function () {
-    if (0 === this.focusedItemIndex) {
-        this.clearPage();
-        this.focusedItemIndex = this.items.length - 1;
-        this.currentPage = this.pages.length - 1;
-    } else {
-        this.focusedItemIndex--;
-        if (
-            this.currentPage > this.pages.length ||
-            !_.isObject(this.pages[this.currentPage])
-        ) {
-            this.client.log.warn(
-                { currentPage: this.currentPage, pagesLength: this.pages.length },
-                'Bad focus state, ignoring call to focusPrevious.'
-            );
+    focusNext() {
+        if (this.items.length - 1 === this.focusedItemIndex) {
+            this.clearPage();
+            this.focusedItemIndex = 0;
+            this.currentPage = 0;
+        } else {
+            if (
+                this.currentPage > this.pages.length ||
+                !_.isObject(this.pages[this.currentPage])
+            ) {
+                this.client.log.warn(
+                    { currentPage: this.currentPage, pagesLength: this.pages.length },
+                    'Invalid state in focusNext for full menu view'
+                );
+            } else {
+                this.focusedItemIndex++;
+                if (this.focusedItemIndex > this.pages[this.currentPage].end) {
+                    this.clearPage();
+                    this.currentPage++;
+                }
+            }
+        }
+
+        this.redraw();
+
+        super.focusNext();
+    }
+
+    focusPrevious() {
+        if (0 === this.focusedItemIndex) {
+            this.clearPage();
+            this.focusedItemIndex = this.items.length - 1;
+            this.currentPage = this.pages.length - 1;
+        } else {
+            this.focusedItemIndex--;
+            if (
+                this.currentPage > this.pages.length ||
+                !_.isObject(this.pages[this.currentPage])
+            ) {
+                this.client.log.warn(
+                    { currentPage: this.currentPage, pagesLength: this.pages.length },
+                    'Bad focus state, ignoring call to focusPrevious.'
+                );
+            } else {
+                if (this.focusedItemIndex < this.pages[this.currentPage].start) {
+                    this.clearPage();
+                    this.currentPage--;
+                }
+            }
+        }
+
+        this.redraw();
+
+        super.focusPrevious();
+    }
+
+    focusPreviousColumn() {
+        const currentRow = this.items[this.focusedItemIndex].itemInRow;
+        this.focusedItemIndex = this.focusedItemIndex - this.itemsPerRow;
+        if (this.focusedItemIndex < 0) {
+            this.clearPage();
+            const lastItemRow = this.items[this.items.length - 1].itemInRow;
+            if (lastItemRow > currentRow) {
+                this.focusedItemIndex = this.items.length - (lastItemRow - currentRow) - 1;
+            } else {
+                // can't go to same column, so go to last item
+                this.focusedItemIndex = this.items.length - 1;
+            }
+            // set to last page
+            this.currentPage = this.pages.length - 1;
         } else {
             if (this.focusedItemIndex < this.pages[this.currentPage].start) {
                 this.clearPage();
                 this.currentPage--;
             }
         }
+
+        this.redraw();
+
+        // TODO: This isn't specific to Previous, may want to replace in the future
+        super.focusPrevious();
     }
 
-    this.redraw();
-
-    FullMenuView.super_.prototype.focusPrevious.call(this);
-};
-
-FullMenuView.prototype.focusPreviousColumn = function () {
-    const currentRow = this.items[this.focusedItemIndex].itemInRow;
-    this.focusedItemIndex = this.focusedItemIndex - this.itemsPerRow;
-    if (this.focusedItemIndex < 0) {
-        this.clearPage();
-        const lastItemRow = this.items[this.items.length - 1].itemInRow;
-        if (lastItemRow > currentRow) {
-            this.focusedItemIndex = this.items.length - (lastItemRow - currentRow) - 1;
-        } else {
-            // can't go to same column, so go to last item
-            this.focusedItemIndex = this.items.length - 1;
-        }
-        // set to last page
-        this.currentPage = this.pages.length - 1;
-    } else {
-        if (this.focusedItemIndex < this.pages[this.currentPage].start) {
+    focusNextColumn() {
+        const currentRow = this.items[this.focusedItemIndex].itemInRow;
+        this.focusedItemIndex = this.focusedItemIndex + this.itemsPerRow;
+        if (this.focusedItemIndex > this.items.length - 1) {
+            this.focusedItemIndex = currentRow - 1;
+            this.currentPage = 0;
             this.clearPage();
-            this.currentPage--;
+        } else if (this.focusedItemIndex > this.pages[this.currentPage].end) {
+            this.clearPage();
+            this.currentPage++;
         }
+
+        this.redraw();
+
+        // TODO: This isn't specific to Next, may want to replace in the future
+        super.focusNext();
     }
 
-    this.redraw();
+    focusPreviousPageItem() {
+        // handle first page
+        if (this.currentPage == 0) {
+            // Do nothing, page up shouldn't go down on last page
+            return;
+        }
 
-    // TODO: This isn't specific to Previous, may want to replace in the future
-    FullMenuView.super_.prototype.focusPrevious.call(this);
-};
+        this.currentPage--;
+        this.focusedItemIndex = this.pages[this.currentPage].start;
+        this.clearPage();
 
-FullMenuView.prototype.focusNextColumn = function () {
-    const currentRow = this.items[this.focusedItemIndex].itemInRow;
-    this.focusedItemIndex = this.focusedItemIndex + this.itemsPerRow;
-    if (this.focusedItemIndex > this.items.length - 1) {
-        this.focusedItemIndex = currentRow - 1;
-        this.currentPage = 0;
-        this.clearPage();
-    } else if (this.focusedItemIndex > this.pages[this.currentPage].end) {
-        this.clearPage();
+        this.redraw();
+
+        return super.focusPreviousPageItem();
+    }
+
+    focusNextPageItem() {
+        // handle last page
+        if (this.currentPage == this.pages.length - 1) {
+            // Do nothing, page up shouldn't go down on last page
+            return;
+        }
+
         this.currentPage++;
+        this.focusedItemIndex = this.pages[this.currentPage].start;
+        this.clearPage();
+
+        this.redraw();
+
+        return super.focusNextPageItem();
     }
 
-    this.redraw();
+    focusFirst() {
+        this.currentPage = 0;
+        this.focusedItemIndex = 0;
+        this.clearPage();
 
-    // TODO: This isn't specific to Next, may want to replace in the future
-    FullMenuView.super_.prototype.focusNext.call(this);
-};
-
-FullMenuView.prototype.focusPreviousPageItem = function () {
-    // handle first page
-    if (this.currentPage == 0) {
-        // Do nothing, page up shouldn't go down on last page
-        return;
+        this.redraw();
+        return super.focusFirst();
     }
 
-    this.currentPage--;
-    this.focusedItemIndex = this.pages[this.currentPage].start;
-    this.clearPage();
+    focusLast() {
+        this.currentPage = this.pages.length - 1;
+        this.focusedItemIndex = this.pages[this.currentPage].end;
+        this.clearPage();
 
-    this.redraw();
-
-    return FullMenuView.super_.prototype.focusPreviousPageItem.call(this);
-};
-
-FullMenuView.prototype.focusNextPageItem = function () {
-    // handle last page
-    if (this.currentPage == this.pages.length - 1) {
-        // Do nothing, page up shouldn't go down on last page
-        return;
+        this.redraw();
+        return super.focusLast();
     }
 
-    this.currentPage++;
-    this.focusedItemIndex = this.pages[this.currentPage].start;
-    this.clearPage();
+    setFocusItems(items) {
+        super.setFocusItems(items);
 
-    this.redraw();
+        this.positionCacheExpired = true;
+    }
 
-    return FullMenuView.super_.prototype.focusNextPageItem.call(this);
-};
+    setItemSpacing(itemSpacing) {
+        super.setItemSpacing(itemSpacing);
 
-FullMenuView.prototype.focusFirst = function () {
-    this.currentPage = 0;
-    this.focusedItemIndex = 0;
-    this.clearPage();
+        this.positionCacheExpired = true;
+    }
 
-    this.redraw();
-    return FullMenuView.super_.prototype.focusFirst.call(this);
-};
+    setJustify(justify) {
+        super.setJustify(justify);
+        this.positionCacheExpired = true;
+    }
 
-FullMenuView.prototype.focusLast = function () {
-    this.currentPage = this.pages.length - 1;
-    this.focusedItemIndex = this.pages[this.currentPage].end;
-    this.clearPage();
+    setItemHorizSpacing(itemHorizSpacing) {
+        super.setItemHorizSpacing(itemHorizSpacing);
 
-    this.redraw();
-    return FullMenuView.super_.prototype.focusLast.call(this);
-};
+        this.positionCacheExpired = true;
+    }
+}
 
-FullMenuView.prototype.setFocusItems = function (items) {
-    FullMenuView.super_.prototype.setFocusItems.call(this, items);
-
-    this.positionCacheExpired = true;
-};
-
-FullMenuView.prototype.setItemSpacing = function (itemSpacing) {
-    FullMenuView.super_.prototype.setItemSpacing.call(this, itemSpacing);
-
-    this.positionCacheExpired = true;
-};
-
-FullMenuView.prototype.setJustify = function (justify) {
-    FullMenuView.super_.prototype.setJustify.call(this, justify);
-    this.positionCacheExpired = true;
-};
-
-FullMenuView.prototype.setItemHorizSpacing = function (itemHorizSpacing) {
-    FullMenuView.super_.prototype.setItemHorizSpacing.call(this, itemHorizSpacing);
-
-    this.positionCacheExpired = true;
-};
+exports.FullMenuView = FullMenuView;

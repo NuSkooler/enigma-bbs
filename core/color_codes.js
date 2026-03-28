@@ -233,11 +233,11 @@ function controlCodesToAnsi(s, client) {
                 break;
 
             case '\x03':
-                //  WWIV
-                v = parseInt(m[8], 10);
+                //  WWIV — m[7] is the full match (e.g. "\x031"); extract the digit
+                v = parseInt(m[0].charAt(1), 10);
 
                 if (isNaN(v)) {
-                    v += m[0];
+                    v = m[0]; //  no digit — pass through literally
                 } else {
                     v = ANSI.sgr(
                         {
@@ -259,7 +259,7 @@ function controlCodesToAnsi(s, client) {
                 break;
 
             case '\x19':
-            case '\0x11':
+            case '\x11':
                 //  CNET "Y-Style" & "Q-Style"
                 v = m[9] || m[11];
                 if (v) {

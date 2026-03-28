@@ -60,8 +60,8 @@ MCIViewFactory.prototype.createFromMCI = function (mci) {
     var options = {
         client: this.client,
         id: mci.id,
-        ansiSGR: mci.SGR,
-        ansiFocusSGR: mci.focusSGR,
+        styleSGR1: mci.SGR,
+        styleSGR2: mci.focusSGR,
         position: { row: mci.position[0], col: mci.position[1] },
     };
 
