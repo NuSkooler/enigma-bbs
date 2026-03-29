@@ -97,17 +97,18 @@ module.exports = function ansiPrep(input, options, cb) {
             state.lastSgr = canvas[state.row][state.col].sgr;
         } else {
             state.sgr = sgr;
+            state.lastSgr = sgr; //  keep lastSgr current for next row's initialSgr
         }
     });
 
     function getLastPopulatedColumn(row) {
         let col = row.length;
-        while (--col > 0) {
+        while (--col >= 0) {
             if (row[col].char || row[col].sgr) {
-                break;
+                return col;
             }
         }
-        return col;
+        return -1; //  completely empty row
     }
 
     parser.on('complete', () => {

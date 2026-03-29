@@ -71,7 +71,7 @@ const SPECIAL_KEY_MAP_DEFAULT = {
     home: ['home'],
     left: ['left arrow'],
     right: ['right arrow'],
-    'delete line': ['ctrl + y', 'ctrl + u'], //  https://en.wikipedia.org/wiki/Backspace
+    'delete line': ['ctrl + y'],
     'page up': ['page up'],
     'page down': ['page down'],
     insert: ['insert', 'ctrl + v'],
@@ -694,11 +694,44 @@ class MultiLineEditTextView extends View {
             this.removeCharactersFromText(index, this.cursorPos.col, 'backspace', count);
         } else {
             //
-            //  Delete character at end of line previous.
-            //  * This may be a eol marker
-            //  * Word wrapping will need re-applied
+            //  Cursor is at col 0 — join this line with the end of the previous line.
             //
-            this.keyPressLeft(); //  same as hitting left - jump to previous line
+            const lineIndex = this.getTextLinesIndex();
+            if (lineIndex === 0) {
+                return; //  Already at the very first line; nothing to join onto
+            }
+
+            //  Remember where the cursor should land: end of the previous line in
+            //  paragraph-coordinate space (stable across the upcoming rewrap).
+            const prevLineLen = this.buffer.lines[lineIndex - 1].chars.length;
+            const paragraphOffset = this._paragraphOffset(lineIndex - 1, prevLineLen);
+
+            //  Merge this line into the previous line, then rewrap the paragraph.
+            this.buffer.joinLines(lineIndex - 1);
+            const { start } = this.buffer.rewrapParagraph(lineIndex - 1);
+
+            //  Map paragraph offset → new (lineIndex, col) after rewrap.
+            const { lineIndex: newLineIndex, col: newCol } = this._offsetToLineCol(
+                start,
+                paragraphOffset
+            );
+
+            const newVisibleRow = newLineIndex - this.topVisibleIndex;
+
+            if (newVisibleRow < 0) {
+                //  Target line scrolled above the visible window — scroll to it.
+                this.topVisibleIndex = newLineIndex;
+                this.cursorPos.row = 0;
+                this.cursorPos.col = newCol;
+                this.redraw();
+                this.moveClientCursorToCursorPos();
+            } else {
+                this.cursorPos.row = newVisibleRow;
+                this.cursorPos.col = newCol;
+                const lastRow = this.redrawRows(this.cursorPos.row, this.dimens.height);
+                this.eraseRows(lastRow, this.dimens.height);
+                this.moveClientCursorToCursorPos();
+            }
         }
 
         this.emitEditPosition();
