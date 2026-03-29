@@ -1,9 +1,9 @@
 'use strict';
 
 const { View } = require('./view.js');
+const { LineBuffer } = require('./line_buffer.js');
 const strUtil = require('./string_util.js');
 const ansi = require('./ansi_term.js');
-const { wordWrapText } = require('./word_wrap.js');
 const ansiPrep = require('./ansi_prep.js');
 
 const assert = require('assert');
@@ -56,9 +56,8 @@ const _ = require('lodash');
 //
 //  * Index pos % for emit scroll events
 //  * Some of this should be async'd where there is lots of processing (e.g. word wrap)
-//  * Fix backspace when col=0 (e.g. bs to prev line)
 //  * Add word delete (CTRL+????)
-//  *
+//
 
 const SPECIAL_KEY_MAP_DEFAULT = {
     'line feed': ['return'],
@@ -119,11 +118,11 @@ class MultiLineEditTextView extends View {
         //  * http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
         //
         //  This seems overkill though, so let's default to 4 :)
-        //  :TODO: what shoudl this really be? Maybe 8 is OK
+        //  :TODO: what should this really be? Maybe 8 is OK
         //
         this.tabWidth = _.isNumber(options.tabWidth) ? options.tabWidth : 4;
 
-        this.textLines = [];
+        this.buffer = new LineBuffer({ width: this.dimens.width });
         this.topVisibleIndex = 0;
         this.mode = options.mode || 'edit'; //  edit | preview | read-only
         this.maxLength = 0; // no max by default
@@ -140,8 +139,6 @@ class MultiLineEditTextView extends View {
         //  within the editor itself
         //
         this.cursorPos = { col: 0, row: 0 };
-
-        this.insertRawText(''); //  init to blank/empty
     }
 
     isEditMode() {
@@ -168,16 +165,16 @@ class MultiLineEditTextView extends View {
         if (!_.isNumber(row)) {
             row = this.cursorPos.row;
         }
-        return this.textLines.length - (this.topVisibleIndex + row) - 1;
+        return this.buffer.lines.length - (this.topVisibleIndex + row) - 1;
     }
 
     getNextEndOfLineIndex(startIndex) {
-        for (let i = startIndex; i < this.textLines.length; i++) {
-            if (this.textLines[i].eol) {
+        for (let i = startIndex; i < this.buffer.lines.length; i++) {
+            if (this.buffer.lines[i].eol) {
                 return i;
             }
         }
-        return this.textLines.length;
+        return this.buffer.lines.length;
     }
 
     toggleTextCursor(action) {
@@ -192,7 +189,7 @@ class MultiLineEditTextView extends View {
         this.toggleTextCursor('hide');
 
         const startIndex = this.getTextLinesIndex(startRow);
-        const endIndex = Math.min(this.getTextLinesIndex(endRow), this.textLines.length);
+        const endIndex = Math.min(this.getTextLinesIndex(endRow), this.buffer.lines.length);
         const absPos = this.getAbsolutePosition(startRow, 0);
         const prefix = this.getTextSgrPrefix();
 
@@ -226,7 +223,7 @@ class MultiLineEditTextView extends View {
     }
 
     redrawVisibleArea() {
-        assert(this.topVisibleIndex <= this.textLines.length);
+        assert(this.topVisibleIndex <= this.buffer.lines.length);
         const lastRow = this.redrawRows(0, this.dimens.height);
 
         this.eraseRows(lastRow, this.dimens.height);
@@ -236,21 +233,23 @@ class MultiLineEditTextView extends View {
         if (!_.isNumber(index)) {
             index = this.getTextLinesIndex();
         }
-        return this.textLines[index].text.replace(/\t/g, ' ');
+        return this.buffer.lines.length > index
+            ? this.buffer.lines[index].chars.replace(/\t/g, ' ')
+            : '';
     }
 
     getText(index) {
         if (!_.isNumber(index)) {
             index = this.getTextLinesIndex();
         }
-        return this.textLines.length > index ? this.textLines[index].text : '';
+        return this.buffer.lines.length > index ? this.buffer.lines[index].chars : '';
     }
 
     getTextLength(index) {
         if (!_.isNumber(index)) {
             index = this.getTextLinesIndex();
         }
-        return this.textLines.length > index ? this.textLines[index].text.length : 0;
+        return this.buffer.lines.length > index ? this.buffer.lines[index].chars.length : 0;
     }
 
     getCharacter(index, col) {
@@ -280,189 +279,88 @@ class MultiLineEditTextView extends View {
         return text;
     }
 
+    //  Compatibility shim — returns raw buffer lines (shape: { chars, attrs, eol })
     getTextLines(startIndex, endIndex) {
         if (startIndex === endIndex) {
-            return [this.textLines[startIndex]];
+            return [this.buffer.lines[startIndex]];
         }
-        return this.textLines.slice(startIndex, endIndex + 1); //  "slice extracts up to but not including end."
-    }
-
-    getOutputText(startIndex, endIndex, eolMarker, options) {
-        const lines = this.getTextLines(startIndex, endIndex);
-        const re = new RegExp('\\t{1,' + this.tabWidth + '}', 'g');
-
-        return lines
-            .map((line, lineIndex) => {
-                let text = line.text.replace(re, '\t');
-                if (
-                    options.forceLineTerms ||
-                    (eolMarker && line.eol && lineIndex < lines.length - 1)
-                ) {
-                    text += eolMarker;
-                }
-                return text;
-            })
-            .join('');
-    }
-
-    getContiguousText(startIndex, endIndex, includeEol) {
-        const lines = this.getTextLines(startIndex, endIndex);
-        let text = '';
-        for (let i = 0; i < lines.length; ++i) {
-            text += lines[i].text;
-            if (includeEol && lines[i].eol) {
-                text += '\n';
-            }
-        }
-        return text;
+        return this.buffer.lines.slice(startIndex, endIndex + 1);
     }
 
     getCharacterLength() {
-        //  :TODO: FSE needs re-write anyway, but this should just be known all the time vs calc. Too much of a mess right now...
-        let len = 0;
-        this.textLines.forEach(tl => {
-            len += tl.text.length;
-        });
-        return len;
+        return this.buffer.lines.reduce((sum, l) => sum + l.chars.length, 0);
     }
 
     replaceCharacterInText(c, index, col) {
-        this.textLines[index].text = strUtil.replaceAt(this.textLines[index].text, col, c);
+        this.buffer.deleteChar(index, col);
+        this.buffer.insertChar(index, col, c);
     }
 
-    updateTextWordWrap(index) {
-        const nextEolIndex = this.getNextEndOfLineIndex(index);
-        const wrapped = this.wordWrapSingleLine(
-            this.getContiguousText(index, nextEolIndex),
-            'tabsIntact'
-        );
-        const newLines = wrapped.wrapped.map(l => {
-            return { text: l };
-        });
-
-        newLines[newLines.length - 1].eol = true;
-
-        Array.prototype.splice.apply(
-            this.textLines,
-            [index, nextEolIndex - index + 1].concat(newLines)
-        );
-
-        return wrapped.firstWrapRange;
-    }
-
-    removeCharactersFromText(index, col, operation, count) {
-        if ('delete' === operation) {
-            this.textLines[index].text =
-                this.textLines[index].text.slice(0, col) +
-                this.textLines[index].text.slice(col + count);
-
-            this.updateTextWordWrap(index);
-            this.redrawRows(this.cursorPos.row, this.dimens.height);
-            this.moveClientCursorToCursorPos();
-        } else if ('backspace' === operation) {
-            //  :TODO: method for splicing text
-            this.textLines[index].text =
-                this.textLines[index].text.slice(0, col - (count - 1)) +
-                this.textLines[index].text.slice(col + 1);
-
-            this.cursorPos.col -= count - 1;
-
-            this.updateTextWordWrap(index);
-            this.redrawRows(this.cursorPos.row, this.dimens.height);
-
-            this.moveClientCursorToCursorPos();
-        } else if ('delete line' === operation) {
-            //
-            //  Delete a visible line. Note that this is *not* the "physical" line, or
-            //  1:n entries up to eol! This is to keep consistency with home/end, and
-            //  some other text editors such as nano. Sublime for example want to
-            //  treat all of these things using the physical approach, but this seems
-            //  a bit odd in this context.
-            //
-            const isLastLine = index === this.textLines.length - 1;
-            const hadEol = this.textLines[index].eol;
-
-            this.textLines.splice(index, 1);
-            if (
-                hadEol &&
-                this.textLines.length > index &&
-                !this.textLines[index].eol
-            ) {
-                this.textLines[index].eol = true;
-            }
-
-            //
-            //  Create a empty edit buffer if necessary
-            //  :TODO: Make this a method
-            let isLastLineMut = isLastLine;
-            if (this.textLines.length < 1) {
-                this.textLines = [{ text: '', eol: true }];
-                isLastLineMut = false; //  resetting
-            }
-
-            this.cursorPos.col = 0;
-
-            const lastRow = this.redrawRows(this.cursorPos.row, this.dimens.height);
-            this.eraseRows(lastRow, this.dimens.height);
-
-            //
-            //  If we just deleted the last line in the buffer, move up
-            //
-            if (isLastLineMut) {
-                this.cursorEndOfPreviousLine();
-            } else {
-                this.moveClientCursorToCursorPos();
-            }
+    //  Returns the absolute character offset of (lineIndex, col) within its
+    //  paragraph, treating soft-wrapped lines as continuous (space reinserted
+    //  at each soft-wrap join point).
+    _paragraphOffset(lineIndex, col) {
+        const { start } = this.buffer._paragraphRange(lineIndex);
+        let offset = col;
+        for (let i = start; i < lineIndex; i++) {
+            offset += this.buffer.lines[i].chars.length + 1; //  +1 for soft-wrap space
         }
+        return offset;
+    }
+
+    //  Maps an absolute paragraph offset back to { lineIndex, col } after a
+    //  rewrapParagraph call.  paragraphStart is the start index returned by
+    //  rewrapParagraph (same as _paragraphRange.start, which is stable).
+    _offsetToLineCol(paragraphStart, offset) {
+        let i = paragraphStart;
+        while (i < this.buffer.lines.length) {
+            const len = this.buffer.lines[i].chars.length;
+            if (offset <= len || this.buffer.lines[i].eol) {
+                return { lineIndex: i, col: Math.min(offset, len) };
+            }
+            offset -= len + 1; //  +1 for soft-wrap space
+            i++;
+        }
+        const last = Math.max(paragraphStart, i - 1);
+        return { lineIndex: last, col: this.buffer.lines[last]?.chars.length ?? 0 };
     }
 
     insertCharactersInText(c, index, col) {
         const prevTextLength = this.getTextLength(index);
         let editingEol = this.cursorPos.col === prevTextLength;
 
-        this.textLines[index].text = [
-            this.textLines[index].text.slice(0, col),
-            c,
-            this.textLines[index].text.slice(col),
-        ].join('');
-
+        //  Insert each character
+        for (let i = 0; i < c.length; i++) {
+            this.buffer.insertChar(index, col + i, c[i]);
+        }
         this.cursorPos.col += c.length;
 
-        if (this.getTextLength(index) > this.dimens.width) {
-            //
-            //  Update word wrapping and |cursorOffset| if the cursor
-            //  was within the bounds of the wrapped text
-            //
-            let cursorOffset;
-            const lastCol = this.cursorPos.col - c.length;
-            const firstWrapRange = this.updateTextWordWrap(index);
-            if (lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
-                cursorOffset = this.cursorPos.col - firstWrapRange.start;
-                editingEol = true; //override
-            } else {
-                cursorOffset = firstWrapRange.end;
-            }
+        if (this.buffer.lines[index].chars.length > this.buffer.width) {
+            //  Track cursor position in paragraph coordinates before rewrap
+            const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
+            const { start } = this.buffer.rewrapParagraph(index);
 
-            //  redraw from current row to end of visible area
+            //  Map cursor back to new line/col after rewrap
+            const { lineIndex: newLineIndex, col: newCol } =
+                this._offsetToLineCol(start, paragraphOffset);
+
+            //  Redraw from current row to end of visible area
             this.redrawRows(this.cursorPos.row, this.dimens.height);
 
-            //  If we're editing mid, we're done here. Else, we need to
-            //  move the cursor to the new editing position after a wrap
-            if (editingEol) {
+            if (newLineIndex !== index) {
+                //  Cursor moved to the next visual line after wrap
                 this.cursorBeginOfNextLine();
-                this.cursorPos.col += cursorOffset;
-                this.client.term.rawWrite(ansi.right(cursorOffset));
+                this.cursorPos.col = newCol;
+                if (newCol > 0) {
+                    this.client.term.rawWrite(ansi.right(newCol));
+                }
             } else {
-                //  adjust cursor after drawing new rows
-                const absPos = this.getAbsolutePosition(
-                    this.cursorPos.row,
-                    this.cursorPos.col
-                );
-                this.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
+                this.cursorPos.col = newCol;
+                this.moveClientCursorToCursorPos();
             }
         } else {
             //
-            //  We must only redraw from col -> end of current visible line
+            //  No wrap needed — redraw from col → end of current visible line only
             //
             const absPos = this.getAbsolutePosition(this.cursorPos.row, this.cursorPos.col);
             const renderText = this.getRenderText(index).slice(this.cursorPos.col - c.length);
@@ -510,131 +408,70 @@ class MultiLineEditTextView extends View {
         return new Array(this.getRemainingTabWidth(col)).join(expandChar);
     }
 
-    wordWrapSingleLine(line, tabHandling = 'expand') {
-        return wordWrapText(line, {
-            width: this.dimens.width,
-            tabHandling: tabHandling,
-            tabWidth: this.tabWidth,
-            tabChar: '\t',
-        });
-    }
+    removeCharactersFromText(index, col, operation, count) {
+        if ('delete' === operation) {
+            this.buffer.deleteChar(index, col);
+            this.buffer.rewrapParagraph(index);
+            this.redrawRows(this.cursorPos.row, this.dimens.height);
+            this.moveClientCursorToCursorPos();
+        } else if ('backspace' === operation) {
+            //  Remove `count` chars starting at col - (count - 1).
+            //  cursorPos.col was already decremented by 1 in keyPressBackspace,
+            //  so `col` here is the position of the first char to delete.
+            const startCol = col - (count - 1);
+            for (let i = 0; i < count; i++) {
+                this.buffer.deleteChar(index, startCol);
+            }
+            this.cursorPos.col -= count - 1;
 
-    setTextLines(lines, index, termWithEol) {
-        if (
-            0 === index &&
-            (0 === this.textLines.length ||
-                (this.textLines.length === 1 && '' === this.textLines[0].text))
-        ) {
-            //  quick path: just set the things
-            this.textLines = lines
-                .slice(0, -1)
-                .map(l => {
-                    return { text: l };
-                })
-                .concat({ text: lines[lines.length - 1], eol: termWithEol });
-        } else {
-            //  insert somewhere in textLines...
-            if (index > this.textLines.length) {
-                //  fill with empty
-                this.textLines.splice(
-                    this.textLines.length,
-                    0,
-                    ...Array.from({ length: index - this.textLines.length }).map(() => {
-                        return { text: '' };
-                    })
-                );
+            this.buffer.rewrapParagraph(index);
+            this.redrawRows(this.cursorPos.row, this.dimens.height);
+            this.moveClientCursorToCursorPos();
+        } else if ('delete line' === operation) {
+            //
+            //  Delete a visible line. Note that this is *not* the "physical" line, or
+            //  1:n entries up to eol! This is to keep consistency with home/end, and
+            //  some other text editors such as nano. Sublime for example wants to
+            //  treat all of these things using the physical approach, but this seems
+            //  a bit odd in this context.
+            //
+            const isLastLine = index === this.buffer.lines.length - 1;
+            const hadEol = this.buffer.lines[index].eol;
+
+            this.buffer.lines.splice(index, 1);
+            if (
+                hadEol &&
+                this.buffer.lines.length > index &&
+                !this.buffer.lines[index].eol
+            ) {
+                this.buffer.lines[index].eol = true;
             }
 
-            const newLines = lines
-                .slice(0, -1)
-                .map(l => {
-                    return { text: l };
-                })
-                .concat({ text: lines[lines.length - 1], eol: termWithEol });
+            //
+            //  Ensure a non-empty edit buffer
+            //
+            let isLastLineMut = isLastLine;
+            if (this.buffer.lines.length < 1) {
+                this.buffer.lines = [
+                    { chars: '', attrs: new Uint32Array(0), eol: true, initialAttr: 0 },
+                ];
+                isLastLineMut = false; //  resetting
+            }
 
-            this.textLines.splice(index, 0, ...newLines);
+            this.cursorPos.col = 0;
+
+            const lastRow = this.redrawRows(this.cursorPos.row, this.dimens.height);
+            this.eraseRows(lastRow, this.dimens.height);
+
+            //
+            //  If we just deleted the last line in the buffer, move up
+            //
+            if (isLastLineMut) {
+                this.cursorEndOfPreviousLine();
+            } else {
+                this.moveClientCursorToCursorPos();
+            }
         }
-    }
-
-    setAnsiWithOptions(ansiText, options, cb) {
-        const setLines = text => {
-            text = strUtil.splitTextAtTerms(text);
-
-            let index = 0;
-
-            text.forEach(line => {
-                this.setTextLines([line], index, true); //  true=termWithEol
-                index += 1;
-            });
-
-            this.cursorStartOfDocument();
-
-            if (cb) {
-                return cb(null);
-            }
-        };
-
-        if (options.prepped) {
-            return setLines(ansiText);
-        }
-
-        ansiPrep(
-            ansiText,
-            {
-                termWidth: options.termWidth || this.client.term.termWidth,
-                termHeight: options.termHeight || this.client.term.termHeight,
-                cols: this.dimens.width,
-                rows: 'auto',
-                startCol: this.position.col,
-                forceLineTerm: options.forceLineTerm,
-            },
-            (err, preppedAnsi) => {
-                return setLines(err ? ansiText : preppedAnsi);
-            }
-        );
-    }
-
-    insertRawText(text, index, col) {
-        //
-        //  Perform the following on |text|:
-        //  *   Normalize various line feed formats -> \n
-        //  *   Remove some control characters (e.g. \b)
-        //  *   Word wrap lines such that they fit in the visible workspace.
-        //      Each actual line will then take 1:n elements in textLines[].
-        //  *   Each tab will be appropriately expanded and take 1:n \t
-        //      characters. This allows us to know when we're in tab space
-        //      when doing cursor movement/etc.
-        //
-        //
-        //  Try to handle any possible newline that can be fed to us.
-        //  See http://stackoverflow.com/questions/5034781/js-regex-to-split-by-line
-        //
-        //  :TODO: support index/col insertion point
-
-        if (_.isNumber(index)) {
-            if (_.isNumber(col)) {
-                //
-                //  Modify text to have information from index
-                //  before and and after column
-                //
-                //  :TODO: Need to clean this string (e.g. collapse tabs)
-                text = this.textLines;
-
-                //  :TODO: Remove original line @ index
-            }
-        } else {
-            index = this.textLines.length;
-        }
-
-        text = strUtil.splitTextAtTerms(text);
-
-        let wrapped;
-        text.forEach(line => {
-            wrapped = this.wordWrapSingleLine(line, 'expand').wrapped;
-
-            this.setTextLines(wrapped, index, true); //  true=termWithEol
-            index += wrapped.length;
-        });
     }
 
     getAbsolutePosition(row, col) {
@@ -665,7 +502,7 @@ class MultiLineEditTextView extends View {
         //
 
         if (this.overtypeMode) {
-            //  :TODO: special handing for insert over eol mark?
+            //  :TODO: special handling for insert over eol mark?
             this.replaceCharacterInText(c, index, this.cursorPos.col);
             this.cursorPos.col++;
             this.client.term.write(c);
@@ -694,7 +531,7 @@ class MultiLineEditTextView extends View {
 
     keyPressDown() {
         const lastVisibleRow =
-            Math.min(this.dimens.height, this.textLines.length - this.topVisibleIndex) -
+            Math.min(this.dimens.height, this.buffer.lines.length - this.topVisibleIndex) -
             1;
 
         if (this.cursorPos.row < lastVisibleRow) {
@@ -775,7 +612,7 @@ class MultiLineEditTextView extends View {
             this.adjustCursorIfPastEndOfLine(true);
         } else {
             this.cursorPos.row = 0;
-            this.moveClientCursorToCursorPos(); //  :TODO: ajust if eol, etc.
+            this.moveClientCursorToCursorPos(); //  :TODO: adjust if eol, etc.
         }
 
         this.emitEditPosition();
@@ -794,29 +631,13 @@ class MultiLineEditTextView extends View {
 
     keyPressLineFeed() {
         //
-        //  Break up text from cursor position, redraw, and update cursor
-        //  position to start of next line
+        //  Split at cursor position — LineBuffer creates a hard break here
+        //  and handles the right-hand fragment.  Both resulting lines fit
+        //  within width so no rewrap is needed.
         //
         const index = this.getTextLinesIndex();
-        const nextEolIndex = this.getNextEndOfLineIndex(index);
-        const text = this.getContiguousText(index, nextEolIndex);
-        const newLines = this.wordWrapSingleLine(
-            text.slice(this.cursorPos.col),
-            'tabsIntact'
-        ).wrapped;
+        this.buffer.splitLine(index, this.cursorPos.col);
 
-        newLines.unshift({ text: text.slice(0, this.cursorPos.col), eol: true });
-        for (let i = 1; i < newLines.length; ++i) {
-            newLines[i] = { text: newLines[i] };
-        }
-        newLines[newLines.length - 1].eol = true;
-
-        Array.prototype.splice.apply(
-            this.textLines,
-            [index, nextEolIndex - index + 1].concat(newLines)
-        );
-
-        //  redraw from current row to end of visible area
         this.redrawRows(this.cursorPos.row, this.dimens.height);
         this.cursorBeginOfNextLine();
 
@@ -871,7 +692,6 @@ class MultiLineEditTextView extends View {
             //  * This may be a eol marker
             //  * Word wrapping will need re-applied
             //
-            //  :TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
             this.keyPressLeft(); //  same as hitting left - jump to previous line
         }
 
@@ -883,8 +703,8 @@ class MultiLineEditTextView extends View {
 
         if (
             0 === this.cursorPos.col &&
-            0 === this.textLines[lineIndex].text.length &&
-            this.textLines.length > 0
+            0 === this.buffer.lines[lineIndex].chars.length &&
+            this.buffer.lines.length > 0
         ) {
             //
             //  Start of line and nothing left. Just delete the line
@@ -898,7 +718,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressDeleteLine() {
-        if (this.textLines.length > 0) {
+        if (this.buffer.lines.length > 0) {
             this.removeCharactersFromText(this.getTextLinesIndex(), 0, 'delete line');
         }
 
@@ -980,8 +800,8 @@ class MultiLineEditTextView extends View {
     }
 
     cursorEndOfDocument() {
-        this.topVisibleIndex = Math.max(this.textLines.length - this.dimens.height, 0);
-        this.cursorPos.row = this.textLines.length - this.topVisibleIndex - 1;
+        this.topVisibleIndex = Math.max(this.buffer.lines.length - this.dimens.height, 0);
+        this.cursorPos.row = this.buffer.lines.length - this.topVisibleIndex - 1;
         this.cursorPos.col = this.getTextEndOfLineColumn();
 
         this.redraw();
@@ -994,7 +814,7 @@ class MultiLineEditTextView extends View {
 
         if (linesBelow > 0) {
             const lastVisibleRow =
-                Math.min(this.dimens.height, this.textLines.length) - 1;
+                Math.min(this.dimens.height, this.buffer.lines.length) - 1;
             if (this.cursorPos.row < lastVisibleRow) {
                 this.cursorPos.row++;
             } else {
@@ -1056,6 +876,9 @@ class MultiLineEditTextView extends View {
         super.setWidth(width);
 
         this.calculateTabStops();
+        if (this.buffer) {
+            this.buffer.setWidth(width);
+        }
     }
 
     redraw() {
@@ -1076,41 +899,118 @@ class MultiLineEditTextView extends View {
     }
 
     setText(text, options = { scrollMode: 'default' }) {
-        this.textLines = [];
-        this.addText(text, options);
-    }
+        //  Normalize line endings and load into a fresh buffer
+        this.buffer = new LineBuffer({ width: this.dimens.width });
+        const normalized = (text || '').replace(/\r\n|\r/g, '\n');
+        this.buffer.setText(normalized);
 
-    setAnsi(ansiText, options = { prepped: false }, cb) {
-        this.textLines = [];
-        return this.setAnsiWithOptions(ansiText, options, cb);
-    }
-
-    addText(text, options = { scrollMode: 'default' }) {
-        this.insertRawText(text);
-
-        switch (options.scrollMode) {
-            case 'default':
+        switch (options.scrollMode || 'default') {
+            case 'top':
+            case 'start':
+                this.cursorStartOfDocument();
+                break;
+            case 'end':
+            case 'bottom':
+                this.cursorEndOfDocument();
+                break;
+            default:
                 if (this.isEditMode() || this.autoScroll) {
                     this.cursorEndOfDocument();
                 } else {
                     this.cursorStartOfDocument();
                 }
                 break;
+        }
+    }
 
+    setAnsi(ansiText, options = { prepped: false }, cb) {
+        this.buffer = new LineBuffer({ width: this.dimens.width });
+        return this.setAnsiWithOptions(ansiText, options, cb);
+    }
+
+    addText(text, options = { scrollMode: 'default' }) {
+        const normalized = (text || '').replace(/\r\n|\r/g, '\n');
+
+        const isEmpty =
+            this.buffer.lines.length === 1 && this.buffer.lines[0].chars === '';
+
+        if (isEmpty) {
+            this.buffer.setText(normalized);
+        } else {
+            //  Append as new paragraphs
+            const tmp = new LineBuffer({ width: this.buffer.width });
+            tmp.setText(normalized);
+            this.buffer.lines.push(...tmp.lines);
+        }
+
+        switch (options.scrollMode || 'default') {
             case 'top':
             case 'start':
                 this.cursorStartOfDocument();
                 break;
-
             case 'end':
             case 'bottom':
                 this.cursorEndOfDocument();
                 break;
+            default:
+                if (this.isEditMode() || this.autoScroll) {
+                    this.cursorEndOfDocument();
+                } else {
+                    this.cursorStartOfDocument();
+                }
+                break;
         }
     }
 
+    setAnsiWithOptions(ansiText, options, cb) {
+        const setLines = text => {
+            const splitLines = strUtil.splitTextAtTerms(text);
+            this.buffer.lines = splitLines.map(line => ({
+                chars:       line,
+                attrs:       new Uint32Array(line.length),
+                eol:         true,
+                initialAttr: 0,
+            }));
+            if (this.buffer.lines.length === 0) {
+                this.buffer.lines = [
+                    { chars: '', attrs: new Uint32Array(0), eol: true, initialAttr: 0 },
+                ];
+            }
+
+            this.cursorStartOfDocument();
+
+            if (cb) {
+                return cb(null);
+            }
+        };
+
+        if (options.prepped) {
+            return setLines(ansiText);
+        }
+
+        ansiPrep(
+            ansiText,
+            {
+                termWidth: options.termWidth || this.client.term.termWidth,
+                termHeight: options.termHeight || this.client.term.termHeight,
+                cols: this.dimens.width,
+                rows: 'auto',
+                startCol: this.position.col,
+                forceLineTerm: options.forceLineTerm,
+            },
+            (err, preppedAnsi) => {
+                return setLines(err ? ansiText : preppedAnsi);
+            }
+        );
+    }
+
     getData(options = { forceLineTerms: false }) {
-        return this.getOutputText(0, this.textLines.length, '\r\n', options);
+        if (options.forceLineTerms) {
+            //  Every visual line (including soft-wrapped) gets \r\n
+            return this.buffer.lines.map(l => l.chars + '\r\n').join('');
+        }
+        //  Hard breaks → \r\n; soft-wrapped joins get a space (LineBuffer getText() semantics)
+        return this.buffer.getText().replace(/\n/g, '\r\n');
     }
 
     setPropertyValue(propName, value) {
@@ -1181,11 +1081,11 @@ class MultiLineEditTextView extends View {
     }
 
     deleteLine(line) {
-        this.textLines.splice(line, 1);
+        this.buffer.lines.splice(line, 1);
     }
 
     getLineCount() {
-        return this.textLines.length;
+        return this.buffer.lines.length;
     }
 
     getTextEditMode() {
@@ -1198,7 +1098,7 @@ class MultiLineEditTextView extends View {
         return {
             row: this.getTextLinesIndex(this.cursorPos.row),
             col: this.cursorPos.col,
-            percent: Math.floor((currentIndex / this.textLines.length) * 100),
+            percent: Math.floor((currentIndex / this.buffer.lines.length) * 100),
             below: this.getRemainingLinesBelowRow(),
         };
     }
