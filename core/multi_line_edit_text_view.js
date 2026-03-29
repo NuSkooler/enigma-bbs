@@ -67,14 +67,34 @@ const SPECIAL_KEY_MAP_DEFAULT = {
     tab: ['tab'],
     up: ['up arrow'],
     down: ['down arrow'],
-    end: ['end'],
-    home: ['home'],
+    end: ['end', 'ctrl + e'],
+    home: ['home', 'ctrl + a'], //  Ctrl-A = Emacs/Nano home; Ctrl-E = Emacs/Nano end
     left: ['left arrow'],
     right: ['right arrow'],
     'delete line': ['ctrl + y'],
     'page up': ['page up'],
     'page down': ['page down'],
     insert: ['insert', 'ctrl + v'],
+    //
+    //  Ctrl-Home/End are intentionally NOT the default bindings for start/end-of-doc
+    //  because many BBS terminals (iCY Term, SyncTERM, etc.) re-map those combos to
+    //  raw control bytes (e.g. Ctrl-End → \x19 = Ctrl-Y = 'delete line').
+    //  Sysops may override via specialKeyMap in menu.hjson if their setup supports them.
+    //
+    'start of document': [],
+    'end of document': [],
+    //
+    //  Ctrl+Arrow is xterm-specific and unreliable on BBS terminals.
+    //  Ctrl-B (Emacs/Nano word-left) is universally supported.
+    //  Ctrl-W is OS-level on GUI terminal emulators (closes the window).
+    //  Sysops may override via specialKeyMap if their clients support these sequences.
+    //
+    'word left': ['ctrl + b'],
+    'word right': [],
+    'delete word left': [],
+    'delete word right': ['ctrl + t'],
+    'cut line': ['ctrl + k'],
+    paste: ['ctrl + u'],
 };
 
 const HANDLED_SPECIAL_KEYS = [
@@ -92,6 +112,14 @@ const HANDLED_SPECIAL_KEYS = [
     'backspace',
     'delete',
     'delete line',
+    'start of document',
+    'end of document',
+    'word left',
+    'word right',
+    'delete word left',
+    'delete word right',
+    'cut line',
+    'paste',
 ];
 
 const PREVIEW_MODE_KEYS = ['up', 'down', 'page up', 'page down'];
@@ -126,6 +154,7 @@ class MultiLineEditTextView extends View {
         this.topVisibleIndex = 0;
         this.mode = options.mode || 'edit'; //  edit | preview | read-only
         this.maxLength = 0; // no max by default
+        this.cutBuffer = ''; //  Ctrl-K accumulation buffer
 
         if ('preview' === this.mode) {
             this.autoScroll = options.autoScroll || true;
@@ -516,7 +545,10 @@ class MultiLineEditTextView extends View {
             //  :TODO: special handling for insert over eol mark?
             this.replaceCharacterInText(c, index, this.cursorPos.col);
             this.cursorPos.col++;
-            this.client.term.write(c);
+            //  Explicitly reset SGR before writing so the character inherits the
+            //  view's text color rather than whatever the terminal's current state is
+            //  (e.g., a highlighted quote line color).
+            this.client.term.rawWrite(this.getTextSgrPrefix() + c);
         } else {
             this.insertCharactersInText(c, index, this.cursorPos.col);
         }
@@ -921,6 +953,163 @@ class MultiLineEditTextView extends View {
         }
     }
 
+    keyPressStartOfDocument() {
+        this.cursorStartOfDocument();
+        this.emitEditPosition();
+    }
+
+    keyPressEndOfDocument() {
+        this.cursorEndOfDocument();
+        this.emitEditPosition();
+    }
+
+    keyPressWordLeft() {
+        let lineIndex = this.getTextLinesIndex();
+        let col = this.cursorPos.col;
+
+        if (col === 0) {
+            if (lineIndex === 0) {
+                return; //  already at document start
+            }
+            //  Step to end of previous line
+            if (this.cursorPos.row > 0) {
+                this.cursorPos.row--;
+            } else {
+                this.scrollDocumentDown();
+            }
+            lineIndex--;
+            col = this.buffer.lines[lineIndex].chars.length;
+        }
+
+        const chars = this.buffer.lines[lineIndex].chars;
+        //  Skip spaces going left
+        while (col > 0 && chars[col - 1] === ' ') col--;
+        //  Skip non-spaces going left (find word start)
+        while (col > 0 && chars[col - 1] !== ' ') col--;
+
+        this.cursorPos.col = col;
+        this.moveClientCursorToCursorPos();
+        this.emitEditPosition();
+    }
+
+    keyPressWordRight() {
+        const lineIndex = this.getTextLinesIndex();
+        const chars = this.buffer.lines[lineIndex].chars;
+        let col = this.cursorPos.col;
+
+        //  Skip non-spaces (end of current word)
+        while (col < chars.length && chars[col] !== ' ') col++;
+        //  Skip spaces (start of next word)
+        while (col < chars.length && chars[col] === ' ') col++;
+
+        if (col >= chars.length) {
+            this.cursorBeginOfNextLine();
+            return;
+        }
+
+        this.cursorPos.col = col;
+        this.moveClientCursorToCursorPos();
+        this.emitEditPosition();
+    }
+
+    keyPressDeleteWordLeft() {
+        if (!this.isEditMode()) return;
+
+        const lineIndex = this.getTextLinesIndex();
+        const col = this.cursorPos.col;
+
+        if (col === 0) return;
+
+        const chars = this.buffer.lines[lineIndex].chars;
+        let newCol = col;
+        //  Skip spaces going left
+        while (newCol > 0 && chars[newCol - 1] === ' ') newCol--;
+        //  Skip non-spaces going left
+        while (newCol > 0 && chars[newCol - 1] !== ' ') newCol--;
+
+        const count = col - newCol;
+        if (count === 0) return;
+
+        for (let i = 0; i < count; i++) {
+            this.buffer.deleteChar(lineIndex, newCol);
+        }
+        this.cursorPos.col = newCol;
+        this.buffer.rewrapParagraph(lineIndex);
+        this.redrawRows(this.cursorPos.row, this.dimens.height);
+        this.moveClientCursorToCursorPos();
+        this.emitEditPosition();
+    }
+
+    keyPressDeleteWordRight() {
+        if (!this.isEditMode()) return;
+
+        const lineIndex = this.getTextLinesIndex();
+        const chars = this.buffer.lines[lineIndex].chars;
+        const col = this.cursorPos.col;
+
+        if (col >= chars.length) return;
+
+        let endCol = col;
+        //  Skip non-spaces (end of current word)
+        while (endCol < chars.length && chars[endCol] !== ' ') endCol++;
+        //  Skip spaces (start of next word)
+        while (endCol < chars.length && chars[endCol] === ' ') endCol++;
+
+        const count = endCol - col;
+        if (count === 0) return;
+
+        for (let i = 0; i < count; i++) {
+            this.buffer.deleteChar(lineIndex, col);
+        }
+        this.buffer.rewrapParagraph(lineIndex);
+        this.redrawRows(this.cursorPos.row, this.dimens.height);
+        this.moveClientCursorToCursorPos();
+        this.emitEditPosition();
+    }
+
+    keyPressCutLine() {
+        if (!this.isEditMode()) return;
+
+        const lineIndex = this.getTextLinesIndex();
+        const lineText = this.buffer.lines[lineIndex].chars;
+
+        //  Sequential Ctrl-K presses accumulate lines into the cut buffer.
+        if (this._lastWasCut) {
+            this.cutBuffer += '\n' + lineText;
+        } else {
+            this.cutBuffer = lineText;
+            this._lastWasCut = true;
+        }
+
+        this.removeCharactersFromText(lineIndex, 0, 'delete line');
+        this.emitEditPosition();
+    }
+
+    keyPressPaste() {
+        if (!this.isEditMode() || !this.cutBuffer) return;
+
+        const lines = this.cutBuffer.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            if (i > 0) {
+                //  Insert a hard line break between pasted lines
+                const idx = this.getTextLinesIndex();
+                this.buffer.splitLine(idx, this.cursorPos.col);
+                this.cursorPos.col = 0;
+                if (this.cursorPos.row < this.dimens.height - 1) {
+                    this.cursorPos.row++;
+                } else {
+                    this.topVisibleIndex++;
+                }
+            }
+            if (lines[i].length > 0) {
+                const idx = this.getTextLinesIndex();
+                this.insertCharactersInText(lines[i], idx, this.cursorPos.col);
+            }
+        }
+
+        this.emitEditPosition();
+    }
+
     emitEditPosition() {
         this.emit('edit position', this.getEditPosition());
     }
@@ -1102,6 +1291,7 @@ class MultiLineEditTextView extends View {
 
     onKeyPress(ch, key) {
         let handled;
+        let isCutLine = false;
 
         if (key) {
             HANDLED_SPECIAL_KEYS.forEach(specialKey => {
@@ -1114,11 +1304,18 @@ class MultiLineEditTextView extends View {
                     }
 
                     if ('tab' !== key.name || !this.tabSwitchesView) {
+                        if ('cut line' === specialKey) {
+                            isCutLine = true;
+                        }
                         this[_.camelCase('keyPress ' + specialKey)]();
                         handled = true;
                     }
                 }
             });
+        }
+
+        if (!isCutLine) {
+            this._lastWasCut = false; //  reset Ctrl-K accumulation on any other key
         }
 
         if (this.isEditMode() && ch && strUtil.isPrintable(ch)) {
