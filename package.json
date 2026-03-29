@@ -13,7 +13,7 @@
         "oputil": "node ./oputil.js",
         "pretty": "npx prettier --write .",
         "prepare": "husky",
-        "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000"
+        "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000 --require test/setup.js"
     },
     "repository": {
         "type": "git",
