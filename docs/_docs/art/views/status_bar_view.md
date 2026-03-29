@@ -44,7 +44,8 @@ See [MCI Codes](../mci.md#predefined-codes) for the full list of available prede
 <details>
 <summary>Configuration fragment (expand to view)</summary>
 <div markdown="1">
-```hjson
+
+```
 SB1: {
   text: "|07{DT} {CT}  [{AN} active]"
   width: 40

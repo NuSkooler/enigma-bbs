@@ -81,6 +81,7 @@ These are applied per-tick to the visible window, producing animated color or no
 <details>
 <summary>Scrolling board name with rainbow effect (expand)</summary>
 <div markdown="1">
+
 ```hjson
 TK1: {
   text: "Welcome to {BN} -- {VN}   "
@@ -96,6 +97,7 @@ TK1: {
 <details>
 <summary>Bouncing l33t ticker (expand)</summary>
 <div markdown="1">
+
 ```hjson
 TK1: {
   text: "ENiGMA BBS - the future is now"
@@ -111,6 +113,7 @@ TK1: {
 <details>
 <summary>Typewriter reveal with glitch effect (expand)</summary>
 <div markdown="1">
+
 ```hjson
 TK1: {
   text: "SYSTEM ONLINE"
@@ -127,6 +130,7 @@ TK1: {
 <details>
 <summary>Slide-in reveal (expand)</summary>
 <div markdown="1">
+
 ```hjson
 TK1: {
   text: "Welcome back, {UN}"

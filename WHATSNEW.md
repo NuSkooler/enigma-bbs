@@ -1,6 +1,32 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.1.0-beta
+
+* **New MCI View Types**
+
+  * **[TickerView](./docs/_docs/art/views/ticker_view.md) (`%TK`)** — animated single-line marquee with a two-axis model:
+    * **Motion styles**: `left`, `right`, `bounce`, `reveal`, `typewriter`, `fallLeft`, `fallRight`
+      * `fallLeft`/`fallRight`: characters spread across the window with increasing inter-char gaps toward the source edge, then all slide at 1 col/tick and stack against the target edge — a "stack of bricks" effect
+    * **Effects**: text-style effects (`upper`, `lower`, `title`, `l33t`, `mixed`, and more) baked at set-time; dynamic per-tick effects (`rainbow`, `scramble`, `glitch`)
+    * Text-style and dynamic effects are independent axes and can be freely combined (e.g. `l33t` + `rainbow`)
+    * All configuration via `mci` block in `menu.hjson` / `theme.hjson` — no inline MCI args needed
+    * `destroy()` clears timers; view teardown in `ViewController` now calls `destroy()` on all views, fixing timers surviving menu transitions
+  * **[StatusBarView](./docs/_docs/art/views/status_bar_view.md) (`%SB`)** — auto-refreshing text label that re-renders a format template on a configurable `refreshInterval`; skips redraws when text hasn't changed
+
+* **View System Modernization**
+
+  * Converted the entire view system from `util.inherits`/prototype patterns to **ES6 classes**: `View`, `TextView`, `EditTextView`, `MaskEditTextView`, `ButtonView`, `MenuView`, `HorizontalMenuView`, `VerticalMenuView`, `FullMenuView`, `ToggleMenuView`, `SpinnerMenuView`, `MultiLineEditTextView`, `ViewController`
+  * Numerous bug fixes applied during conversion (position defaults, SGR field aliasing, `key_entry_view.js` boolean logic, `color_codes.js` WWIV/CNET capture groups, `horizontal_menu_view.js` height, `multi_line_edit_text_view.js` `tabStops` binding)
+  * New **[LineBuffer](./core/line_buffer.js)** — isolated, view-dependency-free line storage using `Uint32` per-character attribute words (fg, bg, bold, blink, underline, italic, strikethrough, color source, true-color flags); soft/hard EOL tracking; word-boundary wrap with character-break fallback
+  * **EditTextView** and **MaskEditTextView** are now backed by `LineBuffer`: cursor-aware insert/delete at any position, left/right/home/end movement with scroll-window tracking, forward-delete, fixed partial-fill `getData()` bug in `MaskEditTextView`
+  * **`client_term.js`**: `beginWrite()` / `commitWrite()` with nesting support — all writes within a keypress or focus switch are buffered and flushed as a single socket write, eliminating intermediate cursor flicker in terminals
+
+* **Bug Fixes & Stability**
+
+  * Fixed ENiGMA segfault on ARM64 Linux (Raspberry Pi) — see [#620](https://github.com/NuSkooler/enigma-bbs/issues/620)
+  * Improved `install.sh`: better distutils availability check ([#631](https://github.com/NuSkooler/enigma-bbs/issues/631)), additional script improvements
+
 ## 0.0.14-beta
 
 * **ActivityPub & Mastodon Support (Experimental)**
