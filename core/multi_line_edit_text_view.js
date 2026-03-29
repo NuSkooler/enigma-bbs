@@ -410,6 +410,9 @@ class MultiLineEditTextView extends View {
 
     removeCharactersFromText(index, col, operation, count) {
         if ('delete' === operation) {
+            if (col >= this.buffer.lines[index].chars.length) {
+                return; //  nothing to delete at or past end of line
+            }
             this.buffer.deleteChar(index, col);
             this.buffer.rewrapParagraph(index);
             this.redrawRows(this.cursorPos.row, this.dimens.height);
@@ -700,16 +703,30 @@ class MultiLineEditTextView extends View {
 
     keyPressDelete() {
         const lineIndex = this.getTextLinesIndex();
+        const lineLen   = this.buffer.lines[lineIndex].chars.length;
 
-        if (
-            0 === this.cursorPos.col &&
-            0 === this.buffer.lines[lineIndex].chars.length &&
-            this.buffer.lines.length > 0
-        ) {
+        if (0 === this.cursorPos.col && lineLen === 0 && this.buffer.lines.length > 0) {
             //
-            //  Start of line and nothing left. Just delete the line
+            //  Empty line — delete it
             //
             this.removeCharactersFromText(lineIndex, 0, 'delete line');
+        } else if (this.cursorPos.col >= lineLen) {
+            //
+            //  Cursor is at end of line — forward-delete the line break by joining
+            //  with the next line (standard editor behaviour for Delete at EOL).
+            //  Only join across a hard break; soft-wrap boundaries are transparent.
+            //
+            if (
+                lineIndex < this.buffer.lines.length - 1 &&
+                this.buffer.lines[lineIndex].eol
+            ) {
+                this.buffer.joinLines(lineIndex);
+                this.buffer.rewrapParagraph(lineIndex);
+                const lastRow = this.redrawRows(this.cursorPos.row, this.dimens.height);
+                this.eraseRows(lastRow, this.dimens.height);
+                this.moveClientCursorToCursorPos();
+            }
+            //  else: at end of last line — nothing to delete
         } else {
             this.removeCharactersFromText(lineIndex, this.cursorPos.col, 'delete', 1);
         }
