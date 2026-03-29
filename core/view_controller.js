@@ -437,7 +437,11 @@ class ViewController extends events.EventEmitter {
         this.client.removeListener('key press', this.clientKeyPressHandler);
 
         for (const id in this.views) {
-            this.views[id].removeAllListeners();
+            const view = this.views[id];
+            view.removeAllListeners();
+            if (typeof view.destroy === 'function') {
+                view.destroy();
+            }
         }
 
         this.attached = false;

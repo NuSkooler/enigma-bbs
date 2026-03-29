@@ -15,6 +15,8 @@ const MaskEditTextView = require('./mask_edit_text_view.js').MaskEditTextView;
 const KeyEntryView = require('./key_entry_view.js');
 const MultiLineEditTextView =
     require('./multi_line_edit_text_view.js').MultiLineEditTextView;
+const TickerView = require('./ticker_view.js').TickerView;
+const StatusBarView = require('./status_bar_view.js').StatusBarView;
 const getPredefinedMCIValue = require('./predefined_mci.js').getPredefinedMCIValue;
 const ansi = require('./ansi_term.js');
 
@@ -47,6 +49,9 @@ MCIViewFactory.UserViewCodes = [
     //  represent a visible View on it's own
     //
     'XY',
+
+    'TK',   //  Ticker (scrolling marquee)
+    'SB',   //  Status Bar (auto-refreshing text label)
 ];
 
 MCIViewFactory.MovementCodes = ['CF', 'CB', 'CU', 'CD'];
@@ -204,6 +209,16 @@ MCIViewFactory.prototype.createFromMCI = function (mci) {
 
         case 'XY':
             view = new View(options);
+            break;
+
+        //  Ticker — configure via mci properties in menu/theme hjson
+        case 'TK':
+            view = new TickerView(options);
+            break;
+
+        //  Status Bar — configure via mci properties in menu/theme hjson
+        case 'SB':
+            view = new StatusBarView(options);
             break;
 
         default:
