@@ -363,16 +363,21 @@ class MultiLineEditTextView extends View {
             }
         } else {
             //
-            //  No wrap needed — redraw from col → end of current visible line only
+            //  No wrap needed — redraw from col → end of current visible line only.
+            //  Use an explicit goto to the write start position so that any cursor
+            //  drift (e.g. from a terminal that ignores ANSI save/restore pos) does
+            //  not corrupt the footer or other areas outside the view.
             //
+            const writeCol = this.cursorPos.col - c.length;
+            const startPos = this.getAbsolutePosition(this.cursorPos.row, writeCol);
             const absPos = this.getAbsolutePosition(this.cursorPos.row, this.cursorPos.col);
-            const renderText = this.getRenderText(index).slice(this.cursorPos.col - c.length);
+            const renderText = this.getRenderText(index).slice(writeCol);
 
             this.client.term.write(
-                `${ansi.hideCursor()}${this.getTextSgrPrefix()}${renderText}${ansi.goto(
-                    absPos.row,
-                    absPos.col
-                )}${ansi.showCursor()}`,
+                `${ansi.hideCursor()}${this.getTextSgrPrefix()}${ansi.goto(
+                    startPos.row,
+                    startPos.col
+                )}${renderText}${ansi.goto(absPos.row, absPos.col)}${ansi.showCursor()}`,
                 false //  convertLineFeeds
             );
         }
