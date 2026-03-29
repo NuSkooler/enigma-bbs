@@ -6,31 +6,28 @@ const ANSIEscapeParser = require('./ansi_escape_parser.js').ANSIEscapeParser;
 const ANSI = require('./ansi_term.js');
 const { splitTextAtTerms, renderStringLength } = require('./string_util.js');
 
-//  deps
-const _ = require('lodash');
-
 module.exports = function ansiPrep(input, options, cb) {
     if (!input) {
         return cb(null, '');
     }
 
-    options.termWidth = options.termWidth || 80;
+    options.termWidth  = options.termWidth  || 80;
     options.termHeight = options.termHeight || 25;
-    options.cols = options.cols || options.termWidth || 80;
-    options.rows = options.rows || options.termHeight || 'auto';
-    options.startCol = options.startCol || 1;
+    options.cols       = options.cols || options.termWidth || 80;
+    options.rows       = options.rows || options.termHeight || 'auto';
+    options.startCol   = options.startCol || 1;
     options.exportMode = options.exportMode || false;
-    options.fillLines = _.get(options, 'fillLines', true);
-    options.indent = options.indent || 0;
+    options.fillLines  = options.fillLines ?? true;
+    options.indent     = options.indent || 0;
 
     //  in auto we start out at 25 rows, but can always expand for more
     const canvas = Array.from(
         { length: 'auto' === options.rows ? 25 : options.rows },
-        () => Array.from({ length: options.cols }, () => new Object())
+        () => Array.from({ length: options.cols }, () => ({}))
     );
     const parser = new ANSIEscapeParser({
         termHeight: options.termHeight,
-        termWidth: options.termWidth,
+        termWidth:  options.termWidth,
     });
 
     const state = {
@@ -45,7 +42,7 @@ module.exports = function ansiPrep(input, options, cb) {
             return;
         }
 
-        canvas[row] = Array.from({ length: options.cols }, () => new Object());
+        canvas[row] = Array.from({ length: options.cols }, () => ({}));
     }
 
     parser.on('position update', (row, col) => {
@@ -79,7 +76,7 @@ module.exports = function ansiPrep(input, options, cb) {
                 canvas[state.row][state.col].char = c;
 
                 if (state.sgr) {
-                    canvas[state.row][state.col].sgr = _.clone(state.sgr);
+                    canvas[state.row][state.col].sgr = { ...state.sgr };
                     state.lastSgr = canvas[state.row][state.col].sgr;
                     state.sgr = null;
                 }
@@ -93,7 +90,7 @@ module.exports = function ansiPrep(input, options, cb) {
         ensureRow(state.row);
 
         if (state.col < options.cols) {
-            canvas[state.row][state.col].sgr = _.clone(sgr);
+            canvas[state.row][state.col].sgr = { ...sgr };
             state.lastSgr = canvas[state.row][state.col].sgr;
         } else {
             state.sgr = sgr;
@@ -112,16 +109,15 @@ module.exports = function ansiPrep(input, options, cb) {
     }
 
     parser.on('complete', () => {
-        let output = '';
-        let line;
+        const lines = [];
         let sgr;
 
         canvas.slice(0, lastRow + 1).forEach(row => {
             const lastCol = getLastPopulatedColumn(row) + 1;
 
             let i;
-            line = options.indent
-                ? output.length > 0
+            let line = options.indent
+                ? lines.length > 0
                     ? ' '.repeat(options.indent)
                     : ''
                 : '';
@@ -143,35 +139,36 @@ module.exports = function ansiPrep(input, options, cb) {
                 line += `${sgr}${col.char || ' '}`;
             }
 
-            output += line;
-
             if (i < row.length) {
-                output += `${options.asciiMode ? '' : ANSI.blackBG()}`;
+                line += options.asciiMode ? '' : ANSI.blackBG();
                 if (options.fillLines) {
-                    output += `${row
-                        .slice(i)
-                        .map(() => ' ')
-                        .join('')}`; //${lastSgr}`;
+                    line += ' '.repeat(row.length - i);
                 }
             }
 
             if (options.startCol + i < options.termWidth || options.forceLineTerm) {
-                output += '\r\n';
+                line += '\r\n';
             }
+
+            lines.push(line);
         });
+
+        const output = lines.join('');
 
         if (options.exportMode) {
             //
-            //  If we're in export mode, we do some additional hackery:
+            //  Export mode post-processing:
             //
-            //  * Hard wrap ALL lines at <= 79 *characters* (not visible columns)
-            //    if a line must wrap early, we'll place a ESC[A ESC[<N>C where <N>
-            //    represents chars to get back to the position we were previously at
+            //  * Hard-wrap ALL lines at <= 79 *characters* (not visible columns).
+            //    When a line must wrap early, prefix the continuation with
+            //    ESC[A ESC[<N>C to return to the correct render column.
             //
-            //  * Replace contig spaces with ESC[<N>C as well to save... space.
+            //  * :TODO: Replace runs of spaces with ESC[<N>C to compress the output.
             //
-            //  :TODO: this would be better to do as part of the processing above, but this will do for now
-            const MAX_CHARS = 79 - 8; //  79 max, - 8 for max ESC seq's we may prefix a line with
+            //  :TODO: Ideally this would be integrated into the canvas render loop
+            //         above, but the current approach is correct and good enough.
+            //
+            const MAX_CHARS = 79 - 8; //  79 max, − 8 for the ESC sequences we may prefix
             let exportOutput = '';
 
             let m;
@@ -179,12 +176,15 @@ module.exports = function ansiPrep(input, options, cb) {
             let wantMore;
             let renderStart;
 
+            //  Compile the regexp once for the entire export pass.
+            const ANSI_REGEXP = ANSI.getFullMatchRegExp();
+
             splitTextAtTerms(output).forEach(fullLine => {
                 renderStart = 0;
 
                 while (fullLine.length > 0) {
                     let splitAt;
-                    const ANSI_REGEXP = ANSI.getFullMatchRegExp();
+                    ANSI_REGEXP.lastIndex = 0; //  reset for each slice of fullLine
                     wantMore = true;
 
                     while ((m = ANSI_REGEXP.exec(fullLine))) {
