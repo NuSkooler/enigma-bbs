@@ -292,7 +292,10 @@ class MultiLineEditTextView extends View {
     }
 
     replaceCharacterInText(c, index, col) {
-        this.buffer.deleteChar(index, col);
+        //  At end of line there is no character to overwrite — just append
+        if (col < this.buffer.lines[index].chars.length) {
+            this.buffer.deleteChar(index, col);
+        }
         this.buffer.insertChar(index, col, c);
     }
 
