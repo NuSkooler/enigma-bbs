@@ -381,20 +381,20 @@ exports.FullScreenEditorModule =
             this._pendingSavedState = savedState;
         }
 
-        //  Add or remove the ' [ANSI]' suffix on the subject field to reflect
+        //  Add or remove the '[ANSI] ' prefix on the subject field to reflect
         //  whether the message body is (or will be) rendered as ANSI art.
         _syncAnsiSubjectTag(isAnsi) {
             const subjView = this.viewControllers.header?.getView(
                 MciViewIds.header.subject
             );
             if (!subjView) return;
-            const ANSI_TAG = ' [ANSI]';
+            const ANSI_TAG = '[ANSI] ';
             const current = subjView.getData() || '';
-            const hasTag = current.endsWith(ANSI_TAG);
+            const hasTag = current.startsWith(ANSI_TAG);
             if (isAnsi && !hasTag) {
-                subjView.setText(current + ANSI_TAG);
+                subjView.setText(ANSI_TAG + current);
             } else if (!isAnsi && hasTag) {
-                subjView.setText(current.slice(0, -ANSI_TAG.length));
+                subjView.setText(current.slice(ANSI_TAG.length));
             }
         }
 

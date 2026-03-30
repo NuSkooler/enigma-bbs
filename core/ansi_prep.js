@@ -45,20 +45,33 @@ module.exports = function ansiPrep(input, options, cb) {
 
     let lastRow = 0;
 
+    //  Ensure canvas[row] exists and that the canvas remains dense (no holes).
+    //  Holes would turn into undefined entries after slice() and crash the render
+    //  loop.  Because we always fill contiguously from canvas.length upward,
+    //  canvas.length always points at the first potential hole.
     function ensureRow(row) {
         if (canvas[row]) {
             return;
         }
-
-        canvas[row] = Array.from({ length: options.cols }, () => ({}));
+        for (let r = canvas.length; r <= row; r++) {
+            canvas[r] = Array.from({ length: options.cols }, () => ({}));
+        }
     }
 
     parser.on('position update', (row, col) => {
         state.row = row - 1;
         state.col = col - 1;
 
+        //  Ensure the row exists even when only visited by a cursor movement
+        //  (no literal or SGR may ever land here).  This prevents sparse-array
+        //  holes from crashing the render loop.
+        ensureRow(state.row);
+
         if (0 === state.col) {
             state.initialSgr = state.lastSgr;
+            //  Write initialSgr directly onto the canvas cell so it is captured
+            //  even when no character is written at col 0 (B2: color bleed fix).
+            canvas[state.row][0].initialSgr = state.initialSgr;
         }
 
         lastRow = Math.max(state.row, lastRow);
@@ -77,10 +90,6 @@ module.exports = function ansiPrep(input, options, cb) {
             ) {
                 ensureRow(state.row);
 
-                if (0 === state.col) {
-                    canvas[state.row][state.col].initialSgr = state.initialSgr;
-                }
-
                 canvas[state.row][state.col].char = c;
 
                 if (state.sgr) {
@@ -95,6 +104,14 @@ module.exports = function ansiPrep(input, options, cb) {
     });
 
     parser.on('sgr update', sgr => {
+        //  When rows is fixed, ignore SGRs that land past the canvas boundary —
+        //  do not create overflow rows that would bleed into the output slice.
+        if ('auto' !== options.rows && state.row >= options.rows) {
+            state.sgr = sgr;
+            state.lastSgr = sgr; //  keep lastSgr current for next row's initialSgr
+            return;
+        }
+
         ensureRow(state.row);
 
         if (state.col < options.cols) {
@@ -147,11 +164,12 @@ module.exports = function ansiPrep(input, options, cb) {
                 line += `${sgr}${col.char || ' '}`;
             }
 
-            if (i < row.length) {
+            //  Only emit blackBG + fill when fillLines is active.  Emitting
+            //  blackBG unconditionally (even with fillLines=false) would change
+            //  terminal state after every row and bleed into the next row's SGR.
+            if (i < row.length && options.fillLines) {
                 line += options.asciiMode ? '' : ANSI.blackBG();
-                if (options.fillLines) {
-                    line += ' '.repeat(row.length - i);
-                }
+                line += ' '.repeat(row.length - i);
             }
 
             if (options.startCol + i < options.termWidth || options.forceLineTerm) {
@@ -226,11 +244,12 @@ module.exports = function ansiPrep(input, options, cb) {
                     exportOutput += `${part}\r\n`;
 
                     if (fullLine.length > 0) {
-                        //  more to go for this line?
+                        //  more to go for this visual line: go up and reposition
+                        //  at the correct render column to continue drawing
                         exportOutput += `${ANSI.up()}${ANSI.right(renderStart)}`;
-                    } else {
-                        exportOutput += ANSI.up();
                     }
+                    //  last chunk: \r\n already advanced past the visual line,
+                    //  no up() — that would mis-position the start of the next line
                 }
             });
 
