@@ -38,6 +38,9 @@ const fs = require('graceful-fs');
 const paths = require('path');
 const sanitizeFilename = require('sanitize-filename');
 const { ErrorReasons } = require('./enig_error.js');
+const { pathWithTerminatingSeparator } = require('./file_util.js');
+const temptmp = require('temptmp').createTrackedSession('fse');
+const iconv = require('iconv-lite');
 
 exports.moduleInfo = {
     name: 'Full Screen Editor (FSE)',
@@ -155,6 +158,13 @@ exports.FullScreenEditorModule =
                 this.setMessage(options.extraArgs.message);
             } else if (options?.extraArgs?.replyToMessage !== undefined) {
                 this.replyToMessage = options.extraArgs.replyToMessage;
+            }
+
+            //  When returning from a file-transfer sub-menu, the transfer module's
+            //  getMenuResult() lands here.  Store the paths so createInitialViews()
+            //  can load them into the body after state is restored.
+            if (options?.lastMenuResult?.recvFilePaths?.length > 0) {
+                this._pendingUploadFiles = options.lastMenuResult.recvFilePaths;
             }
 
             this.menuMethods = {
@@ -296,6 +306,35 @@ exports.FullScreenEditorModule =
                     self.viewControllers.footerEditorMenu.setFocus(false);
                     return self.displayHelp(cb);
                 },
+                editModeMenuUpload: function (formData, extraArgs, cb) {
+                    //
+                    //  Receive a file via the configured transfer protocol and load
+                    //  it into the message body.  ANSI art is detected automatically;
+                    //  plain text falls through to setText().
+                    //
+                    self.viewControllers.footerEditorMenu.setFocus(false);
+                    temptmp.mkdir({ prefix: 'enigfseul-' }, (err, tempDir) => {
+                        if (err) {
+                            self.client.log.warn({ err }, 'FSE: failed to create upload temp dir');
+                            return cb(err);
+                        }
+                        //  Store dir so getSaveState() can include it for cleanup on re-entry.
+                        self._pendingTempUploadDir = pathWithTerminatingSeparator(tempDir);
+                        const modOpts = {
+                            extraArgs: {
+                                recvDirectory:  self._pendingTempUploadDir,
+                                direction:      'recv',
+                                returnToCaller: true,   //  skip fileBaseUploadFiles; return to FSE
+                            },
+                        };
+                        return self.gotoMenu(
+                            self.menuConfig.config.fileTransferProtocolSelection ||
+                                'fileTransferProtocolSelection',
+                            modOpts,
+                            cb
+                        );
+                    });
+                },
                 ///////////////////////////////////////////////////////////////////////
                 //  View Mode
                 ///////////////////////////////////////////////////////////////////////
@@ -309,6 +348,26 @@ exports.FullScreenEditorModule =
                     return this.addToDownloadQueue(cb);
                 },
             };
+        }
+
+        //  Preserve enough state to survive a gotoMenu round-trip (e.g. file upload).
+        getSaveState() {
+            if (!this.isReady) return null;
+            const bodyView = this.viewControllers.body?.getView(MciViewIds.body.message);
+            const hdr = this.viewControllers.header?.getFormData()?.value ?? {};
+            return {
+                bodyText:      bodyView ? bodyView.getData() : '',
+                replyIsAnsi:   !!this.replyIsAnsi,
+                headerFrom:    hdr.from    ?? '',
+                headerTo:      hdr.to      ?? '',
+                headerSubject: hdr.subject ?? '',
+                tempUploadDir: this._pendingTempUploadDir || null,
+            };
+        }
+
+        restoreSavedState(savedState) {
+            //  Stash for use once views are (re-)created in createInitialViews().
+            this._pendingSavedState = savedState;
         }
 
         isEditMode() {
@@ -507,7 +566,10 @@ exports.FullScreenEditorModule =
                         }
 
                         bodyMessageView.setAnsi(
-                            msg.replace(/\r?\n/g, '\r\n'), //  messages are stored with CRLF -> LF
+                            //  Convert any pipe codes (|##) in the body to ANSI SGR before
+                            //  setAnsi processes the string; setAnsi only handles \x1b sequences
+                            //  so plain pipe codes would otherwise render as literal text.
+                            controlCodesToAnsi(msg.replace(/\r?\n/g, '\r\n'), this.client),
                             {
                                 prepped: false,
                                 forceLineTerm: true,
@@ -930,6 +992,104 @@ exports.FullScreenEditorModule =
                         }
 
                         callback(null);
+                    },
+                    //  Restore state saved before a gotoMenu round-trip (e.g. upload).
+                    //  Runs after all normal init so views already exist.
+                    callback => {
+                        const saved = this._pendingSavedState;
+                        if (!saved) {
+                            return callback(null);
+                        }
+                        this._pendingSavedState = null;
+
+                        //  Restore header fields the user had typed before the transfer.
+                        const toView   = this.viewControllers.header.getView(MciViewIds.header.to);
+                        const subjView = this.viewControllers.header.getView(MciViewIds.header.subject);
+                        if (toView   && saved.headerTo)      toView.setText(saved.headerTo);
+                        if (subjView && saved.headerSubject)  subjView.setText(saved.headerSubject);
+
+                        this.replyIsAnsi = saved.replyIsAnsi;
+
+                        const bodyView = this.viewControllers.body.getView(MciViewIds.body.message);
+
+                        //  After loading content, transfer focus to the body so the user
+                        //  can interact immediately (header ESC → prevMenu would fire otherwise).
+                        const done = () => {
+                            if (this.isEditMode()) {
+                                this.switchToBody();
+                            }
+                            return callback(null);
+                        };
+
+                        if (this._pendingUploadFiles?.length > 0) {
+                            //
+                            //  A file transfer just completed.  Read the first received file,
+                            //  detect its type, and load it into the body.
+                            //
+                            const uploadPath = this._pendingUploadFiles[0];
+                            const tempDir    = saved.tempUploadDir || paths.dirname(uploadPath);
+                            this._pendingUploadFiles = null;
+
+                            fs.readFile(uploadPath, (err, data) => {
+                                //  Clean up the temp dir regardless of read outcome.
+                                fse.remove(tempDir, rmErr => {
+                                    if (rmErr) {
+                                        this.client.log.warn(
+                                            { err: rmErr, tempDir },
+                                            'FSE: failed to remove upload temp dir'
+                                        );
+                                    }
+                                });
+
+                                if (err) {
+                                    this.client.log.warn({ err, uploadPath }, 'FSE: failed to read uploaded file');
+                                    return done(); //  non-fatal; just leave body empty
+                                }
+
+                                //  Detect encoding: UTF-8 BOM wins outright; otherwise
+                                //  attempt a UTF-8 decode — if it produces no replacement
+                                //  characters the file is clean UTF-8.  CP437 is the fallback
+                                //  (most classic ANSI art uses high-byte block/box chars that
+                                //  are not valid UTF-8 sequences).
+                                const hasUtf8Bom =
+                                    data.length >= 3 &&
+                                    data[0] === 0xef &&
+                                    data[1] === 0xbb &&
+                                    data[2] === 0xbf;
+                                const enc =
+                                    hasUtf8Bom || !data.toString('utf8').includes('\uFFFD')
+                                        ? 'utf8'
+                                        : 'cp437';
+                                const content = iconv.decode(data, enc);
+                                if (isAnsi(content)) {
+                                    this.replyIsAnsi = true;
+                                    return bodyView.setAnsi(
+                                        content,
+                                        { prepped: false, forceLineTerm: true },
+                                        done
+                                    );
+                                } else {
+                                    //  Plain text — pipe codes, PCBoard codes, etc. are handled
+                                    //  transparently by controlCodesToAnsi() at display time.
+                                    bodyView.setText(content);
+                                    return done();
+                                }
+                            });
+                        } else if (saved.bodyText) {
+                            //  Round-trip with no upload (e.g. help screen) — restore body.
+                            if (saved.replyIsAnsi) {
+                                return bodyView.setAnsi(
+                                    saved.bodyText,
+                                    { prepped: false, forceLineTerm: true },
+                                    done
+                                );
+                            } else {
+                                bodyView.setText(saved.bodyText);
+                                return done();
+                            }
+                        } else {
+                            return done();
+                        }
                     },
                 ],
                 err => cb(err)

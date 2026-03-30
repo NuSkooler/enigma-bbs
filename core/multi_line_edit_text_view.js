@@ -814,10 +814,25 @@ class MultiLineEditTextView extends View {
             //  :TODO: special handling for insert over eol mark?
             this.replaceCharacterInText(c, index, this.cursorPos.col);
             this.cursorPos.col++;
-            //  Explicitly reset SGR before writing so the character inherits the
-            //  view's text color rather than whatever the terminal's current state is
-            //  (e.g., a highlighted quote line color).
-            this.client.term.rawWrite(this.getTextSgrPrefix() + c);
+
+            //  Apply the same pipe-code display dispatch as insertCharactersInText so
+            //  that |## sequences render correctly in OVR mode too.
+            if (this.isEditMode() && this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)) {
+                const lineChars = this.buffer.lines[index].chars;
+                if (this._cursorNearCompleteCode(lineChars, this.cursorPos.col)) {
+                    this._expandNear();
+                } else if (this._pipeCodeExpanded) {
+                    this._flashAndScheduleCollapse();
+                } else {
+                    this._ensureCollapsed();
+                    this._collapsedAtomicWrite();
+                }
+            } else {
+                //  Explicitly reset SGR before writing so the character inherits the
+                //  view's text color rather than whatever the terminal's current state is
+                //  (e.g., a highlighted quote line color).
+                this.client.term.rawWrite(this.getTextSgrPrefix() + c);
+            }
         } else {
             this.insertCharactersInText(c, index, this.cursorPos.col);
         }

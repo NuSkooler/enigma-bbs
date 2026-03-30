@@ -25,8 +25,16 @@ module.exports = function ansiPrep(input, options, cb) {
         { length: 'auto' === options.rows ? 25 : options.rows },
         () => Array.from({ length: options.cols }, () => ({}))
     );
+    //  When rows='auto' the canvas expands dynamically, so give the parser a
+    //  very large termHeight to prevent it from capping/clamping the cursor row
+    //  at the real terminal height.  All art past row termHeight would otherwise
+    //  be collapsed onto the last visible row, producing a scrambled "mash" at
+    //  the bottom of any art taller than the connected terminal window.
+    const parserTermHeight =
+        'auto' === options.rows ? 0x3fff : options.termHeight;
+
     const parser = new ANSIEscapeParser({
-        termHeight: options.termHeight,
+        termHeight: parserTermHeight,
         termWidth:  options.termWidth,
     });
 
