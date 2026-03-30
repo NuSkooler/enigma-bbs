@@ -67,11 +67,14 @@ const MciViewIds = {
 
     //  :TODO: quote builder MCIs - remove all magic #'s
 
-    //  :TODO: consolidate all footer MCI's - remove all magic #'s
     ViewModeFooter: {
         MsgNum: 6,
         MsgTotal: 7,
         //  :TODO: Just use custom ranges
+    },
+
+    EditorFooter: {
+        status: 1,  //  SB1 — panel status bar (panels: mode, pos)
     },
 
     quoteBuilder: {
@@ -861,7 +864,7 @@ exports.FullScreenEditorModule =
             const formId = this.getFormId(footerName);
             const startRow = this.header.height + this.body.height;
 
-            this.client.term.rawWrite(ansi.goto(startRow, 1));
+            this.client.term.rawWrite(ansi.goto(startRow, 1) + ansi.eraseLine(2));
             this.prepViewControllerWithArt(
                 footerName,
                 formId,
@@ -1173,46 +1176,32 @@ exports.FullScreenEditorModule =
         updateEditModePosition(pos) {
             if (!this.isEditMode()) return;
 
-            const posView = this.viewControllers.footerEditor?.getView(1);
-            if (!posView) return;
+            const statusView = this.viewControllers.footerEditor
+                ?.getView(MciViewIds.EditorFooter.status);
+            if (!statusView) return;
 
-            //  Use explicit goto instead of savePos/restorePos: some terminals
-            //  do not honour ESC[u after a form view setText(), causing the cursor
-            //  to stay at the footer and corrupt subsequent keypress rendering.
-            //
-            //  Use moveClientCursorToCursorPos() (not getAbsolutePosition) so that
-            //  pipe-code display-col mapping is applied — buffer col ≠ display col
-            //  on lines with |## codes, causing rightward drift if ignored.
-            const bodyView = this.viewControllers.body?.getView(MciViewIds.body.message);
-
-            this.client.term.rawWrite(
-                ansi.goto(posView.position.row, posView.position.col)
+            //  setPanel targets only the 'pos' slot; the 'mode' panel is unchanged.
+            //  moveClientCursorToCursorPos() uses pipe-code display-col mapping so
+            //  buffer col ≠ display col on |## lines doesn't cause rightward drift.
+            statusView.setPanel('pos',
+                `${String(pos.row + 1).padStart(2, '0')},${String(pos.col + 1).padStart(2, '0')}`
             );
-            posView.setText(
-                String(pos.row + 1).padStart(2, '0') +
-                    ',' +
-                    String(pos.col + 1).padStart(2, '0')
-            );
-            if (bodyView) {
-                bodyView.moveClientCursorToCursorPos();
-            }
+            this.viewControllers.body
+                ?.getView(MciViewIds.body.message)
+                ?.moveClientCursorToCursorPos();
         }
 
         updateTextEditMode(mode) {
             if (!this.isEditMode()) return;
 
-            const modeView = this.viewControllers.footerEditor?.getView(2);
-            if (!modeView) return;
+            const statusView = this.viewControllers.footerEditor
+                ?.getView(MciViewIds.EditorFooter.status);
+            if (!statusView) return;
 
-            const bodyView = this.viewControllers.body?.getView(MciViewIds.body.message);
-
-            this.client.term.rawWrite(
-                ansi.goto(modeView.position.row, modeView.position.col)
-            );
-            modeView.setText('insert' === mode ? 'INS' : 'OVR');
-            if (bodyView) {
-                bodyView.moveClientCursorToCursorPos();
-            }
+            statusView.setPanel('mode', 'insert' === mode ? 'INS' : 'OVR');
+            this.viewControllers.body
+                ?.getView(MciViewIds.body.message)
+                ?.moveClientCursorToCursorPos();
         }
 
         setHeaderText(id, text) {

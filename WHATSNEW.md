@@ -12,7 +12,10 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
     * Text-style and dynamic effects are independent axes and can be freely combined (e.g. `l33t` + `rainbow`)
     * All configuration via `mci` block in `menu.hjson` / `theme.hjson` — no inline MCI args needed
     * `destroy()` clears timers; view teardown in `ViewController` now calls `destroy()` on all views, fixing timers surviving menu transitions
-  * **[StatusBarView](./docs/_docs/art/views/status_bar_view.md) (`%SB`)** — auto-refreshing text label that re-renders a format template on a configurable `refreshInterval`; skips redraws when text hasn't changed
+  * **[StatusBarView](./docs/_docs/art/views/status_bar_view.md) (`%SB`)** — single-line view with two modes:
+    * **Single mode**: auto-refreshing text label that re-renders a format template on a configurable `refreshInterval`; skips redraws when text hasn't changed
+    * **Panel mode** (`panels` array): divides the view into independently-addressable named slots, each with its own width, alignment, color, fill character, and optional auto-refresh template. Panels are updated from code via `setPanel(name, value)` / `setPanels(updates)` without touching adjacent slots. A panel's `text` property (without `refreshInterval`) sets a static initial value evaluated once at init — useful for fixed label prefixes configured entirely from `menu.hjson`.
+  * **FSE editor footer** now uses a single `%SB1` in panel mode (replacing the old separate `%TL1`/`%TL2` views) — displays cursor position and INS/OVR mode side-by-side, updated live as the cursor moves. See [UPGRADE](UPGRADE.md) if you have custom FSE art or menu config.
 
 * **View System Modernization**
 
