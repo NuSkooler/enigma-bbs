@@ -713,24 +713,43 @@ class MultiLineEditTextView extends View {
             }
             this.cursorPos.col -= count - 1;
 
+            //  Capture paragraph offset before rewrap so we can remap the cursor
+            //  correctly if rewrap merges lines (reduces line count).  Without this,
+            //  topVisibleIndex + cursorPos.row can point past the end of the buffer
+            //  on the very next keypress, causing a crash in deleteChar.
+            const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
             const linesBefore = this.buffer.lines.length;
-            this.buffer.rewrapParagraph(index);
+            const { start } = this.buffer.rewrapParagraph(index);
             const linesAfter = this.buffer.lines.length;
 
-            const chars = this.buffer.lines[index]?.chars ?? '';
-            if (this.isEditMode() && this._hasPipeCodesOrPartial(chars) && linesAfter === linesBefore) {
-                if (this._cursorNearPipeCode(chars, this.cursorPos.col)) {
-                    //  Cursor adjacent to a code (complete or partial) — expand and
-                    //  keep it visible until the user's next action (no timer).
-                    this._expandNear();
-                } else {
-                    //  Pipe codes elsewhere; cursor not near — stay collapsed.
-                    this._ensureCollapsed();
-                    this._collapsedAtomicWrite();
-                }
-            } else {
-                this.redrawRows(this.cursorPos.row, this.dimens.height);
+            const { lineIndex: newLineIndex, col: newCol } =
+                this._offsetToLineCol(start, paragraphOffset);
+            this.cursorPos.col = newCol;
+
+            const newVisibleRow = newLineIndex - this.topVisibleIndex;
+            if (newVisibleRow < 0) {
+                //  Merged line scrolled above the visible window — scroll to it.
+                this.topVisibleIndex = newLineIndex;
+                this.cursorPos.row = 0;
+                this.redraw();
                 this.moveClientCursorToCursorPos();
+            } else {
+                this.cursorPos.row = newVisibleRow;
+                const chars = this.buffer.lines[newLineIndex]?.chars ?? '';
+                if (this.isEditMode() && this._hasPipeCodesOrPartial(chars) && linesAfter === linesBefore) {
+                    if (this._cursorNearPipeCode(chars, this.cursorPos.col)) {
+                        //  Cursor adjacent to a code (complete or partial) — expand and
+                        //  keep it visible until the user's next action (no timer).
+                        this._expandNear();
+                    } else {
+                        //  Pipe codes elsewhere; cursor not near — stay collapsed.
+                        this._ensureCollapsed();
+                        this._collapsedAtomicWrite();
+                    }
+                } else {
+                    this.redrawRows(this.cursorPos.row, this.dimens.height);
+                    this.moveClientCursorToCursorPos();
+                }
             }
         } else if ('delete line' === operation) {
             //
@@ -811,13 +830,29 @@ class MultiLineEditTextView extends View {
         //
 
         if (this.overtypeMode) {
-            //  :TODO: special handling for insert over eol mark?
             this.replaceCharacterInText(c, index, this.cursorPos.col);
             this.cursorPos.col++;
 
-            //  Apply the same pipe-code display dispatch as insertCharactersInText so
-            //  that |## sequences render correctly in OVR mode too.
-            if (this.isEditMode() && this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)) {
+            if (this.buffer.lines[index].chars.length > this.buffer.width) {
+                //  Typed past EOL in OVR mode — the append made the line too long.
+                //  Rewrap and advance the cursor to the next line, exactly as
+                //  insertCharactersInText does for the wrap case.
+                const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
+                const { start } = this.buffer.rewrapParagraph(index);
+                const { lineIndex: newLineIndex, col: newCol } =
+                    this._offsetToLineCol(start, paragraphOffset);
+                this.redrawRows(this.cursorPos.row, this.dimens.height);
+                if (newLineIndex !== index) {
+                    this.cursorBeginOfNextLine();
+                    this.cursorPos.col = newCol;
+                    this.moveClientCursorToCursorPos();
+                } else {
+                    this.cursorPos.col = newCol;
+                    this.moveClientCursorToCursorPos();
+                }
+            } else if (this.isEditMode() && this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)) {
+                //  Apply the same pipe-code display dispatch as insertCharactersInText so
+                //  that |## sequences render correctly in OVR mode too.
                 const lineChars = this.buffer.lines[index].chars;
                 if (this._cursorNearCompleteCode(lineChars, this.cursorPos.col)) {
                     this._expandNear();

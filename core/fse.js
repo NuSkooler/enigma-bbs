@@ -306,6 +306,17 @@ exports.FullScreenEditorModule =
                     self.viewControllers.footerEditorMenu.setFocus(false);
                     return self.displayHelp(cb);
                 },
+                //  Ctrl-S quick save: delegates to whichever subclass defined editModeMenuSave.
+                editModeQuickSave: function (formData, extraArgs, cb) {
+                    if ('function' === typeof self.menuMethods.editModeMenuSave) {
+                        return self.menuMethods.editModeMenuSave(formData, extraArgs, cb);
+                    }
+                    return cb(null);
+                },
+                //  Ctrl-O quick help: open help screen without going through the ESC menu.
+                editModeQuickHelp: function (_formData, _extraArgs, cb) {
+                    return self.displayHelp(cb);
+                },
                 editModeMenuUpload: function (formData, extraArgs, cb) {
                     //
                     //  Receive a file via the configured transfer protocol and load
@@ -368,6 +379,23 @@ exports.FullScreenEditorModule =
         restoreSavedState(savedState) {
             //  Stash for use once views are (re-)created in createInitialViews().
             this._pendingSavedState = savedState;
+        }
+
+        //  Add or remove the ' [ANSI]' suffix on the subject field to reflect
+        //  whether the message body is (or will be) rendered as ANSI art.
+        _syncAnsiSubjectTag(isAnsi) {
+            const subjView = this.viewControllers.header?.getView(
+                MciViewIds.header.subject
+            );
+            if (!subjView) return;
+            const ANSI_TAG = ' [ANSI]';
+            const current = subjView.getData() || '';
+            const hasTag = current.endsWith(ANSI_TAG);
+            if (isAnsi && !hasTag) {
+                subjView.setText(current + ANSI_TAG);
+            } else if (!isAnsi && hasTag) {
+                subjView.setText(current.slice(0, -ANSI_TAG.length));
+            }
         }
 
         isEditMode() {
@@ -942,6 +970,28 @@ exports.FullScreenEditorModule =
                         );
                     },
                     callback => {
+                        //  Hide the upload item from the editor menu if the user
+                        //  lacks access.  Sysops can override via config.uploadAcs.
+                        if (
+                            'footerEditorMenu' === this.getFooterName() &&
+                            !this.client.acs.hasMessageBodyUpload(
+                                this.menuConfig.config || {}
+                            )
+                        ) {
+                            const hmView =
+                                this.viewControllers.footerEditorMenu?.getView(1);
+                            if (hmView) {
+                                hmView.setItems(
+                                    hmView
+                                        .getItems()
+                                        .filter(t => 'upload' !== t.toLowerCase())
+                                );
+                                hmView.redraw();
+                            }
+                        }
+                        return callback(null);
+                    },
+                    callback => {
                         const from = this.viewControllers.header.getView(
                             MciViewIds.header.from
                         );
@@ -1063,6 +1113,7 @@ exports.FullScreenEditorModule =
                                 const content = iconv.decode(data, enc);
                                 if (isAnsi(content)) {
                                     this.replyIsAnsi = true;
+                                    this._syncAnsiSubjectTag(true);
                                     return bodyView.setAnsi(
                                         content,
                                         { prepped: false, forceLineTerm: true },
@@ -1467,6 +1518,7 @@ exports.FullScreenEditorModule =
                                 }
 
                                 self.replyIsAnsi = replyIsAnsi;
+                                self._syncAnsiSubjectTag(replyIsAnsi);
 
                                 quoteView.setItems(quoteLines);
                                 quoteView.setFocusItems(focusQuoteLines);

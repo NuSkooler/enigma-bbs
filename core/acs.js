@@ -25,6 +25,8 @@ class ACS {
             FileAreaRead: 'GM[users]', //  list
             FileAreaWrite: 'GM[sysops]', //  upload
             FileAreaDownload: 'GM[users]', //  download
+
+            MessageBodyUpload: 'GM[users]', //  upload file into message body (FSE)
         };
     }
 
@@ -56,6 +58,10 @@ class ACS {
 
     hasMessageAreaWrite(area) {
         return this.check(area.acs, 'write', ACS.Defaults.MessageAreaWrite);
+    }
+
+    hasMessageBodyUpload(config) {
+        return this.check(config, 'uploadAcs', ACS.Defaults.MessageBodyUpload);
     }
 
     //

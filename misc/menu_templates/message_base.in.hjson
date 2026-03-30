@@ -135,6 +135,14 @@
                             keys: [ "escape" ]
                             viewId: 1
                         }
+                        {
+                            keys: [ "ctrl + s" ]
+                            action: @method:editModeQuickSave
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
                     ]
                 }
                 2: {
@@ -149,7 +157,7 @@
                     HM: {
                         mci: {
                             HM1: {
-                                "items" : [ "save", "discard", "help" ]
+                                "items" : [ "save", "discard", "help", "upload" ]
                             }
                         }
                         submit: {
@@ -165,6 +173,10 @@
                                 {
                                     value: { 1: 2 }
                                     action: @method:editModeMenuHelp
+                                }
+                                {
+                                    value: { 1: 3 }
+                                    action: @method:editModeMenuUpload
                                 }
                             ]
                         }
@@ -674,13 +686,21 @@
                             keys: [ "escape" ],
                             viewId: 1
                         }
+                        {
+                            keys: [ "ctrl + s" ]
+                            action: @method:editModeQuickSave
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
                     ]
                 }
 
                 3: {
                     mci: {
                         HM1: {
-                            items: [ "save", "discard", "quote", "help" ]
+                            items: [ "save", "discard", "quote", "help", "upload" ]
                         }
                     }
 
@@ -701,6 +721,10 @@
                             {
                                 value: { 1: 3 }
                                 action: @method:editModeMenuHelp
+                            }
+                            {
+                                value: { 1: 4 }
+                                action: @method:editModeMenuUpload
                             }
                         ]
                     }
