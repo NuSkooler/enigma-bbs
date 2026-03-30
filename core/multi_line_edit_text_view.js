@@ -5,6 +5,7 @@ const { LineBuffer } = require('./line_buffer.js');
 const strUtil = require('./string_util.js');
 const ansi = require('./ansi_term.js');
 const ansiPrep = require('./ansi_prep.js');
+const { pipeColorToAnsi } = require('./color_codes.js');
 
 const assert = require('assert');
 const _ = require('lodash');
@@ -124,6 +125,14 @@ const HANDLED_SPECIAL_KEYS = [
 
 const PREVIEW_MODE_KEYS = ['up', 'down', 'page up', 'page down'];
 
+//  Returns true when chars[i..i+2] is a complete |## pipe color code.
+function isPipeCode(chars, i) {
+    return chars[i] === '|' &&
+        i + 2 < chars.length &&
+        chars[i + 1] >= '0' && chars[i + 1] <= '9' &&
+        chars[i + 2] >= '0' && chars[i + 2] <= '9';
+}
+
 class MultiLineEditTextView extends View {
     constructor(options) {
         if (!_.isBoolean(options.acceptsFocus)) {
@@ -168,6 +177,11 @@ class MultiLineEditTextView extends View {
         //  within the editor itself
         //
         this.cursorPos = { col: 0, row: 0 };
+
+        //  Pipe-code expanded display state (debounce collapse system)
+        this._pipeCodeExpanded      = false;
+        this._pipeCodeDebounceTimer = null;
+        this._pipeCodeNearIndex     = -1; //  buffer index of the one code being shown
     }
 
     isEditMode() {
@@ -180,6 +194,200 @@ class MultiLineEditTextView extends View {
 
     getTextSgrPrefix() {
         return this.hasFocus ? this.getFocusSGR() : this.getSGR();
+    }
+
+    //  Returns true if chars contains at least one complete |## pipe color code.
+    _hasPipeCodes(chars) {
+        return /\|[0-9]{2}/.test(chars);
+    }
+
+    //  Returns true if chars contains a complete |## code OR a trailing partial
+    //  sequence (bare | or |d).  Used to decide whether to enter expanded mode.
+    _hasPipeCodesOrPartial(chars) {
+        return /\|[0-9]{2}/.test(chars) || /\|[0-9]?$/.test(chars);
+    }
+
+    //  Renders |## numeric pipe color codes in chars to ANSI SGR sequences for
+    //  live display in edit mode.  Non-numeric |XX sequences pass through literally.
+    _renderLineForDisplay(chars) {
+        const PIPE_RE = /\|([0-9]{2})/g;
+        let m;
+        let rendered = '';
+        let lastIndex = 0;
+        while ((m = PIPE_RE.exec(chars)) !== null) {
+            rendered += chars.slice(lastIndex, m.index);
+            rendered += pipeColorToAnsi(parseInt(m[1], 10));
+            lastIndex = PIPE_RE.lastIndex;
+        }
+        return rendered + chars.slice(lastIndex);
+    }
+
+    //  Maps a buffer column (index into line.chars) to the corresponding terminal
+    //  display column.  Complete |## codes normally have zero display width; in
+    //  expanded mode the single near code has 1:1 width while others remain 0-width.
+    _bufferToDisplayCol(lineIndex, bufferCol) {
+        const chars = this.buffer.lines[lineIndex]?.chars ?? '';
+        if (!chars.includes('|')) {
+            return bufferCol;
+        }
+
+        //  nearIndex >= 0 only during expanded mode; -1 means collapsed (skip all).
+        const nearIndex = (this._pipeCodeExpanded && this._pipeCodeNearIndex >= 0)
+            ? this._pipeCodeNearIndex
+            : -1;
+
+        let dispCol = 0;
+        let i       = 0;
+        while (i < chars.length && i < bufferCol) {
+            if (isPipeCode(chars, i)) {
+                if (i === nearIndex) {
+                    //  Near code in expanded mode: each char has display width 1
+                    const advance = Math.min(3, bufferCol - i);
+                    i       += advance;
+                    dispCol += advance;
+                } else {
+                    //  Collapsed (or non-near) code: 3 buffer positions, 0 display cols
+                    i += 3;
+                }
+            } else {
+                i++;
+                dispCol++;
+            }
+        }
+        return dispCol;
+    }
+
+    //  Expanded-mode render: only the code at this._pipeCodeNearIndex is shown as
+    //  literal chars in its own color.  All other complete codes remain as ANSI SGR
+    //  only (0 display width), so the line width stays bounded.
+    _renderLineExpanded(chars) {
+        const nearIndex = this._pipeCodeNearIndex;
+        const PIPE_RE   = /\|([0-9]{2})/g;
+        let m;
+        let rendered  = '';
+        let lastIndex = 0;
+
+        while ((m = PIPE_RE.exec(chars)) !== null) {
+            rendered += chars.slice(lastIndex, m.index);
+            if (m.index === nearIndex) {
+                //  Near code — visible |## chars in their own color
+                rendered += pipeColorToAnsi(parseInt(m[1], 10)) + m[0];
+            } else {
+                //  Other codes — emit ANSI SGR but no visible chars
+                rendered += pipeColorToAnsi(parseInt(m[1], 10));
+            }
+            lastIndex = PIPE_RE.lastIndex;
+        }
+
+        const tail = chars.slice(lastIndex);
+        if (tail) {
+            //  Trailing partial at the near position — show in base view color
+            if (tail[0] === '|' && lastIndex === nearIndex) {
+                rendered += this.getTextSgrPrefix() + tail;
+            } else {
+                rendered += tail;
+            }
+        }
+
+        return rendered;
+    }
+
+    //  Shared atomic row write.  Rendering + cursor position are driven by the
+    //  current _pipeCodeExpanded / _pipeCodeNearIndex state, so callers must
+    //  set those before invoking this.
+    _pipeCodeRowWrite() {
+        const lineIdx = this.getTextLinesIndex();
+        const rowPos  = this.getAbsolutePosition(this.cursorPos.row, 0);
+        const dispCol = this._bufferToDisplayCol(lineIdx, this.cursorPos.col);
+        const dstPos  = this.getAbsolutePosition(this.cursorPos.row, dispCol);
+        this.client.term.write(
+            `${ansi.hideCursor()}${this.getTextSgrPrefix()}${ansi.goto(rowPos.row, rowPos.col)}${this.getRenderText(lineIdx)}${ansi.goto(dstPos.row, dstPos.col)}${ansi.showCursor()}`,
+            false
+        );
+    }
+
+    //  Called when TYPING a character that lands the cursor adjacent to a code.
+    //  Expands the near code and shows it — no timer, because the user should
+    //  see the code until they type the next non-code character.
+    _expandNear() {
+        this._pipeCodeExpanded = true;
+        const lineIdx = this.getTextLinesIndex();
+        const chars   = this.buffer.lines[lineIdx]?.chars ?? '';
+        this._pipeCodeNearIndex = this._codeStartNearCursor(chars, this.cursorPos.col);
+        if (this._pipeCodeDebounceTimer !== null) {
+            clearTimeout(this._pipeCodeDebounceTimer);
+            this._pipeCodeDebounceTimer = null;
+        }
+        this._pipeCodeRowWrite();
+    }
+
+    //  Called when the cursor moves AWAY from the near code after typing.
+    //  Keeps the old nearIndex so the just-completed code remains visible
+    //  alongside the new character (the "brief flash"), then schedules collapse.
+    _flashAndScheduleCollapse() {
+        //  _pipeCodeExpanded and _pipeCodeNearIndex are intentionally left as-is.
+        if (this._pipeCodeDebounceTimer !== null) {
+            clearTimeout(this._pipeCodeDebounceTimer);
+        }
+        this._pipeCodeRowWrite();
+        this._pipeCodeDebounceTimer = setTimeout(() => {
+            this._pipeCodeDebounceTimer = null;
+            this._collapsePipeCodes();
+        }, 300);
+    }
+
+    //  Collapse if currently in expanded mode.  Called at the top of every
+    //  navigation key handler to prevent stale expanded state from corrupting
+    //  cursor/render calculations after the cursor moves away from the code.
+    _maybePipeCodeCollapse() {
+        if (this._pipeCodeExpanded) {
+            this._collapsePipeCodes();
+        }
+    }
+
+    //  Returns the buffer index where the pipe code sequence adjacent to the
+    //  cursor starts, or -1 if the cursor is not near any code.  Checks from
+    //  most-complete to least-complete so a full |## match wins over a partial.
+    _codeStartNearCursor(chars, col) {
+        if (col >= 3 && isPipeCode(chars, col - 3)) return col - 3;
+        if (col >= 2 && chars[col - 2] === '|' &&
+            chars[col - 1] >= '0' && chars[col - 1] <= '9') return col - 2;
+        if (col >= 1 && chars[col - 1] === '|') return col - 1;
+        return -1;
+    }
+
+    //  Convenience wrapper — true if cursor is adjacent to ANY code (including partials).
+    //  Used in the BACKSPACE path where partials should be visible.
+    _cursorNearPipeCode(chars, col) {
+        return this._codeStartNearCursor(chars, col) !== -1;
+    }
+
+    //  True only when cursor is immediately after a COMPLETE |## code.
+    //  Used in the INSERT path — partials stay invisible while being typed.
+    _cursorNearCompleteCode(chars, col) {
+        return col >= 3 && isPipeCode(chars, col - 3);
+    }
+
+    //  Cancel any pending debounce timer and leave expanded mode.
+    _ensureCollapsed() {
+        if (this._pipeCodeDebounceTimer !== null) {
+            clearTimeout(this._pipeCodeDebounceTimer);
+            this._pipeCodeDebounceTimer = null;
+        }
+        this._pipeCodeExpanded  = false;
+        this._pipeCodeNearIndex = -1;
+    }
+
+    //  Full-row write in collapsed mode (_ensureCollapsed must be called first).
+    _collapsedAtomicWrite() {
+        this._pipeCodeRowWrite();
+    }
+
+    //  Called by the debounce timer: switch back to collapsed display and move
+    //  the terminal cursor to the display position (codes have 0 display width).
+    _collapsePipeCodes() {
+        this._ensureCollapsed();
+        this._collapsedAtomicWrite();
     }
 
     //  :TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
@@ -297,15 +505,39 @@ class MultiLineEditTextView extends View {
     }
 
     getRenderText(index) {
-        let text = this.getVisibleText(index);
+        const rawText = this.getVisibleText(index); // tabs → spaces
 
-        const remain = this.dimens.width - strUtil.renderStringLength(text);
+        if (this.isEditMode()) {
+            const sgrRestore = this.getTextSgrPrefix();
 
-        if (remain > 0) {
-            text += ' '.repeat(remain);
+            if (this._pipeCodeExpanded && this._pipeCodeNearIndex >= 0 && this._hasPipeCodesOrPartial(rawText)) {
+                //  Only the near code is visible (adds 3 display chars); all other
+                //  complete codes are 0-width.  strUtil.renderStringLength strips ALL
+                //  complete codes, so add 3 back if the near one is complete.
+                const nearIsComplete = isPipeCode(rawText, this._pipeCodeNearIndex);
+                const displayLen     = strUtil.renderStringLength(rawText) + (nearIsComplete ? 3 : 0);
+                const rendered       = this._renderLineExpanded(rawText);
+                const remain         = this.dimens.width - displayLen;
+                return remain > 0
+                    ? rendered + sgrRestore + ' '.repeat(remain)
+                    : rendered + sgrRestore;
+            }
+
+            if (this._hasPipeCodes(rawText)) {
+                //  Collapsed mode: codes invisible, cursor slides to display pos.
+                //  strUtil.renderStringLength strips pipe codes when measuring.
+                const displayLen = strUtil.renderStringLength(rawText);
+                const rendered   = this._renderLineForDisplay(rawText);
+                const remain     = this.dimens.width - displayLen;
+                return remain > 0
+                    ? rendered + sgrRestore + ' '.repeat(remain)
+                    : rendered + sgrRestore;
+            }
         }
 
-        return text;
+        //  Default path — plain text or ANSI-baked preview mode.
+        const remain = this.dimens.width - strUtil.renderStringLength(rawText);
+        return remain > 0 ? rawText + ' '.repeat(remain) : rawText;
     }
 
     //  Compatibility shim — returns raw buffer lines (shape: { chars, attrs, eol })
@@ -380,22 +612,39 @@ class MultiLineEditTextView extends View {
             this.redrawRows(this.cursorPos.row, this.dimens.height);
 
             if (newLineIndex !== index) {
-                //  Cursor moved to the next visual line after wrap
+                //  Cursor moved to the next visual line after wrap.
+                //  cursorBeginOfNextLine() advances cursorPos.row and homes col to 0;
+                //  then we set the real col and use moveClientCursorToCursorPos() so
+                //  pipe-code display-col mapping is applied correctly.
                 this.cursorBeginOfNextLine();
                 this.cursorPos.col = newCol;
-                if (newCol > 0) {
-                    this.client.term.rawWrite(ansi.right(newCol));
-                }
+                this.moveClientCursorToCursorPos();
             } else {
                 this.cursorPos.col = newCol;
                 this.moveClientCursorToCursorPos();
             }
+        } else if (this.isEditMode() && this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)) {
+            const lineChars = this.buffer.lines[index].chars;
+            if (this._cursorNearCompleteCode(lineChars, this.cursorPos.col)) {
+                //  Just completed a |## code — expand (no timer; code stays visible
+                //  until the user types the next non-code character).
+                this._expandNear();
+            } else if (this._pipeCodeExpanded) {
+                //  Cursor just moved past the code — do a brief flash of the
+                //  expanded view (old nearIndex still set), then schedule collapse.
+                this._flashAndScheduleCollapse();
+            } else {
+                //  Not expanded, cursor not near any code — stay collapsed.
+                //  The rendered string has ANSI embeds so use a full atomic write.
+                this._ensureCollapsed();
+                this._collapsedAtomicWrite();
+            }
         } else {
             //
-            //  No wrap needed — redraw from col → end of current visible line only.
-            //  Use an explicit goto to the write start position so that any cursor
-            //  drift (e.g. from a terminal that ignores ANSI save/restore pos) does
-            //  not corrupt the footer or other areas outside the view.
+            //  No wrap, no pipe codes — redraw from col → end of current visible
+            //  line only.  Use an explicit goto to the write start position so that
+            //  any cursor drift does not corrupt the footer or other areas outside
+            //  the view.
             //
             const writeCol = this.cursorPos.col - c.length;
             const startPos = this.getAbsolutePosition(this.cursorPos.row, writeCol);
@@ -464,9 +713,25 @@ class MultiLineEditTextView extends View {
             }
             this.cursorPos.col -= count - 1;
 
+            const linesBefore = this.buffer.lines.length;
             this.buffer.rewrapParagraph(index);
-            this.redrawRows(this.cursorPos.row, this.dimens.height);
-            this.moveClientCursorToCursorPos();
+            const linesAfter = this.buffer.lines.length;
+
+            const chars = this.buffer.lines[index]?.chars ?? '';
+            if (this.isEditMode() && this._hasPipeCodesOrPartial(chars) && linesAfter === linesBefore) {
+                if (this._cursorNearPipeCode(chars, this.cursorPos.col)) {
+                    //  Cursor adjacent to a code (complete or partial) — expand and
+                    //  keep it visible until the user's next action (no timer).
+                    this._expandNear();
+                } else {
+                    //  Pipe codes elsewhere; cursor not near — stay collapsed.
+                    this._ensureCollapsed();
+                    this._collapsedAtomicWrite();
+                }
+            } else {
+                this.redrawRows(this.cursorPos.row, this.dimens.height);
+                this.moveClientCursorToCursorPos();
+            }
         } else if ('delete line' === operation) {
             //
             //  Delete a visible line. Note that this is *not* the "physical" line, or
@@ -522,7 +787,11 @@ class MultiLineEditTextView extends View {
     }
 
     moveClientCursorToCursorPos() {
-        const absPos = this.getAbsolutePosition(this.cursorPos.row, this.cursorPos.col);
+        const lineIndex  = this.getTextLinesIndex();
+        const displayCol = this.isEditMode()
+            ? this._bufferToDisplayCol(lineIndex, this.cursorPos.col)
+            : this.cursorPos.col;
+        const absPos = this.getAbsolutePosition(this.cursorPos.row, displayCol);
         this.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
     }
 
@@ -557,13 +826,13 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressUp() {
+        this._maybePipeCodeCollapse();
         if (this.cursorPos.row > 0) {
             this.cursorPos.row--;
-            this.client.term.rawWrite(ansi.up());
-
-            if (!this.adjustCursorToNextTab('up')) {
-                this.adjustCursorIfPastEndOfLine(false);
-            }
+            //  Always use absolute positioning so pipe-code display-col mapping is
+            //  applied correctly on the new row (relative ansi.up() can't account
+            //  for codes that differ between rows).
+            this.adjustCursorIfPastEndOfLine(true);
         } else {
             this.scrollDocumentDown();
             this.adjustCursorIfPastEndOfLine(true);
@@ -573,17 +842,14 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressDown() {
+        this._maybePipeCodeCollapse();
         const lastVisibleRow =
             Math.min(this.dimens.height, this.buffer.lines.length - this.topVisibleIndex) -
             1;
 
         if (this.cursorPos.row < lastVisibleRow) {
             this.cursorPos.row++;
-            this.client.term.rawWrite(ansi.down());
-
-            if (!this.adjustCursorToNextTab('down')) {
-                this.adjustCursorIfPastEndOfLine(false);
-            }
+            this.adjustCursorIfPastEndOfLine(true);
         } else {
             this.scrollDocumentUp();
             this.adjustCursorIfPastEndOfLine(true);
@@ -593,15 +859,30 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressLeft() {
+        this._maybePipeCodeCollapse();
         if (this.cursorPos.col > 0) {
-            const prevCharIsTab = this.isTab();
+            const lineIndex = this.getTextLinesIndex();
+            const chars     = this.buffer.lines[lineIndex]?.chars ?? '';
+            const col       = this.cursorPos.col;
 
-            this.cursorPos.col--;
-            this.client.term.rawWrite(ansi.left());
-
-            if (prevCharIsTab) {
-                this.adjustCursorToNextTab('left');
+            //  In collapsed edit mode, skip back over a complete pipe code (it has
+            //  zero display width, so no visible cursor movement).
+            if (
+                this.isEditMode() &&
+                !this._pipeCodeExpanded &&
+                col >= 3 &&
+                isPipeCode(chars, col - 3)
+            ) {
+                this.cursorPos.col -= 3;
+            } else {
+                const prevCharIsTab = this.isTab();
+                this.cursorPos.col--;
+                if (prevCharIsTab) {
+                    this.adjustCursorToNextTab('left');
+                }
             }
+            //  Always absolute-position so pipe-code col mapping is correct.
+            this.moveClientCursorToCursorPos();
         } else {
             this.cursorEndOfPreviousLine();
         }
@@ -610,16 +891,30 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressRight() {
+        this._maybePipeCodeCollapse();
         const eolColumn = this.getTextEndOfLineColumn();
         if (this.cursorPos.col < eolColumn) {
-            const prevCharIsTab = this.isTab();
+            const lineIndex = this.getTextLinesIndex();
+            const chars     = this.buffer.lines[lineIndex]?.chars ?? '';
+            const col       = this.cursorPos.col;
 
-            this.cursorPos.col++;
-            this.client.term.rawWrite(ansi.right());
-
-            if (prevCharIsTab) {
-                this.adjustCursorToNextTab('right');
+            //  In collapsed edit mode, skip forward over a complete pipe code (it has
+            //  zero display width, so no visible cursor movement).
+            if (
+                this.isEditMode() &&
+                !this._pipeCodeExpanded &&
+                isPipeCode(chars, col)
+            ) {
+                this.cursorPos.col += 3;
+            } else {
+                const prevCharIsTab = this.isTab();
+                this.cursorPos.col++;
+                if (prevCharIsTab) {
+                    this.adjustCursorToNextTab('right');
+                }
             }
+            //  Always absolute-position so pipe-code col mapping is correct.
+            this.moveClientCursorToCursorPos();
         } else {
             this.cursorBeginOfNextLine();
         }
@@ -628,6 +923,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressHome() {
+        this._maybePipeCodeCollapse();
         const firstNonWhitespace = this.getVisibleText().search(/\S/);
         if (-1 !== firstNonWhitespace) {
             this.cursorPos.col = firstNonWhitespace;
@@ -640,12 +936,14 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressEnd() {
+        this._maybePipeCodeCollapse();
         this.cursorPos.col = this.getTextEndOfLineColumn();
         this.moveClientCursorToCursorPos();
         this.emitEditPosition();
     }
 
     keyPressPageUp() {
+        this._maybePipeCodeCollapse();
         if (this.topVisibleIndex > 0) {
             this.topVisibleIndex = Math.max(
                 0,
@@ -662,6 +960,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressPageDown() {
+        this._maybePipeCodeCollapse();
         const linesBelow = this.getRemainingLinesBelowRow();
         if (linesBelow > 0) {
             this.topVisibleIndex += Math.min(linesBelow, this.dimens.height);
@@ -673,6 +972,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressLineFeed() {
+        this._maybePipeCodeCollapse();
         //
         //  Split at cursor position — LineBuffer creates a hard break here
         //  and handles the right-hand fragment.  Both resulting lines fit
@@ -954,16 +1254,19 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressStartOfDocument() {
+        this._maybePipeCodeCollapse();
         this.cursorStartOfDocument();
         this.emitEditPosition();
     }
 
     keyPressEndOfDocument() {
+        this._maybePipeCodeCollapse();
         this.cursorEndOfDocument();
         this.emitEditPosition();
     }
 
     keyPressWordLeft() {
+        this._maybePipeCodeCollapse();
         let lineIndex = this.getTextLinesIndex();
         let col = this.cursorPos.col;
 
@@ -993,6 +1296,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressWordRight() {
+        this._maybePipeCodeCollapse();
         const lineIndex = this.getTextLinesIndex();
         const chars = this.buffer.lines[lineIndex].chars;
         let col = this.cursorPos.col;

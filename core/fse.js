@@ -968,10 +968,11 @@ exports.FullScreenEditorModule =
             //  Use explicit goto instead of savePos/restorePos: some terminals
             //  do not honour ESC[u after a form view setText(), causing the cursor
             //  to stay at the footer and corrupt subsequent keypress rendering.
+            //
+            //  Use moveClientCursorToCursorPos() (not getAbsolutePosition) so that
+            //  pipe-code display-col mapping is applied — buffer col ≠ display col
+            //  on lines with |## codes, causing rightward drift if ignored.
             const bodyView = this.viewControllers.body?.getView(MciViewIds.body.message);
-            const absCursor = bodyView
-                ? bodyView.getAbsolutePosition(bodyView.cursorPos.row, bodyView.cursorPos.col)
-                : null;
 
             this.client.term.rawWrite(
                 ansi.goto(posView.position.row, posView.position.col)
@@ -981,8 +982,8 @@ exports.FullScreenEditorModule =
                     ',' +
                     String(pos.col + 1).padStart(2, '0')
             );
-            if (absCursor) {
-                this.client.term.rawWrite(ansi.goto(absCursor.row, absCursor.col));
+            if (bodyView) {
+                bodyView.moveClientCursorToCursorPos();
             }
         }
 
@@ -993,16 +994,13 @@ exports.FullScreenEditorModule =
             if (!modeView) return;
 
             const bodyView = this.viewControllers.body?.getView(MciViewIds.body.message);
-            const absCursor = bodyView
-                ? bodyView.getAbsolutePosition(bodyView.cursorPos.row, bodyView.cursorPos.col)
-                : null;
 
             this.client.term.rawWrite(
                 ansi.goto(modeView.position.row, modeView.position.col)
             );
             modeView.setText('insert' === mode ? 'INS' : 'OVR');
-            if (absCursor) {
-                this.client.term.rawWrite(ansi.goto(absCursor.row, absCursor.col));
+            if (bodyView) {
+                bodyView.moveClientCursorToCursorPos();
             }
         }
 

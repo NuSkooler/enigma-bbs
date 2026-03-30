@@ -12,6 +12,10 @@ exports.pipeStringLength = pipeStringLength;
 exports.pipeToAnsi = exports.renegadeToAnsi = renegadeToAnsi;
 exports.controlCodesToAnsi = controlCodesToAnsi;
 
+//  Convert a two-digit Renegade/ENiGMA pipe color code (as an integer 0-31) to
+//  an ANSI SGR escape sequence.  Exposed for live pipe-code rendering in MLTEV.
+exports.pipeColorToAnsi = ansiSgrFromRenegadeColorCode;
+
 //  :TODO: Not really happy with the module name of "color_codes". Would like something better ... control_code_string?
 
 function stripMciColorCodes(s) {
