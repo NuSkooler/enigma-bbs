@@ -231,7 +231,28 @@ exports.FullScreenEditorModule =
                     return cb(err, null);
                 },
                 headerSubmit: (_formData, _extraArgs, cb) => {
+                    this._changingSubject = false;
                     this.switchToBody();
+                    return cb(null);
+                },
+                //  Escape in the header form: if we arrived here via Ctrl-A
+                //  ("change subject"), return focus to the body without exiting
+                //  the FSE.  Otherwise behave like the original prevMenu action.
+                headerEscapePressed: (_formData, _extraArgs, cb) => {
+                    if (this._changingSubject) {
+                        this._changingSubject = false;
+                        this.switchToBody();
+                        return cb(null);
+                    }
+                    return this.prevMenu(cb);
+                },
+                //  Ctrl-A from the body: jump focus to the subject field so the
+                //  user can edit it without leaving the FSE.  Enter confirms
+                //  (headerSubmit → switchToBody); Escape cancels (headerEscapePressed).
+                editModeChangeSubject: (_formData, _extraArgs, cb) => {
+                    this._changingSubject = true;
+                    this.viewControllers.body.setFocus(false);
+                    this.viewControllers.header.switchFocus(MciViewIds.header.subject);
                     return cb(null);
                 },
                 editModeEscPressed: (_formData, _extraArgs, cb) => {
