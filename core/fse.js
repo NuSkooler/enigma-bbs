@@ -500,9 +500,15 @@ exports.FullScreenEditorModule =
             return this.viewControllers.body?.getView(MciViewIds.body.message);
         }
 
+        //  Row (1-based) where the footer begins — below header and body art.
+        get _footerStartRow() {
+            return this.header.height + this.body.height;
+        }
+
         //  Restore keyboard focus and editor-state indicators to the body MLTEV
         //  after returning from any overlay (quote builder, find prompt, help, etc.).
         _returnFocusToBody() {
+            this.client.term.beginWrite();
             this.viewControllers.body.switchFocus(1);
             const bodyView = this._bodyView;
             if (bodyView) {
@@ -510,6 +516,7 @@ exports.FullScreenEditorModule =
                 this.updateEditModePosition(bodyView.getEditPosition());
             }
             this.observeEditorEvents();
+            this.client.term.commitWrite();
         }
 
         //  Shared teardown for footerFindSubmit and footerFindCancel.
@@ -970,19 +977,23 @@ exports.FullScreenEditorModule =
         switchFooter(cb) {
             const footerName = this.getFooterName();
             const formId = FormIds[footerName];
-            const startRow = this.header.height + this.body.height;
+            const startRow = this._footerStartRow;
 
+            //  Buffer the entire erase → art display → view redraw sequence so the
+            //  client receives it as one atomic socket write — no visible blank-row
+            //  flash between clearing the old footer and drawing the new one.
+            this.client.term.beginWrite();
             this.client.term.rawWrite(ansi.goto(startRow, 1) + ansi.eraseLine(2));
             this.prepViewControllerWithArt(
                 footerName,
                 formId,
                 { startRow },
                 (err, vc, created) => {
-                    if (err) return cb(err);
                     if (!created) {
                         vc.redrawAll();
                     }
-                    return cb(null);
+                    this.client.term.commitWrite();
+                    return cb(err);
                 }
             );
         }
@@ -1028,7 +1039,7 @@ exports.FullScreenEditorModule =
                     (_artInfo, cb) => {
                         this.setInitialFooterMode();
                         const footerName = this.getFooterName();
-                        const footerStartRow = this.header.height + this.body.height;
+                        const footerStartRow = this._footerStartRow;
                         this.client.term.rawWrite(ansi.goto(footerStartRow, 1));
                         this.displayAsset(
                             art[footerName],
@@ -1717,8 +1728,10 @@ exports.FullScreenEditorModule =
 
         switchFromQuoteBuilderToBody() {
             this.viewControllers.quoteBuilder.setFocus(false);
+            this.client.term.beginWrite();
             this._bodyView.redraw();
-            this._returnFocusToBody();
+            this._returnFocusToBody(); //  has its own nested beginWrite/commitWrite
+            this.client.term.commitWrite();
         }
 
         quoteBuilderFinalize() {
