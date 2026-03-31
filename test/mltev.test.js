@@ -592,7 +592,7 @@ describe('MultiLineEditTextView — findNext / findPrev', () => {
         const v = makeMltev({ width: 40 });
         load(v, 'foo foo foo');
         v.setFindQuery('foo'); //  3 matches, currentIndex=0
-        v.findPrev();          //  0 → 2 (wrap)
+        v.findPrev(); //  0 → 2 (wrap)
         assert.strictEqual(v._findState.currentIndex, 2);
     });
 
@@ -617,7 +617,7 @@ describe('MultiLineEditTextView — findNext / findPrev', () => {
         const v = makeMltev({ width: 40 });
         load(v, 'foo foo');
         v.setFindQuery('foo'); //  match 0 at col 0
-        v.findNext();          //  match 1 at col 4
+        v.findNext(); //  match 1 at col 4
         assert.strictEqual(v.cursorPos.col, 4);
     });
 });

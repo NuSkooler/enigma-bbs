@@ -1214,13 +1214,6 @@ module.exports = class Message {
                     quoted.push(...getWrapped(buf, quoteMatch ? quoteMatch[1] : null));
                 });
 
-            input
-                .slice(tearLinePos)
-                .split(/\r?\n/)
-                .forEach(l => {
-                    quoted.push(...getWrapped(l));
-                });
-
             return cb(null, quoted, null, false);
         }
     }

@@ -300,37 +300,46 @@ exports.FullScreenEditorModule =
                     return cb(null);
                 },
                 appendQuoteEntry: (formData, _extraArgs, cb) => {
-                    const quoteMsgView = this.viewControllers.quoteBuilder.getView(
-                        MciViewIds.quoteBuilder.quotedMsg
-                    );
-
-                    if (this.newQuoteBlock) {
-                        this.newQuoteBlock = false;
-
-                        //  :TODO: If replying to ANSI, add a blank separation line here
-
-                        quoteMsgView.addText(this.getQuoteByHeader());
-                    }
-
                     const quoteListView = this.viewControllers.quoteBuilder.getView(
                         MciViewIds.quoteBuilder.quoteLines
                     );
+                    const quoteMsgView = this.viewControllers.quoteBuilder.getView(
+                        MciViewIds.quoteBuilder.quotedMsg
+                    );
                     const quoteText = quoteListView.getItem(formData.value.quote);
 
-                    quoteMsgView.addText(quoteText);
+                    //  Advance the quote list cursor or finalize — called after any
+                    //  (possibly async) preview update is complete.
+                    const afterUpdate = () => {
+                        if (quoteListView.getData() !== quoteListView.getCount() - 1) {
+                            quoteListView.focusNext();
+                        } else {
+                            this.quoteBuilderFinalize();
+                        }
+                        return cb(null);
+                    };
 
-                    //
-                    //  If this is *not* the last item, advance. Otherwise, do nothing as we
-                    //  don't want to jump back to the top and repeat already quoted lines
-                    //
-
-                    if (quoteListView.getData() !== quoteListView.getCount() - 1) {
-                        quoteListView.focusNext();
+                    if (this.replyIsAnsi) {
+                        //  ANSI: accumulate for finalize and render the growing set into the
+                        //  preview via setAnsi() — addText() can't handle \x1b sequences.
+                        this._ansiQuoteLines.push(quoteText);
+                        const preview = this._ansiQuoteLines.join('\r\n');
+                        quoteMsgView.setAnsi(preview, { prepped: true }, _err => {
+                            quoteMsgView.cursorEndOfDocument();
+                            afterUpdate();
+                        });
                     } else {
-                        this.quoteBuilderFinalize();
+                        //  Plain text: accumulate in the MT1 preview view with a header
+                        //  on the first line selected.
+                        if (this.newQuoteBlock) {
+                            this.newQuoteBlock = false;
+                            quoteMsgView.addText(this.getQuoteByHeader(), {
+                                scrollMode: 'end',
+                            });
+                        }
+                        quoteMsgView.addText(quoteText, { scrollMode: 'end' });
+                        afterUpdate();
                     }
-
-                    return cb(null);
                 },
                 quoteBuilderEscPressed: (_formData, _extraArgs, cb) => {
                     this.quoteBuilderFinalize();
@@ -1549,21 +1558,21 @@ exports.FullScreenEditorModule =
         }
 
         displayQuoteBuilder() {
-            //
-            //  Clear body area
-            //
             this.newQuoteBlock = true;
+            this._ansiQuoteLines = [];
             const self = this;
 
             async.waterfall(
                 [
                     function clearAndDisplayArt(callback) {
-                        //  :TODO: NetRunner does NOT support delete line, so this does not work:
+                        //  Batch the erase + art display into a single socket write so the
+                        //  client never sees the intermediate blank state.
+                        //  eraseData(0) = erase from cursor to end of display; works on all
+                        //  major BBS terminals (unlike deleteLine which scrolls content up and
+                        //  is unsupported on NetRunner).
+                        self.client.term.beginWrite();
                         self.client.term.rawWrite(
-                            ansi.goto(self.header.height + 1, 1) +
-                                ansi.deleteLine(
-                                    self.client.term.termHeight - self.header.height - 1
-                                )
+                            ansi.goto(self.header.height + 1, 1) + ansi.eraseData(0)
                         );
 
                         theme.displayThemeArt(
@@ -1572,6 +1581,7 @@ exports.FullScreenEditorModule =
                                 client: self.client,
                             },
                             function displayed(err, artData) {
+                                self.client.term.commitWrite();
                                 callback(err, artData);
                             }
                         );
@@ -1580,7 +1590,7 @@ exports.FullScreenEditorModule =
                         const formId = FormIds.quoteBuilder;
 
                         if (self.viewControllers.quoteBuilder === undefined) {
-                            var menuLoadOpts = {
+                            const menuLoadOpts = {
                                 callingMenu: self,
                                 formId: formId,
                                 mciMap: artData.mciMap,
@@ -1735,34 +1745,61 @@ exports.FullScreenEditorModule =
         }
 
         quoteBuilderFinalize() {
-            //  :TODO: fix magic #'s
-            const quoteMsgView = this.viewControllers.quoteBuilder.getView(
-                MciViewIds.quoteBuilder.quotedMsg
-            );
             const bodyView = this._bodyView;
 
-            let quoteLines = quoteMsgView.getData().trim();
+            if (this.replyIsAnsi) {
+                //  ANSI path: combine any existing body content with the newly selected
+                //  quote lines so repeated quote sessions append rather than replace.
+                const ansiQuoteText = this._ansiQuoteLines.join('\r\n');
+                this._ansiQuoteLines = [];
 
-            if (quoteLines.length > 0) {
-                if (this.replyIsAnsi) {
-                    quoteLines += `${ansi.normal()}${bodyView.getTextSgrPrefix()}`;
+                this.footerMode = 'editor';
+                this.switchFooter(err => {
+                    if (err) {
+                        return this.client.log.warn(
+                            { err },
+                            'FSE: switchFooter failed in quoteBuilderFinalize (ANSI)'
+                        );
+                    }
+                    if (ansiQuoteText.length > 0) {
+                        //  Retrieve already-processed ANSI from the body buffer so we can
+                        //  append without re-running ansiPrep on existing content.
+                        const existing = bodyView
+                            .getData({ forceLineTerms: true })
+                            .trimEnd();
+                        const combined = existing
+                            ? `${existing}\r\n\r\n${ansiQuoteText}\r\n\r\n`
+                            : `${ansiQuoteText}\r\n\r\n`;
+                        bodyView.setAnsi(combined, { prepped: true }, _err => {
+                            bodyView.cursorEndOfDocument();
+                            this.switchFromQuoteBuilderToBody();
+                        });
+                    } else {
+                        this.switchFromQuoteBuilderToBody();
+                    }
+                });
+            } else {
+                //  Plain text path: drain the MT1 preview view into the body editor
+                const quoteMsgView = this.viewControllers.quoteBuilder.getView(
+                    MciViewIds.quoteBuilder.quotedMsg
+                );
+                const quoteLines = quoteMsgView.getData().trim();
+                if (quoteLines.length > 0) {
+                    bodyView.addText(`${quoteLines}\n\n`, { scrollMode: 'end' });
                 }
-                bodyView.addText(`${quoteLines}\n\n`);
+                quoteMsgView.setText('');
+
+                this.footerMode = 'editor';
+                this.switchFooter(err => {
+                    if (err) {
+                        return this.client.log.warn(
+                            { err },
+                            'FSE: switchFooter failed in quoteBuilderFinalize'
+                        );
+                    }
+                    this.switchFromQuoteBuilderToBody();
+                });
             }
-
-            quoteMsgView.setText('');
-
-            this.footerMode = 'editor';
-
-            this.switchFooter(err => {
-                if (err) {
-                    return this.client.log.warn(
-                        { err },
-                        'FSE: switchFooter failed in quoteBuilderFinalize'
-                    );
-                }
-                this.switchFromQuoteBuilderToBody();
-            });
         }
 
         getQuoteByHeader() {
