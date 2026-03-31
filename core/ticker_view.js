@@ -3,11 +3,7 @@
 //  ENiGMA½
 const { View } = require('./view.js');
 const { pipeToAnsi } = require('./color_codes.js');
-const {
-    pad: padStr,
-    stylizeString,
-    stripAllLineFeeds,
-} = require('./string_util.js');
+const { pad: padStr, stylizeString, stripAllLineFeeds } = require('./string_util.js');
 const stringFormat = require('./string_format');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 
@@ -15,12 +11,12 @@ const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 
 //  All supported motion types
 const MOTION = Object.freeze({
-    LEFT:       'left',
-    RIGHT:      'right',
-    BOUNCE:     'bounce',
-    REVEAL:     'reveal',
+    LEFT: 'left',
+    RIGHT: 'right',
+    BOUNCE: 'bounce',
+    REVEAL: 'reveal',
     TYPEWRITER: 'typewriter',
-    FALL_LEFT:  'fallLeft',
+    FALL_LEFT: 'fallLeft',
     FALL_RIGHT: 'fallRight',
 });
 
@@ -33,8 +29,16 @@ const NOISE_CHARS = '!#$@%&?<>^~`\xb0\xb1\xb2\xdb\xdc\xde\xdf\xfe\xf9';
 //  Text-style effects handled by stylizeString (baked into _plainText at setText time).
 //  All other effect values are dynamic per-tick effects applied in _applyEffect().
 const TEXT_STYLE_EFFECTS = new Set([
-    'normal', 'upper', 'lower', 'title', 'firstLower',
-    'smallVowels', 'bigVowels', 'smallI', 'mixed', 'l33t',
+    'normal',
+    'upper',
+    'lower',
+    'title',
+    'firstLower',
+    'smallVowels',
+    'bigVowels',
+    'smallI',
+    'mixed',
+    'l33t',
 ]);
 
 //  ── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,23 +63,23 @@ class TickerView extends View {
 
         this.initDefaultWidth();
 
-        this.fillChar     = options.fillChar                    || ' ';
-        this.motion       = options.motion || options.scrollDir || MOTION.LEFT;
-        this.effect       = options.effect || options.textStyle || 'normal';
-        this.tickInterval = parseInt(options.tickInterval, 10)  || 100;
-        this.holdTicks    = parseInt(options.holdTicks,    10)  || 20;
+        this.fillChar = options.fillChar || ' ';
+        this.motion = options.motion || options.scrollDir || MOTION.LEFT;
+        this.effect = options.effect || options.textStyle || 'normal';
+        this.tickInterval = parseInt(options.tickInterval, 10) || 100;
+        this.holdTicks = parseInt(options.holdTicks, 10) || 20;
 
-        this._rawText           = '';
-        this._plainText         = '';
-        this._scrollOffset      = 0;
-        this._colorPhase        = 0;    //  rainbow: phase counter (independent of scroll)
-        this._bounceDir         = 1;    //  bounce: current direction (+1 / -1)
-        this._motionPhase       = 0;    //  reveal/typewriter/fall: phase within the cycle
-        this._motionTick        = 0;    //  reveal/typewriter/fall: ticks in current phase
-        this._motionInitialized = false;//  deferred init so dimens.width is known
-        this._charPos           = [];   //  fall: current x-position of each character
-        this._finalPos          = [];   //  fall: target x-position of each character
-        this._timer             = null;
+        this._rawText = '';
+        this._plainText = '';
+        this._scrollOffset = 0;
+        this._colorPhase = 0; //  rainbow: phase counter (independent of scroll)
+        this._bounceDir = 1; //  bounce: current direction (+1 / -1)
+        this._motionPhase = 0; //  reveal/typewriter/fall: phase within the cycle
+        this._motionTick = 0; //  reveal/typewriter/fall: ticks in current phase
+        this._motionInitialized = false; //  deferred init so dimens.width is known
+        this._charPos = []; //  fall: current x-position of each character
+        this._finalPos = []; //  fall: target x-position of each character
+        this._timer = null;
 
         this.setText(options.text || '');
         this._startTicker();
@@ -103,9 +107,7 @@ class TickerView extends View {
         //  apply any stylizeString text-style effect (l33t, upper, mixed, …).
         //  Dynamic effects (rainbow, scramble, glitch) operate on this plain
         //  text every tick rather than pre-processing it here.
-        const stripped = stripAnsiCodes(
-            pipeToAnsi(stripAllLineFeeds(text), this.client)
-        );
+        const stripped = stripAnsiCodes(pipeToAnsi(stripAllLineFeeds(text), this.client));
         this._plainText = TEXT_STYLE_EFFECTS.has(this.effect)
             ? stylizeString(stripped, this.effect)
             : stripped;
@@ -116,13 +118,13 @@ class TickerView extends View {
     //  ── Motion state ─────────────────────────────────────────────────────────
 
     _resetMotion() {
-        this._scrollOffset      = 0;
-        this._bounceDir         = 1;
-        this._motionPhase       = 0;
-        this._motionTick        = 0;
+        this._scrollOffset = 0;
+        this._bounceDir = 1;
+        this._motionPhase = 0;
+        this._motionTick = 0;
         this._motionInitialized = false;
-        this._charPos           = [];
-        this._finalPos          = [];
+        this._charPos = [];
+        this._finalPos = [];
     }
 
     //  Called once on the first tick so that dimens.width is guaranteed set.
@@ -145,19 +147,19 @@ class TickerView extends View {
             //
             //  Shorter texts produce a more dramatic effect because each char has more
             //  room to spread across the window.
-            const cap        = Math.min(this._plainText.length, this.dimens.width);
-            const width      = this.dimens.width;
+            const cap = Math.min(this._plainText.length, this.dimens.width);
+            const width = this.dimens.width;
             const isFallLeft = this.motion === MOTION.FALL_LEFT;
-            const maxDist    = width - cap;       //  total available displacement
-            const minDist    = Math.max(1, Math.round(maxDist * 0.25));  //  25% as floor
+            const maxDist = width - cap; //  total available displacement
+            const minDist = Math.max(1, Math.round(maxDist * 0.25)); //  25% as floor
 
-            this._charPos  = new Array(cap);
+            this._charPos = new Array(cap);
             this._finalPos = new Array(cap);
 
             if (cap <= 1) {
                 //  Single character: start at the opposite edge.
                 this._finalPos[0] = isFallLeft ? 0 : width - 1;
-                this._charPos[0]  = isFallLeft ? width - 1 : 0;
+                this._charPos[0] = isFallLeft ? width - 1 : 0;
             } else {
                 for (let i = 0; i < cap; i++) {
                     //  t goes 0→1 across the text; tMirror is flipped for fallRight.
@@ -167,13 +169,14 @@ class TickerView extends View {
                         //  char 0 travels minDist, char cap-1 travels maxDist.
                         this._finalPos[i] = i;
                         const dist = minDist + Math.round((maxDist - minDist) * t * t);
-                        this._charPos[i]  = i + dist;
+                        this._charPos[i] = i + dist;
                     } else {
                         //  Mirror: char cap-1 travels minDist, char 0 travels maxDist.
                         const tMirror = (cap - 1 - i) / (cap - 1);
                         this._finalPos[i] = width - cap + i;
-                        const dist = minDist + Math.round((maxDist - minDist) * tMirror * tMirror);
-                        this._charPos[i]  = (width - cap + i) - dist;
+                        const dist =
+                            minDist + Math.round((maxDist - minDist) * tMirror * tMirror);
+                        this._charPos[i] = width - cap + i - dist;
                     }
                 }
             }
@@ -186,7 +189,7 @@ class TickerView extends View {
             this._initMotion();
         }
 
-        const len   = this._plainText.length;
+        const len = this._plainText.length;
         const width = this.dimens.width;
 
         switch (this.motion) {
@@ -197,15 +200,17 @@ class TickerView extends View {
             }
 
             case MOTION.BOUNCE: {
-                if (len <= width) { break; }  //  text fits — nothing to bounce
+                if (len <= width) {
+                    break;
+                } //  text fits — nothing to bounce
                 const max = len - width;
                 this._scrollOffset += this._bounceDir;
                 if (this._scrollOffset >= max) {
                     this._scrollOffset = max;
-                    this._bounceDir    = -1;
+                    this._bounceDir = -1;
                 } else if (this._scrollOffset <= 0) {
                     this._scrollOffset = 0;
-                    this._bounceDir    = 1;
+                    this._bounceDir = 1;
                 }
                 break;
             }
@@ -216,19 +221,19 @@ class TickerView extends View {
                         this._scrollOffset = Math.max(0, this._scrollOffset - 1);
                         if (this._scrollOffset === 0) {
                             this._motionPhase = 1;
-                            this._motionTick  = 0;
+                            this._motionTick = 0;
                         }
                         break;
                     case 1: //  holding
                         if (++this._motionTick >= this.holdTicks) {
                             this._motionPhase = 2;
-                            this._motionTick  = 0;
+                            this._motionTick = 0;
                         }
                         break;
                     case 2: //  sliding out: leading fill chars increase toward width
                         if (++this._scrollOffset >= width) {
                             this._scrollOffset = width;
-                            this._motionPhase  = 0;
+                            this._motionPhase = 0;
                         }
                         break;
                 }
@@ -236,12 +241,13 @@ class TickerView extends View {
 
             case MOTION.TYPEWRITER:
                 switch (this._motionPhase) {
-                    case 0: { //  type one character per tick
+                    case 0: {
+                        //  type one character per tick
                         const cap = Math.min(len, width);
                         this._scrollOffset = Math.min(this._scrollOffset + 1, cap);
                         if (this._scrollOffset >= cap) {
                             this._motionPhase = 1;
-                            this._motionTick  = 0;
+                            this._motionTick = 0;
                         }
                         break;
                     }
@@ -252,7 +258,7 @@ class TickerView extends View {
                         break;
                     case 2: //  instant clear → restart
                         this._scrollOffset = 0;
-                        this._motionPhase  = 0;
+                        this._motionPhase = 0;
                         break;
                 }
                 break;
@@ -260,7 +266,8 @@ class TickerView extends View {
             case MOTION.FALL_LEFT:
             case MOTION.FALL_RIGHT:
                 switch (this._motionPhase) {
-                    case 0: { //  falling: each char moves one step toward its final position
+                    case 0: {
+                        //  falling: each char moves one step toward its final position
                         const isFallLeft = this.motion === MOTION.FALL_LEFT;
                         let allLanded = true;
                         for (let i = 0; i < this._charPos.length; i++) {
@@ -281,7 +288,7 @@ class TickerView extends View {
                         }
                         if (allLanded) {
                             this._motionPhase = 1;
-                            this._motionTick  = 0;
+                            this._motionTick = 0;
                         }
                         break;
                     }
@@ -298,8 +305,8 @@ class TickerView extends View {
                 }
                 break;
 
-            default: //  MOTION.LEFT
-            {
+            default: {
+                //  MOTION.LEFT
                 const src = len + Math.min(width, 10);
                 if (src > 0) {
                     this._scrollOffset = (this._scrollOffset + 1) % src;
@@ -318,9 +325,9 @@ class TickerView extends View {
     //  representing what should be shown this tick, before any effect is applied.
     _getVisiblePlain() {
         const plain = this._plainText;
-        const len   = plain.length;
+        const len = plain.length;
         const width = this.dimens.width;
-        const fill  = this.fillChar;
+        const fill = this.fillChar;
 
         if (len === 0) {
             return fill.repeat(width);
@@ -329,7 +336,7 @@ class TickerView extends View {
         switch (this.motion) {
             case MOTION.REVEAL: {
                 //  _scrollOffset = number of fill chars leading the text
-                const lead  = Math.min(this._scrollOffset, width);
+                const lead = Math.min(this._scrollOffset, width);
                 const avail = width - lead;
                 const slice = plain.slice(0, avail);
                 return fill.repeat(lead) + slice + fill.repeat(avail - slice.length);
@@ -364,11 +371,12 @@ class TickerView extends View {
                 return arr.join('');
             }
 
-            default: { //  left / right: circular scroll with gap
-                const gap    = fill.repeat(Math.min(width, 10));
+            default: {
+                //  left / right: circular scroll with gap
+                const gap = fill.repeat(Math.min(width, 10));
                 const source = plain + gap;
                 const srcLen = source.length;
-                const off    = ((this._scrollOffset % srcLen) + srcLen) % srcLen;
+                const off = ((this._scrollOffset % srcLen) + srcLen) % srcLen;
                 return (source + source).slice(off, off + width).padEnd(width, fill);
             }
         }
@@ -382,9 +390,12 @@ class TickerView extends View {
     //  view's normal SGR.
     _applyEffect(plain) {
         switch (this.effect) {
-            case 'rainbow':   return this._rainbowEffect(plain);
-            case 'scramble':  return this._scrambleEffect(plain);
-            case 'glitch':    return this._glitchEffect(plain);
+            case 'rainbow':
+                return this._rainbowEffect(plain);
+            case 'scramble':
+                return this._scrambleEffect(plain);
+            case 'glitch':
+                return this._glitchEffect(plain);
             default:
                 //  stylizeString text styles are already baked into _plainText
                 return this.getSGR() + plain;
@@ -406,7 +417,7 @@ class TickerView extends View {
     _scrambleEffect(plain) {
         let out = this.getSGR();
         for (let i = 0; i < plain.length; i++) {
-            if (plain[i] !== this.fillChar && Math.random() < 0.30) {
+            if (plain[i] !== this.fillChar && Math.random() < 0.3) {
                 out += `\x1b[1;32m${randomNoise()}${this.getSGR()}`;
             } else {
                 out += plain[i];
@@ -417,7 +428,7 @@ class TickerView extends View {
 
     //  Real text with 1-3 random characters corrupted to red noise per tick.
     _glitchEffect(plain) {
-        const arr   = plain.split('');
+        const arr = plain.split('');
         const count = 1 + Math.floor(Math.random() * 3);
         for (let n = 0; n < count; n++) {
             const i = Math.floor(Math.random() * arr.length);
@@ -431,7 +442,9 @@ class TickerView extends View {
     //  ── Rendering ─────────────────────────────────────────────────────────────
 
     _startTicker() {
-        if (this._timer) { return; }
+        if (this._timer) {
+            return;
+        }
         this._timer = setInterval(() => {
             this._advanceMotion();
             this.redraw();
@@ -440,7 +453,7 @@ class TickerView extends View {
 
     redraw() {
         super.redraw();
-        const plain    = this._getVisiblePlain();
+        const plain = this._getVisiblePlain();
         const rendered = this._applyEffect(plain);
         this.client.term.write(
             padStr(

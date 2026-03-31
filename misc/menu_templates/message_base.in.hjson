@@ -682,7 +682,7 @@
                     quote:              MSGQUOT
                     footerEditor:       MSGEFTR
                     footerEditorMenu:   MSGEMFT
-                    footerFind:         MSGEFND
+                    footerFind:         MSGFND
                     help:               MSGEHLP
                 }
                 editorMode: edit

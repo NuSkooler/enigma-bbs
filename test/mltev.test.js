@@ -307,8 +307,8 @@ describe('MultiLineEditTextView — live pipe codes', () => {
         assert.ok(v._hasPipeCodes('|04Hello'));
         assert.ok(v._hasPipeCodes('Hello |14 world'));
         assert.ok(!v._hasPipeCodes('Hello world'));
-        assert.ok(!v._hasPipeCodes('|TL1'));      //  MCI code — not a color code
-        assert.ok(!v._hasPipeCodes('| |'));       //  no digits
+        assert.ok(!v._hasPipeCodes('|TL1')); //  MCI code — not a color code
+        assert.ok(!v._hasPipeCodes('| |')); //  no digits
     });
 
     it('_renderLineForDisplay replaces |## with ANSI SGR and leaves other text', () => {
@@ -339,9 +339,17 @@ describe('MultiLineEditTextView — live pipe codes', () => {
         load(v, '|04Hello');
         //  Buffer cols 0–2 are the pipe code (|, 0, 4); display col 0
         assert.strictEqual(v._bufferToDisplayCol(0, 0), 0);
-        assert.strictEqual(v._bufferToDisplayCol(0, 3), 0, 'after pipe code → display col 0');
+        assert.strictEqual(
+            v._bufferToDisplayCol(0, 3),
+            0,
+            'after pipe code → display col 0'
+        );
         assert.strictEqual(v._bufferToDisplayCol(0, 4), 1, 'H at display col 1');
-        assert.strictEqual(v._bufferToDisplayCol(0, 8), 5, 'end of Hello at display col 5');
+        assert.strictEqual(
+            v._bufferToDisplayCol(0, 8),
+            5,
+            'end of Hello at display col 5'
+        );
     });
 
     it('_bufferToDisplayCol handles two pipe codes on one line', () => {
@@ -350,13 +358,17 @@ describe('MultiLineEditTextView — live pipe codes', () => {
         //  |04 at 0–2, H=3 I=4, |07 at 5–7, space=8 …
         assert.strictEqual(v._bufferToDisplayCol(0, 3), 0, 'H at display 0');
         assert.strictEqual(v._bufferToDisplayCol(0, 5), 2, 'after Hi at display 2');
-        assert.strictEqual(v._bufferToDisplayCol(0, 8), 2, 'after second pipe code at display 2');
+        assert.strictEqual(
+            v._bufferToDisplayCol(0, 8),
+            2,
+            'after second pipe code at display 2'
+        );
         assert.strictEqual(v._bufferToDisplayCol(0, 9), 3, 'space at display 3');
     });
 
     it('keyPressRight skips a pipe code without terminal cursor movement (bufferCol+3)', () => {
         const v = makeMltev();
-        load(v, '|04Hello', 0, 0);   //  cursor at buffer col 0 — start of pipe code
+        load(v, '|04Hello', 0, 0); //  cursor at buffer col 0 — start of pipe code
 
         v.keyPressRight();
 
@@ -365,7 +377,7 @@ describe('MultiLineEditTextView — live pipe codes', () => {
 
     it('keyPressLeft skips back over a pipe code without terminal cursor movement (bufferCol-3)', () => {
         const v = makeMltev();
-        load(v, '|04Hello', 0, 3);   //  cursor at buffer col 3 — just after pipe code
+        load(v, '|04Hello', 0, 3); //  cursor at buffer col 3 — just after pipe code
 
         v.keyPressLeft();
 
@@ -374,7 +386,7 @@ describe('MultiLineEditTextView — live pipe codes', () => {
 
     it('keyPressRight does NOT skip a partial pipe sequence (only | typed so far)', () => {
         const v = makeMltev();
-        load(v, '|Hello', 0, 0);     //  | followed by letters — not a valid pipe code
+        load(v, '|Hello', 0, 0); //  | followed by letters — not a valid pipe code
 
         v.keyPressRight();
 
@@ -390,5 +402,286 @@ describe('MultiLineEditTextView — live pipe codes', () => {
 
         assert.ok(data.includes('|04Hello'), 'pipe codes preserved in getData');
         assert.ok(data.includes('|07world'));
+    });
+});
+
+// ─── Find system ──────────────────────────────────────────────────────────────
+
+describe('MultiLineEditTextView — _buildFindMatches', () => {
+    it('returns an empty array when the query is not found', () => {
+        const v = makeMltev();
+        load(v, 'hello world');
+        assert.deepStrictEqual(v._buildFindMatches('xyz'), []);
+    });
+
+    it('returns a single match with correct line/display positions', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        const matches = v._buildFindMatches('world');
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].lineIndex, 0);
+        assert.strictEqual(matches[0].displayStart, 6);
+        assert.strictEqual(matches[0].displayEnd, 11);
+    });
+
+    it('is case-insensitive', () => {
+        const v = makeMltev();
+        load(v, 'Hello World');
+        const matches = v._buildFindMatches('hello');
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].displayStart, 0);
+    });
+
+    it('returns all overlapping-start occurrences on one line', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo foo');
+        const matches = v._buildFindMatches('foo');
+        assert.strictEqual(matches.length, 3);
+        assert.strictEqual(matches[0].displayStart, 0);
+        assert.strictEqual(matches[1].displayStart, 4);
+        assert.strictEqual(matches[2].displayStart, 8);
+    });
+
+    it('finds matches across multiple lines with correct lineIndex', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'one\ntwo\none');
+        const matches = v._buildFindMatches('one');
+        assert.strictEqual(matches.length, 2);
+        assert.strictEqual(matches[0].lineIndex, 0);
+        assert.strictEqual(matches[1].lineIndex, 2);
+    });
+
+    it('searches display text — pipe codes are stripped before matching', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, '|04Hello world');
+        //  Display text is "Hello world"; pipe code chars don't appear in search.
+        const matches = v._buildFindMatches('hello');
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].displayStart, 0);
+        assert.strictEqual(matches[0].displayEnd, 5);
+    });
+
+    it('returns correct displayStart for a match after a pipe code', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, '|04Hello world');
+        //  Display text "Hello world"; 'world' starts at display col 6.
+        const matches = v._buildFindMatches('world');
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].displayStart, 6);
+    });
+});
+
+describe('MultiLineEditTextView — setFindQuery', () => {
+    it('sets _findState with query and match array', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.setFindQuery('world');
+        assert.ok(v._findState !== null, '_findState is set');
+        assert.strictEqual(v._findState.query, 'world');
+        assert.strictEqual(v._findState.matches.length, 1);
+        assert.strictEqual(v._findState.currentIndex, 0);
+    });
+
+    it('positions the cursor at the start of the first match', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.setFindQuery('world');
+        assert.strictEqual(v.cursorPos.col, 6);
+        assert.strictEqual(v.cursorPos.row, 0);
+    });
+
+    it('positions the cursor at the buffer column after a pipe code prefix', () => {
+        const v = makeMltev({ width: 40 });
+        //  Buffer: |04Hello world (14 chars)
+        //  Display: Hello world; 'world' at displayStart=6
+        //  _displayToBufferCol(0, 6): skips pipe code (3 chars, 0 display) then
+        //  walks 6 visible chars → lands at buffer col 9.
+        load(v, '|04Hello world');
+        v.setFindQuery('world');
+        assert.strictEqual(v.cursorPos.col, 9, 'cursor after pipe code prefix');
+    });
+
+    it('sets _findState with empty matches when query is not found', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.setFindQuery('xyz');
+        assert.ok(v._findState !== null);
+        assert.strictEqual(v._findState.matches.length, 0);
+    });
+
+    it('clears _findState when called with an empty string', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.setFindQuery('world');
+        v.setFindQuery('');
+        assert.strictEqual(v._findState, null);
+    });
+
+    it('getFindMatchCount reflects the active match count', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo foo');
+        assert.strictEqual(v.getFindMatchCount(), 0, 'zero before any find');
+        v.setFindQuery('foo');
+        assert.strictEqual(v.getFindMatchCount(), 3);
+    });
+});
+
+describe('MultiLineEditTextView — gotoFirstMatch', () => {
+    it('does NOT set _findState', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.gotoFirstMatch('world');
+        assert.strictEqual(v._findState, null, '_findState must remain null');
+    });
+
+    it('positions the cursor at the first match without _findState', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.gotoFirstMatch('world');
+        assert.strictEqual(v.cursorPos.col, 6);
+        assert.strictEqual(v.cursorPos.row, 0);
+    });
+
+    it('is a no-op for an empty query — _findState stays null, cursor unchanged', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world', 0, 3);
+        v.gotoFirstMatch('');
+        assert.strictEqual(v._findState, null);
+        assert.strictEqual(v.cursorPos.col, 3, 'cursor unchanged');
+    });
+
+    it('leaves cursor at (0,0) when query has no matches', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world', 0, 5);
+        v.gotoFirstMatch('xyz');
+        assert.strictEqual(v._findState, null);
+        //  _scrollToMatch is never called so cursorPos is unchanged.
+        assert.strictEqual(v.cursorPos.col, 5, 'cursor not moved');
+    });
+});
+
+describe('MultiLineEditTextView — findNext / findPrev', () => {
+    it('findNext advances currentIndex to the next match', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo foo');
+        v.setFindQuery('foo');
+        assert.strictEqual(v._findState.currentIndex, 0);
+        v.findNext();
+        assert.strictEqual(v._findState.currentIndex, 1);
+    });
+
+    it('findNext wraps around from the last match to the first', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo');
+        v.setFindQuery('foo');
+        v.findNext(); //  index 0 → 1
+        v.findNext(); //  index 1 → 0 (wrap)
+        assert.strictEqual(v._findState.currentIndex, 0);
+    });
+
+    it('findPrev decrements currentIndex', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo foo');
+        v.setFindQuery('foo');
+        v.findNext(); //  0 → 1
+        v.findPrev(); //  1 → 0
+        assert.strictEqual(v._findState.currentIndex, 0);
+    });
+
+    it('findPrev wraps from the first match to the last', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo foo');
+        v.setFindQuery('foo'); //  3 matches, currentIndex=0
+        v.findPrev();          //  0 → 2 (wrap)
+        assert.strictEqual(v._findState.currentIndex, 2);
+    });
+
+    it('findNext is a no-op when _findState is null', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo');
+        //  No setFindQuery called — _findState is null.
+        v.findNext();
+        assert.strictEqual(v._findState, null);
+        assert.strictEqual(v.cursorPos.col, 0, 'cursor not moved');
+    });
+
+    it('findPrev is a no-op when _findState is null', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo');
+        v.findPrev();
+        assert.strictEqual(v._findState, null);
+        assert.strictEqual(v.cursorPos.col, 0, 'cursor not moved');
+    });
+
+    it('findNext positions cursor at the next match column', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'foo foo');
+        v.setFindQuery('foo'); //  match 0 at col 0
+        v.findNext();          //  match 1 at col 4
+        assert.strictEqual(v.cursorPos.col, 4);
+    });
+});
+
+describe('MultiLineEditTextView — clearFind', () => {
+    it('nulls _findState', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.setFindQuery('world');
+        assert.ok(v._findState !== null);
+        v.clearFind(false); //  false = skip redraw in test
+        assert.strictEqual(v._findState, null);
+    });
+
+    it('is a no-op (does not throw) when _findState is already null', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello');
+        assert.strictEqual(v._findState, null);
+        assert.doesNotThrow(() => v.clearFind(false));
+        assert.strictEqual(v._findState, null);
+    });
+});
+
+describe('MultiLineEditTextView — setText clears active find', () => {
+    it('_findState is null after setText regardless of prior find', () => {
+        const v = makeMltev({ width: 40 });
+        load(v, 'hello world');
+        v.setFindQuery('world');
+        assert.ok(v._findState !== null);
+        v.setText('completely new content', { scrollMode: 'top' });
+        assert.strictEqual(v._findState, null, 'setText must clear _findState');
+    });
+});
+
+describe('MultiLineEditTextView — _scrollToMatch positioning', () => {
+    it('centers the match vertically when the document is tall enough', () => {
+        //  height=5, halfHeight=2.  Match at lineIndex=5 in a 10-line doc.
+        //  Expected topVisibleIndex = min(max(0, 5-2), max(0, 10-5)) = min(3,5) = 3.
+        //  Expected cursorPos.row = 5-3 = 2.
+        const v = makeMltev({ width: 20, height: 5 });
+        const lines = Array.from({ length: 10 }, (_, i) => `line${i}`).join('\n');
+        load(v, lines);
+        v._scrollToMatch({ lineIndex: 5, displayStart: 0, displayEnd: 4 });
+        assert.strictEqual(v.topVisibleIndex, 3);
+        assert.strictEqual(v.cursorPos.row, 2);
+    });
+
+    it('clamps topVisibleIndex to 0 for matches near the document start', () => {
+        const v = makeMltev({ width: 20, height: 5 });
+        const lines = Array.from({ length: 10 }, (_, i) => `line${i}`).join('\n');
+        load(v, lines);
+        v._scrollToMatch({ lineIndex: 1, displayStart: 0, displayEnd: 4 });
+        assert.strictEqual(v.topVisibleIndex, 0, 'cannot scroll above top');
+        assert.strictEqual(v.cursorPos.row, 1);
+    });
+
+    it('clamps topVisibleIndex so the last line stays visible', () => {
+        //  height=5, 6-line doc (maxTop=1).  Match at lineIndex=5.
+        //  Expected topVisibleIndex = min(max(0,5-2), max(0,6-5)) = min(3,1) = 1.
+        const v = makeMltev({ width: 20, height: 5 });
+        const lines = Array.from({ length: 6 }, (_, i) => `line${i}`).join('\n');
+        load(v, lines);
+        v._scrollToMatch({ lineIndex: 5, displayStart: 0, displayEnd: 4 });
+        assert.strictEqual(v.topVisibleIndex, 1);
+        assert.strictEqual(v.cursorPos.row, 4);
     });
 });

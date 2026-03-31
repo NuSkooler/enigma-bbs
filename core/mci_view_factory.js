@@ -50,8 +50,8 @@ MCIViewFactory.UserViewCodes = [
     //
     'XY',
 
-    'TK',   //  Ticker (scrolling marquee)
-    'SB',   //  Status Bar (auto-refreshing text label)
+    'TK', //  Ticker (scrolling marquee)
+    'SB', //  Status Bar (auto-refreshing text label)
 ];
 
 MCIViewFactory.MovementCodes = ['CF', 'CB', 'CU', 'CD'];

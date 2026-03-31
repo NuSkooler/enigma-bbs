@@ -19,7 +19,10 @@ class EditTextView extends TextView {
     constructor(options) {
         options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
         options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
-        options.cursorStyle = miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
+        options.cursorStyle = miscUtil.valueWithDefault(
+            options.cursorStyle,
+            'steady block'
+        );
         options.resizable = false;
 
         if (!_.isObject(options.specialKeyMap)) {
@@ -29,11 +32,11 @@ class EditTextView extends TextView {
         super(options);
 
         this.initDefaultWidth();
-        this.cursorPos    = { row: 0, col: 0 };
+        this.cursorPos = { row: 0, col: 0 };
         this._scrollOffset = 0;
         //  LineBuffer is the authoritative store for logical text and cursor ops.
         //  Width is maxLength — the logical cap; display scroll is separate.
-        this.lineBuffer   = new LineBuffer({ width: this.maxLength });
+        this.lineBuffer = new LineBuffer({ width: this.maxLength });
     }
 
     //  ── Internal helpers ─────────────────────────────────────────────────────
@@ -50,7 +53,7 @@ class EditTextView extends TextView {
         const textLen = this.lineBuffer.lines[0].chars.length;
         if (textLen <= this.dimens.width) return 0;
 
-        const cur    = this._scrollOffset;
+        const cur = this._scrollOffset;
         const maxOff = textLen - this.dimens.width;
 
         if (this.cursorPos.col < cur) {
@@ -71,7 +74,9 @@ class EditTextView extends TextView {
     //  inheriting the wrong colour.
     _repositionCursor() {
         const screenCol = this.position.col + (this.cursorPos.col - this._scrollOffset);
-        this.client.term.write(ansi.goto(this.position.row, screenCol) + this.getFocusSGR());
+        this.client.term.write(
+            ansi.goto(this.position.row, screenCol) + this.getFocusSGR()
+        );
     }
 
     //  ── Overrides ────────────────────────────────────────────────────────────
@@ -110,19 +115,19 @@ class EditTextView extends TextView {
         super.setText(text, redraw);
 
         if (this.lineBuffer) {
-            let raw = (text == null ? '' : String(text));
+            let raw = text == null ? '' : String(text);
             if (this.maxLength > 0 && raw.length > this.maxLength) {
                 raw = raw.slice(0, this.maxLength);
             }
             this.lineBuffer.lines[0] = {
                 chars: raw,
                 attrs: new Uint32Array(raw.length),
-                eol:   true,
+                eol: true,
                 initialAttr: 0,
             };
-            this.text           = raw;
-            this.cursorPos.col  = raw.length;
-            this._scrollOffset  = this._computeScrollOffset();
+            this.text = raw;
+            this.cursorPos.col = raw.length;
+            this._scrollOffset = this._computeScrollOffset();
         }
     }
 
@@ -138,7 +143,7 @@ class EditTextView extends TextView {
             if (this.isKeyMapped('left', key.name)) {
                 if (this.cursorPos.col > 0) {
                     this.cursorPos.col--;
-                    const prevOff     = this._scrollOffset;
+                    const prevOff = this._scrollOffset;
                     this._scrollOffset = this._computeScrollOffset();
                     if (this._scrollOffset !== prevOff) {
                         this.redraw();
@@ -146,12 +151,11 @@ class EditTextView extends TextView {
                     this._repositionCursor();
                 }
                 return super.onKeyPress(ch, key);
-
             } else if (this.isKeyMapped('right', key.name)) {
                 const len = this.lineBuffer.lines[0].chars.length;
                 if (this.cursorPos.col < len) {
                     this.cursorPos.col++;
-                    const prevOff     = this._scrollOffset;
+                    const prevOff = this._scrollOffset;
                     this._scrollOffset = this._computeScrollOffset();
                     if (this._scrollOffset !== prevOff) {
                         this.redraw();
@@ -159,21 +163,18 @@ class EditTextView extends TextView {
                     this._repositionCursor();
                 }
                 return super.onKeyPress(ch, key);
-
             } else if (this.isKeyMapped('home', key.name)) {
                 this.cursorPos.col = 0;
-                this._scrollOffset  = 0;
+                this._scrollOffset = 0;
                 this.redraw();
                 this._repositionCursor();
                 return super.onKeyPress(ch, key);
-
             } else if (this.isKeyMapped('end', key.name)) {
                 this.cursorPos.col = this.lineBuffer.lines[0].chars.length;
-                this._scrollOffset  = this._computeScrollOffset();
+                this._scrollOffset = this._computeScrollOffset();
                 this.redraw();
                 this._repositionCursor();
                 return super.onKeyPress(ch, key);
-
             } else if (this.isKeyMapped('backspace', key.name)) {
                 if (this.cursorPos.col > 0) {
                     this.cursorPos.col--;
@@ -184,7 +185,6 @@ class EditTextView extends TextView {
                     this._repositionCursor();
                 }
                 return super.onKeyPress(ch, key);
-
             } else if (this.isKeyMapped('delete', key.name)) {
                 const len = this.lineBuffer.lines[0].chars.length;
                 if (this.cursorPos.col < len) {
@@ -202,14 +202,16 @@ class EditTextView extends TextView {
                 this.redraw();
                 this._repositionCursor();
                 return super.onKeyPress(ch, key);
-
             } else if (this.isKeyMapped('clearLine', key.name)) {
                 this.lineBuffer.lines[0] = {
-                    chars: '', attrs: new Uint32Array(0), eol: true, initialAttr: 0,
+                    chars: '',
+                    attrs: new Uint32Array(0),
+                    eol: true,
+                    initialAttr: 0,
                 };
-                this.text          = '';
+                this.text = '';
                 this.cursorPos.col = 0;
-                this._scrollOffset  = 0;
+                this._scrollOffset = 0;
                 this.setFocus(true); //  redraw + cursor placement
                 return super.onKeyPress(ch, key);
             }
@@ -223,8 +225,8 @@ class EditTextView extends TextView {
                 this.cursorPos.col++;
                 this._syncFromBuffer();
 
-                const newLen    = len + 1;
-                const atEnd     = this.cursorPos.col === newLen;
+                const newLen = len + 1;
+                const atEnd = this.cursorPos.col === newLen;
                 const notScrolled = newLen <= this.dimens.width;
 
                 if (atEnd && notScrolled) {

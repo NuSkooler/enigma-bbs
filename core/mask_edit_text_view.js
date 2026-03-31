@@ -30,7 +30,10 @@ class MaskEditTextView extends TextView {
     constructor(options) {
         options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
         options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
-        options.cursorStyle = miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
+        options.cursorStyle = miscUtil.valueWithDefault(
+            options.cursorStyle,
+            'steady block'
+        );
         options.resizable = false;
 
         super(options);
@@ -130,9 +133,9 @@ class MaskEditTextView extends TextView {
         if (this.lineBuffer) {
             const raw = (text == null ? '' : String(text)).slice(0, this.maxLength);
             this.lineBuffer.lines[0] = {
-                chars:       raw,
-                attrs:       new Uint32Array(raw.length),
-                eol:         true,
+                chars: raw,
+                attrs: new Uint32Array(raw.length),
+                eol: true,
                 initialAttr: 0,
             };
             this.text = raw;
@@ -155,7 +158,7 @@ class MaskEditTextView extends TextView {
         }
 
         let data = '';
-        let p    = 0;
+        let p = 0;
         for (let i = 0; i < this.patternArray.length; ++i) {
             if (_.isRegExp(this.patternArray[i])) {
                 //  Only append typed chars; stop if input was partial
@@ -219,10 +222,12 @@ class MaskEditTextView extends TextView {
                 }
 
                 return;
-
             } else if (this.isKeyMapped('clearLine', key.name)) {
                 this.lineBuffer.lines[0] = {
-                    chars: '', attrs: new Uint32Array(0), eol: true, initialAttr: 0,
+                    chars: '',
+                    attrs: new Uint32Array(0),
+                    eol: true,
+                    initialAttr: 0,
                 };
                 this._syncFromBuffer();
                 this.patternArrayPos = 0;

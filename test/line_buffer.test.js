@@ -19,39 +19,44 @@ const {
 
 describe('makeAttr / parseAttr', () => {
     it('round-trips default attr (all zeros except fg=7)', () => {
-        const attr   = makeAttr();
+        const attr = makeAttr();
         const parsed = parseAttr(attr);
-        assert.equal(parsed.fg,            7);
-        assert.equal(parsed.bg,            0);
-        assert.equal(parsed.bold,          false);
-        assert.equal(parsed.blink,         false);
-        assert.equal(parsed.underline,     false);
-        assert.equal(parsed.italic,        false);
+        assert.equal(parsed.fg, 7);
+        assert.equal(parsed.bg, 0);
+        assert.equal(parsed.bold, false);
+        assert.equal(parsed.blink, false);
+        assert.equal(parsed.underline, false);
+        assert.equal(parsed.italic, false);
         assert.equal(parsed.strikethrough, false);
-        assert.equal(parsed.colorSrc,      ColorSource.DEFAULT);
-        assert.equal(parsed.tcFg,          false);
-        assert.equal(parsed.tcBg,          false);
+        assert.equal(parsed.colorSrc, ColorSource.DEFAULT);
+        assert.equal(parsed.tcFg, false);
+        assert.equal(parsed.tcBg, false);
     });
 
     it('round-trips all attribute flags set', () => {
         const attr = makeAttr({
-            fg: 255, bg: 128,
-            bold: true, blink: true, underline: true,
-            italic: true, strikethrough: true,
+            fg: 255,
+            bg: 128,
+            bold: true,
+            blink: true,
+            underline: true,
+            italic: true,
+            strikethrough: true,
             colorSrc: ColorSource.PIPE,
-            tcFg: true, tcBg: true,
+            tcFg: true,
+            tcBg: true,
         });
         const p = parseAttr(attr);
-        assert.equal(p.fg,            255);
-        assert.equal(p.bg,            128);
-        assert.equal(p.bold,          true);
-        assert.equal(p.blink,         true);
-        assert.equal(p.underline,     true);
-        assert.equal(p.italic,        true);
+        assert.equal(p.fg, 255);
+        assert.equal(p.bg, 128);
+        assert.equal(p.bold, true);
+        assert.equal(p.blink, true);
+        assert.equal(p.underline, true);
+        assert.equal(p.italic, true);
         assert.equal(p.strikethrough, true);
-        assert.equal(p.colorSrc,      ColorSource.PIPE);
-        assert.equal(p.tcFg,          true);
-        assert.equal(p.tcBg,          true);
+        assert.equal(p.colorSrc, ColorSource.PIPE);
+        assert.equal(p.tcFg, true);
+        assert.equal(p.tcBg, true);
     });
 
     it('round-trips fg=255 (exercises unsigned 32-bit handling)', () => {
@@ -68,8 +73,8 @@ describe('makeAttr / parseAttr', () => {
 
     it('getFg / getBg / getColorSrc are consistent with parseAttr', () => {
         const attr = makeAttr({ fg: 42, bg: 13, colorSrc: ColorSource.ANSI });
-        assert.equal(getFg(attr),       42);
-        assert.equal(getBg(attr),       13);
+        assert.equal(getFg(attr), 42);
+        assert.equal(getBg(attr), 13);
         assert.equal(getColorSrc(attr), ColorSource.ANSI);
     });
 
@@ -79,11 +84,20 @@ describe('makeAttr / parseAttr', () => {
     });
 
     it('makeAttr returns an unsigned 32-bit number', () => {
-        const attr = makeAttr({ fg: 255, bg: 255, bold: true, blink: true,
-                                underline: true, italic: true, strikethrough: true,
-                                colorSrc: 7, tcFg: true, tcBg: true });
+        const attr = makeAttr({
+            fg: 255,
+            bg: 255,
+            bold: true,
+            blink: true,
+            underline: true,
+            italic: true,
+            strikethrough: true,
+            colorSrc: 7,
+            tcFg: true,
+            tcBg: true,
+        });
         assert.ok(attr >= 0, 'attr must not be negative');
-        assert.ok(attr <= 0xFFFFFFFF, 'attr must fit in 32 bits');
+        assert.ok(attr <= 0xffffffff, 'attr must fit in 32 bits');
     });
 });
 
@@ -132,8 +146,8 @@ describe('u32Insert / u32Delete / u32Concat', () => {
     });
 
     it('u32Concat two non-empty arrays', () => {
-        const a   = new Uint32Array([1, 2]);
-        const b   = new Uint32Array([3, 4]);
+        const a = new Uint32Array([1, 2]);
+        const b = new Uint32Array([3, 4]);
         const out = u32Concat(a, b);
         assert.deepEqual([...out], [1, 2, 3, 4]);
     });
@@ -157,7 +171,7 @@ describe('LineBuffer', () => {
             const buf = new LineBuffer({ width: 40 });
             assert.equal(buf.lines.length, 1);
             assert.equal(buf.lines[0].chars, '');
-            assert.equal(buf.lines[0].eol,   true);
+            assert.equal(buf.lines[0].eol, true);
         });
 
         it('defaults width to 79', () => {
@@ -197,7 +211,12 @@ describe('LineBuffer', () => {
 
         it('does not touch other lines', () => {
             const buf = new LineBuffer({ width: 40 });
-            buf.lines.push({ chars: 'second', attrs: new Uint32Array(6), eol: true, initialAttr: 0 });
+            buf.lines.push({
+                chars: 'second',
+                attrs: new Uint32Array(6),
+                eol: true,
+                initialAttr: 0,
+            });
             buf.insertChar(0, 0, 'X', 0);
             assert.equal(buf.lines[1].chars, 'second');
         });
@@ -241,49 +260,49 @@ describe('LineBuffer', () => {
             const buf = new LineBuffer({ width: 40 });
             buf.lines[0].chars = 'hello';
             buf.lines[0].attrs = new Uint32Array([1, 2, 3, 4, 5]);
-            buf.lines[0].eol   = true;
+            buf.lines[0].eol = true;
             buf.splitLine(0, 0);
 
             assert.equal(buf.lines.length, 2);
             assert.equal(buf.lines[0].chars, '');
-            assert.equal(buf.lines[0].eol,   true);
+            assert.equal(buf.lines[0].eol, true);
             assert.equal(buf.lines[1].chars, 'hello');
-            assert.equal(buf.lines[1].eol,   true);
+            assert.equal(buf.lines[1].eol, true);
         });
 
         it('splits at end of line (Enter at end)', () => {
             const buf = new LineBuffer({ width: 40 });
             buf.lines[0].chars = 'hello';
             buf.lines[0].attrs = new Uint32Array([1, 2, 3, 4, 5]);
-            buf.lines[0].eol   = true;
+            buf.lines[0].eol = true;
             buf.splitLine(0, 5);
 
             assert.equal(buf.lines.length, 2);
             assert.equal(buf.lines[0].chars, 'hello');
-            assert.equal(buf.lines[0].eol,   true);
+            assert.equal(buf.lines[0].eol, true);
             assert.equal(buf.lines[1].chars, '');
-            assert.equal(buf.lines[1].eol,   true);
+            assert.equal(buf.lines[1].eol, true);
         });
 
         it('splits in the middle', () => {
             const buf = new LineBuffer({ width: 40 });
             buf.lines[0].chars = 'hello world';
             buf.lines[0].attrs = new Uint32Array(11).fill(7);
-            buf.lines[0].eol   = true;
+            buf.lines[0].eol = true;
             buf.splitLine(0, 5);
 
             assert.equal(buf.lines.length, 2);
             assert.equal(buf.lines[0].chars, 'hello');
-            assert.equal(buf.lines[0].eol,   true);
+            assert.equal(buf.lines[0].eol, true);
             assert.equal(buf.lines[1].chars, ' world');
-            assert.equal(buf.lines[1].eol,   true);
+            assert.equal(buf.lines[1].eol, true);
         });
 
         it('left line eol becomes true (hard break)', () => {
             const buf = new LineBuffer({ width: 40 });
             buf.lines[0].chars = 'ab';
             buf.lines[0].attrs = new Uint32Array(2);
-            buf.lines[0].eol   = false; // was a soft-wrap line
+            buf.lines[0].eol = false; // was a soft-wrap line
             buf.splitLine(0, 1);
 
             assert.equal(buf.lines[0].eol, true, 'split left must be hard break');
@@ -293,7 +312,7 @@ describe('LineBuffer', () => {
             const buf = new LineBuffer({ width: 40 });
             buf.lines[0].chars = 'ab';
             buf.lines[0].attrs = new Uint32Array(2);
-            buf.lines[0].eol   = false; // soft wrap
+            buf.lines[0].eol = false; // soft wrap
             buf.splitLine(0, 1);
 
             assert.equal(buf.lines[1].eol, false, 'right half inherits original eol');
@@ -303,7 +322,7 @@ describe('LineBuffer', () => {
             const buf = new LineBuffer({ width: 40 });
             buf.lines[0].chars = 'abcd';
             buf.lines[0].attrs = new Uint32Array([10, 20, 30, 40]);
-            buf.lines[0].eol   = true;
+            buf.lines[0].eol = true;
             buf.splitLine(0, 2);
 
             assert.deepEqual([...buf.lines[0].attrs], [10, 20]);
@@ -316,20 +335,43 @@ describe('LineBuffer', () => {
     describe('joinLines', () => {
         it('joins two lines', () => {
             const buf = new LineBuffer({ width: 40 });
-            buf.lines[0] = { chars: 'hello', attrs: new Uint32Array([1,2,3,4,5]), eol: true, initialAttr: 0 };
-            buf.lines.push({ chars: ' world', attrs: new Uint32Array([6,7,8,9,10,11]), eol: true, initialAttr: 0 });
+            buf.lines[0] = {
+                chars: 'hello',
+                attrs: new Uint32Array([1, 2, 3, 4, 5]),
+                eol: true,
+                initialAttr: 0,
+            };
+            buf.lines.push({
+                chars: ' world',
+                attrs: new Uint32Array([6, 7, 8, 9, 10, 11]),
+                eol: true,
+                initialAttr: 0,
+            });
 
             buf.joinLines(0);
 
             assert.equal(buf.lines.length, 1);
             assert.equal(buf.lines[0].chars, 'hello world');
-            assert.deepEqual([...buf.lines[0].attrs], [1,2,3,4,5,6,7,8,9,10,11]);
+            assert.deepEqual(
+                [...buf.lines[0].attrs],
+                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+            );
         });
 
         it('joined line inherits eol of the second line', () => {
             const buf = new LineBuffer({ width: 40 });
-            buf.lines[0] = { chars: 'a', attrs: new Uint32Array(1), eol: true,  initialAttr: 0 };
-            buf.lines.push({ chars: 'b', attrs: new Uint32Array(1), eol: false, initialAttr: 0 });
+            buf.lines[0] = {
+                chars: 'a',
+                attrs: new Uint32Array(1),
+                eol: true,
+                initialAttr: 0,
+            };
+            buf.lines.push({
+                chars: 'b',
+                attrs: new Uint32Array(1),
+                eol: false,
+                initialAttr: 0,
+            });
 
             buf.joinLines(0);
 
@@ -354,9 +396,9 @@ describe('LineBuffer', () => {
             buf.lines = [
                 { chars: 'A', attrs: new Uint32Array(1), eol: false, initialAttr: 0 },
                 { chars: 'B', attrs: new Uint32Array(1), eol: false, initialAttr: 0 },
-                { chars: 'C', attrs: new Uint32Array(1), eol: true,  initialAttr: 0 },
+                { chars: 'C', attrs: new Uint32Array(1), eol: true, initialAttr: 0 },
                 { chars: 'D', attrs: new Uint32Array(1), eol: false, initialAttr: 0 },
-                { chars: 'E', attrs: new Uint32Array(1), eol: true,  initialAttr: 0 },
+                { chars: 'E', attrs: new Uint32Array(1), eol: true, initialAttr: 0 },
             ];
             return buf;
         }
@@ -388,7 +430,7 @@ describe('LineBuffer', () => {
 
         it('single-line buffer', () => {
             const buf = new LineBuffer({ width: 40 });
-            const r   = buf._paragraphRange(0);
+            const r = buf._paragraphRange(0);
             assert.deepEqual(r, { start: 0, end: 0 });
         });
     });
@@ -399,9 +441,9 @@ describe('LineBuffer', () => {
         it('wraps a long single-line paragraph at word boundary', () => {
             const buf = new LineBuffer({ width: 10 });
             buf.lines[0] = {
-                chars: 'hello world',   // 11 chars, needs to wrap at 10
+                chars: 'hello world', // 11 chars, needs to wrap at 10
                 attrs: new Uint32Array(11),
-                eol:   true,
+                eol: true,
                 initialAttr: 0,
             };
 
@@ -409,9 +451,9 @@ describe('LineBuffer', () => {
 
             assert.equal(buf.lines.length, 2);
             assert.equal(buf.lines[0].chars, 'hello');
-            assert.equal(buf.lines[0].eol,   false);
+            assert.equal(buf.lines[0].eol, false);
             assert.equal(buf.lines[1].chars, 'world');
-            assert.equal(buf.lines[1].eol,   true);
+            assert.equal(buf.lines[1].eol, true);
             assert.deepEqual(range, { start: 0, end: 1 });
         });
 
@@ -419,7 +461,7 @@ describe('LineBuffer', () => {
             const buf = new LineBuffer({ width: 10 });
             buf.lines = [
                 { chars: 'hello', attrs: new Uint32Array(5), eol: false, initialAttr: 0 },
-                { chars: 'world', attrs: new Uint32Array(5), eol: true,  initialAttr: 0 },
+                { chars: 'world', attrs: new Uint32Array(5), eol: true, initialAttr: 0 },
             ];
             //  With width=10, 'hello world' (11 chars) fits on one line if width
             //  is 11, but with width=10 it should stay as two lines.
@@ -427,30 +469,35 @@ describe('LineBuffer', () => {
 
             assert.equal(buf.lines.length, 2);
             assert.equal(buf.lines[0].chars, 'hello');
-            assert.equal(buf.lines[0].eol,   false);
+            assert.equal(buf.lines[0].eol, false);
             assert.equal(buf.lines[1].chars, 'world');
-            assert.equal(buf.lines[1].eol,   true);
+            assert.equal(buf.lines[1].eol, true);
         });
 
         it('rejoins into one line when width allows', () => {
             const buf = new LineBuffer({ width: 20 });
             buf.lines = [
                 { chars: 'hello', attrs: new Uint32Array(5), eol: false, initialAttr: 0 },
-                { chars: 'world', attrs: new Uint32Array(5), eol: true,  initialAttr: 0 },
+                { chars: 'world', attrs: new Uint32Array(5), eol: true, initialAttr: 0 },
             ];
             buf.rewrapParagraph(0);
 
             assert.equal(buf.lines.length, 1);
             assert.equal(buf.lines[0].chars, 'hello world');
-            assert.equal(buf.lines[0].eol,   true);
+            assert.equal(buf.lines[0].eol, true);
         });
 
         it('does not merge across hard-break boundaries (paragraph isolation)', () => {
             //  Two hard-break lines: 'short' and 'also short'
             const buf = new LineBuffer({ width: 40 });
             buf.lines = [
-                { chars: 'short',      attrs: new Uint32Array(5),  eol: true, initialAttr: 0 },
-                { chars: 'also short', attrs: new Uint32Array(10), eol: true, initialAttr: 0 },
+                { chars: 'short', attrs: new Uint32Array(5), eol: true, initialAttr: 0 },
+                {
+                    chars: 'also short',
+                    attrs: new Uint32Array(10),
+                    eol: true,
+                    initialAttr: 0,
+                },
             ];
             buf.rewrapParagraph(0);
 
@@ -465,7 +512,7 @@ describe('LineBuffer', () => {
             buf.lines[0] = {
                 chars: 'one two three',
                 attrs: new Uint32Array(13),
-                eol:   true,
+                eol: true,
                 initialAttr: 0,
             };
             buf.rewrapParagraph(0);
@@ -474,9 +521,9 @@ describe('LineBuffer', () => {
             assert.equal(buf.lines[0].chars, 'one');
             assert.equal(buf.lines[1].chars, 'two');
             assert.equal(buf.lines[2].chars, 'three');
-            assert.equal(buf.lines[2].eol,   true);
-            assert.equal(buf.lines[0].eol,   false);
-            assert.equal(buf.lines[1].eol,   false);
+            assert.equal(buf.lines[2].eol, true);
+            assert.equal(buf.lines[0].eol, false);
+            assert.equal(buf.lines[1].eol, false);
         });
 
         it('hard-breaks a word that exceeds width (no spaces)', () => {
@@ -484,7 +531,7 @@ describe('LineBuffer', () => {
             buf.lines[0] = {
                 chars: 'abcdefgh',
                 attrs: new Uint32Array(8),
-                eol:   true,
+                eol: true,
                 initialAttr: 0,
             };
             buf.rewrapParagraph(0);
@@ -531,9 +578,9 @@ describe('LineBuffer', () => {
             //  Should wrap to two lines
             assert.equal(buf.lines.length, 2);
             assert.equal(buf.lines[0].chars, 'hello');
-            assert.equal(buf.lines[0].eol,   false);
+            assert.equal(buf.lines[0].eol, false);
             assert.equal(buf.lines[1].chars, 'world');
-            assert.equal(buf.lines[1].eol,   true);
+            assert.equal(buf.lines[1].eol, true);
             //  getText must reconstruct with a space
             assert.equal(buf.getText(), 'hello world');
         });

@@ -127,10 +127,14 @@ const PREVIEW_MODE_KEYS = ['up', 'down', 'page up', 'page down'];
 
 //  Returns true when chars[i..i+2] is a complete |## pipe color code.
 function isPipeCode(chars, i) {
-    return chars[i] === '|' &&
+    return (
+        chars[i] === '|' &&
         i + 2 < chars.length &&
-        chars[i + 1] >= '0' && chars[i + 1] <= '9' &&
-        chars[i + 2] >= '0' && chars[i + 2] <= '9';
+        chars[i + 1] >= '0' &&
+        chars[i + 1] <= '9' &&
+        chars[i + 2] >= '0' &&
+        chars[i + 2] <= '9'
+    );
 }
 
 class MultiLineEditTextView extends View {
@@ -180,9 +184,9 @@ class MultiLineEditTextView extends View {
         this.cursorPos = { col: 0, row: 0 };
 
         //  Pipe-code expanded display state (debounce collapse system)
-        this._pipeCodeExpanded      = false;
+        this._pipeCodeExpanded = false;
         this._pipeCodeDebounceTimer = null;
-        this._pipeCodeNearIndex     = -1; //  buffer index of the one code being shown
+        this._pipeCodeNearIndex = -1; //  buffer index of the one code being shown
     }
 
     isEditMode() {
@@ -238,18 +242,19 @@ class MultiLineEditTextView extends View {
         }
 
         //  nearIndex >= 0 only during expanded mode; -1 means collapsed (skip all).
-        const nearIndex = (this._pipeCodeExpanded && this._pipeCodeNearIndex >= 0)
-            ? this._pipeCodeNearIndex
-            : -1;
+        const nearIndex =
+            this._pipeCodeExpanded && this._pipeCodeNearIndex >= 0
+                ? this._pipeCodeNearIndex
+                : -1;
 
         let dispCol = 0;
-        let i       = 0;
+        let i = 0;
         while (i < chars.length && i < bufferCol) {
             if (isPipeCode(chars, i)) {
                 if (i === nearIndex) {
                     //  Near code in expanded mode: each char has display width 1
                     const advance = Math.min(3, bufferCol - i);
-                    i       += advance;
+                    i += advance;
                     dispCol += advance;
                 } else {
                     //  Collapsed (or non-near) code: 3 buffer positions, 0 display cols
@@ -268,9 +273,9 @@ class MultiLineEditTextView extends View {
     //  only (0 display width), so the line width stays bounded.
     _renderLineExpanded(chars) {
         const nearIndex = this._pipeCodeNearIndex;
-        const PIPE_RE   = /\|([0-9]{2})/g;
+        const PIPE_RE = /\|([0-9]{2})/g;
         let m;
-        let rendered  = '';
+        let rendered = '';
         let lastIndex = 0;
 
         while ((m = PIPE_RE.exec(chars)) !== null) {
@@ -303,11 +308,17 @@ class MultiLineEditTextView extends View {
     //  set those before invoking this.
     _pipeCodeRowWrite() {
         const lineIdx = this.getTextLinesIndex();
-        const rowPos  = this.getAbsolutePosition(this.cursorPos.row, 0);
+        const rowPos = this.getAbsolutePosition(this.cursorPos.row, 0);
         const dispCol = this._bufferToDisplayCol(lineIdx, this.cursorPos.col);
-        const dstPos  = this.getAbsolutePosition(this.cursorPos.row, dispCol);
+        const dstPos = this.getAbsolutePosition(this.cursorPos.row, dispCol);
         this.client.term.write(
-            `${ansi.hideCursor()}${this.getTextSgrPrefix()}${ansi.goto(rowPos.row, rowPos.col)}${this.getRenderText(lineIdx)}${ansi.goto(dstPos.row, dstPos.col)}${ansi.showCursor()}`,
+            `${ansi.hideCursor()}${this.getTextSgrPrefix()}${ansi.goto(
+                rowPos.row,
+                rowPos.col
+            )}${this.getRenderText(lineIdx)}${ansi.goto(
+                dstPos.row,
+                dstPos.col
+            )}${ansi.showCursor()}`,
             false
         );
     }
@@ -318,7 +329,7 @@ class MultiLineEditTextView extends View {
     _expandNear() {
         this._pipeCodeExpanded = true;
         const lineIdx = this.getTextLinesIndex();
-        const chars   = this.buffer.lines[lineIdx]?.chars ?? '';
+        const chars = this.buffer.lines[lineIdx]?.chars ?? '';
         this._pipeCodeNearIndex = this._codeStartNearCursor(chars, this.cursorPos.col);
         if (this._pipeCodeDebounceTimer !== null) {
             clearTimeout(this._pipeCodeDebounceTimer);
@@ -356,8 +367,13 @@ class MultiLineEditTextView extends View {
     //  most-complete to least-complete so a full |## match wins over a partial.
     _codeStartNearCursor(chars, col) {
         if (col >= 3 && isPipeCode(chars, col - 3)) return col - 3;
-        if (col >= 2 && chars[col - 2] === '|' &&
-            chars[col - 1] >= '0' && chars[col - 1] <= '9') return col - 2;
+        if (
+            col >= 2 &&
+            chars[col - 2] === '|' &&
+            chars[col - 1] >= '0' &&
+            chars[col - 1] <= '9'
+        )
+            return col - 2;
         if (col >= 1 && chars[col - 1] === '|') return col - 1;
         return -1;
     }
@@ -380,7 +396,7 @@ class MultiLineEditTextView extends View {
             clearTimeout(this._pipeCodeDebounceTimer);
             this._pipeCodeDebounceTimer = null;
         }
-        this._pipeCodeExpanded  = false;
+        this._pipeCodeExpanded = false;
         this._pipeCodeNearIndex = -1;
     }
 
@@ -398,16 +414,30 @@ class MultiLineEditTextView extends View {
 
     //  ── Find / Search ─────────────────────────────────────────────────────────
 
+    //  Produces the visible display string for a line: strips ANSI CSI escape
+    //  sequences (e.g. \x1b[...m from prepped ANSI art), pipe codes (|##), and
+    //  tabs.  This is the text the user *sees*, used for both match searching and
+    //  highlight column calculations.
+    _toDisplayText(chars) {
+        return this._stripPipeCodes(chars)
+            .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '') //  strip ANSI CSI sequences
+            .replace(/\t/g, ' ');
+    }
+
     _buildFindMatches(query) {
         const q = query.toLowerCase();
         const matches = [];
         for (let i = 0; i < this.buffer.lines.length; i++) {
-            const display = this._stripPipeCodes(this.buffer.lines[i].chars).replace(/\t/g, ' ');
+            const display = this._toDisplayText(this.buffer.lines[i].chars);
             const lc = display.toLowerCase();
             let col = 0;
             let idx;
             while ((idx = lc.indexOf(q, col)) !== -1) {
-                matches.push({ lineIndex: i, displayStart: idx, displayEnd: idx + q.length });
+                matches.push({
+                    lineIndex: i,
+                    displayStart: idx,
+                    displayEnd: idx + q.length,
+                });
                 col = idx + 1;
             }
         }
@@ -423,11 +453,11 @@ class MultiLineEditTextView extends View {
         if (!chars.includes('|')) {
             return displayCol;
         }
-        let bufCol  = 0;
+        let bufCol = 0;
         let dispCol = 0;
         while (bufCol < chars.length && dispCol < displayCol) {
             if (isPipeCode(chars, bufCol)) {
-                bufCol += 3;    //  0 display width — skip without counting
+                bufCol += 3; //  0 display width — skip without counting
             } else {
                 bufCol++;
                 dispCol++;
@@ -439,9 +469,15 @@ class MultiLineEditTextView extends View {
     _scrollToMatch(match) {
         const halfHeight = Math.floor(this.dimens.height / 2);
         const maxTop = Math.max(0, this.buffer.lines.length - this.dimens.height);
-        this.topVisibleIndex = Math.min(Math.max(0, match.lineIndex - halfHeight), maxTop);
+        this.topVisibleIndex = Math.min(
+            Math.max(0, match.lineIndex - halfHeight),
+            maxTop
+        );
         this.cursorPos.row = match.lineIndex - this.topVisibleIndex;
-        this.cursorPos.col = this._displayToBufferCol(match.lineIndex, match.displayStart);
+        this.cursorPos.col = this._displayToBufferCol(
+            match.lineIndex,
+            match.displayStart
+        );
     }
 
     _overlayMatchHighlight(lineIndex, absRow) {
@@ -450,9 +486,7 @@ class MultiLineEditTextView extends View {
         }
         const sgrRestore = this.getTextSgrPrefix();
         const currentMatch = this._findState.matches[this._findState.currentIndex];
-        const stripped = this._stripPipeCodes(
-            this.buffer.lines[lineIndex]?.chars ?? ''
-        ).replace(/\t/g, ' ');
+        const stripped = this._toDisplayText(this.buffer.lines[lineIndex]?.chars ?? '');
 
         for (const match of this._findState.matches) {
             if (match.lineIndex !== lineIndex) {
@@ -464,8 +498,8 @@ class MultiLineEditTextView extends View {
             }
             const isCurrent = match === currentMatch;
             const highlightSGR = isCurrent
-                ? (this._findCurrentMatchStyle || '\x1b[0;7m')   //  default: inverse
-                : (this._findMatchStyle        || '\x1b[0;7;2m'); //  default: inverse+dim
+                ? this._findCurrentMatchStyle || '\x1b[0;7m' //  default: inverse
+                : this._findMatchStyle || '\x1b[0;7;2m'; //  default: inverse+dim
             const absCol = this.position.col + match.displayStart;
             this.client.term.rawWrite(
                 `${ansi.goto(absRow, absCol)}${highlightSGR}${matchText}${sgrRestore}`
@@ -509,7 +543,10 @@ class MultiLineEditTextView extends View {
         this.toggleTextCursor('hide');
 
         const startIndex = this.getTextLinesIndex(startRow);
-        const endIndex = Math.min(this.getTextLinesIndex(endRow), this.buffer.lines.length);
+        const endIndex = Math.min(
+            this.getTextLinesIndex(endRow),
+            this.buffer.lines.length
+        );
         const absPos = this.getAbsolutePosition(startRow, 0);
         const prefix = this.getTextSgrPrefix();
 
@@ -573,7 +610,9 @@ class MultiLineEditTextView extends View {
         if (!_.isNumber(index)) {
             index = this.getTextLinesIndex();
         }
-        return this.buffer.lines.length > index ? this.buffer.lines[index].chars.length : 0;
+        return this.buffer.lines.length > index
+            ? this.buffer.lines[index].chars.length
+            : 0;
     }
 
     getCharacter(index, col) {
@@ -597,14 +636,19 @@ class MultiLineEditTextView extends View {
         if (this.isEditMode()) {
             const sgrRestore = this.getTextSgrPrefix();
 
-            if (this._pipeCodeExpanded && this._pipeCodeNearIndex >= 0 && this._hasPipeCodesOrPartial(rawText)) {
+            if (
+                this._pipeCodeExpanded &&
+                this._pipeCodeNearIndex >= 0 &&
+                this._hasPipeCodesOrPartial(rawText)
+            ) {
                 //  Only the near code is visible (adds 3 display chars); all other
                 //  complete codes are 0-width.  strUtil.renderStringLength strips ALL
                 //  complete codes, so add 3 back if the near one is complete.
                 const nearIsComplete = isPipeCode(rawText, this._pipeCodeNearIndex);
-                const displayLen     = strUtil.renderStringLength(rawText) + (nearIsComplete ? 3 : 0);
-                const rendered       = this._renderLineExpanded(rawText);
-                const remain         = this.dimens.width - displayLen;
+                const displayLen =
+                    strUtil.renderStringLength(rawText) + (nearIsComplete ? 3 : 0);
+                const rendered = this._renderLineExpanded(rawText);
+                const remain = this.dimens.width - displayLen;
                 return remain > 0
                     ? rendered + sgrRestore + ' '.repeat(remain)
                     : rendered + sgrRestore;
@@ -614,8 +658,8 @@ class MultiLineEditTextView extends View {
                 //  Collapsed mode: codes invisible, cursor slides to display pos.
                 //  strUtil.renderStringLength strips pipe codes when measuring.
                 const displayLen = strUtil.renderStringLength(rawText);
-                const rendered   = this._renderLineForDisplay(rawText);
-                const remain     = this.dimens.width - displayLen;
+                const rendered = this._renderLineForDisplay(rawText);
+                const remain = this.dimens.width - displayLen;
                 return remain > 0
                     ? rendered + sgrRestore + ' '.repeat(remain)
                     : rendered + sgrRestore;
@@ -692,8 +736,10 @@ class MultiLineEditTextView extends View {
             const { start } = this.buffer.rewrapParagraph(index);
 
             //  Map cursor back to new line/col after rewrap
-            const { lineIndex: newLineIndex, col: newCol } =
-                this._offsetToLineCol(start, paragraphOffset);
+            const { lineIndex: newLineIndex, col: newCol } = this._offsetToLineCol(
+                start,
+                paragraphOffset
+            );
 
             //  Redraw from current row to end of visible area
             this.redrawRows(this.cursorPos.row, this.dimens.height);
@@ -710,7 +756,10 @@ class MultiLineEditTextView extends View {
                 this.cursorPos.col = newCol;
                 this.moveClientCursorToCursorPos();
             }
-        } else if (this.isEditMode() && this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)) {
+        } else if (
+            this.isEditMode() &&
+            this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)
+        ) {
             const lineChars = this.buffer.lines[index].chars;
             if (this._cursorNearCompleteCode(lineChars, this.cursorPos.col)) {
                 //  Just completed a |## code — expand (no timer; code stays visible
@@ -735,7 +784,10 @@ class MultiLineEditTextView extends View {
             //
             const writeCol = this.cursorPos.col - c.length;
             const startPos = this.getAbsolutePosition(this.cursorPos.row, writeCol);
-            const absPos = this.getAbsolutePosition(this.cursorPos.row, this.cursorPos.col);
+            const absPos = this.getAbsolutePosition(
+                this.cursorPos.row,
+                this.cursorPos.col
+            );
             const renderText = this.getRenderText(index).slice(writeCol);
 
             this.client.term.write(
@@ -809,8 +861,10 @@ class MultiLineEditTextView extends View {
             const { start } = this.buffer.rewrapParagraph(index);
             const linesAfter = this.buffer.lines.length;
 
-            const { lineIndex: newLineIndex, col: newCol } =
-                this._offsetToLineCol(start, paragraphOffset);
+            const { lineIndex: newLineIndex, col: newCol } = this._offsetToLineCol(
+                start,
+                paragraphOffset
+            );
             this.cursorPos.col = newCol;
 
             const newVisibleRow = newLineIndex - this.topVisibleIndex;
@@ -823,7 +877,11 @@ class MultiLineEditTextView extends View {
             } else {
                 this.cursorPos.row = newVisibleRow;
                 const chars = this.buffer.lines[newLineIndex]?.chars ?? '';
-                if (this.isEditMode() && this._hasPipeCodesOrPartial(chars) && linesAfter === linesBefore) {
+                if (
+                    this.isEditMode() &&
+                    this._hasPipeCodesOrPartial(chars) &&
+                    linesAfter === linesBefore
+                ) {
                     if (this._cursorNearPipeCode(chars, this.cursorPos.col)) {
                         //  Cursor adjacent to a code (complete or partial) — expand and
                         //  keep it visible until the user's next action (no timer).
@@ -893,7 +951,7 @@ class MultiLineEditTextView extends View {
     }
 
     moveClientCursorToCursorPos() {
-        const lineIndex  = this.getTextLinesIndex();
+        const lineIndex = this.getTextLinesIndex();
         const displayCol = this.isEditMode()
             ? this._bufferToDisplayCol(lineIndex, this.cursorPos.col)
             : this.cursorPos.col;
@@ -902,7 +960,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressCharacter(c) {
-        this.clearFind(false);
+        this.clearFind();
         if (this.maxLength > 0 && this.getCharacterLength() + 1 >= this.maxLength) {
             return;
         }
@@ -927,8 +985,10 @@ class MultiLineEditTextView extends View {
                 //  insertCharactersInText does for the wrap case.
                 const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
                 const { start } = this.buffer.rewrapParagraph(index);
-                const { lineIndex: newLineIndex, col: newCol } =
-                    this._offsetToLineCol(start, paragraphOffset);
+                const { lineIndex: newLineIndex, col: newCol } = this._offsetToLineCol(
+                    start,
+                    paragraphOffset
+                );
                 this.redrawRows(this.cursorPos.row, this.dimens.height);
                 if (newLineIndex !== index) {
                     this.cursorBeginOfNextLine();
@@ -938,7 +998,10 @@ class MultiLineEditTextView extends View {
                     this.cursorPos.col = newCol;
                     this.moveClientCursorToCursorPos();
                 }
-            } else if (this.isEditMode() && this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)) {
+            } else if (
+                this.isEditMode() &&
+                this._hasPipeCodesOrPartial(this.buffer.lines[index].chars)
+            ) {
                 //  Apply the same pipe-code display dispatch as insertCharactersInText so
                 //  that |## sequences render correctly in OVR mode too.
                 const lineChars = this.buffer.lines[index].chars;
@@ -982,8 +1045,10 @@ class MultiLineEditTextView extends View {
     keyPressDown() {
         this._maybePipeCodeCollapse();
         const lastVisibleRow =
-            Math.min(this.dimens.height, this.buffer.lines.length - this.topVisibleIndex) -
-            1;
+            Math.min(
+                this.dimens.height,
+                this.buffer.lines.length - this.topVisibleIndex
+            ) - 1;
 
         if (this.cursorPos.row < lastVisibleRow) {
             this.cursorPos.row++;
@@ -1000,8 +1065,8 @@ class MultiLineEditTextView extends View {
         this._maybePipeCodeCollapse();
         if (this.cursorPos.col > 0) {
             const lineIndex = this.getTextLinesIndex();
-            const chars     = this.buffer.lines[lineIndex]?.chars ?? '';
-            const col       = this.cursorPos.col;
+            const chars = this.buffer.lines[lineIndex]?.chars ?? '';
+            const col = this.cursorPos.col;
 
             //  In collapsed edit mode, skip back over a complete pipe code (it has
             //  zero display width, so no visible cursor movement).
@@ -1033,16 +1098,12 @@ class MultiLineEditTextView extends View {
         const eolColumn = this.getTextEndOfLineColumn();
         if (this.cursorPos.col < eolColumn) {
             const lineIndex = this.getTextLinesIndex();
-            const chars     = this.buffer.lines[lineIndex]?.chars ?? '';
-            const col       = this.cursorPos.col;
+            const chars = this.buffer.lines[lineIndex]?.chars ?? '';
+            const col = this.cursorPos.col;
 
             //  In collapsed edit mode, skip forward over a complete pipe code (it has
             //  zero display width, so no visible cursor movement).
-            if (
-                this.isEditMode() &&
-                !this._pipeCodeExpanded &&
-                isPipeCode(chars, col)
-            ) {
+            if (this.isEditMode() && !this._pipeCodeExpanded && isPipeCode(chars, col)) {
                 this.cursorPos.col += 3;
             } else {
                 const prevCharIsTab = this.isTab();
@@ -1083,10 +1144,7 @@ class MultiLineEditTextView extends View {
     keyPressPageUp() {
         this._maybePipeCodeCollapse();
         if (this.topVisibleIndex > 0) {
-            this.topVisibleIndex = Math.max(
-                0,
-                this.topVisibleIndex - this.dimens.height
-            );
+            this.topVisibleIndex = Math.max(0, this.topVisibleIndex - this.dimens.height);
             this.redraw();
             this.adjustCursorIfPastEndOfLine(true);
         } else {
@@ -1110,7 +1168,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressLineFeed() {
-        this.clearFind(false);
+        this.clearFind();
         this._maybePipeCodeCollapse();
         //
         //  Split at cursor position — LineBuffer creates a hard break here
@@ -1142,7 +1200,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressBackspace() {
-        this.clearFind(false);
+        this.clearFind();
         if (this.cursorPos.col >= 1) {
             //
             //  Don't want to delete character at cursor, but rather the character
@@ -1215,9 +1273,9 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressDelete() {
-        this.clearFind(false);
+        this.clearFind();
         const lineIndex = this.getTextLinesIndex();
-        const lineLen   = this.buffer.lines[lineIndex].chars.length;
+        const lineLen = this.buffer.lines[lineIndex].chars.length;
 
         if (0 === this.cursorPos.col && lineLen === 0 && this.buffer.lines.length > 0) {
             //
@@ -1249,7 +1307,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressDeleteLine() {
-        this.clearFind(false);
+        this.clearFind();
         if (this.buffer.lines.length > 0) {
             this.removeCharactersFromText(this.getTextLinesIndex(), 0, 'delete line');
         }
@@ -1286,8 +1344,7 @@ class MultiLineEditTextView extends View {
                 //  Next tabstop to the left
                 //
                 case 'left':
-                    move =
-                        this.cursorPos.col - this.getPrevTabStop(this.cursorPos.col);
+                    move = this.cursorPos.col - this.getPrevTabStop(this.cursorPos.col);
                     this.cursorPos.col -= move;
                     this.client.term.rawWrite(ansi.left(move));
                     break;
@@ -1460,7 +1517,7 @@ class MultiLineEditTextView extends View {
 
     keyPressDeleteWordLeft() {
         if (!this.isEditMode()) return;
-        this.clearFind(false);
+        this.clearFind();
 
         const lineIndex = this.getTextLinesIndex();
         const col = this.cursorPos.col;
@@ -1489,7 +1546,7 @@ class MultiLineEditTextView extends View {
 
     keyPressDeleteWordRight() {
         if (!this.isEditMode()) return;
-        this.clearFind(false);
+        this.clearFind();
 
         const lineIndex = this.getTextLinesIndex();
         const chars = this.buffer.lines[lineIndex].chars;
@@ -1517,7 +1574,7 @@ class MultiLineEditTextView extends View {
 
     keyPressCutLine() {
         if (!this.isEditMode()) return;
-        this.clearFind(false);
+        this.clearFind();
 
         const lineIndex = this.getTextLinesIndex();
         const lineText = this.buffer.lines[lineIndex].chars;
@@ -1536,7 +1593,7 @@ class MultiLineEditTextView extends View {
 
     keyPressPaste() {
         if (!this.isEditMode() || !this.cutBuffer) return;
-        this.clearFind(false);
+        this.clearFind();
 
         const lines = this.cutBuffer.split('\n');
         for (let i = 0; i < lines.length; i++) {
@@ -1597,6 +1654,7 @@ class MultiLineEditTextView extends View {
 
     setText(text, options = { scrollMode: 'default' }) {
         //  Normalize line endings and load into a fresh buffer
+        this._findState = null; //  new content — clear any active search
         this.buffer = new LineBuffer({ width: this.dimens.width });
         const normalized = (text || '').replace(/\r\n|\r/g, '\n');
         this.buffer.setText(normalized);
@@ -1621,6 +1679,7 @@ class MultiLineEditTextView extends View {
     }
 
     setAnsi(ansiText, options = { prepped: false }, cb) {
+        this._findState = null; //  new content — clear any active search
         this.buffer = new LineBuffer({ width: this.dimens.width });
         return this.setAnsiWithOptions(ansiText, options, cb);
     }
@@ -1663,9 +1722,9 @@ class MultiLineEditTextView extends View {
         const setLines = text => {
             const splitLines = strUtil.splitTextAtTerms(text);
             this.buffer.lines = splitLines.map(line => ({
-                chars:       line,
-                attrs:       new Uint32Array(line.length),
-                eol:         true,
+                chars: line,
+                attrs: new Uint32Array(line.length),
+                eol: true,
                 initialAttr: 0,
             }));
             if (this.buffer.lines.length === 0) {
@@ -1716,6 +1775,21 @@ class MultiLineEditTextView extends View {
         }
         const matches = this._buildFindMatches(query);
         this._findState = { query, matches, currentIndex: 0 };
+        if (matches.length > 0) {
+            this._scrollToMatch(matches[0]);
+        }
+        this.redrawVisibleArea();
+        this.moveClientCursorToCursorPos();
+    }
+
+    //  Scroll to the first match of |query| and position the cursor there,
+    //  without setting _findState or painting any highlight overlay.
+    //  Used in edit mode where persistent highlights interfere with editing.
+    gotoFirstMatch(query) {
+        if (!query) {
+            return;
+        }
+        const matches = this._buildFindMatches(query);
         if (matches.length > 0) {
             this._scrollToMatch(matches[0]);
         }

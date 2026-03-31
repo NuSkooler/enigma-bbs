@@ -87,27 +87,25 @@ function stylizeString(s, style) {
 
         //  SMaLL VoWeLS
         case 'small vowels':
-        case 'v':
-            {
-                const parts = new Array(len);
-                for (i = 0; i < len; ++i) {
-                    c = s[i];
-                    parts[i] = (-1 !== VOWELS.indexOf(c)) ? c.toLowerCase() : c.toUpperCase();
-                }
-                return parts.join('');
+        case 'v': {
+            const parts = new Array(len);
+            for (i = 0; i < len; ++i) {
+                c = s[i];
+                parts[i] = -1 !== VOWELS.indexOf(c) ? c.toLowerCase() : c.toUpperCase();
             }
+            return parts.join('');
+        }
 
         //  bIg vOwELS
         case 'big vowels':
-        case 'V':
-            {
-                const parts = new Array(len);
-                for (i = 0; i < len; ++i) {
-                    c = s[i];
-                    parts[i] = (-1 !== VOWELS.indexOf(c)) ? c.toUpperCase() : c.toLowerCase();
-                }
-                return parts.join('');
+        case 'V': {
+            const parts = new Array(len);
+            for (i = 0; i < len; ++i) {
+                c = s[i];
+                parts[i] = -1 !== VOWELS.indexOf(c) ? c.toUpperCase() : c.toLowerCase();
             }
+            return parts.join('');
+        }
 
         //  Small i's: DEMENTiA
         case 'small i':
@@ -116,26 +114,24 @@ function stylizeString(s, style) {
 
         //  mIxeD CaSE (random upper/lower)
         case 'mixed':
-        case 'M':
-            {
-                const parts = new Array(len);
-                for (i = 0; i < len; i++) {
-                    parts[i] = (Math.random() < 0.5) ? s[i].toUpperCase() : s[i].toLowerCase();
-                }
-                return parts.join('');
+        case 'M': {
+            const parts = new Array(len);
+            for (i = 0; i < len; i++) {
+                parts[i] = Math.random() < 0.5 ? s[i].toUpperCase() : s[i].toLowerCase();
             }
+            return parts.join('');
+        }
 
         //  l337 5p34k
         case 'l33t':
-        case '3':
-            {
-                const parts = new Array(len);
-                for (i = 0; i < len; ++i) {
-                    c = SIMPLE_ELITE_MAP[s[i].toLowerCase()];
-                    parts[i] = c || s[i];
-                }
-                return parts.join('');
+        case '3': {
+            const parts = new Array(len);
+            for (i = 0; i < len; ++i) {
+                c = SIMPLE_ELITE_MAP[s[i].toLowerCase()];
+                parts[i] = c || s[i];
             }
+            return parts.join('');
+        }
     }
 
     return s;
@@ -163,7 +159,9 @@ function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen = true) {
             {
                 const right = Math.ceil(padLen / 2);
                 const left = padLen - right;
-                s = `${padSGR}${padChar.repeat(left)}${stringSGR}${s}${padSGR}${padChar.repeat(right)}`;
+                s = `${padSGR}${padChar.repeat(
+                    left
+                )}${stringSGR}${s}${padSGR}${padChar.repeat(right)}`;
             }
             break;
 

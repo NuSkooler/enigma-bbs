@@ -229,8 +229,8 @@ class FullMenuView extends MenuView {
             sgr = this.focusItemFormat
                 ? ''
                 : index === this.focusedItemIndex
-                  ? this.getFocusSGR()
-                  : this.getSGR();
+                ? this.getFocusSGR()
+                : this.getSGR();
         } else {
             text = strUtil.stylizeString(
                 item.text,
@@ -461,7 +461,8 @@ class FullMenuView extends MenuView {
             this.clearPage();
             const lastItemRow = this.items[this.items.length - 1].itemInRow;
             if (lastItemRow > currentRow) {
-                this.focusedItemIndex = this.items.length - (lastItemRow - currentRow) - 1;
+                this.focusedItemIndex =
+                    this.items.length - (lastItemRow - currentRow) - 1;
             } else {
                 // can't go to same column, so go to last item
                 this.focusedItemIndex = this.items.length - 1;

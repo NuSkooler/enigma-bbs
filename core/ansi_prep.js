@@ -11,14 +11,14 @@ module.exports = function ansiPrep(input, options, cb) {
         return cb(null, '');
     }
 
-    options.termWidth  = options.termWidth  || 80;
+    options.termWidth = options.termWidth || 80;
     options.termHeight = options.termHeight || 25;
-    options.cols       = options.cols || options.termWidth || 80;
-    options.rows       = options.rows || options.termHeight || 'auto';
-    options.startCol   = options.startCol || 1;
+    options.cols = options.cols || options.termWidth || 80;
+    options.rows = options.rows || options.termHeight || 'auto';
+    options.startCol = options.startCol || 1;
     options.exportMode = options.exportMode || false;
-    options.fillLines  = options.fillLines ?? true;
-    options.indent     = options.indent || 0;
+    options.fillLines = options.fillLines ?? true;
+    options.indent = options.indent || 0;
 
     //  in auto we start out at 25 rows, but can always expand for more
     const canvas = Array.from(
@@ -30,12 +30,11 @@ module.exports = function ansiPrep(input, options, cb) {
     //  at the real terminal height.  All art past row termHeight would otherwise
     //  be collapsed onto the last visible row, producing a scrambled "mash" at
     //  the bottom of any art taller than the connected terminal window.
-    const parserTermHeight =
-        'auto' === options.rows ? 0x3fff : options.termHeight;
+    const parserTermHeight = 'auto' === options.rows ? 0x3fff : options.termHeight;
 
     const parser = new ANSIEscapeParser({
         termHeight: parserTermHeight,
-        termWidth:  options.termWidth,
+        termWidth: options.termWidth,
     });
 
     const state = {
@@ -106,20 +105,27 @@ module.exports = function ansiPrep(input, options, cb) {
     parser.on('sgr update', sgr => {
         //  When rows is fixed, ignore SGRs that land past the canvas boundary —
         //  do not create overflow rows that would bleed into the output slice.
+        //  Always snapshot the SGR object — the parser emits its live
+        //  graphicRendition reference, which is mutated in-place by every
+        //  subsequent SGR event.  Storing the raw reference means state.lastSgr
+        //  (and any canvas cell that aliased it) silently changes under us,
+        //  corrupting initialSgr for the next row (B6 fix).
+        const sgrSnap = { ...sgr };
+
         if ('auto' !== options.rows && state.row >= options.rows) {
-            state.sgr = sgr;
-            state.lastSgr = sgr; //  keep lastSgr current for next row's initialSgr
+            state.sgr = sgrSnap;
+            state.lastSgr = sgrSnap; //  keep lastSgr current for next row's initialSgr
             return;
         }
 
         ensureRow(state.row);
 
         if (state.col < options.cols) {
-            canvas[state.row][state.col].sgr = { ...sgr };
-            state.lastSgr = canvas[state.row][state.col].sgr;
+            canvas[state.row][state.col].sgr = sgrSnap;
+            state.lastSgr = sgrSnap;
         } else {
-            state.sgr = sgr;
-            state.lastSgr = sgr; //  keep lastSgr current for next row's initialSgr
+            state.sgr = sgrSnap;
+            state.lastSgr = sgrSnap; //  keep lastSgr current for next row's initialSgr
         }
     });
 

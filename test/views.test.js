@@ -2,9 +2,9 @@
 
 const { strict: assert } = require('assert');
 
-const { TickerView }        = require('../core/ticker_view.js');
-const { StatusBarView }     = require('../core/status_bar_view.js');
-const { MaskEditTextView }  = require('../core/mask_edit_text_view.js');
+const { TickerView } = require('../core/ticker_view.js');
+const { StatusBarView } = require('../core/status_bar_view.js');
+const { MaskEditTextView } = require('../core/mask_edit_text_view.js');
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
@@ -12,9 +12,9 @@ const { MaskEditTextView }  = require('../core/mask_edit_text_view.js');
 function makeClient() {
     return {
         term: {
-            termWidth:  80,
+            termWidth: 80,
             termHeight: 25,
-            write:    () => {},
+            write: () => {},
             rawWrite: () => {},
         },
     };
@@ -24,10 +24,10 @@ function makeClient() {
 //  that allow tests to fire callbacks on demand.  Call restore() when done.
 function makeFakeTimers() {
     const timers = new Map();
-    let   nextId = 1;
+    let nextId = 1;
 
     const saved = {
-        setInterval:   global.setInterval,
+        setInterval: global.setInterval,
         clearInterval: global.clearInterval,
     };
 
@@ -42,14 +42,21 @@ function makeFakeTimers() {
 
     return {
         /** Synchronously invoke the callback for the given timer id. */
-        fire(id)   { const fn = timers.get(id); if (fn) fn(); },
+        fire(id) {
+            const fn = timers.get(id);
+            if (fn) fn();
+        },
         /** True if the timer is still registered (not yet cleared). */
-        has(id)    { return timers.has(id); },
+        has(id) {
+            return timers.has(id);
+        },
         /** Number of currently-registered timers. */
-        count()    { return timers.size; },
+        count() {
+            return timers.size;
+        },
         /** Restore the original global timer functions. */
-        restore()  {
-            global.setInterval   = saved.setInterval;
+        restore() {
+            global.setInterval = saved.setInterval;
             global.clearInterval = saved.clearInterval;
         },
     };
@@ -59,19 +66,28 @@ function makeFakeTimers() {
 
 describe('TickerView', () => {
     let ft;
-    before(() => { ft = makeFakeTimers(); });
-    after(() => { ft.restore(); });
+    before(() => {
+        ft = makeFakeTimers();
+    });
+    after(() => {
+        ft.restore();
+    });
 
     function makeTicker(opts = {}) {
-        return new TickerView(Object.assign({
-            client:   makeClient(),
-            id:       1,
-            position: { row: 1, col: 1 },
-            dimens:   { width: 10, height: 1 },
-            text:     'hello',
-            effect:   'normal',
-            motion:   'left',
-        }, opts));
+        return new TickerView(
+            Object.assign(
+                {
+                    client: makeClient(),
+                    id: 1,
+                    position: { row: 1, col: 1 },
+                    dimens: { width: 10, height: 1 },
+                    text: 'hello',
+                    effect: 'normal',
+                    motion: 'left',
+                },
+                opts
+            )
+        );
     }
 
     // ── Timer lifecycle ──────────────────────────────────────────────────────
@@ -91,7 +107,7 @@ describe('TickerView', () => {
 
         it('timer is removed from fake registry after destroy()', () => {
             const view = makeTicker();
-            const id   = view._timer;
+            const id = view._timer;
             view.destroy();
             assert.ok(!ft.has(id), 'fake timer entry should be gone');
         });
@@ -143,7 +159,11 @@ describe('TickerView', () => {
 
     describe('_getVisiblePlain()', () => {
         it('left: at offset 0, text appears at the start of the window', () => {
-            const view = makeTicker({ text: 'abc', motion: 'left', dimens: { width: 10, height: 1 } });
+            const view = makeTicker({
+                text: 'abc',
+                motion: 'left',
+                dimens: { width: 10, height: 1 },
+            });
             view._scrollOffset = 0;
             const plain = view._getVisiblePlain();
             assert.equal(plain.length, 10);
@@ -152,28 +172,44 @@ describe('TickerView', () => {
         });
 
         it('left: output is always exactly dimens.width characters', () => {
-            const view = makeTicker({ text: 'abcdefgh', motion: 'left', dimens: { width: 20, height: 1 } });
+            const view = makeTicker({
+                text: 'abcdefgh',
+                motion: 'left',
+                dimens: { width: 20, height: 1 },
+            });
             view._scrollOffset = 5;
             assert.equal(view._getVisiblePlain().length, 20);
             view.destroy();
         });
 
         it('typewriter: reveals exactly _scrollOffset characters then pads', () => {
-            const view = makeTicker({ text: 'hello', motion: 'typewriter', dimens: { width: 10, height: 1 } });
+            const view = makeTicker({
+                text: 'hello',
+                motion: 'typewriter',
+                dimens: { width: 10, height: 1 },
+            });
             view._scrollOffset = 3;
             assert.equal(view._getVisiblePlain(), 'hel       ');
             view.destroy();
         });
 
         it('typewriter: _scrollOffset=0 returns full fill', () => {
-            const view = makeTicker({ text: 'hello', motion: 'typewriter', dimens: { width: 10, height: 1 } });
+            const view = makeTicker({
+                text: 'hello',
+                motion: 'typewriter',
+                dimens: { width: 10, height: 1 },
+            });
             view._scrollOffset = 0;
             assert.equal(view._getVisiblePlain(), '          ');
             view.destroy();
         });
 
         it('bounce: text shorter than window — pads to full width', () => {
-            const view = makeTicker({ text: 'hi', motion: 'bounce', dimens: { width: 10, height: 1 } });
+            const view = makeTicker({
+                text: 'hi',
+                motion: 'bounce',
+                dimens: { width: 10, height: 1 },
+            });
             view._scrollOffset = 0;
             assert.equal(view._getVisiblePlain(), 'hi        ');
             view.destroy();
@@ -181,7 +217,11 @@ describe('TickerView', () => {
 
         it('reveal: lead fill chars match _scrollOffset, then text follows', () => {
             //  scrollOffset=3 → 3 fill chars, then text 'hello', then remaining fill
-            const view = makeTicker({ text: 'hello', motion: 'reveal', dimens: { width: 10, height: 1 } });
+            const view = makeTicker({
+                text: 'hello',
+                motion: 'reveal',
+                dimens: { width: 10, height: 1 },
+            });
             view._scrollOffset = 3;
             const plain = view._getVisiblePlain();
             assert.equal(plain.length, 10);
@@ -223,18 +263,27 @@ describe('TickerView', () => {
 
 describe('StatusBarView', () => {
     let ft;
-    before(() => { ft = makeFakeTimers(); });
-    after(() => { ft.restore(); });
+    before(() => {
+        ft = makeFakeTimers();
+    });
+    after(() => {
+        ft.restore();
+    });
 
     function makeSBView(opts = {}) {
-        return new StatusBarView(Object.assign({
-            client:          makeClient(),
-            id:              1,
-            position:        { row: 1, col: 1 },
-            dimens:          { width: 40, height: 1 },
-            text:            'hello',
-            refreshInterval: 0,
-        }, opts));
+        return new StatusBarView(
+            Object.assign(
+                {
+                    client: makeClient(),
+                    id: 1,
+                    position: { row: 1, col: 1 },
+                    dimens: { width: 40, height: 1 },
+                    text: 'hello',
+                    refreshInterval: 0,
+                },
+                opts
+            )
+        );
     }
 
     // ── Timer lifecycle ──────────────────────────────────────────────────────
@@ -253,7 +302,7 @@ describe('StatusBarView', () => {
 
         it('destroy() clears the timer', () => {
             const view = makeSBView({ refreshInterval: 500 });
-            const id   = view._timer;
+            const id = view._timer;
             view.destroy();
             assert.equal(view._timer, null);
             assert.ok(!ft.has(id), 'fake timer entry should be removed');
@@ -286,10 +335,12 @@ describe('StatusBarView', () => {
     describe('skip-redraw optimisation', () => {
         it('redraws on first tick, skips redraw on second tick when text is unchanged', () => {
             const view = makeSBView({ refreshInterval: 500, text: 'static text' });
-            const id   = view._timer;
+            const id = view._timer;
 
             let redrawCount = 0;
-            view.redraw = () => { redrawCount++; };
+            view.redraw = () => {
+                redrawCount++;
+            };
 
             //  First tick: _lastRendered is undefined, text is 'static text' → redraw
             ft.fire(id);
@@ -305,10 +356,12 @@ describe('StatusBarView', () => {
 
         it('redraws again when text changes between ticks', () => {
             const view = makeSBView({ refreshInterval: 500, text: 'first' });
-            const id   = view._timer;
+            const id = view._timer;
 
             let redrawCount = 0;
-            view.redraw = () => { redrawCount++; };
+            view.redraw = () => {
+                redrawCount++;
+            };
 
             ft.fire(id);
             assert.equal(redrawCount, 1);
@@ -327,7 +380,7 @@ describe('StatusBarView', () => {
 
     describe('setPropertyValue(refreshInterval)', () => {
         it('replaces the existing timer when interval changes', () => {
-            const view  = makeSBView({ refreshInterval: 500 });
+            const view = makeSBView({ refreshInterval: 500 });
             const oldId = view._timer;
 
             view.setPropertyValue('refreshInterval', '200');
@@ -354,13 +407,18 @@ describe('MaskEditTextView', () => {
     //  paths under test (buildPattern, getData), so no fake timers needed here.
 
     function makeMaskView(opts = {}) {
-        return new MaskEditTextView(Object.assign({
-            client:      makeClient(),
-            id:          1,
-            position:    { row: 1, col: 1 },
-            dimens:      { width: 10, height: 1 },
-            maskPattern: '',
-        }, opts));
+        return new MaskEditTextView(
+            Object.assign(
+                {
+                    client: makeClient(),
+                    id: 1,
+                    position: { row: 1, col: 1 },
+                    dimens: { width: 10, height: 1 },
+                    maskPattern: '',
+                },
+                opts
+            )
+        );
     }
 
     // ── buildPattern / maxLength ─────────────────────────────────────────────
@@ -379,7 +437,7 @@ describe('MaskEditTextView', () => {
 
         it('date pattern: positions 0,1,3,4,6,7,8,9 are RegExps', () => {
             const view = makeMaskView({ maskPattern: '##/##/####' });
-            const pa   = view.patternArray;
+            const pa = view.patternArray;
             [0, 1, 3, 4, 6, 7, 8, 9].forEach(i =>
                 assert.ok(pa[i] instanceof RegExp, `position ${i} should be RegExp`)
             );
@@ -406,7 +464,7 @@ describe('MaskEditTextView', () => {
 
         it('alphanumeric @: accepts digit and alpha', () => {
             const view = makeMaskView({ maskPattern: '@' });
-            const re   = view.patternArray[0];
+            const re = view.patternArray[0];
             assert.ok(re instanceof RegExp);
             assert.ok('5'.match(re), 'digit should match @');
             assert.ok('A'.match(re), 'letter should match @');
@@ -414,7 +472,7 @@ describe('MaskEditTextView', () => {
 
         it('digit # does not accept letters', () => {
             const view = makeMaskView({ maskPattern: '#' });
-            const re   = view.patternArray[0];
+            const re = view.patternArray[0];
             assert.ok(!'a'.match(re), 'letter should not match #');
         });
 

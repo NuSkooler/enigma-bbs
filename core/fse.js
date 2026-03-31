@@ -67,14 +67,14 @@ const MciViewIds = {
 
     //  :TODO: quote builder MCIs - remove all magic #'s
 
-    ViewModeFooter: {
-        MsgNum: 6,
-        MsgTotal: 7,
+    viewModeFooter: {
+        msgNum: 6,
+        msgTotal: 7,
         //  :TODO: Just use custom ranges
     },
 
-    EditorFooter: {
-        status: 1,  //  SB1 — panel status bar (panels: mode, pos)
+    editorFooter: {
+        status: 1, //  SB1 — panel status bar (panels: mode, pos)
     },
 
     quoteBuilder: {
@@ -82,6 +82,18 @@ const MciViewIds = {
         //  2 NYI
         quoteLines: 3,
     },
+};
+
+const FormIds = {
+    header: 0,
+    body: 1,
+    footerEditor: 2,
+    footerEditorMenu: 3,
+    footerView: 4,
+    quoteBuilder: 5,
+    footerFind: 6,
+
+    help: 50,
 };
 
 /*
@@ -111,7 +123,6 @@ exports.FullScreenEditorModule =
         constructor(options) {
             super(options);
 
-            const self = this;
             const config = this.menuConfig.config;
 
             //
@@ -153,9 +164,13 @@ exports.FullScreenEditorModule =
             }
 
             this.noUpdateLastReadId =
-                (options?.extraArgs?.noUpdateLastReadId ?? config.noUpdateLastReadId) || false;
+                options?.extraArgs?.noUpdateLastReadId ??
+                config.noUpdateLastReadId ??
+                false;
 
             this.isReady = false;
+            this.header = null;
+            this.body = null;
 
             if (options?.extraArgs?.message !== undefined) {
                 this.setMessage(options.extraArgs.message);
@@ -215,66 +230,68 @@ exports.FullScreenEditorModule =
 
                     return cb(err, null);
                 },
-                headerSubmit: function (formData, extraArgs, cb) {
-                    self.switchToBody();
+                headerSubmit: (_formData, _extraArgs, cb) => {
+                    this.switchToBody();
                     return cb(null);
                 },
-                editModeEscPressed: function (formData, extraArgs, cb) {
-                    const errMsgView = self.viewControllers.header.getView(
+                editModeEscPressed: (_formData, _extraArgs, cb) => {
+                    const errMsgView = this.viewControllers.header.getView(
                         MciViewIds.header.errorMsg
                     );
                     if (errMsgView) {
                         errMsgView.clearText();
                     }
 
-                    self.footerMode =
-                        'editor' === self.footerMode ? 'editorMenu' : 'editor';
+                    this.footerMode =
+                        'editor' === this.footerMode ? 'editorMenu' : 'editor';
 
-                    self.switchFooter(function next(err) {
+                    this.switchFooter(err => {
                         if (err) {
                             return cb(err);
                         }
 
-                        switch (self.footerMode) {
+                        switch (this.footerMode) {
                             case 'editor':
-                                if (self.viewControllers.footerEditorMenu !== undefined) {
-                                    self.viewControllers.footerEditorMenu.detachClientEvents();
+                                if (this.viewControllers.footerEditorMenu !== undefined) {
+                                    this.viewControllers.footerEditorMenu.detachClientEvents();
                                 }
-                                self.viewControllers.body.switchFocus(1);
-                                self.observeEditorEvents();
+                                this.viewControllers.body.switchFocus(1);
+                                this.observeEditorEvents();
                                 break;
 
                             case 'editorMenu':
-                                self.viewControllers.body.setFocus(false);
-                                self.viewControllers.footerEditorMenu.switchFocus(1);
+                                this.viewControllers.body.setFocus(false);
+                                this.viewControllers.footerEditorMenu.switchFocus(1);
                                 break;
 
                             default:
-                                throw new Error('Unexpected mode');
+                                return cb(
+                                    new Error(`Unexpected footerMode: ${this.footerMode}`)
+                                );
                         }
 
                         return cb(null);
                     });
                 },
-                editModeMenuQuote: function (formData, extraArgs, cb) {
-                    self.viewControllers.footerEditorMenu.setFocus(false);
-                    self.displayQuoteBuilder();
+                editModeMenuQuote: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.footerEditorMenu.setFocus(false);
+                    this.displayQuoteBuilder();
                     return cb(null);
                 },
-                appendQuoteEntry: function (formData, extraArgs, cb) {
-                    const quoteMsgView = self.viewControllers.quoteBuilder.getView(
+                appendQuoteEntry: (formData, _extraArgs, cb) => {
+                    const quoteMsgView = this.viewControllers.quoteBuilder.getView(
                         MciViewIds.quoteBuilder.quotedMsg
                     );
 
-                    if (self.newQuoteBlock) {
-                        self.newQuoteBlock = false;
+                    if (this.newQuoteBlock) {
+                        this.newQuoteBlock = false;
 
                         //  :TODO: If replying to ANSI, add a blank separation line here
 
-                        quoteMsgView.addText(self.getQuoteByHeader());
+                        quoteMsgView.addText(this.getQuoteByHeader());
                     }
 
-                    const quoteListView = self.viewControllers.quoteBuilder.getView(
+                    const quoteListView = this.viewControllers.quoteBuilder.getView(
                         MciViewIds.quoteBuilder.quoteLines
                     );
                     const quoteText = quoteListView.getItem(formData.value.quote);
@@ -289,60 +306,57 @@ exports.FullScreenEditorModule =
                     if (quoteListView.getData() !== quoteListView.getCount() - 1) {
                         quoteListView.focusNext();
                     } else {
-                        self.quoteBuilderFinalize();
+                        this.quoteBuilderFinalize();
                     }
 
                     return cb(null);
                 },
-                quoteBuilderEscPressed: function (formData, extraArgs, cb) {
-                    self.quoteBuilderFinalize();
+                quoteBuilderEscPressed: (_formData, _extraArgs, cb) => {
+                    this.quoteBuilderFinalize();
                     return cb(null);
                 },
-                /*
-            replyDiscard : function(formData, extraArgs) {
-                //  :TODO: need to prompt yes/no
-                //  :TODO: @method for fallback would be better
-                self.prevMenu();
-            },
-            */
-                editModeMenuHelp: function (formData, extraArgs, cb) {
-                    self.viewControllers.footerEditorMenu.setFocus(false);
-                    return self.displayHelp(cb);
+                editModeMenuHelp: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.footerEditorMenu.setFocus(false);
+                    return this.displayHelp(cb);
                 },
                 //  Ctrl-S quick save: delegates to whichever subclass defined editModeMenuSave.
-                editModeQuickSave: function (formData, extraArgs, cb) {
-                    if ('function' === typeof self.menuMethods.editModeMenuSave) {
-                        return self.menuMethods.editModeMenuSave(formData, extraArgs, cb);
+                editModeQuickSave: (formData, extraArgs, cb) => {
+                    if ('function' === typeof this.menuMethods.editModeMenuSave) {
+                        return this.menuMethods.editModeMenuSave(formData, extraArgs, cb);
                     }
                     return cb(null);
                 },
                 //  Ctrl-O quick help: open help screen without going through the ESC menu.
-                editModeQuickHelp: function (_formData, _extraArgs, cb) {
-                    return self.displayHelp(cb);
+                editModeQuickHelp: (_formData, _extraArgs, cb) => {
+                    return this.displayHelp(cb);
                 },
-                editModeMenuUpload: function (formData, extraArgs, cb) {
+                editModeMenuUpload: (_formData, _extraArgs, cb) => {
                     //
                     //  Receive a file via the configured transfer protocol and load
                     //  it into the message body.  ANSI art is detected automatically;
                     //  plain text falls through to setText().
                     //
-                    self.viewControllers.footerEditorMenu.setFocus(false);
+                    this.viewControllers.footerEditorMenu.setFocus(false);
                     temptmp.mkdir({ prefix: 'enigfseul-' }, (err, tempDir) => {
                         if (err) {
-                            self.client.log.warn({ err }, 'FSE: failed to create upload temp dir');
+                            this.client.log.warn(
+                                { err },
+                                'FSE: failed to create upload temp dir'
+                            );
                             return cb(err);
                         }
                         //  Store dir so getSaveState() can include it for cleanup on re-entry.
-                        self._pendingTempUploadDir = pathWithTerminatingSeparator(tempDir);
+                        this._pendingTempUploadDir =
+                            pathWithTerminatingSeparator(tempDir);
                         const modOpts = {
                             extraArgs: {
-                                recvDirectory:  self._pendingTempUploadDir,
-                                direction:      'recv',
-                                returnToCaller: true,   //  skip fileBaseUploadFiles; return to FSE
+                                recvDirectory: this._pendingTempUploadDir,
+                                direction: 'recv',
+                                returnToCaller: true, //  skip fileBaseUploadFiles; return to FSE
                             },
                         };
-                        return self.gotoMenu(
-                            self.menuConfig.config.fileTransferProtocolSelection ||
+                        return this.gotoMenu(
+                            this.menuConfig.config.fileTransferProtocolSelection ||
                                 'fileTransferProtocolSelection',
                             modOpts,
                             cb
@@ -352,107 +366,55 @@ exports.FullScreenEditorModule =
                 ///////////////////////////////////////////////////////////////////////
                 //  Find / Search
                 ///////////////////////////////////////////////////////////////////////
-                editModeFind: function (formData, extraArgs, cb) {
-                    self.viewControllers.body.setFocus(false);
-                    return self.openFindPrompt(cb);
+                editModeFind: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.body.setFocus(false);
+                    return this.openFindPrompt(err => {
+                        if (err) {
+                            //  If the prompt fails to open (e.g. missing art),
+                            //  restore focus to the body so the keyboard isn't frozen.
+                            this._returnFocusToBody();
+                        }
+                        return cb(err);
+                    });
                 },
-                editModeFindNext: function (_formData, _extraArgs, cb) {
-                    self.viewControllers.body
-                        .getView(MciViewIds.body.message)
-                        .findNext();
+                editModeFindNext: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findNext();
                     return cb(null);
                 },
-                editModeFindPrev: function (_formData, _extraArgs, cb) {
-                    self.viewControllers.body
-                        .getView(MciViewIds.body.message)
-                        .findPrev();
+                editModeFindPrev: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findPrev();
                     return cb(null);
                 },
-                viewModeFind: function (formData, extraArgs, cb) {
-                    if (self.viewControllers.footerView) {
-                        self.viewControllers.footerView.setFocus(false);
+                viewModeFind: (_formData, _extraArgs, cb) => {
+                    if (this.viewControllers.footerView) {
+                        this.viewControllers.footerView.setFocus(false);
                     }
-                    return self.openFindPrompt(cb);
+                    return this.openFindPrompt(cb);
                 },
-                viewModeFindNext: function (_formData, _extraArgs, cb) {
-                    self.viewControllers.body
-                        .getView(MciViewIds.body.message)
-                        .findNext();
+                viewModeFindNext: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findNext();
                     return cb(null);
                 },
-                viewModeFindPrev: function (_formData, _extraArgs, cb) {
-                    self.viewControllers.body
-                        .getView(MciViewIds.body.message)
-                        .findPrev();
+                viewModeFindPrev: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findPrev();
                     return cb(null);
                 },
-                footerFindSubmit: function (formData, extraArgs, cb) {
+                footerFindSubmit: (formData, _extraArgs, cb) => {
                     const query = (formData.value.query || '').trim();
-                    const bodyView = self.viewControllers.body.getView(
-                        MciViewIds.body.message
-                    );
-                    if (self.viewControllers.footerFind) {
-                        self.viewControllers.footerFind.detachClientEvents();
-                    }
-                    self.footerMode = self._prevFooterMode;
-                    self.switchFooter(err => {
-                        if (err) {
-                            return cb(err);
-                        }
-                        if (query) {
-                            bodyView.setFindQuery(query);
-                        } else {
-                            bodyView.clearFind();
-                        }
-                        if ('view' === self.editorMode) {
-                            self.viewControllers.footerView.switchFocus(1);
-                        } else {
-                            self.viewControllers.body.switchFocus(1);
-                            self.updateTextEditMode(bodyView.getTextEditMode());
-                            self.updateEditModePosition(bodyView.getEditPosition());
-                            self.observeEditorEvents();
-                        }
-                        return cb(null);
-                    });
+                    return this._closeFindPrompt(query, cb);
                 },
-                footerFindCancel: function (_formData, _extraArgs, cb) {
-                    if (self.viewControllers.footerFind) {
-                        self.viewControllers.footerFind.detachClientEvents();
-                    }
-                    self.footerMode = self._prevFooterMode;
-                    self.switchFooter(err => {
-                        if (err) {
-                            return cb(err);
-                        }
-                        if ('view' === self.editorMode) {
-                            self.viewControllers.footerView.switchFocus(1);
-                        } else {
-                            self.viewControllers.body.switchFocus(1);
-                            self.updateTextEditMode(
-                                self.viewControllers.body
-                                    .getView(MciViewIds.body.message)
-                                    .getTextEditMode()
-                            );
-                            self.updateEditModePosition(
-                                self.viewControllers.body
-                                    .getView(MciViewIds.body.message)
-                                    .getEditPosition()
-                            );
-                            self.observeEditorEvents();
-                        }
-                        return cb(null);
-                    });
+                footerFindCancel: (_formData, _extraArgs, cb) => {
+                    return this._closeFindPrompt(null, cb);
                 },
 
                 ///////////////////////////////////////////////////////////////////////
                 //  View Mode
                 ///////////////////////////////////////////////////////////////////////
-                viewModeMenuHelp: function (formData, extraArgs, cb) {
-                    self.viewControllers.footerView.setFocus(false);
-                    return self.displayHelp(cb);
+                viewModeMenuHelp: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.footerView.setFocus(false);
+                    return this.displayHelp(cb);
                 },
-
-                addToDownloadQueue: (formData, extraArgs, cb) => {
+                addToDownloadQueue: (_formData, _extraArgs, cb) => {
                     this.viewControllers.footerView.setFocus(false);
                     return this.addToDownloadQueue(cb);
                 },
@@ -462,13 +424,13 @@ exports.FullScreenEditorModule =
         //  Preserve enough state to survive a gotoMenu round-trip (e.g. file upload).
         getSaveState() {
             if (!this.isReady) return null;
-            const bodyView = this.viewControllers.body?.getView(MciViewIds.body.message);
+            const bodyView = this._bodyView;
             const hdr = this.viewControllers.header?.getFormData()?.value ?? {};
             return {
-                bodyText:      bodyView ? bodyView.getData() : '',
-                replyIsAnsi:   !!this.replyIsAnsi,
-                headerFrom:    hdr.from    ?? '',
-                headerTo:      hdr.to      ?? '',
+                bodyText: bodyView ? bodyView.getData() : '',
+                replyIsAnsi: !!this.replyIsAnsi,
+                headerFrom: hdr.from ?? '',
+                headerTo: hdr.to ?? '',
                 headerSubject: hdr.subject ?? '',
                 tempUploadDir: this._pendingTempUploadDir || null,
             };
@@ -512,32 +474,67 @@ exports.FullScreenEditorModule =
             return this.replyToMessage !== undefined;
         }
 
+        //  Convenience accessor — avoids repeating the VC + MCI lookup everywhere.
+        get _bodyView() {
+            return this.viewControllers.body?.getView(MciViewIds.body.message);
+        }
+
+        //  Restore keyboard focus and editor-state indicators to the body MLTEV
+        //  after returning from any overlay (quote builder, find prompt, help, etc.).
+        _returnFocusToBody() {
+            this.viewControllers.body.switchFocus(1);
+            const bodyView = this._bodyView;
+            if (bodyView) {
+                this.updateTextEditMode(bodyView.getTextEditMode());
+                this.updateEditModePosition(bodyView.getEditPosition());
+            }
+            this.observeEditorEvents();
+        }
+
+        //  Shared teardown for footerFindSubmit and footerFindCancel.
+        //  Detaches the find VC, restores the previous footer, then either
+        //  applies the query (if non-empty) or clears any active find state,
+        //  then returns focus to body or footerView as appropriate.
+        //
+        //  In view mode a submitted query calls setFindQuery() so highlights
+        //  stay visible and Ctrl-N/P navigation works.  In edit mode we use
+        //  gotoFirstMatch() instead — it scrolls to the first hit and positions
+        //  the cursor there without setting _findState, so no highlight overlay
+        //  is painted and no ESC sequences can bleed into the editing session.
+        _closeFindPrompt(query, cb) {
+            if (this.viewControllers.footerFind) {
+                this.viewControllers.footerFind.detachClientEvents();
+            }
+            this.footerMode = this._prevFooterMode;
+            this.switchFooter(err => {
+                if (err) return cb(err);
+                if (query) {
+                    if (this.isViewMode()) {
+                        this._bodyView.setFindQuery(query);
+                    } else {
+                        this._bodyView.gotoFirstMatch(query);
+                    }
+                } else {
+                    this._bodyView.clearFind();
+                }
+                if (this.isViewMode()) {
+                    this.viewControllers.footerView.switchFocus(1);
+                } else {
+                    this._returnFocusToBody();
+                }
+                return cb(null);
+            });
+        }
+
         getFooterName() {
             //  e.g. 'footerEditor', 'footerEditorMenu', 'footerView'
             return 'footer' + this.footerMode[0].toUpperCase() + this.footerMode.slice(1);
-        }
-
-        getFormId(name) {
-            return {
-                header: 0,
-                body: 1,
-                footerEditor: 2,
-                footerEditorMenu: 3,
-                footerView: 4,
-                quoteBuilder: 5,
-                footerFind: 6,
-
-                help: 50,
-            }[name];
         }
 
         getHeaderFormatObj() {
             const remoteUserNotAvail = this.menuConfig.config.remoteUserNotAvail || 'N/A';
             const localUserIdNotAvail =
                 this.menuConfig.config.localUserIdNotAvail || 'N/A';
-            const modTimestampFormat =
-                this.menuConfig.config.modTimestampFormat ||
-                this.client.currentTheme.helpers.getDateTimeFormat();
 
             return {
                 //  :TODO: ensure we show real names for form/to if they are enforced in the area
@@ -555,7 +552,9 @@ exports.FullScreenEditorModule =
                 toRemoteUser:
                     this.message?.meta?.System?.remote_to_user ?? remoteUserNotAvail,
                 subject: this.message.subject,
-                modTimestamp: this.message.modTimestamp.format(modTimestampFormat),
+                modTimestamp: this.message.modTimestamp.format(
+                    this.getModTimestampFormat()
+                ),
                 msgNum: this.messageIndex + 1,
                 msgTotal: this.messageTotal,
                 messageId: this.message.messageId,
@@ -569,6 +568,13 @@ exports.FullScreenEditorModule =
                     break;
                 case 'view':
                     this.footerMode = 'view';
+                    break;
+                default:
+                    this.footerMode = 'editor';
+                    this.client.log.warn(
+                        { editorMode: this.editorMode },
+                        'FSE: unexpected editorMode in setInitialFooterMode'
+                    );
                     break;
             }
         }
@@ -584,9 +590,9 @@ exports.FullScreenEditorModule =
                     : this.client.user.username;
             };
 
-            let messageBody = this.viewControllers.body
-                .getView(MciViewIds.body.message)
-                .getData({ forceLineTerms: this.replyIsAnsi });
+            let messageBody = this._bodyView.getData({
+                forceLineTerms: this.replyIsAnsi,
+            });
 
             const msgOpts = {
                 areaTag: this.messageAreaTag,
@@ -608,8 +614,8 @@ exports.FullScreenEditorModule =
                     msgOpts.meta = {
                         System: {
                             explicit_encoding:
-                                Config()?.scannerTossers?.ftn_bso?.packetAnsiMsgEncoding ??
-                                'cp437',
+                                Config()?.scannerTossers?.ftn_bso
+                                    ?.packetAnsiMsgEncoding ?? 'cp437',
                         },
                     };
                     messageBody = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(
@@ -696,7 +702,10 @@ exports.FullScreenEditorModule =
                             //  Convert any pipe codes (|##) in the body to ANSI SGR before
                             //  setAnsi processes the string; setAnsi only handles \x1b sequences
                             //  so plain pipe codes would otherwise render as literal text.
-                            controlCodesToAnsi(msg.replace(/\r?\n/g, '\r\n'), this.client),
+                            controlCodesToAnsi(
+                                msg.replace(/\r?\n/g, '\r\n'),
+                                this.client
+                            ),
                             {
                                 prepped: false,
                                 forceLineTerm: true,
@@ -861,10 +870,7 @@ exports.FullScreenEditorModule =
                 Events.emit(Events.getSystemEvents().UserSendMail, {
                     user: this.client.user,
                 });
-                if (cb) {
-                    cb(null);
-                }
-                return; //  don't inc stats for private messages
+                return cb(null); //  don't inc stats for private messages
             }
 
             Events.emit(Events.getSystemEvents().UserPostMessage, {
@@ -885,31 +891,16 @@ exports.FullScreenEditorModule =
         redrawFooter(options, cb) {
             const footerRow = this.header.height + this.body.height;
 
-            async.waterfall(
-                [
-                    callback => {
-                        this.client.term.rawWrite(ansi.goto(footerRow, 1));
-                        callback(null);
-                    },
-                    callback => {
-                        if (options.clear) {
-                            //  :TODO: We'd like to delete up to N rows, but this does not work in NetRunner:
-                            this.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
-                            this.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2));
-                        }
-                        callback(null);
-                    },
-                    callback => {
-                        const footerArt = this.menuConfig.config.art[options.footerName];
-                        this.displayAsset(
-                            footerArt,
-                            { startRow: footerRow },
-                            (err, artData) => callback(err, artData)
-                        );
-                    },
-                ],
-                (err, artData) => cb(err, artData)
-            );
+            this.client.term.rawWrite(ansi.goto(footerRow, 1));
+
+            if (options.clear) {
+                //  :TODO: We'd like to delete up to N rows, but this does not work in NetRunner:
+                this.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
+                this.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2));
+            }
+
+            const footerArt = this.menuConfig.config.art[options.footerName];
+            this.displayAsset(footerArt, { startRow: footerRow }, cb);
         }
 
         redrawScreen(cb) {
@@ -957,7 +948,7 @@ exports.FullScreenEditorModule =
 
         switchFooter(cb) {
             const footerName = this.getFooterName();
-            const formId = this.getFormId(footerName);
+            const formId = FormIds[footerName];
             const startRow = this.header.height + this.body.height;
 
             this.client.term.rawWrite(ansi.goto(startRow, 1) + ansi.eraseLine(2));
@@ -1046,7 +1037,7 @@ exports.FullScreenEditorModule =
                     callback => {
                         this.prepViewController(
                             'header',
-                            this.getFormId('header'),
+                            FormIds.header,
                             mciData.header.mciMap,
                             err => callback(err)
                         );
@@ -1054,7 +1045,7 @@ exports.FullScreenEditorModule =
                     callback => {
                         this.prepViewController(
                             'body',
-                            this.getFormId('body'),
+                            FormIds.body,
                             mciData.body.mciMap,
                             err => callback(err)
                         );
@@ -1063,7 +1054,7 @@ exports.FullScreenEditorModule =
                         const footerName = this.getFooterName();
                         this.prepViewController(
                             footerName,
-                            this.getFormId(footerName),
+                            FormIds[footerName],
                             mciData[footerName].mciMap,
                             err => callback(err)
                         );
@@ -1152,14 +1143,19 @@ exports.FullScreenEditorModule =
                         this._pendingSavedState = null;
 
                         //  Restore header fields the user had typed before the transfer.
-                        const toView   = this.viewControllers.header.getView(MciViewIds.header.to);
-                        const subjView = this.viewControllers.header.getView(MciViewIds.header.subject);
-                        if (toView   && saved.headerTo)      toView.setText(saved.headerTo);
-                        if (subjView && saved.headerSubject)  subjView.setText(saved.headerSubject);
+                        const toView = this.viewControllers.header.getView(
+                            MciViewIds.header.to
+                        );
+                        const subjView = this.viewControllers.header.getView(
+                            MciViewIds.header.subject
+                        );
+                        if (toView && saved.headerTo) toView.setText(saved.headerTo);
+                        if (subjView && saved.headerSubject)
+                            subjView.setText(saved.headerSubject);
 
                         this.replyIsAnsi = saved.replyIsAnsi;
 
-                        const bodyView = this.viewControllers.body.getView(MciViewIds.body.message);
+                        const bodyView = this._bodyView;
 
                         //  After loading content, transfer focus to the body so the user
                         //  can interact immediately (header ESC → prevMenu would fire otherwise).
@@ -1176,7 +1172,8 @@ exports.FullScreenEditorModule =
                             //  detect its type, and load it into the body.
                             //
                             const uploadPath = this._pendingUploadFiles[0];
-                            const tempDir    = saved.tempUploadDir || paths.dirname(uploadPath);
+                            const tempDir =
+                                saved.tempUploadDir || paths.dirname(uploadPath);
                             this._pendingUploadFiles = null;
 
                             fs.readFile(uploadPath, (err, data) => {
@@ -1191,7 +1188,10 @@ exports.FullScreenEditorModule =
                                 });
 
                                 if (err) {
-                                    this.client.log.warn({ err, uploadPath }, 'FSE: failed to read uploaded file');
+                                    this.client.log.warn(
+                                        { err, uploadPath },
+                                        'FSE: failed to read uploaded file'
+                                    );
                                     return done(); //  non-fatal; just leave body empty
                                 }
 
@@ -1206,7 +1206,8 @@ exports.FullScreenEditorModule =
                                     data[1] === 0xbb &&
                                     data[2] === 0xbf;
                                 const enc =
-                                    hasUtf8Bom || !data.toString('utf8').includes('\uFFFD')
+                                    hasUtf8Bom ||
+                                    !data.toString('utf8').includes('\uFFFD')
                                         ? 'utf8'
                                         : 'cp437';
                                 const content = iconv.decode(data, enc);
@@ -1247,57 +1248,40 @@ exports.FullScreenEditorModule =
         }
 
         mciReadyHandler(mciData, cb) {
-            this.createInitialViews(mciData, err => {
-                //  :TODO: Can probably be replaced with @systemMethod:validateUserNameExists when the framework is in
-                //  place - if this is for existing usernames else validate spec
-
-                /*
-            self.viewControllers.header.on('leave', function headerViewLeave(view) {
-
-                if(2 === view.id) { //  "to" field
-                    self.validateToUserName(view.getData(), function result(err) {
-                        if(err) {
-                            //  :TODO: display a error in a %TL area or such
-                            view.clearText();
-                            self.viewControllers.headers.switchFocus(2);
-                        }
-                    });
-                }
-            });*/
-
-                cb(err);
-            });
+            this.createInitialViews(mciData, cb);
         }
 
         updateEditModePosition(pos) {
             if (!this.isEditMode()) return;
 
-            const statusView = this.viewControllers.footerEditor
-                ?.getView(MciViewIds.EditorFooter.status);
+            const statusView = this.viewControllers.footerEditor?.getView(
+                MciViewIds.editorFooter.status
+            );
             if (!statusView) return;
 
             //  setPanel targets only the 'pos' slot; the 'mode' panel is unchanged.
             //  moveClientCursorToCursorPos() uses pipe-code display-col mapping so
             //  buffer col ≠ display col on |## lines doesn't cause rightward drift.
-            statusView.setPanel('pos',
-                `${String(pos.row + 1).padStart(2, '0')},${String(pos.col + 1).padStart(2, '0')}`
+            statusView.setPanel(
+                'pos',
+                `${String(pos.row + 1).padStart(2, '0')},${String(pos.col + 1).padStart(
+                    2,
+                    '0'
+                )}`
             );
-            this.viewControllers.body
-                ?.getView(MciViewIds.body.message)
-                ?.moveClientCursorToCursorPos();
+            this._bodyView?.moveClientCursorToCursorPos();
         }
 
         updateTextEditMode(mode) {
             if (!this.isEditMode()) return;
 
-            const statusView = this.viewControllers.footerEditor
-                ?.getView(MciViewIds.EditorFooter.status);
+            const statusView = this.viewControllers.footerEditor?.getView(
+                MciViewIds.editorFooter.status
+            );
             if (!statusView) return;
 
             statusView.setPanel('mode', 'insert' === mode ? 'INS' : 'OVR');
-            this.viewControllers.body
-                ?.getView(MciViewIds.body.message)
-                ?.moveClientCursorToCursorPos();
+            this._bodyView?.moveClientCursorToCursorPos();
         }
 
         setHeaderText(id, text) {
@@ -1322,6 +1306,13 @@ exports.FullScreenEditorModule =
             return this.menuConfig.config.remoteUserNotAvail || 'N/A';
         }
 
+        getModTimestampFormat() {
+            return (
+                this.menuConfig.config.modTimestampFormat ||
+                this.client.currentTheme.helpers.getDateTimeFormat()
+            );
+        }
+
         initHeaderViewMode() {
             // Only set header text for from view if it is on the form
             if (
@@ -1334,10 +1325,7 @@ exports.FullScreenEditorModule =
 
             this.setHeaderText(
                 MciViewIds.header.modTimestamp,
-                moment(this.message.modTimestamp).format(
-                    this.menuConfig.config.modTimestampFormat ||
-                        this.client.currentTheme.helpers.getDateTimeFormat()
-                )
+                moment(this.message.modTimestamp).format(this.getModTimestampFormat())
             );
 
             this.setHeaderText(
@@ -1357,6 +1345,7 @@ exports.FullScreenEditorModule =
         }
 
         initHeaderReplyEditMode() {
+            if (!this.replyToMessage) return;
 
             this.setHeaderText(MciViewIds.header.to, this.replyToMessage.fromUserName);
 
@@ -1373,7 +1362,6 @@ exports.FullScreenEditorModule =
         }
 
         initBodyReplyEditMode() {
-
             const bodyMessageView = this.viewControllers.body.getView(
                 MciViewIds.body.message
             );
@@ -1388,12 +1376,12 @@ exports.FullScreenEditorModule =
         initFooterViewMode() {
             this.setViewText(
                 'footerView',
-                MciViewIds.ViewModeFooter.msgNum,
+                MciViewIds.viewModeFooter.msgNum,
                 (this.messageIndex + 1).toString()
             );
             this.setViewText(
                 'footerView',
-                MciViewIds.ViewModeFooter.msgTotal,
+                MciViewIds.viewModeFooter.msgTotal,
                 this.messageTotal.toString()
             );
         }
@@ -1405,7 +1393,8 @@ exports.FullScreenEditorModule =
                 { name: this.menuConfig.config.art.help, client: this.client },
                 () => {
                     this.client.waitForKeyPress(() => {
-                        this.redrawScreen(() => {
+                        this.redrawScreen(err => {
+                            if (err) return cb(err);
                             this.viewControllers[this.getFooterName()].setFocus(true);
                             return cb(null);
                         });
@@ -1445,9 +1434,7 @@ exports.FullScreenEditorModule =
 | ID      : ${this.message.messageUuid} (${msgInfo.messageId})
 +${'-'.repeat(79)}
 `;
-                        const body = this.viewControllers.body
-                            .getView(MciViewIds.body.message)
-                            .getData({ forceLineTerms: true });
+                        const body = this._bodyView.getData({ forceLineTerms: true });
 
                         const cleanBody = stripMciColorCodes(
                             stripAnsiControlCodes(body, { all: true })
@@ -1516,7 +1503,15 @@ exports.FullScreenEditorModule =
                     },
                 ],
                 err => {
-                    return cb(err);
+                    if (err) {
+                        //  Restore the screen/footer so the user isn't left with a blank display.
+                        this.redrawScreen(() => {
+                            this.viewControllers[this.getFooterName()].setFocus(true);
+                            return cb(err);
+                        });
+                    } else {
+                        return cb(null);
+                    }
                 }
             );
         }
@@ -1550,7 +1545,7 @@ exports.FullScreenEditorModule =
                         );
                     },
                     function createViewsIfNecessary(artData, callback) {
-                        var formId = self.getFormId('quoteBuilder');
+                        const formId = FormIds.quoteBuilder;
 
                         if (self.viewControllers.quoteBuilder === undefined) {
                             var menuLoadOpts = {
@@ -1632,7 +1627,8 @@ exports.FullScreenEditorModule =
         }
 
         observeEditorEvents() {
-            const bodyView = this.viewControllers.body.getView(MciViewIds.body.message);
+            const bodyView = this._bodyView;
+            if (!bodyView) return;
 
             //  Remove any previously attached listeners to avoid double-firing
             //  when observeEditorEvents() is called more than once (e.g. after
@@ -1648,14 +1644,6 @@ exports.FullScreenEditorModule =
                 this.updateTextEditMode(mode);
             });
         }
-
-        /*
-    this.observeViewPosition = function() {
-        self.viewControllers.body.getView(MciViewIds.body.message).on('edit position', function positionUpdate(pos) {
-            console.log(pos.percent + ' / ' + pos.below)
-        });
-    };
-    */
 
         openFindPrompt(cb) {
             this._prevFooterMode = this.footerMode;
@@ -1708,16 +1696,8 @@ exports.FullScreenEditorModule =
 
         switchFromQuoteBuilderToBody() {
             this.viewControllers.quoteBuilder.setFocus(false);
-            var body = this.viewControllers.body.getView(MciViewIds.body.message);
-            body.redraw();
-            this.viewControllers.body.switchFocus(1);
-
-            //  :TODO: create method (DRY)
-
-            this.updateTextEditMode(body.getTextEditMode());
-            this.updateEditModePosition(body.getEditPosition());
-
-            this.observeEditorEvents();
+            this._bodyView.redraw();
+            this._returnFocusToBody();
         }
 
         quoteBuilderFinalize() {
@@ -1725,25 +1705,28 @@ exports.FullScreenEditorModule =
             const quoteMsgView = this.viewControllers.quoteBuilder.getView(
                 MciViewIds.quoteBuilder.quotedMsg
             );
-            const msgView = this.viewControllers.body.getView(MciViewIds.body.message);
+            const bodyView = this._bodyView;
 
             let quoteLines = quoteMsgView.getData().trim();
 
             if (quoteLines.length > 0) {
                 if (this.replyIsAnsi) {
-                    const bodyMessageView = this.viewControllers.body.getView(
-                        MciViewIds.body.message
-                    );
-                    quoteLines += `${ansi.normal()}${bodyMessageView.getTextSgrPrefix()}`;
+                    quoteLines += `${ansi.normal()}${bodyView.getTextSgrPrefix()}`;
                 }
-                msgView.addText(`${quoteLines}\n\n`);
+                bodyView.addText(`${quoteLines}\n\n`);
             }
 
             quoteMsgView.setText('');
 
             this.footerMode = 'editor';
 
-            this.switchFooter(() => {
+            this.switchFooter(err => {
+                if (err) {
+                    return this.client.log.warn(
+                        { err },
+                        'FSE: switchFooter failed in quoteBuilderFinalize'
+                    );
+                }
                 this.switchFromQuoteBuilderToBody();
             });
         }

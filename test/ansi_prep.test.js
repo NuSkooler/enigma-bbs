@@ -9,9 +9,7 @@ const ansiPrep = require('../core/ansi_prep.js');
 //  Wrap callback-style ansiPrep in a Promise.
 function prep(input, options = {}) {
     return new Promise((resolve, reject) => {
-        ansiPrep(input, { ...options }, (err, out) =>
-            err ? reject(err) : resolve(out)
-        );
+        ansiPrep(input, { ...options }, (err, out) => (err ? reject(err) : resolve(out)));
     });
 }
 

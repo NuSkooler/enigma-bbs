@@ -85,8 +85,8 @@ class VerticalMenuView extends MenuView {
             sgr = this.focusItemFormat
                 ? ''
                 : index === this.focusedItemIndex
-                  ? this.getFocusSGR()
-                  : this.getSGR();
+                ? this.getFocusSGR()
+                : this.getSGR();
         } else {
             text = strUtil.stylizeString(
                 item.text,

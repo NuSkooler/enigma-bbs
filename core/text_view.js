@@ -4,7 +4,13 @@
 const { View } = require('./view.js');
 const miscUtil = require('./misc_util.js');
 const ansi = require('./ansi_term.js');
-const { pad: padStr, stylizeString, renderSubstr, renderStringLength, stripAllLineFeeds } = require('./string_util.js');
+const {
+    pad: padStr,
+    stylizeString,
+    renderSubstr,
+    renderStringLength,
+    stripAllLineFeeds,
+} = require('./string_util.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 const stringFormat = require('./string_format');
@@ -26,7 +32,11 @@ class TextView extends View {
             this.maxLength = this.client.term.termWidth - this.position.col;
         }
 
-        this.fillChar = renderSubstr(miscUtil.valueWithDefault(options.fillChar, ' '), 0, 1);
+        this.fillChar = renderSubstr(
+            miscUtil.valueWithDefault(options.fillChar, ' '),
+            0,
+            1
+        );
         this.justify = options.justify || 'left';
         this.resizable = miscUtil.valueWithDefault(options.resizable, true);
         this.horizScroll = miscUtil.valueWithDefault(options.horizScroll, true);
@@ -209,7 +219,8 @@ class TextView extends View {
                 break;
             case 'password':
                 if (true === value) {
-                    this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
+                    this.textMaskChar =
+                        this.client.currentTheme.helpers.getPasswordChar();
                 }
                 break;
         }

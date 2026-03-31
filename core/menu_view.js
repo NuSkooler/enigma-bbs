@@ -102,7 +102,9 @@ class MenuView extends View {
                           return item.text || '';
                       })();
 
-                const displayText = this.disablePipe ? text : pipeToAnsi(text, this.client);
+                const displayText = this.disablePipe
+                    ? text
+                    : pipeToAnsi(text, this.client);
                 return Object.assign({}, { text: displayText }, stringItem ? {} : item);
             });
 
@@ -151,7 +153,10 @@ class MenuView extends View {
             if (!b1) {
                 return 1;
             }
-            return a1.localeCompare(b1, undefined, { sensitivity: 'base', numeric: true });
+            return a1.localeCompare(b1, undefined, {
+                sensitivity: 'base',
+                numeric: true,
+            });
         });
 
         this.sorted = true;

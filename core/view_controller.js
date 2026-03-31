@@ -252,9 +252,10 @@ class ViewController extends events.EventEmitter {
                             //  :TODO: handle propAsset.location for @method script specification
                             if ('systemMethod' === propAsset.type) {
                                 //  :TODO: implementation validation @systemMethod handling!
-                                const methodModule = require(
-                                    paths.join(__dirname, 'system_view_validate.js')
-                                );
+                                const methodModule = require(paths.join(
+                                    __dirname,
+                                    'system_view_validate.js'
+                                ));
                                 if (_.isFunction(methodModule[propAsset.asset])) {
                                     propValue = methodModule[propAsset.asset];
                                 }
@@ -540,7 +541,9 @@ class ViewController extends events.EventEmitter {
     }
 
     nextFocus() {
-        let nextFocusView = this.focusedView ? this.focusedView : this.views[this.firstId];
+        let nextFocusView = this.focusedView
+            ? this.focusedView
+            : this.views[this.firstId];
 
         //  find the next view that accepts focus
         while (nextFocusView && nextFocusView.nextId) {
@@ -578,7 +581,9 @@ class ViewController extends events.EventEmitter {
 
             this.firstId = viewIdOrder[0];
             const lastId =
-                viewIdOrder.length > 1 ? viewIdOrder[viewIdOrder.length - 1] : this.firstId;
+                viewIdOrder.length > 1
+                    ? viewIdOrder[viewIdOrder.length - 1]
+                    : this.firstId;
             this.views[lastId].nextId = this.firstId;
         }
     }
@@ -707,7 +712,10 @@ class ViewController extends events.EventEmitter {
                     callback(null);
                 },
                 callback => {
-                    if (!_.isObject(promptConfig) || !_.isArray(promptConfig.actionKeys)) {
+                    if (
+                        !_.isObject(promptConfig) ||
+                        !_.isArray(promptConfig.actionKeys)
+                    ) {
                         return callback(null);
                     }
 

@@ -377,7 +377,8 @@ Object.keys(CONTROL).forEach(function onControlName(name) {
     exports[name] = (...args) => {
         if (args.length === 0) return noArgResult;
         if (args.length === 1) return `${ESC_CSI}${Math.round(args[0])}${code}`;
-        if (args.length === 2) return `${ESC_CSI}${Math.round(args[0])};${Math.round(args[1])}${code}`;
+        if (args.length === 2)
+            return `${ESC_CSI}${Math.round(args[0])};${Math.round(args[1])}${code}`;
         return `${ESC_CSI}${args.map(Math.round).join(';')}${code}`;
     };
 });

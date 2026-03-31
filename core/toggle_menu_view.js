@@ -115,7 +115,10 @@ class ToggleMenuView extends MenuView {
 
     onKeyPress(ch, key) {
         if (key) {
-            if (this.isKeyMapped('right', key.name) || this.isKeyMapped('down', key.name)) {
+            if (
+                this.isKeyMapped('right', key.name) ||
+                this.isKeyMapped('down', key.name)
+            ) {
                 this.focusNext();
             } else if (
                 this.isKeyMapped('left', key.name) ||

@@ -55,14 +55,14 @@ class StatusBarView extends TextView {
         super(options);
 
         //  Keep the raw format template for the single-mode auto-refresh tick.
-        this._format         = options.text || '';
+        this._format = options.text || '';
         this.refreshInterval = parseInt(options.refreshInterval, 10) || 0;
-        this._timer          = null;
+        this._timer = null;
 
         if (Array.isArray(options.panels)) {
             //  Panel mode: anchor and separator are SB-level; justify is inherited
             //  from View (already set by super() via options.justify).
-            this._anchor    = options.anchor    || 'left';
+            this._anchor = options.anchor || 'left';
             this._separator = options.separator || '';
             this._initPanels(options.panels);
         } else if (this.refreshInterval > 0) {
@@ -75,17 +75,18 @@ class StatusBarView extends TextView {
     _initPanels(panelConfigs) {
         this._panels = panelConfigs.map((cfg, idx) => {
             const panel = {
-                name:            cfg.name || String(idx),
-                width:           cfg.width,   //  number or 'fill'
-                justify:         cfg.justify  || 'left',
-                styleSGR1:       cfg.styleSGR1  ? pipeToAnsi(String(cfg.styleSGR1))  : null,
-                textStyle:       cfg.textStyle  || 'normal',
-                _fillChar:       pipeToAnsi(cfg.fillChar != null ? String(cfg.fillChar) : ' '),
-                overflow:        cfg.overflow   || 'clip',
-                text:            cfg.text       || '',
-                refreshInterval: parseInt(cfg.refreshInterval, 10) || this.refreshInterval || 0,
-                value:           '',
-                _timer:          null,
+                name: cfg.name || String(idx),
+                width: cfg.width, //  number or 'fill'
+                justify: cfg.justify || 'left',
+                styleSGR1: cfg.styleSGR1 ? pipeToAnsi(String(cfg.styleSGR1)) : null,
+                textStyle: cfg.textStyle || 'normal',
+                _fillChar: pipeToAnsi(cfg.fillChar != null ? String(cfg.fillChar) : ' '),
+                overflow: cfg.overflow || 'clip',
+                text: cfg.text || '',
+                refreshInterval:
+                    parseInt(cfg.refreshInterval, 10) || this.refreshInterval || 0,
+                value: '',
+                _timer: null,
             };
 
             //  Panels with a text template always get an initial evaluated value.
@@ -145,10 +146,9 @@ class StatusBarView extends TextView {
         }
 
         for (const [key, value] of Object.entries(updates)) {
-            const idx   = _.isFinite(+key) ? +key : null;
-            const panel = idx !== null
-                ? this._panels[idx]
-                : this._panels.find(p => p.name === key);
+            const idx = _.isFinite(+key) ? +key : null;
+            const panel =
+                idx !== null ? this._panels[idx] : this._panels.find(p => p.name === key);
 
             if (panel) {
                 panel.value = this._processPanelValue(value, panel.textStyle);
@@ -189,30 +189,31 @@ class StatusBarView extends TextView {
 
     _buildPanelString() {
         //  anchor: 'right' reverses draw order so panel[0] is rightmost.
-        const panels = 'right' === this._anchor
-            ? [...this._panels].reverse()
-            : this._panels;
+        const panels =
+            'right' === this._anchor ? [...this._panels].reverse() : this._panels;
 
         //  Compute the width of the fill panel (if any).
         const sepRendered = pipeToAnsi(this._separator);
-        const sepLen      = renderStringLength(sepRendered);
+        const sepLen = renderStringLength(sepRendered);
         const totalSepLen = panels.length > 1 ? sepLen * (panels.length - 1) : 0;
-        const fixedWidth  = panels.reduce(
-            (sum, p) => ('fill' !== p.width ? sum + p.width : sum), 0
+        const fixedWidth = panels.reduce(
+            (sum, p) => ('fill' !== p.width ? sum + p.width : sum),
+            0
         );
         const fillWidth = Math.max(0, this.dimens.width - fixedWidth - totalSepLen);
 
         //  Render each panel slot.
         const parts = panels.map(panel => {
-            const w   = 'fill' === panel.width ? fillWidth : panel.width;
+            const w = 'fill' === panel.width ? fillWidth : panel.width;
             const sgr = panel.styleSGR1 || this.getSGR();
 
-            let val    = panel.value;
+            let val = panel.value;
             const vLen = renderStringLength(val);
             if (vLen > w) {
-                val = 'clip-left' === panel.overflow
-                    ? renderSubstr(val, vLen - w, w)
-                    : renderSubstr(val, 0, w);
+                val =
+                    'clip-left' === panel.overflow
+                        ? renderSubstr(val, vLen - w, w)
+                        : renderSubstr(val, 0, w);
             }
 
             //  pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen)
@@ -223,10 +224,10 @@ class StatusBarView extends TextView {
 
         //  Join panels.  Each panel's own styleSGR1 self-declares its color, so
         //  no explicit SGR restore is needed after the separator (option 3).
-        const content    = parts.join(sepRendered);
+        const content = parts.join(sepRendered);
         const contentLen = renderStringLength(content);
-        const padLen     = Math.max(0, this.dimens.width - contentLen);
-        const baseSGR    = this.getSGR();
+        const padLen = Math.max(0, this.dimens.width - contentLen);
+        const baseSGR = this.getSGR();
 
         //  Apply group justify within the total view width.
         if (0 === padLen || 'left' === this.justify) {
@@ -236,9 +237,11 @@ class StatusBarView extends TextView {
             return `${baseSGR}${' '.repeat(padLen)}${content}`;
         }
         //  center
-        const leftPad  = Math.floor(padLen / 2);
+        const leftPad = Math.floor(padLen / 2);
         const rightPad = padLen - leftPad;
-        return `${baseSGR}${' '.repeat(leftPad)}${content}${baseSGR}${' '.repeat(rightPad)}`;
+        return `${baseSGR}${' '.repeat(leftPad)}${content}${baseSGR}${' '.repeat(
+            rightPad
+        )}`;
     }
 
     //  ── Single-mode auto-refresh (no panels) ─────────────────────────────────

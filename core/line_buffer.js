@@ -27,9 +27,9 @@
 //
 
 const ColorSource = Object.freeze({
-    DEFAULT:  0,
-    PIPE:     1,
-    ANSI:     2,
+    DEFAULT: 0,
+    PIPE: 1,
+    ANSI: 2,
     IMPORTED: 3,
     TRUECOLOR: 7,
 });
@@ -39,8 +39,8 @@ const ColorSource = Object.freeze({
 //  makeAttr({ fg, bg, bold, blink, underline, italic, strikethrough,
 //             colorSrc, tcFg, tcBg })  → Uint32
 function makeAttr({
-    fg   = 7,
-    bg   = 0,
+    fg = 7,
+    bg = 0,
     bold = false,
     blink = false,
     underline = false,
@@ -52,38 +52,45 @@ function makeAttr({
 } = {}) {
     //  Use multiplication for fg shift to avoid signed-integer issues with << 24
     return (
-        (fg  & 0xFF) * 0x1000000          |   // bits 31:24
-        ((bg & 0xFF) << 16)               |   // bits 23:16
-        (bold          ? (1 << 15) : 0)   |
-        (blink         ? (1 << 14) : 0)   |
-        (underline     ? (1 << 13) : 0)   |
-        (italic        ? (1 << 12) : 0)   |
-        (strikethrough ? (1 << 11) : 0)   |
-        ((colorSrc & 0x7) << 8)           |   // bits 10:8
-        (tcFg          ? (1 <<  7) : 0)   |
-        (tcBg          ? (1 <<  6) : 0)
-    ) >>> 0;  // coerce to unsigned 32-bit
+        (((fg & 0xff) * 0x1000000) | // bits 31:24
+            ((bg & 0xff) << 16) | // bits 23:16
+            (bold ? 1 << 15 : 0) |
+            (blink ? 1 << 14 : 0) |
+            (underline ? 1 << 13 : 0) |
+            (italic ? 1 << 12 : 0) |
+            (strikethrough ? 1 << 11 : 0) |
+            ((colorSrc & 0x7) << 8) | // bits 10:8
+            (tcFg ? 1 << 7 : 0) |
+            (tcBg ? 1 << 6 : 0)) >>>
+        0
+    ); // coerce to unsigned 32-bit
 }
 
 //  parseAttr(attr)  → plain object (all fields)
 function parseAttr(attr) {
     return {
-        fg:            (attr >>> 24) & 0xFF,
-        bg:            (attr >>> 16) & 0xFF,
-        bold:          !!(attr & (1 << 15)),
-        blink:         !!(attr & (1 << 14)),
-        underline:     !!(attr & (1 << 13)),
-        italic:        !!(attr & (1 << 12)),
+        fg: (attr >>> 24) & 0xff,
+        bg: (attr >>> 16) & 0xff,
+        bold: !!(attr & (1 << 15)),
+        blink: !!(attr & (1 << 14)),
+        underline: !!(attr & (1 << 13)),
+        italic: !!(attr & (1 << 12)),
         strikethrough: !!(attr & (1 << 11)),
-        colorSrc:      (attr >>> 8) & 0x7,
-        tcFg:          !!(attr & (1 <<  7)),
-        tcBg:          !!(attr & (1 <<  6)),
+        colorSrc: (attr >>> 8) & 0x7,
+        tcFg: !!(attr & (1 << 7)),
+        tcBg: !!(attr & (1 << 6)),
     };
 }
 
-function getFg(attr)       { return (attr >>> 24) & 0xFF; }
-function getBg(attr)       { return (attr >>> 16) & 0xFF; }
-function getColorSrc(attr) { return (attr >>>  8) & 0x7;  }
+function getFg(attr) {
+    return (attr >>> 24) & 0xff;
+}
+function getBg(attr) {
+    return (attr >>> 16) & 0xff;
+}
+function getColorSrc(attr) {
+    return (attr >>> 8) & 0x7;
+}
 
 //  ─── Uint32Array helpers ──────────────────────────────────────────────────────
 
@@ -127,27 +134,27 @@ function _wrapText(text, attrs, width, hardEol) {
 
     while (pos < text.length) {
         const remaining = text.slice(pos);
-        const remAttrs  = attrs.slice(pos);
+        const remAttrs = attrs.slice(pos);
 
         if (remaining.length <= width) {
             lines.push({
-                chars:       remaining,
-                attrs:       remAttrs,
-                eol:         hardEol,
+                chars: remaining,
+                attrs: remAttrs,
+                eol: hardEol,
                 initialAttr: remAttrs.length > 0 ? remAttrs[0] : 0,
             });
             break;
         }
 
         //  Find the last space within the first `width` chars
-        const window    = remaining.slice(0, width);
+        const window = remaining.slice(0, width);
         const lastSpace = window.lastIndexOf(' ');
-        const wrapAt    = lastSpace > 0 ? lastSpace : width;
+        const wrapAt = lastSpace > 0 ? lastSpace : width;
 
         lines.push({
-            chars:       remaining.slice(0, wrapAt),
-            attrs:       remAttrs.slice(0, wrapAt),
-            eol:         false,
+            chars: remaining.slice(0, wrapAt),
+            attrs: remAttrs.slice(0, wrapAt),
+            eol: false,
             initialAttr: remAttrs.length > 0 ? remAttrs[0] : 0,
         });
 
@@ -173,17 +180,17 @@ class LineBuffer {
     //  insertChar(lineIndex, col, char, attr)
     //  Inserts one character at col within the given line.  Does NOT reflow.
     insertChar(lineIndex, col, char, attr = 0) {
-        const line  = this.lines[lineIndex];
-        line.chars  = line.chars.slice(0, col) + char + line.chars.slice(col);
-        line.attrs  = u32Insert(line.attrs, col, attr);
+        const line = this.lines[lineIndex];
+        line.chars = line.chars.slice(0, col) + char + line.chars.slice(col);
+        line.attrs = u32Insert(line.attrs, col, attr);
     }
 
     //  deleteChar(lineIndex, col)
     //  Removes the character at col from the given line.  Does NOT reflow.
     deleteChar(lineIndex, col) {
-        const line  = this.lines[lineIndex];
-        line.chars  = line.chars.slice(0, col) + line.chars.slice(col + 1);
-        line.attrs  = u32Delete(line.attrs, col);
+        const line = this.lines[lineIndex];
+        line.chars = line.chars.slice(0, col) + line.chars.slice(col + 1);
+        line.attrs = u32Delete(line.attrs, col);
     }
 
     //  ── Line structure mutations ─────────────────────────────────────────────
@@ -193,16 +200,16 @@ class LineBuffer {
     //  The left portion keeps the current line; a new line is inserted after it
     //  with the right portion.  The left line's eol becomes true.
     splitLine(lineIndex, col) {
-        const line  = this.lines[lineIndex];
+        const line = this.lines[lineIndex];
         const right = {
-            chars:       line.chars.slice(col),
-            attrs:       line.attrs.slice(col),
-            eol:         line.eol,    // right half inherits the original break type
+            chars: line.chars.slice(col),
+            attrs: line.attrs.slice(col),
+            eol: line.eol, // right half inherits the original break type
             initialAttr: col < line.attrs.length ? line.attrs[col] : line.initialAttr,
         };
         line.chars = line.chars.slice(0, col);
         line.attrs = line.attrs.slice(0, col);
-        line.eol   = true;   // this is now a hard break
+        line.eol = true; // this is now a hard break
         this.lines.splice(lineIndex + 1, 0, right);
     }
 
@@ -214,11 +221,11 @@ class LineBuffer {
         if (lineIndex >= this.lines.length - 1) {
             return;
         }
-        const line  = this.lines[lineIndex];
-        const next  = this.lines[lineIndex + 1];
-        line.chars  = line.chars + next.chars;
-        line.attrs  = u32Concat(line.attrs, next.attrs);
-        line.eol    = next.eol;
+        const line = this.lines[lineIndex];
+        const next = this.lines[lineIndex + 1];
+        line.chars = line.chars + next.chars;
+        line.attrs = u32Concat(line.attrs, next.attrs);
+        line.eol = next.eol;
         this.lines.splice(lineIndex + 1, 1);
     }
 
@@ -249,24 +256,23 @@ class LineBuffer {
     //  Hard breaks are preserved.  Returns the new index range.
     rewrapParagraph(lineIndex) {
         const { start, end } = this._paragraphRange(lineIndex);
-        const wasEol         = this.lines[end].eol;
+        const wasEol = this.lines[end].eol;
 
         //  Rejoin the paragraph: soft-wrapped lines are separated by a space
         //  (the space that was consumed at the wrap point).
-        let allChars  = '';
-        let allAttrs  = new Uint32Array(0);
+        let allChars = '';
+        let allAttrs = new Uint32Array(0);
         for (let i = start; i <= end; i++) {
             if (i > start) {
                 //  Reinsert the stripped space; use attr of the preceding char
                 const prevAttrs = this.lines[i - 1].attrs;
-                const spaceAttr = prevAttrs.length > 0
-                    ? prevAttrs[prevAttrs.length - 1]
-                    : 0;
+                const spaceAttr =
+                    prevAttrs.length > 0 ? prevAttrs[prevAttrs.length - 1] : 0;
                 allChars += ' ';
-                allAttrs  = u32Concat(allAttrs, new Uint32Array([spaceAttr]));
+                allAttrs = u32Concat(allAttrs, new Uint32Array([spaceAttr]));
             }
             allChars += this.lines[i].chars;
-            allAttrs  = u32Concat(allAttrs, this.lines[i].attrs);
+            allAttrs = u32Concat(allAttrs, this.lines[i].attrs);
         }
 
         const newLines = _wrapText(allChars, allAttrs, this.width, wasEol);
@@ -286,13 +292,18 @@ class LineBuffer {
         const hardLines = text.split('\n');
 
         for (const hardLine of hardLines) {
-            const attrs    = new Uint32Array(hardLine.length);
-            const wrapped  = _wrapText(hardLine, attrs, this.width, true /* hardEol */);
+            const attrs = new Uint32Array(hardLine.length);
+            const wrapped = _wrapText(hardLine, attrs, this.width, true /* hardEol */);
             this.lines.push(...wrapped);
         }
 
         if (this.lines.length === 0) {
-            this.lines.push({ chars: '', attrs: new Uint32Array(0), eol: true, initialAttr: 0 });
+            this.lines.push({
+                chars: '',
+                attrs: new Uint32Array(0),
+                eol: true,
+                initialAttr: 0,
+            });
         }
     }
 
@@ -323,13 +334,13 @@ class LineBuffer {
     }
 }
 
-exports.LineBuffer   = LineBuffer;
-exports.ColorSource  = ColorSource;
-exports.makeAttr     = makeAttr;
-exports.parseAttr    = parseAttr;
-exports.getFg        = getFg;
-exports.getBg        = getBg;
-exports.getColorSrc  = getColorSrc;
-exports.u32Insert    = u32Insert;
-exports.u32Delete    = u32Delete;
-exports.u32Concat    = u32Concat;
+exports.LineBuffer = LineBuffer;
+exports.ColorSource = ColorSource;
+exports.makeAttr = makeAttr;
+exports.parseAttr = parseAttr;
+exports.getFg = getFg;
+exports.getBg = getBg;
+exports.getColorSrc = getColorSrc;
+exports.u32Insert = u32Insert;
+exports.u32Delete = u32Delete;
+exports.u32Concat = u32Concat;

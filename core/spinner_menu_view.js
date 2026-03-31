@@ -53,8 +53,8 @@ class SpinnerMenuView extends MenuView {
             sgr = this.focusItemFormat
                 ? ''
                 : this.hasFocus
-                  ? this.getFocusSGR()
-                  : this.getSGR();
+                ? this.getFocusSGR()
+                : this.getSGR();
         } else {
             text = strUtil.stylizeString(
                 item.text,
