@@ -164,6 +164,7 @@ class MultiLineEditTextView extends View {
         this.mode = options.mode || 'edit'; //  edit | preview | read-only
         this.maxLength = 0; // no max by default
         this.cutBuffer = ''; //  Ctrl-K accumulation buffer
+        this._findState = null; //  null when inactive; { query, matches, currentIndex } when active
 
         if ('preview' === this.mode) {
             this.autoScroll = options.autoScroll || true;
@@ -199,6 +200,11 @@ class MultiLineEditTextView extends View {
     //  Returns true if chars contains at least one complete |## pipe color code.
     _hasPipeCodes(chars) {
         return /\|[0-9]{2}/.test(chars);
+    }
+
+    //  Strip |## pipe color codes to yield the plain display text used for find matching.
+    _stripPipeCodes(chars) {
+        return chars.replace(/\|[0-9]{2}/g, '');
     }
 
     //  Returns true if chars contains a complete |## code OR a trailing partial
@@ -390,6 +396,83 @@ class MultiLineEditTextView extends View {
         this._collapsedAtomicWrite();
     }
 
+    //  ── Find / Search ─────────────────────────────────────────────────────────
+
+    _buildFindMatches(query) {
+        const q = query.toLowerCase();
+        const matches = [];
+        for (let i = 0; i < this.buffer.lines.length; i++) {
+            const display = this._stripPipeCodes(this.buffer.lines[i].chars).replace(/\t/g, ' ');
+            const lc = display.toLowerCase();
+            let col = 0;
+            let idx;
+            while ((idx = lc.indexOf(q, col)) !== -1) {
+                matches.push({ lineIndex: i, displayStart: idx, displayEnd: idx + q.length });
+                col = idx + 1;
+            }
+        }
+        return matches;
+    }
+
+    //  Inverse of _bufferToDisplayCol: maps a display column back to the buffer
+    //  column (index into line.chars).  Pipe codes are 3 buffer chars, 0 display
+    //  width in collapsed mode, so we walk forward until we've consumed displayCol
+    //  visible characters.
+    _displayToBufferCol(lineIndex, displayCol) {
+        const chars = this.buffer.lines[lineIndex]?.chars ?? '';
+        if (!chars.includes('|')) {
+            return displayCol;
+        }
+        let bufCol  = 0;
+        let dispCol = 0;
+        while (bufCol < chars.length && dispCol < displayCol) {
+            if (isPipeCode(chars, bufCol)) {
+                bufCol += 3;    //  0 display width — skip without counting
+            } else {
+                bufCol++;
+                dispCol++;
+            }
+        }
+        return bufCol;
+    }
+
+    _scrollToMatch(match) {
+        const halfHeight = Math.floor(this.dimens.height / 2);
+        const maxTop = Math.max(0, this.buffer.lines.length - this.dimens.height);
+        this.topVisibleIndex = Math.min(Math.max(0, match.lineIndex - halfHeight), maxTop);
+        this.cursorPos.row = match.lineIndex - this.topVisibleIndex;
+        this.cursorPos.col = this._displayToBufferCol(match.lineIndex, match.displayStart);
+    }
+
+    _overlayMatchHighlight(lineIndex, absRow) {
+        if (!this._findState || !this._findState.matches.length) {
+            return;
+        }
+        const sgrRestore = this.getTextSgrPrefix();
+        const currentMatch = this._findState.matches[this._findState.currentIndex];
+        const stripped = this._stripPipeCodes(
+            this.buffer.lines[lineIndex]?.chars ?? ''
+        ).replace(/\t/g, ' ');
+
+        for (const match of this._findState.matches) {
+            if (match.lineIndex !== lineIndex) {
+                continue;
+            }
+            const matchText = stripped.slice(match.displayStart, match.displayEnd);
+            if (!matchText) {
+                continue;
+            }
+            const isCurrent = match === currentMatch;
+            const highlightSGR = isCurrent
+                ? (this._findCurrentMatchStyle || '\x1b[0;7m')   //  default: inverse
+                : (this._findMatchStyle        || '\x1b[0;7;2m'); //  default: inverse+dim
+            const absCol = this.position.col + match.displayStart;
+            this.client.term.rawWrite(
+                `${ansi.goto(absRow, absCol)}${highlightSGR}${matchText}${sgrRestore}`
+            );
+        }
+    }
+
     //  :TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
     getTextLinesIndex(row) {
         if (!_.isNumber(row)) {
@@ -431,10 +514,14 @@ class MultiLineEditTextView extends View {
         const prefix = this.getTextSgrPrefix();
 
         for (let i = startIndex; i < endIndex; ++i) {
+            const lineAbsRow = absPos.row++;
             this.client.term.write(
-                `${ansi.goto(absPos.row++, absPos.col)}${prefix}${this.getRenderText(i)}`,
+                `${ansi.goto(lineAbsRow, absPos.col)}${prefix}${this.getRenderText(i)}`,
                 false //  convertLineFeeds
             );
+            if (this._findState) {
+                this._overlayMatchHighlight(i, lineAbsRow);
+            }
         }
 
         this.toggleTextCursor('show');
@@ -815,6 +902,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressCharacter(c) {
+        this.clearFind(false);
         if (this.maxLength > 0 && this.getCharacterLength() + 1 >= this.maxLength) {
             return;
         }
@@ -1022,6 +1110,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressLineFeed() {
+        this.clearFind(false);
         this._maybePipeCodeCollapse();
         //
         //  Split at cursor position — LineBuffer creates a hard break here
@@ -1053,6 +1142,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressBackspace() {
+        this.clearFind(false);
         if (this.cursorPos.col >= 1) {
             //
             //  Don't want to delete character at cursor, but rather the character
@@ -1125,6 +1215,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressDelete() {
+        this.clearFind(false);
         const lineIndex = this.getTextLinesIndex();
         const lineLen   = this.buffer.lines[lineIndex].chars.length;
 
@@ -1158,6 +1249,7 @@ class MultiLineEditTextView extends View {
     }
 
     keyPressDeleteLine() {
+        this.clearFind(false);
         if (this.buffer.lines.length > 0) {
             this.removeCharactersFromText(this.getTextLinesIndex(), 0, 'delete line');
         }
@@ -1368,6 +1460,7 @@ class MultiLineEditTextView extends View {
 
     keyPressDeleteWordLeft() {
         if (!this.isEditMode()) return;
+        this.clearFind(false);
 
         const lineIndex = this.getTextLinesIndex();
         const col = this.cursorPos.col;
@@ -1396,6 +1489,7 @@ class MultiLineEditTextView extends View {
 
     keyPressDeleteWordRight() {
         if (!this.isEditMode()) return;
+        this.clearFind(false);
 
         const lineIndex = this.getTextLinesIndex();
         const chars = this.buffer.lines[lineIndex].chars;
@@ -1423,6 +1517,7 @@ class MultiLineEditTextView extends View {
 
     keyPressCutLine() {
         if (!this.isEditMode()) return;
+        this.clearFind(false);
 
         const lineIndex = this.getTextLinesIndex();
         const lineText = this.buffer.lines[lineIndex].chars;
@@ -1441,6 +1536,7 @@ class MultiLineEditTextView extends View {
 
     keyPressPaste() {
         if (!this.isEditMode() || !this.cutBuffer) return;
+        this.clearFind(false);
 
         const lines = this.cutBuffer.split('\n');
         for (let i = 0; i < lines.length; i++) {
@@ -1614,6 +1710,57 @@ class MultiLineEditTextView extends View {
         return this.buffer.getText().replace(/\n/g, '\r\n');
     }
 
+    setFindQuery(query) {
+        if (!query) {
+            return this.clearFind();
+        }
+        const matches = this._buildFindMatches(query);
+        this._findState = { query, matches, currentIndex: 0 };
+        if (matches.length > 0) {
+            this._scrollToMatch(matches[0]);
+        }
+        this.redrawVisibleArea();
+        this.moveClientCursorToCursorPos();
+    }
+
+    findNext() {
+        if (!this._findState || !this._findState.matches.length) {
+            return;
+        }
+        this._findState.currentIndex =
+            (this._findState.currentIndex + 1) % this._findState.matches.length;
+        this._scrollToMatch(this._findState.matches[this._findState.currentIndex]);
+        this.redrawVisibleArea();
+        this.moveClientCursorToCursorPos();
+    }
+
+    findPrev() {
+        if (!this._findState || !this._findState.matches.length) {
+            return;
+        }
+        this._findState.currentIndex =
+            (this._findState.currentIndex - 1 + this._findState.matches.length) %
+            this._findState.matches.length;
+        this._scrollToMatch(this._findState.matches[this._findState.currentIndex]);
+        this.redrawVisibleArea();
+        this.moveClientCursorToCursorPos();
+    }
+
+    clearFind(redraw = true) {
+        if (!this._findState) {
+            return;
+        }
+        this._findState = null;
+        if (redraw) {
+            this.redrawVisibleArea();
+            this.moveClientCursorToCursorPos();
+        }
+    }
+
+    getFindMatchCount() {
+        return this._findState?.matches.length ?? 0;
+    }
+
     setPropertyValue(propName, value) {
         switch (propName) {
             case 'mode':
@@ -1637,6 +1784,14 @@ class MultiLineEditTextView extends View {
                 if (_.isNumber(value)) {
                     this.maxLength = value;
                 }
+                break;
+
+            case 'findMatchStyle':
+                this._findMatchStyle = value;
+                break;
+
+            case 'findCurrentMatchStyle':
+                this._findCurrentMatchStyle = value;
                 break;
         }
 

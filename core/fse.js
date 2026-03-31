@@ -350,6 +350,101 @@ exports.FullScreenEditorModule =
                     });
                 },
                 ///////////////////////////////////////////////////////////////////////
+                //  Find / Search
+                ///////////////////////////////////////////////////////////////////////
+                editModeFind: function (formData, extraArgs, cb) {
+                    self.viewControllers.body.setFocus(false);
+                    return self.openFindPrompt(cb);
+                },
+                editModeFindNext: function (_formData, _extraArgs, cb) {
+                    self.viewControllers.body
+                        .getView(MciViewIds.body.message)
+                        .findNext();
+                    return cb(null);
+                },
+                editModeFindPrev: function (_formData, _extraArgs, cb) {
+                    self.viewControllers.body
+                        .getView(MciViewIds.body.message)
+                        .findPrev();
+                    return cb(null);
+                },
+                viewModeFind: function (formData, extraArgs, cb) {
+                    if (self.viewControllers.footerView) {
+                        self.viewControllers.footerView.setFocus(false);
+                    }
+                    return self.openFindPrompt(cb);
+                },
+                viewModeFindNext: function (_formData, _extraArgs, cb) {
+                    self.viewControllers.body
+                        .getView(MciViewIds.body.message)
+                        .findNext();
+                    return cb(null);
+                },
+                viewModeFindPrev: function (_formData, _extraArgs, cb) {
+                    self.viewControllers.body
+                        .getView(MciViewIds.body.message)
+                        .findPrev();
+                    return cb(null);
+                },
+                footerFindSubmit: function (formData, extraArgs, cb) {
+                    const query = (formData.value.query || '').trim();
+                    const bodyView = self.viewControllers.body.getView(
+                        MciViewIds.body.message
+                    );
+                    if (self.viewControllers.footerFind) {
+                        self.viewControllers.footerFind.detachClientEvents();
+                    }
+                    self.footerMode = self._prevFooterMode;
+                    self.switchFooter(err => {
+                        if (err) {
+                            return cb(err);
+                        }
+                        if (query) {
+                            bodyView.setFindQuery(query);
+                        } else {
+                            bodyView.clearFind();
+                        }
+                        if ('view' === self.editorMode) {
+                            self.viewControllers.footerView.switchFocus(1);
+                        } else {
+                            self.viewControllers.body.switchFocus(1);
+                            self.updateTextEditMode(bodyView.getTextEditMode());
+                            self.updateEditModePosition(bodyView.getEditPosition());
+                            self.observeEditorEvents();
+                        }
+                        return cb(null);
+                    });
+                },
+                footerFindCancel: function (_formData, _extraArgs, cb) {
+                    if (self.viewControllers.footerFind) {
+                        self.viewControllers.footerFind.detachClientEvents();
+                    }
+                    self.footerMode = self._prevFooterMode;
+                    self.switchFooter(err => {
+                        if (err) {
+                            return cb(err);
+                        }
+                        if ('view' === self.editorMode) {
+                            self.viewControllers.footerView.switchFocus(1);
+                        } else {
+                            self.viewControllers.body.switchFocus(1);
+                            self.updateTextEditMode(
+                                self.viewControllers.body
+                                    .getView(MciViewIds.body.message)
+                                    .getTextEditMode()
+                            );
+                            self.updateEditModePosition(
+                                self.viewControllers.body
+                                    .getView(MciViewIds.body.message)
+                                    .getEditPosition()
+                            );
+                            self.observeEditorEvents();
+                        }
+                        return cb(null);
+                    });
+                },
+
+                ///////////////////////////////////////////////////////////////////////
                 //  View Mode
                 ///////////////////////////////////////////////////////////////////////
                 viewModeMenuHelp: function (formData, extraArgs, cb) {
@@ -430,6 +525,7 @@ exports.FullScreenEditorModule =
                 footerEditorMenu: 3,
                 footerView: 4,
                 quoteBuilder: 5,
+                footerFind: 6,
 
                 help: 50,
             }[name];
@@ -1560,6 +1656,22 @@ exports.FullScreenEditorModule =
         });
     };
     */
+
+        openFindPrompt(cb) {
+            this._prevFooterMode = this.footerMode;
+            this.footerMode = 'find';
+            this.switchFooter(err => {
+                if (err) {
+                    return cb(err);
+                }
+                const et1 = this.viewControllers.footerFind.getView(1);
+                if (et1) {
+                    et1.setText('');
+                }
+                this.viewControllers.footerFind.switchFocus(1);
+                return cb(null);
+            });
+        }
 
         switchToHeader() {
             this.viewControllers.body.setFocus(false);

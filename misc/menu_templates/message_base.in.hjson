@@ -76,6 +76,7 @@
                     body: MSGBODY
                     footerEditor: MSGEFTR
                     footerEditorMenu: MSGEMFT
+                    footerFind: MSGFND
                     help: MSGEHLP
                 }
                 editorMode: edit
@@ -143,6 +144,18 @@
                             keys: [ "ctrl + o" ]
                             action: @method:editModeQuickHelp
                         }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
+                        }
+                        {
+                            keys: [ "ctrl + n" ]
+                            action: @method:editModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:editModeFindPrev
+                        }
                     ]
                 }
                 2: {
@@ -206,6 +219,8 @@
                         ]
                     }
                 }
+
+                6: @reference:common.fseFindFooterForm
             }
         }
 
@@ -510,6 +525,7 @@
                     header: MSGVHDR
                     body: MSGBODY
                     footerView: MSGVFTR
+                    footerFind: MSGFND
                     help: MSGVHLP
                     expToDlQueue: mb_export_dl_queue
                 },
@@ -637,8 +653,22 @@
                             keys: [ "down arrow", "up arrow", "page up", "page down" ]
                             action: @method:movementKeyPressed
                         }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:viewModeFind
+                        }
+                        {
+                            keys: [ "ctrl + n" ]
+                            action: @method:viewModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:viewModeFindPrev
+                        }
                     ]
                 }
+
+                6: @reference:common.fseFindFooterForm
             }
         }
 
@@ -652,6 +682,7 @@
                     quote:              MSGQUOT
                     footerEditor:       MSGEFTR
                     footerEditorMenu:   MSGEMFT
+                    footerFind:         MSGEFND
                     help:               MSGEHLP
                 }
                 editorMode: edit
@@ -721,6 +752,18 @@
                         {
                             keys: [ "ctrl + o" ]
                             action: @method:editModeQuickHelp
+                        }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
+                        }
+                        {
+                            keys: [ "ctrl + n" ]
+                            action: @method:editModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:editModeFindPrev
                         }
                     ]
                 }
@@ -811,6 +854,8 @@
                         }
                     ]
                 }
+
+                6: @reference:common.fseFindFooterForm
             }
         }
 
@@ -848,6 +893,34 @@
                 cls: true
                 menuFlags: [ "noHistory" ]
             }
+        }
+    }
+
+    //  Shared fragments referenced via @reference:common.*
+    common: {
+        fseFindFooterForm: {
+            mci: {
+                ET1: {
+                    argName: query
+                    width: 60
+                    maxLength: 100
+                    focus: true
+                }
+            }
+            submit: {
+                1: [
+                    {
+                        value: { query: null }
+                        action: @method:footerFindSubmit
+                    }
+                ]
+            }
+            actionKeys: [
+                {
+                    keys: [ "escape" ]
+                    action: @method:footerFindCancel
+                }
+            ]
         }
     }
 
