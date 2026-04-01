@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Spinner Menu View | ENiGMA½ BBS Software</title>
+<title>Views | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Spinner Menu View" />
+<meta property="og:title" content="Views" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Spinner Menu View A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc." />
-<meta property="og:description" content="Spinner Menu View A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc." />
+<meta name="description" content="Views" />
+<meta property="og:description" content="Views" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-01T00:53:25+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Spinner Menu View" />
+<meta property="twitter:title" content="Views" />
 <script type="application/ld+json">
-{"description":"Spinner Menu View A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.","headline":"Spinner Menu View","dateModified":"2026-04-01T00:53:25+00:00","datePublished":"2026-04-01T00:53:25+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/spinner_menu_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/spinner_menu_view.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Views","headline":"Views","dateModified":"2026-04-01T00:53:25+00:00","datePublished":"2026-04-01T00:53:25+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/views.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/views.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1303,7 +1303,7 @@
 
 
     
-      <li class="active-nav">Spinner Menu View</li>
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
     
 
 
@@ -2385,7 +2385,7 @@
 
 
     
-    <li><a href="/enigma-bbs/art/views/views.html">Views</a></li>
+      <li class="active-nav">Views</li>
     
 
 
@@ -2492,33 +2492,38 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/multi_line_edit_text_view.html">« Multi Line Edit Text View</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/ticker_view.html">« Ticker View</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/art/views/text_view.html">Text View »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler »</a>
               
               <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Spinner Menu View</h1>
-    <h2 id="spinner-menu-view">Spinner Menu View</h2>
-<p>A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.</p>
+    <h1 class="page-title">Views</h1>
+    <h2 id="views">Views</h2>
+
+<p>Views are the interactive and display widgets that make up ENiGMA½ screens. They are placed in art files using <a href="/enigma-bbs/art/mci.html">MCI codes</a> and configured via <code class="language-plaintext highlighter-rouge">menu.hjson</code> and <code class="language-plaintext highlighter-rouge">theme.hjson</code>. Every element a user sees or interacts with — a text label, an input field, a menu list — is a view.</p>
 
 <h2 id="general-information">General Information</h2>
 
-<p>Items can be selected on a menu via the cursor keys or by selecting them via a <code class="language-plaintext highlighter-rouge">hotKey</code> - see <strong><em>Hot Keys</em></strong> below.</p>
-
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> A spinner menu view is defined with a percent (%) and the characters SM, followed by the view number (if used.) For example: <code class="language-plaintext highlighter-rouge">%SM1</code></p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Views are instantiated by placing an MCI code in an art file. The code determines the view type; an optional number suffix ties it to a specific view ID. For example: <code class="language-plaintext highlighter-rouge">%VM1</code> creates a Vertical Menu View with ID 1.</p>
 </blockquote>
 
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See <a href="/enigma-bbs/art/mci.html">MCI</a> for general information on how to use views and common configuration properties available for them.</p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Standard and focus colors are set by placing duplicate MCI codes back-to-back in the art file. The first occurrence sets the normal color, the second sets the focused color.</p>
 </blockquote>
 
-<h3 id="properties">Properties</h3>
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See <a href="/enigma-bbs/art/mci.html">MCI</a> for general information on MCI codes and the common configuration properties shared by all views.</p>
+</blockquote>
+
+<h3 id="common-properties">Common Properties</h3>
+
+<p>The following properties are available on all views:</p>
 
 <table>
   <thead>
@@ -2529,140 +2534,364 @@
   </thead>
   <tbody>
     <tr>
+      <td><code class="language-plaintext highlighter-rouge">focus</code></td>
+      <td>If set to <code class="language-plaintext highlighter-rouge">true</code>, this view receives initial focus when the screen loads</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">submit</code></td>
+      <td>If set to <code class="language-plaintext highlighter-rouge">true</code>, an <code class="language-plaintext highlighter-rouge">accept</code> action on this view will submit the enclosing form</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">argName</code></td>
+      <td>The key name used to identify this view’s value in a submitted form</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">width</code></td>
+      <td>Width of the view in columns</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">height</code></td>
+      <td>Height of the view in rows (where applicable)</td>
+    </tr>
+    <tr>
       <td><code class="language-plaintext highlighter-rouge">textStyle</code></td>
-      <td>Sets the standard (non-focus) text style. See <strong>Text Styles</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
+      <td>Standard (non-focus) text style. See <strong>Text Styles</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
 </td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">focusTextStyle</code></td>
-      <td>Sets focus text style. See <strong>Text Styles</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">focus</code></td>
-      <td>If set to <code class="language-plaintext highlighter-rouge">true</code>, establishes initial focus</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">width</code></td>
-      <td>Sets the width of a view on the display (default 15)</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">submit</code></td>
-      <td>If set to <code class="language-plaintext highlighter-rouge">true</code> any <code class="language-plaintext highlighter-rouge">accept</code> action upon this view will submit the encompassing <strong>form</strong>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">hotKeys</code></td>
-      <td>Sets hot keys to activate specific items. See <strong>Hot Keys</strong> below</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">hotKeySubmit</code></td>
-      <td>Set to submit a form on hotkey selection</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">argName</code></td>
-      <td>Sets the argument name for this selection in the form</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">justify</code></td>
-      <td>Sets the justification of each item in the list. Options: left (default), right, center</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">itemFormat</code></td>
-      <td>Sets the format for a list entry. See <strong>Entry Formatting</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">fillChar</code></td>
-      <td>Specifies a character to fill extra space in the menu with. Defaults to an empty space</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">items</code></td>
-      <td>List of items to show in the menu. See <strong>Items</strong> below.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">focusItemFormat</code></td>
-      <td>Sets the format for a focused list entry. See <strong>Entry Formatting</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
+      <td>Text style when the view has focus. See <strong>Text Styles</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
 </td>
     </tr>
   </tbody>
 </table>
 
-<h3 id="hot-keys">Hot Keys</h3>
+<hr>
 
-<p>A set of <code class="language-plaintext highlighter-rouge">hotKeys</code> are used to allow the user to press a character on the keyboard to select that item, and optionally submit the form.</p>
+<h2 id="view-types">View Types</h2>
 
-<p>Example:</p>
+<h3 id="display-views">Display Views</h3>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>hotKeys: { A: 0, B: 1, C: 2, D: 3 }
-hotKeySubmit: true
-</code></pre></div></div>
-<p>This would select and submit the first item if <code class="language-plaintext highlighter-rouge">A</code> is typed, second if <code class="language-plaintext highlighter-rouge">B</code>, etc.</p>
+<table>
+  <thead>
+    <tr>
+      <th>View</th>
+      <th>MCI Code</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/text_view.html">Text View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%TL</code></td>
+      <td>A static single-line text label</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/ticker_view.html">Ticker View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%TK</code></td>
+      <td>A continuously scrolling marquee</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/status_bar_view.html">Status Bar View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%SB</code></td>
+      <td>An auto-refreshing text label</td>
+    </tr>
+  </tbody>
+</table>
 
-<h3 id="items">Items</h3>
+<h3 id="input-views">Input Views</h3>
 
-<p>A spinner menu, similar to other menus, take a list of items to display in the menu. For example:</p>
+<table>
+  <thead>
+    <tr>
+      <th>View</th>
+      <th>MCI Code</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%ET</code></td>
+      <td>A single-line text input field</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%ME</code></td>
+      <td>A single-line input field constrained by a pattern (e.g. dates, phone numbers)</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%MT</code></td>
+      <td>A full multi-line text editor</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/button_view.html">Button View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%BN</code></td>
+      <td>A labeled button that triggers an action when activated</td>
+    </tr>
+  </tbody>
+</table>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>items: [
-  {
-      text: First Item
-      data: first
-  }
-  {
-      text: Second Item
-      data: second
-  }
-]
-</code></pre></div></div>
+<h3 id="selection--menu-views">Selection / Menu Views</h3>
 
-<p>If the list is for display only (there is no form action associated with it) you can omit the data element, and include the items as a simple list:</p>
+<table>
+  <thead>
+    <tr>
+      <th>View</th>
+      <th>MCI Code</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%HM</code></td>
+      <td>A single-row horizontal list of selectable items</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%VM</code></td>
+      <td>A scrolling vertical list, similar to a lightbar menu</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%FM</code></td>
+      <td>A paginated multi-column grid of selectable items</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%TM</code></td>
+      <td>A two-item toggle, typically used for Yes/No or On/Off choices</td>
+    </tr>
+    <tr>
+      <td><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></td>
+      <td><code class="language-plaintext highlighter-rouge">%SM</code></td>
+      <td>A single-item rotary selector that cycles through a list</td>
+    </tr>
+  </tbody>
+</table>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>["First item", "Second item", "Third Item"]
-</code></pre></div></div>
+<hr>
 
-<h2 id="example">Example</h2>
+<h2 id="class-hierarchy">Class Hierarchy</h2>
 
-<p><img src="../../assets/images/spinner_menu_view_example1.gif" alt="Example" title="Spinner menu"></p>
+<p>The following diagram shows the inheritance relationships between all view types. All views ultimately extend Node.js’s <code class="language-plaintext highlighter-rouge">EventEmitter</code> through the base <code class="language-plaintext highlighter-rouge">View</code> class.</p>
 
-<details>
-<summary>Configuration fragment (expand to view)</summary>
-<div>
-    <div class="language-plaintext highlighter-rouge">
-<div class="highlight"><pre class="highlight"><code>SM1: {
-  submit: true
-  argName: themeSelect
-  items: [
-    {
-      text: Light
-      data: light
+<pre><code class="language-mermaid">classDiagram
+    direction TB
+
+    class EventEmitter {
+        &lt;&lt;nodejs&gt;&gt;
     }
-    {
-      text: Dark
-      data: dark
-    }
-    {
-      text: Rainbow
-      data: rainbow
-    }
-    {
-      text: Gruvbox
-      data: gruvbox
-    }
-  ]
-}
 
-</code></pre></div>    </div>
-  </div>
-</details>
+    class View {
+        +id
+        +client
+        +position
+        +dimens
+        +hasFocus bool
+        +acceptsFocus bool
+        +acceptsInput bool
+        +cursor string
+        +cursorStyle string
+        +ansiSGR
+        +ansiFocusSGR
+        +styleSGR1
+        +styleSGR2
+        +specialKeyMap
+        +setPosition()
+        +setDimension()
+        +setFocus(focused)
+        +redraw()
+        +onKeyPress(ch, key)
+        +getData()
+        +setPropertyValue(name, val)
+    }
+
+    class TextView {
+        +text string
+        +maxLength int
+        +fillChar char
+        +justify string
+        +horizScroll bool
+        +textOverflow string
+        +textMaskChar char
+        +itemFormat string
+        +focusItemFormat string
+        +setText(text)
+        +clearText()
+        +drawText(s)
+    }
+
+    class TickerView {
+        +tickInterval int
+        +scrollDir string
+        +fillChar char
+        +setText(text)
+        +destroy()
+    }
+
+    class StatusBarView {
+        +refreshInterval int
+        +setText(text)
+        +destroy()
+    }
+
+    class EditTextView {
+        +cursorPos
+        +onKeyPress(ch, key)
+        +setText(text)
+        +clientBackspace()
+    }
+
+    class MaskEditTextView {
+        +maskPattern string
+        +patternArray
+        +patternArrayPos int
+        +cursorPos
+        +setMaskPattern(pattern)
+        +buildPattern()
+        +onKeyPress(ch, key)
+    }
+
+    class ButtonView {
+        +submitData
+        +justify
+        +onKeyPress(ch, key)
+        +getData()
+    }
+
+    class MultiLineEditTextView {
+        +textBuffer
+        +wordWrap bool
+        +lineCount
+        +onKeyPress(ch, key)
+        +getData()
+    }
+
+    class KeyEntryView {
+        +keys
+        +caseInsensitive bool
+        +eatTabKey bool
+        +keyEntered char
+        +onKeyPress(ch, key)
+        +getData()
+    }
+
+    class MenuView {
+        +items
+        +focusedItemIndex int
+        +itemSpacing int
+        +itemHorizSpacing int
+        +focusPrefix string
+        +focusSuffix string
+        +fillChar char
+        +hotKeys
+        +itemFormat string
+        +focusItemFormat string
+        +complexItems bool
+        +renderCache
+        +setItems(items)
+        +getItem(index)
+        +focusNext()
+        +focusPrevious()
+        +focusFirst()
+        +focusLast()
+        +setHotKeys(keys)
+        +setSort(sort)
+    }
+
+    class HorizontalMenuView {
+        +drawItem(index)
+        +cachePositions()
+        +redraw()
+    }
+
+    class VerticalMenuView {
+        +focusItemAtTop bool
+        +maxVisibleItems int
+        +viewWindow
+        +autoAdjustHeight bool
+        +drawItem(index)
+        +updateViewVisibleItems()
+        +focusNextPageItem()
+        +focusPreviousPageItem()
+    }
+
+    class FullMenuView {
+        +pages
+        +currentPage int
+        +itemsPerRow int
+        +drawItem(index)
+        +cachePositions()
+        +clearPage()
+        +focusNextColumn()
+        +focusPreviousColumn()
+    }
+
+    class ToggleMenuView {
+        +exactlyTwoItems
+        +setTrue()
+        +setFalse()
+        +isTrue()
+        +setFromBoolean(bool)
+        +setYes()
+        +setNo()
+    }
+
+    class SpinnerMenuView {
+        +drawItem(index)
+        +updateSelection()
+        +focusNext()
+        +focusPrevious()
+    }
+
+    EventEmitter &lt;|-- View
+    View &lt;|-- TextView
+    View &lt;|-- TickerView
+    View &lt;|-- MenuView
+    View &lt;|-- MultiLineEditTextView
+    View &lt;|-- KeyEntryView
+    TextView &lt;|-- EditTextView
+    TextView &lt;|-- MaskEditTextView
+    TextView &lt;|-- StatusBarView
+    TextView &lt;|-- ButtonView
+    MenuView &lt;|-- HorizontalMenuView
+    MenuView &lt;|-- VerticalMenuView
+    MenuView &lt;|-- FullMenuView
+    MenuView &lt;|-- ToggleMenuView
+    MenuView &lt;|-- SpinnerMenuView
+</code></pre>
+
+<hr>
+
+<h2 id="how-views-fit-together">How Views Fit Together</h2>
+
+<p>Views are placed on screen via MCI codes in an art file. They are grouped into <strong>forms</strong> — a form collects input from one or more views and submits the result as a set of named key/value pairs (each view’s <code class="language-plaintext highlighter-rouge">argName</code> maps to its <code class="language-plaintext highlighter-rouge">getData()</code> result).</p>
+
+<p>The general flow is:</p>
+
+<ol>
+  <li>An art file is loaded and MCI codes are scanned to instantiate views</li>
+  <li>Views are configured from <code class="language-plaintext highlighter-rouge">menu.hjson</code> (per-entry <code class="language-plaintext highlighter-rouge">config</code>) and <code class="language-plaintext highlighter-rouge">theme.hjson</code> (styling)</li>
+  <li>Focus cycles through views that have <code class="language-plaintext highlighter-rouge">acceptsFocus: true</code>, driven by Tab / arrow keys</li>
+  <li>When a view with <code class="language-plaintext highlighter-rouge">submit: true</code> receives an <code class="language-plaintext highlighter-rouge">accept</code> action, the form is submitted</li>
+  <li>The submitted form data drives the next menu action or module behaviour</li>
+</ol>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See <a href="/enigma-bbs/art/mci.html">MCI</a> for details on formatting, text styles, and how MCI codes relate to menus and themes.</p>
+</blockquote>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/multi_line_edit_text_view.html">« Multi Line Edit Text View</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/ticker_view.html">« Ticker View</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/art/views/text_view.html">Text View »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler »</a>
               
               <br clear="both">
               </div>
