@@ -32,6 +32,23 @@ class VerticalMenuView extends MenuView {
         this.autoAdjustHeightIfEnabled();
     }
 
+    //  Build a viewWindow anchored at topIndex, clamped to items.length
+    _windowFromTop(topIndex) {
+        return {
+            top: topIndex,
+            bottom: Math.min(topIndex + this.maxVisibleItems, this.items.length) - 1,
+        };
+    }
+
+    //  Build a viewWindow anchored to the bottom of the list (used near end / wrap-around)
+    _windowToBottom() {
+        const bottom = this.items.length - 1;
+        return {
+            top: Math.max(0, bottom - this.maxVisibleItems + 1),
+            bottom,
+        };
+    }
+
     autoAdjustHeightIfEnabled() {
         if (this.autoAdjustHeight) {
             this.dimens.height =
@@ -48,10 +65,7 @@ class VerticalMenuView extends MenuView {
 
         const topIndex = (this.focusItemAtTop ? this.focusedItemIndex : 0) || 0;
 
-        this.viewWindow = {
-            top: topIndex,
-            bottom: Math.min(topIndex + this.maxVisibleItems, this.items.length) - 1,
-        };
+        this.viewWindow = this._windowFromTop(topIndex);
     }
 
     drawItem(index) {
@@ -117,7 +131,7 @@ class VerticalMenuView extends MenuView {
         if (index <= this.items.length - 1) {
             return;
         }
-        const row = this.position.row + index;
+        const row = this.position.row + index * (this.itemSpacing + 1);
         this.client.term.rawWrite(
             `${ansi.goto(row, this.position.col)}${ansi.normal()}${this.fillChar.repeat(
                 this.dimens.width
@@ -128,7 +142,7 @@ class VerticalMenuView extends MenuView {
     redraw() {
         super.redraw();
 
-        //  :TODO: rename positionCacheExpired to something that makese sense; combine methods for such
+        //  :TODO: rename positionCacheExpired to something that makes sense; combine methods for such
         if (this.positionCacheExpired) {
             this.autoAdjustHeightIfEnabled();
             this.updateViewVisibleItems();
@@ -136,12 +150,12 @@ class VerticalMenuView extends MenuView {
             this.positionCacheExpired = false;
         }
 
-        //  erase old items
-        //  :TODO: optimize this: only needed if a item is removed or new max width < old.
+        //  erase previous drawing area; only set when the item list changes
+        //  (e.g. setItems / removeItem) where the footprint may shrink
         if (this.oldDimens) {
             const blank = ' '.repeat(Math.max(this.oldDimens.width, this.dimens.width));
             let row = this.position.row;
-            const endRow = row + this.oldDimens.height - 2;
+            const endRow = row + this.oldDimens.height - 1;
 
             while (row <= endRow) {
                 this.client.term.write(
@@ -162,9 +176,19 @@ class VerticalMenuView extends MenuView {
             }
         }
 
-        const remain = Math.max(0, this.dimens.height - this.items.length);
-        for (let i = this.items.length; i < remain; ++i) {
-            this.drawRemovedItem(i);
+        //  blank any rows below the last drawn item within the view footprint;
+        //  handles partial last pages and lists shorter than the view height
+        const numDrawn = this.items.length
+            ? this.viewWindow.bottom - this.viewWindow.top + 1
+            : 0;
+        const firstUnusedRow = this.position.row + numDrawn * (this.itemSpacing + 1);
+        const viewBottomRow = this.position.row + this.dimens.height - 1;
+
+        if (firstUnusedRow <= viewBottomRow) {
+            const blank = this.getSGR() + this.fillChar.repeat(this.dimens.width);
+            for (let row = firstUnusedRow; row <= viewBottomRow; row++) {
+                this.client.term.write(ansi.goto(row, this.position.col) + blank);
+            }
         }
     }
 
@@ -193,17 +217,18 @@ class VerticalMenuView extends MenuView {
         const remainAfterFocus = this.focusItemAtTop
             ? this.items.length - index
             : this.items.length;
+
         if (remainAfterFocus >= this.maxVisibleItems) {
+            //  enough items below focus to fill a full window — anchor at focus
             const topIndex = (this.focusItemAtTop ? this.focusedItemIndex : 0) || 0;
-
-            this.viewWindow = {
-                top: topIndex,
-                bottom: Math.min(topIndex + this.maxVisibleItems, this.items.length) - 1,
-            };
-
-            this.positionCacheExpired = false; //  skip standard behavior
-            this.autoAdjustHeightIfEnabled();
+            this.viewWindow = this._windowFromTop(topIndex);
+        } else {
+            //  near the end of the list — anchor window to show as many items as possible
+            this.viewWindow = this._windowToBottom();
         }
+
+        this.autoAdjustHeightIfEnabled();
+        this.positionCacheExpired = false; //  window already set; suppress recalc in redraw()
 
         this.redraw();
     }
@@ -237,7 +262,7 @@ class VerticalMenuView extends MenuView {
     }
 
     setItems(items) {
-        //  if we have items already, save off their drawing area so we don't leave fragments at redraw
+        //  save current drawing area so redraw() can erase any leftover rows
         if (this.items && this.items.length) {
             this.oldDimens = Object.assign({}, this.dimens);
         }
@@ -256,57 +281,82 @@ class VerticalMenuView extends MenuView {
         super.removeItem(index);
     }
 
-    //  :TODO: Apply draw optimizaitons when only two items need drawn vs entire view!
+    //  Redraws only the two items whose focus state changed.
+    //  item.row is guaranteed valid from the last full redraw() since this is only
+    //  called when the viewWindow has not scrolled.
+    _focusRedraw(prevFocusedIndex) {
+        if (this.items[prevFocusedIndex] && this.items[prevFocusedIndex].row == null) {
+            //  item.row not yet set — fall back to a full redraw
+            return this.redraw();
+        }
+
+        if (
+            prevFocusedIndex !== this.focusedItemIndex &&
+            prevFocusedIndex >= this.viewWindow.top &&
+            prevFocusedIndex <= this.viewWindow.bottom
+        ) {
+            this.items[prevFocusedIndex].focused = false;
+            this.drawItem(prevFocusedIndex);
+        }
+
+        this.items[this.focusedItemIndex].focused = true;
+        this.drawItem(this.focusedItemIndex);
+    }
 
     focusNext() {
         if (this.items.length - 1 === this.focusedItemIndex) {
+            //  wrap-around: viewWindow changes — full redraw
             this.focusedItemIndex = 0;
-
-            this.viewWindow = {
-                top: 0,
-                bottom: Math.min(this.maxVisibleItems, this.items.length) - 1,
-            };
+            this.viewWindow = this._windowFromTop(0);
+            this.redraw();
         } else {
+            const prevIndex = this.focusedItemIndex;
             this.focusedItemIndex++;
 
             if (this.focusedItemIndex > this.viewWindow.bottom) {
+                //  scrolled — full redraw
                 this.viewWindow.top++;
                 this.viewWindow.bottom++;
+                this.redraw();
+            } else {
+                //  focus moved within the visible window — redraw only the two changed items
+                this._focusRedraw(prevIndex);
             }
         }
-
-        this.redraw();
 
         super.focusNext();
     }
 
     focusPrevious() {
         if (0 === this.focusedItemIndex) {
+            //  wrap-around: viewWindow changes — full redraw
             this.focusedItemIndex = this.items.length - 1;
-
-            this.viewWindow = {
-                top: Math.max(this.items.length - this.maxVisibleItems, 0),
-                bottom: this.items.length - 1,
-            };
+            this.viewWindow = this._windowToBottom();
+            this.redraw();
         } else {
+            const prevIndex = this.focusedItemIndex;
             this.focusedItemIndex--;
 
             if (this.focusedItemIndex < this.viewWindow.top) {
+                //  scrolled — full redraw
                 this.viewWindow.top--;
                 this.viewWindow.bottom--;
 
-                //  adjust for focus index being set & window needing expansion as we scroll up
-                const rem = this.viewWindow.bottom - this.viewWindow.top + 1;
+                //  when scrolling up from a partial last page, expand the window
+                //  to show as many items as possible below the new top
+                const windowSize = this.viewWindow.bottom - this.viewWindow.top + 1;
                 if (
-                    rem < this.maxVisibleItems &&
+                    windowSize < this.maxVisibleItems &&
                     this.items.length - 1 > this.focusedItemIndex
                 ) {
                     this.viewWindow.bottom = this.items.length - 1;
                 }
+                this.redraw();
+            } else {
+                //  focus moved within the visible window — redraw only the two changed items
+                this._focusRedraw(prevIndex);
             }
         }
-
-        this.redraw();
 
         super.focusPrevious();
     }
@@ -320,11 +370,7 @@ class VerticalMenuView extends MenuView {
             return this.focusPrevious(); //  will jump to bottom
         }
 
-        const index = Math.max(this.focusedItemIndex - this.dimens.height, 0);
-
-        if (index < this.viewWindow.top) {
-            this.oldDimens = Object.assign({}, this.dimens);
-        }
+        const index = Math.max(this.focusedItemIndex - this.maxVisibleItems, 0);
 
         this.setFocusItemIndex(index);
 
@@ -345,58 +391,18 @@ class VerticalMenuView extends MenuView {
             this.items.length - 1
         );
 
-        if (index > this.viewWindow.bottom) {
-            this.oldDimens = Object.assign({}, this.dimens);
-
-            this.focusedItemIndex = index;
-
-            this.viewWindow = {
-                top: this.focusedItemIndex,
-                bottom:
-                    Math.min(
-                        this.focusedItemIndex + this.maxVisibleItems,
-                        this.items.length
-                    ) - 1,
-            };
-
-            this.redraw();
-        } else {
-            this.setFocusItemIndex(index);
-        }
+        this.setFocusItemIndex(index);
 
         return super.focusNextPageItem();
     }
 
     focusFirst() {
-        if (0 < this.viewWindow.top) {
-            this.oldDimens = Object.assign({}, this.dimens);
-        }
         this.setFocusItemIndex(0);
         return super.focusFirst();
     }
 
     focusLast() {
-        const index = this.items.length - 1;
-
-        if (index > this.viewWindow.bottom) {
-            this.oldDimens = Object.assign({}, this.dimens);
-
-            this.focusedItemIndex = index;
-
-            this.viewWindow = {
-                top: this.focusedItemIndex,
-                bottom:
-                    Math.min(
-                        this.focusedItemIndex + this.maxVisibleItems,
-                        this.items.length
-                    ) - 1,
-            };
-
-            this.redraw();
-        } else {
-            this.setFocusItemIndex(index);
-        }
-
+        this.setFocusItemIndex(this.items.length - 1);
         return super.focusLast();
     }
 

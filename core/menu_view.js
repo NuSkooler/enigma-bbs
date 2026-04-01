@@ -306,6 +306,7 @@ class MenuView extends View {
                 break;
             case 'focusItemIndex':
                 this.focusedItemIndex = value;
+                this.invalidateRenderCache();
                 break;
 
             case 'itemFormat':
