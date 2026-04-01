@@ -76,6 +76,7 @@
                     body: MSGBODY
                     footerEditor: MSGEFTR
                     footerEditorMenu: MSGEMFT
+                    footerFind: MSGFND
                     help: MSGEHLP
                 }
                 editorMode: edit
@@ -113,7 +114,7 @@
                     actionKeys: [
                         {
                             keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
+                            action: @method:headerEscapePressed
                         }
                     ]
                 }
@@ -135,13 +136,51 @@
                             keys: [ "escape" ]
                             viewId: 1
                         }
+                        {
+                            keys: [ "ctrl + s" ]
+                            action: @method:editModeQuickSave
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
+                        }
+                        {
+                            keys: [ "ctrl + n" ]
+                            action: @method:editModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:editModeFindPrev
+                        }
+                        {
+                            keys: [ "ctrl + a" ]
+                            action: @method:editModeChangeSubject
+                        }
                     ]
                 }
                 2: {
-                    TLTL:  {
-                        mci: {
-                            TL1: { width: 5 }
-                            TL2: { width: 4 }
+                    mci: {
+                        SB1: {
+                            width:     9
+                            anchor:    left
+                            justify:   left
+                            separator: " "
+                            panels: [
+                                {
+                                    name:    mode
+                                    width:   3
+                                    justify: right
+                                }
+                                {
+                                    name:    pos
+                                    width:   5
+                                    justify: left
+                                }
+                            ]
                         }
                     }
                 }
@@ -149,7 +188,7 @@
                     HM: {
                         mci: {
                             HM1: {
-                                "items" : [ "save", "discard", "help" ]
+                                "items" : [ "save", "discard", "help", "upload" ]
                             }
                         }
                         submit: {
@@ -166,6 +205,10 @@
                                     value: { 1: 2 }
                                     action: @method:editModeMenuHelp
                                 }
+                                {
+                                    value: { 1: 3 }
+                                    action: @method:editModeMenuUpload
+                                }
                             ]
                         }
                         actionKeys: [
@@ -180,6 +223,8 @@
                         ]
                     }
                 }
+
+                6: @reference:common.fseFindFooterForm
             }
         }
 
@@ -484,6 +529,7 @@
                     header: MSGVHDR
                     body: MSGBODY
                     footerView: MSGVFTR
+                    footerFind: MSGFND
                     help: MSGVHLP
                     expToDlQueue: mb_export_dl_queue
                 },
@@ -519,10 +565,24 @@
                     ]
                 }
                 2: {
-                    TLTL:  {
-                        mci: {
-                            TL1: { width: 5 }
-                            TL2: { width: 4 }
+                    mci: {
+                        SB1: {
+                            width:     9
+                            anchor:    left
+                            justify:   left
+                            separator: " "
+                            panels: [
+                                {
+                                    name:    mode
+                                    width:   3
+                                    justify: right
+                                }
+                                {
+                                    name:    pos
+                                    width:   5
+                                    justify: left
+                                }
+                            ]
                         }
                     }
                 }
@@ -597,8 +657,22 @@
                             keys: [ "down arrow", "up arrow", "page up", "page down" ]
                             action: @method:movementKeyPressed
                         }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:viewModeFind
+                        }
+                        {
+                            keys: [ "ctrl + n" ]
+                            action: @method:viewModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:viewModeFindPrev
+                        }
                     ]
                 }
+
+                6: @reference:common.fseFindFooterForm
             }
         }
 
@@ -612,6 +686,7 @@
                     quote:              MSGQUOT
                     footerEditor:       MSGEFTR
                     footerEditorMenu:   MSGEMFT
+                    footerFind:         MSGFND
                     help:               MSGEHLP
                 }
                 editorMode: edit
@@ -653,7 +728,7 @@
                     actionKeys: [
                         {
                             keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
+                            action: @method:headerEscapePressed
                         }
                     ]
                 }
@@ -674,13 +749,37 @@
                             keys: [ "escape" ],
                             viewId: 1
                         }
+                        {
+                            keys: [ "ctrl + s" ]
+                            action: @method:editModeQuickSave
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
+                        {
+                            keys: [ "ctrl + f" ]
+                            action: @method:editModeFind
+                        }
+                        {
+                            keys: [ "ctrl + n" ]
+                            action: @method:editModeFindNext
+                        }
+                        {
+                            keys: [ "ctrl + p" ]
+                            action: @method:editModeFindPrev
+                        }
+                        {
+                            keys: [ "ctrl + a" ]
+                            action: @method:editModeChangeSubject
+                        }
                     ]
                 }
 
                 3: {
                     mci: {
                         HM1: {
-                            items: [ "save", "discard", "quote", "help" ]
+                            items: [ "save", "discard", "quote", "help", "upload" ]
                         }
                     }
 
@@ -701,6 +800,10 @@
                             {
                                 value: { 1: 3 }
                                 action: @method:editModeMenuHelp
+                            }
+                            {
+                                value: { 1: 4 }
+                                action: @method:editModeMenuUpload
                             }
                         ]
                     }
@@ -759,6 +862,8 @@
                         }
                     ]
                 }
+
+                6: @reference:common.fseFindFooterForm
             }
         }
 
@@ -796,6 +901,34 @@
                 cls: true
                 menuFlags: [ "noHistory" ]
             }
+        }
+    }
+
+    //  Shared fragments referenced via @reference:common.*
+    common: {
+        fseFindFooterForm: {
+            mci: {
+                ET1: {
+                    argName: query
+                    width: 60
+                    maxLength: 100
+                    focus: true
+                }
+            }
+            submit: {
+                1: [
+                    {
+                        value: { query: null }
+                        action: @method:footerFindSubmit
+                    }
+                ]
+            }
+            actionKeys: [
+                {
+                    keys: [ "escape" ]
+                    action: @method:footerFindCancel
+                }
+            ]
         }
     }
 

@@ -14,6 +14,10 @@
 //  with 16KB memory pages (e.g. Raspberry Pi 4/5). libvips and SQLite's native
 //  allocator conflict when sharp is loaded after sqlite3 has executed a query.
 //  See: https://github.com/NuSkooler/enigma-bbs/issues/620
-try { require('sharp'); } catch (e) { /* sharp is optional */ }
+try {
+    require('sharp');
+} catch (e) {
+    /* sharp is optional */
+}
 
 require('./core/bbs.js').main();

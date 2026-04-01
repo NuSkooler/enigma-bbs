@@ -1,9 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-var FullScreenEditorModule = require('./fse.js').FullScreenEditorModule;
-
-exports.getModule = AreaReplyFSEModule;
+const { FullScreenEditorModule } = require('./fse.js');
 
 exports.moduleInfo = {
     name: 'Message Area Reply',
@@ -11,8 +9,5 @@ exports.moduleInfo = {
     author: 'NuSkooler',
 };
 
-function AreaReplyFSEModule(options) {
-    FullScreenEditorModule.call(this, options);
-}
-
-require('util').inherits(AreaReplyFSEModule, FullScreenEditorModule);
+//  All reply logic lives in the base class; this module is a thin named entry point.
+exports.getModule = class AreaReplyFSEModule extends FullScreenEditorModule {};

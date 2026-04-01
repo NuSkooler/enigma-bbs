@@ -87,29 +87,25 @@ function stylizeString(s, style) {
 
         //  SMaLL VoWeLS
         case 'small vowels':
-        case 'v':
+        case 'v': {
+            const parts = new Array(len);
             for (i = 0; i < len; ++i) {
                 c = s[i];
-                if (-1 !== VOWELS.indexOf(c)) {
-                    stylized += c.toLowerCase();
-                } else {
-                    stylized += c.toUpperCase();
-                }
+                parts[i] = -1 !== VOWELS.indexOf(c) ? c.toLowerCase() : c.toUpperCase();
             }
-            return stylized;
+            return parts.join('');
+        }
 
         //  bIg vOwELS
         case 'big vowels':
-        case 'V':
+        case 'V': {
+            const parts = new Array(len);
             for (i = 0; i < len; ++i) {
                 c = s[i];
-                if (-1 !== VOWELS.indexOf(c)) {
-                    stylized += c.toUpperCase();
-                } else {
-                    stylized += c.toLowerCase();
-                }
+                parts[i] = -1 !== VOWELS.indexOf(c) ? c.toUpperCase() : c.toLowerCase();
             }
-            return stylized;
+            return parts.join('');
+        }
 
         //  Small i's: DEMENTiA
         case 'small i':
@@ -118,24 +114,24 @@ function stylizeString(s, style) {
 
         //  mIxeD CaSE (random upper/lower)
         case 'mixed':
-        case 'M':
+        case 'M': {
+            const parts = new Array(len);
             for (i = 0; i < len; i++) {
-                if (Math.random() < 0.5) {
-                    stylized += s[i].toUpperCase();
-                } else {
-                    stylized += s[i].toLowerCase();
-                }
+                parts[i] = Math.random() < 0.5 ? s[i].toUpperCase() : s[i].toLowerCase();
             }
-            return stylized;
+            return parts.join('');
+        }
 
         //  l337 5p34k
         case 'l33t':
-        case '3':
+        case '3': {
+            const parts = new Array(len);
             for (i = 0; i < len; ++i) {
                 c = SIMPLE_ELITE_MAP[s[i].toLowerCase()];
-                stylized += c || s[i];
+                parts[i] = c || s[i];
             }
-            return stylized;
+            return parts.join('');
+        }
     }
 
     return s;
@@ -163,8 +159,8 @@ function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen = true) {
             {
                 const right = Math.ceil(padLen / 2);
                 const left = padLen - right;
-                s = `${padSGR}${Array(left + 1).join(
-                    padChar
+                s = `${padSGR}${padChar.repeat(
+                    left
                 )}${stringSGR}${s}${padSGR}${padChar.repeat(right)}`;
             }
             break;
@@ -263,7 +259,7 @@ function renderSubstr(str, start, length) {
 
     let pos = 0;
     let match;
-    let out = '';
+    const parts = [];
     let renderLen = 0;
     let s;
     do {
@@ -277,21 +273,20 @@ function renderSubstr(str, start, length) {
                     Math.min(match.index, pos + (length - renderLen))
                 );
                 start = 0; //  start offset applies only once
-                out += s;
+                parts.push(s);
                 renderLen += s.length;
             }
 
-            out += match[0];
+            parts.push(match[0]);
         }
     } while (renderLen < length && 0 !== re.lastIndex);
 
     //  remainder
     if (pos + start < str.length && renderLen < length) {
-        out += str.slice(pos + start, pos + start + (length - renderLen));
-        //out += str.slice(pos + start, Math.max(1, pos + (length - renderLen - 1)));
+        parts.push(str.slice(pos + start, pos + start + (length - renderLen)));
     }
 
-    return out;
+    return parts.join('');
 }
 
 const DefaultTruncateLen = 30;
@@ -343,7 +338,7 @@ function renderStringLength(s) {
 
         if (m) {
             if (m.index > pos) {
-                len += s.slice(pos, m.index).length;
+                len += m.index - pos;
             }
 
             if ('C' === m[3]) {
@@ -354,19 +349,22 @@ function renderStringLength(s) {
     } while (0 !== re.lastIndex);
 
     if (pos < s.length) {
-        len += s.slice(pos).length;
+        len += s.length - pos;
     }
 
     return len;
 }
 
 //  Like renderStringLength() but ANSI only (no pipe codes accounted for)
+const ANSI_FULL_MATCH_REGEXP = ANSI.getFullMatchRegExp();
+
 function ansiRenderStringLength(s) {
     let m;
     let pos;
     let len = 0;
 
-    const re = ANSI.getFullMatchRegExp();
+    const re = ANSI_FULL_MATCH_REGEXP;
+    re.lastIndex = 0; //  we recycle the regex; reset
 
     //
     //  Loop counting only literal (non-control) sequences
@@ -378,7 +376,7 @@ function ansiRenderStringLength(s) {
 
         if (m) {
             if (m.index > pos) {
-                len += s.slice(pos, m.index).length;
+                len += m.index - pos;
             }
 
             if ('C' === m[3]) {
@@ -389,7 +387,7 @@ function ansiRenderStringLength(s) {
     } while (0 !== re.lastIndex);
 
     if (pos < s.length) {
-        len += s.slice(pos).length;
+        len += s.length - pos;
     }
 
     return len;
@@ -445,13 +443,15 @@ const ANSI_OPCODES_ALLOWED_CLEAN = [
 function stripAnsiControlCodes(input, options) {
     let m;
     let pos;
-    let cleaned = '';
+    const parts = [];
 
     options = options || {};
 
+    REGEXP_ANSI_CONTROL_CODES.lastIndex = 0; //  we recycle the regex; reset
+
     //
     //  Loop through |input| adding only allowed ESC
-    //  sequences and literals to |cleaned|
+    //  sequences and literals to |parts|
     //
     do {
         pos = REGEXP_ANSI_CONTROL_CODES.lastIndex;
@@ -459,7 +459,7 @@ function stripAnsiControlCodes(input, options) {
 
         if (m) {
             if (m.index > pos) {
-                cleaned += input.slice(pos, m.index);
+                parts.push(input.slice(pos, m.index));
             }
 
             if (options.all) {
@@ -467,17 +467,17 @@ function stripAnsiControlCodes(input, options) {
             }
 
             if (ANSI_OPCODES_ALLOWED_CLEAN.indexOf(m[2].charAt(0)) > -1) {
-                cleaned += m[0];
+                parts.push(m[0]);
             }
         }
     } while (0 !== REGEXP_ANSI_CONTROL_CODES.lastIndex);
 
     //  remainder
     if (pos < input.length) {
-        cleaned += input.slice(pos);
+        parts.push(input.slice(pos));
     }
 
-    return cleaned;
+    return parts.join('');
 }
 
 function isAnsiLine(line) {
@@ -510,44 +510,43 @@ function isFormattedLine(line) {
     return false;
 }
 
+const ANSI_DET_REGEXP = /(?:\x1b\x5b)[?=;0-9]*?[ABCDEFGHJKLMSTfhlmnprsu]/g; //  eslint-disable-line no-control-regex
+const ANSI_DET_THRESHOLD = 4;
+
 //  :TODO: rename to containsAnsi()
 function isAnsi(input) {
     if (!input || 0 === input.length) {
         return false;
     }
 
-    //
-    //  * ANSI found - limited, just colors
-    //  * Full ANSI art
-    //  *
-    //
-    //  FULL ANSI art:
-    //  * SAUCE present & reports as ANSI art
-    //  * ANSI clear screen within first 2-3 codes
-    //  * ANSI movement codes (goto, right, left, etc.)
-    //
-    //  *
-    /*
-    readSAUCE(input, (err, sauce) => {
-        if(!err && ('ANSi' === sauce.fileType || 'ANSiMation' === sauce.fileType)) {
-            return cb(null, 'ansi');
+    //  Use exec() with early exit once threshold is met
+    ANSI_DET_REGEXP.lastIndex = 0;
+    let count = 0;
+    while (ANSI_DET_REGEXP.exec(input)) {
+        if (++count >= ANSI_DET_THRESHOLD) {
+            return true;
         }
-    });
-    */
-
-    //  :TODO: if a similar method is kept, use exec() until threshold
-    const ANSI_DET_REGEXP = /(?:\x1b\x5b)[?=;0-9]*?[ABCDEFGHJKLMSTfhlmnprsu]/g; //  eslint-disable-line no-control-regex
-    const m = input.match(ANSI_DET_REGEXP) || [];
-    return m.length >= 4; //  :TODO: do this reasonably, e.g. a percent or soemthing
+    }
+    return false;
 }
 
 function splitTextAtTerms(s) {
     return s.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 }
 
+const _wildcardCache = new Map();
+const WILDCARD_CACHE_MAX = 64;
+
 function wildcardMatch(input, rule) {
-    const escapeRegex = s => s.replace(/([.*+?^=!:${}()|[]\/\\])/g, '\\$1');
-    return new RegExp('^' + rule.split('*').map(escapeRegex).join('.*') + '$').test(
-        input
-    );
+    let re = _wildcardCache.get(rule);
+    if (!re) {
+        const escapeRegex = s => s.replace(/([.*+?^=!:${}()|[\]/\\])/g, '\\$1');
+        re = new RegExp('^' + rule.split('*').map(escapeRegex).join('.*') + '$');
+        if (_wildcardCache.size >= WILDCARD_CACHE_MAX) {
+            //  evict oldest entry
+            _wildcardCache.delete(_wildcardCache.keys().next().value);
+        }
+        _wildcardCache.set(rule, re);
+    }
+    return re.test(input);
 }

@@ -1,16 +1,14 @@
-/* jslint node: true */
 'use strict';
 
-var TextView = require('./text_view.js').TextView;
-var miscUtil = require('./misc_util.js');
-var strUtil = require('./string_util.js');
-var ansi = require('./ansi_term.js');
+//  ENiGMA½
+const { TextView } = require('./text_view.js');
+const { LineBuffer } = require('./line_buffer.js');
+const miscUtil = require('./misc_util.js');
+const strUtil = require('./string_util.js');
+const ansi = require('./ansi_term.js');
 
-//var util          = require('util');
-var assert = require('assert');
-var _ = require('lodash');
-
-exports.MaskEditTextView = MaskEditTextView;
+const assert = require('assert');
+const _ = require('lodash');
 
 //  ##/##/#### <--styleSGR2 if fillChar
 //    ^- styleSGR1
@@ -28,87 +26,248 @@ exports.MaskEditTextView = MaskEditTextView;
 //  * Tab in/out results in oddities such as cursor placement & ability to type in non-pattern chars
 //  * There exists some sort of condition that allows pattern position to get out of sync
 
-function MaskEditTextView(options) {
-    options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
-    options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
-    options.cursorStyle = miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
-    options.resizable = false;
+class MaskEditTextView extends TextView {
+    constructor(options) {
+        options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
+        options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
+        options.cursorStyle = miscUtil.valueWithDefault(
+            options.cursorStyle,
+            'steady block'
+        );
+        options.resizable = false;
 
-    TextView.call(this, options);
+        super(options);
 
-    this.initDefaultWidth();
+        this.initDefaultWidth();
 
-    this.cursorPos = { x: 0 };
-    this.patternArrayPos = 0;
+        this.cursorPos = { x: 0 };
+        this.patternArrayPos = 0;
+        this.maskPattern = options.maskPattern || '';
 
-    var self = this;
+        //  buildPattern sets this.maxLength (number of input slots)
+        this.buildPattern();
 
-    this.maskPattern = options.maskPattern || '';
+        //  LineBuffer initialized after buildPattern so maxLength is correct
+        this.lineBuffer = new LineBuffer({ width: this.maxLength });
+    }
 
-    this.clientBackspace = function () {
-        var fillCharSGR = this.getStyleSGR(3) || this.getSGR();
+    //  ── Internal helpers ─────────────────────────────────────────────────────
+
+    //  Sync this.text (the draw system's source) from lineBuffer.
+    _syncFromBuffer() {
+        this.text = this.lineBuffer.lines[0].chars;
+    }
+
+    //  ── Display ──────────────────────────────────────────────────────────────
+
+    clientBackspace() {
+        const fillCharSGR = this.getStyleSGR(3) || this.getSGR();
         this.client.term.write(
             '\b' + fillCharSGR + this.fillChar + '\b' + this.getFocusSGR()
         );
-    };
+    }
 
-    this.drawText = function (s) {
-        var textToDraw = strUtil.stylizeString(
+    drawText(s) {
+        const textToDraw = strUtil.stylizeString(
             s,
             this.hasFocus ? this.focusTextStyle : this.textStyle
         );
 
-        assert(textToDraw.length <= self.patternArray.length);
+        assert(textToDraw.length <= this.patternArray.length);
 
-        //  draw out the text we have so far
-        var i = 0;
-        var t = 0;
-        while (i < self.patternArray.length) {
-            if (_.isRegExp(self.patternArray[i])) {
+        let i = 0;
+        let t = 0;
+        while (i < this.patternArray.length) {
+            if (_.isRegExp(this.patternArray[i])) {
                 if (t < textToDraw.length) {
-                    self.client.term.write(
-                        (self.hasFocus ? self.getFocusSGR() : self.getSGR()) +
+                    this.client.term.write(
+                        (this.hasFocus ? this.getFocusSGR() : this.getSGR()) +
                             textToDraw[t]
                     );
                     t++;
                 } else {
-                    self.client.term.write((self.getStyleSGR(3) || '') + self.fillChar);
+                    this.client.term.write((this.getStyleSGR(3) || '') + this.fillChar);
                 }
             } else {
-                var styleSgr = this.hasFocus
-                    ? self.getStyleSGR(2) || ''
-                    : self.getStyleSGR(1) || '';
-                self.client.term.write(styleSgr + self.maskPattern[i]);
+                const styleSgr = this.hasFocus
+                    ? this.getStyleSGR(2) || ''
+                    : this.getStyleSGR(1) || '';
+                this.client.term.write(styleSgr + this.maskPattern[i]);
             }
             i++;
         }
-    };
+    }
 
-    this.buildPattern = function () {
-        self.patternArray = [];
-        self.maxLength = 0;
+    //  ── Pattern management ───────────────────────────────────────────────────
 
-        for (var i = 0; i < self.maskPattern.length; i++) {
+    buildPattern() {
+        this.patternArray = [];
+        this.maxLength = 0;
+
+        for (let i = 0; i < this.maskPattern.length; i++) {
             //  :TODO: support escaped characters, e.g. \#. Also allow \\ for a '\' mark!
-            if (self.maskPattern[i] in MaskEditTextView.maskPatternCharacterRegEx) {
-                self.patternArray.push(
-                    MaskEditTextView.maskPatternCharacterRegEx[self.maskPattern[i]]
+            if (this.maskPattern[i] in MaskEditTextView.maskPatternCharacterRegEx) {
+                this.patternArray.push(
+                    MaskEditTextView.maskPatternCharacterRegEx[this.maskPattern[i]]
                 );
-                ++self.maxLength;
+                ++this.maxLength;
             } else {
-                self.patternArray.push(self.maskPattern[i]);
+                this.patternArray.push(this.maskPattern[i]);
             }
         }
-    };
+    }
 
-    this.getEndOfTextColumn = function () {
+    getEndOfTextColumn() {
         return this.position.col + this.patternArrayPos;
-    };
+    }
 
-    this.buildPattern();
+    //  ── Overrides ────────────────────────────────────────────────────────────
+
+    setText(text, redraw) {
+        super.setText(text, redraw); //  pass through redraw; TextView ctor calls with false
+
+        if (this.patternArray) {
+            this.patternArrayPos = this.patternArray.length;
+        }
+
+        if (this.lineBuffer) {
+            const raw = (text == null ? '' : String(text)).slice(0, this.maxLength);
+            this.lineBuffer.lines[0] = {
+                chars: raw,
+                attrs: new Uint32Array(raw.length),
+                eol: true,
+                initialAttr: 0,
+            };
+            this.text = raw;
+        }
+    }
+
+    setMaskPattern(pattern) {
+        this.dimens.width = pattern.length;
+        this.maskPattern = pattern;
+        this.buildPattern();
+        //  Reinitialize lineBuffer now that maxLength is updated
+        this.lineBuffer = new LineBuffer({ width: this.maxLength });
+    }
+
+    getData() {
+        const rawData = this.lineBuffer ? this.lineBuffer.getText() : super.getData();
+
+        if (!rawData || 0 === rawData.length) {
+            return rawData;
+        }
+
+        let data = '';
+        let p = 0;
+        for (let i = 0; i < this.patternArray.length; ++i) {
+            if (_.isRegExp(this.patternArray[i])) {
+                //  Only append typed chars; stop if input was partial
+                if (p < rawData.length) {
+                    data += rawData[p++];
+                }
+            } else {
+                data += this.patternArray[i];
+            }
+        }
+
+        return data;
+    }
+
+    setPropertyValue(propName, value) {
+        switch (propName) {
+            case 'maskPattern':
+                this.setMaskPattern(value);
+                break;
+        }
+
+        super.setPropertyValue(propName, value);
+    }
+
+    //  ── Input handling ───────────────────────────────────────────────────────
+
+    onKeyPress(ch, key) {
+        if (key) {
+            if (this.isKeyMapped('backspace', key.name)) {
+                const textLen = this.lineBuffer.lines[0].chars.length;
+                if (textLen > 0) {
+                    this.patternArrayPos--;
+                    assert(this.patternArrayPos >= 0);
+
+                    if (_.isRegExp(this.patternArray[this.patternArrayPos])) {
+                        //  Cursor is directly on an input slot — delete its char
+                        this.lineBuffer.deleteChar(0, textLen - 1);
+                        this._syncFromBuffer();
+                        this.clientBackspace();
+                    } else {
+                        //  Cursor is on a literal — walk back to the preceding input slot
+                        while (this.patternArrayPos >= 0) {
+                            if (_.isRegExp(this.patternArray[this.patternArrayPos])) {
+                                this.lineBuffer.deleteChar(
+                                    0,
+                                    this.lineBuffer.lines[0].chars.length - 1
+                                );
+                                this._syncFromBuffer();
+                                this.client.term.write(
+                                    ansi.goto(
+                                        this.position.row,
+                                        this.getEndOfTextColumn() + 1
+                                    )
+                                );
+                                this.clientBackspace();
+                                break;
+                            }
+                            this.patternArrayPos--;
+                        }
+                    }
+                }
+
+                return;
+            } else if (this.isKeyMapped('clearLine', key.name)) {
+                this.lineBuffer.lines[0] = {
+                    chars: '',
+                    attrs: new Uint32Array(0),
+                    eol: true,
+                    initialAttr: 0,
+                };
+                this._syncFromBuffer();
+                this.patternArrayPos = 0;
+                this.setFocus(true); //  redraw + adjust cursor
+
+                return;
+            }
+        }
+
+        if (ch && strUtil.isPrintable(ch)) {
+            const textLen = this.lineBuffer.lines[0].chars.length;
+            if (textLen < this.maxLength) {
+                ch = strUtil.stylizeString(ch, this.textStyle);
+
+                if (!ch.match(this.patternArray[this.patternArrayPos])) {
+                    return;
+                }
+
+                this.lineBuffer.insertChar(0, textLen, ch, 0);
+                this._syncFromBuffer();
+                this.patternArrayPos++;
+
+                //  Skip over any literal characters in the pattern
+                while (
+                    this.patternArrayPos < this.patternArray.length &&
+                    !_.isRegExp(this.patternArray[this.patternArrayPos])
+                ) {
+                    this.patternArrayPos++;
+                }
+
+                this.redraw();
+                this.client.term.write(
+                    ansi.goto(this.position.row, this.getEndOfTextColumn())
+                );
+            }
+        }
+
+        super.onKeyPress(ch, key);
+    }
 }
-
-require('util').inherits(MaskEditTextView, TextView);
 
 MaskEditTextView.maskPatternCharacterRegEx = {
     '#': /[0-9]/, //  Numeric
@@ -117,117 +276,4 @@ MaskEditTextView.maskPatternCharacterRegEx = {
     '&': /[\w\d\s]/, //  Any "printable" 32-126, 128-255
 };
 
-MaskEditTextView.prototype.setText = function (text) {
-    MaskEditTextView.super_.prototype.setText.call(this, text);
-
-    if (this.patternArray) {
-        //  :TODO: This is a hack - see TextView ctor note about setText()
-        this.patternArrayPos = this.patternArray.length;
-    }
-};
-
-MaskEditTextView.prototype.setMaskPattern = function (pattern) {
-    this.dimens.width = pattern.length;
-
-    this.maskPattern = pattern;
-    this.buildPattern();
-};
-
-MaskEditTextView.prototype.onKeyPress = function (ch, key) {
-    if (key) {
-        if (this.isKeyMapped('backspace', key.name)) {
-            if (this.text.length > 0) {
-                this.patternArrayPos--;
-                assert(this.patternArrayPos >= 0);
-
-                if (_.isRegExp(this.patternArray[this.patternArrayPos])) {
-                    this.text = this.text.substr(0, this.text.length - 1);
-                    this.clientBackspace();
-                } else {
-                    while (this.patternArrayPos >= 0) {
-                        if (_.isRegExp(this.patternArray[this.patternArrayPos])) {
-                            this.text = this.text.substr(0, this.text.length - 1);
-                            this.client.term.write(
-                                ansi.goto(
-                                    this.position.row,
-                                    this.getEndOfTextColumn() + 1
-                                )
-                            );
-                            this.clientBackspace();
-                            break;
-                        }
-                        this.patternArrayPos--;
-                    }
-                }
-            }
-
-            return;
-        } else if (this.isKeyMapped('clearLine', key.name)) {
-            this.text = '';
-            this.patternArrayPos = 0;
-            this.setFocus(true); //  redraw + adjust cursor
-
-            return;
-        }
-    }
-
-    if (ch && strUtil.isPrintable(ch)) {
-        if (this.text.length < this.maxLength) {
-            ch = strUtil.stylizeString(ch, this.textStyle);
-
-            if (!ch.match(this.patternArray[this.patternArrayPos])) {
-                return;
-            }
-
-            this.text += ch;
-            this.patternArrayPos++;
-
-            while (
-                this.patternArrayPos < this.patternArray.length &&
-                !_.isRegExp(this.patternArray[this.patternArrayPos])
-            ) {
-                this.patternArrayPos++;
-            }
-
-            this.redraw();
-            this.client.term.write(
-                ansi.goto(this.position.row, this.getEndOfTextColumn())
-            );
-        }
-    }
-
-    MaskEditTextView.super_.prototype.onKeyPress.call(this, ch, key);
-};
-
-MaskEditTextView.prototype.setPropertyValue = function (propName, value) {
-    switch (propName) {
-        case 'maskPattern':
-            this.setMaskPattern(value);
-            break;
-    }
-
-    MaskEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
-};
-
-MaskEditTextView.prototype.getData = function () {
-    var rawData = MaskEditTextView.super_.prototype.getData.call(this);
-
-    if (!rawData || 0 === rawData.length) {
-        return rawData;
-    }
-
-    var data = '';
-
-    assert(rawData.length <= this.patternArray.length);
-
-    var p = 0;
-    for (var i = 0; i < this.patternArray.length; ++i) {
-        if (_.isRegExp(this.patternArray[i])) {
-            data += rawData[p++];
-        } else {
-            data += this.patternArray[i];
-        }
-    }
-
-    return data;
-};
+exports.MaskEditTextView = MaskEditTextView;

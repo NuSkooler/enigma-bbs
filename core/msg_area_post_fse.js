@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-const FullScreenEditorModule = require('./fse.js').FullScreenEditorModule;
+const { FullScreenEditorModule, MciViewIds } = require('./fse.js');
 const persistMessage = require('./message_area.js').persistMessage;
 const UserProps = require('./user_property.js');
 const { hasMessageConfAndAreaWrite } = require('./message_area.js');
@@ -12,39 +12,6 @@ exports.moduleInfo = {
     name: 'Message Area Post',
     desc: 'Module for posting a new message to an area',
     author: 'NuSkooler',
-};
-
-const MciViewIds = {
-    header: {
-        from: 1,
-        to: 2,
-        subject: 3,
-        errorMsg: 4,
-        modTimestamp: 5,
-        msgNum: 6,
-        msgTotal: 7,
-
-        customRangeStart: 10, //  10+ = customs
-    },
-
-    body: {
-        message: 1,
-    },
-
-    //  :TODO: quote builder MCIs - remove all magic #'s
-
-    //  :TODO: consolidate all footer MCI's - remove all magic #'s
-    ViewModeFooter: {
-        MsgNum: 6,
-        MsgTotal: 7,
-        //  :TODO: Just use custom ranges
-    },
-
-    quoteBuilder: {
-        quotedMsg: 1,
-        //  2 NYI
-        quoteLines: 3,
-    },
 };
 
 exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {

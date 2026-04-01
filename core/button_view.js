@@ -1,53 +1,48 @@
-/* jslint node: true */
 'use strict';
 
-const TextView = require('./text_view.js').TextView;
+const { TextView } = require('./text_view.js');
 const miscUtil = require('./misc_util.js');
-const util = require('util');
 
-//   deps
 const { isString } = require('lodash');
 
-exports.ButtonView = ButtonView;
+class ButtonView extends TextView {
+    constructor(options) {
+        options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
+        options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
+        options.justify = miscUtil.valueWithDefault(options.justify, 'center');
+        options.cursor = miscUtil.valueWithDefault(options.cursor, 'hide');
 
-function ButtonView(options) {
-    options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
-    options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
-    options.justify = miscUtil.valueWithDefault(options.justify, 'center');
-    options.cursor = miscUtil.valueWithDefault(options.cursor, 'hide');
+        super(options);
 
-    TextView.call(this, options);
+        this.initDefaultWidth();
+    }
 
-    this.initDefaultWidth();
+    onKeyPress(ch, key) {
+        if (this.isKeyMapped('accept', key ? key.name : ch) || ' ' === ch) {
+            this.submitData = 'accept';
+            this.emit('action', 'accept');
+            delete this.submitData;
+        } else {
+            super.onKeyPress(ch, key);
+        }
+    }
+
+    getData() {
+        return this.submitData || null;
+    }
+
+    setPropertyValue(propName, value) {
+        switch (propName) {
+            case 'itemFormat':
+            case 'focusItemFormat':
+                if (isString(value)) {
+                    this[propName] = value;
+                }
+                break;
+        }
+
+        super.setPropertyValue(propName, value);
+    }
 }
 
-util.inherits(ButtonView, TextView);
-
-ButtonView.prototype.onKeyPress = function (ch, key) {
-    if (this.isKeyMapped('accept', key ? key.name : ch) || ' ' === ch) {
-        this.submitData = 'accept';
-        this.emit('action', 'accept');
-        delete this.submitData;
-    } else {
-        ButtonView.super_.prototype.onKeyPress.call(this, ch, key);
-    }
-};
-
-ButtonView.prototype.getData = function () {
-    return this.submitData || null;
-};
-
-ButtonView.prototype.setPropertyValue = function (propName, value) {
-    switch (propName) {
-        case 'itemFormat':
-        case 'focusItemFormat':
-            if (isString(value)) {
-                this[propName] = value;
-            }
-            break;
-        default:
-            break;
-    }
-
-    ButtonView.super_.prototype.setPropertyValue.call(this, propName, value);
-};
+exports.ButtonView = ButtonView;

@@ -6,9 +6,6 @@ const ANSIEscapeParser = require('./ansi_escape_parser.js').ANSIEscapeParser;
 const ANSI = require('./ansi_term.js');
 const { splitTextAtTerms, renderStringLength } = require('./string_util.js');
 
-//  deps
-const _ = require('lodash');
-
 module.exports = function ansiPrep(input, options, cb) {
     if (!input) {
         return cb(null, '');
@@ -20,16 +17,23 @@ module.exports = function ansiPrep(input, options, cb) {
     options.rows = options.rows || options.termHeight || 'auto';
     options.startCol = options.startCol || 1;
     options.exportMode = options.exportMode || false;
-    options.fillLines = _.get(options, 'fillLines', true);
+    options.fillLines = options.fillLines ?? true;
     options.indent = options.indent || 0;
 
     //  in auto we start out at 25 rows, but can always expand for more
     const canvas = Array.from(
         { length: 'auto' === options.rows ? 25 : options.rows },
-        () => Array.from({ length: options.cols }, () => new Object())
+        () => Array.from({ length: options.cols }, () => ({}))
     );
+    //  When rows='auto' the canvas expands dynamically, so give the parser a
+    //  very large termHeight to prevent it from capping/clamping the cursor row
+    //  at the real terminal height.  All art past row termHeight would otherwise
+    //  be collapsed onto the last visible row, producing a scrambled "mash" at
+    //  the bottom of any art taller than the connected terminal window.
+    const parserTermHeight = 'auto' === options.rows ? 0x3fff : options.termHeight;
+
     const parser = new ANSIEscapeParser({
-        termHeight: options.termHeight,
+        termHeight: parserTermHeight,
         termWidth: options.termWidth,
     });
 
@@ -40,20 +44,33 @@ module.exports = function ansiPrep(input, options, cb) {
 
     let lastRow = 0;
 
+    //  Ensure canvas[row] exists and that the canvas remains dense (no holes).
+    //  Holes would turn into undefined entries after slice() and crash the render
+    //  loop.  Because we always fill contiguously from canvas.length upward,
+    //  canvas.length always points at the first potential hole.
     function ensureRow(row) {
         if (canvas[row]) {
             return;
         }
-
-        canvas[row] = Array.from({ length: options.cols }, () => new Object());
+        for (let r = canvas.length; r <= row; r++) {
+            canvas[r] = Array.from({ length: options.cols }, () => ({}));
+        }
     }
 
     parser.on('position update', (row, col) => {
         state.row = row - 1;
         state.col = col - 1;
 
+        //  Ensure the row exists even when only visited by a cursor movement
+        //  (no literal or SGR may ever land here).  This prevents sparse-array
+        //  holes from crashing the render loop.
+        ensureRow(state.row);
+
         if (0 === state.col) {
             state.initialSgr = state.lastSgr;
+            //  Write initialSgr directly onto the canvas cell so it is captured
+            //  even when no character is written at col 0 (B2: color bleed fix).
+            canvas[state.row][0].initialSgr = state.initialSgr;
         }
 
         lastRow = Math.max(state.row, lastRow);
@@ -72,14 +89,10 @@ module.exports = function ansiPrep(input, options, cb) {
             ) {
                 ensureRow(state.row);
 
-                if (0 === state.col) {
-                    canvas[state.row][state.col].initialSgr = state.initialSgr;
-                }
-
                 canvas[state.row][state.col].char = c;
 
                 if (state.sgr) {
-                    canvas[state.row][state.col].sgr = _.clone(state.sgr);
+                    canvas[state.row][state.col].sgr = { ...state.sgr };
                     state.lastSgr = canvas[state.row][state.col].sgr;
                     state.sgr = null;
                 }
@@ -90,37 +103,52 @@ module.exports = function ansiPrep(input, options, cb) {
     });
 
     parser.on('sgr update', sgr => {
+        //  When rows is fixed, ignore SGRs that land past the canvas boundary —
+        //  do not create overflow rows that would bleed into the output slice.
+        //  Always snapshot the SGR object — the parser emits its live
+        //  graphicRendition reference, which is mutated in-place by every
+        //  subsequent SGR event.  Storing the raw reference means state.lastSgr
+        //  (and any canvas cell that aliased it) silently changes under us,
+        //  corrupting initialSgr for the next row (B6 fix).
+        const sgrSnap = { ...sgr };
+
+        if ('auto' !== options.rows && state.row >= options.rows) {
+            state.sgr = sgrSnap;
+            state.lastSgr = sgrSnap; //  keep lastSgr current for next row's initialSgr
+            return;
+        }
+
         ensureRow(state.row);
 
         if (state.col < options.cols) {
-            canvas[state.row][state.col].sgr = _.clone(sgr);
-            state.lastSgr = canvas[state.row][state.col].sgr;
+            canvas[state.row][state.col].sgr = sgrSnap;
+            state.lastSgr = sgrSnap;
         } else {
-            state.sgr = sgr;
+            state.sgr = sgrSnap;
+            state.lastSgr = sgrSnap; //  keep lastSgr current for next row's initialSgr
         }
     });
 
     function getLastPopulatedColumn(row) {
         let col = row.length;
-        while (--col > 0) {
+        while (--col >= 0) {
             if (row[col].char || row[col].sgr) {
-                break;
+                return col;
             }
         }
-        return col;
+        return -1; //  completely empty row
     }
 
     parser.on('complete', () => {
-        let output = '';
-        let line;
+        const lines = [];
         let sgr;
 
         canvas.slice(0, lastRow + 1).forEach(row => {
             const lastCol = getLastPopulatedColumn(row) + 1;
 
             let i;
-            line = options.indent
-                ? output.length > 0
+            let line = options.indent
+                ? lines.length > 0
                     ? ' '.repeat(options.indent)
                     : ''
                 : '';
@@ -142,35 +170,37 @@ module.exports = function ansiPrep(input, options, cb) {
                 line += `${sgr}${col.char || ' '}`;
             }
 
-            output += line;
-
-            if (i < row.length) {
-                output += `${options.asciiMode ? '' : ANSI.blackBG()}`;
-                if (options.fillLines) {
-                    output += `${row
-                        .slice(i)
-                        .map(() => ' ')
-                        .join('')}`; //${lastSgr}`;
-                }
+            //  Only emit blackBG + fill when fillLines is active.  Emitting
+            //  blackBG unconditionally (even with fillLines=false) would change
+            //  terminal state after every row and bleed into the next row's SGR.
+            if (i < row.length && options.fillLines) {
+                line += options.asciiMode ? '' : ANSI.blackBG();
+                line += ' '.repeat(row.length - i);
             }
 
             if (options.startCol + i < options.termWidth || options.forceLineTerm) {
-                output += '\r\n';
+                line += '\r\n';
             }
+
+            lines.push(line);
         });
+
+        const output = lines.join('');
 
         if (options.exportMode) {
             //
-            //  If we're in export mode, we do some additional hackery:
+            //  Export mode post-processing:
             //
-            //  * Hard wrap ALL lines at <= 79 *characters* (not visible columns)
-            //    if a line must wrap early, we'll place a ESC[A ESC[<N>C where <N>
-            //    represents chars to get back to the position we were previously at
+            //  * Hard-wrap ALL lines at <= 79 *characters* (not visible columns).
+            //    When a line must wrap early, prefix the continuation with
+            //    ESC[A ESC[<N>C to return to the correct render column.
             //
-            //  * Replace contig spaces with ESC[<N>C as well to save... space.
+            //  * :TODO: Replace runs of spaces with ESC[<N>C to compress the output.
             //
-            //  :TODO: this would be better to do as part of the processing above, but this will do for now
-            const MAX_CHARS = 79 - 8; //  79 max, - 8 for max ESC seq's we may prefix a line with
+            //  :TODO: Ideally this would be integrated into the canvas render loop
+            //         above, but the current approach is correct and good enough.
+            //
+            const MAX_CHARS = 79 - 8; //  79 max, − 8 for the ESC sequences we may prefix
             let exportOutput = '';
 
             let m;
@@ -178,12 +208,15 @@ module.exports = function ansiPrep(input, options, cb) {
             let wantMore;
             let renderStart;
 
+            //  Compile the regexp once for the entire export pass.
+            const ANSI_REGEXP = ANSI.getFullMatchRegExp();
+
             splitTextAtTerms(output).forEach(fullLine => {
                 renderStart = 0;
 
                 while (fullLine.length > 0) {
                     let splitAt;
-                    const ANSI_REGEXP = ANSI.getFullMatchRegExp();
+                    ANSI_REGEXP.lastIndex = 0; //  reset for each slice of fullLine
                     wantMore = true;
 
                     while ((m = ANSI_REGEXP.exec(fullLine))) {
@@ -217,11 +250,12 @@ module.exports = function ansiPrep(input, options, cb) {
                     exportOutput += `${part}\r\n`;
 
                     if (fullLine.length > 0) {
-                        //  more to go for this line?
+                        //  more to go for this visual line: go up and reposition
+                        //  at the correct render column to continue drawing
                         exportOutput += `${ANSI.up()}${ANSI.right(renderStart)}`;
-                    } else {
-                        exportOutput += ANSI.up();
                     }
+                    //  last chunk: \r\n already advanced past the visual line,
+                    //  no up() — that would mis-position the start of the next line
                 }
             });
 

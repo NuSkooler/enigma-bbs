@@ -739,17 +739,35 @@
                             keys: [ "escape" ]
                             viewId: 1
                         }
+                        {
+                            keys: [ "ctrl + s" ]
+                            action: @method:editModeQuickSave
+                        }
+                        {
+                            keys: [ "ctrl + o" ]
+                            action: @method:editModeQuickHelp
+                        }
                     ]
                 },
                 2: {
-                    TLTL:  {
-                        mci: {
-                            TL1: {
-                                width: 5
-                            }
-                            TL2: {
-                                width: 4
-                            }
+                    mci: {
+                        SB1: {
+                            width:     9
+                            anchor:    left
+                            justify:   left
+                            separator: " "
+                            panels: [
+                                {
+                                    name:    mode
+                                    width:   3
+                                    justify: right
+                                }
+                                {
+                                    name:    pos
+                                    width:   5
+                                    justify: left
+                                }
+                            ]
                         }
                     }
                 }
@@ -758,7 +776,7 @@
                         mci: {
                             HM1: {
                                 //  :TODO: clear
-                                items: [ "save", "discard", "help" ]
+                                items: [ "save", "discard", "help", "upload" ]
                             }
                         }
                         submit: {
@@ -774,6 +792,10 @@
                                 {
                                     value: { 1: 2 }
                                     action: @method:editModeMenuHelp
+                                }
+                                {
+                                    value: { 1: 3 }
+                                    action: @method:editModeMenuUpload
                                 }
                             ]
                         }

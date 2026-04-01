@@ -7,8 +7,7 @@ const { ViewController } = require('./view_controller.js');
 const ansi = require('./ansi_term.js');
 const theme = require('./theme.js');
 const Message = require('./message.js');
-const { updateMessageAreaLastReadId } = require('./message_area.js');
-const { getMessageAreaByTag } = require('./message_area.js');
+const { updateMessageAreaLastReadId, getMessageAreaByTag } = require('./message_area.js');
 const User = require('./user.js');
 const StatLog = require('./stat_log.js');
 const stringFormat = require('./string_format.js');
@@ -29,18 +28,19 @@ const SysProps = require('./system_property.js');
 const FileArea = require('./file_base_area.js');
 const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
-const EngiAssert = require('./enigma_assert.js');
 const MessageConst = require('./message_const');
 
 //  deps
 const async = require('async');
-const _ = require('lodash');
 const moment = require('moment');
 const fse = require('fs-extra');
 const fs = require('graceful-fs');
 const paths = require('path');
 const sanitizeFilename = require('sanitize-filename');
 const { ErrorReasons } = require('./enig_error.js');
+const { pathWithTerminatingSeparator } = require('./file_util.js');
+const temptmp = require('temptmp').createTrackedSession('fse');
+const iconv = require('iconv-lite');
 
 exports.moduleInfo = {
     name: 'Full Screen Editor (FSE)',
@@ -67,11 +67,14 @@ const MciViewIds = {
 
     //  :TODO: quote builder MCIs - remove all magic #'s
 
-    //  :TODO: consolidate all footer MCI's - remove all magic #'s
-    ViewModeFooter: {
-        MsgNum: 6,
-        MsgTotal: 7,
+    viewModeFooter: {
+        msgNum: 6,
+        msgTotal: 7,
         //  :TODO: Just use custom ranges
+    },
+
+    editorFooter: {
+        status: 1, //  SB1 — panel status bar (panels: mode, pos)
     },
 
     quoteBuilder: {
@@ -79,6 +82,18 @@ const MciViewIds = {
         //  2 NYI
         quoteLines: 3,
     },
+};
+
+const FormIds = {
+    header: 0,
+    body: 1,
+    footerEditor: 2,
+    footerEditorMenu: 3,
+    footerView: 4,
+    quoteBuilder: 5,
+    footerFind: 6,
+
+    help: 50,
 };
 
 /*
@@ -99,7 +114,8 @@ const MciViewIds = {
         messageId
 */
 
-//  :TODO: convert code in this class to newer styles, conventions, etc. There is a lot of experimental stuff here that has better (DRY) alternatives
+exports.MciViewIds = MciViewIds;
+exports.FormIds = FormIds;
 
 exports.FullScreenEditorModule =
     exports.getModule = class FullScreenEditorModule extends (
@@ -108,7 +124,6 @@ exports.FullScreenEditorModule =
         constructor(options) {
             super(options);
 
-            const self = this;
             const config = this.menuConfig.config;
 
             //
@@ -134,7 +149,7 @@ exports.FullScreenEditorModule =
             this.toUserId = config.toUserId || 0;
 
             //  extraArgs can override some config
-            if (_.isObject(options.extraArgs)) {
+            if (options.extraArgs && typeof options.extraArgs === 'object') {
                 if (options.extraArgs.messageAreaTag) {
                     this.messageAreaTag = options.extraArgs.messageAreaTag;
                 }
@@ -150,174 +165,334 @@ exports.FullScreenEditorModule =
             }
 
             this.noUpdateLastReadId =
-                _.get(
-                    options,
-                    'extraArgs.noUpdateLastReadId',
-                    config.noUpdateLastReadId
-                ) || false;
+                options?.extraArgs?.noUpdateLastReadId ??
+                config.noUpdateLastReadId ??
+                false;
 
             this.isReady = false;
+            this.header = null;
+            this.body = null;
 
-            if (_.has(options, 'extraArgs.message')) {
+            if (options?.extraArgs?.message !== undefined) {
                 this.setMessage(options.extraArgs.message);
-            } else if (_.has(options, 'extraArgs.replyToMessage')) {
+            } else if (options?.extraArgs?.replyToMessage !== undefined) {
                 this.replyToMessage = options.extraArgs.replyToMessage;
             }
 
+            //  When returning from a file-transfer sub-menu, the transfer module's
+            //  getMenuResult() lands here.  Store the paths so createInitialViews()
+            //  can load them into the body after state is restored.
+            if (options?.lastMenuResult?.recvFilePaths?.length > 0) {
+                this._pendingUploadFiles = options.lastMenuResult.recvFilePaths;
+            }
+
+            //  ── Header / Validation ──────────────────────────────────────────────────
             this.menuMethods = {
-                //
-                //  Validation stuff
-                //
-                viewValidationListener: (err, cb) => {
-                    if (
-                        err &&
-                        err.view.getId() === MciViewIds.header.subject &&
-                        err.reasonCode === ErrorReasons.ValueTooShort
-                    ) {
-                        // Ignore validation errors if this is the subject field
-                        // and it's optional
-                        const areaInfo = getMessageAreaByTag(this.messageAreaTag);
-                        if (true === areaInfo.subjectOptional) {
-                            return cb(null, null);
-                        }
-
-                        // private messages are a little different...
-                        const toView = this.getView('header', MciViewIds.header.to);
-                        const msgInfo = messageInfoFromAddressedToInfo(
-                            getAddressedToInfo(toView.getData())
-                        );
-                        if (true === msgInfo.subjectOptional) {
-                            return cb(null, null);
-                        }
-                    }
-
-                    const errMsgView = this.viewControllers.header.getView(
-                        MciViewIds.header.errorMsg
-                    );
-                    if (errMsgView) {
-                        if (err) {
-                            errMsgView.clearText();
-                            errMsgView.setText(err.friendlyText || err.message);
-
-                            if (MciViewIds.header.subject === err.view.getId()) {
-                                //  :TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
-                            }
-                        } else {
-                            errMsgView.clearText();
-                        }
-                    }
-
-                    return cb(err, null);
-                },
-                headerSubmit: function (formData, extraArgs, cb) {
-                    self.switchToBody();
+                viewValidationListener: (err, cb) => this._onViewValidation(err, cb),
+                headerSubmit: (_formData, _extraArgs, cb) => {
+                    this._changingSubject = false;
+                    this.switchToBody();
                     return cb(null);
                 },
-                editModeEscPressed: function (formData, extraArgs, cb) {
-                    const errMsgView = self.viewControllers.header.getView(
-                        MciViewIds.header.errorMsg
-                    );
-                    if (errMsgView) {
-                        errMsgView.clearText();
-                    }
-
-                    self.footerMode =
-                        'editor' === self.footerMode ? 'editorMenu' : 'editor';
-
-                    self.switchFooter(function next(err) {
-                        if (err) {
-                            return cb(err);
-                        }
-
-                        switch (self.footerMode) {
-                            case 'editor':
-                                if (
-                                    !_.isUndefined(self.viewControllers.footerEditorMenu)
-                                ) {
-                                    self.viewControllers.footerEditorMenu.detachClientEvents();
-                                }
-                                self.viewControllers.body.switchFocus(1);
-                                self.observeEditorEvents();
-                                break;
-
-                            case 'editorMenu':
-                                self.viewControllers.body.setFocus(false);
-                                self.viewControllers.footerEditorMenu.switchFocus(1);
-                                break;
-
-                            default:
-                                throw new Error('Unexpected mode');
-                        }
-
+                //  Escape in the header form: if we arrived here via Ctrl-A
+                //  ("change subject"), return focus to the body without exiting
+                //  the FSE.  Otherwise behave like the original prevMenu action.
+                headerEscapePressed: (_formData, _extraArgs, cb) => {
+                    if (this._changingSubject) {
+                        this._changingSubject = false;
+                        this.switchToBody();
                         return cb(null);
+                    }
+                    return this.prevMenu(cb);
+                },
+                //  Ctrl-A from the body: jump focus to the subject field so the
+                //  user can edit it without leaving the FSE.  Enter confirms
+                //  (headerSubmit → switchToBody); Escape cancels (headerEscapePressed).
+                editModeChangeSubject: (_formData, _extraArgs, cb) => {
+                    this._changingSubject = true;
+                    this.viewControllers.body.setFocus(false);
+                    this.viewControllers.header.switchFocus(MciViewIds.header.subject);
+                    return cb(null);
+                },
+
+                //  ── Body Editor ──────────────────────────────────────────────────────
+                editModeEscPressed: (_formData, _extraArgs, cb) =>
+                    this._toggleEditorMenu(cb),
+
+                //  ── Quote Builder ────────────────────────────────────────────────────
+                editModeMenuQuote: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.footerEditorMenu.setFocus(false);
+                    this.displayQuoteBuilder();
+                    return cb(null);
+                },
+                appendQuoteEntry: (formData, _extraArgs, cb) =>
+                    this._appendQuoteEntry(formData, cb),
+                quoteBuilderEscPressed: (_formData, _extraArgs, cb) => {
+                    this.quoteBuilderFinalize();
+                    return cb(null);
+                },
+
+                //  ── Editor Menu ──────────────────────────────────────────────────────
+                editModeMenuHelp: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.footerEditorMenu.setFocus(false);
+                    return this.displayHelp(cb);
+                },
+                //  Ctrl-S quick save: delegates to whichever subclass defined editModeMenuSave.
+                editModeQuickSave: (formData, extraArgs, cb) => {
+                    if ('function' === typeof this.menuMethods.editModeMenuSave) {
+                        return this.menuMethods.editModeMenuSave(formData, extraArgs, cb);
+                    }
+                    return cb(null);
+                },
+                //  Ctrl-O quick help: open help screen without going through the ESC menu.
+                editModeQuickHelp: (_formData, _extraArgs, cb) => this.displayHelp(cb),
+                editModeMenuUpload: (_formData, _extraArgs, cb) =>
+                    this._startBodyUpload(cb),
+
+                //  ── Find / Search ────────────────────────────────────────────────────
+                editModeFind: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.body.setFocus(false);
+                    return this.openFindPrompt(err => {
+                        if (err) {
+                            //  If the prompt fails to open (e.g. missing art),
+                            //  restore focus to the body so the keyboard isn't frozen.
+                            this._returnFocusToBody();
+                        }
+                        return cb(err);
                     });
                 },
-                editModeMenuQuote: function (formData, extraArgs, cb) {
-                    self.viewControllers.footerEditorMenu.setFocus(false);
-                    self.displayQuoteBuilder();
+                editModeFindNext: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findNext();
                     return cb(null);
                 },
-                appendQuoteEntry: function (formData, extraArgs, cb) {
-                    const quoteMsgView = self.viewControllers.quoteBuilder.getView(
-                        MciViewIds.quoteBuilder.quotedMsg
-                    );
-
-                    if (self.newQuoteBlock) {
-                        self.newQuoteBlock = false;
-
-                        //  :TODO: If replying to ANSI, add a blank separation line here
-
-                        quoteMsgView.addText(self.getQuoteByHeader());
+                editModeFindPrev: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findPrev();
+                    return cb(null);
+                },
+                viewModeFind: (_formData, _extraArgs, cb) => {
+                    if (this.viewControllers.footerView) {
+                        this.viewControllers.footerView.setFocus(false);
                     }
-
-                    const quoteListView = self.viewControllers.quoteBuilder.getView(
-                        MciViewIds.quoteBuilder.quoteLines
-                    );
-                    const quoteText = quoteListView.getItem(formData.value.quote);
-
-                    quoteMsgView.addText(quoteText);
-
-                    //
-                    //  If this is *not* the last item, advance. Otherwise, do nothing as we
-                    //  don't want to jump back to the top and repeat already quoted lines
-                    //
-
-                    if (quoteListView.getData() !== quoteListView.getCount() - 1) {
-                        quoteListView.focusNext();
-                    } else {
-                        self.quoteBuilderFinalize();
-                    }
-
+                    return this.openFindPrompt(cb);
+                },
+                viewModeFindNext: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findNext();
                     return cb(null);
                 },
-                quoteBuilderEscPressed: function (formData, extraArgs, cb) {
-                    self.quoteBuilderFinalize();
+                viewModeFindPrev: (_formData, _extraArgs, cb) => {
+                    this._bodyView.findPrev();
                     return cb(null);
                 },
-                /*
-            replyDiscard : function(formData, extraArgs) {
-                //  :TODO: need to prompt yes/no
-                //  :TODO: @method for fallback would be better
-                self.prevMenu();
-            },
-            */
-                editModeMenuHelp: function (formData, extraArgs, cb) {
-                    self.viewControllers.footerEditorMenu.setFocus(false);
-                    return self.displayHelp(cb);
+                footerFindSubmit: (formData, _extraArgs, cb) => {
+                    const query = (formData.value.query || '').trim();
+                    return this._closeFindPrompt(query, cb);
                 },
-                ///////////////////////////////////////////////////////////////////////
-                //  View Mode
-                ///////////////////////////////////////////////////////////////////////
-                viewModeMenuHelp: function (formData, extraArgs, cb) {
-                    self.viewControllers.footerView.setFocus(false);
-                    return self.displayHelp(cb);
-                },
+                footerFindCancel: (_formData, _extraArgs, cb) =>
+                    this._closeFindPrompt(null, cb),
 
-                addToDownloadQueue: (formData, extraArgs, cb) => {
+                //  ── View Mode ───────────────────────────────────────────────────────
+                viewModeMenuHelp: (_formData, _extraArgs, cb) => {
+                    this.viewControllers.footerView.setFocus(false);
+                    return this.displayHelp(cb);
+                },
+                addToDownloadQueue: (_formData, _extraArgs, cb) => {
                     this.viewControllers.footerView.setFocus(false);
                     return this.addToDownloadQueue(cb);
                 },
             };
+        }
+
+        //  Validate a header field value.  Subject is optional when the area or
+        //  addressing layer marks it so; all other validation errors are surfaced
+        //  in the error-message view.
+        _onViewValidation(err, cb) {
+            if (
+                err &&
+                err.view.getId() === MciViewIds.header.subject &&
+                err.reasonCode === ErrorReasons.ValueTooShort
+            ) {
+                const areaInfo = getMessageAreaByTag(this.messageAreaTag);
+                if (true === areaInfo.subjectOptional) {
+                    return cb(null, null);
+                }
+
+                //  Private messages are a little different...
+                const toView = this.getView('header', MciViewIds.header.to);
+                const msgInfo = messageInfoFromAddressedToInfo(
+                    getAddressedToInfo(toView.getData())
+                );
+                if (true === msgInfo.subjectOptional) {
+                    return cb(null, null);
+                }
+            }
+
+            const errMsgView = this.viewControllers.header.getView(
+                MciViewIds.header.errorMsg
+            );
+            if (errMsgView) {
+                if (err) {
+                    errMsgView.clearText();
+                    errMsgView.setText(err.friendlyText || err.message);
+                } else {
+                    errMsgView.clearText();
+                }
+            }
+
+            return cb(err, null);
+        }
+
+        //  Toggle between the inline editor footer and the ESC command menu.
+        //  Clears any stale error text, switches footer mode, then transfers
+        //  keyboard focus to the appropriate ViewController.
+        _toggleEditorMenu(cb) {
+            const errMsgView = this.viewControllers.header.getView(
+                MciViewIds.header.errorMsg
+            );
+            if (errMsgView) {
+                errMsgView.clearText();
+            }
+
+            this.footerMode = 'editor' === this.footerMode ? 'editorMenu' : 'editor';
+
+            this.switchFooter(err => {
+                if (err) {
+                    return cb(err);
+                }
+
+                switch (this.footerMode) {
+                    case 'editor':
+                        if (this.viewControllers.footerEditorMenu !== undefined) {
+                            this.viewControllers.footerEditorMenu.detachClientEvents();
+                        }
+                        this.viewControllers.body.switchFocus(1);
+                        this.observeEditorEvents();
+                        break;
+
+                    case 'editorMenu':
+                        this.viewControllers.body.setFocus(false);
+                        this.viewControllers.footerEditorMenu.switchFocus(1);
+                        break;
+
+                    default:
+                        return cb(new Error(`Unexpected footerMode: ${this.footerMode}`));
+                }
+
+                return cb(null);
+            });
+        }
+
+        //  Append the currently highlighted quote-list line to the growing quote
+        //  preview, then advance the list cursor (or finalize if at the last item).
+        //  ANSI lines are accumulated in _ansiQuoteLines and rendered via setAnsi();
+        //  plain-text lines go directly into the MT1 preview view via addText().
+        _appendQuoteEntry(formData, cb) {
+            const quoteListView = this.viewControllers.quoteBuilder.getView(
+                MciViewIds.quoteBuilder.quoteLines
+            );
+            const quoteMsgView = this.viewControllers.quoteBuilder.getView(
+                MciViewIds.quoteBuilder.quotedMsg
+            );
+            const quoteText = quoteListView.getItem(formData.value.quote);
+
+            //  Advance the quote list cursor or finalize — called after any
+            //  (possibly async) preview update is complete.
+            const afterUpdate = () => {
+                if (quoteListView.getData() !== quoteListView.getCount() - 1) {
+                    quoteListView.focusNext();
+                } else {
+                    this.quoteBuilderFinalize();
+                }
+                return cb(null);
+            };
+
+            if (this.replyIsAnsi) {
+                //  ANSI: accumulate for finalize and render the growing set into the
+                //  preview via setAnsi() — addText() can't handle \x1b sequences.
+                this._ansiQuoteLines.push(quoteText);
+                const preview = this._ansiQuoteLines.join('\r\n');
+                quoteMsgView.setAnsi(preview, { prepped: true }, _err => {
+                    quoteMsgView.cursorEndOfDocument();
+                    afterUpdate();
+                });
+            } else {
+                //  Plain text: accumulate in the MT1 preview view with a header
+                //  on the first line selected.
+                if (this.newQuoteBlock) {
+                    this.newQuoteBlock = false;
+                    quoteMsgView.addText(this.getQuoteByHeader(), { scrollMode: 'end' });
+                }
+                quoteMsgView.addText(quoteText, { scrollMode: 'end' });
+                afterUpdate();
+            }
+        }
+
+        //  Launch the file-transfer protocol selector so the user can upload a
+        //  file to use as the message body.  Creates a temp directory, stores its
+        //  path in _pendingTempUploadDir for getSaveState(), then transitions to
+        //  the transfer module with returnToCaller so we come back here on exit.
+        _startBodyUpload(cb) {
+            this.viewControllers.footerEditorMenu.setFocus(false);
+            temptmp.mkdir({ prefix: 'enigfseul-' }, (err, tempDir) => {
+                if (err) {
+                    this.client.log.warn(
+                        { err },
+                        'FSE: failed to create upload temp dir'
+                    );
+                    return cb(err);
+                }
+                //  Store dir so getSaveState() can include it for cleanup on re-entry.
+                this._pendingTempUploadDir = pathWithTerminatingSeparator(tempDir);
+                const modOpts = {
+                    extraArgs: {
+                        recvDirectory: this._pendingTempUploadDir,
+                        direction: 'recv',
+                        returnToCaller: true, //  skip fileBaseUploadFiles; return to FSE
+                    },
+                };
+                return this.gotoMenu(
+                    this.menuConfig.config.fileTransferProtocolSelection ||
+                        'fileTransferProtocolSelection',
+                    modOpts,
+                    cb
+                );
+            });
+        }
+
+        //  Preserve enough state to survive a gotoMenu round-trip (e.g. file upload).
+        getSaveState() {
+            if (!this.isReady) return null;
+            const bodyView = this._bodyView;
+            const hdr = this.viewControllers.header?.getFormData()?.value ?? {};
+            return {
+                bodyText: bodyView ? bodyView.getData() : '',
+                replyIsAnsi: !!this.replyIsAnsi,
+                headerFrom: hdr.from ?? '',
+                headerTo: hdr.to ?? '',
+                headerSubject: hdr.subject ?? '',
+                tempUploadDir: this._pendingTempUploadDir || null,
+            };
+        }
+
+        restoreSavedState(savedState) {
+            //  Stash for use once views are (re-)created in createInitialViews().
+            this._pendingSavedState = savedState;
+        }
+
+        //  Add or remove the '[ANSI] ' prefix on the subject field to reflect
+        //  whether the message body is (or will be) rendered as ANSI art.
+        _syncAnsiSubjectTag(isAnsi) {
+            const subjView = this.viewControllers.header?.getView(
+                MciViewIds.header.subject
+            );
+            if (!subjView) return;
+            const ANSI_TAG = '[ANSI] ';
+            const current = subjView.getData() || '';
+            const hasTag = current.startsWith(ANSI_TAG);
+            if (isAnsi && !hasTag) {
+                subjView.setText(ANSI_TAG + current);
+            } else if (!isAnsi && hasTag) {
+                subjView.setText(current.slice(ANSI_TAG.length));
+            }
         }
 
         isEditMode() {
@@ -333,33 +508,77 @@ exports.FullScreenEditorModule =
         }
 
         isReply() {
-            return !_.isUndefined(this.replyToMessage);
+            return this.replyToMessage !== undefined;
+        }
+
+        //  Convenience accessor — avoids repeating the VC + MCI lookup everywhere.
+        get _bodyView() {
+            return this.viewControllers.body?.getView(MciViewIds.body.message);
+        }
+
+        //  Row (1-based) where the footer begins — below header and body art.
+        get _footerStartRow() {
+            return this.header.height + this.body.height;
+        }
+
+        //  Restore keyboard focus and editor-state indicators to the body MLTEV
+        //  after returning from any overlay (quote builder, find prompt, help, etc.).
+        _returnFocusToBody() {
+            this.client.term.beginWrite();
+            this.viewControllers.body.switchFocus(1);
+            const bodyView = this._bodyView;
+            if (bodyView) {
+                this.updateTextEditMode(bodyView.getTextEditMode());
+                this.updateEditModePosition(bodyView.getEditPosition());
+            }
+            this.observeEditorEvents();
+            this.client.term.commitWrite();
+        }
+
+        //  Shared teardown for footerFindSubmit and footerFindCancel.
+        //  Detaches the find VC, restores the previous footer, then either
+        //  applies the query (if non-empty) or clears any active find state,
+        //  then returns focus to body or footerView as appropriate.
+        //
+        //  In view mode a submitted query calls setFindQuery() so highlights
+        //  stay visible and Ctrl-N/P navigation works.  In edit mode we use
+        //  gotoFirstMatch() instead — it scrolls to the first hit and positions
+        //  the cursor there without setting _findState, so no highlight overlay
+        //  is painted and no ESC sequences can bleed into the editing session.
+        _closeFindPrompt(query, cb) {
+            if (this.viewControllers.footerFind) {
+                this.viewControllers.footerFind.detachClientEvents();
+            }
+            this.footerMode = this._prevFooterMode;
+            this.switchFooter(err => {
+                if (err) return cb(err);
+                if (query) {
+                    if (this.isViewMode()) {
+                        this._bodyView.setFindQuery(query);
+                    } else {
+                        this._bodyView.gotoFirstMatch(query);
+                    }
+                } else {
+                    this._bodyView.clearFind();
+                }
+                if (this.isViewMode()) {
+                    this.viewControllers.footerView.switchFocus(1);
+                } else {
+                    this._returnFocusToBody();
+                }
+                return cb(null);
+            });
         }
 
         getFooterName() {
-            return 'footer' + _.upperFirst(this.footerMode); //  e.g. 'footerEditor', 'footerEditorMenu', ...
-        }
-
-        getFormId(name) {
-            return {
-                header: 0,
-                body: 1,
-                footerEditor: 2,
-                footerEditorMenu: 3,
-                footerView: 4,
-                quoteBuilder: 5,
-
-                help: 50,
-            }[name];
+            //  e.g. 'footerEditor', 'footerEditorMenu', 'footerView'
+            return 'footer' + this.footerMode[0].toUpperCase() + this.footerMode.slice(1);
         }
 
         getHeaderFormatObj() {
             const remoteUserNotAvail = this.menuConfig.config.remoteUserNotAvail || 'N/A';
             const localUserIdNotAvail =
                 this.menuConfig.config.localUserIdNotAvail || 'N/A';
-            const modTimestampFormat =
-                this.menuConfig.config.modTimestampFormat ||
-                this.client.currentTheme.helpers.getDateTimeFormat();
 
             return {
                 //  :TODO: ensure we show real names for form/to if they are enforced in the area
@@ -368,28 +587,18 @@ exports.FullScreenEditorModule =
                 //  :TODO:
                 //fromRealName
                 //toRealName
-                fromUserId: _.get(
-                    this.message,
-                    'meta.System.local_from_user_id',
-                    localUserIdNotAvail
-                ),
-                toUserId: _.get(
-                    this.message,
-                    'meta.System.local_to_user_id',
-                    localUserIdNotAvail
-                ),
-                fromRemoteUser: _.get(
-                    this.message,
-                    'meta.System.remote_from_user',
-                    remoteUserNotAvail
-                ),
-                toRemoteUser: _.get(
-                    this.message,
-                    'meta.System.remote_to_user',
-                    remoteUserNotAvail
-                ),
+                fromUserId:
+                    this.message?.meta?.System?.local_from_user_id ?? localUserIdNotAvail,
+                toUserId:
+                    this.message?.meta?.System?.local_to_user_id ?? localUserIdNotAvail,
+                fromRemoteUser:
+                    this.message?.meta?.System?.remote_from_user ?? remoteUserNotAvail,
+                toRemoteUser:
+                    this.message?.meta?.System?.remote_to_user ?? remoteUserNotAvail,
                 subject: this.message.subject,
-                modTimestamp: this.message.modTimestamp.format(modTimestampFormat),
+                modTimestamp: this.message.modTimestamp.format(
+                    this.getModTimestampFormat()
+                ),
                 msgNum: this.messageIndex + 1,
                 msgTotal: this.messageTotal,
                 messageId: this.message.messageId,
@@ -403,6 +612,13 @@ exports.FullScreenEditorModule =
                     break;
                 case 'view':
                     this.footerMode = 'view';
+                    break;
+                default:
+                    this.footerMode = 'editor';
+                    this.client.log.warn(
+                        { editorMode: this.editorMode },
+                        'FSE: unexpected editorMode in setInitialFooterMode'
+                    );
                     break;
             }
         }
@@ -418,9 +634,9 @@ exports.FullScreenEditorModule =
                     : this.client.user.username;
             };
 
-            let messageBody = this.viewControllers.body
-                .getView(MciViewIds.body.message)
-                .getData({ forceLineTerms: this.replyIsAnsi });
+            let messageBody = this._bodyView.getData({
+                forceLineTerms: this.replyIsAnsi,
+            });
 
             const msgOpts = {
                 areaTag: this.messageAreaTag,
@@ -441,11 +657,9 @@ exports.FullScreenEditorModule =
                     //
                     msgOpts.meta = {
                         System: {
-                            explicit_encoding: _.get(
-                                Config(),
-                                'scannerTossers.ftn_bso.packetAnsiMsgEncoding',
-                                'cp437'
-                            ),
+                            explicit_encoding:
+                                Config()?.scannerTossers?.ftn_bso
+                                    ?.packetAnsiMsgEncoding ?? 'cp437',
                         },
                     };
                     messageBody = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(
@@ -508,7 +722,7 @@ exports.FullScreenEditorModule =
                 );
                 let msg = this.message.message;
 
-                if (bodyMessageView && _.has(this, 'message.message')) {
+                if (bodyMessageView && this.message?.message !== undefined) {
                     //
                     //  We handle ANSI messages differently than standard messages -- this is required as
                     //  we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
@@ -529,7 +743,13 @@ exports.FullScreenEditorModule =
                         }
 
                         bodyMessageView.setAnsi(
-                            msg.replace(/\r?\n/g, '\r\n'), //  messages are stored with CRLF -> LF
+                            //  Convert any pipe codes (|##) in the body to ANSI SGR before
+                            //  setAnsi processes the string; setAnsi only handles \x1b sequences
+                            //  so plain pipe codes would otherwise render as literal text.
+                            controlCodesToAnsi(
+                                msg.replace(/\r?\n/g, '\r\n'),
+                                this.client
+                            ),
                             {
                                 prepped: false,
                                 forceLineTerm: true,
@@ -694,10 +914,7 @@ exports.FullScreenEditorModule =
                 Events.emit(Events.getSystemEvents().UserSendMail, {
                     user: this.client.user,
                 });
-                if (cb) {
-                    cb(null);
-                }
-                return; //  don't inc stats for private messages
+                return cb(null); //  don't inc stats for private messages
             }
 
             Events.emit(Events.getSystemEvents().UserPostMessage, {
@@ -716,406 +933,404 @@ exports.FullScreenEditorModule =
         }
 
         redrawFooter(options, cb) {
-            const self = this;
+            const footerRow = this.header.height + this.body.height;
 
-            async.waterfall(
-                [
-                    function moveToFooterPosition(callback) {
-                        //
-                        //  Calculate footer starting position
-                        //
-                        //  row = (header height + body height)
-                        //
-                        var footerRow = self.header.height + self.body.height;
-                        self.client.term.rawWrite(ansi.goto(footerRow, 1));
-                        callback(null);
-                    },
-                    function clearFooterArea(callback) {
-                        if (options.clear) {
-                            //  footer up to 3 rows in height
+            this.client.term.rawWrite(ansi.goto(footerRow, 1));
 
-                            //  :TODO: We'd like to delete up to N rows, but this does not work
-                            //  in NetRunner:
-                            self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
+            if (options.clear) {
+                //  :TODO: We'd like to delete up to N rows, but this does not work in NetRunner:
+                this.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
+                this.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2));
+            }
 
-                            self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2));
-                        }
-                        callback(null);
-                    },
-                    function displayFooterArt(callback) {
-                        const footerArt = self.menuConfig.config.art[options.footerName];
-
-                        theme.displayThemedAsset(
-                            footerArt,
-                            self.client,
-                            {
-                                font: self.menuConfig.font,
-                                startRow: self.header.height + self.body.height,
-                            },
-                            function displayed(err, artData) {
-                                callback(err, artData);
-                            }
-                        );
-                    },
-                ],
-                function complete(err, artData) {
-                    cb(err, artData);
-                }
-            );
+            const footerArt = this.menuConfig.config.art[options.footerName];
+            this.displayAsset(footerArt, { startRow: footerRow }, cb);
         }
 
         redrawScreen(cb) {
-            var comps = ['header', 'body'];
-            const self = this;
-            var art = self.menuConfig.config.art;
+            const art = this.menuConfig.config.art;
+            const comps = ['header', 'body'];
 
-            self.client.term.rawWrite(ansi.resetScreen());
+            this.client.term.rawWrite(ansi.resetScreen());
 
             async.series(
                 [
-                    function displayHeaderAndBody(callback) {
+                    callback => {
                         async.waterfall(
                             [
-                                function displayHeader(callback) {
-                                    theme.displayThemedAsset(
-                                        art['header'],
-                                        self.client,
-                                        { font: self.menuConfig.font },
-                                        function displayed(err, artInfo) {
-                                            return callback(err, artInfo);
-                                        }
+                                wfCb => {
+                                    this.displayAsset(art.header, {}, (err, artInfo) =>
+                                        wfCb(err, artInfo)
                                     );
                                 },
-                                function displayBody(artInfo, callback) {
-                                    theme.displayThemedAsset(
-                                        art['header'],
-                                        self.client,
-                                        {
-                                            font: self.menuConfig.font,
-                                            startRow: artInfo.height + 1,
-                                        },
-                                        function displayed(err, artInfo) {
-                                            return callback(err, artInfo);
-                                        }
+                                (artInfo, wfCb) => {
+                                    this.displayAsset(
+                                        art.body,
+                                        { startRow: artInfo.height + 1 },
+                                        err => wfCb(err)
                                     );
                                 },
                             ],
-                            function complete(err) {
-                                //self.body.height = self.client.term.termHeight - self.header.height - 1;
-                                callback(err);
-                            }
+                            err => callback(err)
                         );
                     },
-                    function displayFooter(callback) {
-                        //  we have to treat the footer special
-                        self.redrawFooter(
-                            { clear: false, footerName: self.getFooterName() },
-                            function footerDisplayed(err) {
-                                callback(err);
-                            }
+                    callback => {
+                        this.redrawFooter(
+                            { clear: false, footerName: this.getFooterName() },
+                            err => callback(err)
                         );
                     },
-                    function refreshViews(callback) {
-                        comps.push(self.getFooterName());
-
-                        comps.forEach(function artComp(n) {
-                            self.viewControllers[n].redrawAll();
-                        });
-
+                    callback => {
+                        comps.push(this.getFooterName());
+                        comps.forEach(n => this.viewControllers[n].redrawAll());
                         callback(null);
                     },
                 ],
-                function complete(err) {
-                    cb(err);
-                }
+                err => cb(err)
             );
         }
 
         switchFooter(cb) {
-            var footerName = this.getFooterName();
+            const footerName = this.getFooterName();
+            const formId = FormIds[footerName];
+            const startRow = this._footerStartRow;
 
-            this.redrawFooter({ footerName: footerName, clear: true }, (err, artData) => {
-                if (err) {
-                    cb(err);
-                    return;
-                }
-
-                var formId = this.getFormId(footerName);
-
-                if (_.isUndefined(this.viewControllers[footerName])) {
-                    var menuLoadOpts = {
-                        callingMenu: this,
-                        formId: formId,
-                        mciMap: artData.mciMap,
-                    };
-
-                    this.addViewController(
-                        footerName,
-                        new ViewController({ client: this.client, formId: formId })
-                    ).loadFromMenuConfig(menuLoadOpts, err => {
-                        cb(err);
-                    });
-                } else {
-                    this.viewControllers[footerName].redrawAll();
-                    cb(null);
-                }
-            });
-        }
-
-        initSequence() {
-            var mciData = {};
-            const self = this;
-            var art = self.menuConfig.config.art;
-
-            EngiAssert(_.isObject(art));
-
-            async.waterfall(
-                [
-                    function beforeDisplayArt(callback) {
-                        self.beforeArt(callback);
-                    },
-                    function displayHeader(callback) {
-                        theme.displayThemedAsset(
-                            art.header,
-                            self.client,
-                            { font: self.menuConfig.font },
-                            function displayed(err, artInfo) {
-                                if (artInfo) {
-                                    mciData['header'] = artInfo;
-                                    self.header = { height: artInfo.height };
-                                }
-                                return callback(err, artInfo);
-                            }
-                        );
-                    },
-                    function displayBody(artInfo, callback) {
-                        theme.displayThemedAsset(
-                            art.body,
-                            self.client,
-                            { font: self.menuConfig.font, startRow: artInfo.height + 1 },
-                            function displayed(err, artInfo) {
-                                if (artInfo) {
-                                    mciData['body'] = artInfo;
-                                    self.body = {
-                                        height: artInfo.height - self.header.height,
-                                    };
-                                }
-                                return callback(err, artInfo);
-                            }
-                        );
-                    },
-                    function displayFooter(artInfo, callback) {
-                        self.setInitialFooterMode();
-
-                        var footerName = self.getFooterName();
-
-                        self.redrawFooter(
-                            { footerName: footerName },
-                            function artDisplayed(err, artData) {
-                                mciData[footerName] = artData;
-                                callback(err);
-                            }
-                        );
-                    },
-                    function afterArtDisplayed(callback) {
-                        self.mciReady(mciData, callback);
-                    },
-                ],
-                function complete(err) {
-                    if (err) {
-                        self.client.log.warn({ error: err.message }, 'FSE init error');
-                    } else {
-                        self.isReady = true;
-                        self.finishedLoading();
+            //  Buffer the entire erase → art display → view redraw sequence so the
+            //  client receives it as one atomic socket write — no visible blank-row
+            //  flash between clearing the old footer and drawing the new one.
+            this.client.term.beginWrite();
+            this.client.term.rawWrite(ansi.goto(startRow, 1) + ansi.eraseLine(2));
+            this.prepViewControllerWithArt(
+                footerName,
+                formId,
+                { startRow },
+                (err, vc, created) => {
+                    if (!created) {
+                        vc.redrawAll();
                     }
-                }
-            );
-        }
-
-        createInitialViews(mciData, cb) {
-            const self = this;
-            var menuLoadOpts = { callingMenu: self };
-
-            async.series(
-                [
-                    function header(callback) {
-                        menuLoadOpts.formId = self.getFormId('header');
-                        menuLoadOpts.mciMap = mciData.header.mciMap;
-
-                        self.addViewController(
-                            'header',
-                            new ViewController({
-                                client: self.client,
-                                formId: menuLoadOpts.formId,
-                            })
-                        ).loadFromMenuConfig(menuLoadOpts, function headerReady(err) {
-                            callback(err);
-                        });
-                    },
-                    function body(callback) {
-                        menuLoadOpts.formId = self.getFormId('body');
-                        menuLoadOpts.mciMap = mciData.body.mciMap;
-
-                        self.addViewController(
-                            'body',
-                            new ViewController({
-                                client: self.client,
-                                formId: menuLoadOpts.formId,
-                            })
-                        ).loadFromMenuConfig(menuLoadOpts, function bodyReady(err) {
-                            callback(err);
-                        });
-                    },
-                    function footer(callback) {
-                        var footerName = self.getFooterName();
-
-                        menuLoadOpts.formId = self.getFormId(footerName);
-                        menuLoadOpts.mciMap = mciData[footerName].mciMap;
-
-                        self.addViewController(
-                            footerName,
-                            new ViewController({
-                                client: self.client,
-                                formId: menuLoadOpts.formId,
-                            })
-                        ).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
-                            callback(err);
-                        });
-                    },
-                    function prepareViewStates(callback) {
-                        let from = self.viewControllers.header.getView(
-                            MciViewIds.header.from
-                        );
-                        if (from) {
-                            from.acceptsFocus = false;
-                        }
-
-                        //  :TODO: make this a method
-                        var body = self.viewControllers.body.getView(
-                            MciViewIds.body.message
-                        );
-                        self.updateTextEditMode(body.getTextEditMode());
-                        self.updateEditModePosition(body.getEditPosition());
-
-                        //  :TODO: If view mode, set body to read only... which needs an impl...
-
-                        callback(null);
-                    },
-                    function setInitialData(callback) {
-                        switch (self.editorMode) {
-                            case 'view':
-                                if (self.message) {
-                                    self.initHeaderViewMode();
-                                    self.initFooterViewMode();
-
-                                    var bodyMessageView =
-                                        self.viewControllers.body.getView(
-                                            MciViewIds.body.message
-                                        );
-                                    if (
-                                        bodyMessageView &&
-                                        _.has(self, 'message.message')
-                                    ) {
-                                        //self.setBodyMessageViewText();
-                                        bodyMessageView.setText(
-                                            stripAnsiControlCodes(self.message.message)
-                                        );
-                                    }
-                                }
-                                break;
-
-                            case 'edit':
-                                {
-                                    const fromView = self.viewControllers.header.getView(
-                                        MciViewIds.header.from
-                                    );
-                                    const area = getMessageAreaByTag(self.messageAreaTag);
-                                    if (fromView !== undefined) {
-                                        if (area && area.realNames) {
-                                            fromView.setText(self.client.user.realName());
-                                        } else {
-                                            fromView.setText(self.client.user.username);
-                                        }
-                                    }
-
-                                    if (self.replyToMessage) {
-                                        self.initHeaderReplyEditMode();
-                                    }
-                                }
-                                break;
-                        }
-
-                        callback(null);
-                    },
-                    function setInitialFocus(callback) {
-                        switch (self.editorMode) {
-                            case 'edit':
-                                self.switchToHeader();
-                                break;
-
-                            case 'view':
-                                self.switchToFooter();
-                                //self.observeViewPosition();
-                                break;
-                        }
-
-                        callback(null);
-                    },
-                ],
-                function complete(err) {
+                    this.client.term.commitWrite();
                     return cb(err);
                 }
             );
         }
 
-        mciReadyHandler(mciData, cb) {
-            this.createInitialViews(mciData, err => {
-                //  :TODO: Can probably be replaced with @systemMethod:validateUserNameExists when the framework is in
-                //  place - if this is for existing usernames else validate spec
+        initSequence() {
+            const art = this.menuConfig.config.art;
+            if (!art || typeof art !== 'object') {
+                return this.client.log.warn('FSE: config.art is required');
+            }
 
-                /*
-            self.viewControllers.header.on('leave', function headerViewLeave(view) {
+            const mciData = {};
 
-                if(2 === view.id) { //  "to" field
-                    self.validateToUserName(view.getData(), function result(err) {
-                        if(err) {
-                            //  :TODO: display a error in a %TL area or such
-                            view.clearText();
-                            self.viewControllers.headers.switchFocus(2);
+            async.waterfall(
+                [
+                    cb => this.beforeArt(cb),
+                    cb => {
+                        this.client.term.rawWrite(ansi.goto(1, 1));
+                        this.displayAsset(art.header, {}, (err, artInfo) => {
+                            if (artInfo) {
+                                mciData.header = artInfo;
+                                this.header = { height: artInfo.height };
+                            }
+                            return cb(err, artInfo);
+                        });
+                    },
+                    (artInfo, cb) => {
+                        const bodyStartRow = artInfo.height + 1;
+                        this.client.term.rawWrite(ansi.goto(bodyStartRow, 1));
+                        this.displayAsset(
+                            art.body,
+                            { startRow: bodyStartRow },
+                            (err, artInfo) => {
+                                if (artInfo) {
+                                    mciData.body = artInfo;
+                                    this.body = {
+                                        height: artInfo.height - this.header.height,
+                                    };
+                                }
+                                return cb(err, artInfo);
+                            }
+                        );
+                    },
+                    (_artInfo, cb) => {
+                        this.setInitialFooterMode();
+                        const footerName = this.getFooterName();
+                        const footerStartRow = this._footerStartRow;
+                        this.client.term.rawWrite(ansi.goto(footerStartRow, 1));
+                        this.displayAsset(
+                            art[footerName],
+                            { startRow: footerStartRow },
+                            (err, artData) => {
+                                mciData[footerName] = artData;
+                                return cb(err);
+                            }
+                        );
+                    },
+                    cb => this.mciReady(mciData, cb),
+                ],
+                err => {
+                    if (err) {
+                        this.client.log.warn({ error: err.message }, 'FSE init error');
+                    } else {
+                        this.isReady = true;
+                        this.finishedLoading();
+                    }
+                }
+            );
+        }
+
+        //  Step 1 of createInitialViews: prep header, body, and footer ViewControllers.
+        _prepViewControllers(mciData, cb) {
+            const footerName = this.getFooterName();
+            async.series(
+                [
+                    callback =>
+                        this.prepViewController(
+                            'header',
+                            FormIds.header,
+                            mciData.header.mciMap,
+                            callback
+                        ),
+                    callback =>
+                        this.prepViewController(
+                            'body',
+                            FormIds.body,
+                            mciData.body.mciMap,
+                            callback
+                        ),
+                    callback =>
+                        this.prepViewController(
+                            footerName,
+                            FormIds[footerName],
+                            mciData[footerName].mciMap,
+                            callback
+                        ),
+                ],
+                cb
+            );
+        }
+
+        //  Step 2: hide the Upload item from the editor menu if the user lacks ACS.
+        _hideRestrictedMenuItems(cb) {
+            if (
+                'footerEditorMenu' === this.getFooterName() &&
+                !this.client.acs.hasMessageBodyUpload(this.menuConfig.config || {})
+            ) {
+                const hmView = this.viewControllers.footerEditorMenu?.getView(1);
+                if (hmView) {
+                    hmView.setItems(
+                        hmView.getItems().filter(t => 'upload' !== t.toLowerCase())
+                    );
+                    hmView.redraw();
+                }
+            }
+            return cb(null);
+        }
+
+        //  Step 3: lock the From field (display-only) and seed the body view's
+        //  edit-mode/position indicator state.
+        _initViewState(cb) {
+            const from = this.viewControllers.header.getView(MciViewIds.header.from);
+            if (from) {
+                from.acceptsFocus = false;
+            }
+
+            const body = this.viewControllers.body.getView(MciViewIds.body.message);
+            this.updateTextEditMode(body.getTextEditMode());
+            this.updateEditModePosition(body.getEditPosition());
+
+            return cb(null);
+        }
+
+        //  Step 4: populate the From field and (for replies) set subject/recipient.
+        //  View mode skips this — setMessage() handles population after isReady.
+        _initHeaderFields(cb) {
+            if (this.editorMode === 'edit') {
+                const fromView = this.viewControllers.header.getView(
+                    MciViewIds.header.from
+                );
+                if (fromView !== undefined) {
+                    const area = getMessageAreaByTag(this.messageAreaTag);
+                    fromView.setText(
+                        area && area.realNames
+                            ? this.client.user.realName()
+                            : this.client.user.username
+                    );
+                }
+
+                if (this.replyToMessage) {
+                    this.initHeaderReplyEditMode();
+                }
+            }
+            return cb(null);
+        }
+
+        //  Step 5: move initial keyboard focus to the right section based on mode.
+        _setInitialFocus(cb) {
+            switch (this.editorMode) {
+                case 'edit':
+                    this.switchToHeader();
+                    break;
+                case 'view':
+                    this.switchToFooter();
+                    break;
+            }
+            return cb(null);
+        }
+
+        //  Step 6: restore state saved before a gotoMenu round-trip (e.g. file upload).
+        //  Runs last so all views already exist.  Handles both the upload-completed
+        //  case (read file → detect encoding → load body) and the simple round-trip
+        //  case (e.g. help screen — just restore body text and refocus).
+        _restoreSavedState(cb) {
+            const saved = this._pendingSavedState;
+            if (!saved) {
+                return cb(null);
+            }
+            this._pendingSavedState = null;
+
+            //  Restore header fields the user had typed before the transfer.
+            const toView = this.viewControllers.header.getView(MciViewIds.header.to);
+            const subjView = this.viewControllers.header.getView(
+                MciViewIds.header.subject
+            );
+            if (toView && saved.headerTo) toView.setText(saved.headerTo);
+            if (subjView && saved.headerSubject) subjView.setText(saved.headerSubject);
+
+            this.replyIsAnsi = saved.replyIsAnsi;
+
+            const bodyView = this._bodyView;
+
+            //  After loading content, transfer focus to the body so the user
+            //  can interact immediately (header ESC → prevMenu would fire otherwise).
+            const done = () => {
+                if (this.isEditMode()) {
+                    this.switchToBody();
+                }
+                return cb(null);
+            };
+
+            if (this._pendingUploadFiles?.length > 0) {
+                //  A file transfer just completed.  Read the first received file,
+                //  detect its encoding, and load it into the body.
+                const uploadPath = this._pendingUploadFiles[0];
+                const tempDir = saved.tempUploadDir || paths.dirname(uploadPath);
+                this._pendingUploadFiles = null;
+
+                fs.readFile(uploadPath, (err, data) => {
+                    //  Clean up the temp dir regardless of read outcome.
+                    fse.remove(tempDir, rmErr => {
+                        if (rmErr) {
+                            this.client.log.warn(
+                                { err: rmErr, tempDir },
+                                'FSE: failed to remove upload temp dir'
+                            );
                         }
                     });
-                }
-            });*/
 
-                cb(err);
-            });
+                    if (err) {
+                        this.client.log.warn(
+                            { err, uploadPath },
+                            'FSE: failed to read uploaded file'
+                        );
+                        return done(); //  non-fatal; just leave body empty
+                    }
+
+                    //  Detect encoding: UTF-8 BOM wins outright; otherwise attempt a
+                    //  UTF-8 decode — if it produces no replacement characters the file
+                    //  is clean UTF-8.  CP437 is the fallback (most classic ANSI art
+                    //  uses high-byte block/box chars that are not valid UTF-8 sequences).
+                    const hasUtf8Bom =
+                        data.length >= 3 &&
+                        data[0] === 0xef &&
+                        data[1] === 0xbb &&
+                        data[2] === 0xbf;
+                    const enc =
+                        hasUtf8Bom || !data.toString('utf8').includes('\uFFFD')
+                            ? 'utf8'
+                            : 'cp437';
+                    const content = iconv.decode(data, enc);
+
+                    if (isAnsi(content)) {
+                        this.replyIsAnsi = true;
+                        this._syncAnsiSubjectTag(true);
+                        return bodyView.setAnsi(
+                            content,
+                            { prepped: false, forceLineTerm: true },
+                            done
+                        );
+                    } else {
+                        //  Plain text — pipe/PCBoard codes handled at display time.
+                        bodyView.setText(content);
+                        return done();
+                    }
+                });
+            } else if (saved.bodyText) {
+                //  Round-trip with no upload (e.g. help screen) — restore body.
+                if (saved.replyIsAnsi) {
+                    return bodyView.setAnsi(
+                        saved.bodyText,
+                        { prepped: false, forceLineTerm: true },
+                        done
+                    );
+                } else {
+                    bodyView.setText(saved.bodyText);
+                    return done();
+                }
+            } else {
+                return done();
+            }
+        }
+
+        createInitialViews(mciData, cb) {
+            async.series(
+                [
+                    callback => this._prepViewControllers(mciData, callback),
+                    callback => this._hideRestrictedMenuItems(callback),
+                    callback => this._initViewState(callback),
+                    callback => this._initHeaderFields(callback),
+                    callback => this._setInitialFocus(callback),
+                    callback => this._restoreSavedState(callback),
+                ],
+                cb
+            );
+        }
+
+        mciReadyHandler(mciData, cb) {
+            this.createInitialViews(mciData, cb);
         }
 
         updateEditModePosition(pos) {
-            if (this.isEditMode()) {
-                var posView = this.viewControllers.footerEditor.getView(1);
-                if (posView) {
-                    this.client.term.rawWrite(ansi.savePos());
-                    //  :TODO: Use new formatting techniques here, e.g. state.cursorPositionRow, cursorPositionCol and cursorPositionFormat
-                    posView.setText(
-                        _.padStart(String(pos.row + 1), 2, '0') +
-                            ',' +
-                            _.padStart(String(pos.col + 1), 2, '0')
-                    );
-                    this.client.term.rawWrite(ansi.restorePos());
-                }
-            }
+            if (!this.isEditMode()) return;
+
+            const statusView = this.viewControllers.footerEditor?.getView(
+                MciViewIds.editorFooter.status
+            );
+            if (!statusView) return;
+
+            //  setPanel targets only the 'pos' slot; the 'mode' panel is unchanged.
+            //  moveClientCursorToCursorPos() uses pipe-code display-col mapping so
+            //  buffer col ≠ display col on |## lines doesn't cause rightward drift.
+            statusView.setPanel(
+                'pos',
+                `${String(pos.row + 1).padStart(2, '0')},${String(pos.col + 1).padStart(
+                    2,
+                    '0'
+                )}`
+            );
+            this._bodyView?.moveClientCursorToCursorPos();
         }
 
         updateTextEditMode(mode) {
-            if (this.isEditMode()) {
-                var modeView = this.viewControllers.footerEditor.getView(2);
-                if (modeView) {
-                    this.client.term.rawWrite(ansi.savePos());
-                    modeView.setText('insert' === mode ? 'INS' : 'OVR');
-                    this.client.term.rawWrite(ansi.restorePos());
-                }
-            }
+            if (!this.isEditMode()) return;
+
+            const statusView = this.viewControllers.footerEditor?.getView(
+                MciViewIds.editorFooter.status
+            );
+            if (!statusView) return;
+
+            statusView.setPanel('mode', 'insert' === mode ? 'INS' : 'OVR');
+            this._bodyView?.moveClientCursorToCursorPos();
         }
 
         setHeaderText(id, text) {
@@ -1128,7 +1343,7 @@ exports.FullScreenEditorModule =
                 return this.message.toUserName;
             }
 
-            const toRemoteUser = _.get(this.message, 'meta.System.remote_to_user');
+            const toRemoteUser = this.message?.meta?.System?.remote_to_user;
             if (toRemoteUser) {
                 return toRemoteUser;
             }
@@ -1137,7 +1352,14 @@ exports.FullScreenEditorModule =
                 return '(Public)';
             }
 
-            this.menuConfig.config.remoteUserNotAvail || 'N/A';
+            return this.menuConfig.config.remoteUserNotAvail || 'N/A';
+        }
+
+        getModTimestampFormat() {
+            return (
+                this.menuConfig.config.modTimestampFormat ||
+                this.client.currentTheme.helpers.getDateTimeFormat()
+            );
         }
 
         initHeaderViewMode() {
@@ -1152,10 +1374,7 @@ exports.FullScreenEditorModule =
 
             this.setHeaderText(
                 MciViewIds.header.modTimestamp,
-                moment(this.message.modTimestamp).format(
-                    this.menuConfig.config.modTimestampFormat ||
-                        this.client.currentTheme.helpers.getDateTimeFormat()
-                )
+                moment(this.message.modTimestamp).format(this.getModTimestampFormat())
             );
 
             this.setHeaderText(
@@ -1175,7 +1394,7 @@ exports.FullScreenEditorModule =
         }
 
         initHeaderReplyEditMode() {
-            EngiAssert(_.isObject(this.replyToMessage));
+            if (!this.replyToMessage) return;
 
             this.setHeaderText(MciViewIds.header.to, this.replyToMessage.fromUserName);
 
@@ -1192,8 +1411,6 @@ exports.FullScreenEditorModule =
         }
 
         initBodyReplyEditMode() {
-            EngiAssert(_.isObject(this.replyToMessage));
-
             const bodyMessageView = this.viewControllers.body.getView(
                 MciViewIds.body.message
             );
@@ -1208,12 +1425,12 @@ exports.FullScreenEditorModule =
         initFooterViewMode() {
             this.setViewText(
                 'footerView',
-                MciViewIds.ViewModeFooter.msgNum,
+                MciViewIds.viewModeFooter.msgNum,
                 (this.messageIndex + 1).toString()
             );
             this.setViewText(
                 'footerView',
-                MciViewIds.ViewModeFooter.msgTotal,
+                MciViewIds.viewModeFooter.msgTotal,
                 this.messageTotal.toString()
             );
         }
@@ -1225,7 +1442,8 @@ exports.FullScreenEditorModule =
                 { name: this.menuConfig.config.art.help, client: this.client },
                 () => {
                     this.client.waitForKeyPress(() => {
-                        this.redrawScreen(() => {
+                        this.redrawScreen(err => {
+                            if (err) return cb(err);
                             this.viewControllers[this.getFooterName()].setFocus(true);
                             return cb(null);
                         });
@@ -1265,9 +1483,7 @@ exports.FullScreenEditorModule =
 | ID      : ${this.message.messageUuid} (${msgInfo.messageId})
 +${'-'.repeat(79)}
 `;
-                        const body = this.viewControllers.body
-                            .getView(MciViewIds.body.message)
-                            .getData({ forceLineTerms: true });
+                        const body = this._bodyView.getData({ forceLineTerms: true });
 
                         const cleanBody = stripMciColorCodes(
                             stripAnsiControlCodes(body, { all: true })
@@ -1336,27 +1552,35 @@ exports.FullScreenEditorModule =
                     },
                 ],
                 err => {
-                    return cb(err);
+                    if (err) {
+                        //  Restore the screen/footer so the user isn't left with a blank display.
+                        this.redrawScreen(() => {
+                            this.viewControllers[this.getFooterName()].setFocus(true);
+                            return cb(err);
+                        });
+                    } else {
+                        return cb(null);
+                    }
                 }
             );
         }
 
         displayQuoteBuilder() {
-            //
-            //  Clear body area
-            //
             this.newQuoteBlock = true;
+            this._ansiQuoteLines = [];
             const self = this;
 
             async.waterfall(
                 [
                     function clearAndDisplayArt(callback) {
-                        //  :TODO: NetRunner does NOT support delete line, so this does not work:
+                        //  Batch the erase + art display into a single socket write so the
+                        //  client never sees the intermediate blank state.
+                        //  eraseData(0) = erase from cursor to end of display; works on all
+                        //  major BBS terminals (unlike deleteLine which scrolls content up and
+                        //  is unsupported on NetRunner).
+                        self.client.term.beginWrite();
                         self.client.term.rawWrite(
-                            ansi.goto(self.header.height + 1, 1) +
-                                ansi.deleteLine(
-                                    self.client.term.termHeight - self.header.height - 1
-                                )
+                            ansi.goto(self.header.height + 1, 1) + ansi.eraseData(0)
                         );
 
                         theme.displayThemeArt(
@@ -1365,15 +1589,16 @@ exports.FullScreenEditorModule =
                                 client: self.client,
                             },
                             function displayed(err, artData) {
+                                self.client.term.commitWrite();
                                 callback(err, artData);
                             }
                         );
                     },
                     function createViewsIfNecessary(artData, callback) {
-                        var formId = self.getFormId('quoteBuilder');
+                        const formId = FormIds.quoteBuilder;
 
-                        if (_.isUndefined(self.viewControllers.quoteBuilder)) {
-                            var menuLoadOpts = {
+                        if (self.viewControllers.quoteBuilder === undefined) {
+                            const menuLoadOpts = {
                                 callingMenu: self,
                                 formId: formId,
                                 mciMap: artData.mciMap,
@@ -1423,6 +1648,7 @@ exports.FullScreenEditorModule =
                                 }
 
                                 self.replyIsAnsi = replyIsAnsi;
+                                self._syncAnsiSubjectTag(replyIsAnsi);
 
                                 quoteView.setItems(quoteLines);
                                 quoteView.setFocusItems(focusQuoteLines);
@@ -1451,7 +1677,14 @@ exports.FullScreenEditorModule =
         }
 
         observeEditorEvents() {
-            const bodyView = this.viewControllers.body.getView(MciViewIds.body.message);
+            const bodyView = this._bodyView;
+            if (!bodyView) return;
+
+            //  Remove any previously attached listeners to avoid double-firing
+            //  when observeEditorEvents() is called more than once (e.g. after
+            //  returning from the quote builder or help screen).
+            bodyView.removeAllListeners('edit position');
+            bodyView.removeAllListeners('text edit mode');
 
             bodyView.on('edit position', pos => {
                 this.updateEditModePosition(pos);
@@ -1462,13 +1695,21 @@ exports.FullScreenEditorModule =
             });
         }
 
-        /*
-    this.observeViewPosition = function() {
-        self.viewControllers.body.getView(MciViewIds.body.message).on('edit position', function positionUpdate(pos) {
-            console.log(pos.percent + ' / ' + pos.below)
-        });
-    };
-    */
+        openFindPrompt(cb) {
+            this._prevFooterMode = this.footerMode;
+            this.footerMode = 'find';
+            this.switchFooter(err => {
+                if (err) {
+                    return cb(err);
+                }
+                const et1 = this.viewControllers.footerFind.getView(1);
+                if (et1) {
+                    et1.setText('');
+                }
+                this.viewControllers.footerFind.switchFocus(1);
+                return cb(null);
+            });
+        }
 
         switchToHeader() {
             this.viewControllers.body.setFocus(false);
@@ -1505,44 +1746,68 @@ exports.FullScreenEditorModule =
 
         switchFromQuoteBuilderToBody() {
             this.viewControllers.quoteBuilder.setFocus(false);
-            var body = this.viewControllers.body.getView(MciViewIds.body.message);
-            body.redraw();
-            this.viewControllers.body.switchFocus(1);
-
-            //  :TODO: create method (DRY)
-
-            this.updateTextEditMode(body.getTextEditMode());
-            this.updateEditModePosition(body.getEditPosition());
-
-            this.observeEditorEvents();
+            this.client.term.beginWrite();
+            this._bodyView.redraw();
+            this._returnFocusToBody(); //  has its own nested beginWrite/commitWrite
+            this.client.term.commitWrite();
         }
 
         quoteBuilderFinalize() {
-            //  :TODO: fix magic #'s
-            const quoteMsgView = this.viewControllers.quoteBuilder.getView(
-                MciViewIds.quoteBuilder.quotedMsg
-            );
-            const msgView = this.viewControllers.body.getView(MciViewIds.body.message);
+            const bodyView = this._bodyView;
 
-            let quoteLines = quoteMsgView.getData().trim();
+            if (this.replyIsAnsi) {
+                //  ANSI path: combine any existing body content with the newly selected
+                //  quote lines so repeated quote sessions append rather than replace.
+                const ansiQuoteText = this._ansiQuoteLines.join('\r\n');
+                this._ansiQuoteLines = [];
 
-            if (quoteLines.length > 0) {
-                if (this.replyIsAnsi) {
-                    const bodyMessageView = this.viewControllers.body.getView(
-                        MciViewIds.body.message
-                    );
-                    quoteLines += `${ansi.normal()}${bodyMessageView.getTextSgrPrefix()}`;
+                this.footerMode = 'editor';
+                this.switchFooter(err => {
+                    if (err) {
+                        return this.client.log.warn(
+                            { err },
+                            'FSE: switchFooter failed in quoteBuilderFinalize (ANSI)'
+                        );
+                    }
+                    if (ansiQuoteText.length > 0) {
+                        //  Retrieve already-processed ANSI from the body buffer so we can
+                        //  append without re-running ansiPrep on existing content.
+                        const existing = bodyView
+                            .getData({ forceLineTerms: true })
+                            .trimEnd();
+                        const combined = existing
+                            ? `${existing}\r\n\r\n${ansiQuoteText}\r\n\r\n`
+                            : `${ansiQuoteText}\r\n\r\n`;
+                        bodyView.setAnsi(combined, { prepped: true }, _err => {
+                            bodyView.cursorEndOfDocument();
+                            this.switchFromQuoteBuilderToBody();
+                        });
+                    } else {
+                        this.switchFromQuoteBuilderToBody();
+                    }
+                });
+            } else {
+                //  Plain text path: drain the MT1 preview view into the body editor
+                const quoteMsgView = this.viewControllers.quoteBuilder.getView(
+                    MciViewIds.quoteBuilder.quotedMsg
+                );
+                const quoteLines = quoteMsgView.getData().trim();
+                if (quoteLines.length > 0) {
+                    bodyView.addText(`${quoteLines}\n\n`, { scrollMode: 'end' });
                 }
-                msgView.addText(`${quoteLines}\n\n`);
+                quoteMsgView.setText('');
+
+                this.footerMode = 'editor';
+                this.switchFooter(err => {
+                    if (err) {
+                        return this.client.log.warn(
+                            { err },
+                            'FSE: switchFooter failed in quoteBuilderFinalize'
+                        );
+                    }
+                    this.switchFromQuoteBuilderToBody();
+                });
             }
-
-            quoteMsgView.setText('');
-
-            this.footerMode = 'editor';
-
-            this.switchFooter(() => {
-                this.switchFromQuoteBuilderToBody();
-            });
         }
 
         getQuoteByHeader() {
@@ -1550,7 +1815,7 @@ exports.FullScreenEditorModule =
 
             if (Array.isArray(quoteFormat)) {
                 quoteFormat = quoteFormat[Math.floor(Math.random() * quoteFormat.length)];
-            } else if (!_.isString(quoteFormat)) {
+            } else if (typeof quoteFormat !== 'string') {
                 quoteFormat = 'On {dateTime} {userName} said...';
             }
 
