@@ -25,6 +25,12 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * **EditTextView** and **MaskEditTextView** are now backed by `LineBuffer`: cursor-aware insert/delete at any position, left/right/home/end movement with scroll-window tracking, forward-delete, fixed partial-fill `getData()` bug in `MaskEditTextView`
   * **`client_term.js`**: `beginWrite()` / `commitWrite()` with nesting support — all writes within a keypress or focus switch are buffered and flushed as a single socket write, eliminating intermediate cursor flicker in terminals
 
+* **`oputil user` SSH Key Management**
+
+  * `oputil.js user import-ssh-key USERNAME KEYFILE` — imports a SSH public key for a user from a file, validates the key, and stores it for SSH key-based login
+  * `oputil.js user remove-ssh-key USERNAME` — removes a user's stored SSH public key
+  * `oputil.js user info USERNAME` now displays SSH key info (algorithm, SHA256 fingerprint, comment) when a key is on file
+
 * **Bug Fixes & Stability**
 
   * Fixed ENiGMA segfault on ARM64 Linux (Raspberry Pi) — see [#620](https://github.com/NuSkooler/enigma-bbs/issues/620)
