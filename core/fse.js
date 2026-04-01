@@ -114,7 +114,8 @@ const FormIds = {
         messageId
 */
 
-//  :TODO: convert code in this class to newer styles, conventions, etc. There is a lot of experimental stuff here that has better (DRY) alternatives
+exports.MciViewIds = MciViewIds;
+exports.FormIds = FormIds;
 
 exports.FullScreenEditorModule =
     exports.getModule = class FullScreenEditorModule extends (
@@ -185,51 +186,9 @@ exports.FullScreenEditorModule =
                 this._pendingUploadFiles = options.lastMenuResult.recvFilePaths;
             }
 
+            //  ── Header / Validation ──────────────────────────────────────────────────
             this.menuMethods = {
-                //
-                //  Validation stuff
-                //
-                viewValidationListener: (err, cb) => {
-                    if (
-                        err &&
-                        err.view.getId() === MciViewIds.header.subject &&
-                        err.reasonCode === ErrorReasons.ValueTooShort
-                    ) {
-                        // Ignore validation errors if this is the subject field
-                        // and it's optional
-                        const areaInfo = getMessageAreaByTag(this.messageAreaTag);
-                        if (true === areaInfo.subjectOptional) {
-                            return cb(null, null);
-                        }
-
-                        // private messages are a little different...
-                        const toView = this.getView('header', MciViewIds.header.to);
-                        const msgInfo = messageInfoFromAddressedToInfo(
-                            getAddressedToInfo(toView.getData())
-                        );
-                        if (true === msgInfo.subjectOptional) {
-                            return cb(null, null);
-                        }
-                    }
-
-                    const errMsgView = this.viewControllers.header.getView(
-                        MciViewIds.header.errorMsg
-                    );
-                    if (errMsgView) {
-                        if (err) {
-                            errMsgView.clearText();
-                            errMsgView.setText(err.friendlyText || err.message);
-
-                            if (MciViewIds.header.subject === err.view.getId()) {
-                                //  :TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
-                            }
-                        } else {
-                            errMsgView.clearText();
-                        }
-                    }
-
-                    return cb(err, null);
-                },
+                viewValidationListener: (err, cb) => this._onViewValidation(err, cb),
                 headerSubmit: (_formData, _extraArgs, cb) => {
                     this._changingSubject = false;
                     this.switchToBody();
@@ -255,96 +214,25 @@ exports.FullScreenEditorModule =
                     this.viewControllers.header.switchFocus(MciViewIds.header.subject);
                     return cb(null);
                 },
-                editModeEscPressed: (_formData, _extraArgs, cb) => {
-                    const errMsgView = this.viewControllers.header.getView(
-                        MciViewIds.header.errorMsg
-                    );
-                    if (errMsgView) {
-                        errMsgView.clearText();
-                    }
 
-                    this.footerMode =
-                        'editor' === this.footerMode ? 'editorMenu' : 'editor';
+                //  ── Body Editor ──────────────────────────────────────────────────────
+                editModeEscPressed: (_formData, _extraArgs, cb) =>
+                    this._toggleEditorMenu(cb),
 
-                    this.switchFooter(err => {
-                        if (err) {
-                            return cb(err);
-                        }
-
-                        switch (this.footerMode) {
-                            case 'editor':
-                                if (this.viewControllers.footerEditorMenu !== undefined) {
-                                    this.viewControllers.footerEditorMenu.detachClientEvents();
-                                }
-                                this.viewControllers.body.switchFocus(1);
-                                this.observeEditorEvents();
-                                break;
-
-                            case 'editorMenu':
-                                this.viewControllers.body.setFocus(false);
-                                this.viewControllers.footerEditorMenu.switchFocus(1);
-                                break;
-
-                            default:
-                                return cb(
-                                    new Error(`Unexpected footerMode: ${this.footerMode}`)
-                                );
-                        }
-
-                        return cb(null);
-                    });
-                },
+                //  ── Quote Builder ────────────────────────────────────────────────────
                 editModeMenuQuote: (_formData, _extraArgs, cb) => {
                     this.viewControllers.footerEditorMenu.setFocus(false);
                     this.displayQuoteBuilder();
                     return cb(null);
                 },
-                appendQuoteEntry: (formData, _extraArgs, cb) => {
-                    const quoteListView = this.viewControllers.quoteBuilder.getView(
-                        MciViewIds.quoteBuilder.quoteLines
-                    );
-                    const quoteMsgView = this.viewControllers.quoteBuilder.getView(
-                        MciViewIds.quoteBuilder.quotedMsg
-                    );
-                    const quoteText = quoteListView.getItem(formData.value.quote);
-
-                    //  Advance the quote list cursor or finalize — called after any
-                    //  (possibly async) preview update is complete.
-                    const afterUpdate = () => {
-                        if (quoteListView.getData() !== quoteListView.getCount() - 1) {
-                            quoteListView.focusNext();
-                        } else {
-                            this.quoteBuilderFinalize();
-                        }
-                        return cb(null);
-                    };
-
-                    if (this.replyIsAnsi) {
-                        //  ANSI: accumulate for finalize and render the growing set into the
-                        //  preview via setAnsi() — addText() can't handle \x1b sequences.
-                        this._ansiQuoteLines.push(quoteText);
-                        const preview = this._ansiQuoteLines.join('\r\n');
-                        quoteMsgView.setAnsi(preview, { prepped: true }, _err => {
-                            quoteMsgView.cursorEndOfDocument();
-                            afterUpdate();
-                        });
-                    } else {
-                        //  Plain text: accumulate in the MT1 preview view with a header
-                        //  on the first line selected.
-                        if (this.newQuoteBlock) {
-                            this.newQuoteBlock = false;
-                            quoteMsgView.addText(this.getQuoteByHeader(), {
-                                scrollMode: 'end',
-                            });
-                        }
-                        quoteMsgView.addText(quoteText, { scrollMode: 'end' });
-                        afterUpdate();
-                    }
-                },
+                appendQuoteEntry: (formData, _extraArgs, cb) =>
+                    this._appendQuoteEntry(formData, cb),
                 quoteBuilderEscPressed: (_formData, _extraArgs, cb) => {
                     this.quoteBuilderFinalize();
                     return cb(null);
                 },
+
+                //  ── Editor Menu ──────────────────────────────────────────────────────
                 editModeMenuHelp: (_formData, _extraArgs, cb) => {
                     this.viewControllers.footerEditorMenu.setFocus(false);
                     return this.displayHelp(cb);
@@ -357,45 +245,11 @@ exports.FullScreenEditorModule =
                     return cb(null);
                 },
                 //  Ctrl-O quick help: open help screen without going through the ESC menu.
-                editModeQuickHelp: (_formData, _extraArgs, cb) => {
-                    return this.displayHelp(cb);
-                },
-                editModeMenuUpload: (_formData, _extraArgs, cb) => {
-                    //
-                    //  Receive a file via the configured transfer protocol and load
-                    //  it into the message body.  ANSI art is detected automatically;
-                    //  plain text falls through to setText().
-                    //
-                    this.viewControllers.footerEditorMenu.setFocus(false);
-                    temptmp.mkdir({ prefix: 'enigfseul-' }, (err, tempDir) => {
-                        if (err) {
-                            this.client.log.warn(
-                                { err },
-                                'FSE: failed to create upload temp dir'
-                            );
-                            return cb(err);
-                        }
-                        //  Store dir so getSaveState() can include it for cleanup on re-entry.
-                        this._pendingTempUploadDir =
-                            pathWithTerminatingSeparator(tempDir);
-                        const modOpts = {
-                            extraArgs: {
-                                recvDirectory: this._pendingTempUploadDir,
-                                direction: 'recv',
-                                returnToCaller: true, //  skip fileBaseUploadFiles; return to FSE
-                            },
-                        };
-                        return this.gotoMenu(
-                            this.menuConfig.config.fileTransferProtocolSelection ||
-                                'fileTransferProtocolSelection',
-                            modOpts,
-                            cb
-                        );
-                    });
-                },
-                ///////////////////////////////////////////////////////////////////////
-                //  Find / Search
-                ///////////////////////////////////////////////////////////////////////
+                editModeQuickHelp: (_formData, _extraArgs, cb) => this.displayHelp(cb),
+                editModeMenuUpload: (_formData, _extraArgs, cb) =>
+                    this._startBodyUpload(cb),
+
+                //  ── Find / Search ────────────────────────────────────────────────────
                 editModeFind: (_formData, _extraArgs, cb) => {
                     this.viewControllers.body.setFocus(false);
                     return this.openFindPrompt(err => {
@@ -433,13 +287,10 @@ exports.FullScreenEditorModule =
                     const query = (formData.value.query || '').trim();
                     return this._closeFindPrompt(query, cb);
                 },
-                footerFindCancel: (_formData, _extraArgs, cb) => {
-                    return this._closeFindPrompt(null, cb);
-                },
+                footerFindCancel: (_formData, _extraArgs, cb) =>
+                    this._closeFindPrompt(null, cb),
 
-                ///////////////////////////////////////////////////////////////////////
-                //  View Mode
-                ///////////////////////////////////////////////////////////////////////
+                //  ── View Mode ───────────────────────────────────────────────────────
                 viewModeMenuHelp: (_formData, _extraArgs, cb) => {
                     this.viewControllers.footerView.setFocus(false);
                     return this.displayHelp(cb);
@@ -449,6 +300,162 @@ exports.FullScreenEditorModule =
                     return this.addToDownloadQueue(cb);
                 },
             };
+        }
+
+        //  Validate a header field value.  Subject is optional when the area or
+        //  addressing layer marks it so; all other validation errors are surfaced
+        //  in the error-message view.
+        _onViewValidation(err, cb) {
+            if (
+                err &&
+                err.view.getId() === MciViewIds.header.subject &&
+                err.reasonCode === ErrorReasons.ValueTooShort
+            ) {
+                const areaInfo = getMessageAreaByTag(this.messageAreaTag);
+                if (true === areaInfo.subjectOptional) {
+                    return cb(null, null);
+                }
+
+                //  Private messages are a little different...
+                const toView = this.getView('header', MciViewIds.header.to);
+                const msgInfo = messageInfoFromAddressedToInfo(
+                    getAddressedToInfo(toView.getData())
+                );
+                if (true === msgInfo.subjectOptional) {
+                    return cb(null, null);
+                }
+            }
+
+            const errMsgView = this.viewControllers.header.getView(
+                MciViewIds.header.errorMsg
+            );
+            if (errMsgView) {
+                if (err) {
+                    errMsgView.clearText();
+                    errMsgView.setText(err.friendlyText || err.message);
+                } else {
+                    errMsgView.clearText();
+                }
+            }
+
+            return cb(err, null);
+        }
+
+        //  Toggle between the inline editor footer and the ESC command menu.
+        //  Clears any stale error text, switches footer mode, then transfers
+        //  keyboard focus to the appropriate ViewController.
+        _toggleEditorMenu(cb) {
+            const errMsgView = this.viewControllers.header.getView(
+                MciViewIds.header.errorMsg
+            );
+            if (errMsgView) {
+                errMsgView.clearText();
+            }
+
+            this.footerMode = 'editor' === this.footerMode ? 'editorMenu' : 'editor';
+
+            this.switchFooter(err => {
+                if (err) {
+                    return cb(err);
+                }
+
+                switch (this.footerMode) {
+                    case 'editor':
+                        if (this.viewControllers.footerEditorMenu !== undefined) {
+                            this.viewControllers.footerEditorMenu.detachClientEvents();
+                        }
+                        this.viewControllers.body.switchFocus(1);
+                        this.observeEditorEvents();
+                        break;
+
+                    case 'editorMenu':
+                        this.viewControllers.body.setFocus(false);
+                        this.viewControllers.footerEditorMenu.switchFocus(1);
+                        break;
+
+                    default:
+                        return cb(new Error(`Unexpected footerMode: ${this.footerMode}`));
+                }
+
+                return cb(null);
+            });
+        }
+
+        //  Append the currently highlighted quote-list line to the growing quote
+        //  preview, then advance the list cursor (or finalize if at the last item).
+        //  ANSI lines are accumulated in _ansiQuoteLines and rendered via setAnsi();
+        //  plain-text lines go directly into the MT1 preview view via addText().
+        _appendQuoteEntry(formData, cb) {
+            const quoteListView = this.viewControllers.quoteBuilder.getView(
+                MciViewIds.quoteBuilder.quoteLines
+            );
+            const quoteMsgView = this.viewControllers.quoteBuilder.getView(
+                MciViewIds.quoteBuilder.quotedMsg
+            );
+            const quoteText = quoteListView.getItem(formData.value.quote);
+
+            //  Advance the quote list cursor or finalize — called after any
+            //  (possibly async) preview update is complete.
+            const afterUpdate = () => {
+                if (quoteListView.getData() !== quoteListView.getCount() - 1) {
+                    quoteListView.focusNext();
+                } else {
+                    this.quoteBuilderFinalize();
+                }
+                return cb(null);
+            };
+
+            if (this.replyIsAnsi) {
+                //  ANSI: accumulate for finalize and render the growing set into the
+                //  preview via setAnsi() — addText() can't handle \x1b sequences.
+                this._ansiQuoteLines.push(quoteText);
+                const preview = this._ansiQuoteLines.join('\r\n');
+                quoteMsgView.setAnsi(preview, { prepped: true }, _err => {
+                    quoteMsgView.cursorEndOfDocument();
+                    afterUpdate();
+                });
+            } else {
+                //  Plain text: accumulate in the MT1 preview view with a header
+                //  on the first line selected.
+                if (this.newQuoteBlock) {
+                    this.newQuoteBlock = false;
+                    quoteMsgView.addText(this.getQuoteByHeader(), { scrollMode: 'end' });
+                }
+                quoteMsgView.addText(quoteText, { scrollMode: 'end' });
+                afterUpdate();
+            }
+        }
+
+        //  Launch the file-transfer protocol selector so the user can upload a
+        //  file to use as the message body.  Creates a temp directory, stores its
+        //  path in _pendingTempUploadDir for getSaveState(), then transitions to
+        //  the transfer module with returnToCaller so we come back here on exit.
+        _startBodyUpload(cb) {
+            this.viewControllers.footerEditorMenu.setFocus(false);
+            temptmp.mkdir({ prefix: 'enigfseul-' }, (err, tempDir) => {
+                if (err) {
+                    this.client.log.warn(
+                        { err },
+                        'FSE: failed to create upload temp dir'
+                    );
+                    return cb(err);
+                }
+                //  Store dir so getSaveState() can include it for cleanup on re-entry.
+                this._pendingTempUploadDir = pathWithTerminatingSeparator(tempDir);
+                const modOpts = {
+                    extraArgs: {
+                        recvDirectory: this._pendingTempUploadDir,
+                        direction: 'recv',
+                        returnToCaller: true, //  skip fileBaseUploadFiles; return to FSE
+                    },
+                };
+                return this.gotoMenu(
+                    this.menuConfig.config.fileTransferProtocolSelection ||
+                        'fileTransferProtocolSelection',
+                    modOpts,
+                    cb
+                );
+            });
         }
 
         //  Preserve enough state to survive a gotoMenu round-trip (e.g. file upload).
@@ -1072,219 +1079,220 @@ exports.FullScreenEditorModule =
             );
         }
 
-        createInitialViews(mciData, cb) {
+        //  Step 1 of createInitialViews: prep header, body, and footer ViewControllers.
+        _prepViewControllers(mciData, cb) {
+            const footerName = this.getFooterName();
             async.series(
                 [
-                    callback => {
+                    callback =>
                         this.prepViewController(
                             'header',
                             FormIds.header,
                             mciData.header.mciMap,
-                            err => callback(err)
-                        );
-                    },
-                    callback => {
+                            callback
+                        ),
+                    callback =>
                         this.prepViewController(
                             'body',
                             FormIds.body,
                             mciData.body.mciMap,
-                            err => callback(err)
-                        );
-                    },
-                    callback => {
-                        const footerName = this.getFooterName();
+                            callback
+                        ),
+                    callback =>
                         this.prepViewController(
                             footerName,
                             FormIds[footerName],
                             mciData[footerName].mciMap,
-                            err => callback(err)
-                        );
-                    },
-                    callback => {
-                        //  Hide the upload item from the editor menu if the user
-                        //  lacks access.  Sysops can override via config.uploadAcs.
-                        if (
-                            'footerEditorMenu' === this.getFooterName() &&
-                            !this.client.acs.hasMessageBodyUpload(
-                                this.menuConfig.config || {}
-                            )
-                        ) {
-                            const hmView =
-                                this.viewControllers.footerEditorMenu?.getView(1);
-                            if (hmView) {
-                                hmView.setItems(
-                                    hmView
-                                        .getItems()
-                                        .filter(t => 'upload' !== t.toLowerCase())
-                                );
-                                hmView.redraw();
-                            }
-                        }
-                        return callback(null);
-                    },
-                    callback => {
-                        const from = this.viewControllers.header.getView(
-                            MciViewIds.header.from
-                        );
-                        if (from) {
-                            from.acceptsFocus = false;
-                        }
-
-                        const body = this.viewControllers.body.getView(
-                            MciViewIds.body.message
-                        );
-                        this.updateTextEditMode(body.getTextEditMode());
-                        this.updateEditModePosition(body.getEditPosition());
-
-                        callback(null);
-                    },
-                    callback => {
-                        //  View mode: header/footer/body are populated by setMessage()
-                        //  which is called from finishedLoading() after isReady = true.
-                        //  Edit mode: populate From field; reply mode also sets subject/to.
-                        if (this.editorMode === 'edit') {
-                            const fromView = this.viewControllers.header.getView(
-                                MciViewIds.header.from
-                            );
-                            const area = getMessageAreaByTag(this.messageAreaTag);
-                            if (fromView !== undefined) {
-                                if (area && area.realNames) {
-                                    fromView.setText(this.client.user.realName());
-                                } else {
-                                    fromView.setText(this.client.user.username);
-                                }
-                            }
-
-                            if (this.replyToMessage) {
-                                this.initHeaderReplyEditMode();
-                            }
-                        }
-
-                        callback(null);
-                    },
-                    callback => {
-                        switch (this.editorMode) {
-                            case 'edit':
-                                this.switchToHeader();
-                                break;
-                            case 'view':
-                                this.switchToFooter();
-                                break;
-                        }
-
-                        callback(null);
-                    },
-                    //  Restore state saved before a gotoMenu round-trip (e.g. upload).
-                    //  Runs after all normal init so views already exist.
-                    callback => {
-                        const saved = this._pendingSavedState;
-                        if (!saved) {
-                            return callback(null);
-                        }
-                        this._pendingSavedState = null;
-
-                        //  Restore header fields the user had typed before the transfer.
-                        const toView = this.viewControllers.header.getView(
-                            MciViewIds.header.to
-                        );
-                        const subjView = this.viewControllers.header.getView(
-                            MciViewIds.header.subject
-                        );
-                        if (toView && saved.headerTo) toView.setText(saved.headerTo);
-                        if (subjView && saved.headerSubject)
-                            subjView.setText(saved.headerSubject);
-
-                        this.replyIsAnsi = saved.replyIsAnsi;
-
-                        const bodyView = this._bodyView;
-
-                        //  After loading content, transfer focus to the body so the user
-                        //  can interact immediately (header ESC → prevMenu would fire otherwise).
-                        const done = () => {
-                            if (this.isEditMode()) {
-                                this.switchToBody();
-                            }
-                            return callback(null);
-                        };
-
-                        if (this._pendingUploadFiles?.length > 0) {
-                            //
-                            //  A file transfer just completed.  Read the first received file,
-                            //  detect its type, and load it into the body.
-                            //
-                            const uploadPath = this._pendingUploadFiles[0];
-                            const tempDir =
-                                saved.tempUploadDir || paths.dirname(uploadPath);
-                            this._pendingUploadFiles = null;
-
-                            fs.readFile(uploadPath, (err, data) => {
-                                //  Clean up the temp dir regardless of read outcome.
-                                fse.remove(tempDir, rmErr => {
-                                    if (rmErr) {
-                                        this.client.log.warn(
-                                            { err: rmErr, tempDir },
-                                            'FSE: failed to remove upload temp dir'
-                                        );
-                                    }
-                                });
-
-                                if (err) {
-                                    this.client.log.warn(
-                                        { err, uploadPath },
-                                        'FSE: failed to read uploaded file'
-                                    );
-                                    return done(); //  non-fatal; just leave body empty
-                                }
-
-                                //  Detect encoding: UTF-8 BOM wins outright; otherwise
-                                //  attempt a UTF-8 decode — if it produces no replacement
-                                //  characters the file is clean UTF-8.  CP437 is the fallback
-                                //  (most classic ANSI art uses high-byte block/box chars that
-                                //  are not valid UTF-8 sequences).
-                                const hasUtf8Bom =
-                                    data.length >= 3 &&
-                                    data[0] === 0xef &&
-                                    data[1] === 0xbb &&
-                                    data[2] === 0xbf;
-                                const enc =
-                                    hasUtf8Bom ||
-                                    !data.toString('utf8').includes('\uFFFD')
-                                        ? 'utf8'
-                                        : 'cp437';
-                                const content = iconv.decode(data, enc);
-                                if (isAnsi(content)) {
-                                    this.replyIsAnsi = true;
-                                    this._syncAnsiSubjectTag(true);
-                                    return bodyView.setAnsi(
-                                        content,
-                                        { prepped: false, forceLineTerm: true },
-                                        done
-                                    );
-                                } else {
-                                    //  Plain text — pipe codes, PCBoard codes, etc. are handled
-                                    //  transparently by controlCodesToAnsi() at display time.
-                                    bodyView.setText(content);
-                                    return done();
-                                }
-                            });
-                        } else if (saved.bodyText) {
-                            //  Round-trip with no upload (e.g. help screen) — restore body.
-                            if (saved.replyIsAnsi) {
-                                return bodyView.setAnsi(
-                                    saved.bodyText,
-                                    { prepped: false, forceLineTerm: true },
-                                    done
-                                );
-                            } else {
-                                bodyView.setText(saved.bodyText);
-                                return done();
-                            }
-                        } else {
-                            return done();
-                        }
-                    },
+                            callback
+                        ),
                 ],
-                err => cb(err)
+                cb
+            );
+        }
+
+        //  Step 2: hide the Upload item from the editor menu if the user lacks ACS.
+        _hideRestrictedMenuItems(cb) {
+            if (
+                'footerEditorMenu' === this.getFooterName() &&
+                !this.client.acs.hasMessageBodyUpload(this.menuConfig.config || {})
+            ) {
+                const hmView = this.viewControllers.footerEditorMenu?.getView(1);
+                if (hmView) {
+                    hmView.setItems(
+                        hmView.getItems().filter(t => 'upload' !== t.toLowerCase())
+                    );
+                    hmView.redraw();
+                }
+            }
+            return cb(null);
+        }
+
+        //  Step 3: lock the From field (display-only) and seed the body view's
+        //  edit-mode/position indicator state.
+        _initViewState(cb) {
+            const from = this.viewControllers.header.getView(MciViewIds.header.from);
+            if (from) {
+                from.acceptsFocus = false;
+            }
+
+            const body = this.viewControllers.body.getView(MciViewIds.body.message);
+            this.updateTextEditMode(body.getTextEditMode());
+            this.updateEditModePosition(body.getEditPosition());
+
+            return cb(null);
+        }
+
+        //  Step 4: populate the From field and (for replies) set subject/recipient.
+        //  View mode skips this — setMessage() handles population after isReady.
+        _initHeaderFields(cb) {
+            if (this.editorMode === 'edit') {
+                const fromView = this.viewControllers.header.getView(
+                    MciViewIds.header.from
+                );
+                if (fromView !== undefined) {
+                    const area = getMessageAreaByTag(this.messageAreaTag);
+                    fromView.setText(
+                        area && area.realNames
+                            ? this.client.user.realName()
+                            : this.client.user.username
+                    );
+                }
+
+                if (this.replyToMessage) {
+                    this.initHeaderReplyEditMode();
+                }
+            }
+            return cb(null);
+        }
+
+        //  Step 5: move initial keyboard focus to the right section based on mode.
+        _setInitialFocus(cb) {
+            switch (this.editorMode) {
+                case 'edit':
+                    this.switchToHeader();
+                    break;
+                case 'view':
+                    this.switchToFooter();
+                    break;
+            }
+            return cb(null);
+        }
+
+        //  Step 6: restore state saved before a gotoMenu round-trip (e.g. file upload).
+        //  Runs last so all views already exist.  Handles both the upload-completed
+        //  case (read file → detect encoding → load body) and the simple round-trip
+        //  case (e.g. help screen — just restore body text and refocus).
+        _restoreSavedState(cb) {
+            const saved = this._pendingSavedState;
+            if (!saved) {
+                return cb(null);
+            }
+            this._pendingSavedState = null;
+
+            //  Restore header fields the user had typed before the transfer.
+            const toView = this.viewControllers.header.getView(MciViewIds.header.to);
+            const subjView = this.viewControllers.header.getView(
+                MciViewIds.header.subject
+            );
+            if (toView && saved.headerTo) toView.setText(saved.headerTo);
+            if (subjView && saved.headerSubject) subjView.setText(saved.headerSubject);
+
+            this.replyIsAnsi = saved.replyIsAnsi;
+
+            const bodyView = this._bodyView;
+
+            //  After loading content, transfer focus to the body so the user
+            //  can interact immediately (header ESC → prevMenu would fire otherwise).
+            const done = () => {
+                if (this.isEditMode()) {
+                    this.switchToBody();
+                }
+                return cb(null);
+            };
+
+            if (this._pendingUploadFiles?.length > 0) {
+                //  A file transfer just completed.  Read the first received file,
+                //  detect its encoding, and load it into the body.
+                const uploadPath = this._pendingUploadFiles[0];
+                const tempDir = saved.tempUploadDir || paths.dirname(uploadPath);
+                this._pendingUploadFiles = null;
+
+                fs.readFile(uploadPath, (err, data) => {
+                    //  Clean up the temp dir regardless of read outcome.
+                    fse.remove(tempDir, rmErr => {
+                        if (rmErr) {
+                            this.client.log.warn(
+                                { err: rmErr, tempDir },
+                                'FSE: failed to remove upload temp dir'
+                            );
+                        }
+                    });
+
+                    if (err) {
+                        this.client.log.warn(
+                            { err, uploadPath },
+                            'FSE: failed to read uploaded file'
+                        );
+                        return done(); //  non-fatal; just leave body empty
+                    }
+
+                    //  Detect encoding: UTF-8 BOM wins outright; otherwise attempt a
+                    //  UTF-8 decode — if it produces no replacement characters the file
+                    //  is clean UTF-8.  CP437 is the fallback (most classic ANSI art
+                    //  uses high-byte block/box chars that are not valid UTF-8 sequences).
+                    const hasUtf8Bom =
+                        data.length >= 3 &&
+                        data[0] === 0xef &&
+                        data[1] === 0xbb &&
+                        data[2] === 0xbf;
+                    const enc =
+                        hasUtf8Bom || !data.toString('utf8').includes('\uFFFD')
+                            ? 'utf8'
+                            : 'cp437';
+                    const content = iconv.decode(data, enc);
+
+                    if (isAnsi(content)) {
+                        this.replyIsAnsi = true;
+                        this._syncAnsiSubjectTag(true);
+                        return bodyView.setAnsi(
+                            content,
+                            { prepped: false, forceLineTerm: true },
+                            done
+                        );
+                    } else {
+                        //  Plain text — pipe/PCBoard codes handled at display time.
+                        bodyView.setText(content);
+                        return done();
+                    }
+                });
+            } else if (saved.bodyText) {
+                //  Round-trip with no upload (e.g. help screen) — restore body.
+                if (saved.replyIsAnsi) {
+                    return bodyView.setAnsi(
+                        saved.bodyText,
+                        { prepped: false, forceLineTerm: true },
+                        done
+                    );
+                } else {
+                    bodyView.setText(saved.bodyText);
+                    return done();
+                }
+            } else {
+                return done();
+            }
+        }
+
+        createInitialViews(mciData, cb) {
+            async.series(
+                [
+                    callback => this._prepViewControllers(mciData, callback),
+                    callback => this._hideRestrictedMenuItems(callback),
+                    callback => this._initViewState(callback),
+                    callback => this._initHeaderFields(callback),
+                    callback => this._setInitialFocus(callback),
+                    callback => this._restoreSavedState(callback),
+                ],
+                cb
             );
         }
 
