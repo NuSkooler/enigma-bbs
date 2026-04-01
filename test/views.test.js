@@ -525,3 +525,502 @@ describe('MaskEditTextView', () => {
         });
     });
 });
+
+// ─── VerticalMenuView ─────────────────────────────────────────────────────────
+
+describe('VerticalMenuView', () => {
+    const { VerticalMenuView } = require('../core/vertical_menu_view.js');
+
+    //  Client stub that records every write/rawWrite call so tests can inspect
+    //  exactly which terminal rows were touched.
+    function makeCapturingClient() {
+        const writes = [];
+        return {
+            term: {
+                termWidth: 80,
+                termHeight: 25,
+                write: str => writes.push(str),
+                rawWrite: str => writes.push(str),
+            },
+            _writes: writes,
+            clearWrites() {
+                writes.length = 0;
+            },
+        };
+    }
+
+    //  Parse all ANSI goto row numbers from the captured write buffer.
+    //  ansi.goto(row, col) emits ESC [ row ; col H.
+    function rowsWritten(client) {
+        const rows = new Set();
+        const re = /\x1b\[(\d+);\d+H/g;
+        for (const w of client._writes) {
+            let m;
+            while ((m = re.exec(w)) !== null) {
+                rows.add(parseInt(m[1], 10));
+            }
+        }
+        return rows;
+    }
+
+    //  Build a VerticalMenuView with `count` simple string items.
+    //  opts may override any constructor field; client is always capturing.
+    function makeView(count, opts = {}) {
+        const items = Array.from({ length: count }, (_, i) => `Item ${i}`);
+        const client = makeCapturingClient();
+        const view = new VerticalMenuView(
+            Object.assign(
+                {
+                    client,
+                    id: 1,
+                    position: { row: 1, col: 1 },
+                    dimens: { width: 20, height: 5 },
+                    items,
+                },
+                opts
+            )
+        );
+        return { view, client };
+    }
+
+    // ── _windowFromTop / _windowToBottom ─────────────────────────────────────
+
+    describe('window helpers', () => {
+        it('_windowFromTop: bottom clamped to items.length when list is short', () => {
+            const { view } = makeView(3, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            // maxVisibleItems = 5; items.length = 3
+            const w = view._windowFromTop(0);
+            assert.equal(w.top, 0);
+            assert.equal(w.bottom, 2); // min(0+5, 3)-1 = 2
+        });
+
+        it('_windowFromTop: full page when list is long enough', () => {
+            const { view } = makeView(10, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            const w = view._windowFromTop(2);
+            assert.equal(w.top, 2);
+            assert.equal(w.bottom, 6); // min(2+5, 10)-1 = 6
+        });
+
+        it('_windowToBottom: anchors bottom to last item', () => {
+            const { view } = makeView(8, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            const w = view._windowToBottom();
+            assert.equal(w.bottom, 7); // items.length - 1
+            assert.equal(w.top, 3); // max(0, 7-5+1) = 3
+        });
+
+        it('_windowToBottom: top is 0 when fewer items than maxVisibleItems', () => {
+            const { view } = makeView(3, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            const w = view._windowToBottom();
+            assert.equal(w.top, 0);
+            assert.equal(w.bottom, 2);
+        });
+    });
+
+    // ── Initial state ─────────────────────────────────────────────────────────
+
+    describe('initial state', () => {
+        it('maxVisibleItems = ceil(height / (itemSpacing + 1))', () => {
+            const { view } = makeView(10, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            assert.equal(view.maxVisibleItems, 5);
+        });
+
+        it('maxVisibleItems accounts for itemSpacing', () => {
+            const { view } = makeView(10, {
+                dimens: { width: 20, height: 6 },
+                itemSpacing: 1,
+            });
+            view.redraw();
+            assert.equal(view.maxVisibleItems, 3); // ceil(6 / 2) = 3
+        });
+
+        it('viewWindow starts at {top:0, bottom:min(maxVisible,len)-1}', () => {
+            const { view } = makeView(10, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            assert.equal(view.viewWindow.top, 0);
+            assert.equal(view.viewWindow.bottom, 4);
+        });
+
+        it('viewWindow.bottom clamped to items.length-1 when fewer items than height', () => {
+            const { view } = makeView(3, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            assert.equal(view.viewWindow.bottom, 2);
+        });
+
+        it('focusedItemIndex starts at 0', () => {
+            const { view } = makeView(5);
+            assert.equal(view.focusedItemIndex, 0);
+        });
+    });
+
+    // ── focusNext viewWindow management ──────────────────────────────────────
+
+    describe('focusNext', () => {
+        it('within window: increments focusedItemIndex, viewWindow unchanged', () => {
+            const { view } = makeView(10);
+            view.redraw();
+            view.focusNext();
+            assert.equal(view.focusedItemIndex, 1);
+            assert.equal(view.viewWindow.top, 0);
+            assert.equal(view.viewWindow.bottom, 4);
+        });
+
+        it('at window bottom: slides viewWindow down by one', () => {
+            const { view } = makeView(10);
+            view.redraw();
+            for (let i = 0; i < 4; i++) view.focusNext();
+            assert.equal(view.focusedItemIndex, 4);
+            assert.equal(view.viewWindow.bottom, 4);
+
+            view.focusNext();
+            assert.equal(view.focusedItemIndex, 5);
+            assert.equal(view.viewWindow.top, 1);
+            assert.equal(view.viewWindow.bottom, 5);
+        });
+
+        it('wrap-around from last item resets to {top:0, bottom:maxVisible-1}', () => {
+            const { view } = makeView(5);
+            view.redraw();
+            for (let i = 0; i < 4; i++) view.focusNext();
+            assert.equal(view.focusedItemIndex, 4);
+
+            view.focusNext();
+            assert.equal(view.focusedItemIndex, 0);
+            assert.equal(view.viewWindow.top, 0);
+            assert.equal(view.viewWindow.bottom, 4);
+        });
+    });
+
+    // ── focusPrevious viewWindow management ──────────────────────────────────
+
+    describe('focusPrevious', () => {
+        it('within window: decrements focusedItemIndex, viewWindow unchanged', () => {
+            const { view } = makeView(10);
+            view.redraw();
+            view.focusNext();
+            view.focusNext();
+            assert.equal(view.focusedItemIndex, 2);
+            const { top, bottom } = view.viewWindow;
+
+            view.focusPrevious();
+            assert.equal(view.focusedItemIndex, 1);
+            assert.equal(view.viewWindow.top, top);
+            assert.equal(view.viewWindow.bottom, bottom);
+        });
+
+        it('at window top while scrolled: slides viewWindow up by one', () => {
+            const { view } = makeView(10);
+            view.redraw();
+            //  scroll down: focusedItemIndex=5, viewWindow={1,5}
+            for (let i = 0; i < 5; i++) view.focusNext();
+            assert.equal(view.viewWindow.top, 1);
+
+            //  move within window back to the top item (item 1) — no scroll yet
+            for (let i = 0; i < 4; i++) view.focusPrevious();
+            assert.equal(view.focusedItemIndex, 1);
+            assert.equal(view.viewWindow.top, 1);
+
+            //  now cross the top boundary → window slides up
+            view.focusPrevious();
+            assert.equal(view.focusedItemIndex, 0);
+            assert.equal(view.viewWindow.top, 0);
+        });
+
+        it('wrap-around from item 0 uses _windowToBottom', () => {
+            const { view } = makeView(8, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+            assert.equal(view.focusedItemIndex, 0);
+
+            view.focusPrevious();
+            assert.equal(view.focusedItemIndex, 7);
+            assert.equal(view.viewWindow.bottom, 7);
+            assert.equal(view.viewWindow.top, 3); // max(0, 7-5+1) = 3
+        });
+    });
+
+    // ── Page / first / last navigation ───────────────────────────────────────
+
+    describe('page and edge navigation', () => {
+        it('focusNextPageItem jumps by maxVisibleItems', () => {
+            const { view } = makeView(15);
+            view.redraw();
+            assert.equal(view.maxVisibleItems, 5);
+
+            view.focusNextPageItem();
+            assert.equal(view.focusedItemIndex, 5);
+        });
+
+        it('focusPreviousPageItem jumps by maxVisibleItems — not dimens.height (Bug 4)', () => {
+            //  itemSpacing=1 → maxVisibleItems=3, dimens.height=6
+            //  The old code used dimens.height (6) not maxVisibleItems (3)
+            const { view } = makeView(15, {
+                dimens: { width: 20, height: 6 },
+                itemSpacing: 1,
+            });
+            view.redraw();
+            assert.equal(view.maxVisibleItems, 3);
+
+            view.focusNextPageItem(); // 0 → 3
+            view.focusNextPageItem(); // 3 → 6
+            assert.equal(view.focusedItemIndex, 6);
+
+            view.focusPreviousPageItem(); // 6 - 3 = 3
+            assert.equal(view.focusedItemIndex, 3);
+        });
+
+        it('focusPreviousPageItem at 0 wraps to bottom', () => {
+            const { view } = makeView(10);
+            view.redraw();
+            assert.equal(view.focusedItemIndex, 0);
+
+            view.focusPreviousPageItem();
+            assert.equal(view.focusedItemIndex, 9);
+        });
+
+        it('focusNextPageItem at last item wraps to top', () => {
+            const { view } = makeView(5);
+            view.redraw();
+            view.focusLast();
+            assert.equal(view.focusedItemIndex, 4);
+
+            view.focusNextPageItem();
+            assert.equal(view.focusedItemIndex, 0);
+        });
+
+        it('focusLast sets bottom-anchored window', () => {
+            const { view } = makeView(8, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+
+            view.focusLast();
+            assert.equal(view.focusedItemIndex, 7);
+            assert.equal(view.viewWindow.bottom, 7);
+            assert.equal(view.viewWindow.top, 3); // max(0, 7-5+1) = 3
+        });
+
+        it('focusFirst resets to top-anchored window', () => {
+            const { view } = makeView(10);
+            view.redraw();
+
+            view.focusLast();
+            view.focusFirst();
+            assert.equal(view.focusedItemIndex, 0);
+            assert.equal(view.viewWindow.top, 0);
+            assert.equal(view.viewWindow.bottom, 4);
+        });
+
+        it('setFocusItemIndex near end of list uses bottom-anchored window', () => {
+            const { view } = makeView(8, { dimens: { width: 20, height: 5 } });
+            view.redraw();
+
+            view.setFocusItemIndex(7);
+            assert.equal(view.focusedItemIndex, 7);
+            assert.equal(view.viewWindow.bottom, 7);
+            assert.equal(view.viewWindow.top, 3);
+        });
+    });
+
+    // ── Trailing-row blank pass (Bug 2 fix) ───────────────────────────────────
+
+    describe('trailing-row blank pass', () => {
+        it('blanks rows below last item when items < maxVisibleItems', () => {
+            //  3 items in a 5-row view (position.row=1): items at rows 1,2,3
+            //  blank pass must write rows 4 and 5
+            const { view, client } = makeView(3, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            const rows = rowsWritten(client);
+            assert.ok(rows.has(4), 'row 4 should be blanked');
+            assert.ok(rows.has(5), 'row 5 should be blanked');
+        });
+
+        it('does not write beyond the view footprint when items fill it exactly', () => {
+            //  5 items in a 5-row view → no row 6
+            const { view, client } = makeView(5, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            const rows = rowsWritten(client);
+            assert.ok(!rows.has(6), 'row 6 must not be written');
+        });
+
+        it('blanks all rows when item list is empty', () => {
+            const { view, client } = makeView(0, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            const rows = rowsWritten(client);
+            for (let r = 1; r <= 5; r++) {
+                assert.ok(rows.has(r), `row ${r} should be blanked for empty list`);
+            }
+        });
+
+        it('blanks trailing rows correctly with itemSpacing > 0', () => {
+            //  2 items, itemSpacing=1: item 0 at row 1, item 1 at row 3
+            //  height=6 → view spans rows 1-6; blank pass hits rows 5 and 6
+            const { view, client } = makeView(2, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 6 },
+                itemSpacing: 1,
+            });
+            view.redraw();
+            const rows = rowsWritten(client);
+            assert.ok(rows.has(5), 'row 5 should be blanked');
+            assert.ok(rows.has(6), 'row 6 should be blanked');
+        });
+    });
+
+    // ── oldDimens erase covers full old footprint (Bug 1 fix) ─────────────────
+
+    describe('oldDimens erase', () => {
+        it('erases all rows of the previous footprint including the last row', () => {
+            //  Start with 5 items (rows 1-5), replace with 2 — oldDimens.height=5.
+            //  The erase pass must reach row 5 (was row 4 with the height-2 bug).
+            const { view, client } = makeView(5, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+
+            client.clearWrites();
+            view.setItems(['A', 'B']);
+            view.redraw();
+
+            const rows = rowsWritten(client);
+            assert.ok(rows.has(1), 'row 1 must be erased');
+            assert.ok(rows.has(5), 'row 5 must be erased (was missed before fix)');
+        });
+    });
+
+    // ── Focus-only redraw optimization ────────────────────────────────────────
+
+    describe('focus-only redraw optimization (_focusRedraw)', () => {
+        it('within-window focusNext writes exactly 2 rows', () => {
+            //  5 items in 5-row view — all visible, focus moves within window
+            const { view, client } = makeView(5, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            client.clearWrites();
+
+            view.focusNext(); // item 0 → 1, within window
+            const rows = rowsWritten(client);
+            assert.equal(rows.size, 2, `expected 2 row writes, got ${rows.size}`);
+            assert.ok(rows.has(1), 'row 1 (prev focused item 0) redrawn');
+            assert.ok(rows.has(2), 'row 2 (new focused item 1) redrawn');
+        });
+
+        it('within-window focusPrevious writes exactly 2 rows', () => {
+            const { view, client } = makeView(5, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            view.focusNext(); // advance to item 1 first
+
+            client.clearWrites();
+            view.focusPrevious(); // item 1 → 0, within window
+            const rows = rowsWritten(client);
+            assert.equal(rows.size, 2, `expected 2 row writes, got ${rows.size}`);
+            assert.ok(rows.has(1), 'row 1 (new focused item 0) redrawn');
+            assert.ok(rows.has(2), 'row 2 (prev focused item 1) redrawn');
+        });
+
+        it('consecutive within-window moves each write exactly 2 rows', () => {
+            const { view, client } = makeView(5, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+
+            for (let step = 0; step < 4; step++) {
+                client.clearWrites();
+                view.focusNext();
+                const rows = rowsWritten(client);
+                assert.equal(
+                    rows.size,
+                    2,
+                    `step ${step + 1}: expected 2 rows, got ${rows.size}`
+                );
+            }
+        });
+
+        it('scroll-triggering focusNext performs a full redraw (> 2 rows)', () => {
+            //  10 items, 5-row view — advance to window bottom then one more
+            const { view, client } = makeView(10, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            for (let i = 0; i < 4; i++) view.focusNext(); // reach window bottom
+
+            client.clearWrites();
+            view.focusNext(); // triggers scroll → full redraw
+            const rows = rowsWritten(client);
+            assert.ok(
+                rows.size > 2,
+                `scroll should trigger full redraw; got ${rows.size} rows`
+            );
+        });
+
+        it('scroll-triggering focusPrevious performs a full redraw (> 2 rows)', () => {
+            const { view, client } = makeView(10, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            //  scroll down to window {1,5}, then move within window to the top item
+            for (let i = 0; i < 5; i++) view.focusNext();
+            for (let i = 0; i < 4; i++) view.focusPrevious();
+            assert.equal(view.focusedItemIndex, 1); // at viewWindow.top
+
+            client.clearWrites();
+            view.focusPrevious(); // crosses top boundary → full redraw
+            const rows = rowsWritten(client);
+            assert.ok(
+                rows.size > 2,
+                `scroll should trigger full redraw; got ${rows.size} rows`
+            );
+        });
+
+        it('wrap-around focusNext triggers full redraw', () => {
+            const { view, client } = makeView(5, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            for (let i = 0; i < 4; i++) view.focusNext(); // reach last item
+
+            client.clearWrites();
+            view.focusNext(); // wrap-around → full redraw
+            const rows = rowsWritten(client);
+            assert.ok(
+                rows.size > 2,
+                `wrap-around should trigger full redraw; got ${rows.size} rows`
+            );
+        });
+
+        it('wrap-around focusPrevious triggers full redraw', () => {
+            const { view, client } = makeView(5, {
+                position: { row: 1, col: 1 },
+                dimens: { width: 20, height: 5 },
+            });
+            view.redraw();
+            client.clearWrites();
+            view.focusPrevious(); // wrap from 0 → full redraw
+            const rows = rowsWritten(client);
+            assert.ok(
+                rows.size > 2,
+                `wrap-around should trigger full redraw; got ${rows.size} rows`
+            );
+        });
+    });
+});
