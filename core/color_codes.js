@@ -29,14 +29,17 @@ function pipeStringLength(s) {
 function ansiSgrFromRenegadeColorCode(cc) {
     return ANSI.sgr(
         {
-            0: ['reset', 'black'],
-            1: ['reset', 'blue'],
-            2: ['reset', 'green'],
-            3: ['reset', 'cyan'],
-            4: ['reset', 'red'],
-            5: ['reset', 'magenta'],
-            6: ['reset', 'yellow'],
-            7: ['reset', 'white'],
+            //  Dark foreground colors (0–7): use 'normal' (SGR 22) to clear bold/bright
+            //  without a full SGR 0 reset that would wipe any previously set background.
+            //  See: https://github.com/NuSkooler/enigma-bbs/issues/555
+            0: ['normal', 'black'],
+            1: ['normal', 'blue'],
+            2: ['normal', 'green'],
+            3: ['normal', 'cyan'],
+            4: ['normal', 'red'],
+            5: ['normal', 'magenta'],
+            6: ['normal', 'yellow'],
+            7: ['normal', 'white'],
 
             8: ['bold', 'black'],
             9: ['bold', 'blue'],
@@ -71,14 +74,16 @@ function ansiSgrFromRenegadeColorCode(cc) {
 function ansiSgrFromCnetStyleColorCode(cc) {
     return ANSI.sgr(
         {
-            c0: ['reset', 'black'],
-            c1: ['reset', 'red'],
-            c2: ['reset', 'green'],
-            c3: ['reset', 'yellow'],
-            c4: ['reset', 'blue'],
-            c5: ['reset', 'magenta'],
-            c6: ['reset', 'cyan'],
-            c7: ['reset', 'white'],
+            //  Same fix as Renegade codes 0–7: 'normal' (SGR 22) clears bold without
+            //  a full reset that would wipe a previously set background.
+            c0: ['normal', 'black'],
+            c1: ['normal', 'red'],
+            c2: ['normal', 'green'],
+            c3: ['normal', 'yellow'],
+            c4: ['normal', 'blue'],
+            c5: ['normal', 'magenta'],
+            c6: ['normal', 'cyan'],
+            c7: ['normal', 'white'],
 
             c8: ['bold', 'black'],
             c9: ['bold', 'red'],
