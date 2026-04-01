@@ -27,7 +27,7 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   **If you have a custom `MSGEFTR` art file or a customized `createMessageEditor` / `readMessageEditor` menu config:**
 
-  1. **Art file** (`MSGEFTR.ANS` / `MSGEFTR.UTF8` etc.) — Replace any `%TL1` + `%TL2` pair with a single `%SB1`. Position it where you want the combined status indicator to appear (the default theme places it near the right side of the footer line). Remove any `%TL2` entirely.
+  1. **Art file** (`MSGEFTR.ANS`) — Replace any `%TL1` + `%TL2` pair with a single `%SB1`. Position it where you want the combined status indicator to appear (the default theme places it near the right side of the footer line). Remove any `%TL2` entirely.
 
   2. **Menu config** — In the `createMessageEditor` and `readMessageEditor` (or equivalent) menu entries, replace the old form `2` block:
 
@@ -79,6 +79,63 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   Apply only the form `2` changes shown above. See [Configuration Files](./docs/_docs/configuration/config-files.md) for details.
 
+* ⚠️ **New FSE keyboard shortcuts and find overlay require menu config updates.** The following changes apply to all FSE menu entries (`messageBaseNewPost`, `messageAreaViewPost`, `messageAreaReplyPost`, and their private-mail equivalents).
+
+  **New art file — `MSGFND`:** A find-prompt footer art file is now required. Reference it in each FSE menu's `config.art` block:
+  ```hjson
+  config: {
+      art: {
+          // ... existing art keys ...
+          footerFind: MSGFND
+      }
+  }
+  ```
+  The art file must contain a single `%ET1` (EditTextView) input field. Create and theme it like your other footer art files.
+
+  **Header form (form `0`) — Escape key handler change:** Replace `@systemMethod:prevMenu` with `@method:headerEscapePressed` in the header form's `actionKeys`. This is required so that `Ctrl-A` ("change subject") can return focus to the body without exiting the FSE:
+  ```hjson
+  // OLD — remove:
+  { keys: [ "escape" ], action: @systemMethod:prevMenu }
+  // NEW — replace with:
+  { keys: [ "escape" ], action: @method:headerEscapePressed }
+  ```
+
+  **Body editor (form `1`) — new action keys:** Add to the `actionKeys` array in the body (`MT1`) form:
+  ```hjson
+  { keys: [ "ctrl + f" ], action: @method:editModeFind }       // open find prompt
+  { keys: [ "ctrl + n" ], action: @method:editModeFindNext }   // find next match
+  { keys: [ "ctrl + p" ], action: @method:editModeFindPrev }   // find previous match
+  { keys: [ "ctrl + a" ], action: @method:editModeChangeSubject } // edit subject inline
+  ```
+
+  **View mode (form `4`) — new action keys:** Add to the view footer `actionKeys` array:
+  ```hjson
+  { keys: [ "ctrl + f" ], action: @method:viewModeFind }
+  { keys: [ "ctrl + n" ], action: @method:viewModeFindNext }
+  { keys: [ "ctrl + p" ], action: @method:viewModeFindPrev }
+  ```
+
+  **New form `6` — find footer form:** All FSE menu entries need a form `6` definition. The simplest approach is to use the shared reference added to the template:
+  ```hjson
+  6: @reference:common.fseFindFooterForm
+  ```
+  You must also add the `fseFindFooterForm` fragment to your menu file's `common:` section. Copy it verbatim from `misc/menu_templates/message_base.in.hjson` (it is an `ET1` input with Enter to submit and Escape to cancel).
+
+  **Editor command menu (form `3`) — upload item:** The ESC command menu (`HM1`) now includes an `"upload"` item allowing users to upload a file as the message body (ANSI art or plain text). Add `"upload"` to the `items` array and the corresponding submit action:
+  ```hjson
+  HM1: { items: [ "save", "discard", "help", "upload" ] }   // post
+  HM1: { items: [ "save", "discard", "quote", "help", "upload" ] }  // reply
+  ```
+  With matching submit entries:
+  ```hjson
+  { value: { 1: N }, action: @method:editModeMenuUpload }
+  ```
+  Where `N` is the zero-based index of `"upload"` in your items list. Upload access defaults to `GM[users]`; override per-menu via `config.uploadAcs`.
+
+  As always, **diff the template against your config** before applying changes:
+  ```bash
+  diff ./misc/menu_templates/message_base.in.hjson ./config/menus/your_board-message_base.hjson
+  ```
 
 ## 0.0.13-beta to 0.0.14-beta
 * A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:

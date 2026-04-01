@@ -6,10 +6,10 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 
 ## Features
 Below are just some of the features ENiGMA½ supports out of the box:
- * **Multi platform** — Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
- * Unlimited multi node support (for all those BBS "callers"!)
+ * **Multi platform** — Anywhere modern [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, macOS and Windows)
+ * Unlimited multi node support
  * **Highly customizable** via [HJSON](https://hjson.github.io/) based configuration, menus, and themes in addition to JavaScript based [mods](./docs/_docs/modding/existing-mods.md)
- * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
+ * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other bells and whistles
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
  * [SyncTERM](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
@@ -20,10 +20,12 @@ Below are just some of the features ENiGMA½ supports out of the box:
  * Support for **2-Factor Authentication** with One-Time-Passwords
  * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
  * Structured [Bunyan](https://github.com/trentm/node-bunyan) logging!
- * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md), or [NNTP](./docs/_docs/servers/contentservers/nntp.md)!
- * [Gazelle](https://github.com/WhatCD/Gazelle) (🪦) inspired File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](./docs/_docs/servers/contentservers/web-server.md). Legacy X/Y/Z modem also supported!
+ * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export
+ * Message bases exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md) and [NNTP](./docs/_docs/servers/contentservers/nntp.md) content servers
+ * Built-in [web server](./docs/_docs/servers/contentservers/web-server.md) with HTTP(S) support — powers temporary download URLs, file browsing, and more
+ * [Gazelle](https://github.com/WhatCD/Gazelle) (🪦) inspired File Bases including fast fully indexed full text search (FTS), #tags, and legacy X/Y/Z modem support
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
- * ANSI support in the Full Screen Editor (FSE), file descriptions, etc.
+ * **Full Screen Editor (FSE)** with ANSI art support, real-time cursor/mode indicators, inline find/search (`Ctrl-F`), file upload to body, and a fully modernized view engine
  * Expandable **achievement system** — BBSing gamified!
  * A remote accessible [Waiting For Caller (WFC)](./docs/_docs/modding/wfc.md)!
 
@@ -48,13 +50,14 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 ## Support
 * See [Discussions](https://github.com/NuSkooler/enigma-bbs/discussions) and [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
-* IRC: **#enigma-bbs** on **irc.libera.chat:6697(TLS)** ([webchat](https://web.libera.chat/gamja/?channels=#enigma-bbs))
-* `FSX_ENG` on [fsxNet](https://fsxnet.nz) or `ARK_ENIG` on [ArakNet](https://www.araknet.xyz/) available on many fine boards
+* Discord: https://discord.gg/ghx8Vxex
+* `FSX_ENG` on [fsxNet](https://fsxnet.nz) available on many fine boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
+* [IcyTERM](https://github.com/mkrueger/icy_tools/tree/master/crates/icy_term)
 * [VTX](https://github.com/codewar65/VTX_ClientServer) (Try [Xibalba using VTX](https://l33t.codes/vtx/xibalba.html)!)
 * [SyncTERM](http://syncterm.bbsdev.net/)
 * [EtherTerm](https://github.com/M-griffin/EtherTerm)
@@ -63,9 +66,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ## Some Boards
 * :skull: [Xibalba - ENiGMA WHQ](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
-* [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
-* [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
 
 ## Special Thanks
 (in no particular order)
