@@ -337,6 +337,38 @@ function modUserGroups(user) {
     }
 }
 
+function formatSSHKeyInfo(user) {
+    const ssh2 = require('ssh2');
+    const crypto = require('crypto');
+
+    const storedKey = user.getProperty(UserProps.SSHPubKey);
+    if (!storedKey) {
+        return 'none';
+    }
+
+    const parts = storedKey.split(/\s+/);
+    const algo = parts[0] || 'unknown';
+    const comment = parts.length > 2 ? parts.slice(2).join(' ') : '';
+
+    const parsed = ssh2.utils.parseKey(storedKey);
+    const keyObject = Array.isArray(parsed) ? parsed[0] : parsed;
+
+    let fingerprint = 'unavailable';
+    if (
+        keyObject &&
+        !(keyObject instanceof Error) &&
+        _.isFunction(keyObject.getPublicSSH)
+    ) {
+        fingerprint =
+            'SHA256:' +
+            crypto.createHash('sha256').update(keyObject.getPublicSSH()).digest('base64');
+    }
+
+    return comment
+        ? `${algo} (${fingerprint})  comment: ${comment}`
+        : `${algo} (${fingerprint})`;
+}
+
 function showUserInfo(user) {
     const User = require('../user');
     const ActivityPubSettings = require('../activitypub/settings');
@@ -390,6 +422,7 @@ ActivityPub  : ${apSettings.enabled ? 'enabled' : 'disabled'}`;
             [OTPTypes.GoogleAuthenticator]: 'GoogleAuth',
         }[otp] || 'disabled';
     infoDump += `\n2FA OTP      : ${oppDesc}`;
+    infoDump += `\nSSH key      : ${formatSSHKeyInfo(user)}`;
 
     if (argv.security && otp) {
         const backupCodesOrNa = () => {
@@ -670,6 +703,55 @@ function listUsers() {
     );
 }
 
+function importSSHKey(user) {
+    if (argv._.length < 4) {
+        return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+    }
+
+    const keyFilePath = argv._[argv._.length - 1];
+
+    async.waterfall(
+        [
+            callback => fs.readFile(keyFilePath, 'utf8', callback),
+            (keyContent, callback) => {
+                const trimmed = keyContent.trim();
+                if (!trimmed) {
+                    return callback(new Error(`File is empty: ${keyFilePath}`));
+                }
+                return callback(null, trimmed);
+            },
+            (keyContent, callback) => user.setPublicSSHKey(keyContent, callback),
+        ],
+        err => {
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                return console.error(`Failed to import SSH key: ${err.message}`);
+            }
+            console.info(
+                `SSH public key imported for "${user.username}"\n  ${formatSSHKeyInfo(
+                    user
+                )}`
+            );
+        }
+    );
+}
+
+function removeSSHKey(user) {
+    const storedKey = user.getProperty(UserProps.SSHPubKey);
+    if (!storedKey) {
+        process.exitCode = ExitCodes.ERROR;
+        return console.error(`No SSH public key on file for "${user.username}"`);
+    }
+
+    user.setPublicSSHKey('', err => {
+        if (err) {
+            process.exitCode = ExitCodes.ERROR;
+            return console.error(`Failed to remove SSH key: ${err.message}`);
+        }
+        console.info(`SSH public key removed for "${user.username}"`);
+    });
+}
+
 function handleUserCommand() {
     function errUsage() {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -694,6 +776,7 @@ function handleUserCommand() {
             'rename',
             '2fa-otp',
             'otp',
+            'import-ssh-key',
         ].includes(action)
             ? argv._.length - 2
             : argv._.length - 1;
@@ -736,6 +819,9 @@ function handleUserCommand() {
                 '2fa-otp': twoFactorAuthOTP,
                 otp: twoFactorAuthOTP,
                 list: listUsers,
+
+                'import-ssh-key': importSSHKey,
+                'remove-ssh-key': removeSSHKey,
             }[action] || errUsage
         )(user, action);
     });
