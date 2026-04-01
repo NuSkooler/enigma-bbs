@@ -191,13 +191,20 @@ const SGRValues = {
     whiteBG: 47,
 };
 
+const _fullMatchRegExpCache = {};
+
 function getFullMatchRegExp(flags = 'g') {
     //  :TODO: expand this a bit - see strip-ansi/etc.
     //  :TODO: \u009b ?
-    return new RegExp(
-        /[\u001b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/,
-        flags
-    ); //  eslint-disable-line no-control-regex
+    if (!_fullMatchRegExpCache[flags]) {
+        _fullMatchRegExpCache[flags] = new RegExp(
+            /[\u001b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/,
+            flags
+        ); //  eslint-disable-line no-control-regex
+    }
+    const re = _fullMatchRegExpCache[flags];
+    re.lastIndex = 0;
+    return re;
 }
 
 function getFGColorValue(name) {
@@ -362,50 +369,53 @@ function setCursorStyle(cursorStyle) {
 }
 
 //  Create methods such as up(), nextLine(),...
+//  Fast-path the common 0, 1, and 2-arg cases to avoid array allocations
 Object.keys(CONTROL).forEach(function onControlName(name) {
     const code = CONTROL[name];
+    const noArgResult = `${ESC_CSI}${code}`; //  pre-compute zero-arg case
 
-    exports[name] = function () {
-        let c = code;
-        if (arguments.length > 0) {
-            //  arguments are array like -- we want an array
-            c = Array.prototype.slice.call(arguments).map(Math.round).join(';') + code;
-        }
-        return `${ESC_CSI}${c}`;
+    exports[name] = (...args) => {
+        if (args.length === 0) return noArgResult;
+        if (args.length === 1) return `${ESC_CSI}${Math.round(args[0])}${code}`;
+        if (args.length === 2)
+            return `${ESC_CSI}${Math.round(args[0])};${Math.round(args[1])}${code}`;
+        return `${ESC_CSI}${args.map(Math.round).join(';')}${code}`;
     };
 });
 
 //  Create various color methods such as white(), yellowBG(), reset(), ...
+//  Pre-compute the result string; the closure just returns the cached value.
+//  Skip 'normal' -- it has an explicit export that combines normal+reset.
 Object.keys(SGRValues).forEach(name => {
-    const code = SGRValues[name];
-
-    exports[name] = function () {
-        return `${ESC_CSI}${code}m`;
-    };
+    if ('normal' === name) return;
+    const cached = `${ESC_CSI}${SGRValues[name]}m`;
+    exports[name] = () => cached;
 });
 
-function sgr() {
+function sgr(...input) {
     //
-    //  - Allow an single array or variable number of arguments
-    //  - Each element can be either a integer or string found in SGRValues
-    //    which in turn maps to a integer
+    //  - Allow a single array or variable number of arguments
+    //  - Each element can be either an integer or string found in SGRValues
+    //    which in turn maps to an integer
     //
-    if (arguments.length <= 0) {
+    if (input.length === 0) {
         return '';
     }
 
-    let result = [];
-    const args = Array.isArray(arguments[0]) ? arguments[0] : arguments;
+    const args = Array.isArray(input[0]) ? input[0] : input;
+    const result = new Array(args.length);
+    let count = 0;
 
     for (let i = 0; i < args.length; ++i) {
         const arg = args[i];
-        if (_.isString(arg) && arg in SGRValues) {
-            result.push(SGRValues[arg]);
-        } else if (_.isNumber(arg)) {
-            result.push(arg);
+        if (typeof arg === 'string' && arg in SGRValues) {
+            result[count++] = SGRValues[arg];
+        } else if (typeof arg === 'number') {
+            result[count++] = arg;
         }
     }
 
+    result.length = count;
     return `${ESC_CSI}${result.join(';')}m`;
 }
 
@@ -413,16 +423,19 @@ function sgr() {
 //  Converts a Graphic Rendition object used elsewhere
 //  to a ANSI SGR sequence.
 //
+const SGR_STYLE_KEYS = ['intensity', 'underline', 'blink', 'negative', 'invisible'];
+
 function getSGRFromGraphicRendition(graphicRendition, initialReset) {
-    let sgrSeq = [];
+    const sgrSeq = [];
     let styleCount = 0;
 
-    ['intensity', 'underline', 'blink', 'negative', 'invisible'].forEach(s => {
-        if (graphicRendition[s]) {
-            sgrSeq.push(graphicRendition[s]);
+    for (let i = 0; i < SGR_STYLE_KEYS.length; ++i) {
+        const val = graphicRendition[SGR_STYLE_KEYS[i]];
+        if (val) {
+            sgrSeq.push(val);
             ++styleCount;
         }
-    });
+    }
 
     if (graphicRendition.fg) {
         sgrSeq.push(graphicRendition.fg);
@@ -440,23 +453,28 @@ function getSGRFromGraphicRendition(graphicRendition, initialReset) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-//  Shortcuts for common functions
+//  Shortcuts for common functions -- pre-computed constants
 ///////////////////////////////////////////////////////////////////////////////
 
+const CLEAR_SCREEN = `${ESC_CSI}2J`;
+const GO_HOME = `${ESC_CSI}H`;
+const RESET_SCREEN = `${ESC_CSI}${SGRValues.reset}m${CLEAR_SCREEN}${GO_HOME}`;
+const NORMAL_SGR = `${ESC_CSI}${SGRValues.normal};${SGRValues.reset}m`;
+
 function clearScreen() {
-    return exports.eraseData(2);
+    return CLEAR_SCREEN;
 }
 
 function resetScreen() {
-    return `${exports.reset()}${exports.eraseData(2)}${exports.goHome()}`;
+    return RESET_SCREEN;
 }
 
 function normal() {
-    return sgr(['normal', 'reset']);
+    return NORMAL_SGR;
 }
 
 function goHome() {
-    return exports.goto(); //  no params = home = 1,1
+    return GO_HOME;
 }
 
 //
@@ -503,9 +521,9 @@ function vtxHyperlink(client, url, len) {
 
     len = len || url.length;
 
-    url = url
-        .split('')
-        .map(c => c.charCodeAt(0))
-        .join(';');
-    return `${ESC_CSI}1;${len};1;1;${url}\\`;
+    const codes = new Array(url.length);
+    for (let i = 0; i < url.length; i++) {
+        codes[i] = url.charCodeAt(i);
+    }
+    return `${ESC_CSI}1;${len};1;1;${codes.join(';')}\\`;
 }

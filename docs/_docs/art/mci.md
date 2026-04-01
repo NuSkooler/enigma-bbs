@@ -146,6 +146,8 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options. See [Spinner Menu](views/spinner_menu_view.md) |
 | `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input. See [Toggle Menu](views/toggle_menu_view.md)|
 | `KE` | Key Entry            | A *single* key input control | Think hotkeys |
+| `TK` | Ticker               | A continuously scrolling marquee | Scrolls text left or right in a fixed-width window. See [Ticker View](views/ticker_view.md) |
+| `SB` | Status Bar           | An auto-refreshing text label | Re-renders MCI format codes on a timer. See [Status Bar View](views/status_bar_view.md) |
 
 > :information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
 

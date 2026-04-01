@@ -1,53 +1,58 @@
-/* jslint node: true */
 'use strict';
 
 //  ENiGMA½
-const View = require('./view.js').View;
+const { View } = require('./view.js');
 const miscUtil = require('./misc_util.js');
 const ansi = require('./ansi_term.js');
-const padStr = require('./string_util.js').pad;
-const stylizeString = require('./string_util.js').stylizeString;
-const renderSubstr = require('./string_util.js').renderSubstr;
-const renderStringLength = require('./string_util.js').renderStringLength;
-const pipeToAnsi = require('./color_codes.js').pipeToAnsi;
-const stripAllLineFeeds = require('./string_util.js').stripAllLineFeeds;
-const getPredefinedMCIFormatObject =
-    require('./predefined_mci').getPredefinedMCIFormatObject;
+const {
+    pad: padStr,
+    stylizeString,
+    renderSubstr,
+    renderStringLength,
+    stripAllLineFeeds,
+} = require('./string_util.js');
+const { pipeToAnsi } = require('./color_codes.js');
+const { getPredefinedMCIFormatObject } = require('./predefined_mci');
 const stringFormat = require('./string_format');
 
 //  deps
-const util = require('util');
 const _ = require('lodash');
 
-exports.TextView = TextView;
+class TextView extends View {
+    constructor(options) {
+        if (options.dimens) {
+            options.dimens.height = 1; //  force height of 1 for TextView's & sub classes
+        }
 
-function TextView(options) {
-    if (options.dimens) {
-        options.dimens.height = 1; //  force height of 1 for TextView's & sub classes
+        super(options);
+
+        if (options.maxLength) {
+            this.maxLength = options.maxLength;
+        } else {
+            this.maxLength = this.client.term.termWidth - this.position.col;
+        }
+
+        this.fillChar = renderSubstr(
+            miscUtil.valueWithDefault(options.fillChar, ' '),
+            0,
+            1
+        );
+        this.justify = options.justify || 'left';
+        this.resizable = miscUtil.valueWithDefault(options.resizable, true);
+        this.horizScroll = miscUtil.valueWithDefault(options.horizScroll, true);
+
+        if (_.isString(options.textOverflow)) {
+            this.textOverflow = options.textOverflow;
+        }
+
+        if (_.isString(options.textMaskChar) && 1 === options.textMaskChar.length) {
+            this.textMaskChar = options.textMaskChar;
+        }
+
+        this.setText(options.text || '', false); //  false=do not redraw now
     }
 
-    View.call(this, options);
-
-    if (options.maxLength) {
-        this.maxLength = options.maxLength;
-    } else {
-        this.maxLength = this.client.term.termWidth - this.position.col;
-    }
-
-    this.fillChar = renderSubstr(miscUtil.valueWithDefault(options.fillChar, ' '), 0, 1);
-    this.justify = options.justify || 'left';
-    this.resizable = miscUtil.valueWithDefault(options.resizable, true);
-    this.horizScroll = miscUtil.valueWithDefault(options.horizScroll, true);
-
-    if (_.isString(options.textOverflow)) {
-        this.textOverflow = options.textOverflow;
-    }
-
-    if (_.isString(options.textMaskChar) && 1 === options.textMaskChar.length) {
-        this.textMaskChar = options.textMaskChar;
-    }
-
-    this.drawText = function (s) {
+    drawText(s) {
         //
         //                     |<- this.maxLength
         //   ABCDEFGHIJK
@@ -110,7 +115,7 @@ function TextView(options) {
             padStr(
                 textToDraw,
                 this.dimens.width,
-                renderedFillChar, //this.fillChar,
+                renderedFillChar,
                 this.justify,
                 this.hasFocus ? this.getFocusSGR() : this.getSGR(),
                 this.getStyleSGR(1) || this.getSGR(),
@@ -118,115 +123,110 @@ function TextView(options) {
             ),
             false //  no converting CRLF needed
         );
-    };
+    }
 
-    this.getEndOfTextColumn = function () {
-        var offset = Math.min(this.text.length, this.dimens.width);
+    getEndOfTextColumn() {
+        const offset = Math.min(this.text.length, this.dimens.width);
         return this.position.col + offset;
-    };
+    }
 
-    this.setText(options.text || '', false); //  false=do not redraw now
-}
+    redraw() {
+        //
+        //  A lot of views will get an initial redraw() with empty text (''). We can short
+        //  circuit this by NOT doing any of the work if this is the initial drawText
+        //  and there is no actual text (e.g. save SGR's and processing)
+        //
+        if (!this.hasDrawnOnce) {
+            if (_.isUndefined(this.text)) {
+                return;
+            }
+        }
+        this.hasDrawnOnce = true;
 
-util.inherits(TextView, View);
+        super.redraw();
 
-TextView.prototype.redraw = function () {
-    //
-    //  A lot of views will get an initial redraw() with empty text (''). We can short
-    //  circuit this by NOT doing any of the work if this is the initial drawText
-    //  and there is no actual text (e.g. save SGR's and processing)
-    //
-    if (!this.hasDrawnOnce) {
-        if (_.isUndefined(this.text)) {
-            return;
+        if (_.isString(this.text)) {
+            this.drawText(this.text);
         }
     }
-    this.hasDrawnOnce = true;
 
-    TextView.super_.prototype.redraw.call(this);
-
-    if (_.isString(this.text)) {
-        this.drawText(this.text);
-    }
-};
-
-TextView.prototype.setFocus = function (focused) {
-    TextView.super_.prototype.setFocus.call(this, focused);
-
-    this.redraw();
-
-    this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
-    this.client.term.write(this.getFocusSGR());
-};
-
-TextView.prototype.getData = function () {
-    return this.text;
-};
-
-TextView.prototype.setText = function (text, redraw) {
-    redraw = _.isBoolean(redraw) ? redraw : true;
-
-    // Don't bomb if text isn't defined, just treat as blank instead.
-    if (_.isUndefined(text)) {
-        text = '';
+    //  Virtual hook: subclasses override to place the cursor at their preferred
+    //  position after a setFocus redraw (e.g. at an edit cursor rather than end-of-text).
+    _positionCursor(focused) {
+        this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
     }
 
-    if (!_.isString(text)) {
-        //  allow |text| to be numbers/etc.
+    setFocus(focused) {
+        super.setFocus(focused);
+
+        this.redraw();
+
+        this._positionCursor(focused);
+        this.client.term.write(this.getFocusSGR());
+    }
+
+    getData() {
+        return this.text;
+    }
+
+    setText(text, redraw) {
+        redraw = _.isBoolean(redraw) ? redraw : true;
+
         if (_.isUndefined(text) || null === text) {
             text = '';
-        } else {
+        } else if (!_.isString(text)) {
             text = text.toString();
+        }
+
+        const formatObj = getPredefinedMCIFormatObject(this.client, text);
+        if (formatObj) {
+            text = stringFormat(text, formatObj);
+        }
+
+        this.text = pipeToAnsi(stripAllLineFeeds(text), this.client);
+        if (this.maxLength > 0) {
+            this.text = renderSubstr(this.text, 0, this.maxLength);
+        }
+
+        this.text = stylizeString(
+            this.text,
+            this.hasFocus ? this.focusTextStyle : this.textStyle
+        );
+
+        if (redraw) {
+            this.redraw();
         }
     }
 
-    const formatObj = getPredefinedMCIFormatObject(this.client, text);
-    if (formatObj) {
-        // expand before converting
-        text = stringFormat(text, formatObj);
+    clearText() {
+        if (this.text) {
+            this.setText(this.fillChar.repeat(this.text.length));
+        }
+
+        this.setText('');
     }
 
-    this.text = pipeToAnsi(stripAllLineFeeds(text), this.client); //  expand MCI/etc.
-    if (this.maxLength > 0) {
-        this.text = renderSubstr(this.text, 0, this.maxLength);
+    setPropertyValue(propName, value) {
+        switch (propName) {
+            case 'textMaskChar':
+                this.textMaskChar = value.substr(0, 1);
+                break;
+            case 'textOverflow':
+                this.textOverflow = value;
+                break;
+            case 'maxLength':
+                this.maxLength = parseInt(value, 10);
+                break;
+            case 'password':
+                if (true === value) {
+                    this.textMaskChar =
+                        this.client.currentTheme.helpers.getPasswordChar();
+                }
+                break;
+        }
+
+        super.setPropertyValue(propName, value);
     }
+}
 
-    //  :TODO: it would be nice to be able to stylize strings with MCI and {special} MCI syntax, e.g. "|BN {UN!toUpper}"
-    this.text = stylizeString(
-        this.text,
-        this.hasFocus ? this.focusTextStyle : this.textStyle
-    );
-
-    if (redraw) {
-        this.redraw();
-    }
-};
-
-TextView.prototype.clearText = function () {
-    if (this.text) {
-        this.setText(this.fillChar.repeat(this.text.length));
-    }
-
-    this.setText('');
-};
-
-TextView.prototype.setPropertyValue = function (propName, value) {
-    switch (propName) {
-        case 'textMaskChar':
-            this.textMaskChar = value.substr(0, 1);
-            break;
-        case 'textOverflow':
-            this.textOverflow = value;
-            break;
-        case 'maxLength':
-            this.maxLength = parseInt(value, 10);
-            break;
-        case 'password':
-            if (true === value) {
-                this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
-            }
-            break;
-    }
-
-    TextView.super_.prototype.setPropertyValue.call(this, propName, value);
-};
+exports.TextView = TextView;

@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const FullScreenEditorModule = require('./fse.js').FullScreenEditorModule;
+const { FullScreenEditorModule, MciViewIds } = require('./fse.js');
 const Message = require('./message.js');
 
 //  deps
@@ -78,7 +78,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
             },
 
             movementKeyPressed: (formData, extraArgs, cb) => {
-                const bodyView = self.viewControllers.body.getView(1); //  :TODO: use const here vs magic #
+                const bodyView = self.viewControllers.body.getView(
+                    MciViewIds.body.message
+                );
 
                 //  :TODO: Create methods for up/down vs using keyPressXXXXX
                 switch (formData.key.name) {

@@ -108,9 +108,9 @@ Below is a table of pre-configured archivers. Remember that you can override set
 
 | Archiver (Key) | File Types | More Info | Debian/Ubuntu (apt/deb) | Red Hat (yum/rpm) | Windows |
 |----------|---------|-----------|-------------------------|-------------------|---------|
-| `Arj` | .arj | [Wikipedia](https://en.wikipedia.org/wiki/ARJ) | `arj` | `arj` | [ARJ](http://arj.sourceforge.net/) |
-| `7Zip` | .7z, .bzip2, .gzip/.gz, etc.<br>:warning: Does not attempt to handle zip files! See `InfoZip`! | http://www.7-zip.org | `p7zip-full` (provides `7za`) | `p7zip` / `p7zip-plugins` (often via EPEL; provides `7za`) | [7-zip](http://www.7-zip.org/) |
-| `InfoZip` | .zip | http://infozip.sourceforge.net <br>`zip` and `unzip` must be in ENiGMA's PATH | `zip` and `unzip` | `zip` and `unzip` | [InfoZip](http://infozip.sourceforge.net/) |
+| `Arj` | .arj | [Wikipedia](https://en.wikipedia.org/wiki/ARJ) | `arj` | `arj` | [ARJ](https://arj.sourceforge.net/) |
+| `7Zip` | .7z, .bzip2, .gzip/.gz, etc.<br>:warning: Does not attempt to handle zip files! See `InfoZip`! | https://www.7-zip.org | `p7zip-full` (provides `7za`) | `p7zip` / `p7zip-plugins` (often via EPEL; provides `7za`) | [7-zip](https://www.7-zip.org/) |
+| `InfoZip` | .zip | https://infozip.sourceforge.net <br>`zip` and `unzip` must be in ENiGMA's PATH | `zip` and `unzip` | `zip` and `unzip` | [InfoZip](https://infozip.sourceforge.net/) |
 | `Lha` | .lza, .lzh, etc. | [Wikipedia](https://en.wikipedia.org/wiki/LHA_(file_format)) <br> https://fragglet.github.io/lhasa/ | `lhasa` (provides `lha`) | Often not packaged on modern EL; build from source if needed | [Win32 binaries](https://soulsphere.org/projects/lhasa/win32/) |
 | `Lzx` | .lzx | [Amiga LZX](https://en.wikipedia.org/wiki/LZX_(algorithm)#Amiga_LZX) | Often not packaged; build from source if needed | Often not packaged; build from source if needed | [Source](http://xavprods.free.fr/lzx/) |
 | `Rar` | .rar | [Wikipedia](https://en.wikipedia.org/wiki/RAR_(file_format)) | `unrar` (may require non-default repo) | `unrar` (may require non-default repo) | [RARLAB](https://www.rarlab.com/) |
@@ -136,7 +136,7 @@ Information extraction utilities can extract information from various file types
 
 | Extractor | File Types | More Info | Debian/Ubuntu (apt/deb) | Red Hat (yum/rpm) | Windows |
 |----------|---------|-----------|-------------------------|-------------------|---------|
-| ExifTool | .mp3, .pdf, .mp4, .jpg, .gif, .png, many more | [ExifTool](https://www.sno.phy.queensu.ca/~phil/) | `libimage-exiftool-perl` | `perl-Image-ExifTool` | Varies |
+| ExifTool | .mp3, .pdf, .mp4, .jpg, .gif, .png, many more | [ExifTool](https://exiftool.org/) | `libimage-exiftool-perl` | `perl-Image-ExifTool` | Varies |
 | pdftotext | .pdf (text extraction) | [poppler-utils](https://poppler.freedesktop.org/) | `poppler-utils` | `poppler-utils` | Varies |
 | XDMS | Amiga DiskMasher images (.dms) | http://zakalwe.fi/~shd/foss/xdms/ | `xdms` | Often not packaged on modern EL; build from source if needed | Varies |
 

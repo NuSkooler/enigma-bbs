@@ -15,8 +15,8 @@ module.exports = class KeyEntryView extends View {
 
         super(options);
 
-        this.eatTabKey = options.eatTabKey || true;
-        this.caseInsensitive = options.caseInsensitive || true;
+        this.eatTabKey = options.eatTabKey ?? true;
+        this.caseInsensitive = options.caseInsensitive ?? true;
 
         if (Array.isArray(options.keys)) {
             if (this.caseInsensitive) {

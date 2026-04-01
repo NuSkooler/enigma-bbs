@@ -42,10 +42,12 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 
         if (_.has(options, 'lastMenuResult.recvFilePaths')) {
             this.recvFilePaths = options.lastMenuResult.recvFilePaths;
-            this.client.log.debug('Protocol select received recv file paths', {
-                count: this.recvFilePaths.length,
-                paths: this.recvFilePaths,
-            });
+            if (this.recvFilePaths) {
+                this.client.log.debug('Protocol select received recv file paths', {
+                    count: this.recvFilePaths.length,
+                    paths: this.recvFilePaths,
+                });
+            }
         }
 
         this.fallbackOnly = options.lastMenuResult ? true : false;
@@ -97,7 +99,15 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
         if (this.sentFileIds || this.recvFilePaths) {
             //  We have results from a file transfer, handle them
             if (this.recvFilePaths && this.config.direction === 'recv') {
-                // For uploads, return to the upload module specifically
+                //  If the caller requested a direct return (e.g. FSE loading a file
+                //  into the message body), hand results back via prevMenu() so the
+                //  standard menu-stack round-trip delivers lastMenuResult.recvFilePaths
+                //  to the originating module.  Otherwise route to the file-base upload
+                //  pipeline as usual.
+                if (this.extraArgs && this.extraArgs.returnToCaller) {
+                    return this.prevMenu();
+                }
+
                 this.client.log.debug(
                     'Protocol select returning to upload module with results',
                     {

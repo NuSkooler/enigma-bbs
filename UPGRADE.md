@@ -20,6 +20,66 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.0.14-beta to 0.1.0-beta
+* We are nearing 1.0! Version numbers have changed.
+
+* ⚠️ **FSE editor footer art and menu config have changed.** The full-screen editor's `footerEditor` form (form `2`) previously used two separate `%TL` (Text Label) views — `%TL1` for cursor position and `%TL2` for INS/OVR mode — driven by a `TLTL` form config block. These have been replaced by a single `%SB1` (StatusBarView) with named panels.
+
+  **If you have a custom `MSGEFTR` art file or a customized `createMessageEditor` / `readMessageEditor` menu config:**
+
+  1. **Art file** (`MSGEFTR.ANS` / `MSGEFTR.UTF8` etc.) — Replace any `%TL1` + `%TL2` pair with a single `%SB1`. Position it where you want the combined status indicator to appear (the default theme places it near the right side of the footer line). Remove any `%TL2` entirely.
+
+  2. **Menu config** — In the `createMessageEditor` and `readMessageEditor` (or equivalent) menu entries, replace the old form `2` block:
+
+     ```hjson
+     // OLD — remove this:
+     2: {
+         TLTL: {
+             mci: {
+                 TL1: { width: 5 }
+                 TL2: { width: 4 }
+             }
+         }
+     }
+     ```
+
+     with the new panel-mode `%SB1` config:
+
+     ```hjson
+     // NEW — use this:
+     2: {
+         mci: {
+             SB1: {
+                 width:     9
+                 anchor:    left
+                 justify:   left
+                 separator: " "
+                 panels: [
+                     {
+                         name:    mode
+                         width:   3
+                         justify: right
+                     }
+                     {
+                         name:    pos
+                         width:   5
+                         justify: left
+                     }
+                 ]
+             }
+         }
+     }
+     ```
+
+  In all cases, **diff the template against your existing config** before applying changes — your config likely contains other customizations you don't want to lose:
+
+  ```bash
+  diff ./misc/menu_templates/message_base.in.hjson ./config/menus/your_board-message_base.hjson
+  ```
+
+  Apply only the form `2` changes shown above. See [Configuration Files](./docs/_docs/configuration/config-files.md) for details.
+
+
 ## 0.0.13-beta to 0.0.14-beta
 * A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:
 
