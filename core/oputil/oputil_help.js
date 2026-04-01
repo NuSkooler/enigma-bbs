@@ -59,6 +59,11 @@ Actions:
 
   group USERNAME [+|~]GROUP    Adds (+) or removes (~) user from a group
 
+  import-ssh-key USERNAME KEYFILE
+                               Import a SSH public key for a user from KEYFILE
+
+  remove-ssh-key USERNAME      Remove a user's SSH public key
+
   list [FILTER]                List users with optional FILTER.
 
   Valid filters:
