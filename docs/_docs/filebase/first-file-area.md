@@ -42,7 +42,7 @@ ENiGMA½ tracks which subdirectory each file came from (`relPath`) so that files
 
 When an area mixes flat and wildcard tags, flat tags are always scanned first. Any subdirectories that are explicitly covered by a flat tag are automatically excluded from the wildcard scan to prevent double-indexing.
 
-**`.enigmaignore` files** — place a `.enigmaignore` file (gitignore syntax) anywhere inside a wildcard tag's tree to exclude matching files or directories from scanning. Patterns are applied relative to the directory containing the `.enigmaignore`.
+**`.enigmaignore` files** — place a `.enigmaignore` file anywhere inside a wildcard tag's tree to exclude matching files or directories from scanning. Patterns follow [gitignore syntax](https://git-scm.com/docs/gitignore#_pattern_format) and are applied relative to the directory containing the `.enigmaignore`.
 
 ### Areas
 File base *Areas* are configured using the `fileBase.areas` configuration block in `config.hjson`. Each entry's block starts with an *area tag*. Valid members for an area are as follows:
