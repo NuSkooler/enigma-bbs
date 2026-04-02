@@ -17,11 +17,11 @@
 <meta property="og:description" content="Configuring a File Base ENiGMA½ offers a powerful and flexible file base. Configuration of file the file base and areas is handled via the fileBase section of config.hjson." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-01T21:33:40+00:00" />
+<meta property="article:published_time" content="2026-04-02T17:23:21+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Configuring a File Base" />
 <script type="application/ld+json">
-{"description":"Configuring a File Base ENiGMA½ offers a powerful and flexible file base. Configuration of file the file base and areas is handled via the fileBase section of config.hjson.","headline":"Configuring a File Base","dateModified":"2026-04-01T21:33:40+00:00","datePublished":"2026-04-01T21:33:40+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/first-file-area.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/filebase/first-file-area.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Configuring a File Base ENiGMA½ offers a powerful and flexible file base. Configuration of file the file base and areas is handled via the fileBase section of config.hjson.","headline":"Configuring a File Base","dateModified":"2026-04-02T17:23:21+00:00","datePublished":"2026-04-02T17:23:21+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/first-file-area.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/filebase/first-file-area.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2529,6 +2529,22 @@
 
 <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Remember that paths are case sensitive on most non-Windows systems!</p>
 
+<h4 id="wildcard-recursive-storage-tags">Wildcard (Recursive) Storage Tags</h4>
+
+<p>Appending <code class="language-plaintext highlighter-rouge">/*</code> to a storage tag path marks it as <strong>wildcard</strong> — the scanner will recursively walk all subdirectories under the base path rather than only looking at files in the root of the tag directory. This is useful for organically-structured collections where files live in year, month, or category subdirectories.</p>
+
+<pre><code class="language-hjson">storageTags: {
+    scene_files: "/path/to/scene/*"   // recursive — scans all subdirs
+    flat_files:  "/path/to/flat"      // flat — root directory only
+}
+</code></pre>
+
+<p>ENiGMA½ tracks which subdirectory each file came from (<code class="language-plaintext highlighter-rouge">relPath</code>) so that files in different subdirectories with the same filename are treated as distinct entries. The <code class="language-plaintext highlighter-rouge">relPath</code> is stored relative to the tag’s base directory (e.g. <code class="language-plaintext highlighter-rouge">2024/April</code>).</p>
+
+<p>When an area mixes flat and wildcard tags, flat tags are always scanned first. Any subdirectories that are explicitly covered by a flat tag are automatically excluded from the wildcard scan to prevent double-indexing.</p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">.enigmaignore</code> files</strong> — place a <code class="language-plaintext highlighter-rouge">.enigmaignore</code> file anywhere inside a wildcard tag’s tree to exclude matching files or directories from scanning. Patterns follow <a href="https://git-scm.com/docs/gitignore#_pattern_format">gitignore syntax</a> and are applied relative to the directory containing the <code class="language-plaintext highlighter-rouge">.enigmaignore</code>.</p>
+
 <h3 id="areas">Areas</h3>
 <p>File base <em>Areas</em> are configured using the <code class="language-plaintext highlighter-rouge">fileBase.areas</code> configuration block in <code class="language-plaintext highlighter-rouge">config.hjson</code>. Each entry’s block starts with an <em>area tag</em>. Valid members for an area are as follows:</p>
 
@@ -2592,6 +2608,7 @@
 	storageTags: {
 		retro_pc_dos: "dos"
 		retro_pc_bbs: "pc/bbs"
+		scene_files:  "/path/to/scene/*"  // wildcard — scans subdirs recursively
 	}
 
 	areas: {
@@ -2599,6 +2616,12 @@
 			name: Retro PC
 			desc: Oldschool PC/DOS
 			storageTags: [ "retro_pc_dos", "retro_pc_bbs" ]
+		}
+
+		scene: {
+			name: Scene Files
+			desc: Scene releases organized by year/month
+			storageTags: [ "scene_files" ]
 		}
 
 		uploads: {
@@ -2624,6 +2647,13 @@
 </code></pre></div></div>
 
 <p>Here we have asked <a href="/enigma-bbs/admin/oputil.html">oputil</a> to scan the file base area by it’s tag <code class="language-plaintext highlighter-rouge">retro_pc</code> and only include the storage tag of <code class="language-plaintext highlighter-rouge">retro_pc_bbs</code>. Note that the storage tag could be omitted, and if so, all of <code class="language-plaintext highlighter-rouge">retro_pc</code> would be scanned. We have also indicated to #hashtag new entries with the tags “retro”, “bbs”, and “pc”.</p>
+
+<p>For a <strong>wildcard</strong> storage tag the scan walks all subdirectories automatically:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js fb scan <span class="nt">--quick</span> <span class="nt">--tags</span> scene scene@scene_files
+</code></pre></div></div>
+
+<p>Files found in subdirectories (e.g. <code class="language-plaintext highlighter-rouge">2024/April/somefile.zip</code>) are indexed with their relative path preserved, so two files with the same name in different subdirectories are tracked as distinct entries.</p>
 
 <p>Please see <a href="/enigma-bbs/admin/oputil.html">oputil</a> for more information.</p>
 
