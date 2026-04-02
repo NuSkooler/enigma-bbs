@@ -4,8 +4,11 @@
 --  tags (/* suffix).  NULL / empty means the file lives at the tag base dir,
 --  which is correct for all existing rows — no data migration required.
 --
---  Run against the file database (usually filebase.db):
---    sqlite3 /path/to/filebase.db < tables_update_2026-04-01.sql
+--  NOTE: ENiGMA½ applies this migration automatically on startup.
+--  This script is provided for reference or manual recovery only.
+--
+--  If needed, run against the file database (usually db/file.sqlite3):
+--    sqlite3 /path/to/db/file.sqlite3 < tables_update_2026-04-01.sql
 
 PRAGMA foreign_keys=OFF;
 

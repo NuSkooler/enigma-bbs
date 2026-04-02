@@ -45,7 +45,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * When an area mixes flat and wildcard tags, flat tags are scanned first and their directories are excluded from wildcard scans to prevent double-indexing.
   * `.enigmaignore` files (gitignore syntax) can be placed anywhere in a wildcard tree to exclude files or directories from scanning.
   * Startup warns on malformed wildcard patterns (e.g. a bare `*` not at the trailing `/*` position).
-  * New database column `storage_tag_rel_path`; existing installations should run `misc/update/tables_update_2026-04-01.sql`.
+  * New database column `storage_tag_rel_path`; automatically added to existing installations on first startup.
 
 * **Bug Fixes & Stability**
 

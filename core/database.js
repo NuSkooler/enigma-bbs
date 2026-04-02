@@ -475,7 +475,20 @@ dbs.message.run(
             );`
         );
 
-        return cb(null);
+        //  Inline migration: add storage_tag_rel_path to existing installations.
+        //  ALTER TABLE ADD COLUMN is backward-safe; NULL for all pre-existing rows
+        //  is correct (file lives at the tag base directory).
+        dbs.file.get(
+            `SELECT COUNT(*) AS cnt FROM pragma_table_info('file') WHERE name='storage_tag_rel_path'`,
+            (err, row) => {
+                if (!err && row && row.cnt === 0) {
+                    dbs.file.run(
+                        `ALTER TABLE file ADD COLUMN storage_tag_rel_path VARCHAR DEFAULT NULL`
+                    );
+                }
+                return cb(null);
+            }
+        );
     },
     activitypub: cb => {
         enableForeignKeys(dbs.activitypub);
