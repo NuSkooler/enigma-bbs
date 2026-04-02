@@ -14,7 +14,6 @@ const resolveMimeType = require('./mime_util.js').resolveMimeType;
 const stringFormat = require('./string_format.js');
 const wordWrapText = require('./word_wrap.js').wordWrapText;
 const StatLog = require('./stat_log.js');
-const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
 const SAUCE = require('./sauce.js');
 const { wildcardMatch } = require('./string_util');
@@ -43,7 +42,6 @@ exports.getDefaultFileAreaTag = getDefaultFileAreaTag;
 exports.getFileAreaByTag = getFileAreaByTag;
 exports.getFileAreasByTagWildcardRule = getFileAreasByTagWildcardRule;
 exports.getFileEntryPath = getFileEntryPath;
-exports.changeFileAreaWithOptions = changeFileAreaWithOptions;
 exports.scanFile = scanFile;
 //exports.scanFileAreaForChanges          = scanFileAreaForChanges;
 exports.getDescFromFileName = getDescFromFileName;
@@ -171,49 +169,6 @@ function getFileAreasByTagWildcardRule(rule) {
     return areaTags.map(areaTag => getFileAreaByTag(areaTag));
 }
 
-function changeFileAreaWithOptions(client, areaTag, options, cb) {
-    async.waterfall(
-        [
-            function getArea(callback) {
-                const area = getFileAreaByTag(areaTag);
-                return callback(
-                    area ? null : Errors.Invalid('Invalid file areaTag'),
-                    area
-                );
-            },
-            function validateAccess(area, callback) {
-                if (!client.acs.hasFileAreaRead(area)) {
-                    return callback(Errors.AccessDenied('No access to this area'));
-                }
-            },
-            function changeArea(area, callback) {
-                if (true === options.persist) {
-                    client.user.persistProperty(UserProps.FileAreaTag, areaTag, err => {
-                        return callback(err, area);
-                    });
-                } else {
-                    client.user.properties[UserProps.FileAreaTag] = areaTag;
-                    return callback(null, area);
-                }
-            },
-        ],
-        (err, area) => {
-            if (!err) {
-                client.log.info(
-                    { areaTag: areaTag, area: area },
-                    'Current file area changed'
-                );
-            } else {
-                client.log.warn(
-                    { areaTag: areaTag, area: area, error: err.message },
-                    'Could not change file area'
-                );
-            }
-
-            return cb(err);
-        }
-    );
-}
 
 function isValidStorageTag(storageTag) {
     return storageTag in Config().fileBase.storageTags;
@@ -292,9 +247,19 @@ function sliceAtSauceMarker(data) {
     return data.slice(0, eof);
 }
 
+let cachedYearPatterns = null;
+
 function attemptSetEstimatedReleaseDate(fileEntry) {
-    //  :TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
-    const patterns = Config().fileBase.yearEstPatterns.map(p => new RegExp(p, 'gmi'));
+    if (!cachedYearPatterns) {
+        cachedYearPatterns = Config().fileBase.yearEstPatterns.map(
+            p => new RegExp(p, 'gmi')
+        );
+    }
+    //  reset lastIndex before each call — the `g` flag makes these stateful RegExps
+    cachedYearPatterns.forEach(re => {
+        re.lastIndex = 0;
+    });
+    const patterns = cachedYearPatterns;
 
     function getMatch(input) {
         if (input) {
