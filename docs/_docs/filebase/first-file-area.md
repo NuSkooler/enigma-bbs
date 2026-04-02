@@ -27,6 +27,23 @@ storageTags: {
 
 :warning: Remember that paths are case sensitive on most non-Windows systems!
 
+#### Wildcard (Recursive) Storage Tags
+
+Appending `/*` to a storage tag path marks it as **wildcard** — the scanner will recursively walk all subdirectories under the base path rather than only looking at files in the root of the tag directory. This is useful for organically-structured collections where files live in year, month, or category subdirectories.
+
+```hjson
+storageTags: {
+    scene_files: "/path/to/scene/*"   // recursive — scans all subdirs
+    flat_files:  "/path/to/flat"      // flat — root directory only
+}
+```
+
+ENiGMA½ tracks which subdirectory each file came from (`relPath`) so that files in different subdirectories with the same filename are treated as distinct entries. The `relPath` is stored relative to the tag's base directory (e.g. `2024/April`).
+
+When an area mixes flat and wildcard tags, flat tags are always scanned first. Any subdirectories that are explicitly covered by a flat tag are automatically excluded from the wildcard scan to prevent double-indexing.
+
+**`.enigmaignore` files** — place a `.enigmaignore` file (gitignore syntax) anywhere inside a wildcard tag's tree to exclude matching files or directories from scanning. Patterns are applied relative to the directory containing the `.enigmaignore`.
+
 ### Areas
 File base *Areas* are configured using the `fileBase.areas` configuration block in `config.hjson`. Each entry's block starts with an *area tag*. Valid members for an area are as follows:
 
@@ -63,6 +80,7 @@ fileBase: {
 	storageTags: {
 		retro_pc_dos: "dos"
 		retro_pc_bbs: "pc/bbs"
+		scene_files:  "/path/to/scene/*"  // wildcard — scans subdirs recursively
 	}
 
 	areas: {
@@ -70,6 +88,12 @@ fileBase: {
 			name: Retro PC
 			desc: Oldschool PC/DOS
 			storageTags: [ "retro_pc_dos", "retro_pc_bbs" ]
+		}
+
+		scene: {
+			name: Scene Files
+			desc: Scene releases organized by year/month
+			storageTags: [ "scene_files" ]
 		}
 
 		uploads: {
@@ -96,6 +120,14 @@ A common task is to *import* existing files to area(s). Consider a collection of
 ```
 
 Here we have asked [oputil](../admin/oputil.md) to scan the file base area by it's tag `retro_pc` and only include the storage tag of `retro_pc_bbs`. Note that the storage tag could be omitted, and if so, all of `retro_pc` would be scanned. We have also indicated to #hashtag new entries with the tags "retro", "bbs", and "pc".
+
+For a **wildcard** storage tag the scan walks all subdirectories automatically:
+
+```bash
+./oputil.js fb scan --quick --tags scene scene@scene_files
+```
+
+Files found in subdirectories (e.g. `2024/April/somefile.zip`) are indexed with their relative path preserved, so two files with the same name in different subdirectories are tracked as distinct entries.
 
 Please see [oputil](../admin/oputil.md) for more information.
 

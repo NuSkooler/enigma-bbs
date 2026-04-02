@@ -31,6 +31,22 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * `oputil.js user remove-ssh-key USERNAME` — removes a user's stored SSH public key
   * `oputil.js user info USERNAME` now displays SSH key info (algorithm, SHA256 fingerprint, comment) when a key is on file
 
+* **File Base: Wildcard/Recursive Storage Tags** ([#194](https://github.com/NuSkooler/enigma-bbs/issues/194))
+
+  Appending `/*` to a storage tag path enables recursive scanning of all subdirectories:
+
+  ```hjson
+  storageTags: {
+      scene_files: "/path/to/scene/*"   // walks all subdirs
+  }
+  ```
+
+  * Files found in subdirectories are indexed with their `relPath` (e.g. `2024/April`) stored in the database, so same-named files in different subdirectories are tracked as distinct entries.
+  * When an area mixes flat and wildcard tags, flat tags are scanned first and their directories are excluded from wildcard scans to prevent double-indexing.
+  * `.enigmaignore` files (gitignore syntax) can be placed anywhere in a wildcard tree to exclude files or directories from scanning.
+  * Startup warns on malformed wildcard patterns (e.g. a bare `*` not at the trailing `/*` position).
+  * New database column `storage_tag_rel_path`; existing installations should run `misc/update/tables_update_2026-04-01.sql`.
+
 * **Bug Fixes & Stability**
 
   * Fixed ENiGMA segfault on ARM64 Linux (Raspberry Pi) — see [#620](https://github.com/NuSkooler/enigma-bbs/issues/620)
