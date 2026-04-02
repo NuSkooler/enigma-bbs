@@ -93,19 +93,36 @@ class FileAreaWebAccess {
 
     load(cb) {
         //
-        //  Load entries, register expiration timers
+        //  Load entries, register expiration timers.
+        //  Sweep expired rows first so crashes or extended downtime don't leave
+        //  stale entries that would otherwise get timers re-registered on startup.
         //
-        FileDb.each(
-            `SELECT hash_id, expire_timestamp
-            FROM file_web_serve;`,
-            (err, row) => {
-                if (row) {
-                    this.scheduleExpire(row.hash_id, moment(row.expire_timestamp));
-                }
-            },
-            err => {
-                return cb(err);
-            }
+        async.series(
+            [
+                callback => {
+                    FileDb.run(
+                        `DELETE FROM file_web_serve
+                        WHERE expire_timestamp < datetime('now');`,
+                        callback
+                    );
+                },
+                callback => {
+                    FileDb.each(
+                        `SELECT hash_id, expire_timestamp
+                        FROM file_web_serve;`,
+                        (err, row) => {
+                            if (row) {
+                                this.scheduleExpire(
+                                    row.hash_id,
+                                    moment(row.expire_timestamp)
+                                );
+                            }
+                        },
+                        callback
+                    );
+                },
+            ],
+            cb
         );
     }
 

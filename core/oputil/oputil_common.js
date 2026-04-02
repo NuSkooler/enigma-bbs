@@ -46,6 +46,7 @@ const argv = (exports.argv = require('minimist')(process.argv.slice(2), {
         c: 'config',
         n: 'no-prompt',
     },
+    boolean: ['quick', 'full', 'verbose', 'update', 'yes'],
 }));
 
 function printUsageAndSetExitCode(errMsg, exitCode) {

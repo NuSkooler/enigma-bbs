@@ -81,7 +81,7 @@ function getISOTimestampString(ts) {
 }
 
 function sanitizeString(s) {
-    return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
+    return String(s).replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
         //  eslint-disable-line no-control-regex
         switch (c) {
             case '\0':
@@ -356,14 +356,15 @@ dbs.message.run(
         dbs.file.run(
             //  :TODO: should any of this be unique -- file_sha256 unless dupes are allowed on the system
             `CREATE TABLE IF NOT EXISTS file (
-                file_id             INTEGER PRIMARY KEY,
-                area_tag            VARCHAR NOT NULL,
-                file_sha256         VARCHAR NOT NULL,
-                file_name,          /* FTS @ file_fts */
-                storage_tag         VARCHAR NOT NULL,
-                desc,               /* FTS @ file_fts */
-                desc_long,          /* FTS @ file_fts */
-                upload_timestamp    DATETIME NOT NULL
+                file_id                 INTEGER PRIMARY KEY,
+                area_tag                VARCHAR NOT NULL,
+                file_sha256             VARCHAR NOT NULL,
+                file_name,              /* FTS @ file_fts */
+                storage_tag             VARCHAR NOT NULL,
+                storage_tag_rel_path    VARCHAR DEFAULT NULL,
+                desc,                   /* FTS @ file_fts */
+                desc_long,              /* FTS @ file_fts */
+                upload_timestamp        DATETIME NOT NULL
             );`
         );
 
@@ -375,6 +376,11 @@ dbs.message.run(
         dbs.file.run(
             `CREATE INDEX IF NOT EXISTS file_by_sha256_index
             ON file (file_sha256);`
+        );
+
+        dbs.file.run(
+            `CREATE INDEX IF NOT EXISTS file_by_storage_tag_index
+            ON file (storage_tag);`
         );
 
         dbs.file.run(
@@ -469,7 +475,20 @@ dbs.message.run(
             );`
         );
 
-        return cb(null);
+        //  Inline migration: add storage_tag_rel_path to existing installations.
+        //  ALTER TABLE ADD COLUMN is backward-safe; NULL for all pre-existing rows
+        //  is correct (file lives at the tag base directory).
+        dbs.file.get(
+            `SELECT COUNT(*) AS cnt FROM pragma_table_info('file') WHERE name='storage_tag_rel_path'`,
+            (err, row) => {
+                if (!err && row && row.cnt === 0) {
+                    dbs.file.run(
+                        `ALTER TABLE file ADD COLUMN storage_tag_rel_path VARCHAR DEFAULT NULL`
+                    );
+                }
+                return cb(null);
+            }
+        );
     },
     activitypub: cb => {
         enableForeignKeys(dbs.activitypub);
