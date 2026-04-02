@@ -81,7 +81,7 @@ function getISOTimestampString(ts) {
 }
 
 function sanitizeString(s) {
-    return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
+    return String(s).replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
         //  eslint-disable-line no-control-regex
         switch (c) {
             case '\0':
