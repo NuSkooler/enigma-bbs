@@ -35,13 +35,13 @@ exports.getAvailableFileAreas = getAvailableFileAreas;
 exports.getAvailableFileAreaTags = getAvailableFileAreaTags;
 exports.getSortedAvailableFileAreas = getSortedAvailableFileAreas;
 exports.isValidStorageTag = isValidStorageTag;
+exports.isWildcardStorageTag = isWildcardStorageTag;
 exports.getAreaStorageDirectoryByTag = getAreaStorageDirectoryByTag;
 exports.getAreaDefaultStorageDirectory = getAreaDefaultStorageDirectory;
 exports.getAreaStorageLocations = getAreaStorageLocations;
 exports.getDefaultFileAreaTag = getDefaultFileAreaTag;
 exports.getFileAreaByTag = getFileAreaByTag;
 exports.getFileAreasByTagWildcardRule = getFileAreasByTagWildcardRule;
-exports.getFileEntryPath = getFileEntryPath;
 exports.scanFile = scanFile;
 //exports.scanFileAreaForChanges          = scanFileAreaForChanges;
 exports.getDescFromFileName = getDescFromFileName;
@@ -57,7 +57,25 @@ const WellKnownAreaTags = (exports.WellKnownAreaTags = {
     TempDownloads: 'system_temporary_download',
 });
 
+function validateStorageTagConfig() {
+    //  /* is only valid as a trailing suffix; warn on anything else to catch typos
+    const storageTags = Config().fileBase.storageTags || {};
+    Object.entries(storageTags).forEach(([name, val]) => {
+        if (typeof val !== 'string') {
+            return;
+        }
+        if (val.includes('*') && !val.endsWith('/*')) {
+            Log.warn(
+                { storageTag: name, value: val },
+                'Malformed storage tag path: "*" is only valid as a trailing "/*" suffix'
+            );
+        }
+    });
+}
+
 function startup(cb) {
+    validateStorageTagConfig();
+
     async.series(
         [
             callback => {
@@ -174,11 +192,18 @@ function isValidStorageTag(storageTag) {
     return storageTag in Config().fileBase.storageTags;
 }
 
+function isWildcardStorageTag(storageTag) {
+    const val = Config().fileBase.storageTags[storageTag];
+    return val ? val.endsWith('/*') : false;
+}
+
 function getAreaStorageDirectoryByTag(storageTag) {
     const config = Config();
     const storageLocation = storageTag && config.fileBase.storageTags[storageTag];
+    //  strip trailing /* for wildcard tags — the base dir is what we resolve to
+    const normalized = (storageLocation || '').replace(/\/\*$/, '');
 
-    return paths.resolve(config.fileBase.areaStoragePrefix, storageLocation || '');
+    return paths.resolve(config.fileBase.areaStoragePrefix, normalized);
 }
 
 function getAreaDefaultStorageDirectory(areaInfo) {
@@ -196,20 +221,15 @@ function getAreaStorageLocations(areaInfo) {
         storageTags.map(storageTag => {
             if (avail[storageTag]) {
                 return {
-                    storageTag: storageTag,
+                    storageTag,
                     dir: getAreaStorageDirectoryByTag(storageTag),
+                    isWildcard: isWildcardStorageTag(storageTag),
                 };
             }
         })
     );
 }
 
-function getFileEntryPath(fileEntry) {
-    const areaInfo = getFileAreaByTag(fileEntry.areaTag);
-    if (areaInfo) {
-        return paths.join(areaInfo.storageDirectory, fileEntry.fileName);
-    }
-}
 
 function getExistingFileEntriesBySha256(sha256, cb) {
     const entries = [];
@@ -722,6 +742,7 @@ function scanFile(filePath, options, iterator, cb) {
         hashTags: options.hashTags, //  Set() or Array
         fileName: paths.basename(filePath),
         storageTag: options.storageTag,
+        relPath: options.relPath || null,
         fileSha256: options.sha256, //  caller may know this already
     });
 

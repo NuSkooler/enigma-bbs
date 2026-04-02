@@ -156,6 +156,18 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
         });
     });
 
+    //  Option 1B: sort flat locations before wildcard so their base dirs can be
+    //  registered as exclusions, preventing WC scans from duplicating those files.
+    storageLocations.sort((a, b) => {
+        if (a.isWildcard === b.isWildcard) {
+            return 0;
+        }
+        return a.isWildcard ? 1 : -1; //  flat first
+    });
+
+    //  Populated as flat locations are scanned; WC scans skip files under these paths.
+    const excludedDirs = new Set();
+
     function updateTags(fe) {
         if (Array.isArray(options.tags)) {
             fe.hashTags = new Set(options.tags);
@@ -167,13 +179,88 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 
     const FileEntry = require('../file_entry.js');
 
-    const readDir = options.glob
-        ? (dir, next) => {
-              return glob(options.glob, { cwd: dir, nodir: true }, next);
-          }
-        : (dir, next) => {
-              return fs.readdir(dir, next);
-          };
+    const ignore = require('ignore');
+
+    //  Build an ignore filter from all .enigmaignore files found under baseDir.
+    //  Rules are gitignore-style and scoped to the directory containing each file.
+    function buildIgnoreFilter(baseDir, relFiles, next) {
+        const ignoreFiles = relFiles.filter(
+            rf => paths.basename(rf) === '.enigmaignore'
+        );
+        if (0 === ignoreFiles.length) {
+            return next(null, null);
+        }
+        const ig = ignore();
+        let pending = ignoreFiles.length;
+        let errored = false;
+        ignoreFiles.forEach(ignFile => {
+            const absIgnFile = paths.join(baseDir, ignFile);
+            const ignDir = paths.dirname(ignFile); //  relative dir containing this .enigmaignore
+            fs.readFile(absIgnFile, 'utf8', (err, content) => {
+                if (errored) {
+                    return;
+                }
+                if (!err && content) {
+                    //  prefix each non-empty, non-comment rule with the containing subdir
+                    content.split('\n').forEach(line => {
+                        const trimmed = line.trim();
+                        if (trimmed && !trimmed.startsWith('#')) {
+                            ig.add(
+                                ignDir === '.' ? trimmed : `${ignDir}/${trimmed}`
+                            );
+                        }
+                    });
+                }
+                if (0 === --pending) {
+                    return next(null, ig);
+                }
+            });
+        });
+    }
+
+    //  Produce a list of { relFile, relPath } items for a storage location.
+    //  - WC tags (isWildcard): recurse all subdirs via glob
+    //  - --glob option: use caller-supplied pattern (applies to both flat and WC)
+    //  - flat: plain readdir
+    //  In all cases relPath is the subdir relative to the storage root, or null for root-level files.
+    function getFilesForLocation(storageLoc, next) {
+        const pattern = options.glob || (storageLoc.isWildcard ? '**/*' : null);
+        if (pattern) {
+            //  include .enigmaignore files in the glob so buildIgnoreFilter can read them
+            glob(pattern, { cwd: storageLoc.dir, nodir: true, follow: false }, (err, relFiles) => {
+                if (err) {
+                    return next(err);
+                }
+                buildIgnoreFilter(storageLoc.dir, relFiles, (err, ig) => {
+                    if (err) {
+                        return next(err);
+                    }
+                    const filtered = relFiles
+                        .filter(rf => paths.basename(rf) !== '.enigmaignore')
+                        .filter(rf => !ig || !ig.ignores(rf));
+                    return next(
+                        null,
+                        filtered.map(rf => ({
+                            relFile: rf,
+                            relPath: paths.dirname(rf) === '.' ? null : paths.dirname(rf),
+                        })),
+                        true //  fromGlob — skip stat check
+                    );
+                });
+            });
+        } else {
+            fs.readdir(storageLoc.dir, (err, fileNames) => {
+                if (err) {
+                    return next(err);
+                }
+                return next(
+                    null,
+                    fileNames.map(fn => ({ relFile: fn, relPath: null })),
+                    false //  fromGlob
+                );
+            });
+        }
+    }
 
     async.eachSeries(
         storageLocations,
@@ -192,15 +279,16 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                     function scanPhysFiles(descHandler, callback) {
                         const physDir = storageLoc.dir;
 
-                        readDir(physDir, (err, files) => {
+                        getFilesForLocation(storageLoc, (err, fileItems, fromGlob) => {
                             if (err) {
                                 return callback(err);
                             }
 
                             async.eachSeries(
-                                files,
-                                (fileName, nextFile) => {
-                                    const fullPath = paths.join(physDir, fileName);
+                                fileItems,
+                                ({ relFile, relPath }, nextFile) => {
+                                    const fileName = paths.basename(relFile);
+                                    const fullPath = paths.join(physDir, relFile);
 
                                     if (
                                         SCAN_EXCLUDE_FILENAMES.includes(
@@ -211,16 +299,19 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                         return nextFile(null);
                                     }
 
-                                    fs.stat(fullPath, (err, stats) => {
-                                        if (err) {
-                                            //	:TODO: Log me!
-                                            return nextFile(null); //	always try next file
-                                        }
-
-                                        if (!stats.isFile()) {
+                                    //  Option 1B: skip files under any flat tag's base dir
+                                    //  when scanning a WC tag — those files are owned by the
+                                    //  more-specific flat tag and will be (or were) scanned directly.
+                                    if (storageLoc.isWildcard && excludedDirs.size > 0) {
+                                        const isExcluded = [...excludedDirs].some(excDir =>
+                                            fullPath.startsWith(excDir + paths.sep)
+                                        );
+                                        if (isExcluded) {
                                             return nextFile(null);
                                         }
+                                    }
 
+                                    const doScan = () => {
                                         process.stdout.write(`Scanning ${fullPath}... `);
 
                                         async.series([
@@ -231,6 +322,8 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 
                                                 FileEntry.quickCheckExistsByPath(
                                                     fullPath,
+                                                    storageLoc.storageTag,
+                                                    relPath,
                                                     (err, exists) => {
                                                         if (exists) {
                                                             console.info('Dupe');
@@ -247,6 +340,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                                     {
                                                         areaTag: areaInfo.areaTag,
                                                         storageTag: storageLoc.storageTag,
+                                                        relPath,
                                                         hashTags: areaInfo.hashTags,
                                                     },
                                                     (stepInfo, next) => {
@@ -416,7 +510,23 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                                 );
                                             },
                                         ]);
-                                    });
+                                    }; //  end doScan
+
+                                    if (fromGlob) {
+                                        //  glob results are files-only; no stat needed
+                                        doScan();
+                                    } else {
+                                        fs.stat(fullPath, (err, stats) => {
+                                            if (err) {
+                                                //	:TODO: Log me!
+                                                return nextFile(null); //	always try next file
+                                            }
+                                            if (!stats.isFile()) {
+                                                return nextFile(null);
+                                            }
+                                            doScan();
+                                        });
+                                    }
                                 },
                                 err => {
                                     return callback(err);
@@ -426,6 +536,12 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                     },
                     function scanDbEntries(callback) {
                         //	:TODO: Look @ db entries for area that were *not* processed above
+
+                        //  Register flat location dirs so subsequent WC scans skip them
+                        if (!storageLoc.isWildcard) {
+                            excludedDirs.add(storageLoc.dir);
+                        }
+
                         return callback(null);
                     },
                 ],

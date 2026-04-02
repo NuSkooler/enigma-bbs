@@ -21,6 +21,7 @@ const FILE_TABLE_MEMBERS = [
     'file_sha256',
     'file_name',
     'storage_tag',
+    'storage_tag_rel_path',
     'desc',
     'desc_long',
     'upload_timestamp',
@@ -57,6 +58,7 @@ module.exports = class FileEntry {
         this.fileName = options.fileName;
         this.storageTag = options.storageTag;
         this.fileSha256 = options.fileSha256;
+        this.relPath = options.relPath || null;
     }
 
     static loadBasicEntry(fileId, dest, cb) {
@@ -81,6 +83,8 @@ module.exports = class FileEntry {
                 FILE_TABLE_MEMBERS.forEach(prop => {
                     dest[_.camelCase(prop)] = file[prop];
                 });
+                //  expose storage_tag_rel_path under the canonical internal name
+                dest.relPath = file.storage_tag_rel_path || null;
 
                 return cb(null, dest);
             }
@@ -161,14 +165,15 @@ module.exports = class FileEntry {
                 function storeEntry(trans, callback) {
                     if (isUpdate) {
                         trans.run(
-                            `REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
-                            VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
+                            `REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, storage_tag_rel_path, desc, desc_long, upload_timestamp)
+                            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                             [
                                 self.fileId,
                                 self.areaTag,
                                 self.fileSha256,
                                 self.fileName,
                                 self.storageTag,
+                                self.relPath || null,
                                 self.desc,
                                 self.descLong,
                                 getISOTimestampString(),
@@ -179,13 +184,14 @@ module.exports = class FileEntry {
                         );
                     } else {
                         trans.run(
-                            `REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
-                            VALUES(?, ?, ?, ?, ?, ?, ?);`,
+                            `REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, storage_tag_rel_path, desc, desc_long, upload_timestamp)
+                            VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
                             [
                                 self.areaTag,
                                 self.fileSha256,
                                 self.fileName,
                                 self.storageTag,
+                                self.relPath || null,
                                 self.desc,
                                 self.descLong,
                                 getISOTimestampString(),
@@ -252,28 +258,42 @@ module.exports = class FileEntry {
     static getAreaStorageDirectoryByTag(storageTag) {
         const config = Config();
         const storageLocation = storageTag && config.fileBase.storageTags[storageTag];
+        //  strip trailing /* for wildcard tags — the base dir is what we resolve to
+        const normalized = (storageLocation || '').replace(/\/\*$/, '');
 
         //  absolute paths as-is
-        if (storageLocation && '/' === storageLocation.charAt(0)) {
-            return storageLocation;
+        if (normalized && '/' === normalized.charAt(0)) {
+            return normalized;
         }
 
         //  relative to |areaStoragePrefix|
-        return paths.join(config.fileBase.areaStoragePrefix, storageLocation || '');
+        return paths.join(config.fileBase.areaStoragePrefix, normalized);
     }
 
     get filePath() {
-        const storageDir = FileEntry.getAreaStorageDirectoryByTag(this.storageTag);
-        return paths.join(storageDir, this.fileName);
+        const storageDir = paths.resolve(
+            FileEntry.getAreaStorageDirectoryByTag(this.storageTag)
+        );
+        const resolved = paths.resolve(storageDir, this.relPath || '', this.fileName || '');
+        //  guard against a crafted storage_tag_rel_path escaping the storage root
+        if (
+            resolved !== storageDir &&
+            !resolved.startsWith(storageDir + paths.sep)
+        ) {
+            throw new Error(
+                `Path traversal detected for file_id ${this.fileId}`
+            );
+        }
+        return resolved;
     }
 
-    static quickCheckExistsByPath(fullPath, cb) {
+    static quickCheckExistsByPath(fullPath, storageTag, relPath, cb) {
         fileDb.get(
             `SELECT COUNT() AS count
             FROM file
-            WHERE file_name = ?
+            WHERE file_name = ? AND storage_tag = ? AND storage_tag_rel_path IS ?
             LIMIT 1;`,
-            [paths.basename(fullPath)],
+            [paths.basename(fullPath), storageTag, relPath || null],
             (err, rows) => {
                 return err ? cb(err) : cb(null, rows.count > 0 ? true : false);
             }
@@ -518,6 +538,7 @@ module.exports = class FileEntry {
                     FILE_TABLE_MEMBERS.forEach(prop => {
                         entry[_.camelCase(prop)] = row[prop];
                     });
+                    entry.relPath = row.storage_tag_rel_path || null;
                     entriesById.set(row.file_id, entry);
                 });
 
@@ -870,7 +891,7 @@ module.exports = class FileEntry {
                 function updateDatabase(callback) {
                     fileDb.run(
                         `UPDATE file
-                        SET area_tag = ?, file_name = ?, storage_tag = ?
+                        SET area_tag = ?, file_name = ?, storage_tag = ?, storage_tag_rel_path = NULL
                         WHERE file_id = ?;`,
                         [destAreaTag, destFileName, destStorageTag, srcFileEntry.fileId],
                         err => {

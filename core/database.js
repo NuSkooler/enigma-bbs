@@ -356,14 +356,15 @@ dbs.message.run(
         dbs.file.run(
             //  :TODO: should any of this be unique -- file_sha256 unless dupes are allowed on the system
             `CREATE TABLE IF NOT EXISTS file (
-                file_id             INTEGER PRIMARY KEY,
-                area_tag            VARCHAR NOT NULL,
-                file_sha256         VARCHAR NOT NULL,
-                file_name,          /* FTS @ file_fts */
-                storage_tag         VARCHAR NOT NULL,
-                desc,               /* FTS @ file_fts */
-                desc_long,          /* FTS @ file_fts */
-                upload_timestamp    DATETIME NOT NULL
+                file_id                 INTEGER PRIMARY KEY,
+                area_tag                VARCHAR NOT NULL,
+                file_sha256             VARCHAR NOT NULL,
+                file_name,              /* FTS @ file_fts */
+                storage_tag             VARCHAR NOT NULL,
+                storage_tag_rel_path    VARCHAR DEFAULT NULL,
+                desc,                   /* FTS @ file_fts */
+                desc_long,              /* FTS @ file_fts */
+                upload_timestamp        DATETIME NOT NULL
             );`
         );
 
@@ -375,6 +376,11 @@ dbs.message.run(
         dbs.file.run(
             `CREATE INDEX IF NOT EXISTS file_by_sha256_index
             ON file (file_sha256);`
+        );
+
+        dbs.file.run(
+            `CREATE INDEX IF NOT EXISTS file_by_storage_tag_index
+            ON file (storage_tag);`
         );
 
         dbs.file.run(
