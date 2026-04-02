@@ -423,10 +423,18 @@
         //  Storage tags create a tag -> directory (relative or full path)
         //  that can be used in areas.
         //
+        //  Appending /* to a path marks the tag as wildcard/recursive: the
+        //  scanner will walk all subdirectories under that base path.  Files
+        //  found in subdirectories are indexed with their relative path
+        //  preserved so same-named files in different subdirs are distinct.
+        //
         storageTags: {
             //
-            //  Example storage tag: "super_l33t_warez":
+            //  Flat tag (root directory only):
             //  super_l33t_warez: /path/to/super/l33t/warez
+            //
+            //  Wildcard/recursive tag (all subdirectories scanned):
+            //  scene_releases: /path/to/scene/*
             //
         }
 

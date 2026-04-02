@@ -76,7 +76,17 @@ function startListening(cb) {
                                     return nextModule(err);
                                 }
 
-                                return nextModule(null);
+                                try {
+                                    return nextModule(null);
+                                } catch (propagatedErr) {
+                                    //  A synchronous throw from downstream startup code
+                                    //  propagated back through nextModule(null). nextModule
+                                    //  was already called; don't call it again.
+                                    logger.log.error(
+                                        propagatedErr,
+                                        'Error propagated from downstream startup'
+                                    );
+                                }
                             }
                         );
                     } catch (e) {

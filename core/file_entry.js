@@ -21,6 +21,7 @@ const FILE_TABLE_MEMBERS = [
     'file_sha256',
     'file_name',
     'storage_tag',
+    'storage_tag_rel_path',
     'desc',
     'desc_long',
     'upload_timestamp',
@@ -57,6 +58,7 @@ module.exports = class FileEntry {
         this.fileName = options.fileName;
         this.storageTag = options.storageTag;
         this.fileSha256 = options.fileSha256;
+        this.relPath = options.relPath || null;
     }
 
     static loadBasicEntry(fileId, dest, cb) {
@@ -81,6 +83,8 @@ module.exports = class FileEntry {
                 FILE_TABLE_MEMBERS.forEach(prop => {
                     dest[_.camelCase(prop)] = file[prop];
                 });
+                //  expose storage_tag_rel_path under the canonical internal name
+                dest.relPath = file.storage_tag_rel_path || null;
 
                 return cb(null, dest);
             }
@@ -161,14 +165,15 @@ module.exports = class FileEntry {
                 function storeEntry(trans, callback) {
                     if (isUpdate) {
                         trans.run(
-                            `REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
-                            VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
+                            `REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, storage_tag_rel_path, desc, desc_long, upload_timestamp)
+                            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);`,
                             [
                                 self.fileId,
                                 self.areaTag,
                                 self.fileSha256,
                                 self.fileName,
                                 self.storageTag,
+                                self.relPath || null,
                                 self.desc,
                                 self.descLong,
                                 getISOTimestampString(),
@@ -179,13 +184,14 @@ module.exports = class FileEntry {
                         );
                     } else {
                         trans.run(
-                            `REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
-                            VALUES(?, ?, ?, ?, ?, ?, ?);`,
+                            `REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, storage_tag_rel_path, desc, desc_long, upload_timestamp)
+                            VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
                             [
                                 self.areaTag,
                                 self.fileSha256,
                                 self.fileName,
                                 self.storageTag,
+                                self.relPath || null,
                                 self.desc,
                                 self.descLong,
                                 getISOTimestampString(),
@@ -252,28 +258,42 @@ module.exports = class FileEntry {
     static getAreaStorageDirectoryByTag(storageTag) {
         const config = Config();
         const storageLocation = storageTag && config.fileBase.storageTags[storageTag];
+        //  strip trailing /* for wildcard tags — the base dir is what we resolve to
+        const normalized = (storageLocation || '').replace(/\/\*$/, '');
 
         //  absolute paths as-is
-        if (storageLocation && '/' === storageLocation.charAt(0)) {
-            return storageLocation;
+        if (normalized && '/' === normalized.charAt(0)) {
+            return normalized;
         }
 
         //  relative to |areaStoragePrefix|
-        return paths.join(config.fileBase.areaStoragePrefix, storageLocation || '');
+        return paths.join(config.fileBase.areaStoragePrefix, normalized);
     }
 
     get filePath() {
-        const storageDir = FileEntry.getAreaStorageDirectoryByTag(this.storageTag);
-        return paths.join(storageDir, this.fileName);
+        const storageDir = paths.resolve(
+            FileEntry.getAreaStorageDirectoryByTag(this.storageTag)
+        );
+        const resolved = paths.resolve(storageDir, this.relPath || '', this.fileName || '');
+        //  guard against a crafted storage_tag_rel_path escaping the storage root
+        if (
+            resolved !== storageDir &&
+            !resolved.startsWith(storageDir + paths.sep)
+        ) {
+            throw new Error(
+                `Path traversal detected for file_id ${this.fileId}`
+            );
+        }
+        return resolved;
     }
 
-    static quickCheckExistsByPath(fullPath, cb) {
+    static quickCheckExistsByPath(fullPath, storageTag, relPath, cb) {
         fileDb.get(
             `SELECT COUNT() AS count
             FROM file
-            WHERE file_name = ?
+            WHERE file_name = ? AND storage_tag = ? AND storage_tag_rel_path IS ?
             LIMIT 1;`,
-            [paths.basename(fullPath)],
+            [paths.basename(fullPath), storageTag, relPath || null],
             (err, rows) => {
                 return err ? cb(err) : cb(null, rows.count > 0 ? true : false);
             }
@@ -496,34 +516,106 @@ module.exports = class FileEntry {
         //  convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
         wc = wc.replace(/\*/g, '%').replace(/\?/g, '_');
 
+        //  Fetch all matching file rows in one query, then batch-load meta/tags/ratings
+        //  to avoid N+1 queries.
         fileDb.all(
-            `SELECT file_id
+            `SELECT ${FILE_TABLE_MEMBERS.join(', ')}
             FROM file
-            WHERE file_name LIKE "${wc}"
-            `,
-            (err, fileIdRows) => {
+            WHERE file_name LIKE ?`,
+            [wc],
+            (err, fileRows) => {
                 if (err) {
                     return cb(err);
                 }
-
-                if (!fileIdRows || 0 === fileIdRows.length) {
+                if (!fileRows || 0 === fileRows.length) {
                     return cb(Errors.DoesNotExist('No matches'));
                 }
 
-                const entries = [];
-                async.each(
-                    fileIdRows,
-                    (row, nextRow) => {
-                        const fileEntry = new FileEntry();
-                        fileEntry.load(row.file_id, err => {
-                            if (!err) {
-                                entries.push(fileEntry);
-                            }
-                            return nextRow(err);
-                        });
-                    },
+                //  build a map of fileId -> FileEntry and an IN() placeholder string
+                const entriesById = new Map();
+                fileRows.forEach(row => {
+                    const entry = new FileEntry();
+                    FILE_TABLE_MEMBERS.forEach(prop => {
+                        entry[_.camelCase(prop)] = row[prop];
+                    });
+                    entry.relPath = row.storage_tag_rel_path || null;
+                    entriesById.set(row.file_id, entry);
+                });
+
+                const ids = Array.from(entriesById.keys());
+                const placeholders = ids.map(() => '?').join(', ');
+
+                async.series(
+                    [
+                        callback => {
+                            fileDb.all(
+                                `SELECT file_id, meta_name, meta_value
+                                FROM file_meta
+                                WHERE file_id IN (${placeholders})`,
+                                ids,
+                                (err, metaRows) => {
+                                    if (err) {
+                                        return callback(err);
+                                    }
+                                    (metaRows || []).forEach(row => {
+                                        const entry = entriesById.get(row.file_id);
+                                        if (entry) {
+                                            const conv =
+                                                FILE_WELL_KNOWN_META[row.meta_name];
+                                            entry.meta[row.meta_name] = conv
+                                                ? conv(row.meta_value)
+                                                : row.meta_value;
+                                        }
+                                    });
+                                    return callback(null);
+                                }
+                            );
+                        },
+                        callback => {
+                            fileDb.all(
+                                `SELECT fht.file_id, ht.hash_tag
+                                FROM file_hash_tag fht
+                                JOIN hash_tag ht ON ht.hash_tag_id = fht.hash_tag_id
+                                WHERE fht.file_id IN (${placeholders})`,
+                                ids,
+                                (err, tagRows) => {
+                                    if (err) {
+                                        return callback(err);
+                                    }
+                                    (tagRows || []).forEach(row => {
+                                        const entry = entriesById.get(row.file_id);
+                                        if (entry) {
+                                            entry.hashTags.add(row.hash_tag);
+                                        }
+                                    });
+                                    return callback(null);
+                                }
+                            );
+                        },
+                        callback => {
+                            fileDb.all(
+                                `SELECT file_id, AVG(rating) AS avg_rating
+                                FROM file_user_rating
+                                WHERE file_id IN (${placeholders})
+                                GROUP BY file_id`,
+                                ids,
+                                (err, ratingRows) => {
+                                    if (err) {
+                                        return callback(err);
+                                    }
+                                    (ratingRows || []).forEach(row => {
+                                        const entry = entriesById.get(row.file_id);
+                                        if (entry) {
+                                            entry.userRating = row.avg_rating;
+                                        }
+                                    });
+                                    return callback(null);
+                                }
+                            );
+                        },
+                    ],
                     err => {
-                        return cb(err, entries);
+                        return cb(err, err ? undefined : Array.from(entriesById.values()));
                     }
                 );
             }
@@ -608,15 +700,16 @@ module.exports = class FileEntry {
 
         if (filter.areaTag && filter.areaTag.length > 0) {
             if (Array.isArray(filter.areaTag)) {
-                const areaList = filter.areaTag.map(t => `"${t}"`).join(', ');
+                const areaList = filter.areaTag.map(t => `"${sanitizeString(t)}"`).join(', ');
                 appendWhereClause(`f.area_tag IN(${areaList})`);
             } else {
-                appendWhereClause(`f.area_tag = "${filter.areaTag}"`);
+                appendWhereClause(`f.area_tag = "${sanitizeString(filter.areaTag)}"`);
             }
         }
 
         if (filter.metaPairs && filter.metaPairs.length > 0) {
             filter.metaPairs.forEach(mp => {
+                const safeName = sanitizeString(mp.name);
                 if (mp.wildcards) {
                     //  convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
                     mp.value = mp.value.replace(/\*/g, '%').replace(/\?/g, '_');
@@ -624,7 +717,7 @@ module.exports = class FileEntry {
                         `f.file_id IN (
                             SELECT file_id
                             FROM file_meta
-                            WHERE meta_name = "${mp.name}" AND meta_value LIKE "${mp.value}"
+                            WHERE meta_name = "${safeName}" AND meta_value LIKE "${sanitizeString(mp.value)}"
                         )`
                     );
                 } else {
@@ -632,7 +725,7 @@ module.exports = class FileEntry {
                         `f.file_id IN (
                             SELECT file_id
                             FROM file_meta
-                            WHERE meta_name = "${mp.name}" AND meta_value = "${mp.value}"
+                            WHERE meta_name = "${safeName}" AND meta_value = "${sanitizeString(mp.value)}"
                         )`
                     );
                 }
@@ -640,7 +733,7 @@ module.exports = class FileEntry {
         }
 
         if (filter.storageTag && filter.storageTag.length > 0) {
-            appendWhereClause(`f.storage_tag="${filter.storageTag}"`);
+            appendWhereClause(`f.storage_tag="${sanitizeString(filter.storageTag)}"`);
         }
 
         if (filter.terms && filter.terms.length > 0) {
@@ -656,10 +749,11 @@ module.exports = class FileEntry {
                     )`
                 );
             } else {
+                const safeTerms = sanitizeString(terms);
                 appendWhereClause(
-                    `(f.file_name LIKE "${terms}" OR
-                    f.desc LIKE "${terms}" OR
-                    f.desc_long LIKE "${terms}")`
+                    `(f.file_name LIKE "${safeTerms}" OR
+                    f.desc LIKE "${safeTerms}" OR
+                    f.desc_long LIKE "${safeTerms}")`
                 );
             }
         }
@@ -797,7 +891,7 @@ module.exports = class FileEntry {
                 function updateDatabase(callback) {
                     fileDb.run(
                         `UPDATE file
-                        SET area_tag = ?, file_name = ?, storage_tag = ?
+                        SET area_tag = ?, file_name = ?, storage_tag = ?, storage_tag_rel_path = NULL
                         WHERE file_id = ?;`,
                         [destAreaTag, destFileName, destStorageTag, srcFileEntry.fileId],
                         err => {

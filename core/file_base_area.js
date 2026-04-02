@@ -14,7 +14,6 @@ const resolveMimeType = require('./mime_util.js').resolveMimeType;
 const stringFormat = require('./string_format.js');
 const wordWrapText = require('./word_wrap.js').wordWrapText;
 const StatLog = require('./stat_log.js');
-const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
 const SAUCE = require('./sauce.js');
 const { wildcardMatch } = require('./string_util');
@@ -36,14 +35,13 @@ exports.getAvailableFileAreas = getAvailableFileAreas;
 exports.getAvailableFileAreaTags = getAvailableFileAreaTags;
 exports.getSortedAvailableFileAreas = getSortedAvailableFileAreas;
 exports.isValidStorageTag = isValidStorageTag;
+exports.isWildcardStorageTag = isWildcardStorageTag;
 exports.getAreaStorageDirectoryByTag = getAreaStorageDirectoryByTag;
 exports.getAreaDefaultStorageDirectory = getAreaDefaultStorageDirectory;
 exports.getAreaStorageLocations = getAreaStorageLocations;
 exports.getDefaultFileAreaTag = getDefaultFileAreaTag;
 exports.getFileAreaByTag = getFileAreaByTag;
 exports.getFileAreasByTagWildcardRule = getFileAreasByTagWildcardRule;
-exports.getFileEntryPath = getFileEntryPath;
-exports.changeFileAreaWithOptions = changeFileAreaWithOptions;
 exports.scanFile = scanFile;
 //exports.scanFileAreaForChanges          = scanFileAreaForChanges;
 exports.getDescFromFileName = getDescFromFileName;
@@ -59,7 +57,25 @@ const WellKnownAreaTags = (exports.WellKnownAreaTags = {
     TempDownloads: 'system_temporary_download',
 });
 
+function validateStorageTagConfig() {
+    //  /* is only valid as a trailing suffix; warn on anything else to catch typos
+    const storageTags = Config().fileBase.storageTags || {};
+    Object.entries(storageTags).forEach(([name, val]) => {
+        if (typeof val !== 'string') {
+            return;
+        }
+        if (val.includes('*') && !val.endsWith('/*')) {
+            Log.warn(
+                { storageTag: name, value: val },
+                'Malformed storage tag path: "*" is only valid as a trailing "/*" suffix'
+            );
+        }
+    });
+}
+
 function startup(cb) {
+    validateStorageTagConfig();
+
     async.series(
         [
             callback => {
@@ -171,59 +187,23 @@ function getFileAreasByTagWildcardRule(rule) {
     return areaTags.map(areaTag => getFileAreaByTag(areaTag));
 }
 
-function changeFileAreaWithOptions(client, areaTag, options, cb) {
-    async.waterfall(
-        [
-            function getArea(callback) {
-                const area = getFileAreaByTag(areaTag);
-                return callback(
-                    area ? null : Errors.Invalid('Invalid file areaTag'),
-                    area
-                );
-            },
-            function validateAccess(area, callback) {
-                if (!client.acs.hasFileAreaRead(area)) {
-                    return callback(Errors.AccessDenied('No access to this area'));
-                }
-            },
-            function changeArea(area, callback) {
-                if (true === options.persist) {
-                    client.user.persistProperty(UserProps.FileAreaTag, areaTag, err => {
-                        return callback(err, area);
-                    });
-                } else {
-                    client.user.properties[UserProps.FileAreaTag] = areaTag;
-                    return callback(null, area);
-                }
-            },
-        ],
-        (err, area) => {
-            if (!err) {
-                client.log.info(
-                    { areaTag: areaTag, area: area },
-                    'Current file area changed'
-                );
-            } else {
-                client.log.warn(
-                    { areaTag: areaTag, area: area, error: err.message },
-                    'Could not change file area'
-                );
-            }
-
-            return cb(err);
-        }
-    );
-}
 
 function isValidStorageTag(storageTag) {
     return storageTag in Config().fileBase.storageTags;
 }
 
+function isWildcardStorageTag(storageTag) {
+    const val = Config().fileBase.storageTags[storageTag];
+    return val ? val.endsWith('/*') : false;
+}
+
 function getAreaStorageDirectoryByTag(storageTag) {
     const config = Config();
     const storageLocation = storageTag && config.fileBase.storageTags[storageTag];
+    //  strip trailing /* for wildcard tags — the base dir is what we resolve to
+    const normalized = (storageLocation || '').replace(/\/\*$/, '');
 
-    return paths.resolve(config.fileBase.areaStoragePrefix, storageLocation || '');
+    return paths.resolve(config.fileBase.areaStoragePrefix, normalized);
 }
 
 function getAreaDefaultStorageDirectory(areaInfo) {
@@ -241,20 +221,15 @@ function getAreaStorageLocations(areaInfo) {
         storageTags.map(storageTag => {
             if (avail[storageTag]) {
                 return {
-                    storageTag: storageTag,
+                    storageTag,
                     dir: getAreaStorageDirectoryByTag(storageTag),
+                    isWildcard: isWildcardStorageTag(storageTag),
                 };
             }
         })
     );
 }
 
-function getFileEntryPath(fileEntry) {
-    const areaInfo = getFileAreaByTag(fileEntry.areaTag);
-    if (areaInfo) {
-        return paths.join(areaInfo.storageDirectory, fileEntry.fileName);
-    }
-}
 
 function getExistingFileEntriesBySha256(sha256, cb) {
     const entries = [];
@@ -292,9 +267,19 @@ function sliceAtSauceMarker(data) {
     return data.slice(0, eof);
 }
 
+let cachedYearPatterns = null;
+
 function attemptSetEstimatedReleaseDate(fileEntry) {
-    //  :TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
-    const patterns = Config().fileBase.yearEstPatterns.map(p => new RegExp(p, 'gmi'));
+    if (!cachedYearPatterns) {
+        cachedYearPatterns = Config().fileBase.yearEstPatterns.map(
+            p => new RegExp(p, 'gmi')
+        );
+    }
+    //  reset lastIndex before each call — the `g` flag makes these stateful RegExps
+    cachedYearPatterns.forEach(re => {
+        re.lastIndex = 0;
+    });
+    const patterns = cachedYearPatterns;
 
     function getMatch(input) {
         if (input) {
@@ -757,6 +742,7 @@ function scanFile(filePath, options, iterator, cb) {
         hashTags: options.hashTags, //  Set() or Array
         fileName: paths.basename(filePath),
         storageTag: options.storageTag,
+        relPath: options.relPath || null,
         fileSha256: options.sha256, //  caller may know this already
     });
 
