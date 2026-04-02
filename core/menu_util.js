@@ -234,7 +234,7 @@ function handleAction(client, formData, conf, cb) {
             } else {
                 //  local to current module
                 const currentModule = client.currentMenuModule;
-                if (_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+                if (currentModule && currentModule.menuMethods && _.isFunction(currentModule.menuMethods[actionAsset.asset])) {
                     return currentModule.menuMethods[actionAsset.asset](
                         formData,
                         conf.extraArgs,
@@ -242,7 +242,7 @@ function handleAction(client, formData, conf, cb) {
                     );
                 }
 
-                const err = Errors.DoesNotExist('Method does not exist');
+                const err = Errors.DoesNotExist(`Method does not exist: ${actionAsset.asset}`);
                 client.log.warn({ method: actionAsset.asset }, err.message);
                 return cb(err);
             }
@@ -254,6 +254,10 @@ function handleAction(client, formData, conf, cb) {
                 cb
             );
     }
+
+    const err = Errors.Invalid(`Invalid asset type for "action": ${actionAsset.type}`);
+    client.log.error({ action: conf.action, type: actionAsset.type }, err.message);
+    return cb(err);
 }
 
 function getResolvedSpec(client, spec, memberName) {
@@ -289,7 +293,11 @@ function getResolvedSpec(client, spec, memberName) {
 function handleNext(client, nextSpec, conf, cb) {
     nextSpec = getResolvedSpec(client, nextSpec, 'next');
     const nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
-    //  :TODO: getAssetWithShorthand() can return undefined - handle it!
+    if (!nextAsset) {
+        const err = Errors.Invalid(`Unable to resolve asset for "next": ${nextSpec}`);
+        client.log.error({ nextSpec }, err.message);
+        return cb(err);
+    }
 
     conf = conf || {};
     const extraArgs = conf.extraArgs || {};
@@ -320,7 +328,7 @@ function handleNext(client, nextSpec, conf, cb) {
             } else {
                 //  local to current module
                 const currentModule = client.currentMenuModule;
-                if (_.isFunction(currentModule.menuMethods[nextAsset.asset])) {
+                if (currentModule && currentModule.menuMethods && _.isFunction(currentModule.menuMethods[nextAsset.asset])) {
                     const formData = {}; //   we don't have any
                     return currentModule.menuMethods[nextAsset.asset](
                         formData,
@@ -329,7 +337,7 @@ function handleNext(client, nextSpec, conf, cb) {
                     );
                 }
 
-                const err = Errors.DoesNotExist('Method does not exist');
+                const err = Errors.DoesNotExist(`Method does not exist: ${nextAsset.asset}`);
                 client.log.warn({ method: nextAsset.asset }, err.message);
                 return cb(err);
             }
