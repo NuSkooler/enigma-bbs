@@ -123,6 +123,11 @@ Actions:
     - AREA_TAG may contain simple wildcards.
       Example: ./oputil.js fb scan *warez*
 
+    - Storage tags ending in /* are wildcard/recursive: all subdirectories
+      are scanned and each file's relative path is preserved in the database.
+      Place a .enigmaignore file (gitignore syntax) anywhere in the tree to
+      exclude files or directories from scanning.
+
   info CRITERIA                Display information about areas and/or files
 
   mv SRC [SRC...] DST          Move matching entry(s)
