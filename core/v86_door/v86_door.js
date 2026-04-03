@@ -40,6 +40,7 @@ const { Errors }          = require('../enig_error.js');
 const { trackDoorRunBegin, trackDoorRunEnd } = require('../door_util.js');
 const DropFile            = require('../dropfile.js');
 const theme               = require('../theme.js');
+const ansi                = require('../ansi_term.js');
 const { createFloppyWithFiles } = require('./fat_image.js');
 
 //  deps
@@ -149,22 +150,46 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
                 function buildFloppy(callback) {
                     const dropFileType = (self.config.dropFileType || '').toUpperCase();
-                    if (!dropFileType || dropFileType === 'NONE') {
+                    const hasDropFile  = dropFileType && dropFileType !== 'NONE';
+                    const hasRunBatch  = _.isString(self.config.runBatch) && self.config.runBatch.trim().length > 0;
+
+                    if (!hasDropFile && !hasRunBatch) {
                         self.floppyBuffer = null;
                         return callback(null);
                     }
 
-                    const dropFile = new DropFile(self.client, { fileType: dropFileType });
-                    if (!dropFile.isSupported()) {
-                        return callback(
-                            Errors.MissingConfig(`v86_door: unsupported dropFileType "${dropFileType}" (use DORINFO, DOOR, or DOOR32)`)
-                        );
+                    const floppyFiles = [];
+
+                    if (hasDropFile) {
+                        const dropFile = new DropFile(self.client, { fileType: dropFileType });
+                        if (!dropFile.isSupported()) {
+                            return callback(
+                                Errors.MissingConfig(`v86_door: unsupported dropFileType "${dropFileType}" (use DORINFO, DOOR, or DOOR32)`)
+                            );
+                        }
+                        floppyFiles.push({ name: dropFile.fileName, content: dropFile.getContents() });
                     }
 
-                    const contents = dropFile.getContents();
-                    const fileName = dropFile.fileName;
+                    if (hasRunBatch) {
+                        const dropFileName = hasDropFile
+                            ? new DropFile(self.client, { fileType: dropFileType }).fileName
+                            : '';
 
-                    createFloppyWithFiles([{ name: fileName, content: contents }])
+                        //  Variable substitution: {dropFile}, {node}, {baud}
+                        const runBatchText = self.config.runBatch
+                            .replace(/\{dropFile\}/gi, dropFileName)
+                            .replace(/\{node\}/gi,     String(self.client.node))
+                            .replace(/\{baud\}/gi,     '57600');
+
+                        //  Normalize to CRLF — DOS requires it
+                        const runBatchCrlf = runBatchText
+                            .replace(/\r\n/g, '\n')
+                            .replace(/\n/g, '\r\n');
+
+                        floppyFiles.push({ name: 'RUN.BAT', content: Buffer.from(runBatchCrlf, 'ascii') });
+                    }
+
+                    createFloppyWithFiles(floppyFiles)
                         .then(img => {
                             self.floppyBuffer = img;
                             return callback(null);
@@ -191,6 +216,29 @@ exports.getModule = class V86DoorModule extends MenuModule {
                         return callback(err);
                     }
 
+                    //  Loading spinner — shown until the first serial byte arrives
+                    const SPINNER_FRAMES = ['|', '/', '-', '\\'];
+                    let spinnerIdx = 0;
+                    let firstOutput = true;
+                    const doorName = self.config.name;
+
+                    self.client.term.write(ansi.resetScreen());
+                    self.client.term.write(`\r\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`);
+
+                    const spinnerInterval = setInterval(() => {
+                        spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
+                        self.client.term.rawWrite(
+                            Buffer.from(`\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`)
+                        );
+                    }, 150);
+
+                    const stopSpinner = () => {
+                        if (!firstOutput) return;
+                        firstOutput = false;
+                        clearInterval(spinnerInterval);
+                        self.client.term.write(ansi.resetScreen());
+                    };
+
                     //  Client → COM1
                     const onClientData = data => {
                         worker.postMessage({ type: 'input', data });
@@ -200,6 +248,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     //  Client disconnected
                     self.client.once('end', () => {
                         clientTerminated = true;
+                        clearInterval(spinnerInterval);
                         self.client.log.info(
                             { name: self.config.name },
                             'Client disconnected — terminating v86 worker'
@@ -218,10 +267,12 @@ exports.getModule = class V86DoorModule extends MenuModule {
                                 break;
 
                             case 'output':
+                                stopSpinner();
                                 self.client.term.rawWrite(Buffer.from(msg.data));
                                 break;
 
                             case 'stopped': {
+                                clearInterval(spinnerInterval);
                                 const secs = (msg.elapsed / 1000).toFixed(1);
                                 self.client.log.info(
                                     { name: self.config.name, elapsed: secs },
@@ -234,6 +285,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                             }
 
                             case 'error':
+                                clearInterval(spinnerInterval);
                                 self.client.log.warn(
                                     { name: self.config.name, error: msg.message },
                                     'v86 worker error'
@@ -249,6 +301,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     });
 
                     worker.on('error', err => {
+                        clearInterval(spinnerInterval);
                         self.client.log.warn(
                             { name: self.config.name, error: err.message },
                             'v86 worker thread error'

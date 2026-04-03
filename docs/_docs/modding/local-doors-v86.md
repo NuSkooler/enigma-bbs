@@ -47,6 +47,7 @@ You need a raw FreeDOS disk image (`.img`) with your door game pre-installed. Ra
 | `name` | :+1: | Door name. Used as a key for tracking concurrent sessions. |
 | `image` | :+1: | Path to the raw FreeDOS disk image (`.img`). |
 | `dropFileType` | :-1: | Drop file to generate and inject onto the `A:` floppy: `DORINFO`, `DOOR`, or `DOOR32`. Omit if the door needs no drop file. |
+| `runBatch` | :-1: | Multi-line batch script written to `A:\RUN.BAT` at runtime. Supports [variable substitution](#runbatch-variables). See [One Image, Multiple Doors](#one-image-multiple-doors). |
 | `nodeMax` | :-1: | Max concurrent sessions. `0` = unlimited. |
 | `tooManyArt` | :-1: | Art spec to display when `nodeMax` is exceeded. |
 | `memoryMb` | :-1: | Guest RAM in MB. Default: `64`. |
@@ -61,6 +62,16 @@ You need a raw FreeDOS disk image (`.img`) with your door game pre-installed. Ra
 | `DOOR` | `DOOR.SYS` |
 | `DOOR32` | `door32.sys` |
 
+#### runBatch Variables
+
+When `runBatch` is set, ENiGMA replaces the following variables before writing `RUN.BAT`:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{dropFile}` | Drop file filename | `DORINFO1.DEF` |
+| `{node}` | Node number | `1` |
+| `{baud}` | Baud rate | `57600` |
+
 ---
 
 ### Example Menu Entry
@@ -71,10 +82,18 @@ doorPimpWars: {
     module: v86_door
     config: {
         name: PimpWars
-        image: /path/to/images/freedos_pimpwars.img
+        image: /path/to/images/freedos_doors.img
         dropFileType: DORINFO
         nodeMax: 1
         tooManyArt: DOORMANY
+        runBatch:
+            '''
+            COPY A:\{dropFile} C:\DOORS\PW\
+            C:\FOSSIL\X00.SYS
+            CD C:\DOORS\PW
+            PW.EXE {node}
+            ECHO Returning to BBS, please wait... > COM1
+            '''
     }
 }
 ```
@@ -85,24 +104,79 @@ doorPimpWars: {
 
 Your disk image must contain:
 - A working FreeDOS installation
-- Your door game (e.g. `C:\DOORS\PIMPWARS\`)
-- A FOSSIL driver such as [X00](http://pcmicro.com/xtalk/x00.html) — required by most classic DOS doors
-- An `AUTOEXEC.BAT` (or `FDAUTO.BAT`) that copies the drop file from `A:` and launches the door
+- Your door game(s) installed (e.g. `C:\DOORS\PIMPWARS\`)
+- Optionally, a FOSSIL driver such as [X00](http://pcmicro.com/xtalk/x00.html) — required by most classic DOS doors
+- An `AUTOEXEC.BAT` (or `FDAUTO.BAT`) that calls `A:\RUN.BAT` and powers off
 
-#### Example AUTOEXEC.BAT
+#### AUTOEXEC.BAT Convention
+
+Set up your image's `AUTOEXEC.BAT` once. ENiGMA writes `RUN.BAT` to `A:` at runtime with the door-specific launch commands:
 
 ```bat
-CD C:\DOORS\PIMPWARS
-COPY A:\DORINFO1.DEF C:\DOORS\PIMPWARS\
-PIMPWARS.EXE A:\DORINFO1.DEF 1
+CALL A:\RUN.BAT
+ECHO Shutting down, please wait... > COM1
 FDAPM POWEROFF
 ```
 
-> :information_source: `FDAPM POWEROFF` shuts FreeDOS down after the door exits. Without it, the emulator idles until the session times out.
+- **`CALL A:\RUN.BAT`** — executes the per-door launch script ENiGMA injects at runtime
+- **`ECHO ... > COM1`** — sends a message to the user's terminal while FreeDOS shuts down (can take a few seconds)
+- **`FDAPM POWEROFF`** — shuts FreeDOS down cleanly; placed after the CALL so it always fires even if the door crashes
+
+#### One Image, Multiple Doors
+
+Because `RUN.BAT` is generated at runtime, a single FreeDOS image can host multiple doors. Each door has its own menu entry pointing at the same `image` path with a different `runBatch`:
+
+```hjson
+doorPimpWars: {
+    module: v86_door
+    config: {
+        name: PimpWars
+        image: /path/to/images/freedos_doors.img
+        dropFileType: DORINFO
+        nodeMax: 1
+        runBatch:
+            '''
+            COPY A:\{dropFile} C:\DOORS\PW\
+            C:\FOSSIL\X00.SYS
+            CD C:\DOORS\PW
+            PW.EXE {node}
+            ECHO Returning to BBS, please wait... > COM1
+            '''
+    }
+}
+
+doorSmurfCombat: {
+    module: v86_door
+    config: {
+        name: SmurfCombat
+        image: /path/to/images/freedos_doors.img   // same image
+        dropFileType: DOOR
+        nodeMax: 1
+        runBatch:
+            '''
+            COPY A:\{dropFile} C:\DOORS\SMURF\
+            C:\FOSSIL\X00.SYS
+            CD C:\DOORS\SMURF
+            SMURF.EXE {node}
+            ECHO Returning to BBS, please wait... > COM1
+            '''
+    }
+}
+```
+
+> :information_source: Concurrent sessions on the same image file are safe — each worker loads the image into its own isolated memory buffer. `nodeMax: 1` gates single-player doors, but even without it there is no shared state between sessions.
 
 #### FOSSIL Driver
 
-Most classic DOS doors use the [FOSSIL](https://en.wikipedia.org/wiki/FOSSIL) serial interface to communicate over COM1. If your door fails to start or runs in local mode, install a FOSSIL driver in your image. [X00](http://pcmicro.com/xtalk/x00.html) works well with v86. In `FDCONFIG.SYS`:
+Most classic DOS doors use the [FOSSIL](https://en.wikipedia.org/wiki/FOSSIL) serial interface for COM1 I/O. If your door fails to start or falls back to local mode, a FOSSIL driver is needed. [X00](http://pcmicro.com/xtalk/x00.html) works well with v86.
+
+Load it from `runBatch` (per-door, recommended) rather than `FDCONFIG.SYS` (global):
+
+```bat
+C:\FOSSIL\X00.SYS
+```
+
+Or in `FDCONFIG.SYS` if all doors on the image need it:
 
 ```
 DEVICE=C:\FOSSIL\X00.SYS

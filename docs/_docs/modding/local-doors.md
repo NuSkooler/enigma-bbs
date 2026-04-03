@@ -16,7 +16,7 @@ ENiGMA½ supports running local BBS door games through several approaches. In ad
 |----------|--------|----------|-----------------------|
 | **[Native v86 Emulation](local-doors-v86.md)** | `v86_door` | DOS doors, no emulator on server | FreeDOS disk image |
 | **[External DOS Emulators](local-doors-dos-emulation.md)** | `abracadabra` | DOS doors, full graphical setup | QEMU or DOSEMU installed |
-| **[Scripts & Native Binaries](local-doors-abracadabra.md)** | `abracadabra` | Linux-native doors, shell/Python scripts | None |
+| **[Scripts & Native Binaries](local-doors-abracadabra.md)** | `abracadabra` | Native terminal apps, shell/Python scripts | None |
 
 ### Quick Guide
 
@@ -24,7 +24,7 @@ ENiGMA½ supports running local BBS door games through several approaches. In ad
 
 - **Already have a QEMU or DOSEMU setup, or need a full graphical DOS environment for image configuration?** → [External DOS Emulators](local-doors-dos-emulation.md). Raw disk images are compatible with both approaches, so you can configure with QEMU and run with v86.
 
-- **Running a Linux-native binary, a shell script, or a Python-based door?** → [Scripts & Native Binaries](local-doors-abracadabra.md). The `abracadabra` module launches any local process and bridges I/O over stdio or a TCP socket.
+- **Running a native terminal application, a shell script, or a Python-based door?** → [Scripts & Native Binaries](local-doors-abracadabra.md). The `abracadabra` module launches any local process that speaks stdio and bridges I/O over stdin/stdout or a TCP socket.
 
 ---
 

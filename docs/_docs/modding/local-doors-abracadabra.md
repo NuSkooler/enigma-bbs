@@ -4,7 +4,7 @@ title: Local Doors — Scripts & Native Binaries
 ---
 ## Scripts & Native Binaries (abracadabra)
 
-The `abracadabra` module provides a generic solution for launching any local process as a door: native Linux binaries, shell scripts, Python scripts, and more. I/O is handled through standard I/O (stdio) or a temporary TCP socket server.
+The `abracadabra` module provides a generic solution for launching any local process as a door: native terminal applications, shell scripts, Python scripts, and more. Any process that communicates over stdio works. I/O is bridged through standard I/O (stdio) or a temporary TCP socket server.
 
 > :information_source: For DOS-specific setups using DOSEMU or QEMU, see [External DOS Emulators](local-doors-dos-emulation.md). For zero-dependency DOS emulation, see [Native v86 Emulation](local-doors-v86.md).
 
