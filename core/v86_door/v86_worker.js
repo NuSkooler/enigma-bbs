@@ -136,8 +136,20 @@ emulator.add_listener('emulator-loaded', () => {
 
 // ─── Serial I/O ───────────────────────────────────────────────────────────────
 
+// Buffer serial output and flush in batches — one postMessage per byte would
+// generate hundreds of cross-thread messages per second during ANSI rendering.
+let outputBuf = [];
+let flushTimer = null;
+
 emulator.add_listener('serial0-output-byte', byte => {
-    parentPort.postMessage({ type: 'output', data: Buffer.from([byte]) });
+    outputBuf.push(byte);
+    if (!flushTimer) {
+        flushTimer = setTimeout(() => {
+            parentPort.postMessage({ type: 'output', data: Buffer.from(outputBuf) });
+            outputBuf = [];
+            flushTimer = null;
+        }, 5);
+    }
 });
 
 parentPort.on('message', msg => {

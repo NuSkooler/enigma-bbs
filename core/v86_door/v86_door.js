@@ -169,6 +169,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     }
 
                     const floppyFiles = [];
+                    let dropFileName = '';
 
                     if (hasDropFile) {
                         const dropFile = new DropFile(self.client, {
@@ -181,18 +182,14 @@ exports.getModule = class V86DoorModule extends MenuModule {
                                 )
                             );
                         }
+                        dropFileName = dropFile.fileName;
                         floppyFiles.push({
-                            name: dropFile.fileName,
+                            name: dropFileName,
                             content: dropFile.getContents(),
                         });
                     }
 
                     if (hasRunBatch) {
-                        const dropFileName = hasDropFile
-                            ? new DropFile(self.client, { fileType: dropFileType })
-                                  .fileName
-                            : '';
-
                         //  Variable substitution: {dropFile}, {node}, {baud}
                         const runBatchText = self.config.runBatch
                             .replace(/\{dropFile\}/gi, dropFileName)
