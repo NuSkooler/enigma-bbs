@@ -40,6 +40,8 @@
         "deepdash": "^5.3.9",
         "easy-table": "^1.2.0",
         "exiftool": "^0.0.3",
+        "fatfs": "^0.10.8",
+        "fatfs-volume-driver": "^0.0.4",
         "follow-redirects": "^1.15.11",
         "fs-extra": "10.1.0",
         "glob": "8.0.3",
@@ -74,6 +76,7 @@
         "temptmp": "^1.1.0",
         "uuid": "8.3.2",
         "uuid-parse": "1.1.0",
+        "v86": "^0.5.319",
         "ws": "8.18.3",
         "yazl": "^2.5.1"
     },
