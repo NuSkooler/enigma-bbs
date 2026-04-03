@@ -269,7 +269,11 @@ describe('FileEntry.quickCheckExistsByPath()', function () {
                             '2024/March',
                             (err2, existsC) => {
                                 assert.ifError(err2);
-                                assert.equal(existsC, false, 'March record should not exist');
+                                assert.equal(
+                                    existsC,
+                                    false,
+                                    'March record should not exist'
+                                );
                                 done();
                             }
                         );

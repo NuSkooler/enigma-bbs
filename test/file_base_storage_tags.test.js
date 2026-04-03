@@ -122,7 +122,10 @@ describe('FileEntry.getAreaStorageDirectoryByTag() — static', () => {
     });
 
     it('returns an absolute flat tag unchanged', () => {
-        assert.equal(FileEntry.getAreaStorageDirectoryByTag('flat_abs'), '/srv/files/flat');
+        assert.equal(
+            FileEntry.getAreaStorageDirectoryByTag('flat_abs'),
+            '/srv/files/flat'
+        );
     });
 });
 
@@ -241,7 +244,10 @@ describe('relPath derivation from glob results', () => {
     });
 
     it('returns the full relative subdir path for a deeply nested file', () => {
-        assert.equal(relPathFromGlobResult('2024/April/games/foo.zip'), '2024/April/games');
+        assert.equal(
+            relPathFromGlobResult('2024/April/games/foo.zip'),
+            '2024/April/games'
+        );
     });
 
     it('returns null for a file directly in . (normalized dirname)', () => {

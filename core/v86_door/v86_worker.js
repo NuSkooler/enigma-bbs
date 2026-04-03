@@ -41,17 +41,23 @@ let diskBuffer;
 try {
     diskBuffer = readFileSync(workerData.imagePath);
 } catch (err) {
-    parentPort.postMessage({ type: 'error', message: `Cannot read disk image: ${err.message}` });
+    parentPort.postMessage({
+        type: 'error',
+        message: `Cannot read disk image: ${err.message}`,
+    });
     process.exit(1);
 }
 
 let biosBuffer;
 let vgaBiosBuffer;
 try {
-    biosBuffer    = readFileSync(workerData.biosPath);
+    biosBuffer = readFileSync(workerData.biosPath);
     vgaBiosBuffer = readFileSync(workerData.vgaBiosPath);
 } catch (err) {
-    parentPort.postMessage({ type: 'error', message: `Cannot read BIOS: ${err.message}` });
+    parentPort.postMessage({
+        type: 'error',
+        message: `Cannot read BIOS: ${err.message}`,
+    });
     process.exit(1);
 }
 
@@ -62,7 +68,10 @@ let v86WasmPath;
 try {
     ({ V86 } = require('v86'));
     // Resolve the WASM file relative to the v86 package — not relative to CWD
-    v86WasmPath = require('path').join(require('path').dirname(require.resolve('v86')), 'v86.wasm');
+    v86WasmPath = require('path').join(
+        require('path').dirname(require.resolve('v86')),
+        'v86.wasm'
+    );
 } catch (err) {
     parentPort.postMessage({ type: 'error', message: `Cannot load v86: ${err.message}` });
     process.exit(1);
@@ -72,12 +81,25 @@ const memoryMb = workerData.memoryMb || 64;
 
 const emulator = new V86({
     wasm_path: v86WasmPath,
-    bios:     { buffer: biosBuffer.buffer.slice(biosBuffer.byteOffset, biosBuffer.byteOffset + biosBuffer.byteLength) },
-    vga_bios: { buffer: vgaBiosBuffer.buffer.slice(vgaBiosBuffer.byteOffset, vgaBiosBuffer.byteOffset + vgaBiosBuffer.byteLength) },
+    bios: {
+        buffer: biosBuffer.buffer.slice(
+            biosBuffer.byteOffset,
+            biosBuffer.byteOffset + biosBuffer.byteLength
+        ),
+    },
+    vga_bios: {
+        buffer: vgaBiosBuffer.buffer.slice(
+            vgaBiosBuffer.byteOffset,
+            vgaBiosBuffer.byteOffset + vgaBiosBuffer.byteLength
+        ),
+    },
 
     // HDD: door image (C: in FreeDOS) — sync, no async (would deadlock)
     hda: {
-        buffer: diskBuffer.buffer.slice(diskBuffer.byteOffset, diskBuffer.byteOffset + diskBuffer.byteLength),
+        buffer: diskBuffer.buffer.slice(
+            diskBuffer.byteOffset,
+            diskBuffer.byteOffset + diskBuffer.byteLength
+        ),
         async: false,
     },
 
@@ -95,7 +117,7 @@ const emulator = new V86({
     // but no bootable code — the CPU would execute garbage and hang.
     boot_order: 786,
 
-    memory_size:     memoryMb * 1024 * 1024,
+    memory_size: memoryMb * 1024 * 1024,
     vga_memory_size: 2 * 1024 * 1024,
 
     screen_dummy: true,
@@ -108,7 +130,7 @@ const emulator = new V86({
 
 emulator.add_listener('emulator-loaded', () => {
     // Assert DCD + DSR + CTS on COM1 so door games see a live connection
-    emulator.serial_set_modem_status(0, 0xB0);
+    emulator.serial_set_modem_status(0, 0xb0);
     parentPort.postMessage({ type: 'ready' });
 });
 
@@ -156,8 +178,8 @@ emulator.add_listener('emulator-stopped', () => {
 // 'emulator-stopped'. If the instruction counter stops advancing (with ic > 1M),
 // the CPU is halted — trigger shutdown.
 let lastInsnCount = 0;
-let haltTicks     = 0;
-const HALT_TICKS_REQUIRED = 2;  // 2 × 5s = 10 seconds of no progress
+let haltTicks = 0;
+const HALT_TICKS_REQUIRED = 2; // 2 × 5s = 10 seconds of no progress
 
 const haltTimer = setInterval(() => {
     const ic = emulator.get_instruction_counter();

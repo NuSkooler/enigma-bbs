@@ -35,32 +35,32 @@
  *   curl -fL https://github.com/copy/v86/raw/master/bios/vgabios.bin -o misc/v86_bios/vgabios.bin
  */
 
-const { MenuModule }      = require('../menu_module.js');
-const { Errors }          = require('../enig_error.js');
+const { MenuModule } = require('../menu_module.js');
+const { Errors } = require('../enig_error.js');
 const { trackDoorRunBegin, trackDoorRunEnd } = require('../door_util.js');
-const DropFile            = require('../dropfile.js');
-const theme               = require('../theme.js');
-const ansi                = require('../ansi_term.js');
+const DropFile = require('../dropfile.js');
+const theme = require('../theme.js');
+const ansi = require('../ansi_term.js');
 const { createFloppyWithFiles } = require('./fat_image.js');
 
 //  deps
-const async  = require('async');
-const _      = require('lodash');
-const paths  = require('path');
+const async = require('async');
+const _ = require('lodash');
+const paths = require('path');
 const { existsSync } = require('fs');
-const { Worker }     = require('worker_threads');
+const { Worker } = require('worker_threads');
 
-const WORKER_PATH   = paths.join(__dirname, 'v86_worker.js');
-const ENIGMA_ROOT   = paths.join(__dirname, '..', '..');
-const DEFAULT_BIOS_PATH     = paths.join(ENIGMA_ROOT, 'misc', 'v86_bios', 'seabios.bin');
+const WORKER_PATH = paths.join(__dirname, 'v86_worker.js');
+const ENIGMA_ROOT = paths.join(__dirname, '..', '..');
+const DEFAULT_BIOS_PATH = paths.join(ENIGMA_ROOT, 'misc', 'v86_bios', 'seabios.bin');
 const DEFAULT_VGA_BIOS_PATH = paths.join(ENIGMA_ROOT, 'misc', 'v86_bios', 'vgabios.bin');
 
 //  Track active instances per door name (mirrors abracadabra pattern)
 const activeDoorInstances = {};
 
 exports.moduleInfo = {
-    name:   'V86Door',
-    desc:   'Native x86/DOS Door Emulation via v86',
+    name: 'V86Door',
+    desc: 'Native x86/DOS Door Emulation via v86',
     author: 'NuSkooler',
 };
 
@@ -69,10 +69,10 @@ exports.getModule = class V86DoorModule extends MenuModule {
         super(options);
 
         this.config = options.menuConfig.config || {};
-        this.config.nodeMax  = this.config.nodeMax  || 0;
+        this.config.nodeMax = this.config.nodeMax || 0;
         this.config.memoryMb = this.config.memoryMb || 64;
 
-        this.config.biosPath    = this.config.biosPath    || DEFAULT_BIOS_PATH;
+        this.config.biosPath = this.config.biosPath || DEFAULT_BIOS_PATH;
         this.config.vgaBiosPath = this.config.vgaBiosPath || DEFAULT_VGA_BIOS_PATH;
     }
 
@@ -91,14 +91,14 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
                 function checkBios(callback) {
                     for (const [label, p] of [
-                        ['biosPath',    self.config.biosPath],
+                        ['biosPath', self.config.biosPath],
                         ['vgaBiosPath', self.config.vgaBiosPath],
                     ]) {
                         if (!existsSync(p)) {
                             return callback(
                                 Errors.MissingConfig(
                                     `v86_door: ${label} not found: ${p}\n` +
-                                    'Download BIOS files from https://github.com/copy/v86/tree/master/bios'
+                                        'Download BIOS files from https://github.com/copy/v86/tree/master/bios'
                                 )
                             );
                         }
@@ -109,7 +109,9 @@ exports.getModule = class V86DoorModule extends MenuModule {
                 function checkImage(callback) {
                     if (!existsSync(self.config.image)) {
                         return callback(
-                            Errors.MissingConfig(`v86_door: disk image not found: ${self.config.image}`)
+                            Errors.MissingConfig(
+                                `v86_door: disk image not found: ${self.config.image}`
+                            )
                         );
                     }
                     return callback(null);
@@ -132,12 +134,18 @@ exports.getModule = class V86DoorModule extends MenuModule {
                                 { client: self.client, name: self.config.tooManyArt },
                                 () => {
                                     self.pausePrompt(() =>
-                                        callback(Errors.AccessDenied('Too many active instances'))
+                                        callback(
+                                            Errors.AccessDenied(
+                                                'Too many active instances'
+                                            )
+                                        )
                                     );
                                 }
                             );
                         } else {
-                            self.client.term.write('\nToo many active instances. Try again later.\n');
+                            self.client.term.write(
+                                '\nToo many active instances. Try again later.\n'
+                            );
                             self.pausePrompt(() =>
                                 callback(Errors.AccessDenied('Too many active instances'))
                             );
@@ -150,8 +158,10 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
                 function buildFloppy(callback) {
                     const dropFileType = (self.config.dropFileType || '').toUpperCase();
-                    const hasDropFile  = dropFileType && dropFileType !== 'NONE';
-                    const hasRunBatch  = _.isString(self.config.runBatch) && self.config.runBatch.trim().length > 0;
+                    const hasDropFile = dropFileType && dropFileType !== 'NONE';
+                    const hasRunBatch =
+                        _.isString(self.config.runBatch) &&
+                        self.config.runBatch.trim().length > 0;
 
                     if (!hasDropFile && !hasRunBatch) {
                         self.floppyBuffer = null;
@@ -161,32 +171,43 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     const floppyFiles = [];
 
                     if (hasDropFile) {
-                        const dropFile = new DropFile(self.client, { fileType: dropFileType });
+                        const dropFile = new DropFile(self.client, {
+                            fileType: dropFileType,
+                        });
                         if (!dropFile.isSupported()) {
                             return callback(
-                                Errors.MissingConfig(`v86_door: unsupported dropFileType "${dropFileType}" (use DORINFO, DOOR, or DOOR32)`)
+                                Errors.MissingConfig(
+                                    `v86_door: unsupported dropFileType "${dropFileType}" (use DORINFO, DOOR, or DOOR32)`
+                                )
                             );
                         }
-                        floppyFiles.push({ name: dropFile.fileName, content: dropFile.getContents() });
+                        floppyFiles.push({
+                            name: dropFile.fileName,
+                            content: dropFile.getContents(),
+                        });
                     }
 
                     if (hasRunBatch) {
                         const dropFileName = hasDropFile
-                            ? new DropFile(self.client, { fileType: dropFileType }).fileName
+                            ? new DropFile(self.client, { fileType: dropFileType })
+                                  .fileName
                             : '';
 
                         //  Variable substitution: {dropFile}, {node}, {baud}
                         const runBatchText = self.config.runBatch
                             .replace(/\{dropFile\}/gi, dropFileName)
-                            .replace(/\{node\}/gi,     String(self.client.node))
-                            .replace(/\{baud\}/gi,     '57600');
+                            .replace(/\{node\}/gi, String(self.client.node))
+                            .replace(/\{baud\}/gi, '57600');
 
                         //  Normalize to CRLF — DOS requires it
                         const runBatchCrlf = runBatchText
                             .replace(/\r\n/g, '\n')
                             .replace(/\n/g, '\r\n');
 
-                        floppyFiles.push({ name: 'RUN.BAT', content: Buffer.from(runBatchCrlf, 'ascii') });
+                        floppyFiles.push({
+                            name: 'RUN.BAT',
+                            content: Buffer.from(runBatchCrlf, 'ascii'),
+                        });
                     }
 
                     createFloppyWithFiles(floppyFiles)
@@ -201,10 +222,10 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     const doorTracking = trackDoorRunBegin(self.client, self.config.name);
 
                     const workerData = {
-                        imagePath:   self.config.image,
+                        imagePath: self.config.image,
                         floppyBuffer: self.floppyBuffer || Buffer.alloc(0),
-                        memoryMb:    self.config.memoryMb,
-                        biosPath:    self.config.biosPath,
+                        memoryMb: self.config.memoryMb,
+                        biosPath: self.config.biosPath,
                         vgaBiosPath: self.config.vgaBiosPath,
                     };
 
@@ -223,12 +244,16 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     const doorName = self.config.name;
 
                     self.client.term.write(ansi.resetScreen());
-                    self.client.term.write(`\r\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`);
+                    self.client.term.write(
+                        `\r\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`
+                    );
 
                     const spinnerInterval = setInterval(() => {
                         spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
                         self.client.term.rawWrite(
-                            Buffer.from(`\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`)
+                            Buffer.from(
+                                `\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`
+                            )
                         );
                     }, 150);
 
@@ -278,7 +303,10 @@ exports.getModule = class V86DoorModule extends MenuModule {
                                     { name: self.config.name, elapsed: secs },
                                     'v86 emulator stopped'
                                 );
-                                self.client.term.output.removeListener('data', onClientData);
+                                self.client.term.output.removeListener(
+                                    'data',
+                                    onClientData
+                                );
                                 trackDoorRunEnd(doorTracking);
                                 self._decrementInstances();
                                 return callback(null);
@@ -290,7 +318,10 @@ exports.getModule = class V86DoorModule extends MenuModule {
                                     { name: self.config.name, error: msg.message },
                                     'v86 worker error'
                                 );
-                                self.client.term.output.removeListener('data', onClientData);
+                                self.client.term.output.removeListener(
+                                    'data',
+                                    onClientData
+                                );
                                 trackDoorRunEnd(doorTracking);
                                 self._decrementInstances();
                                 return callback(new Error(msg.message));

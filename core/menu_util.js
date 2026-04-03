@@ -234,7 +234,11 @@ function handleAction(client, formData, conf, cb) {
             } else {
                 //  local to current module
                 const currentModule = client.currentMenuModule;
-                if (currentModule && currentModule.menuMethods && _.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+                if (
+                    currentModule &&
+                    currentModule.menuMethods &&
+                    _.isFunction(currentModule.menuMethods[actionAsset.asset])
+                ) {
                     return currentModule.menuMethods[actionAsset.asset](
                         formData,
                         conf.extraArgs,
@@ -242,7 +246,9 @@ function handleAction(client, formData, conf, cb) {
                     );
                 }
 
-                const err = Errors.DoesNotExist(`Method does not exist: ${actionAsset.asset}`);
+                const err = Errors.DoesNotExist(
+                    `Method does not exist: ${actionAsset.asset}`
+                );
                 client.log.warn({ method: actionAsset.asset }, err.message);
                 return cb(err);
             }
@@ -328,7 +334,11 @@ function handleNext(client, nextSpec, conf, cb) {
             } else {
                 //  local to current module
                 const currentModule = client.currentMenuModule;
-                if (currentModule && currentModule.menuMethods && _.isFunction(currentModule.menuMethods[nextAsset.asset])) {
+                if (
+                    currentModule &&
+                    currentModule.menuMethods &&
+                    _.isFunction(currentModule.menuMethods[nextAsset.asset])
+                ) {
                     const formData = {}; //   we don't have any
                     return currentModule.menuMethods[nextAsset.asset](
                         formData,
@@ -337,7 +347,9 @@ function handleNext(client, nextSpec, conf, cb) {
                     );
                 }
 
-                const err = Errors.DoesNotExist(`Method does not exist: ${nextAsset.asset}`);
+                const err = Errors.DoesNotExist(
+                    `Method does not exist: ${nextAsset.asset}`
+                );
                 client.log.warn({ method: nextAsset.asset }, err.message);
                 return cb(err);
             }

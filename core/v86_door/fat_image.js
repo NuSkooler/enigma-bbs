@@ -18,14 +18,14 @@
 const fatfs = require('fatfs');
 const { createBufferDriverSync } = require('fatfs-volume-driver');
 
-const SECTOR_SIZE        = 512;
-const NUM_SECTORS        = 2880;  // 80 tracks × 2 heads × 18 sectors
-const IMAGE_SIZE         = SECTOR_SIZE * NUM_SECTORS;  // 1,474,560 bytes
-const SECTORS_PER_FAT   = 9;
-const NUM_FATS           = 2;
-const ROOT_ENTRY_COUNT   = 224;
+const SECTOR_SIZE = 512;
+const NUM_SECTORS = 2880; // 80 tracks × 2 heads × 18 sectors
+const IMAGE_SIZE = SECTOR_SIZE * NUM_SECTORS; // 1,474,560 bytes
+const SECTORS_PER_FAT = 9;
+const NUM_FATS = 2;
+const ROOT_ENTRY_COUNT = 224;
 const SECTORS_PER_CLUSTER = 1;
-const RESERVED_SECTORS   = 1;
+const RESERVED_SECTORS = 1;
 
 const FAT1_SECTOR = RESERVED_SECTORS;
 const FAT2_SECTOR = FAT1_SECTOR + SECTORS_PER_FAT;
@@ -34,34 +34,34 @@ const ROOT_SECTOR = FAT2_SECTOR + SECTORS_PER_FAT;
 function buildBootSector() {
     const sector = Buffer.alloc(SECTOR_SIZE, 0);
 
-    sector[0] = 0xEB;
-    sector[1] = 0x3C;
+    sector[0] = 0xeb;
+    sector[1] = 0x3c;
     sector[2] = 0x90;
 
     sector.write('MSDOS5.0', 3, 'ascii');
 
-    sector.writeUInt16LE(SECTOR_SIZE,        11);  // BytsPerSec
-    sector[13] = SECTORS_PER_CLUSTER;              // SecPerClus
-    sector.writeUInt16LE(RESERVED_SECTORS,   14);  // RsvdSecCnt
-    sector[16] = NUM_FATS;                         // NumFATs
-    sector.writeUInt16LE(ROOT_ENTRY_COUNT,   17);  // RootEntCnt
-    sector.writeUInt16LE(NUM_SECTORS,        19);  // TotSec16
-    sector[21] = 0xF0;                             // Media descriptor (1.44MB floppy)
-    sector.writeUInt16LE(SECTORS_PER_FAT,    22);  // FATSz16
-    sector.writeUInt16LE(18,                 24);  // SecPerTrk
-    sector.writeUInt16LE(2,                  26);  // NumHeads
-    sector.writeUInt32LE(0,                  28);  // HiddSec
-    sector.writeUInt32LE(0,                  32);  // TotSec32 (0 = use TotSec16)
+    sector.writeUInt16LE(SECTOR_SIZE, 11); // BytsPerSec
+    sector[13] = SECTORS_PER_CLUSTER; // SecPerClus
+    sector.writeUInt16LE(RESERVED_SECTORS, 14); // RsvdSecCnt
+    sector[16] = NUM_FATS; // NumFATs
+    sector.writeUInt16LE(ROOT_ENTRY_COUNT, 17); // RootEntCnt
+    sector.writeUInt16LE(NUM_SECTORS, 19); // TotSec16
+    sector[21] = 0xf0; // Media descriptor (1.44MB floppy)
+    sector.writeUInt16LE(SECTORS_PER_FAT, 22); // FATSz16
+    sector.writeUInt16LE(18, 24); // SecPerTrk
+    sector.writeUInt16LE(2, 26); // NumHeads
+    sector.writeUInt32LE(0, 28); // HiddSec
+    sector.writeUInt32LE(0, 32); // TotSec32 (0 = use TotSec16)
 
-    sector[36] = 0x00;                             // DrvNum (floppy = 0)
-    sector[37] = 0x00;                             // Reserved1
-    sector[38] = 0x29;                             // BootSig
-    sector.writeUInt32LE(0x12345678,         39);  // VolID
-    sector.write('NO NAME    ',              43, 'ascii');  // VolLab (11 bytes)
-    sector.write('FAT12   ',                 54, 'ascii');  // FilSysType (8 bytes)
+    sector[36] = 0x00; // DrvNum (floppy = 0)
+    sector[37] = 0x00; // Reserved1
+    sector[38] = 0x29; // BootSig
+    sector.writeUInt32LE(0x12345678, 39); // VolID
+    sector.write('NO NAME    ', 43, 'ascii'); // VolLab (11 bytes)
+    sector.write('FAT12   ', 54, 'ascii'); // FilSysType (8 bytes)
 
     sector[510] = 0x55;
-    sector[511] = 0xAA;
+    sector[511] = 0xaa;
 
     return sector;
 }
@@ -69,9 +69,9 @@ function buildBootSector() {
 function buildFATTable() {
     const fat = Buffer.alloc(SECTORS_PER_FAT * SECTOR_SIZE, 0);
     // Reserved entries: media descriptor + EOC marker
-    fat[0] = 0xF0;
-    fat[1] = 0xFF;
-    fat[2] = 0xFF;
+    fat[0] = 0xf0;
+    fat[1] = 0xff;
+    fat[2] = 0xff;
     return fat;
 }
 
@@ -111,7 +111,9 @@ function createFloppyWithFiles(files) {
             for (const { name, content } of files) {
                 fs.writeFile(name, content, err => {
                     if (err) {
-                        return reject(new Error(`Failed to write ${name} to floppy: ${err.message}`));
+                        return reject(
+                            new Error(`Failed to write ${name} to floppy: ${err.message}`)
+                        );
                     }
                     pending--;
                     if (pending === 0) {

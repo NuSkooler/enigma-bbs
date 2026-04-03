@@ -1412,18 +1412,16 @@ exports.getModule = class NNTPServerModule extends ServerModule {
                 const server = this[`${service}Server`];
                 if (server) {
                     const port = config.contentServers.nntp[service].port;
-                    server
-                        .listen(this.listenURI(port, service))
-                        .then(
-                            () => nextService(null),
-                            e => {
-                                Log.warn(
-                                    { error: e.message, port },
-                                    `${service.toUpperCase()} failed to listen`
-                                );
-                                return nextService(null); //  try next anyway
-                            }
-                        );
+                    server.listen(this.listenURI(port, service)).then(
+                        () => nextService(null),
+                        e => {
+                            Log.warn(
+                                { error: e.message, port },
+                                `${service.toUpperCase()} failed to listen`
+                            );
+                            return nextService(null); //  try next anyway
+                        }
+                    );
                 } else {
                     return nextService(null);
                 }
