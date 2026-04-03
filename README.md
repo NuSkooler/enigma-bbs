@@ -88,6 +88,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * Al's Geek Lab for the [installation video](https://youtu.be/WnN-ucVi3ZU) and of course the [Back to the BBS - Part one: The return to being online](https://www.youtube.com/watch?reload=9&v=n0OwGSX2IiQ) documentary!
 * Alpha for the [FTN-style configuration guide](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d)!
 * Huge shout out to [cognitivegears ](https://github.com/cognitivegears) for the various fixes, improvements, and **removing the need for cursor position reports** providing a much better terminal experience!
+* MeaTLoTioN for the MRC contributions!
 
 ...and so many others! This project would be nothing without the BBS and art scene communities!
 
