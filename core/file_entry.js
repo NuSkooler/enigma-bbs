@@ -274,15 +274,14 @@ module.exports = class FileEntry {
         const storageDir = paths.resolve(
             FileEntry.getAreaStorageDirectoryByTag(this.storageTag)
         );
-        const resolved = paths.resolve(storageDir, this.relPath || '', this.fileName || '');
+        const resolved = paths.resolve(
+            storageDir,
+            this.relPath || '',
+            this.fileName || ''
+        );
         //  guard against a crafted storage_tag_rel_path escaping the storage root
-        if (
-            resolved !== storageDir &&
-            !resolved.startsWith(storageDir + paths.sep)
-        ) {
-            throw new Error(
-                `Path traversal detected for file_id ${this.fileId}`
-            );
+        if (resolved !== storageDir && !resolved.startsWith(storageDir + paths.sep)) {
+            throw new Error(`Path traversal detected for file_id ${this.fileId}`);
         }
         return resolved;
     }
@@ -615,7 +614,10 @@ module.exports = class FileEntry {
                         },
                     ],
                     err => {
-                        return cb(err, err ? undefined : Array.from(entriesById.values()));
+                        return cb(
+                            err,
+                            err ? undefined : Array.from(entriesById.values())
+                        );
                     }
                 );
             }
@@ -700,7 +702,9 @@ module.exports = class FileEntry {
 
         if (filter.areaTag && filter.areaTag.length > 0) {
             if (Array.isArray(filter.areaTag)) {
-                const areaList = filter.areaTag.map(t => `"${sanitizeString(t)}"`).join(', ');
+                const areaList = filter.areaTag
+                    .map(t => `"${sanitizeString(t)}"`)
+                    .join(', ');
                 appendWhereClause(`f.area_tag IN(${areaList})`);
             } else {
                 appendWhereClause(`f.area_tag = "${sanitizeString(filter.areaTag)}"`);

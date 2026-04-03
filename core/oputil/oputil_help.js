@@ -22,6 +22,8 @@ Commands:
   mb                        Message base management
   ap                        ActivityPub management
   ssh                       SSH key management
+  fat                       FAT disk image management
+  v86                       v86 x86 emulation tools
 `,
     User: `usage: oputil.js user <action> [<arguments>]
 
@@ -244,6 +246,66 @@ condition arguments:
 
 Actions:
   create                      Create new SSH Keys
+`,
+    Fat: `usage: oputil.js fat <action> <image.img> [arguments]
+
+Inspect and modify raw FAT disk images without a running ENiGMA instance.
+Works on any partitioned FAT12/16/32 raw disk image (.img).
+
+Actions:
+  ls IMAGE [PATH]             List files and directories in image
+  (dir)                       PATH defaults to the root of the partition
+
+  cp IMAGE SRC DST [SRC DST] Copy one or more local files/directories into image
+  (copy)                      SRC is a local path; DST is a DOS path within the image
+                              Directories are copied recursively
+
+  read IMAGE DOS-PATH         Read a file from the image and write it to stdout
+  (cat, type)
+
+Examples:
+  oputil.js fat ls   freedos.img
+  oputil.js fat ls   freedos.img DOORS/LORD
+  oputil.js fat cp   freedos.img ./pimpwars/ DOORS/PW/PIMPWARS
+  oputil.js fat cp   freedos.img fdconfig.sys FDCONFIG.SYS
+  oputil.js fat read freedos.img FDAUTO.BAT
+  oputil.js fat read freedos.img FDCONFIG.SYS | less
+`,
+    V86: `usage: oputil.js v86 <action> <image.img> [arguments]
+
+Boot a raw FreeDOS disk image using the v86 x86 emulator.
+Does not require a running ENiGMA instance.
+
+BIOS files default to misc/v86_bios/seabios.bin and misc/v86_bios/vgabios.bin.
+Run misc/install.sh to download them, or see docs/_docs/modding/local-doors-v86.md.
+
+Actions:
+  console IMAGE               Boot image and monitor COM1 output in this terminal
+                              Ctrl+] to exit.
+                              Note: keyboard input is not forwarded to the shell —
+                              a C:\> prompt confirms serial output is working, but
+                              the shell is not interactive. Use 'desktop' instead.
+                              Full-screen programs (VGA RAM) also won't appear here.
+
+  desktop IMAGE               Boot image and open a full VGA DOS desktop in
+                              the system browser. Use to install and configure
+                              doors. A "Save Image" button downloads the modified
+                              image when done.
+
+Options:
+  --bios PATH                 Override SeaBIOS path
+  --vga-bios PATH             Override VGA BIOS path
+  --port PORT                 HTTP port for desktop mode (default: 18086)
+  --host HOST                 Bind host for desktop mode (default: 127.0.0.1)
+                              Use 0.0.0.0 to allow remote access, or set up an
+                              SSH tunnel: ssh -L PORT:localhost:PORT user@host
+  --memory MB                 Guest RAM in MB (default: 64)
+
+Examples:
+  oputil.js v86 console freedos.img
+  oputil.js v86 console freedos.img --bios /path/to/seabios.bin
+  oputil.js v86 desktop freedos.img
+  oputil.js v86 desktop freedos.img --port 9000
 `,
 });
 

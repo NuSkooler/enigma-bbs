@@ -31,6 +31,8 @@ Commands break up operations by groups:
 | `config`  | System configuration and maintenance |
 | `fb`      | File base configuration and management    |
 | `mb`      | Message base configuration and management |
+| `fat`     | FAT disk image inspection and modification |
+| `v86`     | Boot disk images in the v86 x86 emulator |
 
 Global arguments apply to most commands and actions:
 * `--config`: Specify configuration directory if it is not the default of `./config/`.
@@ -329,3 +331,128 @@ qwk-export arguments:
 | `qwk-export` | Export messages to a QWK packet | `./oputil.js mb qwk-export /path/to/XIBALBA.QWK` |
 
 When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".
+
+## FAT Disk Image Management
+The `fat` command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the `v86_door` module.
+
+Works with any partitioned FAT12/16/32 raw disk image (`.img`).
+
+```
+usage: oputil.js fat <action> <image.img> [arguments]
+
+Actions:
+  ls IMAGE [PATH]             List files and directories in image
+  (dir)                       PATH defaults to the root of the partition
+
+  cp IMAGE SRC DST [SRC DST] Copy one or more local files/directories into image
+  (copy)                      SRC is a local path; DST is a DOS path within the image
+                              Directories are copied recursively
+
+  read IMAGE DOS-PATH         Read a file from the image and write it to stdout
+  (cat, type)
+```
+
+| Action  | Description | Aliases |
+|---------|-------------|---------|
+| `ls`    | List files and directories at an optional DOS path | `dir` |
+| `cp`    | Copy local files or directories into the image | `copy` |
+| `read`  | Read a file from the image and write to stdout | `cat`, `type` |
+
+#### Examples
+
+List files at the root of the image:
+```bash
+./oputil.js fat ls freedos.img
+```
+
+List a subdirectory:
+```bash
+./oputil.js fat ls freedos.img DOORS/LORD
+```
+
+Copy a local directory recursively into the image:
+```bash
+./oputil.js fat cp freedos.img ./pimpwars/ DOORS/PW/PIMPWARS
+```
+
+Copy a single file:
+```bash
+./oputil.js fat cp freedos.img fdconfig.sys FDCONFIG.SYS
+```
+
+Read a file from the image (can be piped):
+```bash
+./oputil.js fat read freedos.img FDAUTO.BAT
+./oputil.js fat read freedos.img FDCONFIG.SYS | less
+```
+
+## v86 Emulation Tools
+The `v86` command boots raw FreeDOS disk images using the [v86](https://github.com/copy/v86) x86 emulator. Does not require a running ENiGMA instance.
+
+BIOS files default to `misc/v86_bios/seabios.bin` and `misc/v86_bios/vgabios.bin`. Run `misc/install.sh` to download them, or see [Local Doors — v86](../modding/local-doors-v86.md) for details.
+
+```
+usage: oputil.js v86 <action> <image.img> [arguments]
+
+Actions:
+  console IMAGE               Boot image and wire COM1 to this terminal
+                              Useful for verifying door I/O. Ctrl+] to exit.
+                              Note: full-screen DOS programs write to VGA RAM
+                              and will not appear over serial. Use 'desktop' instead.
+
+  desktop IMAGE               Boot image and open a full VGA DOS desktop in
+                              the system browser. Use to install and configure
+                              doors. A "Save Image" button downloads the modified
+                              image when done.
+
+Options:
+  --bios PATH                 Override SeaBIOS path
+  --vga-bios PATH             Override VGA BIOS path
+  --port PORT                 HTTP port for desktop mode (default: 18086)
+  --memory MB                 Guest RAM in MB (default: 64)
+```
+
+| Action    | Description |
+|-----------|-------------|
+| `console` | Boot the image and bridge COM1 to your terminal. Press `Ctrl+]` to exit. |
+| `desktop` | Boot the image in a browser with full VGA output. A **Save Image** button lets you download the modified image when done. |
+
+#### console
+`console` mode boots the image and bridges COM1 to your terminal. It is useful for monitoring door serial output — for example, verifying that a door's COM1 I/O is working correctly before going live.
+
+```bash
+./oputil.js v86 console freedos.img
+```
+
+Override BIOS paths:
+```bash
+./oputil.js v86 console freedos.img --bios /path/to/seabios.bin --vga-bios /path/to/vgabios.bin
+```
+
+**Limitations:**
+
+- **Input is not supported.** A `C:\>` prompt will appear (confirming the boot chain and serial output are working), but keystrokes are not forwarded to the shell. This is a limitation of how v86's serial receive interacts with FreeDOS's BIOS INT 14h input — it works for door games that use a FOSSIL driver, but not for interactive shell use. Use `desktop` for an interactive DOS session.
+- **Full-screen programs are not visible.** Programs that draw directly to VGA memory (most door games) will not appear over serial. Again, use `desktop` for those.
+
+#### desktop
+`desktop` mode starts a local HTTP server, serves the v86 emulator and the disk image, and opens your default browser automatically. The page includes a full VGA canvas and a **Save Image** button to write changes back to disk.
+
+```bash
+./oputil.js v86 desktop freedos.img
+```
+
+Use a custom HTTP port:
+```bash
+./oputil.js v86 desktop freedos.img --port 9000
+```
+
+Close the browser tab or press `Ctrl+C` to stop the server.
+
+#### A note on image size
+
+`desktop` mode downloads the entire disk image into the browser before booting. Smaller images load faster:
+
+- A minimal FreeDOS installation with a handful of doors fits comfortably in **100–200 MB** and loads in a few seconds on a typical connection.
+- A 500 MB image will take noticeably longer, especially when accessed over an SSH tunnel or slow link.
+- Prefer lean images: install only what a door needs, and avoid bundling large data files that aren't required at runtime.
+- The same advice applies to the live BBS door sessions — smaller images mean less RAM and faster startup for users.

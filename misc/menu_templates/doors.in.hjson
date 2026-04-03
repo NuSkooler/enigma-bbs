@@ -38,6 +38,14 @@
                     value: { command: "EXODUS" }
                     action: @menu:doorExodusCataclysm
                 }
+                //
+                //  v86 native DOS emulation example
+                //  See: docs/_docs/modding/local-doors-v86.md
+                //
+                {
+                    value: { command: "MYGAME" }
+                    action: @menu:doorMyGameV86
+                }
             ]
         }
 
@@ -93,6 +101,48 @@
                 username: XXXXXXXX
                 password: XXXXXXXX
                 bbsTag: XX
+            }
+        }
+
+        //
+        //  Native x86/DOS door via v86 — no external emulator required.
+        //
+        //  Prerequisites:
+        //    1. A raw FreeDOS disk image (.img) with your door(s) pre-installed.
+        //       Compatible with QEMU and DOSBox-X for image setup.
+        //    2. BIOS files in misc/v86_bios/ (downloaded automatically by install.sh).
+        //
+        //  Image AUTOEXEC.BAT / FDAUTO.BAT convention:
+        //    CALL A:\RUN.BAT
+        //    ECHO Shutting down, please wait... > COM1
+        //    FDAPM POWEROFF
+        //
+        //  ENiGMA writes RUN.BAT to the A: floppy at runtime using the runBatch config
+        //  below. This lets a single image host multiple doors — one entry per door,
+        //  same image path.
+        //
+        //  See docs/_docs/modding/local-doors-v86.md for full setup instructions.
+        //
+        doorMyGameV86: {
+            desc: My DOS Door (v86)
+            module: v86_door
+            config: {
+                name: MyGame
+                image: /path/to/images/freedos_doors.img
+                dropFileType: DORINFO
+                nodeMax: 1
+                tooManyArt: DOORMANY
+                runBatch:
+                    '''
+                    COPY A:\{dropFile} C:\DOORS\MYGAME\
+                    C:\FOSSIL\X00.SYS
+                    CD C:\DOORS\MYGAME
+                    MYGAME.EXE {node}
+                    ECHO Returning to BBS, please wait... > COM1
+                    '''
+                //  memoryMb: 64      // optional, default 64
+                //  biosPath: /path/to/seabios.bin      // default: misc/v86_bios/seabios.bin
+                //  vgaBiosPath: /path/to/vgabios.bin   // default: misc/v86_bios/vgabios.bin
             }
         }
 

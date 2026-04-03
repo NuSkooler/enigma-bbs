@@ -208,6 +208,26 @@ copy_template_files() {
     fi
 }
 
+download_v86_bios() {
+    local BIOS_DIR="${ENIGMA_INSTALL_DIR}/misc/v86_bios"
+    local V86_BIOS_BASE="https://github.com/copy/v86/raw/master/bios"
+
+    log "Downloading v86 BIOS files to ${BIOS_DIR}..."
+    mkdir -p "${BIOS_DIR}"
+
+    for BIOS_FILE in seabios.bin vgabios.bin; do
+        if [[ -f "${BIOS_DIR}/${BIOS_FILE}" ]]; then
+            log "  ${BIOS_FILE} already present, skipping."
+        else
+            log "  Downloading ${BIOS_FILE}..."
+            curl -fL "${V86_BIOS_BASE}/${BIOS_FILE}" -o "${BIOS_DIR}/${BIOS_FILE}" ||
+                fatal_error "Failed to download ${BIOS_FILE} from ${V86_BIOS_BASE}"
+        fi
+    done
+
+    log "v86 BIOS files ready."
+}
+
 enigma_footer() {
     log "ENiGMA½ installation complete!"
     printf "${FOREGROUND_YELLOW}"
@@ -298,6 +318,7 @@ install_bbs() {
 
     download_enigma_source
     copy_template_files
+    download_v86_bios
 }
 
 install_everything() {
@@ -305,6 +326,7 @@ install_everything() {
     download_enigma_source
     install_dependencies
     copy_template_files
+    download_v86_bios
 }
 
 menu() {

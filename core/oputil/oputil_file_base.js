@@ -184,9 +184,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
     //  Build an ignore filter from all .enigmaignore files found under baseDir.
     //  Rules are gitignore-style and scoped to the directory containing each file.
     function buildIgnoreFilter(baseDir, relFiles, next) {
-        const ignoreFiles = relFiles.filter(
-            rf => paths.basename(rf) === '.enigmaignore'
-        );
+        const ignoreFiles = relFiles.filter(rf => paths.basename(rf) === '.enigmaignore');
         if (0 === ignoreFiles.length) {
             return next(null, null);
         }
@@ -205,9 +203,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                     content.split('\n').forEach(line => {
                         const trimmed = line.trim();
                         if (trimmed && !trimmed.startsWith('#')) {
-                            ig.add(
-                                ignDir === '.' ? trimmed : `${ignDir}/${trimmed}`
-                            );
+                            ig.add(ignDir === '.' ? trimmed : `${ignDir}/${trimmed}`);
                         }
                     });
                 }
@@ -227,27 +223,32 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
         const pattern = options.glob || (storageLoc.isWildcard ? '**/*' : null);
         if (pattern) {
             //  include .enigmaignore files in the glob so buildIgnoreFilter can read them
-            glob(pattern, { cwd: storageLoc.dir, nodir: true, follow: false }, (err, relFiles) => {
-                if (err) {
-                    return next(err);
-                }
-                buildIgnoreFilter(storageLoc.dir, relFiles, (err, ig) => {
+            glob(
+                pattern,
+                { cwd: storageLoc.dir, nodir: true, follow: false },
+                (err, relFiles) => {
                     if (err) {
                         return next(err);
                     }
-                    const filtered = relFiles
-                        .filter(rf => paths.basename(rf) !== '.enigmaignore')
-                        .filter(rf => !ig || !ig.ignores(rf));
-                    return next(
-                        null,
-                        filtered.map(rf => ({
-                            relFile: rf,
-                            relPath: paths.dirname(rf) === '.' ? null : paths.dirname(rf),
-                        })),
-                        true //  fromGlob — skip stat check
-                    );
-                });
-            });
+                    buildIgnoreFilter(storageLoc.dir, relFiles, (err, ig) => {
+                        if (err) {
+                            return next(err);
+                        }
+                        const filtered = relFiles
+                            .filter(rf => paths.basename(rf) !== '.enigmaignore')
+                            .filter(rf => !ig || !ig.ignores(rf));
+                        return next(
+                            null,
+                            filtered.map(rf => ({
+                                relFile: rf,
+                                relPath:
+                                    paths.dirname(rf) === '.' ? null : paths.dirname(rf),
+                            })),
+                            true //  fromGlob — skip stat check
+                        );
+                    });
+                }
+            );
         } else {
             fs.readdir(storageLoc.dir, (err, fileNames) => {
                 if (err) {
@@ -303,8 +304,9 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                     //  when scanning a WC tag — those files are owned by the
                                     //  more-specific flat tag and will be (or were) scanned directly.
                                     if (storageLoc.isWildcard && excludedDirs.size > 0) {
-                                        const isExcluded = [...excludedDirs].some(excDir =>
-                                            fullPath.startsWith(excDir + paths.sep)
+                                        const isExcluded = [...excludedDirs].some(
+                                            excDir =>
+                                                fullPath.startsWith(excDir + paths.sep)
                                         );
                                         if (isExcluded) {
                                             return nextFile(null);
