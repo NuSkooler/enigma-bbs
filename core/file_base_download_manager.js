@@ -199,6 +199,13 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
                         callback
                     );
                 },
+                function validateMci(callback) {
+                    return self.validateMCIByViewIds(
+                        'queueManager',
+                        [MciViewIds.queueManager.queue, MciViewIds.queueManager.navMenu],
+                        callback
+                    );
+                },
                 function populateViews(callback) {
                     return self.updateDownloadQueueView(callback);
                 },

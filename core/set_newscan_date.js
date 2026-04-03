@@ -254,6 +254,13 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                             callback
                         );
                     },
+                    function validateMci(callback) {
+                        const requiredCodes = [MciViewIds.main.scanDate];
+                        if ('message' === self.target) {
+                            requiredCodes.push(MciViewIds.main.targetSelection);
+                        }
+                        return self.validateMCIByViewIds('main', requiredCodes, callback);
+                    },
                     function loadAvailSelections(callback) {
                         switch (self.target) {
                             case 'message':
