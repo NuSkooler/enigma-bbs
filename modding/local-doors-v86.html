@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Message Base | ENiGMA½ BBS Software</title>
+<title>Local Doors — Native v86 Emulation | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Message Base" />
+<meta property="og:title" content="Local Doors — Native v86 Emulation" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="General Information In ENiGMA½, a message base is divided into two logical grouping components: Message Conferences and Areas. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag." />
-<meta property="og:description" content="General Information In ENiGMA½, a message base is divided into two logical grouping components: Message Conferences and Areas. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag." />
+<meta name="description" content="Native DOS Emulation via v86" />
+<meta property="og:description" content="Native DOS Emulation via v86" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-03T20:57:39+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Message Base" />
+<meta property="twitter:title" content="Local Doors — Native v86 Emulation" />
 <script type="application/ld+json">
-{"description":"General Information In ENiGMA½, a message base is divided into two logical grouping components: Message Conferences and Areas. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag.","headline":"Message Base","dateModified":"2026-04-03T20:57:39+00:00","datePublished":"2026-04-03T20:57:39+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/configuring-a-message-area.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/configuring-a-message-area.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Native DOS Emulation via v86","headline":"Local Doors — Native v86 Emulation","dateModified":"2026-04-03T20:57:39+00:00","datePublished":"2026-04-03T20:57:39+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors-v86.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors-v86.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -918,7 +918,7 @@
 
 
     
-      <li class="active-nav">Message Base</li>
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
     
 
 
@@ -1804,7 +1804,7 @@
 
 
     
-    <li><a href="/enigma-bbs/modding/local-doors-v86.html">Local Doors — Native v86 Emulation</a></li>
+      <li class="active-nav">Local Doors — Native v86 Emulation</li>
     
 
 
@@ -2536,33 +2536,64 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">« Network Mounts &amp; Symlinks</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/local-doors-dos-emulation.html">« Local Doors — External DOS Emulators</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/message-networks.html">Message Networks »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/door-servers.html">Door Servers »</a>
               
               <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Message Base</h1>
-    <h2 id="general-information">General Information</h2>
-<p>In ENiGMA½, a message base is divided into two logical grouping components: <strong>Message Conferences</strong> and <strong>Areas</strong>. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag.</p>
+    <h1 class="page-title">Local Doors — Native v86 Emulation</h1>
+    <h2 id="native-dos-emulation-via-v86">Native DOS Emulation via v86</h2>
 
-<h2 id="conferences">Conferences</h2>
-<p>Message Conferences are the top level container for <em>1:n</em> Message <em>Areas</em> via the <code class="language-plaintext highlighter-rouge">messageConferences</code> block in <code class="language-plaintext highlighter-rouge">config.hjson</code>. A common setup may include a local conference and one or more conferences each dedicated to a particular message network such as fsxNet, ArakNet, etc.</p>
-
-<p>Each conference is represented by a entry under <code class="language-plaintext highlighter-rouge">messageConferences</code>. Each entries top level key is it’s <em>conference tag</em>.</p>
+<p>ENiGMA½ includes a built-in x86/DOS emulator powered by <a href="https://github.com/copy/v86">v86</a> — a JavaScript x86 emulator that runs entirely within Node.js. The <code class="language-plaintext highlighter-rouge">v86_door</code> module boots a FreeDOS disk image and bridges COM1 directly to the user’s connection, with no external emulator installed on the server.</p>
 
 <blockquote>
-  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> It is <strong>highly</strong> recommended to use snake_case style message <em>conference tags</em> and <em>area tags</em>!</p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> The emulator runs in a dedicated worker thread, so it does not block ENiGMA½’s event loop. Each active session gets its own isolated emulator instance.</p>
 </blockquote>
 
+<hr>
+
+<h3 id="how-it-works">How It Works</h3>
+
+<ol>
+  <li>ENiGMA½ generates the appropriate drop file for the user (DORINFO, DOOR.SYS, etc.)</li>
+  <li>The drop file is written into a small in-memory FAT12 floppy image — no temp files on disk</li>
+  <li>v86 boots the op-supplied FreeDOS disk image from the hard drive (<code class="language-plaintext highlighter-rouge">C:</code>)</li>
+  <li>The drop file floppy is mounted as <code class="language-plaintext highlighter-rouge">A:</code> in FreeDOS</li>
+  <li>The door’s <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code> copies the drop file from <code class="language-plaintext highlighter-rouge">A:</code> and launches the game</li>
+  <li>COM1 serial I/O is bridged directly between v86 and the user’s connection</li>
+  <li>When the door exits and FreeDOS powers off, the session ends cleanly</li>
+</ol>
+
+<hr>
+
+<h3 id="prerequisites">Prerequisites</h3>
+
+<h4 id="bios-files">BIOS Files</h4>
+
+<p>v86 requires SeaBIOS and a VGA BIOS image. The ENiGMA½ installer (<code class="language-plaintext highlighter-rouge">misc/install.sh</code>) downloads these automatically to <code class="language-plaintext highlighter-rouge">misc/v86_bios/</code>. To download manually:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">mkdir</span> <span class="nt">-p</span> misc/v86_bios
+curl <span class="nt">-fL</span> https://github.com/copy/v86/raw/master/bios/seabios.bin <span class="nt">-o</span> misc/v86_bios/seabios.bin
+curl <span class="nt">-fL</span> https://github.com/copy/v86/raw/master/bios/vgabios.bin <span class="nt">-o</span> misc/v86_bios/vgabios.bin
+</code></pre></div></div>
+
+<h4 id="disk-image">Disk Image</h4>
+
+<p>You need a raw FreeDOS disk image (<code class="language-plaintext highlighter-rouge">.img</code>) with your door game pre-installed. Raw <code class="language-plaintext highlighter-rouge">.img</code> images are <strong>fully compatible between QEMU, DOSBox-X, and v86</strong> — set up your image with QEMU or DOSBox-X, then point <code class="language-plaintext highlighter-rouge">v86_door</code> at it on the production server.</p>
+
+<hr>
+
+<h3 id="configuration">Configuration</h3>
+
 <table>
   <thead>
     <tr>
-      <th>Config Item</th>
+      <th>Item</th>
       <th>Required</th>
       <th>Description</th>
     </tr>
@@ -2571,167 +2602,272 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">name</code></td>
       <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Friendly conference name</td>
+      <td>Door name. Used as a key for tracking concurrent sessions.</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">desc</code></td>
+      <td><code class="language-plaintext highlighter-rouge">image</code></td>
       <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Friendly conference description.</td>
+      <td>Path to the raw FreeDOS disk image (<code class="language-plaintext highlighter-rouge">.img</code>).</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">sort</code></td>
+      <td><code class="language-plaintext highlighter-rouge">dropFileType</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Set to a number to override the default alpha-numeric sort order based on the <code class="language-plaintext highlighter-rouge">name</code> field.</td>
+      <td>Drop file to generate and inject onto the <code class="language-plaintext highlighter-rouge">A:</code> floppy: <code class="language-plaintext highlighter-rouge">DORINFO</code>, <code class="language-plaintext highlighter-rouge">DOOR</code>, or <code class="language-plaintext highlighter-rouge">DOOR32</code>. Omit if the door needs no drop file.</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">default</code></td>
+      <td><code class="language-plaintext highlighter-rouge">runBatch</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Specify <code class="language-plaintext highlighter-rouge">true</code> to make this the default conference (e.g. assigned to new users)</td>
+      <td>Multi-line batch script written to <code class="language-plaintext highlighter-rouge">A:\RUN.BAT</code> at runtime. Supports <a href="#runbatch-variables">variable substitution</a>. See <a href="#one-image-multiple-doors">One Image, Multiple Doors</a>.</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">areas</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Container of 1:n areas described below</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">acs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">nodeMax</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>A standard <a href="/enigma-bbs/configuration/acs.html">ACS</a> block. See <strong>ACS</strong> below.</td>
+      <td>Max concurrent sessions. <code class="language-plaintext highlighter-rouge">0</code> = unlimited.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tooManyArt</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Art spec to display when <code class="language-plaintext highlighter-rouge">nodeMax</code> is exceeded.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">memoryMb</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Guest RAM in MB. Default: <code class="language-plaintext highlighter-rouge">64</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">biosPath</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Path to SeaBIOS image. Default: <code class="language-plaintext highlighter-rouge">misc/v86_bios/seabios.bin</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">vgaBiosPath</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Path to VGA BIOS image. Default: <code class="language-plaintext highlighter-rouge">misc/v86_bios/vgabios.bin</code>.</td>
     </tr>
   </tbody>
 </table>
 
-<h3 id="acs">ACS</h3>
-<p>An optional standard <a href="/enigma-bbs/configuration/acs.html">ACS</a> block can be supplied with the following rules:</p>
-<ul>
-  <li>
-<code class="language-plaintext highlighter-rouge">read</code>: ACS required to read (see) this conference. Defaults to <code class="language-plaintext highlighter-rouge">GM[users]</code>.</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">write</code>: ACS required to write (post) to this conference. Defaults to <code class="language-plaintext highlighter-rouge">GM[users]</code>.</li>
-</ul>
-
-<h3 id="example">Example</h3>
-
-<pre><code class="language-hjson">{
-  messageConferences: {
-    local: { // conference tag
-      name: Local
-      desc: Local discussion
-      sort: 1
-      default: true
-      acs: {
-        read: GM[users] // default
-      }
-    }
-  }
-}
-</code></pre>
-
-<h2 id="message-areas">Message Areas</h2>
-<p>Message Areas are topic specific containers for messages that live within a particular conference. The top level key for an area sets it’s <em>area tag</em>. For example, “General Discussion” may live under a Local conference while an fsxNet conference may contain “BBS Discussion”.</p>
+<h4 id="drop-file-filenames-on-a">Drop File Filenames on A:</h4>
 
 <table>
   <thead>
     <tr>
-      <th>Config Item</th>
-      <th>Required</th>
-      <th>Description</th>
+      <th><code class="language-plaintext highlighter-rouge">dropFileType</code></th>
+      <th>Filename on <code class="language-plaintext highlighter-rouge">A:</code>
+</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">name</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Friendly area name.</td>
+      <td><code class="language-plaintext highlighter-rouge">DORINFO</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">DORINFOx.DEF</code> (x = node-based suffix per spec)</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">desc</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Friendly area description.</td>
+      <td><code class="language-plaintext highlighter-rouge">DOOR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DOOR.SYS</code></td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">sort</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Set to a number to override the default alpha-numeric sort order based on the <code class="language-plaintext highlighter-rouge">name</code> field.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">default</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Specify <code class="language-plaintext highlighter-rouge">true</code> to make this the default area (e.g. assigned to new users)</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">acs</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>A standard <a href="/enigma-bbs/configuration/acs.html">ACS</a> block. See <strong>ACS</strong> below.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">maxMessages</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>The maximum number of messages to keep in the area. Defaults to <code class="language-plaintext highlighter-rouge">1024</code>.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">maxAgeDays</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>The maximum age of messages to keep in the area. Defaults to <code class="language-plaintext highlighter-rouge">0</code>, which means unlimited.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">autoSignatures</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Set to <code class="language-plaintext highlighter-rouge">false</code> to disable auto-signatures in this area.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">realNames</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to use real names in this area.</td>
+      <td><code class="language-plaintext highlighter-rouge">DOOR32</code></td>
+      <td><code class="language-plaintext highlighter-rouge">door32.sys</code></td>
     </tr>
   </tbody>
 </table>
 
-<p>The default values for <code class="language-plaintext highlighter-rouge">maxMessages</code> and <code class="language-plaintext highlighter-rouge">maxAgeDays</code> can be changed globally in <code class="language-plaintext highlighter-rouge">core/config_default.js</code>, they’re located in the section <code class="language-plaintext highlighter-rouge">messageAreaDefaults</code>. The same file also defines several default events to be scheduled, which are located under <code class="language-plaintext highlighter-rouge">eventScheduler</code>. For example, the <code class="language-plaintext highlighter-rouge">trimMessageAreas</code> event is run every 24 hours and defines that the action <code class="language-plaintext highlighter-rouge">trimMessageAreasScheduledEvent</code> is performed.</p>
+<h4 id="runbatch-variables">runBatch Variables</h4>
 
-<h3 id="acs-1">ACS</h3>
-<p>An optional standard <a href="/enigma-bbs/configuration/acs.html">ACS</a> block can be supplied with the following rules:</p>
-<ul>
-  <li>
-<code class="language-plaintext highlighter-rouge">read</code>: ACS required to read (see) this area. Defaults to <code class="language-plaintext highlighter-rouge">GM[users]</code>.</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">write</code>: ACS required to write (post) to this area. Defaults to <code class="language-plaintext highlighter-rouge">GM[users]</code>.</li>
-</ul>
+<p>When <code class="language-plaintext highlighter-rouge">runBatch</code> is set, ENiGMA replaces the following variables before writing <code class="language-plaintext highlighter-rouge">RUN.BAT</code>:</p>
 
-<h3 id="example-1">Example</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+      <th>Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{dropFile}</code></td>
+      <td>Drop file filename</td>
+      <td><code class="language-plaintext highlighter-rouge">DORINFO1.DEF</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{node}</code></td>
+      <td>Node number</td>
+      <td><code class="language-plaintext highlighter-rouge">1</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{baud}</code></td>
+      <td>Baud rate</td>
+      <td><code class="language-plaintext highlighter-rouge">57600</code></td>
+    </tr>
+  </tbody>
+</table>
 
-<pre><code class="language-hjson">messageConferences: {
-  local: {
-    // ... see above ...
-    areas: {
-      enigma_dev: { // Area tag - required elsewhere!
-        name: ENiGMA 1/2 Development
-        desc: ENiGMA 1/2 development and discussion!
-        sort: 1
-        default: true
-        maxMessages: 2000 // keep at most 2000 messages
-        maxAgeDays: 365   // delete anything older than 1 year
-        acs: {
-          read: GM[users] // default
-          write: GM[l33t] // super elite ENiGMA 1/2 users!
-        }
-      }
+<hr>
+
+<h3 id="example-menu-entry">Example Menu Entry</h3>
+
+<pre><code class="language-hjson">doorPimpWars: {
+    desc: Playing PimpWars
+    module: v86_door
+    config: {
+        name: PimpWars
+        image: /path/to/images/freedos_doors.img
+        dropFileType: DORINFO
+        nodeMax: 1
+        tooManyArt: DOORMANY
+        runBatch:
+            '''
+            COPY A:\{dropFile} C:\DOORS\PW\
+            C:\FOSSIL\X00.SYS
+            CD C:\DOORS\PW
+            PW.EXE {node}
+            ECHO Returning to BBS, please wait... &gt; COM1
+            '''
     }
-  }
 }
 </code></pre>
 
-<h2 id="importing">Importing</h2>
-<p>FidoNet style <code class="language-plaintext highlighter-rouge">.na</code> files as well as legacy <code class="language-plaintext highlighter-rouge">AREAS.BBS</code> files in common formats can be imported using <code class="language-plaintext highlighter-rouge">oputil.js mb import-areas</code>. See <a href="/enigma-bbs/admin/oputil.html">The oputil CLI</a> for more information and usage.</p>
+<hr>
+
+<h3 id="image-preparation">Image Preparation</h3>
+
+<p>Your disk image must contain:</p>
+<ul>
+  <li>A working FreeDOS installation</li>
+  <li>Your door game(s) installed (e.g. <code class="language-plaintext highlighter-rouge">C:\DOORS\PIMPWARS\</code>)</li>
+  <li>Optionally, a FOSSIL driver such as <a href="http://pcmicro.com/xtalk/x00.html">X00</a> — required by most classic DOS doors</li>
+  <li>An <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code> (or <code class="language-plaintext highlighter-rouge">FDAUTO.BAT</code>) that calls <code class="language-plaintext highlighter-rouge">A:\RUN.BAT</code> and powers off</li>
+</ul>
+
+<h4 id="autoexecbat-convention">AUTOEXEC.BAT Convention</h4>
+
+<p>Set up your image’s <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code> once. ENiGMA writes <code class="language-plaintext highlighter-rouge">RUN.BAT</code> to <code class="language-plaintext highlighter-rouge">A:</code> at runtime with the door-specific launch commands:</p>
+
+<div class="language-bat highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">CALL</span> <span class="kd">A</span>:\RUN.BAT
+<span class="kd">ECHO</span> <span class="kd">Shutting</span> <span class="kd">down</span><span class="o">,</span> <span class="kd">please</span> <span class="kd">wait</span>... <span class="o">&gt;</span> <span class="kd">COM1</span>
+<span class="kd">FDAPM</span> <span class="kd">POWEROFF</span>
+</code></pre></div></div>
+
+<ul>
+  <li>
+<strong><code class="language-plaintext highlighter-rouge">CALL A:\RUN.BAT</code></strong> — executes the per-door launch script ENiGMA injects at runtime</li>
+  <li>
+<strong><code class="language-plaintext highlighter-rouge">ECHO ... &gt; COM1</code></strong> — sends a message to the user’s terminal while FreeDOS shuts down (can take a few seconds)</li>
+  <li>
+<strong><code class="language-plaintext highlighter-rouge">FDAPM POWEROFF</code></strong> — shuts FreeDOS down cleanly; placed after the CALL so it always fires even if the door crashes</li>
+</ul>
+
+<h4 id="one-image-multiple-doors">One Image, Multiple Doors</h4>
+
+<p>Because <code class="language-plaintext highlighter-rouge">RUN.BAT</code> is generated at runtime, a single FreeDOS image can host multiple doors. Each door has its own menu entry pointing at the same <code class="language-plaintext highlighter-rouge">image</code> path with a different <code class="language-plaintext highlighter-rouge">runBatch</code>:</p>
+
+<pre><code class="language-hjson">doorPimpWars: {
+    module: v86_door
+    config: {
+        name: PimpWars
+        image: /path/to/images/freedos_doors.img
+        dropFileType: DORINFO
+        nodeMax: 1
+        runBatch:
+            '''
+            COPY A:\{dropFile} C:\DOORS\PW\
+            C:\FOSSIL\X00.SYS
+            CD C:\DOORS\PW
+            PW.EXE {node}
+            ECHO Returning to BBS, please wait... &gt; COM1
+            '''
+    }
+}
+
+doorSmurfCombat: {
+    module: v86_door
+    config: {
+        name: SmurfCombat
+        image: /path/to/images/freedos_doors.img   // same image
+        dropFileType: DOOR
+        nodeMax: 1
+        runBatch:
+            '''
+            COPY A:\{dropFile} C:\DOORS\SMURF\
+            C:\FOSSIL\X00.SYS
+            CD C:\DOORS\SMURF
+            SMURF.EXE {node}
+            ECHO Returning to BBS, please wait... &gt; COM1
+            '''
+    }
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Concurrent sessions on the same image file are safe — each worker loads the image into its own isolated memory buffer. <code class="language-plaintext highlighter-rouge">nodeMax: 1</code> gates single-player doors, but even without it there is no shared state between sessions.</p>
+</blockquote>
+
+<h4 id="fossil-driver">FOSSIL Driver</h4>
+
+<p>Most classic DOS doors use the <a href="https://en.wikipedia.org/wiki/FOSSIL">FOSSIL</a> serial interface for COM1 I/O. If your door fails to start or falls back to local mode, a FOSSIL driver is needed. <a href="http://pcmicro.com/xtalk/x00.html">X00</a> works well with v86.</p>
+
+<p>Load it from <code class="language-plaintext highlighter-rouge">runBatch</code> (per-door, recommended) rather than <code class="language-plaintext highlighter-rouge">FDCONFIG.SYS</code> (global):</p>
+
+<div class="language-bat highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">C</span>:\FOSSIL\X00.SYS
+</code></pre></div></div>
+
+<p>Or in <code class="language-plaintext highlighter-rouge">FDCONFIG.SYS</code> if all doors on the image need it:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>DEVICE=C:\FOSSIL\X00.SYS
+</code></pre></div></div>
+
+<h4 id="creating-the-image-with-qemu">Creating the Image with QEMU</h4>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Create a 500MB raw image</span>
+qemu-img create <span class="nt">-f</span> raw freedos_mygame.img 500M
+
+<span class="c"># Install FreeDOS (boot from CD)</span>
+qemu-system-i386 <span class="nt">-hda</span> freedos_mygame.img <span class="nt">-cdrom</span> FD14CD.iso <span class="nt">-boot</span> d
+
+<span class="c"># Boot into FreeDOS to install your door</span>
+qemu-system-i386 <span class="nt">-hda</span> freedos_mygame.img
+
+<span class="c"># Transfer files from host using QEMU's vfat driver — files appear on D:</span>
+qemu-system-i386 <span class="nt">-hda</span> freedos_mygame.img <span class="nt">-hdb</span> fat:/path/to/door/files
+</code></pre></div></div>
+
+<p><a href="https://dosbox-x.com/">DOSBox-X</a> is a graphical alternative for image setup on Windows, macOS, and Linux. See the DOSBox-X documentation for <code class="language-plaintext highlighter-rouge">imgmount</code>.</p>
+
+<h4 id="freedos-boot-configuration-for-fast-startup">FreeDOS Boot Configuration for Fast Startup</h4>
+
+<p>For ~5 second boot times, configure FreeDOS to use Emergency Mode (no memory managers, no networking). In <code class="language-plaintext highlighter-rouge">FDCONFIG.SYS</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>MENUDEFAULT=5,0
+</code></pre></div></div>
+
+<p>Ensure the <code class="language-plaintext highlighter-rouge">5?</code> config block loads your FOSSIL driver:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>5?DEVICE=C:\FOSSIL\X00.SYS
+5?SHELL=C:\FreeDOS\BIN\COMMAND.COM C:\FreeDOS\BIN /E:1024 /P=C:\FDAUTO.BAT
+</code></pre></div></div>
+
+<hr>
+
+<h2 id="see-also">See Also</h2>
+<ul>
+  <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+  <li><a href="/enigma-bbs/modding/local-doors-dos-emulation.html">External DOS Emulators</a></li>
+  <li><a href="/enigma-bbs/modding/local-doors-abracadabra.html">Scripts &amp; Native Binaries</a></li>
+  <li>
+<a href="https://github.com/copy/v86">v86</a> — upstream JavaScript x86 emulator</li>
+</ul>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">« Network Mounts &amp; Symlinks</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/local-doors-dos-emulation.html">« Local Doors — External DOS Emulators</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/message-networks.html">Message Networks »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/door-servers.html">Door Servers »</a>
               
               <br clear="both">
               </div>

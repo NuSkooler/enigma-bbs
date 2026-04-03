@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Spinner Menu View | ENiGMA½ BBS Software</title>
+<title>Local Doors — External DOS Emulators | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Spinner Menu View" />
+<meta property="og:title" content="Local Doors — External DOS Emulators" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Spinner Menu View A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc." />
-<meta property="og:description" content="Spinner Menu View A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc." />
+<meta name="description" content="DOS Doors via External Emulators" />
+<meta property="og:description" content="DOS Doors via External Emulators" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-03T20:57:39+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Spinner Menu View" />
+<meta property="twitter:title" content="Local Doors — External DOS Emulators" />
 <script type="application/ld+json">
-{"description":"Spinner Menu View A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.","headline":"Spinner Menu View","dateModified":"2026-04-03T20:57:39+00:00","datePublished":"2026-04-03T20:57:39+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/spinner_menu_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/spinner_menu_view.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"DOS Doors via External Emulators","headline":"Local Doors — External DOS Emulators","dateModified":"2026-04-03T20:57:39+00:00","datePublished":"2026-04-03T20:57:39+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors-dos-emulation.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors-dos-emulation.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1328,7 +1328,7 @@
 
 
     
-      <li class="active-nav">Spinner Menu View</li>
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
     
 
 
@@ -1779,7 +1779,7 @@
 
 
     
-    <li><a href="/enigma-bbs/modding/local-doors-dos-emulation.html">Local Doors — External DOS Emulators</a></li>
+      <li class="active-nav">Local Doors — External DOS Emulators</li>
     
 
 
@@ -2536,177 +2536,201 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/multi_line_edit_text_view.html">« Multi Line Edit Text View</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/local-doors-abracadabra.html">« Local Doors — Scripts &amp; Native Binaries</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/art/views/text_view.html">Text View »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/local-doors-v86.html">Local Doors — Native v86 Emulation »</a>
               
               <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Spinner Menu View</h1>
-    <h2 id="spinner-menu-view">Spinner Menu View</h2>
-<p>A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.</p>
+    <h1 class="page-title">Local Doors — External DOS Emulators</h1>
+    <h2 id="dos-doors-via-external-emulators">DOS Doors via External Emulators</h2>
 
-<h2 id="general-information">General Information</h2>
-
-<p>Items can be selected on a menu via the cursor keys or by selecting them via a <code class="language-plaintext highlighter-rouge">hotKey</code> - see <strong><em>Hot Keys</em></strong> below.</p>
+<p>This page covers running classic DOS door games using external emulators — DOSEMU and QEMU — via the <code class="language-plaintext highlighter-rouge">abracadabra</code> module. ENiGMA½ launches the emulator as a child process and bridges I/O over stdio or a socket.</p>
 
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> A spinner menu view is defined with a percent (%) and the characters SM, followed by the view number (if used.) For example: <code class="language-plaintext highlighter-rouge">%SM1</code></p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> <strong>No emulator on the server?</strong> See <a href="/enigma-bbs/modding/local-doors-v86.html">Native v86 Emulation</a> — ENiGMA½ includes a built-in x86 emulator. Raw FreeDOS <code class="language-plaintext highlighter-rouge">.img</code> images are compatible between QEMU and v86, so you can set up your image with QEMU and run it with v86 in production.</p>
 </blockquote>
 
-<blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See <a href="/enigma-bbs/art/mci.html">MCI</a> for general information on how to use views and common configuration properties available for them.</p>
-</blockquote>
+<hr>
 
-<h3 id="properties">Properties</h3>
+<h2 id="dosemu">DOSEMU</h2>
 
-<table>
-  <thead>
-    <tr>
-      <th>Property</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">textStyle</code></td>
-      <td>Sets the standard (non-focus) text style. See <strong>Text Styles</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">focusTextStyle</code></td>
-      <td>Sets focus text style. See <strong>Text Styles</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">focus</code></td>
-      <td>If set to <code class="language-plaintext highlighter-rouge">true</code>, establishes initial focus</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">width</code></td>
-      <td>Sets the width of a view on the display (default 15)</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">submit</code></td>
-      <td>If set to <code class="language-plaintext highlighter-rouge">true</code> any <code class="language-plaintext highlighter-rouge">accept</code> action upon this view will submit the encompassing <strong>form</strong>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">hotKeys</code></td>
-      <td>Sets hot keys to activate specific items. See <strong>Hot Keys</strong> below</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">hotKeySubmit</code></td>
-      <td>Set to submit a form on hotkey selection</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">argName</code></td>
-      <td>Sets the argument name for this selection in the form</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">justify</code></td>
-      <td>Sets the justification of each item in the list. Options: left (default), right, center</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">itemFormat</code></td>
-      <td>Sets the format for a list entry. See <strong>Entry Formatting</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">fillChar</code></td>
-      <td>Specifies a character to fill extra space in the menu with. Defaults to an empty space</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">items</code></td>
-      <td>List of items to show in the menu. See <strong>Items</strong> below.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">focusItemFormat</code></td>
-      <td>Sets the format for a focused list entry. See <strong>Entry Formatting</strong> in <a href="/enigma-bbs/art/mci.html">MCI</a>
-</td>
-    </tr>
-  </tbody>
-</table>
+<p><a href="http://www.dosemu.org/">DOSEMU</a> provides a DOS environment on Linux via stdio. Configure COM1 as a virtual serial port to connect it to ENiGMA½’s stdio bridge.</p>
 
-<h3 id="hot-keys">Hot Keys</h3>
+<h3 id="step-1-create-dosemuconf">Step 1: Create dosemu.conf</h3>
 
-<p>A set of <code class="language-plaintext highlighter-rouge">hotKeys</code> are used to allow the user to press a character on the keyboard to select that item, and optionally submit the form.</p>
-
-<p>Example:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>hotKeys: { A: 0, B: 1, C: 2, D: 3 }
-hotKeySubmit: true
-</code></pre></div></div>
-<p>This would select and submit the first item if <code class="language-plaintext highlighter-rouge">A</code> is typed, second if <code class="language-plaintext highlighter-rouge">B</code>, etc.</p>
-
-<h3 id="items">Items</h3>
-
-<p>A spinner menu, similar to other menus, take a list of items to display in the menu. For example:</p>
-
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>items: [
-  {
-      text: First Item
-      data: first
-  }
-  {
-      text: Second Item
-      data: second
-  }
-]
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$_cpu = "80486"
+$_cpu_emu = "vm86"
+$_external_char_set = "utf8"
+$_internal_char_set = "cp437"
+$_term_updfreq = (8)
+$_layout = "us"
+$_rawkeyboard = (0)
+$_com1 = "virtual"
 </code></pre></div></div>
 
-<p>If the list is for display only (there is no form action associated with it) you can omit the data element, and include the items as a simple list:</p>
+<p><code class="language-plaintext highlighter-rouge">$_com1 = "virtual"</code> maps COM1 to stdio — ENiGMA½ speaks directly to the door over stdin/stdout.</p>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>["First item", "Second item", "Third Item"]
-</code></pre></div></div>
+<h3 id="step-2-create-the-door-drive">Step 2: Create the Door Drive</h3>
 
-<h2 id="example">Example</h2>
+<p>Create a virtual drive for your door, e.g. <code class="language-plaintext highlighter-rouge">/home/enigma/DOS/X/PW</code>, and map it in your DOSEMU <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code>:</p>
 
-<p><img src="../../assets/images/spinner_menu_view_example1.gif" alt="Example" title="Spinner menu"></p>
+<div class="language-bat highlighter-rouge"><div class="highlight"><pre class="highlight"><code>@echo <span class="na">off</span>
+<span class="nb">path</span> <span class="kd">d</span>:\bin<span class="o">;</span><span class="kd">d</span>:\gnu<span class="o">;</span><span class="kd">d</span>:\dosemu
+<span class="kd">set</span> <span class="kd">TEMP</span><span class="o">=</span><span class="kd">c</span>:\tmp
+<span class="nb">prompt</span> $P$G
+<span class="kd">C</span>:\BNU\BNU.COM <span class="na">/L</span><span class="m">0</span>:57600<span class="o">,</span><span class="m">8</span><span class="kd">N1</span> <span class="na">/F
+</span><span class="kd">lredir</span>.com <span class="kd">x</span>: <span class="kd">linux</span>\fs\home\enigma\DOS\X
+<span class="kd">unix</span> <span class="na">-e
+</span></code></pre></div></div>
 
-<details>
-<summary>Configuration fragment (expand to view)</summary>
-<div>
-    <div class="language-plaintext highlighter-rouge">
-<div class="highlight"><pre class="highlight"><code>SM1: {
-  submit: true
-  argName: themeSelect
-  items: [
-    {
-      text: Light
-      data: light
+<p><a href="http://www.pcmicro.com/bnu/">BNU</a> is a FOSSIL driver installed here at <code class="language-plaintext highlighter-rouge">C:\BNU\</code>. A FOSSIL driver is required by most classic DOS doors.</p>
+
+<h3 id="step-3-menu-entry">Step 3: Menu Entry</h3>
+
+<pre><code class="language-hjson">doorPimpWars: {
+    desc: Playing PimpWars
+    module: abracadabra
+    config: {
+        name: PimpWars
+        dropFileType: DORINFO
+        cmd: /usr/bin/dosemu
+        args: [
+            "-quiet",
+            "-f",
+            "/path/to/dosemu.conf",
+            "X:\\PW\\START.BAT {dropFile} {node}"
+        ]
+        nodeMax: 1
+        tooManyArt: DOORMANY
+        io: stdio
     }
-    {
-      text: Dark
-      data: dark
-    }
-    {
-      text: Rainbow
-      data: rainbow
-    }
-    {
-      text: Gruvbox
-      data: gruvbox
-    }
-  ]
 }
+</code></pre>
 
-</code></pre></div>    </div>
-  </div>
-</details>
+<hr>
+
+<h2 id="qemu">QEMU</h2>
+
+<p><a href="https://www.qemu.org/">QEMU</a> provides a robust, cross-platform solution for DOS doors. The general approach is a bootstrap shell script that prepares a node-specific <code class="language-plaintext highlighter-rouge">GO.BAT</code>, then launches QEMU with the FreeDOS image.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> <strong>Multiple concurrent sessions of the same QEMU image are not safe.</strong> Each node needs its own image copy, or use <a href="/enigma-bbs/modding/local-doors-v86.html">Native v86 Emulation</a> which isolates each session automatically.</p>
+</blockquote>
+
+<h3 id="step-1-create-a-freedos-image">Step 1: Create a FreeDOS Image</h3>
+
+<p>Follow the <a href="https://en.wikibooks.org/wiki/QEMU/FreeDOS">QEMU/FreeDOS</a> guide to create a <code class="language-plaintext highlighter-rouge">freedos_c.img</code>. Install FreeDOS, then install your door game at <code class="language-plaintext highlighter-rouge">C:\DOORS\LORD\</code> (or similar).</p>
+
+<p>Transfer files from host to the image using QEMU’s vfat drive:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>qemu-system-i386 <span class="nt">-localtime</span> /home/enigma/dos/images/freedos_c.img <span class="se">\</span>
+    <span class="nt">-hdb</span> fat:/path/to/files/to/copy
+</code></pre></div></div>
+
+<p>Files appear on <code class="language-plaintext highlighter-rouge">D:</code> inside FreeDOS. Add to the image’s <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code>:</p>
+
+<div class="language-bat highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">CALL</span> <span class="kd">E</span>:\GO.BAT
+</code></pre></div></div>
+
+<h3 id="step-2-create-a-bootstrap-script">Step 2: Create a Bootstrap Script</h3>
+
+<p>This script writes a per-node <code class="language-plaintext highlighter-rouge">GO.BAT</code> before launching QEMU:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="nv">NODE</span><span class="o">=</span><span class="nv">$1</span>
+<span class="nv">DROPFILE</span><span class="o">=</span>D:<span class="se">\\</span><span class="nv">$2</span>
+<span class="nv">SRVPORT</span><span class="o">=</span><span class="nv">$3</span>
+
+<span class="nb">mkdir</span> <span class="nt">-p</span> /home/enigma/dos/go/node<span class="nv">$NODE</span>
+
+<span class="nb">cat</span> <span class="o">&gt;</span> /home/enigma/dos/go/node<span class="nv">$NODE</span>/GO.BAT <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh">
+C:
+CD </span><span class="se">\F</span><span class="sh">OSSIL</span><span class="se">\B</span><span class="sh">NU
+BNU.COM
+CD </span><span class="se">\D</span><span class="sh">OORS</span><span class="se">\L</span><span class="sh">ORD
+COPY /Y </span><span class="nv">$DROPFILE</span><span class="sh">
+CALL START.BAT </span><span class="nv">$NODE</span><span class="sh">
+FDAPM POWEROFF
+</span><span class="no">EOF
+
+</span>unix2dos /home/enigma/dos/go/node<span class="nv">$NODE</span>/GO.BAT
+
+qemu-system-i386 <span class="nt">-localtime</span> /home/enigma/dos/images/freedos_c.img <span class="se">\</span>
+    <span class="nt">-chardev</span> socket,port<span class="o">=</span><span class="nv">$SRVPORT</span>,nowait,host<span class="o">=</span>localhost,id<span class="o">=</span>s0 <span class="se">\</span>
+    <span class="nt">-device</span> isa-serial,chardev<span class="o">=</span>s0 <span class="se">\</span>
+    <span class="nt">-hdb</span> fat:/home/enigma/drop/node<span class="nv">$NODE</span> <span class="se">\</span>
+    <span class="nt">-hdc</span> fat:/home/enigma/dos/go/node<span class="nv">$NODE</span> <span class="se">\</span>
+    <span class="nt">-nographic</span>
+</code></pre></div></div>
+
+<ul>
+  <li>
+<code class="language-plaintext highlighter-rouge">-chardev socket,...</code> connects COM1 to ENiGMA½’s socket server on <code class="language-plaintext highlighter-rouge">$SRVPORT</code>
+</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">-hdb fat:...</code> exposes the drop file directory as <code class="language-plaintext highlighter-rouge">D:</code>
+</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">-hdc fat:...</code> exposes the <code class="language-plaintext highlighter-rouge">GO.BAT</code> directory as <code class="language-plaintext highlighter-rouge">E:</code>
+</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">-nographic</code> runs headless</li>
+</ul>
+
+<h3 id="step-3-menu-entry-1">Step 3: Menu Entry</h3>
+
+<pre><code class="language-hjson">doorLORD: {
+    desc: Playing L.O.R.D.
+    module: abracadabra
+    config: {
+        name: LORD
+        dropFileType: DOOR
+        cmd: /home/enigma/dos/scripts/lord.sh
+        args: [
+            "{node}",
+            "{dropFile}",
+            "{srvPort}",
+        ]
+        nodeMax: 1
+        tooManyArt: DOORMANY
+        io: socket
+    }
+}
+</code></pre>
+
+<hr>
+
+<h2 id="dosbox-x">DOSBox-X</h2>
+
+<p><a href="https://dosbox-x.com/">DOSBox-X</a> is a graphical DOS environment available on Windows, macOS, and Linux. It is primarily useful for <strong>preparing disk images</strong> — raw <code class="language-plaintext highlighter-rouge">.img</code> images created in DOSBox-X are compatible with QEMU and with ENiGMA½’s built-in <a href="/enigma-bbs/modding/local-doors-v86.html">v86_door</a>.</p>
+
+<p>Using DOSBox-X as a production door server (launching it per user session) is possible but uncommon. The <code class="language-plaintext highlighter-rouge">imgmount</code> command can mount raw disk images inside DOSBox-X. See the <a href="https://dosbox-x.com/wiki">DOSBox-X documentation</a> for details.</p>
+
+<hr>
+
+<h2 id="see-also">See Also</h2>
+<ul>
+  <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+  <li>
+<a href="/enigma-bbs/modding/local-doors-v86.html">Native v86 Emulation</a> — run the same FreeDOS image without QEMU on the server</li>
+  <li>
+<a href="/enigma-bbs/modding/local-doors-abracadabra.html">Scripts &amp; Native Binaries</a> — abracadabra module reference</li>
+  <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+</ul>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/multi_line_edit_text_view.html">« Multi Line Edit Text View</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/local-doors-abracadabra.html">« Local Doors — Scripts &amp; Native Binaries</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/art/views/text_view.html">Text View »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/local-doors-v86.html">Local Doors — Native v86 Emulation »</a>
               
               <br clear="both">
               </div>
