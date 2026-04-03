@@ -627,12 +627,34 @@ extsprintf@^1.2.0, extsprintf@1.3.0:
   resolved "https://registry.npmjs.org/extsprintf/-/extsprintf-1.3.0.tgz"
   integrity sha512-11Ndz7Nv+mvAC1j0ktTa7fAb0vLyGGX+rMHNBYQviQDGU0Hw7lhctJANqbPhu9nV9/izT/IntTgZ7Im/9LJs9g==
 
+fatfs-volume-driver@^0.0.4:
+  version "0.0.4"
+  resolved "https://registry.npmjs.org/fatfs-volume-driver/-/fatfs-volume-driver-0.0.4.tgz"
+  integrity sha512-+G55P4aXAh2D40B+i9tgrDAdu+Op1uwDQT56i/QyOeZUIxA4wbD5G2/d65VxF0/THckctlDzrQGOlPoKCVR5NQ==
+  dependencies:
+    fatfs "^0.10.8"
+    lodash "^4.17.21"
+
+fatfs@^0.10.8:
+  version "0.10.8"
+  resolved "https://registry.npmjs.org/fatfs/-/fatfs-0.10.8.tgz"
+  integrity sha512-SgtbqGNMwptNXpgLeqSSShm254JIzoVUyyFQBbqMmSPDpKsdZ65vSiS2SzyUI8sMtPvYK62hkuYhXzGZCMt5uQ==
+  dependencies:
+    fifolock "^1.0.0"
+    struct-fu "^1.2.1"
+    xok "^1.0.0"
+
 fb-watchman@^2.0.1:
   version "2.0.2"
   resolved "https://registry.npmjs.org/fb-watchman/-/fb-watchman-2.0.2.tgz"
   integrity sha512-p5161BqbuCaSnB8jIbzQHOlpgsPmK5rJVDfDKO91Axs5NC1uu3HRQm6wt9cd9/+GtQQIO53JdGXXoyDpTAsgYA==
   dependencies:
     bser "2.1.1"
+
+fifolock@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.npmjs.org/fifolock/-/fifolock-1.0.0.tgz"
+  integrity sha512-CqipzmuW6+xm7emSaBx1rV/fX17UGF9HkzLH887cFOj/Pe3TJsrboGxjZZtzV/5JrQ5vMegQ7ipZkB9wvsBDDQ==
 
 figures@^3.0.0:
   version "3.2.0"
@@ -1941,6 +1963,11 @@ strip-json-comments@~2.0.1:
   resolved "https://registry.npmjs.org/strip-json-comments/-/strip-json-comments-2.0.1.tgz"
   integrity sha512-4gB8na07fecVVkOI6Rs4e7T6NOTki5EmL7TUduTs6bu3EdnSycntVJ4re8kgZA+wx9IueI2Y11bfbgwtzuE0KQ==
 
+struct-fu@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.npmjs.org/struct-fu/-/struct-fu-1.2.1.tgz"
+  integrity sha512-QrtfoBRe+RixlBJl852/Gu7tLLTdx3kWs3MFzY1OHNrSsYYK7aIAnzqsncYRWrKGG/QSItDmOTlELMxehw4Gjw==
+
 supports-color@^7.1.0:
   version "7.2.0"
   resolved "https://registry.npmjs.org/supports-color/-/supports-color-7.2.0.tgz"
@@ -2096,6 +2123,11 @@ uuid@8.3.2:
   resolved "https://registry.npmjs.org/uuid/-/uuid-8.3.2.tgz"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
+v86@^0.5.319:
+  version "0.5.319"
+  resolved "https://registry.npmjs.org/v86/-/v86-0.5.319.tgz"
+  integrity sha512-OsAGtpDYexAFTfIXf9iMh+JM6IK1GRahWZG3ghNEHtzCxQnyCXQOnN4m5fwV+b5cD0Yj97x8EpsloDtSIpcidA==
+
 verror@1.10.0:
   version "1.10.0"
   resolved "https://registry.npmjs.org/verror/-/verror-1.10.0.tgz"
@@ -2156,6 +2188,11 @@ ws@8.18.3:
   version "8.18.3"
   resolved "https://registry.npmjs.org/ws/-/ws-8.18.3.tgz"
   integrity sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==
+
+xok@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.npmjs.org/xok/-/xok-1.0.0.tgz"
+  integrity sha512-DVb6F65Oiq0/fQxLH4adxE92OeNl1njEd+A1pPknmujM/nJhid2iofGXhrU4subNbUi2F0whuKhLv8ReFsqg6g==
 
 yallist@^4.0.0:
   version "4.0.0"

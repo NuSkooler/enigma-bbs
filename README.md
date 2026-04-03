@@ -19,6 +19,7 @@ Below are just some of the features ENiGMA½ supports out of the box:
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
  * Support for **2-Factor Authentication** with One-Time-Passwords
  * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
+ * **Native x86/DOS door emulation** via [v86](https://github.com/copy/v86) — run classic DOS BBS doors (LORD, PimpWars, TradeWars, etc.) directly inside ENiGMA½ with zero external dependencies. No QEMU, DOSBox, or DOSEMU required. Includes `oputil fat` for managing FreeDOS disk images and `oputil v86` for an interactive browser-based DOS desktop. See [Local Doors — v86](./docs/_docs/modding/local-doors-v86.md).
  * Structured [Bunyan](https://github.com/trentm/node-bunyan) logging!
  * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export
  * Message bases exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md) and [NNTP](./docs/_docs/servers/contentservers/nntp.md) content servers

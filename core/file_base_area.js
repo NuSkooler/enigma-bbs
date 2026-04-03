@@ -187,7 +187,6 @@ function getFileAreasByTagWildcardRule(rule) {
     return areaTags.map(areaTag => getFileAreaByTag(areaTag));
 }
 
-
 function isValidStorageTag(storageTag) {
     return storageTag in Config().fileBase.storageTags;
 }
@@ -229,7 +228,6 @@ function getAreaStorageLocations(areaInfo) {
         })
     );
 }
-
 
 function getExistingFileEntriesBySha256(sha256, cb) {
     const entries = [];

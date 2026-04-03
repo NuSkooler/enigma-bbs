@@ -87,6 +87,7 @@ collections:
       - art/general.md
       - art/themes.md
       - art/mci.md
+      - art/views/views.md
       - art/views/button_view.md
       - art/views/edit_text_view.md
       - art/views/full_menu_view.md
@@ -95,15 +96,23 @@ collections:
       - art/views/multi_line_edit_text_view.md
       - art/views/spinner_menu_view.md
       - art/views/text_view.md
+      - art/views/status_bar_view.md
+      - art/views/ticker_view.md
       - art/views/toggle_menu_view.md
       - art/views/vertical_menu_view.md
       - servers/loginservers/telnet.md
       - servers/loginservers/ssh.md
       - servers/loginservers/websocket.md
       - servers/contentservers/web-server.md
+      - servers/contentservers/web-handlers.md
+      - servers/contentservers/activitypub-handler.md
+      - servers/contentservers/webfinger-handler.md
       - servers/contentservers/gopher.md
       - servers/contentservers/nntp.md
       - modding/local-doors.md
+      - modding/local-doors-abracadabra.md
+      - modding/local-doors-dos-emulation.md
+      - modding/local-doors-v86.md
       - modding/door-servers.md
       - modding/telnet-bridge.md
       - modding/existing-mods.md
@@ -129,7 +138,7 @@ collections:
       - modding/wfc.md
       - admin/administration.md
       - admin/oputil.md
-      - admin/updating.md
+      - admin/upgrading.md
       - troubleshooting/monitoring-logs.md
       - troubleshooting/ssh-troubleshooting.md
 
