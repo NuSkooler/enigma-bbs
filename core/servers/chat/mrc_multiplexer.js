@@ -15,7 +15,7 @@ const _ = require('lodash');
 const os = require('os');
 
 // MRC
-const clientVersion = '1.3.1';
+const clientVersion = '1.3.8';
 const lineDelimiter = new RegExp('\r\n|\r|\n|\n\r');
 
 const ModuleInfo = (exports.moduleInfo = {
@@ -57,7 +57,7 @@ exports.getModule = class MrcModule extends ServerModule {
     }
 
     _connectionHandler() {
-        const enigmaVersion = 'ENiGMA½-BBS_' + require('../../../package.json').version;
+        const enigmaVersion = 'ENiGMA-BBS_' + require('../../../package.json').version;
 
         const handshake = `${
             this.boardName
@@ -216,8 +216,11 @@ exports.getModule = class MrcModule extends ServerModule {
                     });
             });
 
-            socket.on('end', function () {
+            socket.on('end', () => {
                 connectedSockets.delete(socket);
+                if (socket.username) {
+                    this.sendToMrcServer(socket.username, '', 'SERVER', '', '', 'LOGOFF');
+                }
             });
 
             socket.on('error', err => {
@@ -396,7 +399,7 @@ function sanitiseName(str) {
     return str
         .replace(/\s/g, '_')
         .replace(
-            /[^\x21-\x7D]|(\|\w\w)/g,
+            /[^\x21-\x7D]|(\|[0-9A-Z]{2})/g,
             '' // Non-printable & MCI
         )
         .substr(0, 30);

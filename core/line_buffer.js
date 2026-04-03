@@ -118,12 +118,62 @@ function u32Concat(a, b) {
 
 //  ─── Internal: word-wrap a flat string+attrs into line objects ────────────────
 
+//  Matches ANSI escape sequences and |XX pipe color codes.
+//  Used to measure visible (rendered) character width, skipping zero-width codes.
+//  Group 1 captures the numeric argument of ESC[NC (cursor-forward), which
+//  contributes that many visible columns.
+const _WRAP_CODE_RE = /\x1b\[(?:([0-9]+)C|[0-9;]*[A-Za-z])|\|[0-9A-Z]{2}/g;
+
+//  Returns the number of visible (rendered) characters in str,
+//  skipping ANSI escape sequences and |XX pipe color codes.
+function _visLen(str) {
+    let len = 0;
+    let pos = 0;
+    _WRAP_CODE_RE.lastIndex = 0;
+    let m;
+    while ((m = _WRAP_CODE_RE.exec(str)) !== null) {
+        len += m.index - pos;
+        if (m[1]) len += parseInt(m[1], 10); //  ESC[NC cursor forward counts
+        pos = m.index + m[0].length;
+    }
+    len += str.length - pos;
+    return len;
+}
+
+//  Returns the string index at which `width` visible characters have been
+//  consumed, skipping ANSI and pipe code bytes transparently.
+function _splitPos(str, width) {
+    let vis = 0;
+    let i = 0;
+    _WRAP_CODE_RE.lastIndex = 0;
+    let m = _WRAP_CODE_RE.exec(str);
+    while (i < str.length && vis < width) {
+        if (m && m.index === i) {
+            if (m[1]) {
+                const fwd = parseInt(m[1], 10);
+                if (vis + fwd >= width) break; //  this forward-move crosses the boundary
+                vis += fwd;
+            }
+            i += m[0].length;
+            m = _WRAP_CODE_RE.exec(str);
+        } else {
+            i++;
+            vis++;
+        }
+    }
+    return i;
+}
+
 //  _wrapText(text, attrs, width, hardEol)  → Line[]
 //
-//  Splits text at word boundaries (last space before width).  If no space is
-//  found in the window, breaks at width (hard character wrap).  The space at
-//  the break point is consumed (not stored in either line).  Non-final lines
-//  get eol=false; the final line gets eol=hardEol.
+//  Splits text at word boundaries (last space before width visible chars).
+//  If no space is found in the window, breaks at the width boundary (hard
+//  character wrap).  The space at the break point is consumed (not stored in
+//  either line).  Non-final lines get eol=false; the final line gets
+//  eol=hardEol.
+//
+//  Width is measured in visible (rendered) characters — ANSI escape sequences
+//  and |XX pipe color codes are skipped and do not contribute to line length.
 function _wrapText(text, attrs, width, hardEol) {
     if (text.length === 0) {
         return [{ chars: '', attrs: new Uint32Array(0), eol: hardEol, initialAttr: 0 }];
@@ -136,7 +186,7 @@ function _wrapText(text, attrs, width, hardEol) {
         const remaining = text.slice(pos);
         const remAttrs = attrs.slice(pos);
 
-        if (remaining.length <= width) {
+        if (_visLen(remaining) <= width) {
             lines.push({
                 chars: remaining,
                 attrs: remAttrs,
@@ -146,10 +196,11 @@ function _wrapText(text, attrs, width, hardEol) {
             break;
         }
 
-        //  Find the last space within the first `width` chars
-        const window = remaining.slice(0, width);
+        //  Find the last space within the first `width` visible chars
+        const splitAt = _splitPos(remaining, width);
+        const window = remaining.slice(0, splitAt);
         const lastSpace = window.lastIndexOf(' ');
-        const wrapAt = lastSpace > 0 ? lastSpace : width;
+        const wrapAt = lastSpace > 0 ? lastSpace : splitAt;
 
         lines.push({
             chars: remaining.slice(0, wrapAt),

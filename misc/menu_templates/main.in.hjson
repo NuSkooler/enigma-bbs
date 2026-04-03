@@ -313,7 +313,7 @@
                             action: @systemMethod:prevMenu
                         }
                         {
-                            keys: [ "down arrow", "up arrow", "page up", "page down" ]
+                            keys: [ "tab", "down arrow", "up arrow", "page up", "page down" ]
                             action: @method:movementKeyPressed
                         }
                     ]
