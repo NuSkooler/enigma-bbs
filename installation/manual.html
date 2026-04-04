@@ -17,11 +17,11 @@
 <meta property="og:description" content="For Linux environments it’s recommended you run the install script. If you like to do things manually, read on…" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-04T02:07:52+00:00" />
+<meta property="article:published_time" content="2026-04-04T05:41:02+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Manual Installation" />
 <script type="application/ld+json">
-{"description":"For Linux environments it’s recommended you run the install script. If you like to do things manually, read on…","headline":"Manual Installation","dateModified":"2026-04-04T02:07:52+00:00","datePublished":"2026-04-04T02:07:52+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/manual.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/installation/manual.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"For Linux environments it’s recommended you run the install script. If you like to do things manually, read on…","headline":"Manual Installation","dateModified":"2026-04-04T05:41:02+00:00","datePublished":"2026-04-04T05:41:02+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/manual.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/installation/manual.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1540,7 +1540,7 @@
 
 
     
-    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">WebSocket / Web Interface Server</a></li>
     
 
 
@@ -2524,6 +2524,31 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2553,7 +2578,7 @@ do things manually, read on…</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
   <li>
-<a href="https://nodejs.org/">Node.js</a> version <strong>v14.x LTS or higher</strong>. Versions under v14 are known not to work due to language level changes.
+<a href="https://nodejs.org/">Node.js</a> version <strong>v22.x LTS or higher</strong>.
     <ul>
       <li>
 <img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> It is <strong>highly</strong> recommended to use <a href="https://github.com/creationix/nvm">Node Version Manager (NVM)</a> to manage your Node.js installation if you’re on a Linux/Unix environment.</li>
@@ -2582,18 +2607,14 @@ are OK) for Windows users. Note that you <strong>should only need the Visual C++
 </blockquote>
 
 <p>Next, install Node.js with NVM:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nvm <span class="nb">install </span>18
-nvm use 18
-nvm <span class="nb">alias </span>default 18
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>nvm <span class="nb">install </span>22
+nvm use 22
+nvm <span class="nb">alias </span>default 22
 </code></pre></div></div>
 
 <p>If the above steps completed without errors, you should now have <code class="language-plaintext highlighter-rouge">nvm</code>, <code class="language-plaintext highlighter-rouge">node</code>, and <code class="language-plaintext highlighter-rouge">npm</code> installed and in your environment.</p>
 
 <p>For Windows nvm-like systems exist (<a href="https://github.com/coreybutler/nvm-windows">nvm-windows</a>, …) or <a href="https://nodejs.org/en/download/">just download the installer</a>.</p>
-
-<blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Please note that Node v18 is the latest release that is supported for ENiGMA BBS. Support for Node v20 is being worked on in <a href="https://github.com/NuSkooler/enigma-bbs/issues/539">this Github issue</a>.</p>
-</blockquote>
 
 <h2 id="enigma-bbs">ENiGMA BBS</h2>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>git clone https://github.com/NuSkooler/enigma-bbs.git

@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-04T02:07:52+00:00" />
+<meta property="article:published_time" content="2026-04-04T05:41:02+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu HSJON" />
 <script type="application/ld+json">
-{"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","headline":"Menu HSJON","dateModified":"2026-04-04T02:07:52+00:00","datePublished":"2026-04-04T02:07:52+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","headline":"Menu HSJON","dateModified":"2026-04-04T05:41:02+00:00","datePublished":"2026-04-04T05:41:02+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1540,7 +1540,7 @@
 
 
     
-    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">WebSocket / Web Interface Server</a></li>
     
 
 
@@ -2524,6 +2524,31 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2891,9 +2916,107 @@
 </ul>
 
 <h2 id="prompts">Prompts</h2>
-<p>Prompts are found in the <code class="language-plaintext highlighter-rouge">prompts</code> section of menu files. Prompts allow for quick user input and shorthand form requirements for menus. Additionally, prompts are often used for for multiple menus. Consider a pause prompt or menu command input for example.</p>
+<p>Prompts are found in the <code class="language-plaintext highlighter-rouge">prompts</code> section of menu files. Prompts allow for quick user input and shorthand form requirements for menus. Additionally, prompts are often used for multiple menus. Consider a pause prompt or menu command input for example.</p>
 
-<p>TODO: additional prompt docs</p>
+<h3 id="structure">Structure</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">prompts:</code> block is a <strong>top-level sibling</strong> of <code class="language-plaintext highlighter-rouge">menus:</code> in a menu file — it is not nested inside any individual menu entry:</p>
+
+<pre><code class="language-hjson">{
+    menus: {
+        // ...
+    }
+
+    prompts: {
+        myPrompt: {
+            art: MYPRMPT         // art file to display — required
+            mci: {               // MCI config — note: no "form:" wrapper here
+                ET1: {
+                    argName: input
+                    maxLength: 20
+                    focus: true
+                    submit: true
+                }
+            }
+            // optional: actionKeys for key bindings (e.g. Escape to cancel)
+        }
+    }
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Unlike menus, prompt MCI configuration is defined <strong>directly</strong> under <code class="language-plaintext highlighter-rouge">mci:</code> — there is no <code class="language-plaintext highlighter-rouge">form:</code> wrapper.</p>
+</blockquote>
+
+<p>A menu entry opts into a prompt by name via the <code class="language-plaintext highlighter-rouge">prompt</code> key:</p>
+
+<pre><code class="language-hjson">myMenu: {
+    desc: My Menu
+    art: MYMENU
+    prompt: myPrompt
+    submit: [
+        // ...
+    ]
+}
+</code></pre>
+
+<p>The prompt’s art is displayed as a persistent overlay while the user interacts with it. After each submit the prompt redraws — this is what enables the classic “command bar” pattern used throughout ENiGMA½.</p>
+
+<h3 id="real-world-example">Real-World Example</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">menuCommand</code> prompt (defined in <code class="language-plaintext highlighter-rouge">main.in.hjson</code>) is reused across many menus — doors, file base, mail, and more. It displays a label (<code class="language-plaintext highlighter-rouge">TL1</code>) alongside a text entry field (<code class="language-plaintext highlighter-rouge">ET2</code>) that captures a command string:</p>
+
+<pre><code class="language-hjson">prompts: {
+    menuCommand: {
+        art: MNUPRMT
+        mci: {
+            TL1: {}
+            ET2: {
+                argName: command
+                width: 20
+                maxLength: 20
+                submit: true
+                textStyle: upper
+                focus: true
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>Any menu that needs a command bar simply sets <code class="language-plaintext highlighter-rouge">prompt: menuCommand</code> — no duplication required.</p>
+
+<p>For a yes/no confirmation style prompt, use a <code class="language-plaintext highlighter-rouge">ToggleMenuView</code> (<code class="language-plaintext highlighter-rouge">TM</code>):</p>
+
+<pre><code class="language-hjson">logoffConfirmation: {
+    art: LOGPMPT
+    mci: {
+        TM1: {
+            argName: promptValue
+            items: [ "yes", "no" ]
+            focus: true
+            hotKeys: { Y: 0, N: 1 }
+            hotKeySubmit: true
+        }
+    }
+}
+</code></pre>
+
+<h3 id="actionkeys"><code class="language-plaintext highlighter-rouge">actionKeys</code></h3>
+
+<p>Prompts support an optional <code class="language-plaintext highlighter-rouge">actionKeys</code> array for binding keys to system actions (most commonly Escape to go back):</p>
+
+<pre><code class="language-hjson">myPrompt: {
+    art: MYPRMPT
+    mci: { /* ... */ }
+    actionKeys: [
+        {
+            keys: [ "escape" ]
+            action: @systemMethod:prevMenu
+        }
+    ]
+}
+</code></pre>
 
 <h2 id="acs-checks">ACS Checks</h2>
 <p>Menu modules can check user ACS in order to restrict areas and perform flow control. See <a href="/enigma-bbs/configuration/acs.html">ACS</a> for available ACS syntax.</p>

@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Archivers | ENiGMA½ BBS Software</title>
+<title>Troubleshooting WebSocket &amp; VTX | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Archivers" />
+<meta property="og:title" content="Troubleshooting WebSocket &amp; VTX" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Archivers ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The archives section of config.hjson is used to override defaults, add new handlers, and so on." />
-<meta property="og:description" content="Archivers ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The archives section of config.hjson is used to override defaults, add new handlers, and so on." />
+<meta name="description" content="Stuck getting WebSocket or the VTX client working? See the common problems below. You can also reach out by creating an Issue or starting a Discussion." />
+<meta property="og:description" content="Stuck getting WebSocket or the VTX client working? See the common problems below. You can also reach out by creating an Issue or starting a Discussion." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-04T05:41:02+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Archivers" />
+<meta property="twitter:title" content="Troubleshooting WebSocket &amp; VTX" />
 <script type="application/ld+json">
-{"description":"Archivers ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The archives section of config.hjson is used to override defaults, add new handlers, and so on.","headline":"Archivers","dateModified":"2026-04-04T05:41:02+00:00","datePublished":"2026-04-04T05:41:02+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/archivers.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/archivers.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Stuck getting WebSocket or the VTX client working? See the common problems below. You can also reach out by creating an Issue or starting a Discussion.","headline":"Troubleshooting WebSocket &amp; VTX","dateModified":"2026-04-04T05:41:02+00:00","datePublished":"2026-04-04T05:41:02+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/troubleshooting/websocket-troubleshooting.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/troubleshooting/websocket-troubleshooting.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -30,9 +30,9 @@
     
     <div id="container">
         <div class="sidebar" id="sidebar">
-        <hr class="mobile-divide">
+        <hr class="mobile-divide" />
             <div class="container">
-          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
             </div>
             
             <ul>
@@ -522,7 +522,7 @@
 
 
     
-      <li class="active-nav">Archivers</li>
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
     
 
 
@@ -2543,7 +2543,7 @@
 
 
     
-    <li><a href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX</a></li>
+      <li class="active-nav">Troubleshooting WebSocket &amp; VTX</li>
     
 
 
@@ -2561,86 +2561,163 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/configuration/external-binaries.html">« External Support Binaries</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">&laquo; Troubleshooting SSH</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols »</a>
-              
-              <br clear="both">
+              <br clear="both" />
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Archivers</h1>
-    <h2 id="archivers">Archivers</h2>
-<p>ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The <code class="language-plaintext highlighter-rouge">archives</code> section of <code class="language-plaintext highlighter-rouge">config.hjson</code> is used to override defaults, add new handlers, and so on.</p>
+    <h1 class="page-title">Troubleshooting WebSocket & VTX</h1>
+    <p>Stuck getting WebSocket or the VTX client working? See the common problems below. You can also reach out by creating an <a href="https://github.com/NuSkooler/enigma-bbs/issues">Issue</a> or starting a <a href="https://github.com/NuSkooler/enigma-bbs/discussions">Discussion</a>.</p>
 
-<p>Archivers are manged via the <code class="language-plaintext highlighter-rouge">archives:archivers</code> configuration block of <code class="language-plaintext highlighter-rouge">config.hjson</code>. Each entry in this section defines an <strong>external archiver</strong> that can be referenced in other sections of <code class="language-plaintext highlighter-rouge">config.hjson</code> as and in code. Entries define how to <code class="language-plaintext highlighter-rouge">compress</code>, <code class="language-plaintext highlighter-rouge">decompress</code> (a full archive), <code class="language-plaintext highlighter-rouge">list</code>, and <code class="language-plaintext highlighter-rouge">extract</code> (specific files from an archive).</p>
+<hr />
 
-<blockquote>
-  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Generally you do not need to anything beyond installing supporting binaries. No <code class="language-plaintext highlighter-rouge">config.hjson</code> editing necessary; Please see <a href="/enigma-bbs/configuration/external-binaries.html">External Binaries</a>!</p>
-</blockquote>
+<h2 id="black-screen--no-vtx-client-visible">Black Screen / No VTX Client Visible</h2>
 
-<h3 id="archiver-configuration">Archiver Configuration</h3>
-<p>Archiver entries in <code class="language-plaintext highlighter-rouge">config.hjson</code> are mostly self explanatory with the exception of <code class="language-plaintext highlighter-rouge">list</code> commands that require some additional information. The <code class="language-plaintext highlighter-rouge">args</code> member for an entry is an array of arguments to pass to <code class="language-plaintext highlighter-rouge">cmd</code>. Some variables are available to <code class="language-plaintext highlighter-rouge">args</code> that will be expanded by the system:</p>
+<p><strong><em>Symptom:</em></strong>
+Navigating to <code class="language-plaintext highlighter-rouge">vtx.html</code> shows only a black page. The browser console contains an error similar to:</p>
 
-<ul>
-  <li>
-<code class="language-plaintext highlighter-rouge">{archivePath}</code> (all): Path to the archive</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">{fileList}</code> (compress, extract): List of file(s) to compress or extract</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">{extractPath}</code> (decompress, extract): Path to extract <em>to</em>
-</li>
-</ul>
-
-<p>For <code class="language-plaintext highlighter-rouge">list</code> commands, the <code class="language-plaintext highlighter-rouge">entryMatch</code> key must be provided. This key should provide a regular expression that matches two sub groups: One for uncompressed file byte sizes (sub group 1) and the other for file names (sub group 2). An optional <code class="language-plaintext highlighter-rouge">entryGroupOrder</code> can be supplied to change the default sub group order.</p>
-
-<h4 id="example-archiver-configuration">Example Archiver Configuration</h4>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>7Zip: {
-	compress: {
-		cmd: 7za,
-		args: [ "a", "-tzip", "{archivePath}", "{fileList}" ]
-	}
-	decompress: {
-		cmd: 7za,
-		args: [ "e", "-o{extractPath}", "{archivePath}" ]
-	}
-	list: {
-		cmd: 7za,
-		args: [ "l", "{archivePath}" ]
-		entryMatch: "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$",
-	}
-	extract: {
-		cmd: 7za,
-		args [ "e", "-o{extractPath}", "{archivePath}", "{fileList}" ]
-	}
-}
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Uncaught TypeError: n is not a function   vtxclient.js:4715
+</code></pre></div></div>
+<p>or</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Cannot read properties of undefined
 </code></pre></div></div>
 
-<h2 id="archive-formats">Archive Formats</h2>
-<p>Archive formats can be defined such that ENiGMA½ can detect them by signature or extension, then utilize the correct <em>archiver</em> to process them. Formats are defined in the <code class="language-plaintext highlighter-rouge">archives:formats</code> key in <code class="language-plaintext highlighter-rouge">config.hjson</code>. Many differnet types come pre-configured (see <code class="language-plaintext highlighter-rouge">core/config_default.js</code>).</p>
+<p><strong><em>Cause:</em></strong>
+A value in <code class="language-plaintext highlighter-rouge">vtxdata.js</code> is the wrong type for the version of VTX_ClientServer you downloaded. The most common culprit is <code class="language-plaintext highlighter-rouge">defCrsrAttr</code>.</p>
 
-<h3 id="example-archive-format-configuration">Example Archive Format Configuration</h3>
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>zip: {
-	sig: "504b0304" /* byte signature in HEX */
-	offset: 0
-	exts: [ "zip" ]
-	handler: 7Zip /* points to a defined archiver */
-	desc: "ZIP Archive"
-}
+<p><strong><em>Solution:</em></strong>
+Ensure <code class="language-plaintext highlighter-rouge">defCrsrAttr</code> is an <strong>array</strong>, not a hex integer:</p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// Wrong — causes the black screen crash:</span>
+<span class="nx">defCrsrAttr</span><span class="p">:</span> <span class="mh">0x0207</span><span class="p">,</span>
+
+<span class="c1">// Correct:</span>
+<span class="nx">defCrsrAttr</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">thick</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">horizontal</span><span class="dl">'</span><span class="p">],</span>
 </code></pre></div></div>
+
+<p>Cross-check your entire <code class="language-plaintext highlighter-rouge">vtxdata.js</code> against the working example in the <a href="/enigma-bbs/servers/loginservers/websocket.html">WebSocket setup guide</a>.</p>
+
+<hr />
+
+<h2 id="browser-refuses-websocket-connection-mixed-content">Browser Refuses WebSocket Connection (Mixed Content)</h2>
+
+<p><strong><em>Symptom:</em></strong>
+The VTX page loads but immediately fails to connect. The browser console shows:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Mixed Content: The page at 'https://...' was loaded over HTTPS, but attempted
+to connect to the insecure WebSocket endpoint 'ws://...'. This request has
+been blocked.
+</code></pre></div></div>
+
+<p><strong><em>Cause:</em></strong>
+Browsers block plain <code class="language-plaintext highlighter-rouge">ws://</code> connections from pages served over HTTPS. This is a browser security policy and cannot be worked around from ENiGMA’s side.</p>
+
+<p><strong><em>Solution:</em></strong>
+Use a secure <code class="language-plaintext highlighter-rouge">wss://</code> WebSocket endpoint. See <a href="/enigma-bbs/servers/loginservers/websocket.html#deployment-architectures">Deployment Architectures</a> for the two supported options (reverse proxy or direct TLS in ENiGMA).</p>
+
+<p>If you are testing locally over plain HTTP, <code class="language-plaintext highlighter-rouge">ws://</code> is fine. For any public deployment where the VTX page is served over HTTPS, <code class="language-plaintext highlighter-rouge">wss://</code> is required.</p>
+
+<hr />
+
+<h2 id="connection-refused-on-websocket-port">Connection Refused on WebSocket Port</h2>
+
+<p><strong><em>Symptom:</em></strong>
+The browser console shows:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>WebSocket connection to 'wss://your-hostname:8811' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED
+</code></pre></div></div>
+
+<p><strong><em>Solutions to check in order:</em></strong></p>
+
+<ol>
+  <li><strong>ENiGMA was not restarted</strong> after adding the <code class="language-plaintext highlighter-rouge">webSocket</code> block to <code class="language-plaintext highlighter-rouge">config.hjson</code>. Restart and check the logs for a line like:
+    <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>INFO: Listening for connections (server="WebSocket (secure)", port=8811)
+</code></pre></div>    </div>
+    <p>If that line is absent, the server did not start — look for an error above it in the log.</p>
+  </li>
+  <li>
+    <p><strong>Port not forwarded.</strong> If ENiGMA is behind a router, port <code class="language-plaintext highlighter-rouge">8811</code> (or whichever port you configured) must be forwarded to the host running ENiGMA. See <a href="/enigma-bbs/installation/network.html">Network Setup</a>.</p>
+  </li>
+  <li>
+    <p><strong>Firewall blocking the port.</strong> Check your host firewall (<code class="language-plaintext highlighter-rouge">ufw</code>, <code class="language-plaintext highlighter-rouge">iptables</code>, security groups, etc.) for the configured port.</p>
+  </li>
+  <li><strong>Wrong port in <code class="language-plaintext highlighter-rouge">vtxdata.js</code>.</strong> The <code class="language-plaintext highlighter-rouge">wsConnect</code> value must match the port ENiGMA is actually listening on.</li>
+</ol>
+
+<hr />
+
+<h2 id="certificate--tls-errors">Certificate / TLS Errors</h2>
+
+<p><strong><em>Symptom:</em></strong>
+The browser shows a certificate warning or the console shows:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>WebSocket connection failed: ERR_CERT_AUTHORITY_INVALID
+</code></pre></div></div>
+<p>or ENiGMA logs show an error starting the <code class="language-plaintext highlighter-rouge">wss://</code> listener.</p>
+
+<p><strong><em>Solutions:</em></strong></p>
+
+<ol>
+  <li>
+    <p><strong>Self-signed certificate.</strong> Browsers reject self-signed certs for WebSocket connections just as they do for HTTPS. Use a certificate from a trusted CA — <a href="https://letsencrypt.org/">Let’s Encrypt</a> is free and widely trusted. Alternatively, use Option A (reverse proxy) so nginx/Caddy owns the certificate.</p>
+  </li>
+  <li>
+    <p><strong>Certificate not readable by ENiGMA.</strong> Let’s Encrypt writes certificates to <code class="language-plaintext highlighter-rouge">/etc/letsencrypt/</code> which is only readable by root. If ENiGMA does not run as root (it should not), copy the cert and key to a location the ENiGMA user can read, and update that copy when the cert renews (e.g. a <code class="language-plaintext highlighter-rouge">certbot</code> deploy hook).</p>
+  </li>
+  <li>
+    <p><strong>Wrong paths in config.</strong> Double-check <code class="language-plaintext highlighter-rouge">certPem</code> and <code class="language-plaintext highlighter-rouge">keyPem</code> in the <code class="language-plaintext highlighter-rouge">wss</code> block point to the correct files. ENiGMA will fail to start the <code class="language-plaintext highlighter-rouge">wss://</code> listener if either path is wrong.</p>
+  </li>
+</ol>
+
+<hr />
+
+<h2 id="proxied-true-not-working--treated-as-insecure"><code class="language-plaintext highlighter-rouge">proxied: true</code> Not Working / Treated as Insecure</h2>
+
+<p><strong><em>Symptom:</em></strong>
+With <code class="language-plaintext highlighter-rouge">proxied: true</code> set and nginx forwarding connections, features that require a secure connection (such as 2FA/OTP registration) report that the connection is insecure.</p>
+
+<p><strong><em>Solutions:</em></strong></p>
+
+<ol>
+  <li><strong>Missing <code class="language-plaintext highlighter-rouge">X-Forwarded-Proto</code> header.</strong> ENiGMA trusts the proxy only when the connection carries <code class="language-plaintext highlighter-rouge">X-Forwarded-Proto: https</code>. Confirm your nginx config includes:
+    <div class="language-nginx highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">proxy_set_header</span> <span class="s">X-Forwarded-Proto</span> <span class="s">https</span><span class="p">;</span>
+</code></pre></div>    </div>
+  </li>
+  <li><strong><code class="language-plaintext highlighter-rouge">proxied: true</code> set but no proxy in use.</strong> If ENiGMA is exposed directly to the internet (not behind nginx/Caddy), do not set <code class="language-plaintext highlighter-rouge">proxied: true</code>. Use the <code class="language-plaintext highlighter-rouge">wss:</code> block directly instead.</li>
+</ol>
+
+<hr />
+
+<h2 id="vtx-page-shows-splash-but-immediately-disconnects">VTX Page Shows Splash but Immediately Disconnects</h2>
+
+<p><strong><em>Symptom:</em></strong>
+The VTX splash graphic appears briefly then the client disconnects or shows a connection error overlay.</p>
+
+<p><strong><em>Solutions to check:</em></strong></p>
+
+<ol>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">wsConnect</code> points to wrong address or port.</strong> Verify the value in <code class="language-plaintext highlighter-rouge">vtxdata.js</code> matches what ENiGMA is actually listening on and what is reachable from the browser.</p>
+  </li>
+  <li><strong><code class="language-plaintext highlighter-rouge">wsProtocol</code> mismatch.</strong> ENiGMA expects <code class="language-plaintext highlighter-rouge">telnet</code> sub-protocol negotiation. Ensure <code class="language-plaintext highlighter-rouge">vtxdata.js</code> has:
+    <div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">wsProtocol</span><span class="p">:</span> <span class="dl">'</span><span class="s1">telnet</span><span class="dl">'</span><span class="p">,</span>
+<span class="nx">wsDataType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">arraybuffer</span><span class="dl">'</span><span class="p">,</span>
+</code></pre></div>    </div>
+  </li>
+  <li><strong>ENiGMA log errors.</strong> Check ENiGMA’s log at the time of the connection attempt for any errors during the WebSocket handshake or login sequence.</li>
+</ol>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/configuration/external-binaries.html">« External Support Binaries</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">&laquo; Troubleshooting SSH</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols »</a>
-              
-              <br clear="both">
+              <br clear="both" />
               </div>
             </section>
           </div>

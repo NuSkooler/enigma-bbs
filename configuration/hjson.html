@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="HJSON Config Files" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="JSON for Humans! HJSON is the configuration file format used by ENiGMA½ for System Configuration, Menus, etc. HJSON is is JSON for humans!" />
-<meta property="og:description" content="JSON for Humans! HJSON is the configuration file format used by ENiGMA½ for System Configuration, Menus, etc. HJSON is is JSON for humans!" />
+<meta name="description" content="JSON for Humans! HJSON is the configuration file format used by ENiGMA½ for System Configuration, Menus, etc. HJSON is JSON for humans!" />
+<meta property="og:description" content="JSON for Humans! HJSON is the configuration file format used by ENiGMA½ for System Configuration, Menus, etc. HJSON is JSON for humans!" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-04T02:07:52+00:00" />
+<meta property="article:published_time" content="2026-04-04T05:41:02+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="HJSON Config Files" />
 <script type="application/ld+json">
-{"description":"JSON for Humans! HJSON is the configuration file format used by ENiGMA½ for System Configuration, Menus, etc. HJSON is is JSON for humans!","headline":"HJSON Config Files","dateModified":"2026-04-04T02:07:52+00:00","datePublished":"2026-04-04T02:07:52+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/hjson.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/hjson.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"JSON for Humans! HJSON is the configuration file format used by ENiGMA½ for System Configuration, Menus, etc. HJSON is JSON for humans!","headline":"HJSON Config Files","dateModified":"2026-04-04T05:41:02+00:00","datePublished":"2026-04-04T05:41:02+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/hjson.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/hjson.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1540,7 +1540,7 @@
 
 
     
-    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">WebSocket / Web Interface Server</a></li>
     
 
 
@@ -2524,6 +2524,31 @@
 
   
   
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX</a></li>
+    
+
+
+  
+  
     </ul>
     
   
@@ -2548,7 +2573,7 @@
                 <div class="page">
     <h1 class="page-title">HJSON Config Files</h1>
     <h2 id="json-for-humans">JSON for Humans!</h2>
-<p>HJSON is the configuration file format used by ENiGMA½ for <a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a>, <a href="/enigma-bbs/configuration/menu-hjson.html">Menus</a>, etc. <a href="https://hjson.github.io/">HJSON</a> is is <a href="https://json.org/">JSON</a> for humans!</p>
+<p>HJSON is the configuration file format used by ENiGMA½ for <a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a>, <a href="/enigma-bbs/configuration/menu-hjson.html">Menus</a>, etc. <a href="https://hjson.github.io/">HJSON</a> is <a href="https://json.org/">JSON</a> for humans!</p>
 
 <p>For those completely unfamiliar, JSON stands for JavaScript Object Notation. But don’t let that scare you! JSON is simply a text file format with a bit of structure ― kind of like a fancier INI file. HJSON on the other hand as mentioned previously, is JSON for humans. That is, it has the following features and more:</p>
 
@@ -2559,6 +2584,10 @@
   <li>Keys never need to be quoted</li>
   <li>…much more! See <a href="https://hjson.github.io/">the official HJSON website</a>.</li>
 </ul>
+
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Not sure your HJSON is valid? Try it in the <a href="https://hjson.github.io/try.html">live HJSON playground</a> before editing your config files!</p>
+</blockquote>
 
 <h2 id="terminology">Terminology</h2>
 <p>Through the documentation, some terms regarding HJSON and configuration files will be used:</p>
@@ -2581,20 +2610,16 @@
 <h2 id="editing-hjson">Editing HJSON</h2>
 <p>HJSON is a text file format, and ENiGMA½ configuration files <strong>should always be saved as UTF-8</strong>.</p>
 
-<p>It is <strong>highly</strong> recommended to use a text editor that has HJSON support. A few (but not all!) examples include:</p>
-<ul>
-  <li>
-<a href="https://www.sublimetext.com/">Sublime Text</a> via the <code class="language-plaintext highlighter-rouge">sublime-hjson</code> package.</li>
-  <li>
-<a href="https://code.visualstudio.com/">Visual Studio Code</a> via the <code class="language-plaintext highlighter-rouge">vscode-hjson</code> plugin.</li>
-  <li>
-<a href="https://notepad-plus-plus.org">Notepad++</a> via the <code class="language-plaintext highlighter-rouge">npp-hjson</code> plugin.</li>
-</ul>
+<p>It is <strong>highly</strong> recommended to use a text editor that has HJSON support to get syntax highlighting and catch errors early.</p>
 
-<p>See https://hjson.github.io/users.html for more more editors &amp; plugins.</p>
+<h3 id="visual-studio-code">Visual Studio Code</h3>
+<p>The <a href="https://marketplace.visualstudio.com/items?itemName=laktak.hjson">vscode-hjson</a> extension provides syntax highlighting for <code class="language-plaintext highlighter-rouge">.hjson</code> files and is available directly from the VS Code marketplace. This is the recommended option for most users.</p>
+
+<h3 id="other-editors">Other Editors</h3>
+<p>Several other editors have HJSON plugins available. The <a href="https://hjson.github.io/users.html">official HJSON users page</a> has a current list. Note that plugins for <strong>Sublime Text</strong> (<code class="language-plaintext highlighter-rouge">sublime-hjson</code>) and <strong>Notepad++</strong> (<code class="language-plaintext highlighter-rouge">npp-hjson</code>) exist but are no longer actively maintained — they still work for basic syntax highlighting but may have rough edges on newer editor versions.</p>
 
 <h3 id="hot-reload-aka-live-editing">Hot-Reload A.K.A. Live Editing</h3>
-<p>ENiGMA½’s configuration, menu, and theme files can edited while your BBS is running. When a file is saved, it is hot-reloaded into the running system. If users are currently connected and you change a menu for example, the next reload of that menu will show the changes.</p>
+<p>ENiGMA½’s configuration, menu, and theme files can be edited while your BBS is running. When a file is saved, it is hot-reloaded into the running system. If users are currently connected and you change a menu for example, the next reload of that menu will show the changes.</p>
 
 <blockquote>
   <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See also <a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></p>
@@ -2610,7 +2635,69 @@
 }
 </code></pre>
 
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Escape sequences (like <code class="language-plaintext highlighter-rouge">\\</code>) only work inside <strong>double-quoted</strong> strings. Unquoted values are taken literally and do not support escaping.</p>
+</blockquote>
+
+<h2 id="common-pitfalls">Common Pitfalls</h2>
+
+<h3 id="-is-always-a-comment">
+<code class="language-plaintext highlighter-rouge">#</code> Is Always a Comment</h3>
+<p>In HJSON, <code class="language-plaintext highlighter-rouge">#</code> starts a comment anywhere it appears as the first non-whitespace character of an unquoted value. This catches people out with hex color codes or similar values:</p>
+
+<pre><code class="language-hjson">// Wrong — "color" will be empty; everything after # is a comment:
+color: #FF0000
+
+// Correct — quote the value:
+color: "#FF0000"
+</code></pre>
+
+<h3 id="numbers-vs-strings">Numbers vs. Strings</h3>
+<p>HJSON automatically interprets unquoted values that look like numbers as actual numbers, and <code class="language-plaintext highlighter-rouge">true</code>/<code class="language-plaintext highlighter-rouge">false</code> as booleans. ENiGMA½ configuration expects the correct type — passing a quoted string where a number is expected (or vice versa) will cause errors:</p>
+
+<pre><code class="language-hjson">// Correct — port is a number, boardName is a string:
+port: 8810
+boardName: My Awesome BBS
+
+// Wrong — port will be the string "8810", not the number 8810:
+port: "8810"
+</code></pre>
+
+<h3 id="unquoted-strings-have-limits">Unquoted Strings Have Limits</h3>
+<p>Unquoted string values are convenient but cannot span multiple lines and do not support escape sequences. If your value contains special characters, leading/trailing whitespace, or needs to span multiple lines, use quotes.</p>
+
+<p>For <strong>multi-line strings</strong>, HJSON supports triple-quoted blocks:</p>
+
+<pre><code class="language-hjson">welcomeMessage:
+    '''
+    Welcome to my BBS!
+    We hope you enjoy your stay.
+    '''
+</code></pre>
+
+<p>The indentation matching the opening <code class="language-plaintext highlighter-rouge">'''</code> is automatically stripped from each line.</p>
+
+<h3 id="root-braces-are-omitted">Root Braces Are Omitted</h3>
+<p>ENiGMA½ config files omit the outer <code class="language-plaintext highlighter-rouge">{ }</code> that you would see in standard JSON. This is valid HJSON — the parser wraps the content in an implicit root object. Don’t add them.</p>
+
 <h2 id="tips--tricks">Tips &amp; Tricks</h2>
+
+<h3 id="validating-your-config">Validating Your Config</h3>
+<p>Before starting ENiGMA½, you can validate your config files using the bundled <code class="language-plaintext highlighter-rouge">hjson</code> CLI. If there is a syntax error it will report the exact line number:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./node_modules/hjson/bin/hjson ./config/config.hjson
+</code></pre></div></div>
+
+<p>A clean parse will pretty-print the file. An error will show the line and column of the problem. This is much faster than starting ENiGMA and hunting through logs.</p>
+
+<h3 id="inspecting-your-live-config">Inspecting Your Live Config</h3>
+<p>You can dump your current merged configuration in a pretty-printed style using oputil:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js config <span class="nb">cat</span>
+</code></pre></div></div>
+
+<p>This is useful for verifying that hot-reloaded changes were applied correctly and that your overrides merged as expected.</p>
+
 <h3 id="json-compatibility">JSON Compatibility</h3>
 <p>Remember that standard JSON is fully compatible with HJSON. If you are more comfortable with JSON (or have an editor that works with JSON that you prefer) simply convert your config file(s) to JSON and use that instead!</p>
 
@@ -2621,9 +2708,6 @@
 </code></pre></div></div>
 
 <p>You can always convert back to HJSON by omitting <code class="language-plaintext highlighter-rouge">-j</code> in the command above.</p>
-
-<h3 id="oputil">oputil</h3>
-<p>You can easily dump out your current configuration in a pretty-printed style using oputil: <code class="language-plaintext highlighter-rouge">./oputil.js config cat</code></p>
 
 </div>
 
