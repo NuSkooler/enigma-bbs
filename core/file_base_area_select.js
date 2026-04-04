@@ -84,18 +84,30 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
                                     return callback(err);
                                 }
 
-                                const areaListView = vc.getView(MciViewIds.areaList);
-                                areaListView.setItems(
-                                    availAreas.map(area =>
-                                        Object.assign(area, {
-                                            text: area.name,
-                                            data: area.areaTag,
-                                        })
-                                    )
-                                );
-                                areaListView.redraw();
+                                self.validateMCIByViewIds(
+                                    'allViews',
+                                    [MciViewIds.areaList],
+                                    err => {
+                                        if (err) {
+                                            return callback(err);
+                                        }
 
-                                return callback(null);
+                                        const areaListView = vc.getView(
+                                            MciViewIds.areaList
+                                        );
+                                        areaListView.setItems(
+                                            availAreas.map(area =>
+                                                Object.assign(area, {
+                                                    text: area.name,
+                                                    data: area.areaTag,
+                                                })
+                                            )
+                                        );
+                                        areaListView.redraw();
+
+                                        return callback(null);
+                                    }
+                                );
                             }
                         );
                     },

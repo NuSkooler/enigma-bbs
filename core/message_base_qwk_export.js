@@ -88,6 +88,13 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         );
                     },
                     callback => {
+                        return this.validateMCIByViewIds(
+                            'main',
+                            [MciViewIds.main.status, MciViewIds.main.progressBar],
+                            callback
+                        );
+                    },
+                    callback => {
                         this.temptmp = temptmp.createTrackedSession('qwkuserexp');
                         this.temptmp.mkdir(
                             { prefix: 'enigqwkwriter-' },

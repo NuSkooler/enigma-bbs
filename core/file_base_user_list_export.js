@@ -98,6 +98,12 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                             mciData.menu,
                             callback
                         ),
+                    callback =>
+                        this.validateMCIByViewIds(
+                            'main',
+                            [MciViewIds.main.status, MciViewIds.main.progressBar],
+                            callback
+                        ),
                     callback => this.prepareList(callback),
                 ],
                 err => {

@@ -175,6 +175,20 @@ exports.getModule = class NewUserAppModule extends MenuModule {
     }
 
     mciReady(mciData, cb) {
-        return this.standardMCIReadyHandler(mciData, cb);
+        this.standardMCIReadyHandler(mciData, err => {
+            if (err) {
+                return cb(err);
+            }
+            return this.validateMCIByViewIds(
+                'menu',
+                [
+                    MciViewIds.userName,
+                    MciViewIds.password,
+                    MciViewIds.confirm,
+                    MciViewIds.errMsg,
+                ],
+                cb
+            );
+        });
     }
 };
