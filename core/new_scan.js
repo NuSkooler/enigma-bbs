@@ -288,6 +288,13 @@ exports.getModule = class NewScanModule extends MenuModule {
 
                         vc.loadFromMenuConfig(loadOpts, callback);
                     },
+                    function validateMci(callback) {
+                        return self.validateMCIByViewIds(
+                            'allViews',
+                            [MciCodeIds.ScanStatusLabel],
+                            callback
+                        );
+                    },
                     function performCurrentStepScan(callback) {
                         return self.performScanCurrentStep(callback);
                     },

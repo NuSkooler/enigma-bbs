@@ -57,20 +57,30 @@ exports.getModule = class UserSSHKeyConfigModule extends MenuModule {
                     return cb(prepErr);
                 }
 
-                this.refreshInfoText();
-                this.showStatus('');
+                this.validateMCIByViewIds(
+                    'menu',
+                    [MciViewIds.publicKey, MciViewIds.submit],
+                    err => {
+                        if (err) {
+                            return cb(err);
+                        }
 
-                const submitView = this.getView('menu', MciViewIds.submit);
-                if (submitView) {
-                    submitView.setFocusItemIndex(0);
-                }
+                        this.refreshInfoText();
+                        this.showStatus('');
 
-                const publicKeyView = this.getView('menu', MciViewIds.publicKey);
-                if (publicKeyView) {
-                    publicKeyView.setFocus(true);
-                }
+                        const submitView = this.getView('menu', MciViewIds.submit);
+                        if (submitView) {
+                            submitView.setFocusItemIndex(0);
+                        }
 
-                return cb(null);
+                        const publicKeyView = this.getView('menu', MciViewIds.publicKey);
+                        if (publicKeyView) {
+                            publicKeyView.setFocus(true);
+                        }
+
+                        return cb(null);
+                    }
+                );
             });
         });
     }

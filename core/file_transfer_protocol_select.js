@@ -150,6 +150,13 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
                     },
+                    function validateMci(callback) {
+                        return self.validateMCIByViewIds(
+                            'allViews',
+                            [MciViewIds.protList],
+                            callback
+                        );
+                    },
                     function populateList(callback) {
                         const protListView = vc.getView(MciViewIds.protList);
 

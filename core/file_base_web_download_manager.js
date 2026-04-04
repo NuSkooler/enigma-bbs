@@ -191,6 +191,13 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                         callback
                     );
                 },
+                function validateMci(callback) {
+                    return self.validateMCIByViewIds(
+                        'queueManager',
+                        [MciViewIds.queueManager.queue, MciViewIds.queueManager.navMenu],
+                        callback
+                    );
+                },
                 function prepareQueueDownloadLinks(callback) {
                     const webDlExpireTimeFormat =
                         self.menuConfig.config.webDlExpireTimeFormat ||

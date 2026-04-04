@@ -200,6 +200,13 @@ exports.getModule = class UserConfigModule extends MenuModule {
                             callback
                         );
                     },
+                    function validateMci(callback) {
+                        return self.validateMCIByViewIds(
+                            'menu',
+                            [MciCodeIds.SaveCancel],
+                            callback
+                        );
+                    },
                     function prepareAvailableThemes(callback) {
                         self.availThemeInfo = _.sortBy(
                             [...theme.getAvailableThemes()].map(entry => {
