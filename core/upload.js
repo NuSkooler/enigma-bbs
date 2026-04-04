@@ -759,6 +759,17 @@ exports.getModule = class UploadModule extends MenuModule {
                         callback
                     );
                 },
+                function validateMci(callback) {
+                    return self.validateMCIByViewIds(
+                        'options',
+                        [
+                            MciViewIds.options.area,
+                            MciViewIds.options.uploadType,
+                            MciViewIds.options.fileName,
+                        ],
+                        callback
+                    );
+                },
                 function populateViews(callback) {
                     const areaSelectView = self.viewControllers.options.getView(
                         MciViewIds.options.area
@@ -846,6 +857,17 @@ exports.getModule = class UploadModule extends MenuModule {
                         err => {
                             return callback(err);
                         }
+                    );
+                },
+                function validateMci(callback) {
+                    return self.validateMCIByViewIds(
+                        'fileDetails',
+                        [
+                            MciViewIds.fileDetails.desc,
+                            MciViewIds.fileDetails.tags,
+                            MciViewIds.fileDetails.estYear,
+                        ],
+                        callback
                     );
                 },
                 function populateViews(callback) {

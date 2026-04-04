@@ -387,6 +387,13 @@ exports.getModule = class FileAreaList extends MenuModule {
                         callback
                     );
                 },
+                function validateMci(callback) {
+                    return self.validateMCIByViewIds(
+                        'browse',
+                        [MciViewIds.browse.navMenu],
+                        callback
+                    );
+                },
                 function loadCurrentFileInfo(callback) {
                     self.currentFileEntry = new FileEntry();
 
@@ -480,6 +487,13 @@ exports.getModule = class FileAreaList extends MenuModule {
                             clearScreen: true,
                             artDataPrep: self.displayArtDataPrepCallback.bind(self),
                         },
+                        callback
+                    );
+                },
+                function validateMci(callback) {
+                    return self.validateMCIByViewIds(
+                        'details',
+                        [MciViewIds.details.navMenu],
                         callback
                     );
                 },

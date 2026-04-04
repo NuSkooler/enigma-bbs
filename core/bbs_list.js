@@ -284,7 +284,16 @@ exports.getModule = class BBSListModule extends MenuModule {
                             formId: FormIds.View,
                         };
 
-                        return vc.loadFromMenuConfig(loadOpts, callback);
+                        return vc.loadFromMenuConfig(loadOpts, err => {
+                            if (err) {
+                                return callback(err);
+                            }
+                            return self.validateMCIByViewIds(
+                                'view',
+                                [MciViewIds.view.BBSList],
+                                callback
+                            );
+                        });
                     } else {
                         self.viewControllers.view.setFocus(true);
                         self.viewControllers.view
@@ -412,7 +421,20 @@ exports.getModule = class BBSListModule extends MenuModule {
                             formId: FormIds.Add,
                         };
 
-                        return vc.loadFromMenuConfig(loadOpts, callback);
+                        return vc.loadFromMenuConfig(loadOpts, err => {
+                            if (err) {
+                                return callback(err);
+                            }
+                            return self.validateMCIByViewIds(
+                                'add',
+                                [
+                                    MciViewIds.add.BBSName,
+                                    MciViewIds.add.Sysop,
+                                    MciViewIds.add.Telnet,
+                                ],
+                                callback
+                            );
+                        });
                     } else {
                         self.viewControllers.add.setFocus(true);
                         self.viewControllers.add.redrawAll();
