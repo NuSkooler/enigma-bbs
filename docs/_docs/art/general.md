@@ -3,7 +3,7 @@ layout: page
 title: General Art Information
 ---
 ## General Art Information
-One of the most basic elements of BBS customization is through it's artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.
+One of the most basic elements of BBS customization is through its artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.
 
 ### Art File Locations
 As a general rule, art files live in one of two places:

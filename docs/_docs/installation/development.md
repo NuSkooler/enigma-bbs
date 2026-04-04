@@ -23,7 +23,7 @@ This task will start the Jekyll server to perform local testing of changes to do
 
 ### (re)build Jekyll bundles
 
-When the image is created the Jekyll bundles are installed, so in general there shouldn't be much need to run this task. This is available however in case soemthing goes wrong or you are working on the Jekyll setup itself.
+When the image is created the Jekyll bundles are installed, so in general there shouldn't be much need to run this task. This is available however in case something goes wrong or you are working on the Jekyll setup itself.
 
 ### (re)build node modules
 

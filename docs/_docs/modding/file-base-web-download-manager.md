@@ -5,7 +5,7 @@ title: File Base Web Download Manager
 ## File Base Web Download Manager Module
 The `file_base_web_download_manager` module provides a download queue manager for web (HTTP/HTTPS) based downloads. This module relies on having the web server enabled at a minimum.
 
-Web downloads can be a convienent way for users to download larger (100+ MiB) files where legacy protocols often have trouble. Additionally, batch downloads can be streamed to users in a single zip archive.
+Web downloads can be a convenient way for users to download larger (100+ MiB) files where legacy protocols often have trouble. Additionally, batch downloads can be streamed to users in a single zip archive.
 
 ## Configuration
 ### Configuration Block

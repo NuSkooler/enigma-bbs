@@ -6,7 +6,7 @@ For Linux environments it's recommended you run the [install script](install-scr
 do things manually, read on...
 
 ## Prerequisites
-* [Node.js](https://nodejs.org/) version **v14.x LTS or higher**. Versions under v14 are known not to work due to language level changes.
+* [Node.js](https://nodejs.org/) version **v22.x LTS or higher**.
   * :bulb: It is **highly** recommended to use [Node Version Manager (NVM)](https://github.com/creationix/nvm) to manage your Node.js installation if you're on a Linux/Unix environment.
 
 * [Python](https://www.python.org/downloads/) for compiling Node.js packages with native extensions via `node-gyp`.
@@ -28,16 +28,14 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 
 Next, install Node.js with NVM:
 ```bash
-nvm install 18
-nvm use 18
-nvm alias default 18
+nvm install 22
+nvm use 22
+nvm alias default 22
 ```
 
 If the above steps completed without errors, you should now have `nvm`, `node`, and `npm` installed and in your environment.
 
 For Windows nvm-like systems exist ([nvm-windows](https://github.com/coreybutler/nvm-windows), ...) or [just download the installer](https://nodejs.org/en/download/).
-
-> :information_source: Please note that Node v18 is the latest release that is supported for ENiGMA BBS. Support for Node v20 is being worked on in [this Github issue](https://github.com/NuSkooler/enigma-bbs/issues/539).
 
 ## ENiGMA BBS
 ```bash
