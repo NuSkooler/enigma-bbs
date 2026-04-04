@@ -201,7 +201,7 @@ In the above entry, you'll notice `form`. This defines a form(s) object. In this
 * Upon submit, the first match will be executed. For example, if the user selects "login", the first entry with a value of `{ matrixSubmit: 0 }` will match (due to 0 being the first index in the list and `matrixSubmit` being the arg name in question) causing `action` of `@menu:login` to be executed (go to `login` menu).
 
 ## Prompts
-Prompts are found in the `prompts` section of menu files. Prompts allow for quick user input and shorthand form requirements for menus. Additionally, prompts are often used for for multiple menus. Consider a pause prompt or menu command input for example.
+Prompts are found in the `prompts` section of menu files. Prompts allow for quick user input and shorthand form requirements for menus. Additionally, prompts are often used for multiple menus. Consider a pause prompt or menu command input for example.
 
 TODO: additional prompt docs
 

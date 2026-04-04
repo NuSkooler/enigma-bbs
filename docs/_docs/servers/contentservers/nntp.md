@@ -47,7 +47,7 @@ openssl req -newkey rsa:2048 -nodes -keyout ./config/nntps_key.pem -x509 -days 3
 Authenticated users may write messages to a group given the following are true:
 
 1. `allowPosts` is set to `true`
-2. They are connected security (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.
+2. They are connected securely (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.
 3. The authenticated user has write [ACS](../../configuration/acs.md) to the target message conference and area.
 
 > :warning: Not all [ACS](../../configuration/acs.md) checks can be made over NNTP. Any ACS requiring a "client" will return false (fail), such as `LC` ("is local?").

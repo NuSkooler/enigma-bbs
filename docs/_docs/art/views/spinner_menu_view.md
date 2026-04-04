@@ -3,7 +3,7 @@ layout: page
 title: Spinner Menu View
 ---
 ## Spinner Menu View
-A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.
+A spinner menu view supports displaying a set of items on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.
 
 ## General Information
 
