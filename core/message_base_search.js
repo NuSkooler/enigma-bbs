@@ -56,44 +56,54 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
                     return cb(err);
                 }
 
-                const confView = vc.getView(MciViewIds.search.conf);
-                const areaView = vc.getView(MciViewIds.search.area);
+                this.validateMCIByViewIds(
+                    'search',
+                    [MciViewIds.search.conf, MciViewIds.search.area],
+                    err => {
+                        if (err) {
+                            return cb(err);
+                        }
 
-                if (!confView || !areaView) {
-                    return cb(Errors.DoesNotExist('Missing one or more required views'));
-                }
+                        const confView = vc.getView(MciViewIds.search.conf);
+                        const areaView = vc.getView(MciViewIds.search.area);
 
-                const availConfs = [{ text: '-ALL-', data: '' }].concat(
-                    getSortedAvailMessageConferences(this.client).map(conf =>
-                        Object.assign(conf, { text: conf.conf.name, data: conf.confTag })
-                    ) || []
+                        const availConfs = [{ text: '-ALL-', data: '' }].concat(
+                            getSortedAvailMessageConferences(this.client).map(conf =>
+                                Object.assign(conf, {
+                                    text: conf.conf.name,
+                                    data: conf.confTag,
+                                })
+                            ) || []
+                        );
+
+                        let availAreas = [{ text: '-ALL-', data: '' }]; //  note: will populate if conf changes from ALL
+
+                        confView.setItems(availConfs);
+                        areaView.setItems(availAreas);
+
+                        confView.setFocusItemIndex(0);
+                        areaView.setFocusItemIndex(0);
+
+                        confView.on('index update', idx => {
+                            availAreas = [{ text: '-ALL-', data: '' }].concat(
+                                getSortedAvailMessageAreasByConfTag(
+                                    availConfs[idx].confTag,
+                                    { client: this.client }
+                                ).map(area =>
+                                    Object.assign(area, {
+                                        text: area.area.name,
+                                        data: area.areaTag,
+                                    })
+                                )
+                            );
+                            areaView.setItems(availAreas);
+                            areaView.setFocusItemIndex(0);
+                        });
+
+                        vc.switchFocus(MciViewIds.search.searchTerms);
+                        return cb(null);
+                    }
                 );
-
-                let availAreas = [{ text: '-ALL-', data: '' }]; //  note: will populate if conf changes from ALL
-
-                confView.setItems(availConfs);
-                areaView.setItems(availAreas);
-
-                confView.setFocusItemIndex(0);
-                areaView.setFocusItemIndex(0);
-
-                confView.on('index update', idx => {
-                    availAreas = [{ text: '-ALL-', data: '' }].concat(
-                        getSortedAvailMessageAreasByConfTag(availConfs[idx].confTag, {
-                            client: this.client,
-                        }).map(area =>
-                            Object.assign(area, {
-                                text: area.area.name,
-                                data: area.areaTag,
-                            })
-                        )
-                    );
-                    areaView.setItems(availAreas);
-                    areaView.setFocusItemIndex(0);
-                });
-
-                vc.switchFocus(MciViewIds.search.searchTerms);
-                return cb(null);
             });
         });
     }

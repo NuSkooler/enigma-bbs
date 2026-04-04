@@ -121,13 +121,21 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                             trailingLF: false,
                         },
                         (err, artInfo, wasCreated) => {
-                            if (!err && !wasCreated) {
+                            if (err) {
+                                return callback(err);
+                            }
+                            if (!wasCreated) {
                                 self.viewControllers.view.setFocus(true);
                                 self.viewControllers.view
                                     .getView(MciViewIds.view.addPrompt)
                                     .redraw();
+                                return callback(null);
                             }
-                            return callback(err);
+                            return self.validateMCIByViewIds(
+                                'view',
+                                [MciViewIds.view.entries, MciViewIds.view.addPrompt],
+                                callback
+                            );
                         }
                     );
                 },
@@ -211,14 +219,22 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                             trailingLF: false,
                         },
                         (err, artInfo, wasCreated) => {
+                            if (err) {
+                                return callback(err);
+                            }
                             if (!wasCreated) {
                                 self.viewControllers.add.setFocus(true);
                                 self.viewControllers.add.redrawAll();
                                 self.viewControllers.add.switchFocus(
                                     MciViewIds.add.newEntry
                                 );
+                                return callback(null);
                             }
-                            return callback(err);
+                            return self.validateMCIByViewIds(
+                                'add',
+                                [MciViewIds.add.newEntry, MciViewIds.add.addPrompt],
+                                callback
+                            );
                         }
                     );
                 },

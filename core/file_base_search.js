@@ -61,6 +61,13 @@ exports.getModule = class FileBaseSearch extends MenuModule {
                             callback
                         );
                     },
+                    function validateMci(callback) {
+                        return self.validateMCIByViewIds(
+                            'search',
+                            [MciViewIds.search.searchTerms, MciViewIds.search.area],
+                            callback
+                        );
+                    },
                     function populateAreas(callback) {
                         self.availAreas = [{ name: '-ALL-' }].concat(
                             getSortedAvailableFileAreas(self.client) || []

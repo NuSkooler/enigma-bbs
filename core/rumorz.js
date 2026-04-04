@@ -156,7 +156,19 @@ exports.getModule = class RumorzModule extends MenuModule {
                             formId: FormIds.View,
                         };
 
-                        return vc.loadFromMenuConfig(loadOpts, callback);
+                        return vc.loadFromMenuConfig(loadOpts, err => {
+                            if (err) {
+                                return callback(err);
+                            }
+                            return self.validateMCIByViewIds(
+                                'view',
+                                [
+                                    MciCodeIds.ViewForm.Entries,
+                                    MciCodeIds.ViewForm.AddPrompt,
+                                ],
+                                callback
+                            );
+                        });
                     } else {
                         self.viewControllers.view.setFocus(true);
                         self.viewControllers.view
@@ -242,7 +254,19 @@ exports.getModule = class RumorzModule extends MenuModule {
                             formId: FormIds.Add,
                         };
 
-                        return vc.loadFromMenuConfig(loadOpts, callback);
+                        return vc.loadFromMenuConfig(loadOpts, err => {
+                            if (err) {
+                                return callback(err);
+                            }
+                            return self.validateMCIByViewIds(
+                                'add',
+                                [
+                                    MciCodeIds.AddForm.NewEntry,
+                                    MciCodeIds.AddForm.AddPrompt,
+                                ],
+                                callback
+                            );
+                        });
                     } else {
                         self.viewControllers.add.setFocus(true);
                         self.viewControllers.add.redrawAll();

@@ -192,6 +192,13 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
                             callback
                         );
                     },
+                    function validateMci(callback) {
+                        return self.validateMCIByViewIds(
+                            'editor',
+                            [MciViewIds.editor.searchTerms, MciViewIds.editor.navMenu],
+                            callback
+                        );
+                    },
                     function populateAreas(callback) {
                         self.availAreas = [{ name: '-ALL-' }].concat(
                             getSortedAvailableFileAreas(self.client) || []
