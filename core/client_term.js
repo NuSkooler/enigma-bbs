@@ -94,7 +94,7 @@ function ClientTerminal(output) {
         },
         set: function (height) {
             if (height > 0) {
-                termHeight = height;
+                termHeight = termClient === 'netrunner' && height === 48 ? 25 : height;
             }
         },
     });
