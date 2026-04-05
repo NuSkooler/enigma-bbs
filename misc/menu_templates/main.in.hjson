@@ -532,26 +532,34 @@
             desc: Last Callers
             module: last_callers
             art: LASTCALL
-            config: { pause: true }
+            config: {
+                pause: pauseAni1
+            }
         }
 
         mainMenuWhosOnline: {
             desc: Who's Online
             module: whos_online
             art: WHOSON
-            config: { pause: true }
+            config: {
+                pause: pauseAni1
+            }
         }
 
         mainMenuUserStats: {
             desc: User Stats
             art: STATUS
-            config: { pause: true }
+            config: {
+                pause: pauseAni1
+            }
         }
 
         mainMenuSystemStats: {
             desc: System Stats
             art: SYSSTAT
-            config: { pause: true }
+            config: {
+                pause: pauseAni1
+            }
         }
 
         mainMenuUserList: {
@@ -1230,6 +1238,21 @@
                     width: 60
                     motion: bounce
                     tickInterval: 70
+                }
+            }
+        }
+
+        pauseAni1: {
+            art: pause_ani1
+            config: {
+                trailingLF: no
+            }
+            mci: {
+                TK1: {
+                    text: "|11s|03mash |11y|03our |11k|03eyboard|08!"
+                    width: 55
+                    motion: fallLeft
+                    holdTicks: 30
                 }
             }
         }
