@@ -140,6 +140,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         async.series(
             [
                 callback => {
+                    return this.displayQueuedInterruptions(callback);
+                },
+                callback => {
                     return this.beforeArt(callback);
                 },
                 callback => {

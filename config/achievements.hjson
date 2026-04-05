@@ -667,6 +667,80 @@
             }
         }
 
+        user_failed_login_count: {
+            type: userStatIncNewVal
+            statName: failed_login_attempts
+            match: {
+                3: {
+                    title: "Wrong Number"
+                    text: "Three failed logins. Muscle memory betraying you?"
+                    points: 0
+                }
+                10: {
+                    title: "Locksmith Apprentice"
+                    text: "Ten failed logins. Maybe write down that password?"
+                    points: 0
+                }
+                25: {
+                    title: "Brute Force Artist"
+                    text: "Twenty-five failed logins. You're basically hacking yourself."
+                    points: 0
+                }
+                50: {
+                    title: "War Dialer"
+                    text: "Fifty failed logins. The sysop is watching you."
+                    points: 0
+                }
+            }
+        }
+
+        user_ul_dl_ratio: {
+            type: userStatSet
+            statName: ul_dl_ratio
+            match: {
+                // 25 = 0.25:1 ratio (1 up per 4 down)
+                25: {
+                    title: "Leech"
+                    text: "1 upload for every 4 downloads. The board thanks you for visiting!"
+                    points: 5
+                }
+                // 50 = 0.5:1 ratio (1 up per 2 down)
+                50: {
+                    title: "Getting There"
+                    text: "1 upload for every 2 downloads. You're pulling your weight... mostly."
+                    points: 10
+                }
+                // 100 = 1:1 ratio
+                100: {
+                    title: "Fair Trader"
+                    globalText: "{userName} has achieved a 1:1 upload/download ratio!"
+                    text: "Equal uploads and downloads. The BBS gods smile upon you."
+                    points: 20
+                }
+                // 200 = 2:1 ratio
+                200: {
+                    title: "Uploader"
+                    globalText: "{userName} is giving back with a 2:1 upload ratio!"
+                    text: "Twice as many uploads as downloads. The board loves you."
+                    points: 35
+                }
+                // 500 = 5:1 ratio
+                500: {
+                    title: "The Filer"
+                    globalText: "{userName} is a true file trader with a 5:1 upload ratio!"
+                    text: "5 uploads for every download. You ARE the file base."
+                    points: 60
+                }
+                // 1000 = 10:1 ratio
+                1000: {
+                    title: "File Deity"
+                    globalText: "{userName} has a legendary 10:1 upload ratio!"
+                    text: "10:1 upload ratio. You have transcended mere leeching."
+                    points: 100
+                }
+            }
+        }
+
         user_total_system_online_minutes: {
             type: userStatSet
             statName: minutes_online_total_count

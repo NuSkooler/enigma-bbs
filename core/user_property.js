@@ -46,6 +46,7 @@ module.exports = {
     FileUlTotalCount: 'ul_total_count',
     FileDlTotalBytes: 'dl_total_bytes',
     FileUlTotalBytes: 'ul_total_bytes',
+    FileUlDlRatio: 'ul_dl_ratio', //  ~~((ulCount / dlCount) * 100); integer, e.g. 100 = 1:1, 200 = 2:1
 
     MessageConfTag: 'message_conf_tag',
     MessageAreaTag: 'message_area_tag',
