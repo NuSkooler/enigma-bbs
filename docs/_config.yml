@@ -69,6 +69,7 @@ collections:
       - configuration/colour-codes.md
       - configuration/event-scheduler.md
       - configuration/acs.md
+      - configuration/achievements.md
       - configuration/security.md
       - misc/user-interrupt.md
       - filebase/index.md

@@ -549,6 +549,16 @@ class FileAreaWebAccess {
                 StatLog.incrementUserStat(user, UserProps.FileDlTotalCount, 1);
                 StatLog.incrementUserStat(user, UserProps.FileDlTotalBytes, dlBytes);
 
+                const dlCount = user.getPropertyAsNumber(UserProps.FileDlTotalCount) || 0;
+                const ulCount = user.getPropertyAsNumber(UserProps.FileUlTotalCount) || 0;
+                if (ulCount > 0 && dlCount > 0) {
+                    StatLog.setUserStat(
+                        user,
+                        UserProps.FileUlDlRatio,
+                        ~~((ulCount / dlCount) * 100)
+                    );
+                }
+
                 StatLog.incrementSystemStat(SysProps.FileDlTotalCount, 1);
                 StatLog.incrementSystemStat(SysProps.FileDlTotalBytes, dlBytes);
 

@@ -184,11 +184,57 @@ function postLoginPrep(client, cb) {
     );
 }
 
+//  Minimum hours between logins for a login to count toward the streak.
+//  Prevents the midnight exploit (log in at 11:58 PM, back at 12:02 AM = 4 min apart
+//  but technically a different calendar day).
+const LOGIN_STREAK_MIN_HOURS = 20;
+
+//  Given the user's previous login timestamp and the current moment, compute
+//  the new streak day count and the date string to store.
+//  Returns [newStreakDays, newStreakLastDate] — both may be unchanged if the
+//  login doesn't qualify (too soon, or already counted today).
+function computeLoginStreak(user, now) {
+    const prevLoginTs = user.getProperty(UserProps.LastLoginTs);
+    if (!prevLoginTs) {
+        //  First ever login — start streak at 1.
+        return [1, now.format('YYYY-MM-DD')];
+    }
+
+    const hoursElapsed = now.diff(moment(prevLoginTs), 'hours');
+    if (hoursElapsed < LOGIN_STREAK_MIN_HOURS) {
+        //  Too soon — same session or rapid re-login; don't touch streak.
+        const currentDays = user.getPropertyAsNumber(UserProps.LoginStreakDays) || 0;
+        const lastDate = user.getProperty(UserProps.LoginStreakLastDate) || '';
+        return [currentDays, lastDate];
+    }
+
+    const todayStr = now.format('YYYY-MM-DD');
+    const lastDateStr = user.getProperty(UserProps.LoginStreakLastDate) || '';
+    if (todayStr === lastDateStr) {
+        //  Already counted a qualifying login today.
+        const currentDays = user.getPropertyAsNumber(UserProps.LoginStreakDays) || 0;
+        return [currentDays, lastDateStr];
+    }
+
+    const currentDays = user.getPropertyAsNumber(UserProps.LoginStreakDays) || 0;
+    if (hoursElapsed <= 48) {
+        //  Different day, reasonable gap — streak continues.
+        return [currentDays + 1, todayStr];
+    }
+
+    //  Gap too large — streak broken, restart.
+    return [1, todayStr];
+}
+
 function recordLogin(client, cb) {
     assert(client.user.authenticated); //  don't get in situations where this isn't true
 
     const user = client.user;
     const loginTimestamp = StatLog.now;
+
+    //  Snapshot streak values now, before the parallel block updates LastLoginTs.
+    const now = moment();
+    const [newStreakDays, newStreakLastDate] = computeLoginStreak(user, now);
 
     async.parallel(
         [
@@ -206,6 +252,38 @@ function recordLogin(client, cb) {
             },
             callback => {
                 return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
+            },
+            callback => {
+                const created = user.getProperty(UserProps.AccountCreated);
+                if (created) {
+                    const daysOld = moment().diff(moment(created), 'days');
+                    return StatLog.setUserStat(
+                        user,
+                        UserProps.AccountDaysOld,
+                        daysOld,
+                        callback
+                    );
+                }
+                return callback(null);
+            },
+            callback => {
+                return StatLog.setUserStat(
+                    user,
+                    UserProps.LoginStreakDays,
+                    newStreakDays,
+                    callback
+                );
+            },
+            callback => {
+                if (newStreakLastDate) {
+                    return StatLog.setUserStat(
+                        user,
+                        UserProps.LoginStreakLastDate,
+                        newStreakLastDate,
+                        callback
+                    );
+                }
+                return callback(null);
             },
             callback => {
                 const loginHistoryMax = Config().statLog.systemEvents.loginHistoryMax;
@@ -246,6 +324,9 @@ function recordLogin(client, cb) {
         }
     );
 }
+
+exports.computeLoginStreak = computeLoginStreak;
+exports.LOGIN_STREAK_MIN_HOURS = LOGIN_STREAK_MIN_HOURS;
 
 function transformLoginError(err, client, username) {
     client.sessionFailedLoginAttempts =

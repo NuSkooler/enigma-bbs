@@ -46,16 +46,24 @@ module.exports = {
     FileUlTotalCount: 'ul_total_count',
     FileDlTotalBytes: 'dl_total_bytes',
     FileUlTotalBytes: 'ul_total_bytes',
+    FileUlDlRatio: 'ul_dl_ratio', //  ~~((ulCount / dlCount) * 100); integer, e.g. 100 = 1:1, 200 = 2:1
 
     MessageConfTag: 'message_conf_tag',
     MessageAreaTag: 'message_area_tag',
     MessagePostCount: 'post_count',
+    MailSentCount: 'mail_sent_count',
+    NodeMsgSentCount: 'node_msg_sent_count',
 
     DoorRunTotalCount: 'door_run_total_count',
     DoorRunTotalMinutes: 'door_run_total_minutes',
 
     AchievementTotalCount: 'achievement_total_count',
     AchievementTotalPoints: 'achievement_total_points',
+
+    AccountDaysOld: 'account_days_old',
+
+    LoginStreakDays: 'login_streak_days',
+    LoginStreakLastDate: 'login_streak_last_date', //  stored as "YYYY-MM-DD"; not numeric, won't trigger achievement checks
 
     MinutesOnlineTotalCount: 'minutes_online_total_count',
 
