@@ -345,12 +345,21 @@ function SSHClient(clientConn) {
         });
     });
 
-    clientConn.once('end', () => {
-        return self.emit('end'); //  remove client connection/tracking
-    });
+    //  Guard against both 'end' and 'close' firing for the same disconnect
+    let endEmitted = false;
+    const emitEnd = () => {
+        if (!endEmitted) {
+            endEmitted = true;
+            self.emit('end'); //  remove client connection/tracking
+        }
+    };
+
+    clientConn.on('end', emitEnd);
+    clientConn.on('close', emitEnd); //  fired on abrupt disconnects where 'end' is not emitted
 
     clientConn.on('error', err => {
         self.log.warn({ error: err.message, code: err.code }, 'SSH connection error');
+        emitEnd();
     });
 
     this.disconnect = function () {

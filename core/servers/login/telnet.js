@@ -42,14 +42,22 @@ class TelnetClient {
 
         this.socket.on('data', this.dataHandler);
 
+        //  Guard against both 'end' and 'close' firing for the same disconnect
+        let endEmitted = false;
+        const emitEnd = () => {
+            if (!endEmitted) {
+                endEmitted = true;
+                this.emit('end');
+            }
+        };
+
         this.socket.on('error', err => {
             this._logDebug({ error: err.message }, 'Socket error');
-            return this.emit('end');
+            emitEnd();
         });
 
-        this.socket.on('end', () => {
-            this.emit('end');
-        });
+        this.socket.on('end', emitEnd);
+        this.socket.on('close', emitEnd); //  fired on abrupt disconnects (NAT timeout, RST, etc.)
 
         this.socket.on('command error', (command, err) => {
             this._logDebug({ command, error: err.message }, 'Command error');
