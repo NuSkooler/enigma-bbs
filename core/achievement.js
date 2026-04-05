@@ -26,9 +26,18 @@ const moment = require('moment');
 //  Fixed set of keys produced by getFormatObject(). Used to build the
 //  SGR-wrapping regex once at module load rather than on every display call.
 const FORMAT_VAR_KEYS = [
-    'userName', 'userRealName', 'userLocation', 'userAffils',
-    'nodeId', 'title', 'points', 'achievedValue', 'matchField', 'matchValue',
-    'timestamp', 'boardName',
+    'userName',
+    'userRealName',
+    'userLocation',
+    'userAffils',
+    'nodeId',
+    'title',
+    'points',
+    'achievedValue',
+    'matchField',
+    'matchValue',
+    'timestamp',
+    'boardName',
 ];
 //  String.prototype.replace() resets lastIndex before each call, so a
 //  module-level regex with the /g flag is safe to reuse across invocations.
@@ -282,11 +291,18 @@ class Achievements {
                 //  0 changes means the UNIQUE constraint fired - already earned; skip stats/display
                 if (0 === this.changes) {
                     return cb(
-                        Errors.General('Achievement already acquired', ErrorReasons.TooMany)
+                        Errors.General(
+                            'Achievement already acquired',
+                            ErrorReasons.TooMany
+                        )
                     );
                 }
 
-                StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalCount, 1);
+                StatLog.incrementUserStat(
+                    info.client.user,
+                    UserProps.AchievementTotalCount,
+                    1
+                );
                 StatLog.incrementUserStat(
                     info.client.user,
                     UserProps.AchievementTotalPoints,
@@ -520,7 +536,8 @@ class Achievements {
                                                     //  it and continue processing the rest of the batch.
                                                     if (
                                                         err &&
-                                                        ErrorReasons.TooMany === err.reasonCode
+                                                        ErrorReasons.TooMany ===
+                                                            err.reasonCode
                                                     ) {
                                                         return nextAchInfo(null);
                                                     }

@@ -448,6 +448,225 @@
             }
         }
 
+        user_session_dl_count: {
+            type: userStatInc
+            statName: dl_total_count
+            retroactive: false
+            match: {
+                5: {
+                    title: "Came With a List"
+                    globalText: "{userName} grabbed {achievedValue} files in one session!"
+                    text: "You grabbed {achievedValue} files in one session. You knew what you wanted!"
+                    points: 5
+                }
+                15: {
+                    title: "Section Sweep"
+                    globalText: "{userName} swept {achievedValue} files in one session!"
+                    text: "You swept {achievedValue} files in one session. Cleared out the new uploads!"
+                    points: 10
+                }
+                30: {
+                    title: "Split Archive Session"
+                    globalText: "{userName} pulled {achievedValue} files in one session!"
+                    text: "You pulled {achievedValue} files in one session. That's at least one full release!"
+                    points: 15
+                }
+                45: {
+                    title: "File Jockey"
+                    globalText: "{userName} grabbed {achievedValue} files in one session!"
+                    text: "You grabbed {achievedValue} files in one session. This is basically your job now!"
+                    points: 20
+                }
+                60: {
+                    title: "Ratio Nuke"
+                    globalText: "{userName} pulled {achievedValue} files in one session. RIP ratio!"
+                    text: "You pulled {achievedValue} files in one session. Your ratio doesn't exist anymore!"
+                    points: 25
+                }
+                90: {
+                    title: "Everything in Sight"
+                    globalText: "{userName} grabbed {achievedValue} files in one session. Did they queue the whole dir?!"
+                    text: "You grabbed {achievedValue} files in one session. Did you queue the whole directory?"
+                    points: 35
+                }
+                120: {
+                    title: "Mirror Attempt"
+                    globalText: "{userName} pulled {achievedValue} files in one session. Somebody call the siteop!"
+                    text: "You pulled {achievedValue} files in one session. Somebody call the siteop!"
+                    points: 50
+                }
+            }
+        }
+
+        user_session_ul_count: {
+            type: userStatInc
+            statName: ul_total_count
+            retroactive: false
+            match: {
+                5: {
+                    title: "You Come Bearing Gifts"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. Generous!"
+                    points: 10
+                }
+                15: {
+                    title: "Solid Contrib"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. Worth having!"
+                    points: 20
+                }
+                30: {
+                    title: "Drop Complete"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. Drop complete!"
+                    points: 30
+                }
+                60: {
+                    title: "Running a Distro"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. You're basically running a distro!"
+                    points: 50
+                }
+            }
+        }
+
+        user_login_streak: {
+            type: userStatSet
+            statName: login_streak_days
+            match: {
+                7: {
+                    title: "Creature of Habit"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. Something keeps pulling you back!"
+                    points: 10
+                }
+                14: {
+                    title: "Regular"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. You've got a reserved seat!"
+                    points: 20
+                }
+                30: {
+                    title: "Monthly Dedication"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. A full month of showing up!"
+                    points: 35
+                }
+                60: {
+                    title: "Can't Quit"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. You've tried to quit. You've failed!"
+                    points: 50
+                }
+                100: {
+                    title: "Century Club"
+                    globalText: "{userName} has logged in {achievedValue} days in a row. Respect!"
+                    text: "You've logged in {achievedValue} days in a row. Respect!"
+                    points: 75
+                }
+                365: {
+                    title: "No Life Detected"
+                    globalText: "{userName} has logged in every day for a year. We're concerned!"
+                    text: "You've logged in every day for a year. We're concerned!"
+                    points: 150
+                }
+            }
+        }
+
+        user_mail_sent_count: {
+            type: userStatIncNewVal
+            statName: mail_sent_count
+            match: {
+                1: {
+                    title: "Pen Pal"
+                    globalText: "{userName} sent their first piece of mail!"
+                    text: "You sent your first piece of mail!"
+                    points: 5
+                }
+                10: {
+                    title: "Correspondent"
+                    globalText: "{userName} has sent {achievedValue} pieces of mail!"
+                    text: "You've sent {achievedValue} pieces of mail!"
+                    points: 10
+                }
+                50: {
+                    title: "Postmaster"
+                    globalText: "{userName} has sent {achievedValue} pieces of mail!"
+                    text: "You've sent {achievedValue} pieces of mail!"
+                    points: 25
+                }
+                200: {
+                    title: "Spammer"
+                    globalText: "{userName} has sent {achievedValue} pieces of mail. Spammer?"
+                    text: "You've sent {achievedValue} pieces of mail. Spammer?"
+                    points: 50
+                }
+            }
+        }
+
+        user_node_msg_sent_count: {
+            type: userStatIncNewVal
+            statName: node_msg_sent_count
+            match: {
+                1: {
+                    title: "Town Crier"
+                    globalText: "{userName} sent their first node message!"
+                    text: "You sent your first node message!"
+                    points: 5
+                }
+                10: {
+                    title: "Chatterbox"
+                    globalText: "{userName} has sent {achievedValue} node messages!"
+                    text: "You've sent {achievedValue} node messages!"
+                    points: 10
+                }
+                50: {
+                    title: "The Announcer"
+                    globalText: "{userName} has sent {achievedValue} node messages!"
+                    text: "You've sent {achievedValue} node messages!"
+                    points: 20
+                }
+                100: {
+                    title: "Global Broadcaster"
+                    globalText: "{userName} has sent {achievedValue} node messages!"
+                    text: "You've sent {achievedValue} node messages!"
+                    points: 30
+                }
+            }
+        }
+
+        user_account_age: {
+            type: userStatSet
+            statName: account_days_old
+            retroactive: false
+            match: {
+                30: {
+                    title: "Still Here"
+                    globalText: "{userName}'s account is a month old!"
+                    text: "Your account is a month old. Still here!"
+                    points: 5
+                }
+                365: {
+                    title: "One Year Club"
+                    globalText: "{userName} has been a member of {boardName} for a year!"
+                    text: "You've been a member of {boardName} for a year!"
+                    points: 25
+                }
+                730: {
+                    title: "Two Year Veteran"
+                    globalText: "{userName} has been a member of {boardName} for two years!"
+                    text: "You've been a member of {boardName} for two years!"
+                    points: 50
+                }
+                1825: {
+                    title: "Fixture"
+                    globalText: "{userName} has been a member of {boardName} for five years!"
+                    text: "Five years on {boardName}. You're basically furniture!"
+                    points: 100
+                }
+            }
+        }
+
         user_total_system_online_minutes: {
             type: userStatSet
             statName: minutes_online_total_count

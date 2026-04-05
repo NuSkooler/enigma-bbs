@@ -259,7 +259,9 @@ describe('Achievement.isValidMatchDetails()', function () {
     });
 
     it('returns true when globalText is a string', () => {
-        assert.ok(a.isValidMatchDetails(makeDetails({ globalText: 'Hello {userName}!' })));
+        assert.ok(
+            a.isValidMatchDetails(makeDetails({ globalText: 'Hello {userName}!' }))
+        );
     });
 
     it('returns false when globalText is a number', () => {
@@ -467,8 +469,14 @@ describe('Achievements.record()', function () {
             const countAfterFirst = user.getPropertyAsNumber('achievement_total_count');
 
             instance.record(info, item, () => {
-                const countAfterSecond = user.getPropertyAsNumber('achievement_total_count');
-                assert.equal(countAfterSecond, countAfterFirst, 'count must not grow on duplicate');
+                const countAfterSecond = user.getPropertyAsNumber(
+                    'achievement_total_count'
+                );
+                assert.equal(
+                    countAfterSecond,
+                    countAfterFirst,
+                    'count must not grow on duplicate'
+                );
                 done();
             });
         });
@@ -477,7 +485,9 @@ describe('Achievements.record()', function () {
     it('increments AchievementTotalPoints by the details.points value', done => {
         const user = makeUser(4);
         const instance = makeAchievements();
-        const info = makeRecordInfo(user, { details: makeDetails({ title: 'T', text: 'x', points: 17 }) });
+        const info = makeRecordInfo(user, {
+            details: makeDetails({ title: 'T', text: 'x', points: 17 }),
+        });
         const item = makeInterruptItem();
 
         instance.record(info, item, err => {
@@ -557,13 +567,17 @@ describe('Achievements.loadEarnedMatchFields()', function () {
             assert.ifError(err);
             instance.record(info10, item, err2 => {
                 assert.ifError(err2);
-                instance.loadEarnedMatchFields(user, 'user_login_count', (err3, fields) => {
-                    assert.ifError(err3);
-                    assert.ok(fields.has(2), 'should contain match=2');
-                    assert.ok(fields.has(10), 'should contain match=10');
-                    assert.equal(fields.size, 2);
-                    done();
-                });
+                instance.loadEarnedMatchFields(
+                    user,
+                    'user_login_count',
+                    (err3, fields) => {
+                        assert.ifError(err3);
+                        assert.ok(fields.has(2), 'should contain match=2');
+                        assert.ok(fields.has(10), 'should contain match=10');
+                        assert.equal(fields.size, 2);
+                        done();
+                    }
+                );
             });
         });
     });
@@ -586,12 +600,16 @@ describe('Achievements.loadEarnedMatchFields()', function () {
             assert.ifError(err);
             instance.record(infoPost, item, err2 => {
                 assert.ifError(err2);
-                instance.loadEarnedMatchFields(user, 'user_post_count', (err3, fields) => {
-                    assert.ifError(err3);
-                    assert.ok(fields.has(5));
-                    assert.equal(fields.size, 1, 'only the post_count tag record');
-                    done();
-                });
+                instance.loadEarnedMatchFields(
+                    user,
+                    'user_post_count',
+                    (err3, fields) => {
+                        assert.ifError(err3);
+                        assert.ok(fields.has(5));
+                        assert.equal(fields.size, 1, 'only the post_count tag record');
+                        done();
+                    }
+                );
             });
         });
     });
@@ -709,17 +727,21 @@ describe('Achievements.getAchievementsEarnedByUser()', function () {
         //  The interrupt item title is what record() stores in the DB.
         instance.record(info2, makeInterruptItem({ title: 'Return Caller' }), err => {
             assert.ifError(err);
-            instance.record(info10, makeInterruptItem({ title: 'Curious Caller' }), err2 => {
-                assert.ifError(err2);
-                instance.getAchievementsEarnedByUser(user.userId, (err3, earned) => {
-                    assert.ifError(err3);
-                    assert.equal(earned.length, 2);
-                    const titles = new Set(earned.map(a => a.title));
-                    assert.ok(titles.has('Return Caller'));
-                    assert.ok(titles.has('Curious Caller'));
-                    done();
-                });
-            });
+            instance.record(
+                info10,
+                makeInterruptItem({ title: 'Curious Caller' }),
+                err2 => {
+                    assert.ifError(err2);
+                    instance.getAchievementsEarnedByUser(user.userId, (err3, earned) => {
+                        assert.ifError(err3);
+                        assert.equal(earned.length, 2);
+                        const titles = new Set(earned.map(a => a.title));
+                        assert.ok(titles.has('Return Caller'));
+                        assert.ok(titles.has('Curious Caller'));
+                        done();
+                    });
+                }
+            );
         });
     });
 });

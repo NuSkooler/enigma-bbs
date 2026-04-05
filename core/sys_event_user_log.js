@@ -4,6 +4,7 @@
 const Events = require('./events.js');
 const LogNames = require('./user_log_name.js');
 const SysProps = require('./system_property.js');
+const UserProps = require('./user_property.js');
 
 const DefaultKeepForDays = 365;
 
@@ -65,6 +66,7 @@ module.exports = function systemEventUserLogInit(statLog) {
             },
             [systemEvents.UserSendMail]: e => {
                 append(e, LogNames.SendMail, 1);
+                statLog.incrementUserStat(e.user, UserProps.MailSentCount, 1);
             },
             [systemEvents.UserRunDoor]: e => {
                 append(e, LogNames.RunDoor, e.doorTag);
@@ -72,6 +74,7 @@ module.exports = function systemEventUserLogInit(statLog) {
             },
             [systemEvents.UserSendNodeMsg]: e => {
                 append(e, LogNames.SendNodeMsg, e.global ? 'global' : 'direct');
+                statLog.incrementUserStat(e.user, UserProps.NodeMsgSentCount, 1);
             },
             [systemEvents.UserAchievementEarned]: e => {
                 append(e, LogNames.AchievementEarned, e.achievementTag);
