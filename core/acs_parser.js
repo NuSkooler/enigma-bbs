@@ -1255,7 +1255,7 @@ function peg$parse(input, options) {
                     }
                     const count =
                         user.getPropertyAsNumber(UserProps.AchievementTotalCount) || 0;
-                    return !isNan(value) && points >= value;
+                    return !isNaN(value) && count >= value;
                 },
                 AP: function achievementPoints() {
                     if (!user) {
@@ -1263,7 +1263,7 @@ function peg$parse(input, options) {
                     }
                     const points =
                         user.getPropertyAsNumber(UserProps.AchievementTotalPoints) || 0;
-                    return !isNan(value) && points >= value;
+                    return !isNaN(value) && points >= value;
                 },
                 PV: function userPropValue() {
                     if (!user || !Array.isArray(value) || value.length !== 2) {

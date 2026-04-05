@@ -73,13 +73,13 @@
                     title: "Inquisitive"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
-                    points: 10
+                    points: 15
                 }
                 75: {
                     title: "Still Interested!"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
-                    points: 15
+                    points: 20
                 }
                 100: {
                     title: "Regular Customer"
@@ -97,7 +97,7 @@
                     title: "System Addict"
                     globalText: "{userName} the BBS {boardName} addict has logged in {achievedValue} times!"
                     text: "You're a {boardName} addict! You've logged in {achievedValue} times!"
-                    points: 50
+                    points: 60
                 }
             }
         }
@@ -116,13 +116,13 @@
                     title: "Poster... again!",
                     globalText: "{userName} has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
-                    points: 5
+                    points: 10
                 }
                 20: {
                     title: "Just Want to Talk",
                     globalText: "{userName} has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
-                    points: 10
+                    points: 15
                 }
                 100: {
                     title: "Probably Just Spam",
@@ -140,7 +140,7 @@
                     title: "Writing a Book"
                     globalText: "{userName} is writing a book and has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
-                    points: 50
+                    points: 60
                 }
             }
         }
@@ -152,7 +152,7 @@
                 1: {
                     title: "Uploader"
                     globalText: "{userName} has uploaded a file!"
-                    text: "You've uploaded somthing!"
+                    text: "You've uploaded something!"
                     points: 5
                 }
                 10: {
@@ -203,7 +203,7 @@
                     title: "AOL Disk Anyone?"
                     globalText: "{userName} has uploaded 1.44M worth of data. Hopefully it's not AOL!"
                     text: "You've uploaded 1.44M worth of data. Hopefully it's not AOL!"
-                    points: 10
+                    points: 15
                 }
                 6291456: {
                     title: "A Quake of a Upload"
@@ -227,7 +227,7 @@
                     title: "Encarta"
                     globalText: "{userName} has uploaded 5xCD discs worth of data. That's the size of Encarta!"
                     text: "You've uploaded 5xCD discs worth of data. That's the size of Encarta!"
-                    points: 50
+                    points: 55
                 }
                 7025459200: {
                     title: "NFL_Madden_2007_USA_BLURAY_DIRFIX_PS3-PARADOX"
@@ -251,7 +251,7 @@
                 1: {
                     title: "Downloader"
                     globalText: "{userName} has downloaded a file!"
-                    text: "You've downloaded somthing!"
+                    text: "You've downloaded something!"
                     points: 5
                 }
                 10: {
@@ -274,7 +274,7 @@
                 }
                 200: {
                     title: "Digital Archivist"
-                    globalText: "{userName} the digital archivist has {achievedValue} files!"
+                    globalText: "{userName} the digital archivist has downloaded {achievedValue} files!"
                     text: "Building an archive? You've downloaded {achievedValue} files!"
                     points: 25
                 }
@@ -295,25 +295,37 @@
                     title: "Fits on a Floppy"
                     globalText: "{userName} has downloaded 1.44MB worth of data!"
                     text: "You've downloaded 1.44MB of data!"
-                    points: 5
+                    points: 10
+                }
+                4194304: {
+                    title: "Knee-Deep in the Net"
+                    globalText: "{userName} has downloaded 4MB — the size of the DOOM shareware!"
+                    text: "You've downloaded 4MB — the size of the DOOM shareware. rip and tear!"
+                    points: 13
+                }
+                17825792: {
+                    title: "Shake, Rattle, and Quake"
+                    globalText: "{userName} has downloaded ~17MB — the size of the Quake shareware!"
+                    text: "You've downloaded ~17MB — the size of the Quake shareware. time to frag!"
+                    points: 16
                 }
                 104857600: {
                     title: "Click of Death"
                     globalText: "{userName} has downloaded 100MB... perhaps to a Zip Disk?"
                     text: "You've downloaded 100MB of data... perhaps to a Zip Disk?"
-                    points: 10
+                    points: 20
                 }
                 681574400: {
                     title: "CD Rip"
                     globalText: "{userName} has downloaded a CD-ROM's worth of data!"
                     text: "You've downloaded a CD-ROM's worth of data!"
-                    points: 15
+                    points: 25
                 }
                 1073741824: {
-                    title: "Like One Hundred Floppys, Man"
+                    title: "Like One Hundred Floppies, Man"
                     globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
                     text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
-                    points: 25
+                    points: 30
                 }
                 5368709120: {
                     title: "That's a Lot of Bits!"
@@ -457,6 +469,24 @@
                     globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
                     text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
                     points: 25
+                }
+                240: {
+                    title: "Skipped Dinner"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Dinner's getting cold!"
+                    text: "You've been on {boardName} for {achievedValue!durationMinutes}. Dinner's getting cold!"
+                    points: 35
+                }
+                480: {
+                    title: "Called in Sick"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Sure you're feeling OK?"
+                    text: "You've been on {boardName} for {achievedValue!durationMinutes}. Sure you're feeling OK?"
+                    points: 45
+                }
+                960: {
+                    title: "Have You Slept?"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Have they slept?!"
+                    text: "You've been on {boardName} for {achievedValue!durationMinutes}. Have you even slept?"
+                    points: 50
                 }
                 1440: {
                     title: "Idle Bot"
