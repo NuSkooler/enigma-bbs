@@ -199,13 +199,6 @@ class Achievements {
     }
 
     record(info, localInterruptItem, cb) {
-        StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalCount, 1);
-        StatLog.incrementUserStat(
-            info.client.user,
-            UserProps.AchievementTotalPoints,
-            info.details.points
-        );
-
         const cleanTitle = stripMciColorCodes(localInterruptItem.title);
         const cleanText = stripMciColorCodes(localInterruptItem.achievText);
 
@@ -219,16 +212,39 @@ class Achievements {
             info.details.points,
         ];
 
+        const events = this.events;
+
         UserDb.run(
             `INSERT OR IGNORE INTO user_achievement (user_id, achievement_tag, timestamp, match, title, text, points)
             VALUES (?, ?, ?, ?, ?, ?, ?);`,
             recordData,
-            err => {
+            function (err) {
                 if (err) {
                     return cb(err);
                 }
 
-                this.events.emit(Events.getSystemEvents().UserAchievementEarned, {
+                //  0 changes means the UNIQUE constraint fired - already earned; skip stats/display
+                if (0 === this.changes) {
+                    return cb(
+                        Errors.General(
+                            'Achievement already acquired',
+                            ErrorReasons.TooMany
+                        )
+                    );
+                }
+
+                StatLog.incrementUserStat(
+                    info.client.user,
+                    UserProps.AchievementTotalCount,
+                    1
+                );
+                StatLog.incrementUserStat(
+                    info.client.user,
+                    UserProps.AchievementTotalPoints,
+                    info.details.points
+                );
+
+                events.emit(Events.getSystemEvents().UserAchievementEarned, {
                     user: info.client.user,
                     achievementTag: info.achievementTag,
                     points: info.details.points,
@@ -439,7 +455,7 @@ class Achievements {
                                                 achievementTag,
                                                 fld,
                                                 (err, count) => {
-                                                    if (!err || (count && 0 === count)) {
+                                                    if (!err && 0 === count) {
                                                         achievementsInfo.push(
                                                             Object.assign({}, basicInfo, {
                                                                 details: det,

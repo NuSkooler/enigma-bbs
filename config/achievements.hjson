@@ -188,7 +188,7 @@
             statName: ul_total_bytes
             match: {
                 10240: {
-                    text: "UNIVAC Drum"
+                    title: "UNIVAC Drum"
                     globalText: "{userName} has uploaded 10k. Enough to fill a UNIVAC drum!"
                     text: "You've uploaded 10k. Enough to fill a UNIVAC drum!"
                     points: 5
@@ -202,7 +202,7 @@
                 1474560: {
                     title: "AOL Disk Anyone?"
                     globalText: "{userName} has uploaded 1.44M worth of data. Hopefully it's not AOL!"
-                    title: "You've uploaded 1.44M worth of data. Hopefully it's not AOL!"
+                    text: "You've uploaded 1.44M worth of data. Hopefully it's not AOL!"
                     points: 10
                 }
                 6291456: {
@@ -319,6 +319,7 @@
                     title: "That's a Lot of Bits!"
                     globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
                     text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
+                    points: 50
                 }
             }
         }
