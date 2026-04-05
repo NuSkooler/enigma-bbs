@@ -401,8 +401,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
     shouldPause() {
         const p = this.menuConfig.config.pause;
         //  pause: true | 'end' | 'pageBreak' | '<promptId>'
-        return p === true || p === 'end' || p === 'pageBreak' ||
-            (_.isString(p) && p.length > 0);
+        return (
+            p === true ||
+            p === 'end' ||
+            p === 'pageBreak' ||
+            (_.isString(p) && p.length > 0)
+        );
     }
 
     getPauseMode() {
@@ -428,8 +432,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
         //  If pause itself is a prompt ID (not a keyword), use it for 'end' type
         const pauseVal = this.menuConfig.config.pause;
-        if (type === 'end' && _.isString(pauseVal) &&
-            pauseVal !== 'end' && pauseVal !== 'pageBreak') {
+        if (
+            type === 'end' &&
+            _.isString(pauseVal) &&
+            pauseVal !== 'end' &&
+            pauseVal !== 'pageBreak'
+        ) {
             return pauseVal;
         }
         return type === 'page' ? 'pausePage' : 'pause';

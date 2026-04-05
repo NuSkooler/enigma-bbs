@@ -23,6 +23,26 @@ const _ = require('lodash');
 const async = require('async');
 const moment = require('moment');
 
+//  Fixed set of keys produced by getFormatObject(). Used to build the
+//  SGR-wrapping regex once at module load rather than on every display call.
+const FORMAT_VAR_KEYS = [
+    'userName',
+    'userRealName',
+    'userLocation',
+    'userAffils',
+    'nodeId',
+    'title',
+    'points',
+    'achievedValue',
+    'matchField',
+    'matchValue',
+    'timestamp',
+    'boardName',
+];
+//  String.prototype.replace() resets lastIndex before each call, so a
+//  module-level regex with the /g flag is safe to reuse across invocations.
+const FORMAT_VAR_RE = new RegExp(`{(${FORMAT_VAR_KEYS.join('|')})([^}]*)}`, 'g');
+
 exports.getAchievementsEarnedByUser = getAchievementsEarnedByUser;
 
 class Achievement {
@@ -152,10 +172,12 @@ class Achievements {
             if (true !== this.config.get().enabled) {
                 Log.info('Achievements are not enabled');
                 this.enabled = false;
+                this._statNameIndex = new Map();
                 this.stopMonitoringUserStatEvents();
             } else {
                 Log.info('Achievements are enabled');
                 this.enabled = true;
+                this._buildAchievementIndex();
                 this.monitorUserStatEvents();
             }
         };
@@ -186,6 +208,33 @@ class Achievements {
         return getConfigPath(path); //  qualify
     }
 
+    //  Build a statName → [achievementTag, ...] index from the current config.
+    //  Called at startup and on every config reload so the hot-path event
+    //  handler pays only a Map.get() instead of a full _.pickBy() scan.
+    _buildAchievementIndex() {
+        this._statNameIndex = new Map();
+        const achievements = _.get(this.config.get(), 'achievements', {});
+        const acceptedTypes = [
+            Achievement.Types.UserStatSet,
+            Achievement.Types.UserStatInc,
+            Achievement.Types.UserStatIncNewVal,
+        ];
+        Object.entries(achievements).forEach(([tag, achievement]) => {
+            if (false === achievement.enabled) {
+                return;
+            }
+            if (!acceptedTypes.includes(achievement.type)) {
+                return;
+            }
+            if (!achievement.statName) {
+                return;
+            }
+            const existing = this._statNameIndex.get(achievement.statName) || [];
+            existing.push(tag);
+            this._statNameIndex.set(achievement.statName, existing);
+        });
+    }
+
     loadAchievementHitCount(user, achievementTag, field, cb) {
         UserDb.get(
             `SELECT COUNT() AS count
@@ -198,14 +247,23 @@ class Achievements {
         );
     }
 
-    record(info, localInterruptItem, cb) {
-        StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalCount, 1);
-        StatLog.incrementUserStat(
-            info.client.user,
-            UserProps.AchievementTotalPoints,
-            info.details.points
+    //  Returns a Set of already-earned match values (integers) for a given
+    //  user/achievementTag pair — one query instead of N per retroactive tier.
+    loadEarnedMatchFields(user, achievementTag, cb) {
+        UserDb.all(
+            `SELECT match FROM user_achievement
+            WHERE user_id = ? AND achievement_tag = ?;`,
+            [user.userId, achievementTag],
+            (err, rows) => {
+                if (err) {
+                    return cb(err);
+                }
+                return cb(null, new Set(rows.map(r => parseInt(r.match))));
+            }
         );
+    }
 
+    record(info, localInterruptItem, cb) {
         const cleanTitle = stripMciColorCodes(localInterruptItem.title);
         const cleanText = stripMciColorCodes(localInterruptItem.achievText);
 
@@ -219,16 +277,39 @@ class Achievements {
             info.details.points,
         ];
 
+        const events = this.events;
+
         UserDb.run(
             `INSERT OR IGNORE INTO user_achievement (user_id, achievement_tag, timestamp, match, title, text, points)
             VALUES (?, ?, ?, ?, ?, ?, ?);`,
             recordData,
-            err => {
+            function (err) {
                 if (err) {
                     return cb(err);
                 }
 
-                this.events.emit(Events.getSystemEvents().UserAchievementEarned, {
+                //  0 changes means the UNIQUE constraint fired - already earned; skip stats/display
+                if (0 === this.changes) {
+                    return cb(
+                        Errors.General(
+                            'Achievement already acquired',
+                            ErrorReasons.TooMany
+                        )
+                    );
+                }
+
+                StatLog.incrementUserStat(
+                    info.client.user,
+                    UserProps.AchievementTotalCount,
+                    1
+                );
+                StatLog.incrementUserStat(
+                    info.client.user,
+                    UserProps.AchievementTotalPoints,
+                    info.details.points
+                );
+
+                events.emit(Events.getSystemEvents().UserAchievementEarned, {
                     user: info.client.user,
                     achievementTag: info.achievementTag,
                     points: info.details.points,
@@ -303,26 +384,9 @@ class Achievements {
                     return;
                 }
 
-                //  :TODO: Make this code generic - find + return factory created object
-                const achievementTags = Object.keys(
-                    _.pickBy(
-                        _.get(this.config.get(), 'achievements', {}),
-                        achievement => {
-                            if (false === achievement.enabled) {
-                                return false;
-                            }
-                            const acceptedTypes = [
-                                Achievement.Types.UserStatSet,
-                                Achievement.Types.UserStatInc,
-                                Achievement.Types.UserStatIncNewVal,
-                            ];
-                            return (
-                                acceptedTypes.includes(achievement.type) &&
-                                achievement.statName === userStatEvent.statName
-                            );
-                        }
-                    )
-                );
+                //  O(1) lookup via pre-built index rather than O(N) pickBy scan
+                const achievementTags =
+                    (this._statNameIndex || new Map()).get(userStatEvent.statName) || [];
 
                 if (0 === achievementTags.length) {
                     return;
@@ -425,36 +489,34 @@ class Achievements {
                                     //                    ^---- we met here
                                     //                         ^------------^ retroactive range
                                     //
-                                    async.eachSeries(
-                                        achievement.matchKeys.slice(index),
-                                        (k, nextKey) => {
-                                            const [det, fld, val] =
-                                                achievement.getMatchDetails(k);
-                                            if (!det) {
-                                                return nextKey(null);
+                                    //  Single query fetches all already-earned tiers so we can
+                                    //  filter client-side rather than issuing N separate queries.
+                                    this.loadEarnedMatchFields(
+                                        userStatEvent.user,
+                                        achievementTag,
+                                        (err, earnedFields) => {
+                                            if (err) {
+                                                return callback(err);
                                             }
 
-                                            this.loadAchievementHitCount(
-                                                userStatEvent.user,
-                                                achievementTag,
-                                                fld,
-                                                (err, count) => {
-                                                    if (!err || (count && 0 === count)) {
-                                                        achievementsInfo.push(
-                                                            Object.assign({}, basicInfo, {
-                                                                details: det,
-                                                                matchField: fld,
-                                                                achievedValue: fld,
-                                                                matchValue: val,
-                                                            })
-                                                        );
+                                            achievement.matchKeys
+                                                .slice(index)
+                                                .forEach(k => {
+                                                    const [det, fld, val] =
+                                                        achievement.getMatchDetails(k);
+                                                    if (!det || earnedFields.has(fld)) {
+                                                        return;
                                                     }
+                                                    achievementsInfo.push(
+                                                        Object.assign({}, basicInfo, {
+                                                            details: det,
+                                                            matchField: fld,
+                                                            achievedValue: fld,
+                                                            matchValue: val,
+                                                        })
+                                                    );
+                                                });
 
-                                                    return nextKey(null);
-                                                }
-                                            );
-                                        },
-                                        () => {
                                             return callback(null, achievementsInfo);
                                         }
                                     );
@@ -469,6 +531,16 @@ class Achievements {
                                             return this.recordAndDisplayAchievement(
                                                 achInfo,
                                                 err => {
+                                                    //  TooMany means this tier was already in the DB
+                                                    //  (race condition or retroactive overlap) — skip
+                                                    //  it and continue processing the rest of the batch.
+                                                    if (
+                                                        err &&
+                                                        ErrorReasons.TooMany ===
+                                                            err.reasonCode
+                                                    ) {
+                                                        return nextAchInfo(null);
+                                                    }
                                                     return nextAchInfo(err);
                                                 }
                                             );
@@ -510,7 +582,6 @@ class Achievements {
             userAffils: info.user.properties[UserProps.Affiliations] || 'N/A',
             nodeId: info.client.node,
             title: info.details.title,
-            //text            : info.global ? info.details.globalText : info.details.text,
             points: info.details.points,
             achievedValue: info.achievedValue,
             matchField: info.matchField,
@@ -520,7 +591,9 @@ class Achievements {
         };
     }
 
-    getFormattedTextFor(info, textType, defaultSgr = '|07') {
+    //  |formatObj| is optional; if provided it is reused instead of calling
+    //  getFormatObject() again (avoids redundant property reads per display).
+    getFormattedTextFor(info, textType, defaultSgr = '|07', formatObj = null) {
         const themeDefaults = _.get(
             info.client.currentTheme,
             'achievements.defaults',
@@ -528,11 +601,14 @@ class Achievements {
         );
         const textTypeSgr = themeDefaults[`${textType}SGR`] || defaultSgr;
 
-        const formatObj = this.getFormatObject(info);
+        if (!formatObj) {
+            formatObj = this.getFormatObject(info);
+        }
 
         const wrap = input => {
-            const re = new RegExp(`{(${Object.keys(formatObj).join('|')})([^}]*)}`, 'g');
-            return input.replace(re, (m, formatVar, formatOpts) => {
+            //  FORMAT_VAR_RE is a module-level constant; replace() resets lastIndex
+            //  automatically before each call so it is safe to reuse with /g.
+            return input.replace(FORMAT_VAR_RE, (m, formatVar, formatOpts) => {
                 const varSgr = themeDefaults[`${formatVar}SGR`] || textTypeSgr;
                 let r = `${varSgr}{${formatVar}`;
                 if (formatOpts) {
@@ -551,12 +627,15 @@ class Achievements {
             info.achievement.dateTimeFormat ||
             info.client.currentTheme.helpers.getDateTimeFormat();
 
-        const title = this.getFormattedTextFor(info, 'title');
-        const text = this.getFormattedTextFor(info, 'text');
+        //  Compute once; pass through to avoid redundant property reads.
+        const formatObj = this.getFormatObject(info);
+
+        const title = this.getFormattedTextFor(info, 'title', '|07', formatObj);
+        const text = this.getFormattedTextFor(info, 'text', '|07', formatObj);
 
         let globalText;
         if (info.details.globalText) {
-            globalText = this.getFormattedTextFor(info, 'globalText');
+            globalText = this.getFormattedTextFor(info, 'globalText', '|07', formatObj);
         }
 
         const getArt = (name, callback) => {
@@ -569,7 +648,7 @@ class Achievements {
             }
             const getArtOpts = {
                 name: spec,
-                client: this.client,
+                client: info.client,
                 random: false,
             };
             getThemeArt(getArtOpts, (err, artInfo) => {
@@ -620,20 +699,20 @@ class Achievements {
                                           defaultContentsFormat
                                         : themeDefaults.format || defaultContentsFormat;
 
-                                const formatObj = Object.assign(
-                                    this.getFormatObject(info),
-                                    {
-                                        title: this.getFormattedTextFor(
-                                            info,
-                                            'title',
-                                            ''
-                                        ), //  ''=defaultSgr
-                                        message: itemText,
-                                    }
-                                );
+                                //  Reuse the pre-computed formatObj; override title (needs
+                                //  '' defaultSgr for art context) and add message.
+                                const artFormatObj = Object.assign({}, formatObj, {
+                                    title: this.getFormattedTextFor(
+                                        info,
+                                        'title',
+                                        '',
+                                        formatObj
+                                    ),
+                                    message: itemText,
+                                });
 
                                 const contents = pipeToAnsi(
-                                    stringFormat(contentsFormat, formatObj)
+                                    stringFormat(contentsFormat, artFormatObj)
                                 );
 
                                 interruptItems[itemType].contents = `${
@@ -653,6 +732,54 @@ class Achievements {
             }
         );
     }
+
+    getAchievementsEarnedByUser(userId, cb) {
+        UserDb.all(
+            `SELECT achievement_tag, timestamp, match, title, text, points
+            FROM user_achievement
+            WHERE user_id = ?
+            ORDER BY DATETIME(timestamp);`,
+            [userId],
+            (err, rows) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                const earned = rows
+                    .map(row => {
+                        const achievement = Achievement.factory(
+                            this.getAchievementByTag(row.achievement_tag)
+                        );
+                        if (!achievement) {
+                            return;
+                        }
+
+                        const earnedInfo = {
+                            achievementTag: row.achievement_tag,
+                            type: achievement.data.type,
+                            retroactive: achievement.data.retroactive,
+                            title: row.title,
+                            text: row.text,
+                            points: row.points,
+                            timestamp: moment(row.timestamp),
+                        };
+
+                        switch (earnedInfo.type) {
+                            case Achievement.Types.UserStatSet:
+                            case Achievement.Types.UserStatInc:
+                            case Achievement.Types.UserStatIncNewVal:
+                                earnedInfo.statName = achievement.data.statName;
+                                break;
+                        }
+
+                        return earnedInfo;
+                    })
+                    .filter(a => a); //  remove any empty records (ie: no achievement.hjson entry exists anymore).
+
+                return cb(null, earned);
+            }
+        );
+    }
 }
 
 let achievementsInstance;
@@ -661,52 +788,7 @@ function getAchievementsEarnedByUser(userId, cb) {
     if (!achievementsInstance) {
         return cb(Errors.UnexpectedState('Achievements not initialized'));
     }
-
-    UserDb.all(
-        `SELECT achievement_tag, timestamp, match, title, text, points
-        FROM user_achievement
-        WHERE user_id = ?
-        ORDER BY DATETIME(timestamp);`,
-        [userId],
-        (err, rows) => {
-            if (err) {
-                return cb(err);
-            }
-
-            const earned = rows
-                .map(row => {
-                    const achievement = Achievement.factory(
-                        achievementsInstance.getAchievementByTag(row.achievement_tag)
-                    );
-                    if (!achievement) {
-                        return;
-                    }
-
-                    const earnedInfo = {
-                        achievementTag: row.achievement_tag,
-                        type: achievement.data.type,
-                        retroactive: achievement.data.retroactive,
-                        title: row.title,
-                        text: row.text,
-                        points: row.points,
-                        timestamp: moment(row.timestamp),
-                    };
-
-                    switch (earnedInfo.type) {
-                        case [Achievement.Types.UserStatSet]:
-                        case [Achievement.Types.UserStatInc]:
-                        case [Achievement.Types.UserStatIncNewVal]:
-                            earnedInfo.statName = achievement.data.statName;
-                            break;
-                    }
-
-                    return earnedInfo;
-                })
-                .filter(a => a); //  remove any empty records (ie: no achievement.hjson entry exists anymore).
-
-            return cb(null, earned);
-        }
-    );
+    return achievementsInstance.getAchievementsEarnedByUser(userId, cb);
 }
 
 exports.moduleInitialize = (initInfo, cb) => {
@@ -719,3 +801,7 @@ exports.moduleInitialize = (initInfo, cb) => {
         return cb(null);
     });
 };
+
+exports.Achievement = Achievement;
+exports.UserStatAchievement = UserStatAchievement;
+exports.Achievements = Achievements;

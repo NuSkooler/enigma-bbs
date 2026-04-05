@@ -73,13 +73,13 @@
                     title: "Inquisitive"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
-                    points: 10
+                    points: 15
                 }
                 75: {
                     title: "Still Interested!"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
-                    points: 15
+                    points: 20
                 }
                 100: {
                     title: "Regular Customer"
@@ -97,7 +97,7 @@
                     title: "System Addict"
                     globalText: "{userName} the BBS {boardName} addict has logged in {achievedValue} times!"
                     text: "You're a {boardName} addict! You've logged in {achievedValue} times!"
-                    points: 50
+                    points: 60
                 }
             }
         }
@@ -116,13 +116,13 @@
                     title: "Poster... again!",
                     globalText: "{userName} has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
-                    points: 5
+                    points: 10
                 }
                 20: {
                     title: "Just Want to Talk",
                     globalText: "{userName} has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
-                    points: 10
+                    points: 15
                 }
                 100: {
                     title: "Probably Just Spam",
@@ -140,7 +140,7 @@
                     title: "Writing a Book"
                     globalText: "{userName} is writing a book and has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
-                    points: 50
+                    points: 60
                 }
             }
         }
@@ -152,7 +152,7 @@
                 1: {
                     title: "Uploader"
                     globalText: "{userName} has uploaded a file!"
-                    text: "You've uploaded somthing!"
+                    text: "You've uploaded something!"
                     points: 5
                 }
                 10: {
@@ -188,7 +188,7 @@
             statName: ul_total_bytes
             match: {
                 10240: {
-                    text: "UNIVAC Drum"
+                    title: "UNIVAC Drum"
                     globalText: "{userName} has uploaded 10k. Enough to fill a UNIVAC drum!"
                     text: "You've uploaded 10k. Enough to fill a UNIVAC drum!"
                     points: 5
@@ -202,8 +202,8 @@
                 1474560: {
                     title: "AOL Disk Anyone?"
                     globalText: "{userName} has uploaded 1.44M worth of data. Hopefully it's not AOL!"
-                    title: "You've uploaded 1.44M worth of data. Hopefully it's not AOL!"
-                    points: 10
+                    text: "You've uploaded 1.44M worth of data. Hopefully it's not AOL!"
+                    points: 15
                 }
                 6291456: {
                     title: "A Quake of a Upload"
@@ -227,7 +227,7 @@
                     title: "Encarta"
                     globalText: "{userName} has uploaded 5xCD discs worth of data. That's the size of Encarta!"
                     text: "You've uploaded 5xCD discs worth of data. That's the size of Encarta!"
-                    points: 50
+                    points: 55
                 }
                 7025459200: {
                     title: "NFL_Madden_2007_USA_BLURAY_DIRFIX_PS3-PARADOX"
@@ -251,7 +251,7 @@
                 1: {
                     title: "Downloader"
                     globalText: "{userName} has downloaded a file!"
-                    text: "You've downloaded somthing!"
+                    text: "You've downloaded something!"
                     points: 5
                 }
                 10: {
@@ -274,7 +274,7 @@
                 }
                 200: {
                     title: "Digital Archivist"
-                    globalText: "{userName} the digital archivist has {achievedValue} files!"
+                    globalText: "{userName} the digital archivist has downloaded {achievedValue} files!"
                     text: "Building an archive? You've downloaded {achievedValue} files!"
                     points: 25
                 }
@@ -295,30 +295,43 @@
                     title: "Fits on a Floppy"
                     globalText: "{userName} has downloaded 1.44MB worth of data!"
                     text: "You've downloaded 1.44MB of data!"
-                    points: 5
+                    points: 10
+                }
+                4194304: {
+                    title: "Knee-Deep in the Net"
+                    globalText: "{userName} has downloaded 4MB — the size of the DOOM shareware!"
+                    text: "You've downloaded 4MB — the size of the DOOM shareware. rip and tear!"
+                    points: 13
+                }
+                17825792: {
+                    title: "Shake, Rattle, and Quake"
+                    globalText: "{userName} has downloaded ~17MB — the size of the Quake shareware!"
+                    text: "You've downloaded ~17MB — the size of the Quake shareware. time to frag!"
+                    points: 16
                 }
                 104857600: {
                     title: "Click of Death"
                     globalText: "{userName} has downloaded 100MB... perhaps to a Zip Disk?"
                     text: "You've downloaded 100MB of data... perhaps to a Zip Disk?"
-                    points: 10
+                    points: 20
                 }
                 681574400: {
                     title: "CD Rip"
                     globalText: "{userName} has downloaded a CD-ROM's worth of data!"
                     text: "You've downloaded a CD-ROM's worth of data!"
-                    points: 15
+                    points: 25
                 }
                 1073741824: {
-                    title: "Like One Hundred Floppys, Man"
+                    title: "Like One Hundred Floppies, Man"
                     globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
                     text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
-                    points: 25
+                    points: 30
                 }
                 5368709120: {
                     title: "That's a Lot of Bits!"
                     globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
                     text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
+                    points: 50
                 }
             }
         }
@@ -435,6 +448,299 @@
             }
         }
 
+        user_session_dl_count: {
+            type: userStatInc
+            statName: dl_total_count
+            retroactive: false
+            match: {
+                5: {
+                    title: "Came With a List"
+                    globalText: "{userName} grabbed {achievedValue} files in one session!"
+                    text: "You grabbed {achievedValue} files in one session. You knew what you wanted!"
+                    points: 5
+                }
+                15: {
+                    title: "Section Sweep"
+                    globalText: "{userName} swept {achievedValue} files in one session!"
+                    text: "You swept {achievedValue} files in one session. Cleared out the new uploads!"
+                    points: 10
+                }
+                30: {
+                    title: "Split Archive Session"
+                    globalText: "{userName} pulled {achievedValue} files in one session!"
+                    text: "You pulled {achievedValue} files in one session. That's at least one full release!"
+                    points: 15
+                }
+                45: {
+                    title: "File Jockey"
+                    globalText: "{userName} grabbed {achievedValue} files in one session!"
+                    text: "You grabbed {achievedValue} files in one session. This is basically your job now!"
+                    points: 20
+                }
+                60: {
+                    title: "Ratio Nuke"
+                    globalText: "{userName} pulled {achievedValue} files in one session. RIP ratio!"
+                    text: "You pulled {achievedValue} files in one session. Your ratio doesn't exist anymore!"
+                    points: 25
+                }
+                90: {
+                    title: "Everything in Sight"
+                    globalText: "{userName} grabbed {achievedValue} files in one session. Did they queue the whole dir?!"
+                    text: "You grabbed {achievedValue} files in one session. Did you queue the whole directory?"
+                    points: 35
+                }
+                120: {
+                    title: "Mirror Attempt"
+                    globalText: "{userName} pulled {achievedValue} files in one session. Somebody call the siteop!"
+                    text: "You pulled {achievedValue} files in one session. Somebody call the siteop!"
+                    points: 50
+                }
+            }
+        }
+
+        user_session_ul_count: {
+            type: userStatInc
+            statName: ul_total_count
+            retroactive: false
+            match: {
+                5: {
+                    title: "You Come Bearing Gifts"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. Generous!"
+                    points: 10
+                }
+                15: {
+                    title: "Solid Contrib"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. Worth having!"
+                    points: 20
+                }
+                30: {
+                    title: "Drop Complete"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. Drop complete!"
+                    points: 30
+                }
+                60: {
+                    title: "Running a Distro"
+                    globalText: "{userName} uploaded {achievedValue} files in one session!"
+                    text: "You uploaded {achievedValue} files in one session. You're basically running a distro!"
+                    points: 50
+                }
+            }
+        }
+
+        user_login_streak: {
+            type: userStatSet
+            statName: login_streak_days
+            match: {
+                7: {
+                    title: "Creature of Habit"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. Something keeps pulling you back!"
+                    points: 10
+                }
+                14: {
+                    title: "Regular"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. You've got a reserved seat!"
+                    points: 20
+                }
+                30: {
+                    title: "Monthly Dedication"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. A full month of showing up!"
+                    points: 35
+                }
+                60: {
+                    title: "Can't Quit"
+                    globalText: "{userName} has logged in {achievedValue} days in a row!"
+                    text: "You've logged in {achievedValue} days in a row. You've tried to quit. You've failed!"
+                    points: 50
+                }
+                100: {
+                    title: "Century Club"
+                    globalText: "{userName} has logged in {achievedValue} days in a row. Respect!"
+                    text: "You've logged in {achievedValue} days in a row. Respect!"
+                    points: 75
+                }
+                365: {
+                    title: "No Life Detected"
+                    globalText: "{userName} has logged in every day for a year. We're concerned!"
+                    text: "You've logged in every day for a year. We're concerned!"
+                    points: 150
+                }
+            }
+        }
+
+        user_mail_sent_count: {
+            type: userStatIncNewVal
+            statName: mail_sent_count
+            match: {
+                1: {
+                    title: "Pen Pal"
+                    globalText: "{userName} sent their first piece of mail!"
+                    text: "You sent your first piece of mail!"
+                    points: 5
+                }
+                10: {
+                    title: "Correspondent"
+                    globalText: "{userName} has sent {achievedValue} pieces of mail!"
+                    text: "You've sent {achievedValue} pieces of mail!"
+                    points: 10
+                }
+                50: {
+                    title: "Postmaster"
+                    globalText: "{userName} has sent {achievedValue} pieces of mail!"
+                    text: "You've sent {achievedValue} pieces of mail!"
+                    points: 25
+                }
+                200: {
+                    title: "Spammer"
+                    globalText: "{userName} has sent {achievedValue} pieces of mail. Spammer?"
+                    text: "You've sent {achievedValue} pieces of mail. Spammer?"
+                    points: 50
+                }
+            }
+        }
+
+        user_node_msg_sent_count: {
+            type: userStatIncNewVal
+            statName: node_msg_sent_count
+            match: {
+                1: {
+                    title: "Town Crier"
+                    globalText: "{userName} sent their first node message!"
+                    text: "You sent your first node message!"
+                    points: 5
+                }
+                10: {
+                    title: "Chatterbox"
+                    globalText: "{userName} has sent {achievedValue} node messages!"
+                    text: "You've sent {achievedValue} node messages!"
+                    points: 10
+                }
+                50: {
+                    title: "The Announcer"
+                    globalText: "{userName} has sent {achievedValue} node messages!"
+                    text: "You've sent {achievedValue} node messages!"
+                    points: 20
+                }
+                100: {
+                    title: "Global Broadcaster"
+                    globalText: "{userName} has sent {achievedValue} node messages!"
+                    text: "You've sent {achievedValue} node messages!"
+                    points: 30
+                }
+            }
+        }
+
+        user_account_age: {
+            type: userStatSet
+            statName: account_days_old
+            retroactive: false
+            match: {
+                30: {
+                    title: "Still Here"
+                    globalText: "{userName}'s account is a month old!"
+                    text: "Your account is a month old. Still here!"
+                    points: 5
+                }
+                365: {
+                    title: "One Year Club"
+                    globalText: "{userName} has been a member of {boardName} for a year!"
+                    text: "You've been a member of {boardName} for a year!"
+                    points: 25
+                }
+                730: {
+                    title: "Two Year Veteran"
+                    globalText: "{userName} has been a member of {boardName} for two years!"
+                    text: "You've been a member of {boardName} for two years!"
+                    points: 50
+                }
+                1825: {
+                    title: "Fixture"
+                    globalText: "{userName} has been a member of {boardName} for five years!"
+                    text: "Five years on {boardName}. You're basically furniture!"
+                    points: 100
+                }
+            }
+        }
+
+        user_failed_login_count: {
+            type: userStatIncNewVal
+            statName: failed_login_attempts
+            match: {
+                3: {
+                    title: "Wrong Number"
+                    text: "Three failed logins. Muscle memory betraying you?"
+                    points: 0
+                }
+                10: {
+                    title: "Locksmith Apprentice"
+                    text: "Ten failed logins. Maybe write down that password?"
+                    points: 0
+                }
+                25: {
+                    title: "Brute Force Artist"
+                    text: "Twenty-five failed logins. You're basically hacking yourself."
+                    points: 0
+                }
+                50: {
+                    title: "War Dialer"
+                    text: "Fifty failed logins. The sysop is watching you."
+                    points: 0
+                }
+            }
+        }
+
+        user_ul_dl_ratio: {
+            type: userStatSet
+            statName: ul_dl_ratio
+            match: {
+                // 25 = 0.25:1 ratio (1 up per 4 down)
+                25: {
+                    title: "Leech"
+                    text: "1 upload for every 4 downloads. The board thanks you for visiting!"
+                    points: 5
+                }
+                // 50 = 0.5:1 ratio (1 up per 2 down)
+                50: {
+                    title: "Getting There"
+                    text: "1 upload for every 2 downloads. You're pulling your weight... mostly."
+                    points: 10
+                }
+                // 100 = 1:1 ratio
+                100: {
+                    title: "Fair Trader"
+                    globalText: "{userName} has achieved a 1:1 upload/download ratio!"
+                    text: "Equal uploads and downloads. The BBS gods smile upon you."
+                    points: 20
+                }
+                // 200 = 2:1 ratio
+                200: {
+                    title: "Uploader"
+                    globalText: "{userName} is giving back with a 2:1 upload ratio!"
+                    text: "Twice as many uploads as downloads. The board loves you."
+                    points: 35
+                }
+                // 500 = 5:1 ratio
+                500: {
+                    title: "The Filer"
+                    globalText: "{userName} is a true file trader with a 5:1 upload ratio!"
+                    text: "5 uploads for every download. You ARE the file base."
+                    points: 60
+                }
+                // 1000 = 10:1 ratio
+                1000: {
+                    title: "File Deity"
+                    globalText: "{userName} has a legendary 10:1 upload ratio!"
+                    text: "10:1 upload ratio. You have transcended mere leeching."
+                    points: 100
+                }
+            }
+        }
+
         user_total_system_online_minutes: {
             type: userStatSet
             statName: minutes_online_total_count
@@ -456,6 +762,24 @@
                     globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
                     text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
                     points: 25
+                }
+                240: {
+                    title: "Skipped Dinner"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Dinner's getting cold!"
+                    text: "You've been on {boardName} for {achievedValue!durationMinutes}. Dinner's getting cold!"
+                    points: 35
+                }
+                480: {
+                    title: "Called in Sick"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Sure you're feeling OK?"
+                    text: "You've been on {boardName} for {achievedValue!durationMinutes}. Sure you're feeling OK?"
+                    points: 45
+                }
+                960: {
+                    title: "Have You Slept?"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Have they slept?!"
+                    text: "You've been on {boardName} for {achievedValue!durationMinutes}. Have you even slept?"
+                    points: 50
                 }
                 1440: {
                     title: "Idle Bot"
