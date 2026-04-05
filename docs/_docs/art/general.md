@@ -3,7 +3,7 @@ layout: page
 title: General Art Information
 ---
 ## General Art Information
-One of the most basic elements of BBS customization is through it's artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.
+One of the most basic elements of BBS customization is through its artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.
 
 ### Art File Locations
 As a general rule, art files live in one of two places:
@@ -47,7 +47,7 @@ A menu entry has a few elements that control how art is selected and displayed. 
 | Item | Description|
 |------|------------|
 | `font` | Sets the [SyncTERM](http://syncterm.bbsdev.net/) style font to use when displaying this art. If unset, the system will use the art's embedded [SAUCE](http://www.acid.org/info/sauce/sauce.htm) record if present or simply use the current font. See Fonts below. |
-| `pause` | If set to `true`, pause after displaying. |
+| `pause` | Pause after displaying. `true` or `'end'` pauses at the end; `'pageBreak'` paginates the art screen-by-screen; a prompt name string uses that prompt in end mode. See [Pause Prompts](pause-prompts.md). |
 | `baudRate` | Set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate when displaying this art. In other words, slow down the display. |
 | `cls` | Clear the screen before display if set to `true`. |
 | `random` | Set to `false` to explicitly disable random lookup. |

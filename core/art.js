@@ -19,6 +19,7 @@ const _ = require('lodash');
 exports.getArt = getArt;
 exports.getArtFromPath = getArtFromPath;
 exports.display = display;
+exports.paginate = paginate;
 exports.defaultEncodingFromExtension = defaultEncodingFromExtension;
 
 //  :TODO: Return MCI code information
@@ -430,4 +431,29 @@ function display(client, art, options, cb) {
 
     ansiParser.reset(art);
     return ansiParser.parse();
+}
+
+const _ABS_POS_RE = /\x1b\[\d+(?:;\d+)?[Hf]/;
+
+function paginate(data, options) {
+    const termHeight = (options && options.termHeight) || 25;
+    const str = Buffer.isBuffer(data) ? data.toString('binary') : data;
+
+    if (_ABS_POS_RE.test(str)) {
+        return { pages: [str], hasAbsolutePositioning: true };
+    }
+
+    const pageSize = Math.max(1, termHeight - 1);
+    const lines = str.split('\n');
+
+    if (lines.length <= pageSize) {
+        return { pages: [str], hasAbsolutePositioning: false };
+    }
+
+    const pages = [];
+    for (let i = 0; i < lines.length; i += pageSize) {
+        pages.push(lines.slice(i, i + pageSize).join('\n'));
+    }
+
+    return { pages, hasAbsolutePositioning: false };
 }

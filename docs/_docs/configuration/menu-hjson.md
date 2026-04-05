@@ -52,7 +52,9 @@ The `config` block for a menu entry can contain common members as well as a per-
 | Item | Description |
 |------|-------------|
 | `cls` | If `true` the screen will be cleared before showing this menu. |
-| `pause` | If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens. |
+| `pause` | Controls post-display pause. `true` or `'end'`: pause once at the end; `'pageBreak'`: paginate art screen-by-screen with a prompt between pages; `'<promptId>'`: end pause using the named prompt (shorthand for `pause: true` + `pausePrompt: <promptId>`). See [Pause Prompts](../art/pause-prompts.md). |
+| `pausePrompt` | Override the prompt name(s) used for pauses. A string uses that prompt for both end-of-art and page-break pauses; an object `{ end, page }` controls each independently. Takes precedence over the `pause: '<promptId>'` shorthand. See [Pause Prompts](../art/pause-prompts.md). |
+| `pausePosition` | Force the pause prompt to a specific screen position: `{ row, col }` (1-based). |
 | `nextTimeout` | Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu. |
 | `baudRate` | See baud rate information in [General Art Information](../art/general.md). |
 | `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](../art/general.md). |
@@ -201,9 +203,110 @@ In the above entry, you'll notice `form`. This defines a form(s) object. In this
 * Upon submit, the first match will be executed. For example, if the user selects "login", the first entry with a value of `{ matrixSubmit: 0 }` will match (due to 0 being the first index in the list and `matrixSubmit` being the arg name in question) causing `action` of `@menu:login` to be executed (go to `login` menu).
 
 ## Prompts
-Prompts are found in the `prompts` section of menu files. Prompts allow for quick user input and shorthand form requirements for menus. Additionally, prompts are often used for for multiple menus. Consider a pause prompt or menu command input for example.
+Prompts are found in the `prompts` section of menu files. Prompts allow for quick user input and shorthand form requirements for menus. Additionally, prompts are often used for multiple menus. Consider a pause prompt or menu command input for example.
 
-TODO: additional prompt docs
+### Structure
+
+The `prompts:` block is a **top-level sibling** of `menus:` in a menu file — it is not nested inside any individual menu entry:
+
+```hjson
+{
+    menus: {
+        // ...
+    }
+
+    prompts: {
+        myPrompt: {
+            art: MYPRMPT         // art file to display — required
+            mci: {               // MCI config — note: no "form:" wrapper here
+                ET1: {
+                    argName: input
+                    maxLength: 20
+                    focus: true
+                    submit: true
+                }
+            }
+            // optional: actionKeys for key bindings (e.g. Escape to cancel)
+        }
+    }
+}
+```
+
+> :information_source: Unlike menus, prompt MCI configuration is defined **directly** under `mci:` — there is no `form:` wrapper.
+
+A menu entry opts into a prompt by name via the `prompt` key:
+
+```hjson
+myMenu: {
+    desc: My Menu
+    art: MYMENU
+    prompt: myPrompt
+    submit: [
+        // ...
+    ]
+}
+```
+
+The prompt's art is displayed as a persistent overlay while the user interacts with it. After each submit the prompt redraws — this is what enables the classic "command bar" pattern used throughout ENiGMA½.
+
+### Real-World Example
+
+The `menuCommand` prompt (defined in `main.in.hjson`) is reused across many menus — doors, file base, mail, and more. It displays a label (`TL1`) alongside a text entry field (`ET2`) that captures a command string:
+
+```hjson
+prompts: {
+    menuCommand: {
+        art: MNUPRMT
+        mci: {
+            TL1: {}
+            ET2: {
+                argName: command
+                width: 20
+                maxLength: 20
+                submit: true
+                textStyle: upper
+                focus: true
+            }
+        }
+    }
+}
+```
+
+Any menu that needs a command bar simply sets `prompt: menuCommand` — no duplication required.
+
+For a yes/no confirmation style prompt, use a `ToggleMenuView` (`TM`):
+
+```hjson
+logoffConfirmation: {
+    art: LOGPMPT
+    mci: {
+        TM1: {
+            argName: promptValue
+            items: [ "yes", "no" ]
+            focus: true
+            hotKeys: { Y: 0, N: 1 }
+            hotKeySubmit: true
+        }
+    }
+}
+```
+
+### `actionKeys`
+
+Prompts support an optional `actionKeys` array for binding keys to system actions (most commonly Escape to go back):
+
+```hjson
+myPrompt: {
+    art: MYPRMPT
+    mci: { /* ... */ }
+    actionKeys: [
+        {
+            keys: [ "escape" ]
+            action: @systemMethod:prevMenu
+        }
+    ]
+}
+```
 
 ## ACS Checks
 Menu modules can check user ACS in order to restrict areas and perform flow control. See [ACS](acs.md) for available ACS syntax.

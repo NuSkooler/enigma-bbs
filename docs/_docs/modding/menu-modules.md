@@ -67,7 +67,7 @@ exports.moduleInfo = {
 ```
 
 ### Per-Mod Databases
-Custom mods often need their own data persistence. This can be acheived with `getModDatabsePath()` and your `moduleInfo`'s `packageName`.
+Custom mods often need their own data persistence. This can be achieved with `getModDatabasePath()` and your `moduleInfo`'s `packageName`.
 
 **Example**:
 ```javascript

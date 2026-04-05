@@ -1,108 +1,200 @@
 ---
 layout: page
-title: Web Socket / Web Interface Server
+title: WebSocket / Web Interface Server
 ---
 ## WebSocket Login Server
-The WebSocket Login Server provides **secure** (wss://) as well as non-secure (ws://) WebSocket login access. This is often combined with a browser based WebSocket client such as VTX or fTelnet.
 
-# VTX Web Client
-ENiGMA supports the VTX WebSocket client for connecting to your BBS from a web page. Example usage can be found at [Xibalba](https://xibalba.l33t.codes) and [fORCE9](https://bbs.force9.org/vtx/force9.html) amongst others.
+The WebSocket Login Server provides **secure** (`wss://`) as well as non-secure (`ws://`) WebSocket login access. This is most commonly combined with a browser-based client such as [VTX](https://github.com/codewar65/VTX_ClientServer) or fTelnet to give users a web browser entry point to your BBS.
 
-## Before You Start
-There are a few things out of scope of this document:
+> :information_source: If you run into any trouble getting WebSocket or VTX set up, see [Troubleshooting WebSocket & VTX](../../troubleshooting/websocket-troubleshooting.md).
 
- - You'll need a web server for hosting the files - this can be anywhere, but it obviously makes sense to host it
- somewhere with a hostname relevant to your BBS!
+---
 
- - It's not required, but you should use SSL certificates to secure your website, and for supplying to ENiGMA to
- secure the websocket connections. [Let's Encrypt](https://letsencrypt.org/) provide a free well-respected service.
+## Configuration
 
- - How you make the websocket service available on the internet is up to you, but it'll likely by forwarding ports on
- your router to the box hosting ENiGMA. Use the same method you did for forwarding the telnet port.
+Enable the WebSocket server by adding a `webSocket` block to `loginServers` in `config.hjson`:
 
-## Setup
-
-1. Enable the websocket in ENiGMA, by adding `webSocket` configuration to the `loginServers` block in `config.hjson` (create it if you
-don't already have it defined).
-
-````hjson
+```hjson
 loginServers: {
-        webSocket : {
-                ws: {
-                    // non-secure ws://
-                    port: 8810
-                    enabled: true
+    webSocket: {
+        ws: {
+            // non-secure ws:// — suitable for LAN/local testing or when
+            // sitting behind a TLS-terminating reverse proxy (see below)
+            port: 8810
+            enabled: true
 
-                    //  optional bind address
-                    address: 127.0.0.1
-                }
-                wss: {
-                    //  secure-over-tls wss://
-                    port: 8811
-                    enabled: true
-                    certPem: /path/to/https_cert.pem
-                    keyPem: /path/to/https_cert_key.pem
-                }
-                // set proxied to true to allow TLS-terminated proxied connections
-                // containing the "X-Forwarded-Proto: https" header to be treated
-                // as secure
-                proxied: true
+            // optional: bind to a specific address (e.g. loopback when proxied)
+            address: 127.0.0.1
         }
+        wss: {
+            // secure wss:// — ENiGMA handles TLS directly
+            port: 8811
+            enabled: true
+            certPem: /path/to/https_cert.pem
+            keyPem:  /path/to/https_cert_key.pem
+        }
+
+        // Set proxied: true when a TLS-terminating reverse proxy (e.g. nginx)
+        // forwards connections to ENiGMA's plain ws:// port.  ENiGMA will treat
+        // any connection carrying the "X-Forwarded-Proto: https" header as
+        // secure, which is required for 2FA/OTP and other security-sensitive
+        // features.  Leave false (default) if ENiGMA is exposed directly.
+        proxied: true
+    }
 }
-````
+```
 
-2. Restart ENiGMA and check the logs to ensure the websocket service starts successfully, you'll see something like the
-following:
+Restart ENiGMA and confirm the server started in the logs:
 
-    ````
-    [2017-10-29T12:13:30.668Z]  INFO: ENiGMA½ BBS/30978 on force9: Listening for connections (server="WebSocket (insecure)", port=8810)
-    [2017-10-29T12:13:30.669Z]  INFO: ENiGMA½ BBS/30978 on force9: Listening for connections (server="WebSocket (secure)", port=8811)
-    ````
+```
+INFO: Listening for connections (server="WebSocket (insecure)", port=8810)
+INFO: Listening for connections (server="WebSocket (secure)", port=8811)
+```
 
-3. Download the [VTX_ClientServer](https://github.com/codewar65/VTX_ClientServer/archive/master.zip) to your
-webserver, and unpack it to a temporary directory.
+---
 
-4. Download the example [VTX client HTML file](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/vtx/vtx.html) and save it to your webserver root.
+## Deployment Architectures
 
-5. Create an `assets/vtx` directory within your webserver root, so you have a structure like the following:
+There are two supported ways to expose a secure WebSocket endpoint to browser clients.
 
-    ````text
-    ├── assets
-    │   └── vtx
-    └── vtx.html
-    ````
+### Option A — Reverse Proxy (recommended)
 
-6. From the VTX_ClientServer package unpacked earlier, copy the contents of the `www` directory into `assets/vtx` directory.
+A reverse proxy such as nginx or Caddy handles TLS and forwards plain `ws://` traffic to ENiGMA. This is the most common setup because it reuses your existing web certificate and keeps ENiGMA out of the certificate-management business.
 
-7. Create a vtxdata.js file, and save it to `assets/vtx`:
+```
+Browser (wss://) → nginx (TLS termination) → ENiGMA ws:// port 8810
+```
 
-    ````javascript
-    var vtxdata = {
-        sysName:       "Your Awesome BBS",
-        wsConnect:     "wss://your-hostname.here:8811",
-        term:          "ansi-bbs",
-        codePage:      "CP437",
-        fontName:      "UVGA16",
-        fontSize:      "24px",
-        crtCols:       80,
-        crtRows:       25,
-        crtHistory:    500,
-        xScale:        1,
-        initStr:       "",
-        defPageAttr:   0x1010,
-        defCrsrAttr:   ['thick', 'horizontal'],
-        defCellAttr:   0x0007,
-        telnet:        1,
-        autoConnect:   0,
-        wsProtocol:    'telnet',
-        wsDataType:    'arraybuffer',
-    };
-    ````
+**ENiGMA config:**
 
-8. Update `sysName` and `wsConnect` accordingly. Use `wss://` if you set up the websocket service with SSL, `ws://`
-otherwise.
+```hjson
+loginServers: {
+    webSocket: {
+        ws: {
+            port: 8810
+            enabled: true
+            address: 127.0.0.1   // loopback only — nginx is the public face
+        }
+        proxied: true            // trust X-Forwarded-Proto from the proxy
+    }
+}
+```
 
-9. If you navigate to http://your-hostname.here/vtx.html, you should see a splash screen like the following:
-    ![VTXClient](../../assets/images/vtxclient.png "VTXClient")
+**nginx location block** (inside your existing `server { ... }` block with a valid TLS certificate):
 
+```nginx
+location /wss {
+    proxy_pass         http://127.0.0.1:8810;
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade    $http_upgrade;
+    proxy_set_header   Connection "Upgrade";
+    proxy_set_header   Host       $host;
+    proxy_set_header   X-Forwarded-Proto https;
+}
+```
 
+Point `wsConnect` in `vtxdata.js` to `wss://your-hostname.here/wss`.
+
+See [nginx WebSocket proxying](https://nginx.org/en/docs/http/websocket.html) for more detail.
+
+### Option B — ENiGMA handles TLS directly
+
+ENiGMA listens on a dedicated `wss://` port and manages the certificate itself. Useful if you don't already run a reverse proxy.
+
+```
+Browser (wss://) → ENiGMA wss:// port 8811
+```
+
+**ENiGMA config:**
+
+```hjson
+loginServers: {
+    webSocket: {
+        wss: {
+            port: 8811
+            enabled: true
+            certPem: /path/to/https_cert.pem
+            keyPem:  /path/to/https_cert_key.pem
+        }
+    }
+}
+```
+
+Point `wsConnect` in `vtxdata.js` to `wss://your-hostname.here:8811`.
+
+> :warning: Let's Encrypt certificates are written to a privileged directory by default. If ENiGMA does not run as root (it shouldn't), copy the cert and key to a location readable by the ENiGMA user and keep them updated when the cert renews.
+
+---
+
+## VTX Web Client
+
+ENiGMA supports the [VTX WebSocket client](https://github.com/codewar65/VTX_ClientServer) for in-browser BBS access. Example deployments: [Xibalba](https://xibalba.l33t.codes), [fORCE9](https://bbs.force9.org/vtx/force9.html).
+
+> :warning: **Browsers require `wss://`** whenever the page itself is served over HTTPS. A browser will refuse to open a plain `ws://` connection from an HTTPS page (mixed-content policy). For any publicly accessible BBS whose VTX page is served over HTTPS, a secure WebSocket connection is **required**, not optional. Plain `ws://` is only practical for local/LAN testing where the page is also served over plain HTTP.
+
+### Setup
+
+1. **Enable the WebSocket server** as described above. For a public deployment use Option A or B.
+
+2. **Download VTX_ClientServer.** Visit [github.com/codewar65/VTX_ClientServer](https://github.com/codewar65/VTX_ClientServer) and download the release you intend to use. Unpack it to a temporary directory.
+
+   > :information_source: The `vtxdata.js` configuration format has changed across VTX_ClientServer releases. The example below matches current releases; if you download an older or newer version and see a black screen or a browser console error, check [Troubleshooting WebSocket & VTX](../../troubleshooting/websocket-troubleshooting.md).
+
+3. **Download the example HTML file.** Save [vtx.html](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/vtx/vtx.html) to your webserver root.
+
+4. **Create the asset directory structure:**
+
+   ```text
+   ├── assets
+   │   └── vtx
+   └── vtx.html
+   ```
+
+5. **Copy VTX client files.** From the unpacked VTX_ClientServer package, copy the contents of the `www` directory into `assets/vtx/`.
+
+6. **Create `assets/vtx/vtxdata.js`:**
+
+   ```javascript
+   var vtxdata = {
+       sysName:     "Your Awesome BBS",
+       wsConnect:   "wss://your-hostname.here:8811",  // or wss://your-hostname.here/wss for Option A
+       term:        "ansi-bbs",
+       codePage:    "CP437",
+       fontName:    "UVGA16",
+       fontSize:    "24px",
+       crtCols:     80,
+       crtRows:     25,
+       crtHistory:  500,
+       xScale:      1,
+       initStr:     "",
+       defPageAttr: 0x1010,
+       defCrsrAttr: ['thick', 'horizontal'],
+       defCellAttr: 0x0007,
+       telnet:      1,
+       autoConnect: 0,
+       wsProtocol:  'telnet',
+       wsDataType:  'arraybuffer',
+   };
+   ```
+
+   Update `sysName` and `wsConnect` for your system. Note that `defCrsrAttr` must be an **array**, not a hex value — passing a hex integer here causes a black screen.
+
+7. **Navigate to** `https://your-hostname.here/vtx.html`. You should see a splash screen like:
+
+   ![VTXClient](../../assets/images/vtxclient.png "VTXClient")
+
+---
+
+## Configuration Reference
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| `ws.enabled` | | Enable non-secure `ws://` listener. Default: `false`. |
+| `ws.port` | | Port for `ws://`. Default: `8810`. |
+| `ws.address` | | Bind address for `ws://`. Omit to bind all interfaces. |
+| `wss.enabled` | | Enable secure `wss://` listener. Default: `false`. |
+| `wss.port` | | Port for `wss://`. Default: `8811`. |
+| `wss.address` | | Bind address for `wss://`. |
+| `wss.certPem` | :+1: (if wss enabled) | Path to TLS certificate in PEM format. |
+| `wss.keyPem` | :+1: (if wss enabled) | Path to TLS private key in PEM format. |
+| `proxied` | | Set `true` when behind a TLS-terminating proxy. Trusts `X-Forwarded-Proto: https`. Default: `false`. |

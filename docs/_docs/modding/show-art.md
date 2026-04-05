@@ -11,6 +11,7 @@ Available `config` block entries:
 * `method`: Set the method in which to show art. See **Methods** below.
 * `optional`: Is this art required or optional? If non-optional and we cannot show art based on `method`, it is an error.
 * `key`: Used for some `method`s. See **Methods**
+* `pause`, `pausePrompt`, `pausePosition`: Standard pause configuration — see [Pause Prompts](../art/pause-prompts.md) for the full reference.
 
 ### Methods
 #### Extra Args

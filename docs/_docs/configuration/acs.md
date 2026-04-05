@@ -64,7 +64,7 @@ The following logical operators are supported:
 ENiGMA½ also supports groupings using `(` and `)`. Lastly, some ACS codes allow for lists of acceptable values using `[` and `]` — for example, `GM[users,sysops]`.
 
 ### Example ACS Strings
-* `NC2`: User must have called two more more times for the check to return true (to pass)
+* `NC2`: User must have called two or more times for the check to return true (to pass)
 * `ID1`: User must be ID 1 (the +op)
 * `GM[elite,power]`: User must be a member of the `elite` or `power` user group (they could be both)
 * `ID1|GM[co-op]`: User must be ID 1 (SysOp!) or belong to the `co-op` group
