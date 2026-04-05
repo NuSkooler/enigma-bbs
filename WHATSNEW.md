@@ -3,20 +3,26 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.1.0-beta
 
-* **Pause Prompt Improvements**
+* **Pause Prompt Improvements** — see [Pause Prompts](./docs/_docs/art/pause-prompts.md) for the full reference
 
   * `pause: pageBreak` — art is paginated and displayed screen-by-screen with a prompt between pages; detects absolute-positioning ANSI and falls back to single-page display automatically
+  * `pause: '<promptId>'` — shorthand: end-mode pause using the named prompt; equivalent to `pause: true` + `pausePrompt: <promptId>`
   * `pausePrompt` — per-menu override of the prompt name used for end-of-art and/or page-break pauses; accepts a string (same prompt for both) or `{ end, page }` object for independent control
   * `pausePosition` — per-menu `{ row, col }` override to force the pause prompt to a specific screen position
   * `continuousKey` / `quitKey` — configurable keys on the `pausePage` prompt to skip remaining page breaks or abort all remaining pages entirely
-  * `pausePage` system prompt — add this alongside `pause` in your `prompts` block to customise page-break behavior; supports all MCI views including `%TK` (ticker)
+  * `pausePage` system prompt — add this alongside `pause` in your `prompts` block to customise page-break behavior; supports all MCI views including `%TK` (TickerView) for animated instructions
+  * Pipe color codes in TickerView `text` are now preserved across all non-dynamic motion styles (`bounce`, `reveal`, `typewriter`, `fallLeft`/`fallRight`) — color survives scrolling
+  * *Module developers:* `displayThemedPause` / `displayThemedPrompt` (when `pause: true`) callbacks now receive a third argument `pressedKey: { ch, key }`. Existing callers that ignore extra arguments are unaffected.
+
 * **New MCI View Types**
 
-  * **[TickerView](./docs/_docs/art/views/ticker_view.md) (`%TK`)** — animated single-line marquee with a two-axis model:
+  * **[TickerView](./docs/_docs/art/views/ticker_view.md) (`%TK`)** — animated single-line marquee with a two-axis model; works in any context including pause prompts (see above):
     * **Motion styles**: `left`, `right`, `bounce`, `reveal`, `typewriter`, `fallLeft`, `fallRight`
       * `fallLeft`/`fallRight`: characters spread across the window with increasing inter-char gaps toward the source edge, then all slide at 1 col/tick and stack against the target edge — a "stack of bricks" effect
     * **Effects**: text-style effects (`upper`, `lower`, `title`, `l33t`, `mixed`, and more) baked at set-time; dynamic per-tick effects (`rainbow`, `scramble`, `glitch`)
     * Text-style and dynamic effects are independent axes and can be freely combined (e.g. `l33t` + `rainbow`)
+    * `scramble` renders each character's noise in its own pipe color with reverse-video; `glitch` uses `styleSGR2` for corruption color
+    * Redraw optimization: ticks where the rendered output hasn't changed (e.g. `bounce` at rest, hold phases) are skipped entirely — no unnecessary cursor movement
     * All configuration via `mci` block in `menu.hjson` / `theme.hjson` — no inline MCI args needed
     * `destroy()` clears timers; view teardown in `ViewController` now calls `destroy()` on all views, fixing timers surviving menu transitions
   * **[StatusBarView](./docs/_docs/art/views/status_bar_view.md) (`%SB`)** — single-line view with two modes:
