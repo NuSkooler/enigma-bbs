@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>NNTP Server | ENiGMA½ BBS Software</title>
+<title>Pause Prompts | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="NNTP Server" />
+<meta property="og:title" content="Pause Prompts" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://)." />
-<meta property="og:description" content="The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://)." />
+<meta name="description" content="Pause Prompts" />
+<meta property="og:description" content="Pause Prompts" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-05T01:08:59+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="NNTP Server" />
+<meta property="twitter:title" content="Pause Prompts" />
 <script type="application/ld+json">
-{"description":"The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).","headline":"NNTP Server","dateModified":"2026-04-05T01:08:59+00:00","datePublished":"2026-04-05T01:08:59+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/nntp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/contentservers/nntp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Pause Prompts","headline":"Pause Prompts","dateModified":"2026-04-05T01:08:59+00:00","datePublished":"2026-04-05T01:08:59+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/pause-prompts.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/pause-prompts.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1150,7 +1150,7 @@
 
 
     
-    <li><a href="/enigma-bbs/art/pause-prompts.html">Pause Prompts</a></li>
+      <li class="active-nav">Pause Prompts</li>
     
 
 
@@ -1720,7 +1720,7 @@
 
 
     
-      <li class="active-nav">NNTP Server</li>
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
     
 
 
@@ -2586,176 +2586,328 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/contentservers/gopher.html">« Gopher Server</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/mci.html">« MCI Codes</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/local-doors.html">Local Doors »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/art/views/views.html">Views »</a>
               
               <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">NNTP Server</h1>
-    <h2 id="the-nntp-content-server">The NNTP Content Server</h2>
-<p>The NNTP <em>content server</em> provides access to publicly exposed message conferences and areas over either <strong>secure</strong> NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).</p>
+    <h1 class="page-title">Pause Prompts</h1>
+    <h2 id="pause-prompts">Pause Prompts</h2>
 
-<h2 id="configuration">Configuration</h2>
-<p>The following keys are available within the <code class="language-plaintext highlighter-rouge">contentServers.nntp</code> configuration block:</p>
+<p>ENiGMA½ supports a flexible pause prompt system that controls how the system waits for user input after displaying art. Pause prompts are fully themeable: they support art files, any MCI view type, and can be customised per-menu.</p>
 
-<table>
-  <thead>
-    <tr>
-      <th>Item</th>
-      <th>Required</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">nntp</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Configuration block for non-secure NNTP. See <a href="#non-secure-configuration">Non-Secure NNTP Configuration</a>.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">nntps</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Configuration block for secure NNTP. See <a href="#secure-configuration-nntps">Secure Configuration (NNTPS)</a>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">publicMessageConferences</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>A map of <em>conference tags</em> to <em>area tags</em> that are publicly exposed over NNTP. <u>Anonymous users will gain read-only access to these areas</u>.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">allowPosts</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Allow posting from <u>authenticated users</u>. See <a href="#write-access">Write Access</a>. Default is <code class="language-plaintext highlighter-rouge">false</code>.</td>
-    </tr>
-  </tbody>
-</table>
+<hr>
 
-<h3 id="non-secure-configuration">Non-Secure Configuration</h3>
-<p>Under <code class="language-plaintext highlighter-rouge">contentServers.nntp.nntp</code> the following configuration is allowed:</p>
+<h2 id="how-it-works">How It Works</h2>
 
-<table>
-  <thead>
-    <tr>
-      <th>Item</th>
-      <th>Required</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">enabled</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to enable non-secure NNTP access.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">port</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the default port of <code class="language-plaintext highlighter-rouge">8119</code>.</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="secure-configuration-nntps">Secure Configuration (NNTPS)</h3>
-<p>Under <code class="language-plaintext highlighter-rouge">contentServers.nntp.nntps</code> the following configuration is allowed:</p>
-
-<table>
-  <thead>
-    <tr>
-      <th>Item</th>
-      <th>Required</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">enabled</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to enable secure NNTPS access.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">port</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the default port of <code class="language-plaintext highlighter-rouge">8565</code>.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">certPem</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the default certificate file path of <code class="language-plaintext highlighter-rouge">./config/nntps_cert.pem</code>
-</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">keyPem</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the default certificate key file path of <code class="language-plaintext highlighter-rouge">./config/nntps_key.pem</code>
-</td>
-    </tr>
-  </tbody>
-</table>
-
-<h4 id="certificates-and-keys">Certificates and Keys</h4>
-<p>In order to use secure NNTPS, a TLS certificate and key pair must be provided. You may generate your own but most clients <strong>will not trust</strong> them. A certificate and key from a trusted Certificate Authority is recommended. <a href="https://letsencrypt.org/">Let’s Encrypt</a> provides free TLS certificates. Certificates and private keys must be in <a href="https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail">PEM format</a>.</p>
-
-<h5 id="generating-a-certificate--key-pair">Generating a Certificate &amp; Key Pair</h5>
-<p>An example of generating your own cert/key pair:</p>
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl req <span class="nt">-newkey</span> rsa:2048 <span class="nt">-nodes</span> <span class="nt">-keyout</span> ./config/nntps_key.pem <span class="nt">-x509</span> <span class="nt">-days</span> 3050 <span class="nt">-out</span> ./config/nntps_cert.pem
-</code></pre></div></div>
-
-<h2 id="write-access">Write Access</h2>
-<p>Authenticated users may write messages to a group given the following are true:</p>
+<p>Pause behaviour is configured at two levels:</p>
 
 <ol>
   <li>
-<code class="language-plaintext highlighter-rouge">allowPosts</code> is set to <code class="language-plaintext highlighter-rouge">true</code>
-</li>
-  <li>They are connected securely (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.</li>
-  <li>The authenticated user has write <a href="/enigma-bbs/configuration/acs.html">ACS</a> to the target message conference and area.</li>
+<strong>Menu config</strong> (<code class="language-plaintext highlighter-rouge">config:</code> block) — controls <em>whether</em> to pause, <em>how</em> to paginate, <em>which named prompt</em> to display, and <em>where</em> to position it on screen</li>
+  <li>
+<strong>Prompt definition</strong> (<code class="language-plaintext highlighter-rouge">prompts:</code> block) — the named prompt’s art, views, and continuation keys</li>
 </ol>
 
+<hr>
+
+<h2 id="menu-config-reference">Menu Config Reference</h2>
+
+<h3 id="pause"><code class="language-plaintext highlighter-rouge">pause</code></h3>
+
+<p>Controls whether and how the system pauses after displaying the menu’s art.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Value</th>
+      <th>Behaviour</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">'end'</code>
+</td>
+      <td>Pause once after all art is displayed. Uses the <code class="language-plaintext highlighter-rouge">pause</code> system prompt unless <code class="language-plaintext highlighter-rouge">pausePrompt</code> overrides it.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">'pageBreak'</code></td>
+      <td>Paginate the art — display one screenful at a time, showing a page-break prompt between pages. Shows the end-of-art pause after the final page. Uses the <code class="language-plaintext highlighter-rouge">pausePage</code> system prompt for page breaks and <code class="language-plaintext highlighter-rouge">pause</code> for the final pause, unless <code class="language-plaintext highlighter-rouge">pausePrompt</code> overrides them.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">'&lt;promptId&gt;'</code></td>
+      <td>Shorthand: pause in end mode using the named prompt. Equivalent to <code class="language-plaintext highlighter-rouge">pause: true</code> + <code class="language-plaintext highlighter-rouge">pausePrompt: &lt;promptId&gt;</code>.</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">false</code> (or absent)</td>
+      <td>No pause.</td>
+    </tr>
+  </tbody>
+</table>
+
 <blockquote>
-  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Not all <a href="/enigma-bbs/configuration/acs.html">ACS</a> checks can be made over NNTP. Any ACS requiring a “client” will return false (fail), such as <code class="language-plaintext highlighter-rouge">LC</code> (“is local?”).</p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Art that uses absolute cursor positioning (ANSI sequences with explicit row/col addresses) is detected automatically — <code class="language-plaintext highlighter-rouge">pageBreak</code> falls back to single-page display for such art.</p>
 </blockquote>
 
-<h2 id="example-configuration">Example Configuration</h2>
-<pre><code class="language-hjson">contentServers: {
-    nntp: {
-        allowPosts: true
+<h3 id="pauseprompt"><code class="language-plaintext highlighter-rouge">pausePrompt</code></h3>
 
-        publicMessageConferences: {
-            fsxnet: [
-                // Expose these areas of fsxNet
-                "fsx_gen", "fsx_bbs"
-            ]
-        }
+<p>Overrides which named prompt is used for pauses on this menu. When absent the system defaults to <code class="language-plaintext highlighter-rouge">pause</code> (end-of-art) and <code class="language-plaintext highlighter-rouge">pausePage</code> (page-break).</p>
 
-        nntp: {
-            enabled: true
-        }
+<pre><code class="language-hjson">// Same prompt for both end-of-art and page-break pauses:
+pausePrompt: myCustomPause
 
-        nntps: {
-            enabled: true
+// Different prompts per type:
+pausePrompt: {
+    end:  myEndPause
+    page: myPagePause
+}
+</code></pre>
 
-            // These could point to Let's Encrypt provided pairs for example:
-            certPem: /path/to/some/tls_cert.pem
-            keyPem: /path/to/some/tls_private_key.pem
+<p><code class="language-plaintext highlighter-rouge">pausePrompt</code> takes precedence over the <code class="language-plaintext highlighter-rouge">pause: '&lt;promptId&gt;'</code> shorthand.</p>
+
+<h3 id="pauseposition"><code class="language-plaintext highlighter-rouge">pausePosition</code></h3>
+
+<p>Force the pause prompt to appear at a specific screen position, overriding the computed position (which is normally just below the last line of displayed art).</p>
+
+<pre><code class="language-hjson">pausePosition: {
+    row: 23    // 1-based row
+    col: 1     // 1-based column (optional)
+}
+</code></pre>
+
+<hr>
+
+<h2 id="prompt-definition-reference">Prompt Definition Reference</h2>
+
+<p>Pause prompts live in the <code class="language-plaintext highlighter-rouge">prompts:</code> block of a menu file, as a top-level sibling of <code class="language-plaintext highlighter-rouge">menus:</code>. Two system prompts are provided by <code class="language-plaintext highlighter-rouge">main.in.hjson</code> as defaults.</p>
+
+<h3 id="pause-1"><code class="language-plaintext highlighter-rouge">pause</code></h3>
+
+<p>Displayed at the end of art when <code class="language-plaintext highlighter-rouge">pause: true</code> (or <code class="language-plaintext highlighter-rouge">pause: 'end'</code>) is set. A minimal definition is just an art file:</p>
+
+<pre><code class="language-hjson">prompts: {
+    pause: {
+        art: pause
+        config: {
+            trailingLF: no
         }
     }
 }
 </code></pre>
 
+<h3 id="pausepage"><code class="language-plaintext highlighter-rouge">pausePage</code></h3>
+
+<p>Displayed between pages when <code class="language-plaintext highlighter-rouge">pause: pageBreak</code> is set. Supports two special <code class="language-plaintext highlighter-rouge">config</code> keys in addition to standard prompt config:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">continuousKey</code></td>
+      <td>When pressed, all remaining page-break prompts are skipped and the final end-of-art pause fires immediately.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">quitKey</code></td>
+      <td>When pressed, all remaining art and prompts (including the final pause) are cancelled.</td>
+    </tr>
+  </tbody>
+</table>
+
+<pre><code class="language-hjson">prompts: {
+    pausePage: {
+        art: pause_page
+        config: {
+            trailingLF: no
+            continuousKey: c
+            quitKey: q
+        }
+    }
+}
+</code></pre>
+
+<hr>
+
+<h2 id="using-tickerview-in-pause-prompts">Using TickerView in Pause Prompts</h2>
+
+<p>Pause prompts support all MCI views, including <a href="/enigma-bbs/art/views/ticker_view.html">TickerView (<code class="language-plaintext highlighter-rouge">%TK</code>)</a>. This lets you display animated instructions or banners while waiting for input — a natural pairing for <code class="language-plaintext highlighter-rouge">pausePage</code> prompts.</p>
+
+<p>Place <code class="language-plaintext highlighter-rouge">%TK1</code> in the prompt’s art file, then configure it under <code class="language-plaintext highlighter-rouge">mci:</code>:</p>
+
+<pre><code class="language-hjson">prompts: {
+    pausePage: {
+        art: pause_page          // art file contains %TK1
+        config: {
+            trailingLF: no
+            continuousKey: c
+            quitKey: q
+        }
+        mci: {
+            TK1: {
+                text: "Press any key to continue — [C] skip pages — [Q] quit"
+                width: 70
+                motion: bounce
+                tickInterval: 70
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>Pipe color codes in <code class="language-plaintext highlighter-rouge">text</code> are preserved across all non-dynamic motion styles (<code class="language-plaintext highlighter-rouge">bounce</code>, <code class="language-plaintext highlighter-rouge">reveal</code>, <code class="language-plaintext highlighter-rouge">typewriter</code>, <code class="language-plaintext highlighter-rouge">fallLeft</code>, <code class="language-plaintext highlighter-rouge">fallRight</code>). Dynamic effects (<code class="language-plaintext highlighter-rouge">rainbow</code>, <code class="language-plaintext highlighter-rouge">scramble</code>, <code class="language-plaintext highlighter-rouge">glitch</code>) intentionally override per-character colors.</p>
+
+<hr>
+
+<h2 id="theming">Theming</h2>
+
+<p>Pause prompts can be overridden per-theme like any other prompt. In <code class="language-plaintext highlighter-rouge">theme.hjson</code>, set properties under <code class="language-plaintext highlighter-rouge">customization.prompts</code>:</p>
+
+<pre><code class="language-hjson">customization: {
+    prompts: {
+        pausePage: {
+            mci: {
+                TK1: {
+                    text: "|04Press any key...|07"
+                    motion: bounce
+                    width: 60
+                    tickInterval: 60
+                }
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>The art file can also be placed in your theme directory (<code class="language-plaintext highlighter-rouge">art/themes/&lt;yourTheme&gt;/</code>) to replace the default.</p>
+
+<hr>
+
+<h2 id="examples">Examples</h2>
+
+<details>
+<summary>Simple end-of-art pause (default)</summary>
+<div>
+
+    <pre><code class="language-hjson">myArtDisplay: {
+    art: someart
+    config: {
+        pause: true
+    }
+}
+</code></pre>
+
+    <p>Uses the <code class="language-plaintext highlighter-rouge">pause</code> system prompt. No additional configuration required.</p>
+  </div>
+</details>
+
+<details>
+<summary>Paginated art with page-break and end pauses</summary>
+<div>
+
+    <pre><code class="language-hjson">myScroller: {
+    art: longscroller
+    config: {
+        pause: pageBreak
+    }
+}
+</code></pre>
+
+    <p>Uses <code class="language-plaintext highlighter-rouge">pausePage</code> between pages and <code class="language-plaintext highlighter-rouge">pause</code> at the end. Both are system defaults — add them to your <code class="language-plaintext highlighter-rouge">prompts:</code> block to customise.</p>
+  </div>
+</details>
+
+<details>
+<summary>Paginated art with a custom page-break prompt</summary>
+<div>
+
+    <pre><code class="language-hjson">// menu entry:
+myScroller: {
+    art: longscroller
+    config: {
+        pause: pageBreak
+        pausePrompt: {
+            page: myPagePause
+        }
+    }
+}
+
+// prompts block:
+prompts: {
+    myPagePause: {
+        art: mypagepause          // art file includes %TK1
+        config: {
+            trailingLF: no
+            continuousKey: c
+            quitKey: q
+        }
+        mci: {
+            TK1: {
+                text: "|03--- more ---  [SPACE] continue  [C] skip  [Q] quit"
+                width: 60
+                motion: bounce
+                tickInterval: 65
+            }
+        }
+    }
+}
+</code></pre>
+  </div>
+</details>
+
+<details>
+<summary>Shorthand: end pause with a named custom prompt</summary>
+<div>
+
+    <pre><code class="language-hjson">myArtDisplay: {
+    art: someart
+    config: {
+        pause: myFancyPause    // end mode, uses 'myFancyPause' prompt
+    }
+}
+</code></pre>
+
+    <p>Equivalent to <code class="language-plaintext highlighter-rouge">pause: true</code> + <code class="language-plaintext highlighter-rouge">pausePrompt: myFancyPause</code>.</p>
+  </div>
+</details>
+
+<details>
+<summary>Force pause position to a fixed row</summary>
+<div>
+
+    <pre><code class="language-hjson">myArtDisplay: {
+    art: someart
+    config: {
+        pause: true
+        pausePosition: {
+            row: 23
+        }
+    }
+}
+</code></pre>
+
+    <p>Useful when art has a specific row reserved for the pause prompt.</p>
+  </div>
+</details>
+
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/contentservers/gopher.html">« Gopher Server</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/mci.html">« MCI Codes</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/local-doors.html">Local Doors »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/art/views/views.html">Views »</a>
               
               <br clear="both">
               </div>

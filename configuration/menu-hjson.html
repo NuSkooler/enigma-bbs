@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-04T05:41:02+00:00" />
+<meta property="article:published_time" content="2026-04-05T01:08:59+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu HSJON" />
 <script type="application/ld+json">
-{"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","headline":"Menu HSJON","dateModified":"2026-04-04T05:41:02+00:00","datePublished":"2026-04-04T05:41:02+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","headline":"Menu HSJON","dateModified":"2026-04-05T01:08:59+00:00","datePublished":"2026-04-05T01:08:59+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1126,6 +1126,31 @@
 
     
     <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/pause-prompts.html">Pause Prompts</a></li>
     
 
 
@@ -2671,7 +2696,15 @@
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">pause</code></td>
-      <td>If <code class="language-plaintext highlighter-rouge">true</code> a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens.</td>
+      <td>Controls post-display pause. <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">'end'</code>: pause once at the end; <code class="language-plaintext highlighter-rouge">'pageBreak'</code>: paginate art screen-by-screen with a prompt between pages; <code class="language-plaintext highlighter-rouge">'&lt;promptId&gt;'</code>: end pause using the named prompt (shorthand for <code class="language-plaintext highlighter-rouge">pause: true</code> + <code class="language-plaintext highlighter-rouge">pausePrompt: &lt;promptId&gt;</code>). See <a href="/enigma-bbs/art/pause-prompts.html">Pause Prompts</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pausePrompt</code></td>
+      <td>Override the prompt name(s) used for pauses. A string uses that prompt for both end-of-art and page-break pauses; an object <code class="language-plaintext highlighter-rouge">{ end, page }</code> controls each independently. Takes precedence over the <code class="language-plaintext highlighter-rouge">pause: '&lt;promptId&gt;'</code> shorthand. See <a href="/enigma-bbs/art/pause-prompts.html">Pause Prompts</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pausePosition</code></td>
+      <td>Force the pause prompt to a specific screen position: <code class="language-plaintext highlighter-rouge">{ row, col }</code> (1-based).</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">nextTimeout</code></td>
