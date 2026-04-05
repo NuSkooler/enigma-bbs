@@ -137,6 +137,8 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
   diff ./misc/menu_templates/message_base.in.hjson ./config/menus/your_board-message_base.hjson
   ```
 
+* **Pause prompt and TickerView enhancements** — new `pause: pageBreak` pagination mode, `pausePrompt`, `pausePosition`, `continuousKey`/`quitKey`, and TickerView (`%TK`) support in pause prompts. Existing `pause: true` configs continue to work unchanged. See [What's New](WHATSNEW.md) and [Pause Prompts](./docs/_docs/art/pause-prompts.md) for details.
+
 ## 0.0.13-beta to 0.0.14-beta
 * A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:
 

@@ -176,10 +176,26 @@ exports.getModule = class ShowArtModule extends MenuModule {
 
     displaySingleArtWithOptions(artSpec, options, cb) {
         const self = this;
+        const pauseMode = self.getPauseMode();
+
         async.waterfall(
             [
                 function art(callback) {
                     //  :TODO: we really need a way to supply an explicit path to look in, e.g. general/area_art/
+                    if (pauseMode === 'pageBreak') {
+                        return self._displayArtPaginated(
+                            artSpec,
+                            self.menuConfig.config,
+                            (err, artData) => {
+                                if (err) {
+                                    return callback(err);
+                                }
+                                const mciData = { menu: artData ? artData.mciMap : {} };
+                                return callback(null, mciData, null);
+                            }
+                        );
+                    }
+
                     self.displayAsset(artSpec, self.menuConfig.config, (err, artData) => {
                         if (err) {
                             return callback(err);
@@ -192,7 +208,10 @@ exports.getModule = class ShowArtModule extends MenuModule {
                             // We must have scrolled, adjust the positioning for pause
                             artData.height = self.client.term.termHeight;
                         }
-                        const pausePosition = { row: artData.height + 1, col: 1 };
+                        const pausePosition = self._applyPausePosition({
+                            row: artData.height + 1,
+                            col: 1,
+                        });
                         return callback(null, mciData, pausePosition);
                     });
                 },
@@ -202,10 +221,10 @@ exports.getModule = class ShowArtModule extends MenuModule {
                     });
                 },
                 function displayPauseIfRequested(pausePosition, callback) {
-                    if (!options.pause) {
+                    if (!options.pause || pauseMode === 'pageBreak') {
                         return callback(null);
                     }
-                    return self.pausePrompt(pausePosition, callback);
+                    return self.pausePrompt(pausePosition, callback, 'end');
                 },
             ],
             err => {

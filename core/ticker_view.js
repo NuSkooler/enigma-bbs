@@ -80,6 +80,7 @@ class TickerView extends View {
         this._charPos = []; //  fall: current x-position of each character
         this._finalPos = []; //  fall: target x-position of each character
         this._timer = null;
+        this._lastRendered = null; //  redraw cache: skip write when output is unchanged
 
         this.setText(options.text || '');
         this._startTicker();
@@ -103,16 +104,54 @@ class TickerView extends View {
 
         this._rawText = text;
 
+        const ansi = pipeToAnsi(stripAllLineFeeds(text), this.client);
+
+        //  Build a per-character color map so pipe codes survive scrolling.
+        //  Only populated when the text actually contains color sequences;
+        //  empty array means "use view SGR" (no change to existing behavior).
+        this._charColors = this._buildCharColorMap(ansi);
+
         //  Strip all ANSI / pipe markup to get raw visible characters, then
         //  apply any stylizeString text-style effect (l33t, upper, mixed, …).
         //  Dynamic effects (rainbow, scramble, glitch) operate on this plain
         //  text every tick rather than pre-processing it here.
-        const stripped = stripAnsiCodes(pipeToAnsi(stripAllLineFeeds(text), this.client));
+        const stripped = stripAnsiCodes(ansi);
         this._plainText = TEXT_STYLE_EFFECTS.has(this.effect)
             ? stylizeString(stripped, this.effect)
             : stripped;
 
         this._resetMotion();
+    }
+
+    //  Parse ANSI escape sequences in |ansiText| and return an array whose
+    //  i-th element is the SGR string that applies to the i-th visible character.
+    //  Returns an empty array when no color codes are present (fast path).
+    _buildCharColorMap(ansiText) {
+        const sgrRe = /\x1b\[([0-9;]*)m/g; //  eslint-disable-line no-control-regex
+        const colors = [];
+        let currentColor = '';
+        let lastEnd = 0;
+        let match;
+
+        while ((match = sgrRe.exec(ansiText)) !== null) {
+            //  Visible characters between the previous escape and this one.
+            for (let i = lastEnd; i < match.index; i++) {
+                colors.push(currentColor);
+            }
+            currentColor = match[0]; //  full ESC[…m sequence
+            lastEnd = match.index + match[0].length;
+        }
+
+        if (colors.length === 0) {
+            return []; //  no escapes found — fast path, plain text
+        }
+
+        //  Remaining visible characters after the last escape.
+        for (let i = lastEnd; i < ansiText.length; i++) {
+            colors.push(currentColor);
+        }
+
+        return colors;
     }
 
     //  ── Motion state ─────────────────────────────────────────────────────────
@@ -125,6 +164,7 @@ class TickerView extends View {
         this._motionInitialized = false;
         this._charPos = [];
         this._finalPos = [];
+        this._lastRendered = null; //  force redraw after any motion/text reset
     }
 
     //  Called once on the first tick so that dimens.width is guaranteed set.
@@ -321,8 +361,9 @@ class TickerView extends View {
 
     //  ── Visible window ────────────────────────────────────────────────────────
 
-    //  Returns a plain-text string of exactly dimens.width visible characters
-    //  representing what should be shown this tick, before any effect is applied.
+    //  Returns { plain, offset } where plain is exactly dimens.width visible
+    //  characters for this tick and offset is the index into _plainText/_charColors
+    //  of the first character in plain (for color map alignment).
     _getVisiblePlain() {
         const plain = this._plainText;
         const len = plain.length;
@@ -330,45 +371,50 @@ class TickerView extends View {
         const fill = this.fillChar;
 
         if (len === 0) {
-            return fill.repeat(width);
+            return { plain: fill.repeat(width), offset: 0 };
         }
 
         switch (this.motion) {
             case MOTION.REVEAL: {
-                //  _scrollOffset = number of fill chars leading the text
                 const lead = Math.min(this._scrollOffset, width);
                 const avail = width - lead;
                 const slice = plain.slice(0, avail);
-                return fill.repeat(lead) + slice + fill.repeat(avail - slice.length);
+                return {
+                    plain: fill.repeat(lead) + slice + fill.repeat(avail - slice.length),
+                    offset: 0,
+                };
             }
 
             case MOTION.TYPEWRITER:
-                //  _scrollOffset = number of chars currently revealed
-                return plain.slice(0, this._scrollOffset).padEnd(width, fill);
+                return {
+                    plain: plain.slice(0, this._scrollOffset).padEnd(width, fill),
+                    offset: 0,
+                };
 
             case MOTION.BOUNCE: {
                 if (len <= width) {
-                    return plain.padEnd(width, fill);
+                    return { plain: plain.padEnd(width, fill), offset: 0 };
                 }
                 const off = Math.max(0, Math.min(this._scrollOffset, len - width));
-                return plain.slice(off, off + width);
+                return { plain: plain.slice(off, off + width), offset: off };
             }
 
             case MOTION.FALL_LEFT:
             case MOTION.FALL_RIGHT: {
-                //  Before first tick _charPos hasn't been initialized — show blank.
                 if (this._charPos.length === 0) {
-                    return fill.repeat(width);
+                    return { plain: fill.repeat(width), offset: 0, colorIndices: null };
                 }
-                //  Place each character at its current x-position; everything else is fill.
                 const arr = new Array(width).fill(fill);
+                //  colorIndices[displayCol] = source text index for that column
+                const colorIndices = new Array(width).fill(-1);
                 for (let i = 0; i < this._charPos.length; i++) {
                     const x = this._charPos[i];
                     if (x >= 0 && x < width) {
                         arr[x] = plain[i];
+                        colorIndices[x] = i;
                     }
                 }
-                return arr.join('');
+                return { plain: arr.join(''), offset: 0, colorIndices };
             }
 
             default: {
@@ -377,7 +423,10 @@ class TickerView extends View {
                 const source = plain + gap;
                 const srcLen = source.length;
                 const off = ((this._scrollOffset % srcLen) + srcLen) % srcLen;
-                return (source + source).slice(off, off + width).padEnd(width, fill);
+                return {
+                    plain: (source + source).slice(off, off + width).padEnd(width, fill),
+                    offset: off < len ? off : 0,
+                };
             }
         }
     }
@@ -387,19 +436,44 @@ class TickerView extends View {
     //  Transforms the plain visible text into a terminal-ready string by
     //  applying per-character ANSI where needed.  For text-style effects the
     //  plain text is already correctly transformed; this just wraps it in the
-    //  view's normal SGR.
-    _applyEffect(plain) {
+    //  view's normal SGR (or per-character pipe colors if present).
+    _applyEffect(plain, visibleOffset = 0, colorIndices = null) {
         switch (this.effect) {
             case 'rainbow':
                 return this._rainbowEffect(plain);
             case 'scramble':
-                return this._scrambleEffect(plain);
+                return this._scrambleEffect(plain, visibleOffset, colorIndices);
             case 'glitch':
-                return this._glitchEffect(plain);
+                return this._glitchEffect(plain, visibleOffset, colorIndices);
             default:
+                //  If the text had pipe/ANSI color codes, apply per-char colors.
+                if (this._charColors.length > 0) {
+                    return this._coloredEffect(plain, visibleOffset, colorIndices);
+                }
                 //  stylizeString text styles are already baked into _plainText
                 return this.getSGR() + plain;
         }
+    }
+
+    //  Emit each visible character with its original pipe-derived color,
+    //  collapsing consecutive same-color runs to minimise escape output.
+    //  colorIndices, when provided (fall motions), maps display position → source index.
+    _coloredEffect(plain, visibleOffset, colorIndices = null) {
+        const colors = this._charColors;
+        let out = '';
+        let lastColor = null;
+
+        for (let i = 0; i < plain.length; i++) {
+            const srcIdx = colorIndices ? colorIndices[i] : visibleOffset + i;
+            const color = srcIdx >= 0 && srcIdx < colors.length ? colors[srcIdx] : '';
+            if (color !== lastColor) {
+                out += color || this.getSGR();
+                lastColor = color;
+            }
+            out += plain[i];
+        }
+        out += this.getSGR();
+        return out;
     }
 
     //  Each character cycles through RAINBOW_SGR; the phase shifts with
@@ -413,30 +487,77 @@ class TickerView extends View {
         return out + this.getSGR();
     }
 
-    //  ~30% of non-fill characters are replaced with green noise each tick.
-    _scrambleEffect(plain) {
+    //  ~30% of non-fill characters are replaced with noise rendered in reverse-video
+    //  relative to that character's current color (pipe or theme SGR).
+    _scrambleEffect(plain, visibleOffset = 0, colorIndices = null) {
+        const colors = this._charColors;
         let out = this.getSGR();
+        let lastColor = '';
+
         for (let i = 0; i < plain.length; i++) {
+            const srcIdx = colorIndices ? colorIndices[i] : visibleOffset + i;
+            const charColor =
+                colors.length > 0 && srcIdx >= 0 && srcIdx < colors.length
+                    ? colors[srcIdx]
+                    : '';
+
             if (plain[i] !== this.fillChar && Math.random() < 0.3) {
-                out += `\x1b[1;32m${randomNoise()}${this.getSGR()}`;
+                //  Reverse-video relative to this character's color, then restore.
+                out +=
+                    (charColor || this.getSGR()) +
+                    '\x1b[7m' +
+                    randomNoise() +
+                    this.getSGR();
+                lastColor = '';
             } else {
+                if (charColor !== lastColor) {
+                    out += charColor || this.getSGR();
+                    lastColor = charColor;
+                }
                 out += plain[i];
             }
         }
         return out;
     }
 
-    //  Real text with 1-3 random characters corrupted to red noise per tick.
-    _glitchEffect(plain) {
-        const arr = plain.split('');
+    //  1–3 random characters corrupted to noise per tick, colored with styleSGR2
+    //  (the view's focus/highlight SGR) so glitch color is fully theme-controlled.
+    _glitchEffect(plain, visibleOffset = 0, colorIndices = null) {
+        const colors = this._charColors;
+        const glitchSGR = this.getStyleSGR(2) || this.getSGR();
+        const arr = plain.split('').map((ch, i) => {
+            const srcIdx = colorIndices ? colorIndices[i] : visibleOffset + i;
+            return {
+                ch,
+                color:
+                    colors.length > 0 && srcIdx >= 0 && srcIdx < colors.length
+                        ? colors[srcIdx]
+                        : '',
+            };
+        });
+
         const count = 1 + Math.floor(Math.random() * 3);
         for (let n = 0; n < count; n++) {
             const i = Math.floor(Math.random() * arr.length);
-            if (arr[i] !== this.fillChar) {
-                arr[i] = `\x1b[1;31m${randomNoise()}${this.getSGR()}`;
+            if (arr[i].ch !== this.fillChar) {
+                arr[i] = { ch: randomNoise(), color: glitchSGR, _restore: true };
             }
         }
-        return this.getSGR() + arr.join('');
+
+        let out = this.getSGR();
+        let lastColor = '';
+        for (const { ch, color, _restore } of arr) {
+            if (color !== lastColor) {
+                out += color || this.getSGR();
+                lastColor = color;
+            }
+            out += ch;
+            if (_restore) {
+                out += this.getSGR();
+                lastColor = '';
+            }
+        }
+        return out;
     }
 
     //  ── Rendering ─────────────────────────────────────────────────────────────
@@ -452,9 +573,21 @@ class TickerView extends View {
     }
 
     redraw() {
+        const { plain, offset, colorIndices } = this._getVisiblePlain();
+        const rendered = this._applyEffect(plain, offset, colorIndices);
+
+        //  Skip the write (and cursor movement from super.redraw) when the
+        //  terminal output hasn't changed since the last tick.  This matters for
+        //  bounce when text fits the window, reveal/typewriter hold phases, and
+        //  any other static period — it prevents the cursor from bouncing around.
+        //  Dynamic effects (rainbow, scramble, glitch) produce different output
+        //  every tick so they are unaffected.
+        if (rendered === this._lastRendered) {
+            return;
+        }
+        this._lastRendered = rendered;
+
         super.redraw();
-        const plain = this._getVisiblePlain();
-        const rendered = this._applyEffect(plain);
         this.client.term.write(
             padStr(
                 rendered,

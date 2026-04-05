@@ -87,6 +87,7 @@ collections:
       - art/general.md
       - art/themes.md
       - art/mci.md
+      - art/pause-prompts.md
       - art/views/views.md
       - art/views/button_view.md
       - art/views/edit_text_view.md

@@ -52,7 +52,9 @@ The `config` block for a menu entry can contain common members as well as a per-
 | Item | Description |
 |------|-------------|
 | `cls` | If `true` the screen will be cleared before showing this menu. |
-| `pause` | If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens. |
+| `pause` | Controls post-display pause. `true` or `'end'`: pause once at the end; `'pageBreak'`: paginate art screen-by-screen with a prompt between pages; `'<promptId>'`: end pause using the named prompt (shorthand for `pause: true` + `pausePrompt: <promptId>`). See [Pause Prompts](../art/pause-prompts.md). |
+| `pausePrompt` | Override the prompt name(s) used for pauses. A string uses that prompt for both end-of-art and page-break pauses; an object `{ end, page }` controls each independently. Takes precedence over the `pause: '<promptId>'` shorthand. See [Pause Prompts](../art/pause-prompts.md). |
+| `pausePosition` | Force the pause prompt to a specific screen position: `{ row, col }` (1-based). |
 | `nextTimeout` | Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu. |
 | `baudRate` | See baud rate information in [General Art Information](../art/general.md). |
 | `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](../art/general.md). |
