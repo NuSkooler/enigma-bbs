@@ -1,0 +1,3109 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/enigma-bbs/assets/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
+    <!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Achievements | ENiGMA½ BBS Software</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="Achievements" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Achievements ENiGMA½ includes a built-in achievement system that rewards users for activity on the board. Achievements are defined in config/achievements.hjson and fire automatically as users accumulate stats. When an achievement is earned the user sees a private interrupt notification; a separate global notification is broadcast to all other online users (if globalText is defined for that tier)." />
+<meta property="og:description" content="Achievements ENiGMA½ includes a built-in achievement system that rewards users for activity on the board. Achievements are defined in config/achievements.hjson and fire automatically as users accumulate stats. When an achievement is earned the user sees a private interrupt notification; a separate global notification is broadcast to all other online users (if globalText is defined for that tier)." />
+<meta property="og:site_name" content="ENiGMA½ BBS Software" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-04-05T17:01:10+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Achievements" />
+<script type="application/ld+json">
+{"description":"Achievements ENiGMA½ includes a built-in achievement system that rewards users for activity on the board. Achievements are defined in config/achievements.hjson and fire automatically as users accumulate stats. When an achievement is earned the user sees a private interrupt notification; a separate global notification is broadcast to all other online users (if globalText is defined for that tier).","headline":"Achievements","dateModified":"2026-04-05T17:01:10+00:00","datePublished":"2026-04-05T17:01:10+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/achievements.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/achievements.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>
+    
+    <div id="container">
+        <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide" />
+            <div class="container">
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
+            </div>
+            
+            <ul>
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+  <li>Installation</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/installation-methods.html">Installation Methods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/install-script.html">Install Script</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/docker.html">Docker</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/manual.html">Manual Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>OS / Hardware Specific</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/rpi.html">Raspberry Pi</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/windows.html">Installation Under Windows</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/network.html">Network Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/production.html">Production Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/development.html">Development Environment Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Configuration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/hjson.html">HJSON Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/menu-hjson.html">Menu HSJON</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/directory-structure.html">Directory Structure</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/external-binaries.html">External Support Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/email.html">Email</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/colour-codes.html">Colour Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/event-scheduler.html">Event Scheduler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/acs.html">Access Condition System (ACS)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+      <li class="active-nav">Achievements</li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/security.html">Security</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Miscellaneous</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/misc/user-interrupt.html">User Interruptions</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>File Base</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/index.html">About File Areas</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/first-file-area.html">Configuring a File Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/acs.html">ACS</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/uploads.html">Uploads</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/web-access.html">Web Access</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/tic-support.html">TIC Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Message Areas</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import / Export</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/netmail.html">Netmail</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Art</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/general.html">General Art Information</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/themes.html">Themes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/pause-prompts.html">Pause Prompts</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>Views</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/views.html">Views</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/button_view.html">Button View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/text_view.html">Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/status_bar_view.html">Status Bar View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/ticker_view.html">Ticker View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Login Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">WebSocket / Web Interface Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger Web Handler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/gopher.html">Gopher Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors-abracadabra.html">Local Doors — Scripts &amp; Native Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors-dos-emulation.html">Local Doors — External DOS Emulators</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors-v86.html">Local Doors — Native v86 Emulation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/existing-mods.html">Existing Mods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-area-list.html">File Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/last-callers.html">Last Callers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-list.html">User List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-conf-list.html">Message Conference List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-area-list.html">Message Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/bbs-list.html">BBS List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/onelinerz.html">Onelinerz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/show-art.html">The Show Art Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-download-manager.html">File Base Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-web-download-manager.html">File Base Web Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/top-x.html">TopX</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-2fa-otp-config.html">2FA/OTP Config</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/autosig-edit.html">Auto Signature Editor</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/menu-modules.html">Menu Modules</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/upgrading.html">Upgrading</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">Troubleshooting SSH</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX</a></li>
+    
+
+
+  
+  
+    </ul>
+    
+  
+
+</ul>
+
+        </div>
+        <div class="main_area">
+          <div class="container">
+            <section id="main_content">
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/configuration/acs.html">&laquo; Access Condition System (ACS)</a>
+              
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/security.html">Security &raquo;</a>
+              
+              <br clear="both" />
+              </div>
+
+                <div class="page">
+    <h1 class="page-title">Achievements</h1>
+    <h2 id="achievements">Achievements</h2>
+<p>ENiGMA½ includes a built-in achievement system that rewards users for activity on the board. Achievements are defined in <code class="language-plaintext highlighter-rouge">config/achievements.hjson</code> and fire automatically as users accumulate stats. When an achievement is earned the user sees a private interrupt notification; a separate global notification is broadcast to all other online users (if <code class="language-plaintext highlighter-rouge">globalText</code> is defined for that tier).</p>
+
+<h2 id="configuration">Configuration</h2>
+
+<h3 id="top-level-keys">Top-level keys</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">enabled</code></td>
+      <td>Set to <code class="language-plaintext highlighter-rouge">false</code> to disable the entire system. Default: <code class="language-plaintext highlighter-rouge">true</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">art</code></td>
+      <td>Art file names for the four achievement interrupt frames (see <a href="#art">Art</a> below)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">achievements</code></td>
+      <td>Map of achievement tag → achievement definition</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="achievement-definition">Achievement Definition</h3>
+
+<p>Each entry under <code class="language-plaintext highlighter-rouge">achievements</code> has a unique tag (e.g. <code class="language-plaintext highlighter-rouge">user_login_count</code>) and the following fields:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">type</code></td>
+      <td>Yes</td>
+      <td>Trigger type — see <a href="#achievement-types">Achievement Types</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">statName</code></td>
+      <td>Yes</td>
+      <td>The user property stat name that drives this achievement</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">retroactive</code></td>
+      <td>No</td>
+      <td>If <code class="language-plaintext highlighter-rouge">true</code> (default), earning a higher tier also awards all lower unarned tiers in the same achievement. Set to <code class="language-plaintext highlighter-rouge">false</code> to only award the exact tier reached.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">match</code></td>
+      <td>Yes</td>
+      <td>Map of numeric threshold → <a href="#match-details">match details</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="match-details">Match Details</h3>
+
+<p>Each key under <code class="language-plaintext highlighter-rouge">match</code> is a <strong>numeric threshold</strong>. When the triggering stat reaches or exceeds that value, the corresponding tier is awarded.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title</code></td>
+      <td>Yes</td>
+      <td>Short title for the achievement tier</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">text</code></td>
+      <td>Yes</td>
+      <td>Private notification text shown only to the earning user. Supports <a href="#format-variables">format variables</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">globalText</code></td>
+      <td>No</td>
+      <td>Text broadcast to all other online users when this tier is earned. Omit to suppress global notifications. Supports <a href="#format-variables">format variables</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">points</code></td>
+      <td>Yes</td>
+      <td>Points awarded. Set to <code class="language-plaintext highlighter-rouge">0</code> for shame/novelty badges that carry no score.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Example:</p>
+<pre><code class="language-hjson">user_login_count: {
+    type: userStatSet
+    statName: login_count
+    match: {
+        10: {
+            title: "Curious Caller"
+            globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+            text: "You've logged into {boardName} {achievedValue} times!"
+            points: 10
+        }
+        25: {
+            title: "Inquisitive"
+            text: "You've logged into {boardName} {achievedValue} times!"
+            points: 15
+        }
+    }
+}
+</code></pre>
+
+<hr />
+
+<h2 id="achievement-types">Achievement Types</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">type</code> field controls when and how the stat value is compared against thresholds.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Fires on</th>
+      <th>Value compared</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td>Any <code class="language-plaintext highlighter-rouge">setUserStat</code> call</td>
+      <td>The new absolute value of the stat</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">userStatInc</code></td>
+      <td>Any <code class="language-plaintext highlighter-rouge">incrementUserStat</code> call</td>
+      <td>The <strong>increment delta</strong> for that single event (not the running total)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td>Any <code class="language-plaintext highlighter-rouge">incrementUserStat</code> call</td>
+      <td>The new cumulative total after the increment</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>When to use each:</strong></p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">userStatSet</code> — Use when the stat is written as an absolute value (login count, streak days, account age in days, UL/DL ratio). The system compares the stored value against your thresholds.</li>
+  <li><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code> — Use when the stat is incremented and you want to award based on lifetime totals (total messages posted, total mail sent, total files downloaded).</li>
+  <li><code class="language-plaintext highlighter-rouge">userStatInc</code> — Use when you want to award based on a single-event quantity (e.g. “downloaded 30 files in one session”). The threshold is compared against the per-event delta, not the running total. Set <code class="language-plaintext highlighter-rouge">retroactive: false</code> for these since they’re per-event.</li>
+</ul>
+
+<hr />
+
+<h2 id="format-variables">Format Variables</h2>
+
+<p>The following variables may be used in <code class="language-plaintext highlighter-rouge">text</code>, <code class="language-plaintext highlighter-rouge">globalText</code>, and <code class="language-plaintext highlighter-rouge">title</code> fields via <code class="language-plaintext highlighter-rouge">{variableName}</code> syntax. ENiGMA½ <a href="/enigma-bbs/art/mci.html">string format modifiers</a> (e.g. <code class="language-plaintext highlighter-rouge">{achievedValue!sizeWithAbbr}</code>) are supported.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{userName}</code></td>
+      <td>Username of the user who earned the achievement</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{userRealName}</code></td>
+      <td>User’s real name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{userLocation}</code></td>
+      <td>User’s location</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{userAffils}</code></td>
+      <td>User’s affiliations</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{nodeId}</code></td>
+      <td>Node the user is on</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{title}</code></td>
+      <td>Title of the earned tier</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{points}</code></td>
+      <td>Points awarded for this tier</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{achievedValue}</code></td>
+      <td>The threshold value that was met (e.g. <code class="language-plaintext highlighter-rouge">25</code> for the 25-login tier)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{boardName}</code></td>
+      <td>System board name from <code class="language-plaintext highlighter-rouge">general.boardName</code> in config</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{timestamp}</code></td>
+      <td>ISO timestamp when the achievement was earned</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="art">Art</h2>
+
+<p>Four art files frame achievement interrupt displays. These are configured under the top-level <code class="language-plaintext highlighter-rouge">art</code> key and reference art files by name (resolved from the active theme, then system defaults):</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">localHeader</code></td>
+      <td>Header shown above the private (local) achievement notification</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">localFooter</code></td>
+      <td>Footer shown below the private notification</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">globalHeader</code></td>
+      <td>Header shown above the global broadcast notification</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">globalFooter</code></td>
+      <td>Footer shown below the global broadcast notification</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Art files support the same <a href="#format-variables">format variables</a> as text fields, so you can display the achievement title, points, and user name directly in the art.</p>
+
+<hr />
+
+<h2 id="built-in-achievements">Built-in Achievements</h2>
+
+<p>The default <code class="language-plaintext highlighter-rouge">config/achievements.hjson</code> ships with the following achievement categories. All can be customized, extended with additional tiers, or removed entirely.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Achievement</th>
+      <th>Type</th>
+      <th>Stat</th>
+      <th>Tiers</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_login_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">login_count</code></td>
+      <td>2, 10, 25, 75, 100, 250, 500 logins</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_login_streak</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">login_streak_days</code></td>
+      <td>7, 14, 30, 60, 100, 365 consecutive days</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_post_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td><code class="language-plaintext highlighter-rouge">post_count</code></td>
+      <td>2, 5, 20, 100, 250, 500 posts</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_mail_sent_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td><code class="language-plaintext highlighter-rouge">mail_sent_count</code></td>
+      <td>1, 10, 50, 200 messages</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_node_msg_sent_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td><code class="language-plaintext highlighter-rouge">node_msg_sent_count</code></td>
+      <td>1, 10, 50, 100 messages</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_upload_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ul_total_count</code></td>
+      <td>1, 10, 50, 100, 200 files</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_upload_bytes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ul_total_bytes</code></td>
+      <td>10 KB → 23 GB</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_download_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td><code class="language-plaintext highlighter-rouge">dl_total_count</code></td>
+      <td>1, 10, 50, 100, 200 files</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_download_bytes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">dl_total_bytes</code></td>
+      <td>640 KB → 5 GB</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_session_dl_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatInc</code></td>
+      <td><code class="language-plaintext highlighter-rouge">dl_total_count</code></td>
+      <td>5, 15, 30, 45, 60, 90, 120 in one session</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_session_ul_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatInc</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ul_total_count</code></td>
+      <td>5, 15, 30, 60 in one session</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_ul_dl_ratio</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ul_dl_ratio</code></td>
+      <td>0.25:1 → 10:1 ratio</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_door_runs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td><code class="language-plaintext highlighter-rouge">door_run_total_count</code></td>
+      <td>1, 10, 50, 100, 200 runs</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_individual_door_run_minutes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatInc</code></td>
+      <td><code class="language-plaintext highlighter-rouge">door_run_total_minutes</code></td>
+      <td>1, 5, 15, 30, 60, 120, 240 min single session</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_door_run_total_minutes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">door_run_total_minutes</code></td>
+      <td>10, 30, 60, 120, 240 min lifetime</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_account_age</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">account_days_old</code></td>
+      <td>30 days, 1, 2, 5 years</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_failed_login_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatIncNewVal</code></td>
+      <td><code class="language-plaintext highlighter-rouge">failed_login_attempts</code></td>
+      <td>3, 10, 25, 50 failures (0 pts — shame badges)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_total_system_online_minutes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">userStatSet</code></td>
+      <td><code class="language-plaintext highlighter-rouge">minutes_online_total_count</code></td>
+      <td>30 min → 1440 min lifetime</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="login-streak-notes">Login Streak Notes</h3>
+
+<p>The login streak system uses an <strong>anti-cheat minimum gap</strong> of 20 hours between logins before a new login counts toward the streak. This prevents the “midnight exploit” where logging in at 11:58 PM and again at 12:02 AM would count as two separate days despite only 4 minutes apart. A <strong>48-hour grace window</strong> means missing a day by a few hours doesn’t break the streak — useful for users who log in at slightly different times each day.</p>
+
+<h3 id="uldl-ratio-notes">UL/DL Ratio Notes</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">ul_dl_ratio</code> stat is stored as an integer representing <code class="language-plaintext highlighter-rouge">(uploads / downloads) * 100</code>. A value of <code class="language-plaintext highlighter-rouge">100</code> means a 1:1 ratio; <code class="language-plaintext highlighter-rouge">200</code> means 2:1; <code class="language-plaintext highlighter-rouge">50</code> means 0.5:1. The ratio is only computed once the user has at least one upload and one download on record — new accounts are excluded to avoid divide-by-zero.</p>
+
+<hr />
+
+<h2 id="acs-integration">ACS Integration</h2>
+
+<p>Two ACS codes check achievement progress:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Condition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AC&lt;n&gt;</code></td>
+      <td>User has earned &gt;= <em>n</em> total achievements</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AP&lt;n&gt;</code></td>
+      <td>User has &gt;= <em>n</em> total achievement points</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>See <a href="/enigma-bbs/configuration/acs.html">ACS</a> for general ACS documentation.</p>
+
+<hr />
+
+<h2 id="mci-codes">MCI Codes</h2>
+
+<p>Two MCI codes expose achievement stats for use in art/menus:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%AC</code></td>
+      <td>Current user’s total achievement count</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%AP</code></td>
+      <td>Current user’s total achievement points</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>See <a href="/enigma-bbs/art/mci.html">MCI</a> for general MCI documentation.</p>
+
+<hr />
+
+<h2 id="leaderboards">Leaderboards</h2>
+
+<p>Achievement totals can be surfaced in <a href="/enigma-bbs/modding/top-x.html">Top-X</a> leaderboards using the User Event Log:</p>
+
+<pre><code class="language-hjson">mciMap: {
+    1: {
+        type: userEventLog
+        value: achievement_pts_earned
+        sum: true
+        daysBack: 7   // omit for all-time
+    }
+    2: {
+        type: userEventLog
+        value: achievement_earned
+        sum: false    // count individual achievements earned
+        daysBack: 30
+    }
+}
+</code></pre>
+
+</div>
+
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/configuration/acs.html">&laquo; Access Condition System (ACS)</a>
+              
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/security.html">Security &raquo;</a>
+              
+              <br clear="both" />
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    
+  </body>
+</html>
