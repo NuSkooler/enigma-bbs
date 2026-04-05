@@ -165,7 +165,7 @@ describe('TickerView', () => {
                 dimens: { width: 10, height: 1 },
             });
             view._scrollOffset = 0;
-            const plain = view._getVisiblePlain();
+            const { plain } = view._getVisiblePlain();
             assert.equal(plain.length, 10);
             assert.ok(plain.startsWith('abc'), `expected "abc..." got "${plain}"`);
             view.destroy();
@@ -178,7 +178,7 @@ describe('TickerView', () => {
                 dimens: { width: 20, height: 1 },
             });
             view._scrollOffset = 5;
-            assert.equal(view._getVisiblePlain().length, 20);
+            assert.equal(view._getVisiblePlain().plain.length, 20);
             view.destroy();
         });
 
@@ -189,7 +189,7 @@ describe('TickerView', () => {
                 dimens: { width: 10, height: 1 },
             });
             view._scrollOffset = 3;
-            assert.equal(view._getVisiblePlain(), 'hel       ');
+            assert.equal(view._getVisiblePlain().plain, 'hel       ');
             view.destroy();
         });
 
@@ -200,7 +200,7 @@ describe('TickerView', () => {
                 dimens: { width: 10, height: 1 },
             });
             view._scrollOffset = 0;
-            assert.equal(view._getVisiblePlain(), '          ');
+            assert.equal(view._getVisiblePlain().plain, '          ');
             view.destroy();
         });
 
@@ -211,7 +211,7 @@ describe('TickerView', () => {
                 dimens: { width: 10, height: 1 },
             });
             view._scrollOffset = 0;
-            assert.equal(view._getVisiblePlain(), 'hi        ');
+            assert.equal(view._getVisiblePlain().plain, 'hi        ');
             view.destroy();
         });
 
@@ -223,7 +223,7 @@ describe('TickerView', () => {
                 dimens: { width: 10, height: 1 },
             });
             view._scrollOffset = 3;
-            const plain = view._getVisiblePlain();
+            const { plain } = view._getVisiblePlain();
             assert.equal(plain.length, 10);
             assert.equal(plain.slice(0, 3), '   ');
             assert.equal(plain.slice(3, 8), 'hello');

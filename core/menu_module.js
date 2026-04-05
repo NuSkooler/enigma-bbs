@@ -3,6 +3,7 @@
 
 const PluginModule = require('./plugin_module.js').PluginModule;
 const theme = require('./theme.js');
+const artUtil = require('./art.js');
 const ansi = require('./ansi_term.js');
 const ViewController = require('./view_controller.js').ViewController;
 const menuUtil = require('./menu_util.js');
@@ -114,25 +115,35 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         return callback(null, null);
                     }
 
+                    const doDisplay = (err, artData) => {
+                        if (err) {
+                            self.client.log.trace('Could not display art', {
+                                art: self.menuConfig.art,
+                                reason: err.message,
+                            });
+                        } else {
+                            mciData.menu = artData.mciMap;
+                        }
+
+                        if (artData) {
+                            pausePosition.row = artData.height + 1;
+                        }
+
+                        return callback(null, artData); //  any errors are non-fatal
+                    };
+
+                    if (self.getPauseMode() === 'pageBreak') {
+                        return self._displayArtPaginated(
+                            self.menuConfig.art,
+                            self.menuConfig.config,
+                            doDisplay
+                        );
+                    }
+
                     self.displayAsset(
                         self.menuConfig.art,
                         self.menuConfig.config,
-                        (err, artData) => {
-                            if (err) {
-                                self.client.log.trace('Could not display art', {
-                                    art: self.menuConfig.art,
-                                    reason: err.message,
-                                });
-                            } else {
-                                mciData.menu = artData.mciMap;
-                            }
-
-                            if (artData) {
-                                pausePosition.row = artData.height + 1;
-                            }
-
-                            return callback(null, artData); //  any errors are non-fatal
-                        }
+                        doDisplay
                     );
                 },
                 function displayPromptArt(artData, callback) {
@@ -171,7 +182,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     return self.mciReady(mciData, callback);
                 },
                 function displayPauseIfRequested(callback) {
-                    if (!self.shouldPause()) {
+                    if (!self.shouldPause() || self.getPauseMode() === 'pageBreak') {
                         return callback(null, null);
                     }
 
@@ -388,9 +399,209 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     shouldPause() {
-        return (
-            'end' === this.menuConfig.config.pause ||
-            true === this.menuConfig.config.pause
+        const p = this.menuConfig.config.pause;
+        //  pause: true | 'end' | 'pageBreak' | '<promptId>'
+        return p === true || p === 'end' || p === 'pageBreak' ||
+            (_.isString(p) && p.length > 0);
+    }
+
+    getPauseMode() {
+        return 'pageBreak' === this.menuConfig.config.pause ? 'pageBreak' : 'end';
+    }
+
+    _resolvePromptName(type) {
+        //  type is 'end' or 'page'
+        //  pausePrompt: 'myPrompt'             → use for both (takes precedence)
+        //  pausePrompt: { end: 'x', page: 'y' } → use per type (takes precedence)
+        //  pause: 'myPrompt'                   → shorthand: use for both (end mode only)
+        const cfg = this.menuConfig.config.pausePrompt;
+        if (cfg) {
+            if (_.isString(cfg)) {
+                return cfg;
+            }
+            if (_.isObject(cfg)) {
+                const named = type === 'page' ? cfg.page : cfg.end;
+                if (_.isString(named)) {
+                    return named;
+                }
+            }
+        }
+        //  If pause itself is a prompt ID (not a keyword), use it for 'end' type
+        const pauseVal = this.menuConfig.config.pause;
+        if (type === 'end' && _.isString(pauseVal) &&
+            pauseVal !== 'end' && pauseVal !== 'pageBreak') {
+            return pauseVal;
+        }
+        return type === 'page' ? 'pausePage' : 'pause';
+    }
+
+    _applyPausePosition(base) {
+        const cfg = this.menuConfig.config.pausePosition;
+        if (!cfg) {
+            return base;
+        }
+        const result = Object.assign({}, base);
+        if (_.isNumber(cfg.row)) {
+            result.row = cfg.row;
+        }
+        if (_.isNumber(cfg.col)) {
+            result.col = cfg.col;
+        }
+        return result;
+    }
+
+    _getContinuousKey() {
+        const promptName = this._resolvePromptName('page');
+        const promptCfg = _.get(this.client, ['currentTheme', 'prompts', promptName]);
+        return _.get(promptCfg, 'config.continuousKey', null);
+    }
+
+    _getQuitKey() {
+        const promptName = this._resolvePromptName('page');
+        const promptCfg = _.get(this.client, ['currentTheme', 'prompts', promptName]);
+        return _.get(promptCfg, 'config.quitKey', null);
+    }
+
+    _paginateAndDisplay(artInfo, artOptions, cb) {
+        const self = this;
+
+        const { pages, hasAbsolutePositioning } = artUtil.paginate(artInfo.data, {
+            termHeight: self.client.term.termHeight,
+        });
+
+        if (hasAbsolutePositioning || pages.length <= 1) {
+            //  Not pageable — display normally and return
+            return theme.displayPreparedArt(
+                Object.assign({ client: self.client }, artOptions),
+                artInfo,
+                (err, artData) => cb(err, artData)
+            );
+        }
+
+        let continuous = false;
+        let quit = false;
+        let finalArtData = null;
+        const contKey = self._getContinuousKey();
+        const quitKey = self._getQuitKey();
+
+        const showPage = (index, next) => {
+            if (index >= pages.length || quit) {
+                return next(null);
+            }
+
+            const isLast = index === pages.length - 1;
+            const pageArtInfo = Object.assign({}, artInfo, { data: pages[index] });
+
+            theme.displayPreparedArt(
+                Object.assign({ client: self.client }, artOptions),
+                pageArtInfo,
+                (err, artData) => {
+                    if (err) {
+                        return next(err);
+                    }
+                    finalArtData = artData;
+
+                    if (isLast || continuous || quit) {
+                        return showPage(index + 1, next);
+                    }
+
+                    //  Page-break prompt
+                    const promptName = self._resolvePromptName('page');
+                    const promptExists = _.has(self.client, [
+                        'currentTheme',
+                        'prompts',
+                        promptName,
+                    ]);
+                    if (!promptExists) {
+                        self.client.log.warn(
+                            { promptName },
+                            'Page-break prompt not found; skipping pause'
+                        );
+                        return showPage(index + 1, next);
+                    }
+
+                    const position = self._applyPausePosition({
+                        row: self.client.term.termHeight,
+                        col: 1,
+                    });
+
+                    self.optionalMoveToPosition(position);
+                    theme.displayThemedPause(
+                        self.client,
+                        { position, promptName, clearPrompt: true },
+                        (err, _artInfo, pressedKey) => {
+                            if (!err && pressedKey) {
+                                const keyName =
+                                    _.get(pressedKey, 'key.name') || pressedKey.ch || '';
+                                const keyLower = keyName.toLowerCase();
+                                if (contKey && keyLower === contKey.toLowerCase()) {
+                                    continuous = true;
+                                } else if (
+                                    quitKey &&
+                                    keyLower === quitKey.toLowerCase()
+                                ) {
+                                    quit = true;
+                                }
+                            }
+                            return showPage(index + 1, next);
+                        }
+                    );
+                }
+            );
+        };
+
+        showPage(0, err => {
+            if (err) {
+                return cb(err, finalArtData);
+            }
+
+            //  End-of-art pause after all pages have been shown (skipped on quit)
+            if (quit) {
+                return cb(null, finalArtData);
+            }
+
+            const endPosition = self._applyPausePosition({
+                row: self.client.term.termHeight,
+                col: 1,
+            });
+            self.optionalMoveToPosition(endPosition);
+            theme.displayThemedPause(
+                self.client,
+                {
+                    position: endPosition,
+                    promptName: self._resolvePromptName('end'),
+                    clearPrompt: true,
+                },
+                () => cb(null, finalArtData)
+            );
+        });
+    }
+
+    _displayArtPaginated(artSpec, artOptions, cb) {
+        const self = this;
+
+        //  Buffer artSpec: decode and paginate directly without fetching via name
+        if (Buffer.isBuffer(artSpec)) {
+            const data = iconvDecode(artSpec, artOptions.encoding || 'cp437');
+            return self._paginateAndDisplay({ data, sauce: null }, artOptions, cb);
+        }
+
+        //  ACS conditional array: resolve to the winning entry's art name
+        if (Array.isArray(artSpec)) {
+            artSpec = self.client.acs.getConditionalValue(artSpec, 'art');
+            if (!artSpec) {
+                return cb(null, { mciMap: {}, height: 0 });
+            }
+        }
+
+        theme.getThemeArt(
+            Object.assign({ client: self.client, name: artSpec }, artOptions),
+            (err, artInfo) => {
+                if (err) {
+                    return cb(err);
+                }
+                return self._paginateAndDisplay(artInfo, artOptions, cb);
+            }
         );
     }
 
@@ -569,15 +780,21 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
     }
 
-    pausePrompt(position, cb) {
+    pausePrompt(position, cb, type = 'end') {
         if (!cb && _.isFunction(position)) {
             cb = position;
             position = null;
         }
 
-        this.optionalMoveToPosition(position);
+        const resolvedPosition = this._applyPausePosition(position || {});
+        this.optionalMoveToPosition(resolvedPosition);
 
-        return theme.displayThemedPause(this.client, { position }, cb);
+        const promptName = this._resolvePromptName(type);
+        return theme.displayThemedPause(
+            this.client,
+            { position: resolvedPosition, promptName },
+            err => cb(err)
+        );
     }
 
     promptForInput(

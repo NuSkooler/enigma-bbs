@@ -656,7 +656,7 @@ function displayThemedPrompt(name, client, options, cb) {
                     _.forEach(artInfo.mciMap, mci => {
                         if (mci.position) {
                             mci.position[0] = options.position.row;
-                            mci.position[1] += options.position.col;
+                            mci.position[1] += options.position.col || 0;
                         }
                     });
                 }
@@ -674,31 +674,31 @@ function displayThemedPrompt(name, client, options, cb) {
             },
             function pauseForUserInput(artInfo, assocViewController, callback) {
                 if (!options.pause) {
-                    return callback(null, artInfo, assocViewController);
+                    return callback(null, artInfo, assocViewController, null);
                 }
 
-                client.waitForKeyPress(() => {
-                    return callback(null, artInfo, assocViewController);
+                client.waitForKeyPress((ch, key) => {
+                    return callback(null, artInfo, assocViewController, { ch, key });
                 });
             },
-            function clearPauseArt(artInfo, assocViewController, callback) {
+            function clearPauseArt(artInfo, assocViewController, pressedKey, callback) {
                 // Only clear with height if clearPrompt is true and if we were able
                 // to determine the row
                 if (options.clearPrompt && artInfo.startRow) {
-                    if (artInfo.startRow && artInfo.height) {
-                        client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
-
+                    client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
+                    if (artInfo.height) {
                         //  Note: Does not work properly in NetRunner < 2.0b17:
                         client.term.rawWrite(ansi.deleteLine(artInfo.height));
                     } else {
-                        client.term.rawWrite(ansi.eraseLine(1));
+                        //  Single-line prompt (height=0): erase entire line in place
+                        client.term.rawWrite(ansi.eraseLine(2));
                     }
                 }
 
-                return callback(null, assocViewController, artInfo);
+                return callback(null, assocViewController, artInfo, pressedKey);
             },
         ],
-        (err, assocViewController, artInfo) => {
+        (err, assocViewController, artInfo, pressedKey) => {
             if (err) {
                 client.log.warn(
                     { error: err.message },
@@ -710,7 +710,7 @@ function displayThemedPrompt(name, client, options, cb) {
                 assocViewController.detachClientEvents();
             }
 
-            return cb(null, artInfo);
+            return cb(null, artInfo, pressedKey);
         }
     );
 }
@@ -728,8 +728,9 @@ function displayThemedPause(client, options, cb) {
         options.clearPrompt = true;
     }
 
+    const promptName = options.promptName || 'pause';
     const promptOptions = Object.assign({}, options, { pause: true });
-    return displayThemedPrompt('pause', client, promptOptions, cb);
+    return displayThemedPrompt(promptName, client, promptOptions, cb);
 }
 
 function displayThemedAsset(assetSpec, client, options, cb) {

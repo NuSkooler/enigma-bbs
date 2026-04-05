@@ -3,6 +3,13 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.1.0-beta
 
+* **Pause Prompt Improvements**
+
+  * `pause: pageBreak` — art is paginated and displayed screen-by-screen with a prompt between pages; detects absolute-positioning ANSI and falls back to single-page display automatically
+  * `pausePrompt` — per-menu override of the prompt name used for end-of-art and/or page-break pauses; accepts a string (same prompt for both) or `{ end, page }` object for independent control
+  * `pausePosition` — per-menu `{ row, col }` override to force the pause prompt to a specific screen position
+  * `continuousKey` / `quitKey` — configurable keys on the `pausePage` prompt to skip remaining page breaks or abort all remaining pages entirely
+  * `pausePage` system prompt — add this alongside `pause` in your `prompts` block to customise page-break behavior; supports all MCI views including `%TK` (ticker)
 * **New MCI View Types**
 
   * **[TickerView](./docs/_docs/art/views/ticker_view.md) (`%TK`)** — animated single-line marquee with a two-axis model:

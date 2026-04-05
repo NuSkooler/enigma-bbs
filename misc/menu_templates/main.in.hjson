@@ -1208,5 +1208,30 @@
                 trailingLF: no
             }
         }
+
+        //
+        //  pausePage is displayed between pages when pause: pageBreak is set on a menu.
+        //
+        //  Required config keys:
+        //      continuousKey   - pressing this key skips all remaining page-break prompts
+        //      quitKey         - pressing this key aborts all remaining pages and the end pause
+        //
+        pausePage: {
+            art: pause_page
+            config: {
+                trailingLF: no
+                continuousKey: c
+                quitKey: q
+            }
+            mci: {
+                // Use any MCI codes you wish!
+                TK1: {
+                    text: "|03smash a key to continue |08[|11C|08] |03continuous  |08[|11Q|08] |03quit"
+                    width: 60
+                    motion: bounce
+                    tickInterval: 70
+                }
+            }
+        }
     }
 }

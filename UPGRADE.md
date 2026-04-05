@@ -137,6 +137,8 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
   diff ./misc/menu_templates/message_base.in.hjson ./config/menus/your_board-message_base.hjson
   ```
 
+* **`displayThemedPause` callback signature change.** The callback passed to `theme.displayThemedPause()` and `theme.displayThemedPrompt()` (when `options.pause` is true) now receives three arguments: `(err, artInfo, pressedKey)`. Previously it received `(err, artInfo)`. The new `pressedKey` argument is `{ ch, key }` (the raw character and key object from `waitForKeyPress`), or `null` if the prompt was called without `pause: true`. Existing callers that ignore extra arguments are unaffected; callers that destructure the callback arguments should be updated.
+
 ## 0.0.13-beta to 0.0.14-beta
 * A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:
 
