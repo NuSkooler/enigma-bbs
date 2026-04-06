@@ -131,6 +131,17 @@ class EditTextView extends TextView {
         }
     }
 
+    //  Store prefixFormat (and any other recognised custom properties) so that
+    //  theme.hjson MCI-level config like ET2: { prefixFormat: ... } is accessible
+    //  after view construction.
+    setPropertyValue(propName, value) {
+        if (propName === 'prefixFormat') {
+            this.prefixFormat = value;
+        } else {
+            super.setPropertyValue(propName, value);
+        }
+    }
+
     //  Return raw logical text, not the possibly-styled this.text.
     getData() {
         return this.lineBuffer ? this.lineBuffer.getText() : this.text;

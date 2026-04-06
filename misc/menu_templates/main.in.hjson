@@ -259,6 +259,10 @@
                             keys: [ "k", "shift + k" ]
                             action: @method:kickSelectedNode
                         }
+                        {
+                            keys: [ "b", "shift + b" ]
+                            action: @method:chatWithSelectedNode
+                        }
 						{
 							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:prevMenu
@@ -322,6 +326,114 @@
                             {
                                 value: { inputArea: null }
                                 action: @method:sendChatMessage
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        //  Page Sysop — user-facing paging mod
+        pageSysop: {
+            desc: Page Sysop
+            module: page_sysop
+            config: {
+                cls: true
+                art: {
+                    main: PAGESYSP
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: message
+                            maxLength: 78
+                            submit: true
+                            focus: true
+                        }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                    submit: {
+                        *: [
+                            {
+                                value: { message: null }
+                                action: @method:sendPage
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        //  Sysop Chat — split-screen chat mod (both parties use this)
+        sysopChat: {
+            desc: Sysop Chat
+            module: sysop_chat
+            config: {
+                cls: true
+                interrupt: realtime
+                art: {
+                    chat: SYSOPCHAT
+                }
+                //  Status line — art uses %TL10 (or %TL11, etc. for additional fields).
+                //  Tokens: {partnerName} {duration} {userName} {userNode}
+                chatInfoFormat10: "|08Chatting with |15{partnerName}|08 \xb7 {duration} \xb7 |07ESC|08 to end|07"
+            }
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+                            //  Sysop's scrollback panel (top)
+                            mode: preview
+                            autoScroll: true
+                            acceptsFocus: false
+                            acceptsInput: false
+                            height: 6
+                            width: 72
+                        }
+                        ET2: {
+                            //  Sysop's input line (under MT1)
+                            argName: sysopMessage
+                            maxLength: 78
+                            submit: true
+                        }
+                        MT3: {
+                            //  User's scrollback panel (below)
+                            mode: preview
+                            autoScroll: true
+                            acceptsFocus: false
+                            acceptsInput: false
+                            height: 6
+                            width: 72
+                        }
+                        ET4: {
+                            //  User's input line (under MT3)
+                            argName: userMessage
+                            maxLength: 78
+                            submit: true
+                        }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:endChat
+                        }
+                    ]
+                    submit: {
+                        *: [
+                            {
+                                value: { sysopMessage: null }
+                                action: @method:sendMessage
+                            }
+                            {
+                                value: { userMessage: null }
+                                action: @method:sendMessage
                             }
                         ]
                     }

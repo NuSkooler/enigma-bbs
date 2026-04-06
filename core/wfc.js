@@ -2,6 +2,7 @@
 const { MenuModule } = require('./menu_module');
 const stringFormat = require('./string_format');
 const Events = require('./events');
+const SysopChat = require('./sysop_chat');
 
 const {
     getActiveConnectionList,
@@ -78,6 +79,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         this.selectedNodeStatusIndex = -1; // no selection
         this.refreshing = false;
+        this.pendingPages = []; //  [ { sessionId, userName, nodeId, message, timestamp } ]
+
+        //  Store bound ref so we can properly remove the listener in leave()
+        this._onUserPagedSysopBound = this._onUserPagedSysop.bind(this);
 
         this.menuMethods = {
             toggleAvailable: (formData, extraArgs, cb) => {
@@ -132,6 +137,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             kickNodeNo: (formData, extraArgs, cb) => {
                 //this._startRefreshing();
                 return cb(null);
+            },
+            chatWithSelectedNode: (formData, extraArgs, cb) => {
+                return this._chatWithSelectedNode(cb);
             },
         };
     }
@@ -234,6 +242,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             Events.getSystemEvents().ClientDisconnected,
             this._clientDisconnected.bind(this)
         );
+        Events.on(
+            Events.getSystemEvents().UserPagedSysop,
+            this._onUserPagedSysopBound
+        );
         super.enter();
     }
 
@@ -245,6 +257,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         Events.removeListener(
             Events.getSystemEvents().ClientDisconnected,
             this._clientDisconnected.bind(this)
+        );
+        Events.removeListener(
+            Events.getSystemEvents().UserPagedSysop,
+            this._onUserPagedSysopBound
         );
 
         this._restoreOpVisibility();
@@ -334,6 +350,54 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         );
     }
 
+    _onUserPagedSysop({ user, nodeId, sessionId, message }) {
+        this.pendingPages.unshift({ sessionId, userName: user.username, nodeId, message, timestamp: Date.now() });
+
+        //  BEL to grab the sysop's attention
+        this.client.term.rawWrite('\x07');
+
+        //  Refresh so pending page info appears in any custom MCI tokens
+        this._refreshAll();
+    }
+
+    _chatWithSelectedNode(cb) {
+        const nodeItem = this._getSelectedNodeItem();
+        if (!nodeItem) {
+            return cb(null);
+        }
+
+        const nodeId = parseInt(nodeItem.node);
+
+        //  Disallow chatting with self
+        if (this.client.node === nodeId) {
+            return cb(null);
+        }
+
+        const targetClient = getConnectionByNodeId(nodeId);
+        if (!targetClient) {
+            return cb(null);
+        }
+
+        //  Find a pending session for this node, or create a sysop-initiated one
+        let sessionId = SysopChat.getPendingSessionForNode(nodeId);
+        if (!sessionId) {
+            sessionId = SysopChat.createSession(targetClient, '');
+        }
+
+        SysopChat.activateSession(sessionId, this.client);
+
+        //  Remove from pending pages list if present
+        this.pendingPages = this.pendingPages.filter(p => p.sessionId !== sessionId);
+
+        const chatMenuName = this.config.chatMenuName || 'sysopChat';
+
+        //  Sysop transitions from WFC into the chat mod.
+        //  User navigation happens from sysop_chat._initChat once sysop is set up,
+        //  avoiding a race between the two concurrent menu transitions.
+        this._stopRefreshing();
+        return this.gotoMenu(chatMenuName, { extraArgs: { sessionId, role: 'sysop' } }, cb);
+    }
+
     _kickSelectedNode(cb) {
         const nodeItem = this._getSelectedNodeItem();
         if (!nodeItem) {
@@ -392,7 +456,13 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
     }
 
-    _clientDisconnected() {
+    _clientDisconnected({ client } = {}) {
+        //  Prune pending pages for the disconnected client
+        if (client) {
+            this.pendingPages = this.pendingPages.filter(p => p.nodeId !== client.node);
+            SysopChat.clearSessionsForClient(client);
+        }
+
         const nodeStatusSelectionView = this.getView(
             'main',
             MciViewIds.main.selectedNodeStatusInfo
@@ -535,6 +605,12 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             ),
             processBytesIngress: processTrafficStats.ingress || 0,
             processBytesEgress: processTrafficStats.egress || 0,
+
+            //  Sysop page / break-into-chat
+            pendingPageCount: this.pendingPages.length,
+            pendingPageUser: this.pendingPages.length > 0 ? this.pendingPages[0].userName : '',
+            pendingPageNode: this.pendingPages.length > 0 ? this.pendingPages[0].nodeId : '',
+            pendingPageMessage: this.pendingPages.length > 0 ? this.pendingPages[0].message : '',
         };
 
         return cb(null);

@@ -3,6 +3,14 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.1.0-beta
 
+* **Sysop Chat / Break Into Chat** — real-time split-screen chat between sysop and user
+
+  * Sysop can break into chat with any node directly from WFC (`B` key on selected node)
+  * Users can page the sysop via the `pageSysop` menu entry; includes per-user rate limiting, sysop availability check, and BEL + interrupt notification to all online sysops
+  * Both parties share the same `sysopChat` module with role-based panel routing (sysop messages top, user messages bottom)
+  * Status line uses the standard custom-range token system (`chatInfoFormat10`, etc.) — fully themable
+  * **`prefixFormat`** property on `EditTextView` — set per-view in `theme.hjson` to display a role-specific prefix before the input (e.g. `"|15{userName}|07> "`); pipe codes render live as the user types; cursor and scroll account for the prefix width automatically
+
 * **Pause Prompt Improvements** — see [Pause Prompts](./docs/_docs/art/pause-prompts.md) for the full reference
 
   * `pause: pageBreak` — art is paginated and displayed screen-by-screen with a prompt between pages; detects absolute-positioning ANSI and falls back to single-page display automatically

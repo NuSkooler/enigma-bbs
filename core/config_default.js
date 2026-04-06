@@ -417,6 +417,15 @@ module.exports = () => {
             },
         },
 
+        sysopChat: {
+            //  Minimum minutes a user must wait between pages to the sysop
+            pageCooldownMinutes: 5,
+            //  Optional shell command executed when a page arrives.
+            //  Available tokens: {userName}, {nodeId}, {message}
+            //  Example: 'notify-send "BBS Page from {userName}" "{message}"'
+            pageNotifyCommand: '',
+        },
+
         // General ActivityPub integration configuration
         activityPub: {
             // by default, don't include auto-signatures in AP outgoing

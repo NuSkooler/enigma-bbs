@@ -1482,12 +1482,56 @@
                         TL4: {
                             width: 20
                         }
-						TL5: {
-                            width: 2
-                        }
                         TL6: {
                             width: 2
                         }
+					}
+				}
+			}
+
+			// Sysop chat (break-into-chat) — adjust width/height to match SYSOPCHAT.ANS art
+			sysopChat: {
+				0: {
+					mci: {
+						MT1: {
+							width: 76
+							height: 6
+						}
+						ET2: {
+							width: 69
+							prefixFormat: "|11{userName} |14> "
+						}
+						MT3: {
+							width: 69
+							height: 6
+						}
+						ET4: {
+							width: 76
+							prefixFormat: "|11{userName} |14> "
+						}
+						TL10: {
+							width: 35
+							itemFormat: "|11{partnerName}"
+						}
+						TL10: {
+							width: 25
+							itemFormat: "|11{duration}"
+						}
+					}
+				}
+			}
+
+			// Page sysop — adjust width to match PAGESYSP.ANS art
+			pageSysop: {
+				0: {
+					mci: {
+						ET1: {
+							width: 60
+							maxLength: 78
+						}
+						TL2: {
+							width: 40
+						}
 					}
 				}
 			}

@@ -211,12 +211,19 @@ class ViewController extends events.EventEmitter {
                 const view = this.mciViewFactory.createFromMCI(mci);
 
                 if (view) {
-                    if (false === this.noInput) {
-                        view.on('action', this.viewActionListener);
-                    }
+                    if (this.viewExists(view.id)) {
+                        this.client.log.warn(
+                            { viewId: view.id, mciCode: name },
+                            'Duplicate MCI view ID — skipping. Check art for conflicting codes.'
+                        );
+                    } else {
+                        if (false === this.noInput) {
+                            view.on('action', this.viewActionListener);
+                        }
 
-                    views.push(view);
-                    this.addView(view);
+                        views.push(view);
+                        this.addView(view);
+                    }
                 }
 
                 return nextItem(null);
