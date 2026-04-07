@@ -138,6 +138,7 @@ collections:
       - modding/autosig-edit.md
       - modding/menu-modules.md
       - modding/wfc.md
+      - modding/sysop-chat.md
       - admin/administration.md
       - admin/oputil.md
       - admin/upgrading.md

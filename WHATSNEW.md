@@ -3,7 +3,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.1.0-beta
 
-* **Sysop Chat / Break Into Chat** — real-time split-screen chat between sysop and user
+* **[Sysop Chat / Break Into Chat](./docs/_docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user
 
   * Sysop can break into chat with any node directly from WFC (`B` key on selected node)
   * Users can page the sysop via the `pageSysop` menu entry; includes per-user rate limiting and BEL + interrupt notification to all online sysops (sysops at WFC see it directly in the node list)
