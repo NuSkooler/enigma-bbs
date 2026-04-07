@@ -196,6 +196,12 @@ class View extends events.EventEmitter {
                 }
                 break;
 
+            case 'acceptsInput':
+                if (_.isBoolean(value)) {
+                    this.acceptsInput = value;
+                }
+                break;
+
             case 'height':
                 this.setHeight(value);
                 break;

@@ -417,6 +417,22 @@ module.exports = () => {
             },
         },
 
+        sysopChat: {
+            //  Minimum minutes a user must wait between pages to the sysop
+            pageCooldownMinutes: 5,
+
+            //  Controls what happens on the sysop's machine when a page arrives.
+            //  'bel'     — send BEL (\x07) to all online sysop terminals (default)
+            //  'none'    — silent; no alert at all
+            //  'command' — run pageAlertCommand (see below) instead of BEL
+            pageAlert: 'bel',
+
+            //  Shell command run when pageAlert is 'command'.
+            //  Available tokens: {userName}, {nodeId}, {message}
+            //  Example: 'notify-send "Page from {userName}" "{message}"'
+            pageAlertCommand: '',
+        },
+
         // General ActivityPub integration configuration
         activityPub: {
             // by default, don't include auto-signatures in AP outgoing

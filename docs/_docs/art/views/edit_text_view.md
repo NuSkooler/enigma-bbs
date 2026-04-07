@@ -23,6 +23,7 @@ An edit text view supports editing form values on a screen. This can be for new 
 | `focus` | Set to true to capture initial focus |
 | `justify` | Sets the justification of the text entry. Options: left (default), right, center |
 | `fillChar` | Specifies a character to fill extra space in the text entry with. Defaults to an empty space |
+| `prefixFormat` | Optional prefix displayed before the typed text. Supports pipe color codes (e.g. `"\|15{userName}\|07> "`). The `{userName}` token is substituted at init time by modules that support it (e.g. `sysopChat`). The prefix is purely visual — `getData()` returns only what the user typed. Cursor position and horizontal scroll account for the prefix width automatically. |
 
 ## Example
 
