@@ -252,9 +252,28 @@ exports.getModule = class PageSysopModule extends MenuModule {
             sessionId,
         });
 
+        const pageAlert = _.get(Config(), 'sysopChat.pageAlert', 'bel');
+        const alertTokens = { userName: user.username, nodeId, message: message || '' };
+
+        if (pageAlert === 'command') {
+            const alertCmd = _.get(Config(), 'sysopChat.pageAlertCommand', '');
+            if (alertCmd) {
+                exec(stringFormat(alertCmd, alertTokens), err => {
+                    if (err) {
+                        require('./logger.js').log.warn(
+                            { err, alertCmd },
+                            'sysop page alert command failed'
+                        );
+                    }
+                });
+            }
+        }
+
         sysopClients.forEach(c => {
-            //  BEL regardless of where the sysop is
-            c.term.rawWrite('\x07');
+            //  BEL — only when pageAlert is 'bel' (default)
+            if (pageAlert === 'bel') {
+                c.term.rawWrite('\x07');
+            }
 
             //  Skip queuing the interrupt for sysops currently in WFC — they already
             //  receive the page via the UserPagedSysop event and see it in the node list.
@@ -267,21 +286,6 @@ exports.getModule = class PageSysopModule extends MenuModule {
                 });
             }
         });
-
-        //  Run optional external notification command
-        const notifyCmd = _.get(Config(), 'sysopChat.pageNotifyCommand', '');
-        if (notifyCmd) {
-            const cmd = stringFormat(notifyCmd, {
-                userName: user.username,
-                nodeId,
-                message: message || '',
-            });
-            exec(cmd, err => {
-                if (err) {
-                    require('./logger.js').log.warn({ err, cmd }, 'sysop page notify command failed');
-                }
-            });
-        }
     }
 
 };
