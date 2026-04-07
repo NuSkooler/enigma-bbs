@@ -171,9 +171,9 @@ exports.getModule = class SysopChatModule extends MenuModule {
                         session.sysopModule = this;
                         // No pending flush needed for sysop — they're first to arrive
 
-                        //  Navigate the user into chat — do this here (not in WFC) to avoid
-                        //  race conditions where the user is still mid-transition (e.g. in a
-                        //  pausePrompt) when the sysop presses B.
+                        //  Push the user directly into chat — no pre-chat interrupt art.
+                        //  The abrupt transition is intentional: the sysop has already
+                        //  chosen to break in, and any delay risks confusing state.
                         if (session.userClient) {
                             const chatMenuName = _.get(this.config, 'chatMenuName', 'sysopChat');
                             session.userClient.menuStack.goto(
@@ -355,7 +355,11 @@ exports.getModule = class SysopChatModule extends MenuModule {
         const prefixW = renderStringLength(resolvedPrefix); // visible terminal columns
 
         //  Wire itemFormat so TextView.drawText applies pipeToAnsi on every redraw.
+        //  Also store on the view instance so EditTextView._atomicLineWrite can use them
+        //  directly (needed for expanded-mode rendering that bypasses pipeToAnsi).
         inputView.itemFormat = resolvedPrefix + '{text}';
+        inputView._resolvedPrefix = resolvedPrefix;
+        inputView._prefixW = prefixW;
 
         //  ── Helpers ──────────────────────────────────────────────────────────
 
@@ -454,7 +458,9 @@ exports.getModule = class SysopChatModule extends MenuModule {
             logView.addText(pipeToAnsi(endMsg, this.client), { scrollMode: 'end' });
         }
 
-        //  Give a brief moment to read the message, then exit
+        //  Give a brief moment to read the message, then exit.
+        //  Guard with _chatEndedHandled so leave() doesn't double-trigger this path.
+        this._chatEndedHandled = true;
         setTimeout(() => {
             exports.endSession(this.sessionId);
             this.client.startIdleMonitor();
@@ -465,11 +471,12 @@ exports.getModule = class SysopChatModule extends MenuModule {
     leave() {
         clearInterval(this._statusTimer);
 
-        //  If we leave without explicitly ending (e.g. disconnect), clean up
+        //  If we leave without explicitly ending (e.g. disconnect), clean up.
+        //  Skip if chatEnded() already scheduled the prevMenu path (avoid double-navigation).
         const session = sessions.get(this.sessionId);
         if (session && session.state !== 'ended') {
             const partnerModule = this.role === 'sysop' ? session.userModule : session.sysopModule;
-            if (partnerModule) {
+            if (partnerModule && !partnerModule._chatEndedHandled) {
                 partnerModule.chatEnded();
             }
             exports.endSession(this.sessionId);

@@ -30,6 +30,7 @@ exports.moduleInfo = {
     name: 'WFC',
     desc: 'Semi-Traditional Waiting For Caller',
     author: 'NuSkooler',
+    packageName: 'codes.l33t.enigma.wfc',
 };
 
 const FormIds = {
@@ -650,6 +651,12 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
                 const timeOn = ac.timeOn || moment.duration(0);
 
+                //  Page indicator — non-empty when this node has a pending chat page
+                const hasPendingPage = this.pendingPages.some(p => p.nodeId === ac.node);
+                const pageIndicator = hasPendingPage
+                    ? (this.config.pageIndicator || '!')
+                    : '';
+
                 return Object.assign(ac, {
                     availIndicator,
                     visIndicator,
@@ -657,6 +664,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     timeOn: _.upperFirst(timeOn.humanize()), //  make friendly
                     affils: ac.affils || 'N/A',
                     realName: ac.realName || 'N/A',
+                    pageIndicator,
                 });
             });
 

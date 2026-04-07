@@ -74,6 +74,7 @@ The following MCI codes are available:
     * `userName`: User name of authenticated user or "*Pre Auth*"
     * `visIndicator`: Indicator of visibility. Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).
     * `remoteAddress`: A friendly formatted remote address such as a IPv4 or IPv6 address.
+    * `pageIndicator`: Non-empty when the node has a pending sysop chat page waiting to be accepted. Defaults to `!`. Override with `pageIndicator` in the WFC `config` block.
 * `VM2`: Quick log with the following format keys available:
     * `timestamp`: Log entry timestamp in `quickLogTimestampFormat` format.
     * `level`: Log entry level from Bunyan.
@@ -125,6 +126,28 @@ The following MCI codes are available:
     * `visIndicator`: Is the current user visible? Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).
     * `processBytesIngress`: Ingress bytes since ENiGMA started.
     * `processBytesEgress`: Egress bytes since ENiGMA started.
+    * `pendingPageCount`: Number of pending sysop chat pages across all nodes.
+    * `pendingPageUser`: Username of the most recent pending page, or empty.
+    * `pendingPageNode`: Node ID of the most recent pending page, or empty.
+    * `pendingPageMessage`: Message/reason of the most recent pending page, or empty.
 
 
 > :information_source: While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** refresh. For values that may change over time, please use the custom format values above.
+
+## Sysop Chat / Break Into Chat
+The WFC supports receiving pages from users and initiating chat with any connected node.
+
+### Receiving a Page
+When a user pages the sysop:
+1. A BEL (`\x07`) is sent to all online sysop connections.
+2. Sysops **not** at the WFC receive an interrupt notification with the user's name, node, and message.
+3. Sysops **at** the WFC see the page reflected immediately via `pendingPageCount`, `pendingPageUser`, `pendingPageNode`, and `pendingPageMessage` custom tokens, plus a `pageIndicator` on the paging node's row in `VM1`.
+
+### Breaking Into Chat
+With a node selected in `VM1`, press `B` to break into chat. If the selected node has a pending page, that session is accepted; otherwise a new sysop-initiated session is created. Both parties enter the `sysopChat` menu.
+
+### Config Keys
+| Key | Description |
+|-----|-------------|
+| `pageIndicator` | String shown in the node list for nodes with a pending page. Defaults to `!`. |
+| `chatMenuName` | Override the menu name used for the chat screen. Defaults to `sysopChat`. |

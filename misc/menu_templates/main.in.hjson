@@ -341,6 +341,7 @@
                 cls: true
                 art: {
                     main: PAGESYSP
+                    mailConfirm: PAGESYPNA
                 }
             }
             form: {
@@ -364,6 +365,26 @@
                             {
                                 value: { message: null }
                                 action: @method:sendPage
+                            }
+                        ]
+                    }
+                }
+                1: {
+                    //  Shown when sysop is unavailable — combined "not available + send as mail?" art
+                    mci: {
+                        TM1: {
+                            argName: confirm
+                            items: [ "yes", "no" ]
+                            focus: true
+                            hotKeys: { Y: 0, N: 1 }
+                            hotKeySubmit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { confirm: null }
+                                action: @method:confirmSendMail
                             }
                         ]
                     }

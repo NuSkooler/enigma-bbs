@@ -94,9 +94,10 @@ module.exports = class UserInterruptQueue {
 
         const maybePauseAndFinish = () => {
             if (interruptItem.pause) {
-                this.client.currentMenuModule.pausePrompt(() => {
-                    return cb(null);
-                });
+                this.client.currentMenuModule.pausePrompt(
+                    { row: this.client.term.termHeight },
+                    () => cb(null)
+                );
             } else {
                 return cb(null);
             }
