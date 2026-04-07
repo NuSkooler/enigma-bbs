@@ -17,11 +17,11 @@
 <meta property="og:description" content="The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-05T17:38:50+00:00" />
+<meta property="article:published_time" content="2026-04-07T17:18:47+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Waiting For Caller (WFC)" />
 <script type="application/ld+json">
-{"description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","headline":"Waiting For Caller (WFC)","dateModified":"2026-04-05T17:38:50+00:00","datePublished":"2026-04-05T17:38:50+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/wfc.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"The Waiting For Caller (WFC) Module The wfc.js module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.","headline":"Waiting For Caller (WFC)","dateModified":"2026-04-07T17:18:47+00:00","datePublished":"2026-04-07T17:18:47+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/wfc.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/wfc.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2449,6 +2449,31 @@
   
 
   
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/sysop-chat.html">Sysop Chat</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
     
       </ul>
     
@@ -2615,7 +2640,7 @@
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/administration.html">Administration »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/sysop-chat.html">Sysop Chat »</a>
               
               <br clear="both">
               </div>
@@ -2636,7 +2661,7 @@
 <ol>
   <li>Securely Connected (such as SSH or Secure WebSocket, but not Telnet)</li>
   <li>
-<a href="modding/user-2fa-otp-config.md">Auth Factor 2+</a>. That is, the user has 2FA enabled.</li>
+<a href="/enigma-bbs/modding/user-2fa-otp-config.html">Auth Factor 2+</a>. That is, the user has 2FA enabled.</li>
   <li>User ID of 1 (root/admin)</li>
   <li>The user belongs to the <code class="language-plaintext highlighter-rouge">wfc</code> group.</li>
 </ol>
@@ -2650,7 +2675,7 @@
 ./oputil.js user group USERNAME <span class="s2">"+wfc"</span>
 </code></pre></div></div>
 
-<p>To change the ACS required, specify a alternative <code class="language-plaintext highlighter-rouge">acs</code> in the <code class="language-plaintext highlighter-rouge">config</code> block. For example:</p>
+<p>To change the ACS required, specify an alternative <code class="language-plaintext highlighter-rouge">acs</code> in the <code class="language-plaintext highlighter-rouge">config</code> block. For example:</p>
 <pre><code class="language-hjson">mainMenuWaitingForCaller: {
     config: {
         // initial +op over secure connection only
@@ -2660,7 +2685,7 @@
 </code></pre>
 
 <blockquote>
-  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> You can add additional co-ops by adjusting the required ACS and/or adding them to an WFC-able group.</p>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> You can add additional co-ops by adjusting the required ACS and/or adding them to a WFC-able group.</p>
 </blockquote>
 
 <blockquote>
@@ -2688,7 +2713,7 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">opVisibility</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Boolean. Set to <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> in order to change visbility when entering the WFC</td>
+      <td>Boolean. Set to <code class="language-plaintext highlighter-rouge">true</code> or <code class="language-plaintext highlighter-rouge">false</code> to change visibility when entering the WFC.</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">quickLogLevel</code></td>
@@ -2698,18 +2723,22 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">art</code></td>
       <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>An Object containing art information: <code class="language-plaintext highlighter-rouge">main</code> for the WFC main view itself and <code class="language-plaintext highlighter-rouge">help</code> for a help screen.</td>
+      <td>An object containing art specs: <code class="language-plaintext highlighter-rouge">main</code> for the WFC main view and <code class="language-plaintext highlighter-rouge">help</code> for a help screen.</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the prompt name used for the “Kick selected node?” prompt. Defaults to <code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code>
-</td>
+      <td>Override the prompt name used for the “Kick selected node?” prompt. Defaults to <code class="language-plaintext highlighter-rouge">confirmKickNodePrompt</code>.</td>
     </tr>
     <tr>
-      <td> </td>
-      <td> </td>
-      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">pageIndicator</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>String shown in the node list for nodes with a pending sysop chat page. Defaults to <code class="language-plaintext highlighter-rouge">!</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">chatMenuName</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Override the menu name used for sysop chat. Defaults to <code class="language-plaintext highlighter-rouge">sysopChat</code>.</td>
     </tr>
   </tbody>
 </table>
@@ -2725,21 +2754,25 @@
       <li>
 <code class="language-plaintext highlighter-rouge">action</code>: Current action/menu.</li>
       <li>
-<code class="language-plaintext highlighter-rouge">affils</code>: Any affiliations related to the if <code class="language-plaintext highlighter-rouge">authenticated</code>, else “N/A”.</li>
+<code class="language-plaintext highlighter-rouge">affils</code>: Any affiliations for the authenticated user, else “N/A”.</li>
       <li>
 <code class="language-plaintext highlighter-rouge">authenticated</code>: Boolean whether the node is authenticated (logged in) or not.</li>
       <li>
-<code class="language-plaintext highlighter-rouge">availIndicator</code>: Indicator of availability (e.g. for messaging)? Displayed via <code class="language-plaintext highlighter-rouge">statusAvailableIndicators</code> or system theme. See also <a href="/enigma-bbs/art/themes.html">Themes</a>.</li>
+<code class="language-plaintext highlighter-rouge">availIndicator</code>: Availability indicator. Displayed via <code class="language-plaintext highlighter-rouge">statusAvailableIndicators</code> or system theme. See also <a href="/enigma-bbs/art/themes.html">Themes</a>.</li>
       <li>
 <code class="language-plaintext highlighter-rouge">isAvailable</code>: Boolean whether the node is available (e.g. for messaging) or not.</li>
       <li>
-<code class="language-plaintext highlighter-rouge">isSecure</code>: Is the node securely connected (ie: SSL)?</li>
+<code class="language-plaintext highlighter-rouge">isSecure</code>: Is the node securely connected (e.g. SSL/SSH)?</li>
       <li>
 <code class="language-plaintext highlighter-rouge">isVisible</code>: Boolean whether the node is visible to others or not.</li>
       <li>
 <code class="language-plaintext highlighter-rouge">node</code>: The node ID.</li>
       <li>
+<code class="language-plaintext highlighter-rouge">pageIndicator</code>: Non-empty when the node has a pending sysop chat page. Defaults to <code class="language-plaintext highlighter-rouge">!</code>. Override with <code class="language-plaintext highlighter-rouge">pageIndicator</code> in the WFC <code class="language-plaintext highlighter-rouge">config</code> block.</li>
+      <li>
 <code class="language-plaintext highlighter-rouge">realName</code>: Real name of authenticated user, or “N/A”.</li>
+      <li>
+<code class="language-plaintext highlighter-rouge">remoteAddress</code>: A friendly formatted remote address such as an IPv4 or IPv6 address.</li>
       <li>
 <code class="language-plaintext highlighter-rouge">serverName</code>: Name of connected server such as “Telnet” or “SSH”.</li>
       <li>
@@ -2749,11 +2782,9 @@
       <li>
 <code class="language-plaintext highlighter-rouge">userId</code>: User ID of authenticated node, or 0 if not yet authenticated.</li>
       <li>
-<code class="language-plaintext highlighter-rouge">userName</code>: User name of authenticated user or “<em>Pre Auth</em>”</li>
+<code class="language-plaintext highlighter-rouge">userName</code>: User name of authenticated user or <code class="language-plaintext highlighter-rouge">*Pre Auth*</code>.</li>
       <li>
-<code class="language-plaintext highlighter-rouge">visIndicator</code>: Indicator of visibility. Displayed via <code class="language-plaintext highlighter-rouge">statusVisibleIndicators</code> or system theme. See also <a href="/enigma-bbs/art/themes.html">Themes</a>.</li>
-      <li>
-<code class="language-plaintext highlighter-rouge">remoteAddress</code>: A friendly formatted remote address such as a IPv4 or IPv6 address.</li>
+<code class="language-plaintext highlighter-rouge">visIndicator</code>: Visibility indicator. Displayed via <code class="language-plaintext highlighter-rouge">statusVisibleIndicators</code> or system theme. See also <a href="/enigma-bbs/art/themes.html">Themes</a>.</li>
     </ul>
   </li>
   <li>
@@ -2764,12 +2795,12 @@
       <li>
 <code class="language-plaintext highlighter-rouge">level</code>: Log entry level from Bunyan.</li>
       <li>
-<code class="language-plaintext highlighter-rouge">levelIndicator</code>: Level indicators can be overridden with the <code class="language-plaintext highlighter-rouge">quickLogLevelIndicators</code> key (see defaults below)</li>
+<code class="language-plaintext highlighter-rouge">levelIndicator</code>: Level indicators can be overridden with the <code class="language-plaintext highlighter-rouge">quickLogLevelIndicators</code> key (see defaults below).</li>
       <li>
-<code class="language-plaintext highlighter-rouge">quickLogLevelIndicators</code>: A <strong>map</strong> defaulting to the following`:
+<code class="language-plaintext highlighter-rouge">quickLogLevelIndicators</code>: A <strong>map</strong> defaulting to the following:
         <ul>
           <li>
-<code class="language-plaintext highlighter-rouge">trace</code> : <code class="language-plaintext highlighter-rouge">T</code>
+<code class="language-plaintext highlighter-rouge">trace</code>: <code class="language-plaintext highlighter-rouge">T</code>
 </li>
           <li>
 <code class="language-plaintext highlighter-rouge">debug</code>: <code class="language-plaintext highlighter-rouge">D</code>
@@ -2799,9 +2830,9 @@
     </ul>
   </li>
   <li>
-<code class="language-plaintext highlighter-rouge">MT3</code> or <code class="language-plaintext highlighter-rouge">ET3</code>: Selected node status information. May be a single or multi line view.
+<code class="language-plaintext highlighter-rouge">MT3</code> or <code class="language-plaintext highlighter-rouge">ET3</code>: Selected node status information. May be a single or multi-line view.
     <ul>
-      <li>Set <code class="language-plaintext highlighter-rouge">nodeStatusSelectionFormat</code> to the format desired including <code class="language-plaintext highlighter-rouge">\n</code> for line feeds in as <code class="language-plaintext highlighter-rouge">MT</code> view. The available format keys are the same as the node status list above.</li>
+      <li>Set <code class="language-plaintext highlighter-rouge">nodeStatusSelectionFormat</code> to the format desired, using <code class="language-plaintext highlighter-rouge">\n</code> for line feeds in an <code class="language-plaintext highlighter-rouge">MT</code> view. The available format keys are the same as the node status list above.</li>
     </ul>
   </li>
   <li>MCI 10…99: Custom entries with the following format keys available:
@@ -2835,7 +2866,7 @@
       <li>
 <code class="language-plaintext highlighter-rouge">downloadsToday</code>: Number of downloads today.</li>
       <li>
-<code class="language-plaintext highlighter-rouge">downloadsBytesToday</code>: Total size in bytes of uploads today.</li>
+<code class="language-plaintext highlighter-rouge">downloadBytesToday</code>: Total size in bytes of downloads today.</li>
       <li>
 <code class="language-plaintext highlighter-rouge">newUsersToday</code>: Number of new users today.</li>
       <li>
@@ -2872,6 +2903,14 @@
 <code class="language-plaintext highlighter-rouge">processBytesIngress</code>: Ingress bytes since ENiGMA started.</li>
       <li>
 <code class="language-plaintext highlighter-rouge">processBytesEgress</code>: Egress bytes since ENiGMA started.</li>
+      <li>
+<code class="language-plaintext highlighter-rouge">pendingPageCount</code>: Number of pending sysop chat pages across all nodes.</li>
+      <li>
+<code class="language-plaintext highlighter-rouge">pendingPageUser</code>: Username of the most recent pending page, or empty.</li>
+      <li>
+<code class="language-plaintext highlighter-rouge">pendingPageNode</code>: Node ID of the most recent pending page, or empty.</li>
+      <li>
+<code class="language-plaintext highlighter-rouge">pendingPageMessage</code>: Message/reason of the most recent pending page, or empty.</li>
     </ul>
   </li>
 </ul>
@@ -2880,6 +2919,50 @@
   <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> While <a href="/enigma-bbs/art/mci.html">Standard MCI</a> codes work on any menu, they will <strong>not</strong> refresh. For values that may change over time, please use the custom format values above.</p>
 </blockquote>
 
+<h2 id="sysop-chat--break-into-chat">Sysop Chat / Break Into Chat</h2>
+<p>The WFC supports receiving pages from users and initiating chat with any connected node.</p>
+
+<h3 id="receiving-a-page">Receiving a Page</h3>
+<p>When a user pages the sysop:</p>
+<ol>
+  <li>An alert is sent according to <code class="language-plaintext highlighter-rouge">sysopChat.pageAlert</code> in <code class="language-plaintext highlighter-rouge">config.hjson</code> — <code class="language-plaintext highlighter-rouge">bel</code> (default, sends <code class="language-plaintext highlighter-rouge">\x07</code> to sysop terminals), <code class="language-plaintext highlighter-rouge">none</code> (silent), or <code class="language-plaintext highlighter-rouge">command</code> (runs a shell command).</li>
+  <li>Sysops <strong>not</strong> at the WFC receive an interrupt notification with the user’s name, node, and message.</li>
+  <li>Sysops <strong>at</strong> the WFC see the page reflected immediately via <code class="language-plaintext highlighter-rouge">pendingPageCount</code>, <code class="language-plaintext highlighter-rouge">pendingPageUser</code>, <code class="language-plaintext highlighter-rouge">pendingPageNode</code>, and <code class="language-plaintext highlighter-rouge">pendingPageMessage</code> custom tokens, plus a <code class="language-plaintext highlighter-rouge">pageIndicator</code> on the paging node’s row in <code class="language-plaintext highlighter-rouge">VM1</code>. No duplicate interrupt is queued for them.</li>
+</ol>
+
+<h3 id="breaking-into-chat">Breaking Into Chat</h3>
+<p>With a node selected in <code class="language-plaintext highlighter-rouge">VM1</code>, press <code class="language-plaintext highlighter-rouge">B</code> to break into chat. If the selected node has a pending page, that session is accepted; otherwise a new sysop-initiated session is created. Both parties enter the <code class="language-plaintext highlighter-rouge">sysopChat</code> menu directly — no pre-chat confirmation is shown to the user.</p>
+
+<h3 id="system-config-sysopchat-block-in-confighjson">System Config (<code class="language-plaintext highlighter-rouge">sysopChat</code> block in <code class="language-plaintext highlighter-rouge">config.hjson</code>)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pageCooldownMinutes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">5</code></td>
+      <td>Minimum minutes a user must wait between pages.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pageAlert</code></td>
+      <td><code class="language-plaintext highlighter-rouge">bel</code></td>
+      <td>Alert mode on page arrival: <code class="language-plaintext highlighter-rouge">bel</code> (sends <code class="language-plaintext highlighter-rouge">\x07</code> to sysop terminals), <code class="language-plaintext highlighter-rouge">none</code> (silent), or <code class="language-plaintext highlighter-rouge">command</code> (runs <code class="language-plaintext highlighter-rouge">pageAlertCommand</code>).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pageAlertCommand</code></td>
+      <td><code class="language-plaintext highlighter-rouge">''</code></td>
+      <td>Shell command run when <code class="language-plaintext highlighter-rouge">pageAlert</code> is <code class="language-plaintext highlighter-rouge">command</code>. Tokens: <code class="language-plaintext highlighter-rouge">{userName}</code>, <code class="language-plaintext highlighter-rouge">{nodeId}</code>, <code class="language-plaintext highlighter-rouge">{message}</code>. Example: <code class="language-plaintext highlighter-rouge">'notify-send "Page from {userName}" "{message}"'</code>
+</td>
+    </tr>
+  </tbody>
+</table>
+
 </div>
 
               <div class="PageNavigation">
@@ -2887,7 +2970,7 @@
               <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/menu-modules.html">« Menu Modules</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/administration.html">Administration »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/sysop-chat.html">Sysop Chat »</a>
               
               <br clear="both">
               </div>

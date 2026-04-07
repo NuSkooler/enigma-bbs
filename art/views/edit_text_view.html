@@ -17,11 +17,11 @@
 <meta property="og:description" content="Edit Text View An edit text view supports editing form values on a screen. This can be for new entry as well as editing existing values defined by the module." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-05T17:38:50+00:00" />
+<meta property="article:published_time" content="2026-04-07T17:18:47+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Edit Text View" />
 <script type="application/ld+json">
-{"description":"Edit Text View An edit text view supports editing form values on a screen. This can be for new entry as well as editing existing values defined by the module.","headline":"Edit Text View","dateModified":"2026-04-05T17:38:50+00:00","datePublished":"2026-04-05T17:38:50+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/edit_text_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/edit_text_view.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Edit Text View An edit text view supports editing form values on a screen. This can be for new entry as well as editing existing values defined by the module.","headline":"Edit Text View","dateModified":"2026-04-07T17:18:47+00:00","datePublished":"2026-04-07T17:18:47+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/edit_text_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/edit_text_view.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2449,6 +2449,31 @@
   
 
   
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/sysop-chat.html">Sysop Chat</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
     
       </ul>
     
@@ -2678,6 +2703,10 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">fillChar</code></td>
       <td>Specifies a character to fill extra space in the text entry with. Defaults to an empty space</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">prefixFormat</code></td>
+      <td>Optional prefix displayed before the typed text. Supports pipe color codes (e.g. <code class="language-plaintext highlighter-rouge">"\|15{userName}\|07&gt; "</code>). The <code class="language-plaintext highlighter-rouge">{userName}</code> token is substituted at init time by modules that support it (e.g. <code class="language-plaintext highlighter-rouge">sysopChat</code>). The prefix is purely visual — <code class="language-plaintext highlighter-rouge">getData()</code> returns only what the user typed. Cursor position and horizontal scroll account for the prefix width automatically.</td>
     </tr>
   </tbody>
 </table>

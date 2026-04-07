@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Door Servers | ENiGMA½ BBS Software</title>
+<title>Sysop Chat | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Door Servers" />
+<meta property="og:title" content="Sysop Chat" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="The bbs_link Module Native support for BBSLink doors is provided via the bbs_link module." />
-<meta property="og:description" content="The bbs_link Module Native support for BBSLink doors is provided via the bbs_link module." />
+<meta name="description" content="Sysop Chat" />
+<meta property="og:description" content="Sysop Chat" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-07T17:18:47+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Door Servers" />
+<meta property="twitter:title" content="Sysop Chat" />
 <script type="application/ld+json">
-{"description":"The bbs_link Module Native support for BBSLink doors is provided via the bbs_link module.","headline":"Door Servers","dateModified":"2026-04-07T17:18:47+00:00","datePublished":"2026-04-07T17:18:47+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/door-servers.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/door-servers.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Sysop Chat","headline":"Sysop Chat","dateModified":"2026-04-07T17:18:47+00:00","datePublished":"2026-04-07T17:18:47+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/sysop-chat.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/sysop-chat.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1879,7 +1879,7 @@
 
 
     
-      <li class="active-nav">Door Servers</li>
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
     
 
 
@@ -2454,7 +2454,7 @@
 
 
     
-    <li><a href="/enigma-bbs/modding/sysop-chat.html">Sysop Chat</a></li>
+      <li class="active-nav">Sysop Chat</li>
     
 
 
@@ -2636,64 +2636,304 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/local-doors-v86.html">&laquo; Local Doors — Native v86 Emulation</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/wfc.html">&laquo; Waiting For Caller (WFC)</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/administration.html">Administration &raquo;</a>
               
               <br clear="both" />
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Door Servers</h1>
-    <h2 id="the-bbs_link-module">The bbs_link Module</h2>
-<p>Native support for <a href="http://www.bbslink.net/">BBSLink</a> doors is provided via the <code class="language-plaintext highlighter-rouge">bbs_link</code> module.</p>
+    <h1 class="page-title">Sysop Chat</h1>
+    <h2 id="sysop-chat">Sysop Chat</h2>
 
-<p>Configuration for a BBSLink door is straight forward. Take a look at the following example for launching Tradewars 2002:</p>
+<p>ENiGMA½ provides a two-way split-screen chat system between the sysop and any connected user. It is composed of two modules that work together:</p>
 
-<pre><code class="language-hjson">doorTradeWars2002BBSLink: {
-	desc: Playing TW 2002 (BBSLink)
-	module: bbs_link
-	config: {
-		sysCode: XXXXXXXX
-		authCode: XXXXXXXX
-		schemeCode: XXXXXXXX
-		door: tw
-	}
-}
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">page_sysop</code> — user-facing page flow</li>
+  <li><code class="language-plaintext highlighter-rouge">sysop_chat</code> — split-screen chat screen used by both parties</li>
+</ul>
 
-</code></pre>
+<p>The sysop can also break into chat with any node directly from the <a href="/enigma-bbs/modding/wfc.html">WFC</a> without waiting for a page.</p>
 
-<p>Fill in your credentials in <code class="language-plaintext highlighter-rouge">sysCode</code>, <code class="language-plaintext highlighter-rouge">authCode</code>, and <code class="language-plaintext highlighter-rouge">schemeCode</code> and that’s it!</p>
+<hr />
 
-<h2 id="the-door_party-module">The door_party Module</h2>
-<p>The module <code class="language-plaintext highlighter-rouge">door_party</code> provides native support for <a href="http://www.throwbackbbs.com/">DoorParty!</a> Configuration is quite easy:</p>
+<h2 id="user-flow-paging-the-sysop">User Flow (Paging the Sysop)</h2>
 
-<pre><code class="language-hjson">doorParty: {
-    desc: Using DoorParty!
-    module: door_party
-    config: {
-        username: XXXXXXXX
-        password: XXXXXXXX
-        bbsTag: XX
+<p>The <code class="language-plaintext highlighter-rouge">pageSysop</code> menu entry drives the user side:</p>
+
+<ol>
+  <li><strong>Rate limited?</strong> — The user sees rate-limit art (<code class="language-plaintext highlighter-rouge">PAGESYPLM</code>) or fallback text and returns to the previous menu.</li>
+  <li><strong>Sysop available?</strong>
+    <ul>
+      <li><strong>No</strong> — The user sees the “not available” art (<code class="language-plaintext highlighter-rouge">PAGESYPNA</code>) with a Y/N prompt offering to send their message as private mail addressed to the sysop instead.</li>
+      <li><strong>Yes</strong> — The user sees the main page art (<code class="language-plaintext highlighter-rouge">PAGESYSP</code>) with an optional text input for a reason/message, then submits.</li>
+    </ul>
+  </li>
+  <li>On a successful page: a session is created, all online sysops are alerted (per <code class="language-plaintext highlighter-rouge">pageAlert</code> config), and the user sees the confirmation art (<code class="language-plaintext highlighter-rouge">PAGESYSPOK</code>).</li>
+</ol>
+
+<p>Sysops <strong>at the WFC</strong> are not sent an interrupt — they see the page reflected immediately in the node list (<code class="language-plaintext highlighter-rouge">pageIndicator</code>) and in the pending page tokens. Sysops <strong>not at the WFC</strong> receive an interrupt notification with the user’s name, node, and message.</p>
+
+<hr />
+
+<h2 id="sysop-flow-wfc">Sysop Flow (WFC)</h2>
+
+<p>With a node selected in <code class="language-plaintext highlighter-rouge">VM1</code>, press <code class="language-plaintext highlighter-rouge">B</code> to break into chat:</p>
+
+<ul>
+  <li>If that node has a <strong>pending page</strong>, the existing session is accepted.</li>
+  <li>If there is <strong>no pending page</strong>, a new sysop-initiated session is created.</li>
+</ul>
+
+<p>Both parties enter the <code class="language-plaintext highlighter-rouge">sysopChat</code> menu directly — no pre-chat confirmation is shown to the user.</p>
+
+<hr />
+
+<h2 id="chat-screen-sysopchat-module">Chat Screen (<code class="language-plaintext highlighter-rouge">sysopChat</code> module)</h2>
+
+<p>Both parties use the same <code class="language-plaintext highlighter-rouge">sysopChat</code> menu entry. The role (<code class="language-plaintext highlighter-rouge">sysop</code> or <code class="language-plaintext highlighter-rouge">user</code>) is passed via <code class="language-plaintext highlighter-rouge">extraArgs.role</code>.</p>
+
+<p>Art file: <code class="language-plaintext highlighter-rouge">SYSOPCHAT</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>MCI</th>
+      <th>Role</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%MT1</code></td>
+      <td>Both</td>
+      <td>Sysop’s scrollback panel (top)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%ET2</code></td>
+      <td>Sysop</td>
+      <td>Sysop’s input line</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%MT3</code></td>
+      <td>Both</td>
+      <td>User’s scrollback panel (bottom)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%ET4</code></td>
+      <td>User</td>
+      <td>User’s input line</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%TL10</code>+</td>
+      <td>Both</td>
+      <td>Custom status tokens (see <code class="language-plaintext highlighter-rouge">chatInfoFormat10</code> etc.)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Messages from either party appear in the <strong>sender’s panel</strong> on both screens.</p>
+
+<p><code class="language-plaintext highlighter-rouge">ESC</code> ends the chat. The party that exits notifies the partner, who sees a brief “chat ended” message then exits automatically after a short delay.</p>
+
+<hr />
+
+<h2 id="art-files">Art Files</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Spec</th>
+      <th>Module</th>
+      <th>Description</th>
+      <th>Key MCI</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PAGESYSP</code></td>
+      <td><code class="language-plaintext highlighter-rouge">page_sysop</code></td>
+      <td>Main page form — user types optional reason</td>
+      <td><code class="language-plaintext highlighter-rouge">%ET1</code> (message), <code class="language-plaintext highlighter-rouge">%TL10</code>+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PAGESYSPOK</code></td>
+      <td><code class="language-plaintext highlighter-rouge">page_sysop</code></td>
+      <td>“Your page has been sent” confirmation</td>
+      <td>none required</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PAGESYPNA</code></td>
+      <td><code class="language-plaintext highlighter-rouge">page_sysop</code></td>
+      <td>Sysop not available — combined with “send as mail?” Y/N</td>
+      <td><code class="language-plaintext highlighter-rouge">%TM1</code> (Y/N confirm)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PAGESYPLM</code></td>
+      <td><code class="language-plaintext highlighter-rouge">page_sysop</code></td>
+      <td>Rate limit art (optional — fallback text used if missing)</td>
+      <td>none required</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SYSOPCHAT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">sysop_chat</code></td>
+      <td>Split-screen chat layout — drives panel geometry</td>
+      <td><code class="language-plaintext highlighter-rouge">%MT1</code>, <code class="language-plaintext highlighter-rouge">%ET2</code>, <code class="language-plaintext highlighter-rouge">%MT3</code>, <code class="language-plaintext highlighter-rouge">%ET4</code>, <code class="language-plaintext highlighter-rouge">%TL10</code>+</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="system-config-sysopchat-block-in-confighjson">System Config (<code class="language-plaintext highlighter-rouge">sysopChat</code> block in <code class="language-plaintext highlighter-rouge">config.hjson</code>)</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pageCooldownMinutes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">5</code></td>
+      <td>Minimum minutes a user must wait between pages.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pageAlert</code></td>
+      <td><code class="language-plaintext highlighter-rouge">bel</code></td>
+      <td>Alert mode on page arrival: <code class="language-plaintext highlighter-rouge">bel</code> (sends <code class="language-plaintext highlighter-rouge">\x07</code> to sysop terminals), <code class="language-plaintext highlighter-rouge">none</code> (silent), or <code class="language-plaintext highlighter-rouge">command</code> (runs <code class="language-plaintext highlighter-rouge">pageAlertCommand</code>).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pageAlertCommand</code></td>
+      <td><code class="language-plaintext highlighter-rouge">''</code></td>
+      <td>Shell command run when <code class="language-plaintext highlighter-rouge">pageAlert</code> is <code class="language-plaintext highlighter-rouge">command</code>. Tokens: <code class="language-plaintext highlighter-rouge">{userName}</code>, <code class="language-plaintext highlighter-rouge">{nodeId}</code>, <code class="language-plaintext highlighter-rouge">{message}</code>. Example: <code class="language-plaintext highlighter-rouge">'notify-send "Page from {userName}" "{message}"'</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="pagesysop-menu-config-keys"><code class="language-plaintext highlighter-rouge">pageSysop</code> Menu Config Keys</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">notifyFormat</code></td>
+      <td>pipe-colored text</td>
+      <td>Interrupt text sent to non-WFC sysops. Tokens: <code class="language-plaintext highlighter-rouge">{userName}</code>, <code class="language-plaintext highlighter-rouge">{nodeId}</code>, <code class="language-plaintext highlighter-rouge">{message}</code>, <code class="language-plaintext highlighter-rouge">{sessionId}</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pageSentArt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PAGESYSPOK</code></td>
+      <td>Art shown after a successful page</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">notAvailableArt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PAGESYPNA</code></td>
+      <td>Art shown when sysop unavailable (must contain <code class="language-plaintext highlighter-rouge">%TM1</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rateLimitArt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PAGESYPLM</code></td>
+      <td>Art shown when rate-limited (optional; fallback text used if missing)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rateLimitText</code></td>
+      <td>pipe-colored string</td>
+      <td>Fallback text if <code class="language-plaintext highlighter-rouge">rateLimitArt</code> is missing</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mailSubject</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Page from {userName}</code></td>
+      <td>Subject for the “send as mail” path. Token: <code class="language-plaintext highlighter-rouge">{userName}</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sysopUserName</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Sysop</code></td>
+      <td>Display name used as the mail recipient</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mailMenuName</code></td>
+      <td><code class="language-plaintext highlighter-rouge">privateMailMenuCreateMessage</code></td>
+      <td>Menu navigated to for the mail compose path</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="sysopchat-menu-config-keys"><code class="language-plaintext highlighter-rouge">sysopChat</code> Menu Config Keys</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">chatEndedText</code></td>
+      <td><code class="language-plaintext highlighter-rouge">\|08[ Chat session ended ]\|07</code></td>
+      <td>Message shown in the sysop panel when the partner ends the chat</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">messageFormat</code></td>
+      <td><code class="language-plaintext highlighter-rouge">\|15{userName}\|07: {message}</code></td>
+      <td>Format for each sent message line. Tokens: <code class="language-plaintext highlighter-rouge">{userName}</code>, <code class="language-plaintext highlighter-rouge">{message}</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">chatInfoFormat10</code>+</td>
+      <td>—</td>
+      <td>Custom-range status token format (standard ENiGMA pattern). Tokens: <code class="language-plaintext highlighter-rouge">{partnerName}</code>, <code class="language-plaintext highlighter-rouge">{duration}</code>, <code class="language-plaintext highlighter-rouge">{userName}</code>, <code class="language-plaintext highlighter-rouge">{userNode}</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="theming">Theming</h2>
+
+<h3 id="prefixformat-per-view-in-themehjson"><code class="language-plaintext highlighter-rouge">prefixFormat</code> (per-view in <code class="language-plaintext highlighter-rouge">theme.hjson</code>)</h3>
+
+<p>Set <code class="language-plaintext highlighter-rouge">prefixFormat</code> on <code class="language-plaintext highlighter-rouge">ET2</code> or <code class="language-plaintext highlighter-rouge">ET4</code> in the <code class="language-plaintext highlighter-rouge">sysopChat</code> MCI theme block to display a role-specific label before the input line. Pipe codes are supported and render live as the user types.</p>
+
+<pre><code class="language-hjson">sysopChat: {
+    0: {
+        ET2: {
+            prefixFormat: "|11{userName} |14&gt; "
+        }
+        ET4: {
+            prefixFormat: "|11{userName} |14&gt; "
+        }
     }
 }
 </code></pre>
 
-<p>Fill in <code class="language-plaintext highlighter-rouge">username</code>, <code class="language-plaintext highlighter-rouge">password</code>, and <code class="language-plaintext highlighter-rouge">bbsTag</code> with credentials provided to you and you should be in business!</p>
-
-<h2 id="the-exodus-module">The Exodus Module</h2>
-<p>TBC</p>
+<p>Token available: <code class="language-plaintext highlighter-rouge">{userName}</code>.</p>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/local-doors-v86.html">&laquo; Local Doors — Native v86 Emulation</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/wfc.html">&laquo; Waiting For Caller (WFC)</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/administration.html">Administration &raquo;</a>
               
               <br clear="both" />
               </div>
