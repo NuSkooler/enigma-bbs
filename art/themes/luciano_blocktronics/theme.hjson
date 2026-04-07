@@ -298,10 +298,13 @@
 						error: |00|12
 						fatal: |00|28
 					}
+
 					statusAvailableIndicators: [ "N", "Y" ]
 					statusVisibleIndicators: [ "N", "Y" ]
 
-					nodeStatusSelectionFormat: "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}"
+					nodeStatusSelectionFormat: "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}\n{pageIndicator}"
+
+					pageIndicator: "|13!"
 				}
 				0: {
 					mci: {
@@ -316,8 +319,8 @@
 						VM1: {
 							height: 5
 							width: 37
-							itemFormat:      "|00  |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
-							focusItemFormat: "|00|10> |15{node:<3.2} |11{userName:<12} |07{action:<14.13} |15{serverName}"
+							itemFormat:      "|00  |15{node:<3.2} {pageIndicator}|11{userName:<12} |07{action:<14.13} |15{serverName}"
+							focusItemFormat: "|00|10> |15{node:<3.2} {pageIndicator}|11{userName:<12} |07{action:<14.13} |15{serverName}"
 							focusItemAtTop: false
 						}
 						// quick log
@@ -1482,12 +1485,56 @@
                         TL4: {
                             width: 20
                         }
-						TL5: {
-                            width: 2
-                        }
                         TL6: {
                             width: 2
                         }
+					}
+				}
+			}
+
+			// Sysop chat (break-into-chat) — adjust width/height to match SYSOPCHAT.ANS art
+			sysopChat: {
+				0: {
+					mci: {
+						MT1: {
+							width: 76
+							height: 6
+						}
+						ET2: {
+							width: 69
+							prefixFormat: "|11{userName} |14> "
+						}
+						MT3: {
+							width: 69
+							height: 6
+						}
+						ET4: {
+							width: 76
+							prefixFormat: "|11{userName} |14> "
+						}
+						TL10: {
+							width: 35
+							itemFormat: "|11{partnerName}"
+						}
+						TL10: {
+							width: 25
+							itemFormat: "|11{duration}"
+						}
+					}
+				}
+			}
+
+			// Page sysop — adjust width to match PAGESYSP.ANS art
+			pageSysop: {
+				config: {
+					notifyFormat: "|11Page |03from |11{userName} |08(node |07{nodeId}|08):|03\r\n|03{message}\r\n\r\n|08Visit WFC and press |03B|08 on the node to respond.|07"
+				}
+				0: {
+					mci: {
+						ET1: {
+							width: 60
+							maxLength: 78
+						}
 					}
 				}
 			}
