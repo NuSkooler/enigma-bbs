@@ -718,8 +718,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
 
         options = Object.assign(
-            { client: this.client, font: this.menuConfig.config.font },
-            options
+            {
+                client: this.client,
+                font: this.menuConfig.config.font,
+                encodedAs: this.menuConfig.config.encodedAs, //  propagate to art loader; undefined if unset
+            },
+            options //  caller can override
         );
 
         if (Buffer.isBuffer(nameOrData)) {

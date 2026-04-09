@@ -204,9 +204,8 @@ class EditTextView extends TextView {
         let renderedText;
         if (this._pipeExpanded && this._pipeNearIndex >= 0 && this._hasPipeCodes(raw)) {
             //  Remap near index to its position within the visible slice
-            const bufStart = prefixW > 0
-                ? this._visToBufferIdx(raw, scrollOff)
-                : scrollOff;
+            const bufStart =
+                prefixW > 0 ? this._visToBufferIdx(raw, scrollOff) : scrollOff;
             const nearIdxInSlice = this._pipeNearIndex - bufStart;
 
             renderedText =
@@ -220,9 +219,7 @@ class EditTextView extends TextView {
         const fullLine = resolvedPrefix + renderedText;
         const visLen = prefixW + strUtil.renderStringLength(renderedText);
         const fillCount = Math.max(0, this.dimens.width - visLen);
-        const fill = fillCount > 0
-            ? this.getFocusSGR() + ' '.repeat(fillCount)
-            : '';
+        const fill = fillCount > 0 ? this.getFocusSGR() + ' '.repeat(fillCount) : '';
 
         this.client.term.write(
             `${ansi.hideCursor()}${ansi.goto(this.position.row, this.position.col)}${fullLine}${fill}`,
@@ -291,7 +288,12 @@ class EditTextView extends TextView {
         this._scrollOffset = this._computeScrollOffset();
 
         if (this.itemFormat && this._hasPipeCodes(this.lineBuffer.lines[0].chars)) {
-            if (this._cursorNearPipeCode(this.lineBuffer.lines[0].chars, this.cursorPos.col)) {
+            if (
+                this._cursorNearPipeCode(
+                    this.lineBuffer.lines[0].chars,
+                    this.cursorPos.col
+                )
+            ) {
                 this._expandNear();
             } else {
                 this._ensureCollapsed();
@@ -310,33 +312,63 @@ class EditTextView extends TextView {
         this.text = this.lineBuffer.lines[0].chars;
     }
 
-    //  Compute the scroll offset that keeps cursorPos.col visible in the
-    //  dimens.width window, adjusting incrementally from the current offset.
+    //  Maps a buffer column (string index into the text) to the terminal display
+    //  column, skipping collapsed pipe codes (0 display width) and accumulating
+    //  display widths for wide Unicode characters (CJK, Hangul, fullwidth forms).
+    _bufferToDisplayCol(bufferCol) {
+        const chars = this.lineBuffer.lines[0]?.chars ?? '';
+        let dispCol = 0;
+        let i = 0;
+        while (i < bufferCol && i < chars.length) {
+            if (isPipeCode(chars, i)) {
+                i += 3; //  pipe codes: 0 display width in collapsed mode
+            } else {
+                const cp = chars.codePointAt(i);
+                const ch = String.fromCodePoint(cp);
+                dispCol += strUtil.charDisplayWidth(ch);
+                i += ch.length;
+            }
+        }
+        return dispCol;
+    }
+
+    //  Compute the scroll offset (buffer index of first visible character) that
+    //  keeps the cursor visible within the dimens.width display column window.
+    //  All boundary comparisons are in display columns; the return value is a
+    //  buffer index so buffer operations (insertChar, deleteChar) remain correct.
     _computeScrollOffset() {
-        const textLen = this.lineBuffer.lines[0].chars.length;
-        if (textLen <= this.dimens.width) return 0;
+        const chars = this.lineBuffer.lines[0].chars;
+        const textDisplayLen = strUtil.renderStringLength(chars);
+        if (textDisplayLen <= this.dimens.width) return 0;
 
         const cur = this._scrollOffset;
-        const maxOff = textLen - this.dimens.width;
+        const cursorDisplayCol = this._bufferToDisplayCol(this.cursorPos.col);
+        const scrollDisplayCol = this._bufferToDisplayCol(cur);
 
-        if (this.cursorPos.col < cur) {
+        if (cursorDisplayCol < scrollDisplayCol) {
             //  Cursor moved past left edge — scroll to cursor
             return this.cursorPos.col;
         }
-        if (this.cursorPos.col >= cur + this.dimens.width) {
-            //  Cursor moved past right edge — scroll to keep cursor at right edge
-            return Math.min(this.cursorPos.col - this.dimens.width + 1, maxOff);
+        if (cursorDisplayCol >= scrollDisplayCol + this.dimens.width) {
+            //  Cursor moved past right edge — find buffer index at left-edge display col
+            return strUtil.renderSplitPos(
+                chars,
+                cursorDisplayCol - this.dimens.width + 1
+            );
         }
-        //  Cursor still visible — clamp offset to valid range
-        return Math.min(cur, maxOff);
+        //  Cursor still visible — clamp offset to valid buffer index
+        const maxOffDisplay = textDisplayLen - this.dimens.width;
+        const maxOffBuffer = strUtil.renderSplitPos(chars, maxOffDisplay);
+        return Math.min(cur, maxOffBuffer);
     }
 
-    //  Move the terminal cursor to match cursorPos.col within the scroll window and
-    //  re-establish the focus SGR.  redraw() ends with the fill-char SGR (potentially
-    //  dim); restoring getFocusSGR() here prevents the next typed character from
-    //  inheriting the wrong colour.
+    //  Move the terminal cursor to match cursorPos.col within the scroll window
+    //  and re-establish the focus SGR.  Both cursor and scroll positions are
+    //  converted to display columns before computing the screen column.
     _repositionCursor() {
-        const screenCol = this.position.col + (this.cursorPos.col - this._scrollOffset);
+        const cursorDisplayCol = this._bufferToDisplayCol(this.cursorPos.col);
+        const scrollDisplayCol = this._bufferToDisplayCol(this._scrollOffset);
+        const screenCol = this.position.col + (cursorDisplayCol - scrollDisplayCol);
         this.client.term.write(
             ansi.goto(this.position.row, screenCol) + this.getFocusSGR()
         );
@@ -533,7 +565,10 @@ class EditTextView extends TextView {
 
                     if (atEnd && notScrolled) {
                         //  Fast path: appended at end with no scroll — write char directly
-                        if (_.isString(this.textMaskChar) && this.textMaskChar.length > 0) {
+                        if (
+                            _.isString(this.textMaskChar) &&
+                            this.textMaskChar.length > 0
+                        ) {
                             this.client.term.write(this.textMaskChar);
                         } else {
                             this.client.term.write(styled);

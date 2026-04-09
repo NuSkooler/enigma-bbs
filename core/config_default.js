@@ -53,6 +53,12 @@ module.exports = () => {
                 'gnome',
                 'x11 terminal emulator',
             ],
+
+            // Force all connections to a specific output encoding regardless of terminal
+            // type detection.  Useful for UTF-8-only BBS environments where all users
+            // connect with modern terminals (e.g. a Japanese/CJK BBS).
+            // Valid values: 'utf8' | 'cp437' | null (default: null — auto-detect)
+            forceOutputEncoding: null,
         },
 
         users: {

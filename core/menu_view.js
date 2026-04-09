@@ -102,9 +102,16 @@ class MenuView extends View {
                           return item.text || '';
                       })();
 
-                const displayText = this.disablePipe
-                    ? text
-                    : pipeToAnsi(text, this.client);
+                let displayText;
+                if (this.disablePipe) {
+                    displayText = text;
+                } else {
+                    try {
+                        displayText = pipeToAnsi(text, this.client);
+                    } catch (e) {
+                        displayText = text;
+                    }
+                }
                 return Object.assign({}, { text: displayText }, stringItem ? {} : item);
             });
 
@@ -252,9 +259,17 @@ class MenuView extends View {
         if (items) {
             this.focusItems = [];
             items.forEach(itemText => {
-                this.focusItems.push({
-                    text: this.disablePipe ? itemText : pipeToAnsi(itemText, this.client),
-                });
+                let text;
+                if (this.disablePipe) {
+                    text = itemText;
+                } else {
+                    try {
+                        text = pipeToAnsi(itemText, this.client);
+                    } catch (e) {
+                        text = itemText;
+                    }
+                }
+                this.focusItems.push({ text });
             });
         }
     }

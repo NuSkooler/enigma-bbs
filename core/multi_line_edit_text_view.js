@@ -235,10 +235,22 @@ class MultiLineEditTextView extends View {
     //  Maps a buffer column (index into line.chars) to the corresponding terminal
     //  display column.  Complete |## codes normally have zero display width; in
     //  expanded mode the single near code has 1:1 width while others remain 0-width.
+    //  Wide Unicode characters (CJK, Hangul, fullwidth forms, etc.) contribute 2
+    //  display columns per codepoint.
     _bufferToDisplayCol(lineIndex, bufferCol) {
         const chars = this.buffer.lines[lineIndex]?.chars ?? '';
+
         if (!chars.includes('|')) {
-            return bufferCol;
+            //  Fast path: no pipe codes — walk codepoints accumulating display width
+            let dispCol = 0;
+            let i = 0;
+            while (i < bufferCol && i < chars.length) {
+                const cp = chars.codePointAt(i);
+                const ch = String.fromCodePoint(cp);
+                dispCol += strUtil.charDisplayWidth(ch);
+                i += ch.length;
+            }
+            return dispCol;
         }
 
         //  nearIndex >= 0 only during expanded mode; -1 means collapsed (skip all).
@@ -252,7 +264,7 @@ class MultiLineEditTextView extends View {
         while (i < chars.length && i < bufferCol) {
             if (isPipeCode(chars, i)) {
                 if (i === nearIndex) {
-                    //  Near code in expanded mode: each char has display width 1
+                    //  Near code in expanded mode: '|', digit, digit — all narrow (width 1 each)
                     const advance = Math.min(3, bufferCol - i);
                     i += advance;
                     dispCol += advance;
@@ -261,8 +273,10 @@ class MultiLineEditTextView extends View {
                     i += 3;
                 }
             } else {
-                i++;
-                dispCol++;
+                const cp = chars.codePointAt(i);
+                const ch = String.fromCodePoint(cp);
+                dispCol += strUtil.charDisplayWidth(ch);
+                i += ch.length;
             }
         }
         return dispCol;
@@ -446,21 +460,42 @@ class MultiLineEditTextView extends View {
 
     //  Inverse of _bufferToDisplayCol: maps a display column back to the buffer
     //  column (index into line.chars).  Pipe codes are 3 buffer chars, 0 display
-    //  width in collapsed mode, so we walk forward until we've consumed displayCol
-    //  visible characters.
+    //  width in collapsed mode.  Wide characters (display width 2) that would
+    //  straddle the target column snap the result to just before that character.
     _displayToBufferCol(lineIndex, displayCol) {
         const chars = this.buffer.lines[lineIndex]?.chars ?? '';
+
         if (!chars.includes('|')) {
-            return displayCol;
+            //  Fast path: no pipe codes — walk codepoints until display width consumed
+            let bufCol = 0;
+            let dispCol = 0;
+            while (bufCol < chars.length && dispCol < displayCol) {
+                const cp = chars.codePointAt(bufCol);
+                const ch = String.fromCodePoint(cp);
+                const w = strUtil.charDisplayWidth(ch);
+                if (dispCol + w > displayCol) {
+                    break; //  wide char straddles boundary — snap before it
+                }
+                dispCol += w;
+                bufCol += ch.length;
+            }
+            return bufCol;
         }
+
         let bufCol = 0;
         let dispCol = 0;
         while (bufCol < chars.length && dispCol < displayCol) {
             if (isPipeCode(chars, bufCol)) {
                 bufCol += 3; //  0 display width — skip without counting
             } else {
-                bufCol++;
-                dispCol++;
+                const cp = chars.codePointAt(bufCol);
+                const ch = String.fromCodePoint(cp);
+                const w = strUtil.charDisplayWidth(ch);
+                if (dispCol + w > displayCol) {
+                    break; //  wide char straddles boundary — snap before it
+                }
+                dispCol += w;
+                bufCol += ch.length;
             }
         }
         return bufCol;

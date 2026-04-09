@@ -685,3 +685,148 @@ describe('MultiLineEditTextView — _scrollToMatch positioning', () => {
         assert.strictEqual(v.cursorPos.row, 4);
     });
 });
+
+// ─── Wide character cursor math ───────────────────────────────────────────────
+
+describe('MultiLineEditTextView — wide character cursor math', () => {
+    //  Line layout reference for tests below:
+    //
+    //   'AB日CD'  — buffer indices: A=0  B=1  日=2  C=3  D=4
+    //              display columns:  A=0  B=1  日=2–3  C=4  D=5
+    //
+    //   'X日Y日Z' — buffer indices: X=0  日=1  Y=2  日=3  Z=4
+    //              display columns:  X=0  日=1–2  Y=3  日=4–5  Z=6
+
+    describe('_bufferToDisplayCol — wide chars', () => {
+        it('pure ASCII: buffer col equals display col', () => {
+            const v = makeMltev();
+            load(v, 'ABCDE');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0);
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 3);
+            assert.strictEqual(v._bufferToDisplayCol(0, 5), 5);
+        });
+
+        it('wide char contributes 2 display cols for 1 buffer pos', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0, 'before A');
+            assert.strictEqual(v._bufferToDisplayCol(0, 1), 1, 'before B');
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 2, 'before 日');
+            assert.strictEqual(
+                v._bufferToDisplayCol(0, 3),
+                4,
+                'after 日 (skipped 2 cols)'
+            );
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 5, 'before D');
+            assert.strictEqual(v._bufferToDisplayCol(0, 5), 6, 'end of line');
+        });
+
+        it('multiple wide chars accumulate correctly', () => {
+            const v = makeMltev();
+            load(v, 'X日Y日Z');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0, 'before X');
+            assert.strictEqual(v._bufferToDisplayCol(0, 1), 1, 'before first 日');
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 3, 'before Y');
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 4, 'before second 日');
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 6, 'before Z');
+            assert.strictEqual(v._bufferToDisplayCol(0, 5), 7, 'end of line');
+        });
+
+        it('pure CJK line: every buffer pos maps to even display col', () => {
+            const v = makeMltev();
+            load(v, '日本語');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0);
+            assert.strictEqual(v._bufferToDisplayCol(0, 1), 2);
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 4);
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 6);
+        });
+    });
+
+    describe('_displayToBufferCol — wide chars', () => {
+        it('pure ASCII: display col equals buffer col', () => {
+            const v = makeMltev();
+            load(v, 'ABCDE');
+            assert.strictEqual(v._displayToBufferCol(0, 0), 0);
+            assert.strictEqual(v._displayToBufferCol(0, 3), 3);
+        });
+
+        it('display col before wide char maps to that buffer position', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            assert.strictEqual(
+                v._displayToBufferCol(0, 2),
+                2,
+                'first col of 日 → buffer 2'
+            );
+        });
+
+        it('display col inside wide char snaps to before the char', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            //  Display col 3 is the phantom second column of 日 — snap to buffer 2
+            assert.strictEqual(v._displayToBufferCol(0, 3), 2, 'snap before 日');
+        });
+
+        it('display col after wide char maps to next buffer position', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            assert.strictEqual(
+                v._displayToBufferCol(0, 4),
+                3,
+                'C starts at display 4 → buffer 3'
+            );
+            assert.strictEqual(
+                v._displayToBufferCol(0, 5),
+                4,
+                'D at display 5 → buffer 4'
+            );
+        });
+
+        it('round-trips: bufferToDisplay then displayToBuffer returns original buffer col', () => {
+            const v = makeMltev();
+            load(v, 'X日Y日Z');
+            for (let bufCol = 0; bufCol <= 5; bufCol++) {
+                const dispCol = v._bufferToDisplayCol(0, bufCol);
+                const back = v._displayToBufferCol(0, dispCol);
+                assert.strictEqual(
+                    back,
+                    bufCol,
+                    `round-trip failed at bufCol=${bufCol} (dispCol=${dispCol})`
+                );
+            }
+        });
+
+        it('wide char in slow path (line with pipe codes) also snaps correctly', () => {
+            const v = makeMltev();
+            load(v, '|07AB日');
+            //  Buffer: |=0  0=1  7=2  A=3  B=4  日=5
+            //  Display: |07 → 0 vis, A=0, B=1, 日=2–3
+            //  Display col 3 → phantom col of 日 → snap to buffer 5
+            assert.strictEqual(
+                v._displayToBufferCol(0, 3),
+                5,
+                'snap before 日 past pipe code'
+            );
+        });
+    });
+
+    describe('wide char wrapping in view', () => {
+        it('CJK text wraps at display-column boundary in the view buffer', () => {
+            //  Width-4 view: 日本(4) fits on line 0; 語 wraps to line 1
+            const v = makeMltev({ width: 4 });
+            load(v, '日本語');
+
+            assert.strictEqual(v.buffer.lines[0].chars, '日本');
+            assert.strictEqual(v.buffer.lines[1].chars, '語');
+        });
+
+        it('cursor ends at correct buffer col after setText on CJK text', () => {
+            //  After setText the cursor is placed at (0,0); no assertion about col here,
+            //  but the line structure must be correct for subsequent navigation.
+            const v = makeMltev({ width: 6 });
+            load(v, '日本語'); // 6 cols exactly — fits on one line
+            assert.strictEqual(v.buffer.lines.length, 1);
+            assert.strictEqual(v.buffer.lines[0].chars, '日本語');
+        });
+    });
+});

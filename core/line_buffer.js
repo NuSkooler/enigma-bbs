@@ -1,5 +1,7 @@
 'use strict';
 
+const { renderStringLength, renderSplitPos } = require('./string_util');
+
 //
 //  LineBuffer — low-level line storage with per-character Uint32 attribute
 //  words.  No view dependencies; fully unit-testable in isolation.
@@ -118,52 +120,6 @@ function u32Concat(a, b) {
 
 //  ─── Internal: word-wrap a flat string+attrs into line objects ────────────────
 
-//  Matches ANSI escape sequences and |XX pipe color codes.
-//  Used to measure visible (rendered) character width, skipping zero-width codes.
-//  Group 1 captures the numeric argument of ESC[NC (cursor-forward), which
-//  contributes that many visible columns.
-const _WRAP_CODE_RE = /\x1b\[(?:([0-9]+)C|[0-9;]*[A-Za-z])|\|[0-9A-Z]{2}/g;
-
-//  Returns the number of visible (rendered) characters in str,
-//  skipping ANSI escape sequences and |XX pipe color codes.
-function _visLen(str) {
-    let len = 0;
-    let pos = 0;
-    _WRAP_CODE_RE.lastIndex = 0;
-    let m;
-    while ((m = _WRAP_CODE_RE.exec(str)) !== null) {
-        len += m.index - pos;
-        if (m[1]) len += parseInt(m[1], 10); //  ESC[NC cursor forward counts
-        pos = m.index + m[0].length;
-    }
-    len += str.length - pos;
-    return len;
-}
-
-//  Returns the string index at which `width` visible characters have been
-//  consumed, skipping ANSI and pipe code bytes transparently.
-function _splitPos(str, width) {
-    let vis = 0;
-    let i = 0;
-    _WRAP_CODE_RE.lastIndex = 0;
-    let m = _WRAP_CODE_RE.exec(str);
-    while (i < str.length && vis < width) {
-        if (m && m.index === i) {
-            if (m[1]) {
-                const fwd = parseInt(m[1], 10);
-                if (vis + fwd >= width) break; //  this forward-move crosses the boundary
-                vis += fwd;
-            }
-            i += m[0].length;
-            m = _WRAP_CODE_RE.exec(str);
-        } else {
-            i++;
-            vis++;
-        }
-    }
-    return i;
-}
-
 //  _wrapText(text, attrs, width, hardEol)  → Line[]
 //
 //  Splits text at word boundaries (last space before width visible chars).
@@ -186,7 +142,7 @@ function _wrapText(text, attrs, width, hardEol) {
         const remaining = text.slice(pos);
         const remAttrs = attrs.slice(pos);
 
-        if (_visLen(remaining) <= width) {
+        if (renderStringLength(remaining) <= width) {
             lines.push({
                 chars: remaining,
                 attrs: remAttrs,
@@ -197,20 +153,22 @@ function _wrapText(text, attrs, width, hardEol) {
         }
 
         //  Find the last space within the first `width` visible chars
-        const splitAt = _splitPos(remaining, width);
+        const splitAt = renderSplitPos(remaining, width);
         const window = remaining.slice(0, splitAt);
         const lastSpace = window.lastIndexOf(' ');
         const wrapAt = lastSpace > 0 ? lastSpace : splitAt;
 
+        const spaceConsumed = remaining[wrapAt] === ' ';
         lines.push({
             chars: remaining.slice(0, wrapAt),
             attrs: remAttrs.slice(0, wrapAt),
             eol: false,
+            eolSep: spaceConsumed ? ' ' : '',
             initialAttr: remAttrs.length > 0 ? remAttrs[0] : 0,
         });
 
         //  Consume the space at the break point (if that was the wrap reason)
-        pos += wrapAt + (remaining[wrapAt] === ' ' ? 1 : 0);
+        pos += wrapAt + (spaceConsumed ? 1 : 0);
     }
 
     return lines;
@@ -367,7 +325,14 @@ class LineBuffer {
         for (let i = 0; i < this.lines.length; i++) {
             parts.push(this.lines[i].chars);
             if (i < this.lines.length - 1) {
-                parts.push(this.lines[i].eol ? '\n' : ' ');
+                if (this.lines[i].eol) {
+                    parts.push('\n');
+                } else {
+                    //  eolSep records whether a space was consumed at this soft-wrap
+                    //  boundary.  Undefined means "legacy line" — default to space.
+                    const sep = this.lines[i].eolSep;
+                    parts.push(sep !== undefined ? sep : ' ');
+                }
             }
         }
         return parts.join('');

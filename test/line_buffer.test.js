@@ -652,4 +652,90 @@ describe('LineBuffer', () => {
             assert.equal(buf.width, 20);
         });
     });
+
+    // ─── Wide character (CJK) wrapping ───────────────────────────────────────
+
+    describe('wide character (CJK) wrapping', () => {
+        it('setText wraps CJK text at display-column boundary, not string-index boundary', () => {
+            //  '日本語' = 3 JS chars but 6 display cols; width-5 fits 日本(4) on line 0
+            const buf = new LineBuffer({ width: 5 });
+            buf.setText('日本語');
+
+            assert.equal(buf.lines.length, 2);
+            assert.equal(buf.lines[0].chars, '日本'); // 4 display cols — fits in 5
+            assert.equal(buf.lines[1].chars, '語'); // 2 display cols
+        });
+
+        it('does not split a wide char across a line boundary', () => {
+            //  width-3: 日(2) fits, then 本(2) would reach col 4 > 3 → wrap before 本
+            const buf = new LineBuffer({ width: 3 });
+            buf.setText('日本語');
+
+            assert.equal(buf.lines[0].chars, '日'); // 2 cols — only wide char that fits
+            assert.equal(buf.lines[1].chars, '本');
+            assert.equal(buf.lines[2].chars, '語');
+        });
+
+        it('mixed ASCII and CJK wraps at display width', () => {
+            //  'AB日CD' = A(1)+B(1)+日(2)+C(1)+D(1) = 6 display cols; width-4
+            //  Line 0: A+B+日 = 4 cols exactly
+            //  Line 1: CD
+            const buf = new LineBuffer({ width: 4 });
+            buf.setText('AB日CD');
+
+            assert.equal(buf.lines[0].chars, 'AB日');
+            assert.equal(buf.lines[1].chars, 'CD');
+        });
+
+        it('rewrapParagraph handles CJK after insertChar', () => {
+            const buf = new LineBuffer({ width: 5 });
+            buf.setText('日本'); // 4 cols — fits
+            buf.insertChar(0, 2, '語', 0); // push 語 onto line → 6 cols
+            buf.rewrapParagraph(0);
+
+            assert.equal(buf.lines[0].chars, '日本'); // 4 cols
+            assert.equal(buf.lines[1].chars, '語');
+        });
+
+        it('getText round-trips CJK text through wrap and unwrap', () => {
+            const buf = new LineBuffer({ width: 4 });
+            buf.setText('日本語文');
+
+            assert.equal(buf.getText(), '日本語文');
+        });
+
+        it('attrs array length matches chars length for CJK lines', () => {
+            //  Each CJK char is one JS character → one attr slot
+            const buf = new LineBuffer({ width: 5 });
+            buf.setText('日本語');
+
+            for (const line of buf.lines) {
+                assert.equal(
+                    line.attrs.length,
+                    line.chars.length,
+                    `attrs.length (${line.attrs.length}) !== chars.length (${line.chars.length}) for "${line.chars}"`
+                );
+            }
+        });
+
+        it('wide chars in a width-2 buffer each get their own line', () => {
+            const buf = new LineBuffer({ width: 2 });
+            buf.setText('日本語');
+
+            assert.equal(buf.lines.length, 3);
+            assert.equal(buf.lines[0].chars, '日');
+            assert.equal(buf.lines[1].chars, '本');
+            assert.equal(buf.lines[2].chars, '語');
+        });
+
+        it('setWidth rewraps CJK content correctly', () => {
+            const buf = new LineBuffer({ width: 10 });
+            buf.setText('日本語'); // 6 cols — fits on one line at width 10
+
+            buf.setWidth(4); // now wraps to two lines
+
+            assert.equal(buf.lines[0].chars, '日本');
+            assert.equal(buf.lines[1].chars, '語');
+        });
+    });
 });
