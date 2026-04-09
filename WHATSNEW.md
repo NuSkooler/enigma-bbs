@@ -1,7 +1,20 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
-## 0.1.0-beta
+## 0.1.2-beta
+* **Wide Character (CJK/UTF-8) Support** — full-width Unicode characters (CJK ideographs, Hangul, Hiragana, Katakana, fullwidth forms) are now handled correctly throughout the view and word-wrap layers
+
+  * All display-width measurements use `wcwidth(3)` semantics — wide characters count as 2 terminal columns, combining marks as 0
+  * `EditTextView` and `MultiLineEditTextView` cursor navigation, scrolling, and line-wrap all operate on display columns rather than string indices; the cursor cannot land inside the phantom second column of a wide character
+  * Word-wrap (`word_wrap.js`) and `LineBuffer` wrap at display-column boundaries — a wide character is never split across lines
+  * `renderStringLength`, `ansiRenderStringLength`, and the new exported `renderSplitPos` in `string_util.js` all account for wide characters; pipe codes and ANSI cursor-forward sequences are handled correctly in both
+  * `getText()` on `LineBuffer` correctly round-trips CJK text — no spurious space is inserted at character-boundary soft-wrap points
+
+* **UTF-8 Art Variants (`.utf8ans`)** — place a `FOO.UTF8ANS` alongside `FOO.ANS` in any art or theme directory; UTF-8-capable users automatically receive the UTF-8 variant while CP437 users see the standard file. No menu or theme configuration is required — selection is automatic based on the negotiated terminal encoding. See [General Art Information](./docs/_docs/art/general.md).
+
+  * Opt-in upward UTF-8 probe — set `term.probeUtf8Encoding: true` in `config.hjson` to enable a CPR-based check that upgrades CP437-identified terminals (e.g. `ansi`, `syncterm`) to UTF-8 output when the terminal actually supports it. Uses the same cursor-advance technique as `checkUtf8Encoding`. Default: `false`.
+
+## 0.1.1-beta
 
 * **[Sysop Chat / Break Into Chat](./docs/_docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user
 
@@ -13,6 +26,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * WFC node list gains a `{pageIndicator}` token per row — non-empty when that node has a pending page; configurable via `pageIndicator` in the WFC `config` block
   * WFC custom tokens `{pendingPageCount}`, `{pendingPageUser}`, `{pendingPageNode}`, `{pendingPageMessage}` for surfacing page queue state in art
   * **`prefixFormat`** property on `EditTextView` — set per-view in `theme.hjson` to display a role-specific prefix before the input (e.g. `"|15{userName}|07> "`); pipe codes render live as the user types; cursor and scroll account for the prefix width automatically
+
+## 0.1.0-beta
 
 * **Pause Prompt Improvements** — see [Pause Prompts](./docs/_docs/art/pause-prompts.md) for the full reference
 
