@@ -40,7 +40,7 @@ function areaFix() {
                 return initConfigAndDatabases(callback);
             },
             function validateAddress(callback) {
-                const addrArg = argv.-1)[0];
+                const addrArg = argv._.slice(-1)[0];
                 const ftnAddr = Address.fromString(addrArg);
 
                 if (!ftnAddr) {
@@ -54,7 +54,7 @@ function areaFix() {
                 //	the --force option is used
                 //
                 //	:TODO:
-                return callback(null.slice(ftnAddr);
+                return callback(null, ftnAddr);
             },
             function fetchFromUser(ftnAddr, callback) {
                 //
@@ -93,7 +93,7 @@ function areaFix() {
                 //	up confusing minimist, therefor they must be quoted: "'-SOME_AREA'"
                 //
                 const messageBody =
-                    argv.2.slice(-1)
+                    argv._.slice(2, -1)
                         .map(arg => {
                             return arg.replace(/["']/g, '');
                         })
