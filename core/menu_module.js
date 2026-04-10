@@ -618,7 +618,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     haveNext() {
-        return _.isString(this.menuConfig.next) || _.isArray(this.menuConfig.next);
+        return _.isString(this.menuConfig.next) || Array.isArray(this.menuConfig.next);
     }
 
     autoNextMenu(cb) {
@@ -744,7 +744,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     prepViewController(name, formId, mciMap, cb) {
-        const needsCreated = _.isUndefined(this.viewControllers[name]);
+        const needsCreated = this.viewControllers[name] === undefined;
         if (needsCreated) {
             const vcOpts = {
                 client: this.client,
@@ -882,7 +882,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     }
 
                     if (!_.has(config.art, name)) {
-                        const artKeys = _.keys(config.art);
+                        const artKeys = Object.keys(config.art);
                         this.client.log.warn(
                             { requestedArtName: name, availableArtKeys: artKeys },
                             'Art name is not set! Check configuration for typos.'
@@ -899,13 +899,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     );
                 },
                 (artData, callback) => {
-                    if (_.isUndefined(this.viewControllers[name])) {
+                    if (this.viewControllers[name] === undefined) {
                         const vcOpts = {
                             client: this.client,
                             formId: formId,
                         };
 
-                        if (!_.isUndefined(options.noInput)) {
+                        if (options.noInput !== undefined) {
                             vcOpts.noInput = options.noInput;
                         }
 
@@ -1080,7 +1080,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
             const c = config[key];
             let typeOk;
-            if (_.isUndefined(c)) {
+            if (c === undefined) {
                 typeOk = false;
                 badReason = `Missing "${key}", expected ${type}`;
             } else {

@@ -170,7 +170,7 @@ function Client(/*input, output*/) {
         }[deviceAttr];
 
         if (!termClient) {
-            if (_.startsWith(deviceAttr, '67;84;101;114;109')) {
+            if (deviceAttr.startsWith('67;84;101;114;109')) {
                 //
                 //  See https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
                 //
@@ -410,7 +410,7 @@ function Client(/*input, output*/) {
                 key.shift = !!(modifier & 1);
                 key.code = code;
 
-                _.assign(key, self.getKeyComponentsFromCode(code));
+                Object.assign(key, self.getKeyComponentsFromCode(code));
             }
 
             var ch;
@@ -421,7 +421,7 @@ function Client(/*input, output*/) {
                 ch = ' ';
             }
 
-            if (_.isUndefined(key.name)) {
+            if (key.name === undefined) {
                 key = undefined;
             } else {
                 //

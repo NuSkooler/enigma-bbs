@@ -142,7 +142,7 @@ class ViewController extends events.EventEmitter {
     }
 
     getLogFriendlyFormData(formData) {
-        const safeFormData = _.cloneDeep(formData);
+        const safeFormData = structuredClone(formData);
         if (safeFormData.value.password) {
             safeFormData.value.password = '*****';
         }
@@ -311,7 +311,7 @@ class ViewController extends events.EventEmitter {
                 propValue = conf[propName];
             }
 
-            if (!_.isUndefined(propValue)) {
+            if (propValue !== undefined) {
                 view.setPropertyValue(propName, propValue);
             }
         }
@@ -386,12 +386,12 @@ class ViewController extends events.EventEmitter {
         //  *   actionValue is a string: This represents a view with
         //      "argName" set that must be present in formValue.
         //
-        if (_.isUndefined(actionValue)) {
+        if (actionValue === undefined) {
             return false;
         }
 
         if (_.isNumber(actionValue) || _.isString(actionValue)) {
-            if (_.isUndefined(formValue[actionValue])) {
+            if (formValue[actionValue] === undefined) {
                 return false;
             }
         } else {
@@ -720,7 +720,7 @@ class ViewController extends events.EventEmitter {
                 callback => {
                     if (
                         !_.isObject(promptConfig) ||
-                        !_.isArray(promptConfig.actionKeys)
+                        !Array.isArray(promptConfig.actionKeys)
                     ) {
                         return callback(null);
                     }
@@ -735,7 +735,7 @@ class ViewController extends events.EventEmitter {
                         //
                         //  Ultimately, create a map of key -> { action block }
                         //
-                        if (!_.isArray(ak.keys)) {
+                        if (!Array.isArray(ak.keys)) {
                             return;
                         }
 
@@ -880,7 +880,10 @@ class ViewController extends events.EventEmitter {
                     callback(null);
                 },
                 callback => {
-                    if (!_.isObject(formConfig) || !_.isArray(formConfig.actionKeys)) {
+                    if (
+                        !_.isObject(formConfig) ||
+                        !Array.isArray(formConfig.actionKeys)
+                    ) {
                         callback(null);
                         return;
                     }
@@ -895,7 +898,7 @@ class ViewController extends events.EventEmitter {
                         //
                         //  Ultimately, create a map of key -> { action block }
                         //
-                        if (!_.isArray(ak.keys)) {
+                        if (!Array.isArray(ak.keys)) {
                             return;
                         }
 
@@ -975,7 +978,7 @@ class ViewController extends events.EventEmitter {
                 }
 
                 const viewData = view.getData();
-                if (_.isUndefined(viewData)) {
+                if (viewData === undefined) {
                     return;
                 }
 

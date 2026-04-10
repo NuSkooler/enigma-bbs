@@ -3,7 +3,7 @@
 
 const msgDb = require('./database.js').dbs.message;
 const wordWrapText = require('./word_wrap.js').wordWrapText;
-const createNamedUUID = require('./uuid_util.js').createNamedUUID;
+const { createNamedUUID, parseUUID, unparseUUID } = require('./uuid_util.js');
 const Errors = require('./enig_error.js').Errors;
 const ANSI = require('./ansi_term.js');
 const { sanitizeString, getISOTimestampString } = require('./database.js');
@@ -22,16 +22,13 @@ const {
 const ansiPrep = require('./ansi_prep.js');
 
 //  deps
-const uuidParse = require('uuid-parse');
 const async = require('async');
 const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment');
 const iconvEncode = require('iconv-lite').encode;
 
-const ENIGMA_MESSAGE_UUID_NAMESPACE = uuidParse.parse(
-    '154506df-1df8-46b9-98f8-ebb5815baaf8'
-);
+const ENIGMA_MESSAGE_UUID_NAMESPACE = parseUUID('154506df-1df8-46b9-98f8-ebb5815baaf8');
 
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
 const MESSAGE_ROW_MAP = {
@@ -246,7 +243,7 @@ module.exports = class Message {
             'CP437'
         );
 
-        return uuidParse.unparse(
+        return unparseUUID(
             createNamedUUID(
                 ENIGMA_MESSAGE_UUID_NAMESPACE,
                 Buffer.concat([areaTag, modTimestamp, subject, body])
@@ -308,17 +305,19 @@ module.exports = class Message {
         filter.operator = filter.operator || 'AND';
 
         if ('messageList' === filter.resultType) {
-            filter.extraFields = _.uniq(
-                filter.extraFields.concat([
-                    'area_tag',
-                    'message_uuid',
-                    'reply_to_message_id',
-                    'to_user_name',
-                    'from_user_name',
-                    'subject',
-                    'modified_timestamp',
-                ])
-            );
+            filter.extraFields = [
+                ...new Set(
+                    filter.extraFields.concat([
+                        'area_tag',
+                        'message_uuid',
+                        'reply_to_message_id',
+                        'to_user_name',
+                        'from_user_name',
+                        'subject',
+                        'modified_timestamp',
+                    ])
+                ),
+            ];
         }
 
         const field = 'uuid' === filter.resultType ? 'message_uuid' : 'message_id';
@@ -742,7 +741,7 @@ module.exports = class Message {
             VALUES (?, ?, ?, ?);`
         );
 
-        if (!_.isArray(value)) {
+        if (!Array.isArray(value)) {
             value = [value];
         }
 
@@ -772,7 +771,7 @@ module.exports = class Message {
             VALUES (?, ?, ?, ?);`
         );
 
-        if (!_.isArray(value)) {
+        if (!Array.isArray(value)) {
             value = [value];
         }
 
@@ -1124,7 +1123,7 @@ module.exports = class Message {
         } else {
             const QUOTE_RE = /^ ((?:[A-Za-z0-9]{1,2}> )+(?:[A-Za-z0-9]{1,2}>)*) */;
             const quoted = [];
-            const input = _.trimEnd(this.message).replace(/\x08/g, ''); //  eslint-disable-line no-control-regex
+            const input = this.message.trimEnd().replace(/\x08/g, ''); //  eslint-disable-line no-control-regex
 
             //  find *last* tearline
             let tearLinePos = Message.getTearLinePosition(input);

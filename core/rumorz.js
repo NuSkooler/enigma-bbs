@@ -141,7 +141,7 @@ exports.getModule = class RumorzModule extends MenuModule {
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
-                    if (_.isUndefined(self.viewControllers.add)) {
+                    if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
                             'view',
                             new ViewController({
@@ -239,7 +239,7 @@ exports.getModule = class RumorzModule extends MenuModule {
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
-                    if (_.isUndefined(self.viewControllers.add)) {
+                    if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
                             'add',
                             new ViewController({

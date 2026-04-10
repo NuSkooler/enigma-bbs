@@ -10,7 +10,7 @@ module.exports = class FNV1a {
     constructor(data) {
         this.hash = 0x811c9dc5;
 
-        if (!_.isUndefined(data)) {
+        if (data !== undefined) {
             this.update(data);
         }
     }

@@ -517,7 +517,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
             //  now filter out any excludes, if present
             if (Array.isArray(confConfig.exclude)) {
-                areas = _.filter(areas, area => {
+                areas = areas.filter(area => {
                     for (let rule of confConfig.exclude) {
                         if (wildcardMatch(area.areaTag, rule)) {
                             return false;

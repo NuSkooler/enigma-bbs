@@ -38,11 +38,11 @@ const FormIds = {
 
 const MciViewIds = {
     main: {
-        message: 1,     //  ET1 — optional page reason
+        message: 1, //  ET1 — optional page reason
         customRangeStart: 10,
     },
     mailConfirm: {
-        confirm: 1,     //  TM1 — yes/no hotkey prompt
+        confirm: 1, //  TM1 — yes/no hotkey prompt
     },
 };
 
@@ -56,7 +56,8 @@ exports.getModule = class PageSysopModule extends MenuModule {
 
         this.menuMethods = {
             sendPage: (formData, _extraArgs, cb) => this.sendPage(formData, cb),
-            confirmSendMail: (formData, _extraArgs, cb) => this._confirmSendMail(formData, cb),
+            confirmSendMail: (formData, _extraArgs, cb) =>
+                this._confirmSendMail(formData, cb),
         };
     }
 
@@ -72,13 +73,17 @@ exports.getModule = class PageSysopModule extends MenuModule {
     }
 
     _initMain(cb) {
-        const cooldownMs = (_.get(Config(), 'sysopChat.pageCooldownMinutes', 5)) * 60 * 1000;
+        const cooldownMs =
+            _.get(Config(), 'sysopChat.pageCooldownMinutes', 5) * 60 * 1000;
         const lastPage = pageCooldowns.get(this.client.user.userId);
 
         if (lastPage && Date.now() - lastPage < cooldownMs) {
             //  Rate limited — show art (or fallback text) then exit
-            const remainingMinutes = Math.ceil((cooldownMs - (Date.now() - lastPage)) / 60000);
-            const fallback = this.config.rateLimitText ||
+            const remainingMinutes = Math.ceil(
+                (cooldownMs - (Date.now() - lastPage)) / 60000
+            );
+            const fallback =
+                this.config.rateLimitText ||
                 `|08You may only page the sysop once every |15${remainingMinutes}|08 minute(s). Please try again later.|07`;
             return this._showArtAndExit(
                 this.config.rateLimitArt || 'PAGESYPLM',
@@ -101,17 +106,19 @@ exports.getModule = class PageSysopModule extends MenuModule {
 
         return async.series(
             [
-                callback => this.displayArtAndPrepViewController(
-                    'main',
-                    FormIds.main,
-                    { clearScreen: true },
-                    callback
-                ),
-                callback => this.validateMCIByViewIds(
-                    'main',
-                    [MciViewIds.main.message],
-                    callback
-                ),
+                callback =>
+                    this.displayArtAndPrepViewController(
+                        'main',
+                        FormIds.main,
+                        { clearScreen: true },
+                        callback
+                    ),
+                callback =>
+                    this.validateMCIByViewIds(
+                        'main',
+                        [MciViewIds.main.message],
+                        callback
+                    ),
                 callback => {
                     const inputView = this.getView('main', MciViewIds.main.message);
                     if (inputView) {
@@ -126,7 +133,10 @@ exports.getModule = class PageSysopModule extends MenuModule {
 
     _isSysopAvailable() {
         return getActiveConnections(AllConnections).some(
-            c => c.user.isAuthenticated() && c.user.isGroupMember('sysops') && c.user.isAvailable()
+            c =>
+                c.user.isAuthenticated() &&
+                c.user.isGroupMember('sysops') &&
+                c.user.isAvailable()
         );
     }
 
@@ -134,12 +144,12 @@ exports.getModule = class PageSysopModule extends MenuModule {
         this.displayAsset(artSpec, { clearScreen: true }, err => {
             if (err && fallbackText) {
                 this.client.term.rawWrite(
-                    ansi.resetScreen() +
-                    pipeToAnsi(fallbackText, this.client) +
-                    '\r\n'
+                    ansi.resetScreen() + pipeToAnsi(fallbackText, this.client) + '\r\n'
                 );
             }
-            this.pausePrompt({ row: this.client.term.termHeight }, () => this.prevMenu(cb));
+            this.pausePrompt({ row: this.client.term.termHeight }, () =>
+                this.prevMenu(cb)
+            );
         });
     }
 
@@ -166,20 +176,13 @@ exports.getModule = class PageSysopModule extends MenuModule {
             message,
         });
 
-        this.client.log.info(
-            { message },
-            `Sysop paged: "${message}"`
-        );
+        this.client.log.info({ message }, `Sysop paged: "${message}"`);
 
         //  Notify all online sysops (skip those already in WFC — they see it via event)
         this._notifySysops(sessionId, message);
 
         //  Show confirmation art then return
-        return this._showArtAndExit(
-            this.config.pageSentArt || 'PAGESYSPOK',
-            {},
-            cb
-        );
+        return this._showArtAndExit(this.config.pageSentArt || 'PAGESYSPOK', {}, cb);
     }
 
     //  Show combined "not available + send as mail?" art (form 1).
@@ -240,10 +243,11 @@ exports.getModule = class PageSysopModule extends MenuModule {
             return;
         }
 
-        const notifyFormat = this.config.notifyFormat ||
+        const notifyFormat =
+            this.config.notifyFormat ||
             '|10Page |07from |15{userName} |08(node {nodeId})|07\r\n' +
-            '|07{message}\r\n' +
-            '|08Visit WFC and press |07B|08 on the node to respond.|07';
+                '|07{message}\r\n' +
+                '|08Visit WFC and press |07B|08 on the node to respond.|07';
 
         const notifyText = stringFormat(notifyFormat, {
             userName: user.username,
@@ -287,5 +291,4 @@ exports.getModule = class PageSysopModule extends MenuModule {
             }
         });
     }
-
 };

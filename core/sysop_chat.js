@@ -13,7 +13,7 @@ const { TextView } = require('./text_view.js');
 const _ = require('lodash');
 const async = require('async');
 const moment = require('moment');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 exports.moduleInfo = {
     name: 'Sysop Chat',
@@ -42,7 +42,7 @@ const sessions = new Map();
 exports.getSessions = () => sessions;
 
 exports.createSession = (userClient, message) => {
-    const id = uuidv4();
+    const id = randomUUID();
     sessions.set(id, {
         id,
         state: 'pending',
@@ -78,7 +78,11 @@ exports.endSession = sessionId => {
 //  Find a pending session where the user is on a given node
 exports.getPendingSessionForNode = nodeId => {
     for (const [id, session] of sessions) {
-        if (session.state === 'pending' && session.userClient && session.userClient.node === nodeId) {
+        if (
+            session.state === 'pending' &&
+            session.userClient &&
+            session.userClient.node === nodeId
+        ) {
             return id;
         }
     }
@@ -103,10 +107,10 @@ const FormIds = {
 
 const MciViewIds = {
     chat: {
-        sysopLog:  1,  //  MT1 — sysop's scrollback panel
-        sysopInput: 2,  //  ET2 — sysop's input line
-        userLog:   3,  //  MT3 — user's scrollback
-        userInput:  4,  //  ET4 — user's input line
+        sysopLog: 1, //  MT1 — sysop's scrollback panel
+        sysopInput: 2, //  ET2 — sysop's input line
+        userLog: 3, //  MT3 — user's scrollback
+        userInput: 4, //  ET4 — user's input line
 
         //  10+ are custom-range status/info views driven by chatInfoFormat10, etc.
         customRangeStart: 10,
@@ -123,7 +127,7 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  extraArgs supplied by whoever navigates us here
         this.sessionId = _.get(options, 'extraArgs.sessionId');
-        this.role      = _.get(options, 'extraArgs.role'); // 'sysop' | 'user'
+        this.role = _.get(options, 'extraArgs.role'); // 'sysop' | 'user'
         this.chatStartTime = moment();
 
         this.menuMethods = {
@@ -134,10 +138,7 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
     initSequence() {
         async.series(
-            [
-                callback => this.beforeArt(callback),
-                callback => this._initChat(callback),
-            ],
+            [callback => this.beforeArt(callback), callback => this._initChat(callback)],
             () => this.finishedLoading()
         );
     }
@@ -145,22 +146,24 @@ exports.getModule = class SysopChatModule extends MenuModule {
     _initChat(cb) {
         async.series(
             [
-                callback => this.displayArtAndPrepViewController(
-                    'chat',
-                    FormIds.chat,
-                    { clearScreen: true },
-                    callback
-                ),
-                callback => this.validateMCIByViewIds(
-                    'chat',
-                    [
-                        MciViewIds.chat.sysopLog,
-                        MciViewIds.chat.sysopInput,
-                        MciViewIds.chat.userLog,
-                        MciViewIds.chat.userInput,
-                    ],
-                    callback
-                ),
+                callback =>
+                    this.displayArtAndPrepViewController(
+                        'chat',
+                        FormIds.chat,
+                        { clearScreen: true },
+                        callback
+                    ),
+                callback =>
+                    this.validateMCIByViewIds(
+                        'chat',
+                        [
+                            MciViewIds.chat.sysopLog,
+                            MciViewIds.chat.sysopInput,
+                            MciViewIds.chat.userLog,
+                            MciViewIds.chat.userInput,
+                        ],
+                        callback
+                    ),
                 callback => {
                     const session = sessions.get(this.sessionId);
                     if (!session || session.state === 'ended') {
@@ -175,10 +178,19 @@ exports.getModule = class SysopChatModule extends MenuModule {
                         //  The abrupt transition is intentional: the sysop has already
                         //  chosen to break in, and any delay risks confusing state.
                         if (session.userClient) {
-                            const chatMenuName = _.get(this.config, 'chatMenuName', 'sysopChat');
+                            const chatMenuName = _.get(
+                                this.config,
+                                'chatMenuName',
+                                'sysopChat'
+                            );
                             session.userClient.menuStack.goto(
                                 chatMenuName,
-                                { extraArgs: { sessionId: this.sessionId, role: 'user' } },
+                                {
+                                    extraArgs: {
+                                        sessionId: this.sessionId,
+                                        role: 'user',
+                                    },
+                                },
                                 () => {}
                             );
                         }
@@ -187,9 +199,11 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
                         //  Flush any messages the sysop sent before we loaded
                         if (Array.isArray(session.pendingMessages)) {
-                            session.pendingMessages.forEach(({ displayLine, senderRole }) => {
-                                this._appendToPanel(senderRole, displayLine);
-                            });
+                            session.pendingMessages.forEach(
+                                ({ displayLine, senderRole }) => {
+                                    this._appendToPanel(senderRole, displayLine);
+                                }
+                            );
                             session.pendingMessages = [];
                         }
 
@@ -215,9 +229,10 @@ exports.getModule = class SysopChatModule extends MenuModule {
                     //  Configure the input view before focusing so that the
                     //  prefix and live colour are in place for the initial redraw
                     //  that switchFocus triggers.
-                    const myInputId = this.role === 'sysop'
-                        ? MciViewIds.chat.sysopInput
-                        : MciViewIds.chat.userInput;
+                    const myInputId =
+                        this.role === 'sysop'
+                            ? MciViewIds.chat.sysopInput
+                            : MciViewIds.chat.userInput;
                     const inputView = this.getView('chat', myInputId);
                     if (inputView) {
                         this._enableLiveColorOnInput(inputView);
@@ -238,9 +253,9 @@ exports.getModule = class SysopChatModule extends MenuModule {
         const session = sessions.get(this.sessionId);
         this.updateCustomViewTextsWithFilter('chat', MciViewIds.chat.customRangeStart, {
             partnerName: this._getPartnerName(session),
-            duration:    moment.duration(moment().diff(this.chatStartTime)).humanize(),
-            userName:    this.client.user.username,
-            userNode:    this.client.node,
+            duration: moment.duration(moment().diff(this.chatStartTime)).humanize(),
+            userName: this.client.user.username,
+            userNode: this.client.node,
         });
         this._restoreCursorToInput();
     }
@@ -262,7 +277,12 @@ exports.getModule = class SysopChatModule extends MenuModule {
         const text = (_.get(formData, ['value', fieldName], '') || '').trim();
 
         this.client.log.trace(
-            { role: this.role, fieldName, sessionId: this.sessionId, textLen: text.length },
+            {
+                role: this.role,
+                fieldName,
+                sessionId: this.sessionId,
+                textLen: text.length,
+            },
             'sysopChat._sendMessage'
         );
 
@@ -271,9 +291,10 @@ exports.getModule = class SysopChatModule extends MenuModule {
         }
 
         //  Clear our own input view
-        const myInputId = this.role === 'sysop'
-            ? MciViewIds.chat.sysopInput
-            : MciViewIds.chat.userInput;
+        const myInputId =
+            this.role === 'sysop'
+                ? MciViewIds.chat.sysopInput
+                : MciViewIds.chat.userInput;
         const inputView = this.getView('chat', myInputId);
         if (inputView) {
             inputView.setText('');
@@ -292,7 +313,8 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  Append to our own panel immediately
         this._appendToPanel(this.role, displayLine);
 
-        const partnerModule = this.role === 'sysop' ? session.userModule : session.sysopModule;
+        const partnerModule =
+            this.role === 'sysop' ? session.userModule : session.sysopModule;
         if (partnerModule) {
             try {
                 partnerModule.receiveMessage(displayLine, this.role);
@@ -319,9 +341,8 @@ exports.getModule = class SysopChatModule extends MenuModule {
     }
 
     _appendToPanel(senderRole, displayLine) {
-        const viewId = senderRole === 'sysop'
-            ? MciViewIds.chat.sysopLog
-            : MciViewIds.chat.userLog;
+        const viewId =
+            senderRole === 'sysop' ? MciViewIds.chat.sysopLog : MciViewIds.chat.userLog;
 
         const view = this.getView('chat', viewId);
         if (view) {
@@ -350,7 +371,10 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  ── Resolve prefix ───────────────────────────────────────────────────
         const prefixFmt = inputView.prefixFormat || this.config.prefixFormat || '';
         const resolvedPrefix = prefixFmt
-            ? pipeToAnsi(stringFormat(prefixFmt, { userName: this.client.user.username }), client)
+            ? pipeToAnsi(
+                  stringFormat(prefixFmt, { userName: this.client.user.username }),
+                  client
+              )
             : '';
         const prefixW = renderStringLength(resolvedPrefix); // visible terminal columns
 
@@ -372,16 +396,27 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  Slice s to visCount visible chars starting at visible offset visOff,
         //  preserving pipe codes so they reach TextView.drawText intact.
         const visSlice = (s, visOff, visCount) => {
-            let i = 0, vis = 0;
+            let i = 0,
+                vis = 0;
             while (i < s.length && vis < visOff) {
-                if (s[i] === '|' && /[0-9]{2}/.test(s.slice(i + 1, i + 3))) { i += 3; }
-                else { i++; vis++; }
+                if (s[i] === '|' && /[0-9]{2}/.test(s.slice(i + 1, i + 3))) {
+                    i += 3;
+                } else {
+                    i++;
+                    vis++;
+                }
             }
-            let result = '', seen = 0;
+            let result = '',
+                seen = 0;
             while (i < s.length && seen < visCount) {
                 if (s[i] === '|' && /[0-9]{2}/.test(s.slice(i + 1, i + 3))) {
-                    result += s.slice(i, i + 3); i += 3;
-                } else { result += s[i]; i++; seen++; }
+                    result += s.slice(i, i + 3);
+                    i += 3;
+                } else {
+                    result += s[i];
+                    i++;
+                    seen++;
+                }
             }
             return result;
         };
@@ -397,8 +432,12 @@ exports.getModule = class SysopChatModule extends MenuModule {
             const cur = inputView._scrollOffset || 0;
             const maxOff = Math.max(0, visTotal - ew);
 
-            if (visCur < cur)              { return visCur; }
-            if (visCur >= cur + ew)        { return Math.min(visCur - ew + 1, maxOff); }
+            if (visCur < cur) {
+                return visCur;
+            }
+            if (visCur >= cur + ew) {
+                return Math.min(visCur - ew + 1, maxOff);
+            }
             return Math.min(cur, maxOff);
         };
 
@@ -415,15 +454,21 @@ exports.getModule = class SysopChatModule extends MenuModule {
         inputView._repositionCursor = () => {
             const raw = inputView.lineBuffer ? inputView.lineBuffer.getText() : '';
             const visCur = visLen(raw, inputView.cursorPos.col);
-            const screenCol = inputView.position.col + prefixW + (visCur - (inputView._scrollOffset || 0));
-            client.term.write(ansi.goto(inputView.position.row, screenCol) + inputView.getFocusSGR());
+            const screenCol =
+                inputView.position.col +
+                prefixW +
+                (visCur - (inputView._scrollOffset || 0));
+            client.term.write(
+                ansi.goto(inputView.position.row, screenCol) + inputView.getFocusSGR()
+            );
         };
     }
 
     _restoreCursorToInput() {
-        const myInputId = this.role === 'sysop'
-            ? MciViewIds.chat.sysopInput
-            : MciViewIds.chat.userInput;
+        const myInputId =
+            this.role === 'sysop'
+                ? MciViewIds.chat.sysopInput
+                : MciViewIds.chat.userInput;
         const inputView = this.getView('chat', myInputId);
         if (inputView && typeof inputView._repositionCursor === 'function') {
             inputView._repositionCursor();
@@ -435,7 +480,8 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  Notify the partner before cleaning up
         if (session && session.state === 'active') {
-            const partnerModule = this.role === 'sysop' ? session.userModule : session.sysopModule;
+            const partnerModule =
+                this.role === 'sysop' ? session.userModule : session.sysopModule;
             if (partnerModule) {
                 partnerModule.chatEnded();
             }
@@ -475,7 +521,8 @@ exports.getModule = class SysopChatModule extends MenuModule {
         //  Skip if chatEnded() already scheduled the prevMenu path (avoid double-navigation).
         const session = sessions.get(this.sessionId);
         if (session && session.state !== 'ended') {
-            const partnerModule = this.role === 'sysop' ? session.userModule : session.sysopModule;
+            const partnerModule =
+                this.role === 'sysop' ? session.userModule : session.sysopModule;
             if (partnerModule && !partnerModule._chatEndedHandled) {
                 partnerModule.chatEnded();
             }

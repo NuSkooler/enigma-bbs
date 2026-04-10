@@ -172,7 +172,7 @@ function askNewConfigQuestions(cb) {
                     );
 
                     const direct = {};
-                    _.each(ConfigIncludeKeys, keyPath => {
+                    ConfigIncludeKeys.forEach(keyPath => {
                         _.set(direct, keyPath, _.get(defaultConfig, keyPath));
                     });
 

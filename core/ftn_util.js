@@ -324,7 +324,7 @@ function getUpdatedSeenByEntries(existingEntries, additions) {
         programs."
     */
     existingEntries = existingEntries || [];
-    if (!_.isArray(existingEntries)) {
+    if (!Array.isArray(existingEntries)) {
         existingEntries = [existingEntries];
     }
 
@@ -346,7 +346,7 @@ function getUpdatedPathEntries(existingEntries, localAddress) {
     //  :TODO: append to PATH in a smart way! We shoudl try to fit at least the last existing line
 
     existingEntries = existingEntries || [];
-    if (!_.isArray(existingEntries)) {
+    if (!Array.isArray(existingEntries)) {
         existingEntries = [existingEntries];
     }
 

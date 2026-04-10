@@ -13,7 +13,7 @@ const { PublicCollectionId } = require('./const');
 const { isAnsi } = require('../string_util');
 
 // deps
-const { v5: UUIDv5 } = require('uuid');
+const { uuidV5, Namespaces: UUIDNamespaces } = require('../uuid_util');
 const Actor = require('./actor');
 const Collection = require('./collection');
 const async = require('async');
@@ -190,9 +190,9 @@ module.exports = class Note extends ActivityPubObject {
             if (isPrivate) {
                 // UUID specific to the target user
                 const url = `${this.id}/${options.toUser.userId}`;
-                return UUIDv5(url, UUIDv5.URL);
+                return uuidV5(url, UUIDNamespaces.URL);
             } else {
-                return UUIDv5(this.id, PublicMessageIdNamespace);
+                return uuidV5(this.id, PublicMessageIdNamespace);
             }
         };
 

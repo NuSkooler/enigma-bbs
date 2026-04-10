@@ -330,7 +330,7 @@ const REGEXP_BASIC_FORMAT = /{([^.!:}]+(?:\.[^.!:}]+)*)(?:!([^:}]+))?(?::([^}]+)
 
 function getValue(obj, path) {
     const value = _.get(obj, path);
-    if (!_.isUndefined(value)) {
+    if (value !== undefined) {
         return _.isFunction(value) ? value() : value;
     }
 
