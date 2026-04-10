@@ -33,7 +33,7 @@ const asyncReduce = require('async/reduce');
 const asyncMap = require('async/map');
 const asyncSeries = require('async/series');
 const asyncWaterfall = require('async/waterfall');
-const LRU = require('lru-cache');
+const { LRUCache: LRU } = require('lru-cache');
 const sqlite3 = require('sqlite3');
 const paths = require('path');
 
