@@ -22,7 +22,7 @@ const paths = require('path');
 const _ = require('lodash');
 const moment = require('moment');
 const inq = require('inquirer');
-const glob = require('glob');
+const { glob } = require('glob');
 const sanatizeFilename = require('sanitize-filename');
 const hjson = require('hjson');
 const { mkdirs } = require('fs-extra');
@@ -223,13 +223,8 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
         const pattern = options.glob || (storageLoc.isWildcard ? '**/*' : null);
         if (pattern) {
             //  include .enigmaignore files in the glob so buildIgnoreFilter can read them
-            glob(
-                pattern,
-                { cwd: storageLoc.dir, nodir: true, follow: false },
-                (err, relFiles) => {
-                    if (err) {
-                        return next(err);
-                    }
+            glob(pattern, { cwd: storageLoc.dir, nodir: true, follow: false })
+                .then(relFiles => {
                     buildIgnoreFilter(storageLoc.dir, relFiles, (err, ig) => {
                         if (err) {
                             return next(err);
@@ -247,8 +242,10 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                             true //  fromGlob — skip stat check
                         );
                     });
-                }
-            );
+                })
+                .catch(err => {
+                    return next(err);
+                });
         } else {
             fs.readdir(storageLoc.dir, (err, fileNames) => {
                 if (err) {
