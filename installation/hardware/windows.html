@@ -17,11 +17,11 @@
 <meta property="og:description" content="Installation Under Windows" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-07T17:18:47+00:00" />
+<meta property="article:published_time" content="2026-04-10T01:58:40+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Installation Under Windows" />
 <script type="application/ld+json">
-{"description":"Installation Under Windows","headline":"Installation Under Windows","dateModified":"2026-04-07T17:18:47+00:00","datePublished":"2026-04-07T17:18:47+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/hardware/windows.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/installation/hardware/windows.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Installation Under Windows","headline":"Installation Under Windows","dateModified":"2026-04-10T01:58:40+00:00","datePublished":"2026-04-10T01:58:40+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/installation/hardware/windows.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/installation/hardware/windows.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2651,79 +2651,91 @@
 
 <p>ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.</p>
 
-<h3 id="basic-instructions">Basic Instructions</h3>
+<h3 id="prerequisites">Prerequisites</h3>
+
+<h4 id="nodejs">Node.js</h4>
+
+<p>Download and install Node.js from <a href="https://nodejs.org/">nodejs.org</a>. Use the current <strong>LTS release</strong> — non-LTS/bleeding-edge versions are not tested and may cause issues.</p>
+
+<h4 id="visual-studio-build-tools">Visual Studio Build Tools</h4>
+
+<p>ENiGMA½ includes native modules (<code class="language-plaintext highlighter-rouge">node-pty</code> and <code class="language-plaintext highlighter-rouge">sqlite3</code>) that must be compiled during installation. This requires Visual Studio Build Tools:</p>
 
 <ol>
-  <li>
-    <p>Download and Install <a href="https://nodejs.org/">Node.JS</a>.</p>
-
-    <ol>
-      <li>
-        <p>Upgrade NPM : At this time node comes with NPM 5.6 preinstalled. To upgrade to a newer version now or in the future on windows follow this method. <code class="language-plaintext highlighter-rouge">*Run PowerShell as Administrator</code></p>
-
-        <p><code class="language-plaintext highlighter-rouge">*Initial Install</code></p>
-        <pre><code class="language-Powershell"> Set-ExecutionPolicy Unrestricted -Scope CurrentUser -Force
- npm install -g npm-windows-upgrade
-</code></pre>
-        <p><code class="language-plaintext highlighter-rouge">*Upgrade</code></p>
-        <pre><code class="language-Powershell"> npm-windows-upgrade
-</code></pre>
-
-        <p>Note: Do not run <code class="language-plaintext highlighter-rouge">npm i -g npm</code>. Instead use <code class="language-plaintext highlighter-rouge">npm-windows-upgrade</code> to update npm going forward.
- Also if you run the NodeJS installer, it will replace the node version.</p>
-      </li>
-      <li>
-        <p>Install <a href="https://www.npmjs.com/package/windows-build-tools">windows-build-tools for npm</a>
- <code class="language-plaintext highlighter-rouge">*This will also install python 2.7</code></p>
-        <pre><code class="language-Powershell"> npm install --global --production windows-build-tools
-</code></pre>
-      </li>
-    </ol>
-  </li>
-  <li>
-    <p>Install <a href="https://www.7-zip.org/download.html">7zip</a>.</p>
-
-    <p>*Add 7zip to your path so <code class="language-plaintext highlighter-rouge">7z</code> can be called from the console</p>
-    <ol>
-      <li>Right click <code class="language-plaintext highlighter-rouge">This PC</code> and Select <code class="language-plaintext highlighter-rouge">Properties</code></li>
-      <li>Go to the <code class="language-plaintext highlighter-rouge">Advanced</code> Tab and click on <code class="language-plaintext highlighter-rouge">Environment Variables</code></li>
-      <li>Select <code class="language-plaintext highlighter-rouge">Path</code> under <code class="language-plaintext highlighter-rouge">System Variables</code> and click <code class="language-plaintext highlighter-rouge">Edit</code></li>
-      <li>Click <code class="language-plaintext highlighter-rouge">New</code> and paste the path to 7zip</li>
-      <li>Close your console window and reopen. You can type <code class="language-plaintext highlighter-rouge">7z</code> to make sure it’s working.</li>
-    </ol>
+  <li>Download <a href="https://visualstudio.microsoft.com/visual-cpp-build-tools/">Visual Studio Build Tools 2022</a></li>
+  <li>Run the installer and select the <strong>“Desktop development with C++”</strong> workload</li>
+  <li>Ensure the following are included (selected by default with the workload):
+    <ul>
+      <li>MSVC build tools</li>
+      <li>Windows SDK</li>
+      <li>C++ CMake tools</li>
+    </ul>
   </li>
 </ol>
 
-<p>(Please see <a href="../configuration/archivers.md">Archivers</a> for additional archive utilities!)</p>
+<blockquote>
+  <p><strong>Note:</strong> Visual Studio Build Tools 2017 or newer is required. Older versions will not be detected by node-gyp.</p>
+</blockquote>
+
+<h4 id="git">Git</h4>
+
+<p>Install <a href="https://git-scm.com/downloads">Git</a> and optionally <a href="https://tortoisegit.org/download/">TortoiseGit</a>.</p>
+
+<h4 id="7-zip">7-Zip</h4>
+
+<p>Install <a href="https://www.7-zip.org/download.html">7-Zip</a> and add it to your <code class="language-plaintext highlighter-rouge">PATH</code>:</p>
 
 <ol>
-  <li>
-    <p>Install <a href="https://git-scm.com/downloads">Git</a> and optionally <a href="https://tortoisegit.org/download/">TortoiseGit</a>.</p>
-  </li>
-  <li>Clone ENiGMA½ - browse to the directory you want and run
-    <pre><code class="language-Powershell"> git clone "https://github.com/NuSkooler/enigma-bbs.git"
-</code></pre>
-    <p>Optionally use the TortoiseGit by right clicking the directory and selecting <code class="language-plaintext highlighter-rouge">Git Clone</code>.</p>
-  </li>
-  <li>Install ENiGMA½.
-    <ol>
-      <li>In the enigma directory run
-        <pre><code class="language-Powershell"> npm install
-</code></pre>
-      </li>
-      <li>Generate your initial configuration: <code class="language-plaintext highlighter-rouge">Follow the prompts!</code>
-        <pre><code class="language-Powershell"> node .\oputil.js config new
-</code></pre>
-      </li>
-      <li>Edit your configuration files in <code class="language-plaintext highlighter-rouge">enigma-bbs\config</code> with <a href="https://notepad-plus-plus.org/download/">Notepad++</a> or <a href="https://code.visualstudio.com/Download">Visual Studio Code</a></li>
-      <li>Run ENiGMA½
-        <pre><code class="language-Powershell"> node .\main.js
-</code></pre>
-      </li>
-    </ol>
-  </li>
-  <li>Look at <a href="production.md">Production Installation</a> for maintaining ENiGMA½ when you are ready to go live.</li>
+  <li>Right click <code class="language-plaintext highlighter-rouge">This PC</code> and select <code class="language-plaintext highlighter-rouge">Properties</code></li>
+  <li>Go to the <code class="language-plaintext highlighter-rouge">Advanced</code> tab and click <code class="language-plaintext highlighter-rouge">Environment Variables</code></li>
+  <li>Select <code class="language-plaintext highlighter-rouge">Path</code> under <code class="language-plaintext highlighter-rouge">System Variables</code> and click <code class="language-plaintext highlighter-rouge">Edit</code></li>
+  <li>Click <code class="language-plaintext highlighter-rouge">New</code> and paste the path to 7-Zip (e.g. <code class="language-plaintext highlighter-rouge">C:\Program Files\7-Zip</code>)</li>
+  <li>Close and reopen your console — type <code class="language-plaintext highlighter-rouge">7z</code> to verify it works</li>
 </ol>
+
+<p>(See <a href="../configuration/archivers.md">Archivers</a> for additional archive utilities.)</p>
+
+<hr />
+
+<h3 id="installation">Installation</h3>
+
+<ol>
+  <li>Clone ENiGMA½ — browse to the directory you want and run:
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="w"> </span><span class="n">git</span><span class="w"> </span><span class="nx">clone</span><span class="w"> </span><span class="s2">"https://github.com/NuSkooler/enigma-bbs.git"</span><span class="w">
+</span></code></pre></div>    </div>
+    <p>Optionally use TortoiseGit by right clicking the directory and selecting <code class="language-plaintext highlighter-rouge">Git Clone</code>.</p>
+  </li>
+  <li>Install ENiGMA½:
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="w"> </span><span class="n">cd</span><span class="w"> </span><span class="nx">enigma-bbs</span><span class="w">
+ </span><span class="n">npm</span><span class="w"> </span><span class="nx">install</span><span class="w">
+</span></code></pre></div>    </div>
+  </li>
+  <li>Generate your initial configuration:
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">.</span><span class="nx">\oputil.js</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="nx">new</span><span class="w">
+</span></code></pre></div>    </div>
+  </li>
+  <li>
+    <p>Edit your configuration files in <code class="language-plaintext highlighter-rouge">enigma-bbs\config</code> with <a href="https://notepad-plus-plus.org/download/">Notepad++</a> or <a href="https://code.visualstudio.com/Download">Visual Studio Code</a>.</p>
+  </li>
+  <li>Run ENiGMA½:
+    <div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">.</span><span class="nx">\main.js</span><span class="w">
+</span></code></pre></div>    </div>
+  </li>
+</ol>
+
+<p>See <a href="production.md">Production Installation</a> when you are ready to go live.</p>
+
+<hr />
+
+<h3 id="troubleshooting-node-gyp--visual-studio-not-found">Troubleshooting: node-gyp / Visual Studio Not Found</h3>
+
+<p>If <code class="language-plaintext highlighter-rouge">npm install</code> fails with an error like <em>“could not find a version of Visual Studio”</em> or <em>“unknown version found”</em>, node-gyp is not detecting your VS Build Tools installation. Try:</p>
+
+<div class="language-powershell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">npm</span><span class="w"> </span><span class="nx">config</span><span class="w"> </span><span class="nx">set</span><span class="w"> </span><span class="nx">msvs_version</span><span class="w"> </span><span class="nx">2022</span><span class="w">
+</span><span class="n">npm</span><span class="w"> </span><span class="nx">install</span><span class="w">
+</span></code></pre></div></div>
+
+<p>If problems persist, see the <a href="https://github.com/nodejs/node-gyp#on-windows">node-gyp Windows installation guide</a> for further troubleshooting steps.</p>
 
 </div>
 
