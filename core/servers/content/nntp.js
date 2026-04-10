@@ -142,6 +142,11 @@ const PostCommand = {
 
     capability(session, report) {
         report.push('POST');
+        //  Advertise AUTHINFO even on non-TLS connections so clients know to
+        //  authenticate before attempting POST (RFC 4643 allows this for USER/PASS)
+        if (!session.authenticated) {
+            report.push(['AUTHINFO', 'USER']);
+        }
     },
 };
 
@@ -1023,7 +1028,12 @@ class NNTPServer extends NNTPServerBase {
                         .map(ng => {
                             const [confTag, areaTag] = ng.trim().split('.');
                             return { confTag, areaTag };
-                        });
+                        })
+                        .filter(ng => ng.confTag && ng.areaTag);
+
+                    if (0 === newsgroups.length) {
+                        return callback(Errors.Invalid('Newsgroups header contains no valid group entries'));
+                    }
 
                     // validate areaTag exists -- currently only a single area/post; no x-posts
                     //  :TODO: look into x-posting
@@ -1173,7 +1183,8 @@ class NNTPServer extends NNTPServerBase {
             articleLines,
             (line, nextLine) => {
                 if (inHeader) {
-                    if (line === '.' || line === '') {
+                    if (line === '') {
+                        //  RFC 5322: blank line separates headers from body
                         inHeader = false;
                         return nextLine(null);
                     }
@@ -1398,7 +1409,7 @@ exports.getModule = class NNTPServerModule extends ServerModule {
                     },
                     commonOptions
                 ),
-                'NTTPS'
+                'NNTPS'
             );
         }
 
