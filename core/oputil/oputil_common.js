@@ -5,7 +5,6 @@
 const config = require('../../core/config.js');
 const db = require('../../core/database.js');
 
-const _ = require('lodash');
 const async = require('async');
 const inq = require('inquirer');
 const fs = require('fs');
@@ -50,7 +49,7 @@ const argv = (exports.argv = require('minimist')(process.argv.slice(2), {
 }));
 
 function printUsageAndSetExitCode(errMsg, exitCode) {
-    if (_.isUndefined(exitCode)) {
+    if (exitCode === undefined) {
         exitCode = exitCodes.ERROR;
     }
 

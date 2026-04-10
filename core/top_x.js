@@ -42,8 +42,8 @@ exports.getModule = class TopXModule extends MenuModule {
             async.series(
                 [
                     callback => {
-                        const userPropValues = _.values(UserProps);
-                        const userLogValues = _.values(UserLogNames);
+                        const userPropValues = Object.values(UserProps);
+                        const userLogValues = Object.values(UserLogNames);
 
                         const hasMci = (c, t) => {
                             if (!Array.isArray(t)) {

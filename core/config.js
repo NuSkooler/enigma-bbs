@@ -36,7 +36,7 @@ exports.Config = class Config extends ConfigLoader {
                         return configVal;
                     } else {
                         //  merge user config & default config; keep only unique
-                        _.uniq(defaultVal.concat(configVal));
+                        return [...new Set(defaultVal.concat(configVal))];
                     }
                 }
             },

@@ -305,8 +305,7 @@ module.exports = class Message {
         filter.operator = filter.operator || 'AND';
 
         if ('messageList' === filter.resultType) {
-            filter.extraFields = _.uniq(
-                filter.extraFields.concat([
+            filter.extraFields = [...new Set(filter.extraFields.concat([
                     'area_tag',
                     'message_uuid',
                     'reply_to_message_id',
@@ -314,8 +313,7 @@ module.exports = class Message {
                     'from_user_name',
                     'subject',
                     'modified_timestamp',
-                ])
-            );
+                ]))];
         }
 
         const field = 'uuid' === filter.resultType ? 'message_uuid' : 'message_id';
@@ -739,7 +737,7 @@ module.exports = class Message {
             VALUES (?, ?, ?, ?);`
         );
 
-        if (!_.isArray(value)) {
+        if (!Array.isArray(value)) {
             value = [value];
         }
 
@@ -769,7 +767,7 @@ module.exports = class Message {
             VALUES (?, ?, ?, ?);`
         );
 
-        if (!_.isArray(value)) {
+        if (!Array.isArray(value)) {
             value = [value];
         }
 
@@ -1121,7 +1119,7 @@ module.exports = class Message {
         } else {
             const QUOTE_RE = /^ ((?:[A-Za-z0-9]{1,2}> )+(?:[A-Za-z0-9]{1,2}>)*) */;
             const quoted = [];
-            const input = _.trimEnd(this.message).replace(/\x08/g, ''); //  eslint-disable-line no-control-regex
+            const input = this.message.trimEnd().replace(/\x08/g, ''); //  eslint-disable-line no-control-regex
 
             //  find *last* tearline
             let tearLinePos = Message.getTearLinePosition(input);

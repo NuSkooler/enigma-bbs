@@ -113,7 +113,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                 EnigAssert(formData.value.password === formData.value.passwordConfirm);
 
                 //  cache a copy of |formData| as changing a theme below can invalidate it
-                formData = _.clone(formData);
+                formData = Object.assign({}, formData);
 
                 const newProperties = {
                     [UserProps.RealName]: formData.value.realName || '',
@@ -228,7 +228,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
 
                         currentThemeIdIndex = Math.max(
                             0,
-                            _.findIndex(self.availThemeInfo, function cmp(ti) {
+                            self.availThemeInfo.findIndex(function cmp(ti) {
                                 return (
                                     ti.themeId ===
                                     self.client.user.properties[UserProps.ThemeId]
@@ -286,7 +286,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
 
                         var themeView = self.getMenuView(MciCodeIds.Theme);
                         if (themeView) {
-                            themeView.setItems(_.map(self.availThemeInfo, 'name'));
+                            themeView.setItems(self.availThemeInfo.map(ti => ti.name));
                             themeView.setFocusItemIndex(currentThemeIdIndex);
                         }
 

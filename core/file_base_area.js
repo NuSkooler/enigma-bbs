@@ -133,11 +133,11 @@ function getAvailableFileAreas(client, options) {
 }
 
 function getAvailableFileAreaTags(client, options) {
-    return _.map(getAvailableFileAreas(client, options), area => area.areaTag);
+    return Object.values(getAvailableFileAreas(client, options)).map(area => area.areaTag);
 }
 
 function getSortedAvailableFileAreas(client, options) {
-    const areas = _.map(getAvailableFileAreas(client, options), v => v);
+    const areas = Object.values(getAvailableFileAreas(client, options));
     sortAreasOrConfs(areas);
     return areas;
 }
@@ -216,17 +216,15 @@ function getAreaStorageLocations(areaInfo) {
 
     const avail = Config().fileBase.storageTags;
 
-    return _.compact(
-        storageTags.map(storageTag => {
-            if (avail[storageTag]) {
-                return {
-                    storageTag,
-                    dir: getAreaStorageDirectoryByTag(storageTag),
-                    isWildcard: isWildcardStorageTag(storageTag),
-                };
-            }
-        })
-    );
+    return storageTags.map(storageTag => {
+        if (avail[storageTag]) {
+            return {
+                storageTag,
+                dir: getAreaStorageDirectoryByTag(storageTag),
+                isWildcard: isWildcardStorageTag(storageTag),
+            };
+        }
+    }).filter(Boolean);
 }
 
 function getExistingFileEntriesBySha256(sha256, cb) {

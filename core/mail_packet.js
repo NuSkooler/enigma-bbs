@@ -32,5 +32,5 @@ MailPacket.prototype.write = function (options) {
     //
     //  emits 'packet' event per packet constructed
     //
-    assert(_.isArray(options.messages));
+    assert(Array.isArray(options.messages));
 };

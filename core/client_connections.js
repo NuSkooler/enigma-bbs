@@ -61,7 +61,7 @@ function getActiveConnectionList(
 ) {
     const now = moment();
 
-    return _.map(getActiveConnections(options), ac => {
+    return getActiveConnections(options).map(ac => {
         let action;
         try {
             //  attempting to fetch a bad menu stack item can blow up/assert

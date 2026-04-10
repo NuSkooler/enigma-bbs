@@ -312,7 +312,7 @@ function updateFileBaseDescFilesScheduledEvent(args, cb) {
     const entryTemplate = args[0];
     const headerTemplate = args[1];
 
-    const areas = FileArea.getAvailableFileAreas(null, { skipAcsCheck: true });
+    const areas = Object.values(FileArea.getAvailableFileAreas(null, { skipAcsCheck: true }));
     async.each(
         areas,
         (area, nextArea) => {

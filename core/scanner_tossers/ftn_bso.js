@@ -105,7 +105,7 @@ function FTNMessageScanTossModule() {
     this.getNetworkNameByAddress = function (remoteAddress) {
         return _.findKey(Config().messageNetworks.ftn.networks, network => {
             const localAddress = Address.fromString(network.localAddress);
-            return !_.isUndefined(localAddress) && localAddress.isEqual(remoteAddress);
+            return localAddress !== undefined && localAddress.isEqual(remoteAddress);
         });
     };
 
@@ -113,7 +113,7 @@ function FTNMessageScanTossModule() {
         return _.findKey(Config().messageNetworks.ftn.networks, network => {
             const localAddress = Address.fromString(network.localAddress);
             return (
-                !_.isUndefined(localAddress) &&
+                localAddress !== undefined &&
                 localAddress.isPatternMatch(remoteAddressPattern)
             );
         });
@@ -134,7 +134,7 @@ function FTNMessageScanTossModule() {
 
     /*
     this.getSeenByAddresses = function(messageSeenBy) {
-        if(!_.isArray(messageSeenBy)) {
+        if(!Array.isArray(messageSeenBy)) {
             messageSeenBy = [ messageSeenBy ];
         }
 
@@ -589,7 +589,7 @@ function FTNMessageScanTossModule() {
             areaConfig.uplinks = areaConfig.uplinks.split(' ');
         }
 
-        return _.isArray(areaConfig.uplinks);
+        return Array.isArray(areaConfig.uplinks);
     };
 
     this.hasValidConfiguration = function ({ shouldLog = false } = {}) {
@@ -1927,7 +1927,7 @@ function FTNMessageScanTossModule() {
                     async.each(
                         bundleFiles,
                         (bundleFile, nextFile) => {
-                            if (_.isUndefined(bundleFile.archName)) {
+                            if (bundleFile.archName === undefined) {
                                 Log.warn(
                                     { fileName: bundleFile.path },
                                     'Unknown bundle archive type'
@@ -2067,10 +2067,7 @@ function FTNMessageScanTossModule() {
 
     this.getLocalAreaTagsForTic = function () {
         const config = Config();
-        return _.union(
-            Object.keys(config.scannerTossers.ftn_bso.ticAreas || {}),
-            Object.keys(config.fileBase.areas)
-        );
+        return [...new Set([...Object.keys(config.scannerTossers.ftn_bso.ticAreas || {}), ...Object.keys(config.fileBase.areas)])];
     };
 
     this.processSingleTicFile = function (ticFileInfo, cb) {

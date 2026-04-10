@@ -363,9 +363,9 @@ function handleFatCommand() {
 
         case 'cp':
         case 'copy':
-            return cmdCp(imagePath, argv._.slice(3));
+            return cmdCp(imagePath, argv.3));
 
         default:
-            return printUsageAndSetExitCode(getHelpFor('Fat'), ExitCodes.BAD_COMMAND);
+            return printUsageAndSetExitCode(getHelpFor('Fat').slice(ExitCodes.BAD_COMMAND);
     }
 }

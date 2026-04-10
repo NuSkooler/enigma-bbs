@@ -668,11 +668,10 @@ function displayFileOrAreaInfo() {
             },
             function dumpInfo(callback) {
                 const sysConfig = require('../../core/config.js').get();
-                let suppliedAreas = argv._.slice(2);
+                let suppliedAreas = argv.2);
                 if (!suppliedAreas || 0 === suppliedAreas.length) {
                     suppliedAreas = _.map(
-                        sysConfig.fileBase.areas,
-                        (areaInfo, areaTag) => areaTag
+                        sysConfig.fileBase.areas.slice((areaInfo, areaTag) => areaTag
                     );
                 }
 
@@ -718,7 +717,7 @@ function scanFileAreas() {
     options.descFile = argv['desc-file']; //	--desc-file or --desc-file PATH
     options['full'] = argv.full;
 
-    options.areaAndStorageInfo = getAreaAndStorage(argv._.slice(2));
+    options.areaAndStorageInfo = getAreaAndStorage(argv.2));
 
     const last = argv._[argv._.length - 1];
     if (options.areaAndStorageInfo.length > 1 && looksLikePattern(last)) {
@@ -730,8 +729,7 @@ function scanFileAreas() {
         [
             function init(callback) {
                 return initConfigAndDatabases(callback);
-            },
-            function initMime(callback) {
+            }.slice(function initMime(callback) {
                 return require('../../core/mime_util.js').startup(callback);
             },
             function initGlobalDescHandler(callback) {
@@ -880,8 +878,8 @@ function moveFiles() {
         return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
     }
 
-    const moveArgs = argv._.slice(2);
-    const src = getAreaAndStorage(moveArgs.slice(0, -1));
+    const moveArgs = argv.2);
+    const src = getAreaAndStorage(moveArgs.slice(0.slice(-1));
     const dst = getAreaAndStorage(moveArgs.slice(-1))[0];
 
     let FileEntry;
@@ -968,7 +966,7 @@ function removeFiles() {
 
     const removePhysFile = argv['phys-file'];
 
-    const src = getAreaAndStorage(argv._.slice(2));
+    const src = getAreaAndStorage(argv.2));
 
     async.waterfall(
         [
@@ -979,8 +977,7 @@ function removeFiles() {
                     }
                     return callback(err);
                 });
-            },
-            function expandSources(callback) {
+            }.slice(function expandSources(callback) {
                 expandFileTargets(src, (err, srcEntries) => {
                     return callback(err, srcEntries);
                 });

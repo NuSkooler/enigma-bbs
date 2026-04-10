@@ -264,7 +264,7 @@ function getSuitableMessageConfAndAreaTags(client) {
             }
             _.forEach(conf.areas, (area, at) => {
                 if (
-                    !_.includes(Message.WellKnownAreaTags, at) &&
+                    !Message.WellKnownAreaTags.includes(at) &&
                     client.acs.hasMessageAreaRead(area)
                 ) {
                     confTag = ct;
