@@ -159,7 +159,7 @@ class NNTPServer extends NNTPServerBase {
         const config = Config();
         this.groupCache = new LRU({
             max: _.get(config, 'contentServers.nntp.cache.maxItems', 200),
-            ttl: _.get(config, 'contentServers.nntp.cache.maxAge', 1000 * 30), //  default=30s
+            ttl: _.get(config, 'contentServers.nntp.cache.maxAge', 1000 * 60 * 5), //  default=5min
         });
     }
 
@@ -293,6 +293,16 @@ class NNTPServer extends NNTPServerBase {
             Path: 'ENiGMA1/2!not-for-mail',
             'Content-Type': 'text/plain; charset=utf-8',
         };
+
+        //  Xref: RFC 5536 §3.1.5 — helps clients track read status across sessions
+        if (Array.isArray(_.get(session, 'groupInfo.messageList'))) {
+            const msgEntry = session.groupInfo.messageList.find(
+                m => m.messageUuid === message.messageUuid
+            );
+            if (msgEntry) {
+                message.nntpHeaders.Xref = `${Config().general.boardName} ${session.group.name}:${msgEntry.index}`;
+            }
+        }
 
         const externalFlavor = _.get(message.meta.System, [
             Message.SystemMetaNames.ExternalFlavor,
@@ -1200,7 +1210,7 @@ class NNTPServer extends NNTPServerBase {
                             let v = header.get(currentHeaderName);
                             v += line
                                 .replace(/^\t/, ' ') // if we're dealign with a legacy tab
-                                .trimRight();
+                                .trimEnd();
                             header.set(currentHeaderName, v);
                             return nextLine(null);
                         }
