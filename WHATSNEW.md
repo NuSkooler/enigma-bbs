@@ -1,6 +1,9 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.1.1-beta
+
+
 ## 0.1.0-beta
 
 * **[Sysop Chat / Break Into Chat](./docs/_docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user
