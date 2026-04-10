@@ -12,7 +12,7 @@ const UserProps = require('../user_property');
 
 // deps
 const async = require('async');
-const { get, isEmpty, isObject, cloneDeep } = require('lodash');
+const { get, isEmpty, isObject } = require('lodash');
 
 exports.moduleInfo = {
     name: 'ActivityPub Actor Search',
@@ -261,7 +261,7 @@ exports.getModule = class ActivityPubActorSearch extends MenuModule {
     }
 
     _getSelectedActor() {
-        const actor = cloneDeep(this.selectedActorInfo);
+        const actor = structuredClone(this.selectedActorInfo);
 
         //  nuke our added properties
         delete actor._isFollowing;

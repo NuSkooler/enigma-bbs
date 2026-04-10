@@ -8,7 +8,6 @@ const Log = require('./logger.js').log;
 //  deps
 const events = require('events');
 const util = require('util');
-const _ = require('lodash');
 
 exports.ANSIEscapeParser = ANSIEscapeParser;
 
@@ -39,8 +38,8 @@ function ANSIEscapeParser(options) {
     this.termWidth = miscUtil.valueWithDefault(options.termWidth, 80);
     this.breakWidth = this.termWidth;
     // toNumber takes care of null, undefined etc as well.
-    let artWidth = _.toNumber(options.artWidth);
-    if (!_.isNaN(artWidth) && artWidth > 0 && artWidth < this.breakWidth) {
+    let artWidth = Number(options.artWidth);
+    if (!Number.isNaN(artWidth) && artWidth > 0 && artWidth < this.breakWidth) {
         this.breakWidth = options.artWidth;
     }
     this.trailingLF = miscUtil.valueWithDefault(options.trailingLF, 'default');
@@ -203,7 +202,10 @@ function ANSIEscapeParser(options) {
                 if (self.lastMciCode !== fullMciCode) {
                     self.lastMciCode = fullMciCode;
 
-                    self.graphicRenditionForErase = _.clone(self.graphicRendition);
+                    self.graphicRenditionForErase = Object.assign(
+                        {},
+                        self.graphicRendition
+                    );
                 }
 
                 self.emit('mci', {
@@ -286,7 +288,7 @@ function ANSIEscapeParser(options) {
                 args = match[1].split(';').map(v => parseInt(v, 10)); //  convert to array of ints
 
                 // Handle the case where there is no bracket
-                if (!_.isNil(match[3])) {
+                if (match[3] != null) {
                     opCode = match[3];
                     args = [];
                     // no bracket

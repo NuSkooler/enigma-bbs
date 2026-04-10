@@ -6,7 +6,6 @@ const Log = require('./logger.js').log;
 const SystemEvents = require('./system_events.js');
 
 //  deps
-const _ = require('lodash');
 
 module.exports = new (class Events extends events.EventEmitter {
     constructor() {
@@ -54,7 +53,7 @@ module.exports = new (class Events extends events.EventEmitter {
         const listeners = [];
 
         events.forEach(eventName => {
-            const listenWrapper = _.partial(listener, _, eventName);
+            const listenWrapper = (...args) => listener(...args, eventName);
             this.on(eventName, listenWrapper);
             listeners.push({ eventName, listenWrapper });
         });

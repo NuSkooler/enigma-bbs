@@ -5,7 +5,7 @@ const UserProps = require('./user_property.js');
 
 //  deps
 const _ = require('lodash');
-const { v4: UUIDv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 module.exports = class FileBaseFilters {
     constructor(client) {
@@ -41,7 +41,7 @@ module.exports = class FileBaseFilters {
     }
 
     add(filterInfo) {
-        const filterUuid = UUIDv4();
+        const filterUuid = randomUUID();
 
         filterInfo.tags = this.cleanTags(filterInfo.tags);
 

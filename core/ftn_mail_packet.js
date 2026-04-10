@@ -312,7 +312,7 @@ function Packet(options) {
         });
 
         const ph = new PacketHeader();
-        _.assign(ph, packetHeader);
+        Object.assign(ph, packetHeader);
 
         return cb(null, ph);
     };
@@ -449,7 +449,7 @@ function Packet(options) {
             //  one entry, or key:[value1, value2,...] if there are more
             //
             if (messageBodyData.kludgeLines[key]) {
-                if (!_.isArray(messageBodyData.kludgeLines[key])) {
+                if (!Array.isArray(messageBodyData.kludgeLines[key])) {
                     messageBodyData.kludgeLines[key] = [messageBodyData.kludgeLines[key]];
                 }
                 messageBodyData.kludgeLines[key].push(value);
@@ -857,7 +857,7 @@ function Packet(options) {
             let append = '';
             if (m) {
                 let a = m;
-                if (!_.isArray(a)) {
+                if (!Array.isArray(a)) {
                     a = [a];
                 }
                 a.forEach(v => {
@@ -1076,7 +1076,7 @@ function Packet(options) {
         function appendMeta(k, m, sepChar = ':') {
             if (m) {
                 let a = m;
-                if (!_.isArray(a)) {
+                if (!Array.isArray(a)) {
                     a = [a];
                 }
                 a.forEach(v => {
@@ -1265,7 +1265,7 @@ Packet.prototype.writeStream = function (ws, messages, options) {
 };
 
 Packet.prototype.write = function (path, packetHeader, messages, options) {
-    if (!_.isArray(messages)) {
+    if (!Array.isArray(messages)) {
         messages = [messages];
     }
 

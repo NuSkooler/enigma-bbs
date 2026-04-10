@@ -47,7 +47,6 @@ const miscUtil = require('./misc_util.js');
 
 //  deps
 const assert = require('assert');
-const _ = require('lodash');
 
 exports.getFullMatchRegExp = getFullMatchRegExp;
 exports.getFGColorValue = getFGColorValue;

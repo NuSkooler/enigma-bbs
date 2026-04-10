@@ -275,7 +275,7 @@ exports.getModule = class MessageListModule extends (
                         //
                         //  Config can supply messages else we'll need to populate the list now
                         //
-                        if (_.isArray(self.config.messageList)) {
+                        if (Array.isArray(self.config.messageList)) {
                             configProvidedMessageList = true;
                             return callback(
                                 0 === self.config.messageList.length
@@ -348,7 +348,7 @@ exports.getModule = class MessageListModule extends (
                             listItem.newIndicator = isNew ? newIndicator : regIndicator;
 
                             if (
-                                _.isUndefined(self.initialFocusIndex) &&
+                                self.initialFocusIndex === undefined &&
                                 listItem.messageId > self.lastReadId
                             ) {
                                 self.initialFocusIndex = index;

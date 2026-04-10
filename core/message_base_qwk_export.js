@@ -22,7 +22,7 @@ const _ = require('lodash');
 const fse = require('fs-extra');
 const temptmp = require('temptmp');
 const paths = require('path');
-const { v4: UUIDv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const moment = require('moment');
 
 const FormIds = {
@@ -63,7 +63,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
         this.config.bbsID =
             this.config.bbsID || _.get(Config(), 'messageNetworks.qwk.bbsID', 'ENIGMA');
 
-        this.tempName = `${UUIDv4().substr(-8).toUpperCase()}.QWK`;
+        this.tempName = `${randomUUID().substr(-8).toUpperCase()}.QWK`;
         this.sysTempDownloadArea = FileArea.getFileAreaByTag(
             FileArea.WellKnownAreaTags.TempDownloads
         );

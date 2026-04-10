@@ -19,7 +19,7 @@ const { wordWrapText } = require('../word_wrap');
 
 // deps
 const async = require('async');
-const { get, cloneDeep } = require('lodash');
+const { get } = require('lodash');
 const { htmlToMessageBody } = require('./util');
 
 exports.moduleInfo = {
@@ -412,7 +412,7 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
     }
 
     _actorInfoToActor(actorInfo) {
-        const actor = cloneDeep(actorInfo);
+        const actor = structuredClone(actorInfo);
 
         //  nuke our added properties
         delete actor.subject;
