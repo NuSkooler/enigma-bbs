@@ -49,8 +49,8 @@ function getFontNameFromSAUCE(sauce) {
 
 function getWidthFromSAUCE(sauce) {
     if (sauce && sauce.Character) {
-        let sauceWidth = _.toNumber(sauce.Character.characterWidth);
-        if (!_.isNaN(sauceWidth) && sauceWidth > 0) {
+        let sauceWidth = Number(sauce.Character.characterWidth);
+        if (!Number.isNaN(sauceWidth) && sauceWidth > 0) {
             return sauceWidth;
         }
     }
@@ -158,7 +158,7 @@ function getArt(name, options, cb) {
     if ('' !== ext) {
         options.types = [ext.toLowerCase()];
     } else {
-        if (_.isUndefined(options.types)) {
+        if (options.types === undefined) {
             options.types = Object.keys(SUPPORTED_ART_TYPES);
         } else if (_.isString(options.types)) {
             options.types = [options.types.toLowerCase()];

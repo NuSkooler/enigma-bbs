@@ -100,7 +100,7 @@ function resolveConfigAsset(spec) {
         const path = asset.asset.split('.');
         let conf = Config();
         for (let i = 0; i < path.length; ++i) {
-            if (_.isUndefined(conf[path[i]])) {
+            if (conf[path[i]] === undefined) {
                 return spec;
             }
             conf = conf[path[i]];

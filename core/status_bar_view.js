@@ -146,7 +146,7 @@ class StatusBarView extends TextView {
         }
 
         for (const [key, value] of Object.entries(updates)) {
-            const idx = _.isFinite(+key) ? +key : null;
+            const idx = Number.isFinite(+key) ? +key : null;
             const panel =
                 idx !== null ? this._panels[idx] : this._panels.find(p => p.name === key);
 
@@ -174,7 +174,7 @@ class StatusBarView extends TextView {
         }
 
         //  Short-circuit the very first draw if we have nothing yet (mirrors TextView).
-        if (!this.hasDrawnOnce && _.isUndefined(this.text)) {
+        if (!this.hasDrawnOnce && this.text === undefined) {
             return;
         }
         this.hasDrawnOnce = true;

@@ -50,7 +50,7 @@ module.exports = class LoginServerModule extends ServerModule {
         //  Start tracking the client. A session ID aka client ID
         //  will be established in addNewClient() below.
         //
-        if (_.isUndefined(client.session)) {
+        if (client.session === undefined) {
             client.session = {};
         }
 

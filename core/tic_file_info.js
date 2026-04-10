@@ -188,7 +188,7 @@ module.exports = class TicFileInfo {
                         }
 
                         const sizeTic = self.get('Size');
-                        if (_.isUndefined(sizeTic)) {
+                        if (sizeTic === undefined) {
                             return callback(null, localInfo);
                         }
 

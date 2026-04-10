@@ -188,7 +188,7 @@ exports.ThemeManager = class ThemeManager {
         //  :TODO: apply generic stuff, e.g. "VM" (vs "VM1")
 
         //  start out with menu.hjson
-        const mergedTheme = _.cloneDeep(this.menuConfig.get());
+        const mergedTheme = structuredClone(this.menuConfig.get());
 
         const theme = themeConfig.get();
 
@@ -259,7 +259,7 @@ exports.ThemeManager = class ThemeManager {
             } else {
                 //  remove anything not uppercase
                 const menuMciCodeKeys = _.remove(
-                    _.keys(form),
+                    Object.keys(form),
                     k => k === k.toUpperCase()
                 );
 
@@ -286,7 +286,7 @@ exports.ThemeManager = class ThemeManager {
                 if (menuTheme) {
                     if (menuTheme.config) {
                         //  :TODO: should this be _.merge() ?
-                        mergedThemeMenu.config = _.assign(
+                        mergedThemeMenu.config = Object.assign(
                             mergedThemeMenu.config || {},
                             menuTheme.config
                         );
@@ -586,7 +586,7 @@ function displayThemeArt(options, cb) {
 }
 
 function displayThemedPrompt(name, client, options, cb) {
-    const usingTempViewController = _.isUndefined(options.viewController);
+    const usingTempViewController = options.viewController === undefined;
 
     async.waterfall(
         [

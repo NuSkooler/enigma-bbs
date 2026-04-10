@@ -137,7 +137,7 @@ class TextView extends View {
         //  and there is no actual text (e.g. save SGR's and processing)
         //
         if (!this.hasDrawnOnce) {
-            if (_.isUndefined(this.text)) {
+            if (this.text === undefined) {
                 return;
             }
         }
@@ -172,7 +172,7 @@ class TextView extends View {
     setText(text, redraw) {
         redraw = _.isBoolean(redraw) ? redraw : true;
 
-        if (_.isUndefined(text) || null === text) {
+        if (text === undefined || null === text) {
             text = '';
         } else if (!_.isString(text)) {
             text = text.toString();

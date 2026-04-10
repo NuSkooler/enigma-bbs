@@ -503,7 +503,7 @@ function isFormattedLine(line) {
         return true;
     }
 
-    if (_.trimEnd(line).match(/[ ]{3,}/)) {
+    if (line.trimEnd().match(/[ ]{3,}/)) {
         return true;
     }
 
