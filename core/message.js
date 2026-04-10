@@ -3,7 +3,7 @@
 
 const msgDb = require('./database.js').dbs.message;
 const wordWrapText = require('./word_wrap.js').wordWrapText;
-const createNamedUUID = require('./uuid_util.js').createNamedUUID;
+const { createNamedUUID, parseUUID, unparseUUID } = require('./uuid_util.js');
 const Errors = require('./enig_error.js').Errors;
 const ANSI = require('./ansi_term.js');
 const { sanitizeString, getISOTimestampString } = require('./database.js');
@@ -22,16 +22,13 @@ const {
 const ansiPrep = require('./ansi_prep.js');
 
 //  deps
-const uuidParse = require('uuid-parse');
 const async = require('async');
 const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment');
 const iconvEncode = require('iconv-lite').encode;
 
-const ENIGMA_MESSAGE_UUID_NAMESPACE = uuidParse.parse(
-    '154506df-1df8-46b9-98f8-ebb5815baaf8'
-);
+const ENIGMA_MESSAGE_UUID_NAMESPACE = parseUUID('154506df-1df8-46b9-98f8-ebb5815baaf8');
 
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
 const MESSAGE_ROW_MAP = {
@@ -246,7 +243,7 @@ module.exports = class Message {
             'CP437'
         );
 
-        return uuidParse.unparse(
+        return unparseUUID(
             createNamedUUID(
                 ENIGMA_MESSAGE_UUID_NAMESPACE,
                 Buffer.concat([areaTag, modTimestamp, subject, body])

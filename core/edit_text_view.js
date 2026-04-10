@@ -204,9 +204,8 @@ class EditTextView extends TextView {
         let renderedText;
         if (this._pipeExpanded && this._pipeNearIndex >= 0 && this._hasPipeCodes(raw)) {
             //  Remap near index to its position within the visible slice
-            const bufStart = prefixW > 0
-                ? this._visToBufferIdx(raw, scrollOff)
-                : scrollOff;
+            const bufStart =
+                prefixW > 0 ? this._visToBufferIdx(raw, scrollOff) : scrollOff;
             const nearIdxInSlice = this._pipeNearIndex - bufStart;
 
             renderedText =
@@ -220,9 +219,7 @@ class EditTextView extends TextView {
         const fullLine = resolvedPrefix + renderedText;
         const visLen = prefixW + strUtil.renderStringLength(renderedText);
         const fillCount = Math.max(0, this.dimens.width - visLen);
-        const fill = fillCount > 0
-            ? this.getFocusSGR() + ' '.repeat(fillCount)
-            : '';
+        const fill = fillCount > 0 ? this.getFocusSGR() + ' '.repeat(fillCount) : '';
 
         this.client.term.write(
             `${ansi.hideCursor()}${ansi.goto(this.position.row, this.position.col)}${fullLine}${fill}`,
@@ -291,7 +288,12 @@ class EditTextView extends TextView {
         this._scrollOffset = this._computeScrollOffset();
 
         if (this.itemFormat && this._hasPipeCodes(this.lineBuffer.lines[0].chars)) {
-            if (this._cursorNearPipeCode(this.lineBuffer.lines[0].chars, this.cursorPos.col)) {
+            if (
+                this._cursorNearPipeCode(
+                    this.lineBuffer.lines[0].chars,
+                    this.cursorPos.col
+                )
+            ) {
                 this._expandNear();
             } else {
                 this._ensureCollapsed();
@@ -533,7 +535,10 @@ class EditTextView extends TextView {
 
                     if (atEnd && notScrolled) {
                         //  Fast path: appended at end with no scroll — write char directly
-                        if (_.isString(this.textMaskChar) && this.textMaskChar.length > 0) {
+                        if (
+                            _.isString(this.textMaskChar) &&
+                            this.textMaskChar.length > 0
+                        ) {
                             this.client.term.write(this.textMaskChar);
                         } else {
                             this.client.term.write(styled);

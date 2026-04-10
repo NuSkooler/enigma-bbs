@@ -243,10 +243,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             Events.getSystemEvents().ClientDisconnected,
             this._clientDisconnected.bind(this)
         );
-        Events.on(
-            Events.getSystemEvents().UserPagedSysop,
-            this._onUserPagedSysopBound
-        );
+        Events.on(Events.getSystemEvents().UserPagedSysop, this._onUserPagedSysopBound);
         super.enter();
     }
 
@@ -352,7 +349,13 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _onUserPagedSysop({ user, nodeId, sessionId, message }) {
-        this.pendingPages.unshift({ sessionId, userName: user.username, nodeId, message, timestamp: Date.now() });
+        this.pendingPages.unshift({
+            sessionId,
+            userName: user.username,
+            nodeId,
+            message,
+            timestamp: Date.now(),
+        });
 
         //  BEL to grab the sysop's attention
         this.client.term.rawWrite('\x07');
@@ -396,7 +399,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         //  User navigation happens from sysop_chat._initChat once sysop is set up,
         //  avoiding a race between the two concurrent menu transitions.
         this._stopRefreshing();
-        return this.gotoMenu(chatMenuName, { extraArgs: { sessionId, role: 'sysop' } }, cb);
+        return this.gotoMenu(
+            chatMenuName,
+            { extraArgs: { sessionId, role: 'sysop' } },
+            cb
+        );
     }
 
     _kickSelectedNode(cb) {
@@ -609,9 +616,12 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
             //  Sysop page / break-into-chat
             pendingPageCount: this.pendingPages.length,
-            pendingPageUser: this.pendingPages.length > 0 ? this.pendingPages[0].userName : '',
-            pendingPageNode: this.pendingPages.length > 0 ? this.pendingPages[0].nodeId : '',
-            pendingPageMessage: this.pendingPages.length > 0 ? this.pendingPages[0].message : '',
+            pendingPageUser:
+                this.pendingPages.length > 0 ? this.pendingPages[0].userName : '',
+            pendingPageNode:
+                this.pendingPages.length > 0 ? this.pendingPages[0].nodeId : '',
+            pendingPageMessage:
+                this.pendingPages.length > 0 ? this.pendingPages[0].message : '',
         };
 
         return cb(null);
@@ -654,7 +664,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 //  Page indicator — non-empty when this node has a pending chat page
                 const hasPendingPage = this.pendingPages.some(p => p.nodeId === ac.node);
                 const pageIndicator = hasPendingPage
-                    ? (this.config.pageIndicator || '!')
+                    ? this.config.pageIndicator || '!'
                     : '';
 
                 return Object.assign(ac, {
