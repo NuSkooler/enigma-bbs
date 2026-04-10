@@ -264,9 +264,8 @@ exports.getModule = class FileAreaList extends MenuModule {
         //
         const metaValues = FileEntry.WellKnownMetaValues;
         metaValues.forEach(name => {
-            const value = currEntry.meta[name] !== undefined
-                ? currEntry.meta[name]
-                : 'N/A';
+            const value =
+                currEntry.meta[name] !== undefined ? currEntry.meta[name] : 'N/A';
             entryInfo[_.camelCase(name)] = value;
         });
 
@@ -811,11 +810,7 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     loadFileIds(force, cb) {
-        if (
-            force ||
-            this.fileList === undefined ||
-            this.fileListPosition === undefined
-        ) {
+        if (force || this.fileList === undefined || this.fileListPosition === undefined) {
             this.fileListPosition = 0;
 
             const filterCriteria = Object.assign({}, this.filterCriteria);

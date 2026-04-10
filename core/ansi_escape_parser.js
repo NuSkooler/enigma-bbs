@@ -202,7 +202,10 @@ function ANSIEscapeParser(options) {
                 if (self.lastMciCode !== fullMciCode) {
                     self.lastMciCode = fullMciCode;
 
-                    self.graphicRenditionForErase = Object.assign({}, self.graphicRendition);
+                    self.graphicRenditionForErase = Object.assign(
+                        {},
+                        self.graphicRendition
+                    );
                 }
 
                 self.emit('mci', {

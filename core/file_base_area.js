@@ -133,7 +133,9 @@ function getAvailableFileAreas(client, options) {
 }
 
 function getAvailableFileAreaTags(client, options) {
-    return Object.values(getAvailableFileAreas(client, options)).map(area => area.areaTag);
+    return Object.values(getAvailableFileAreas(client, options)).map(
+        area => area.areaTag
+    );
 }
 
 function getSortedAvailableFileAreas(client, options) {
@@ -216,15 +218,17 @@ function getAreaStorageLocations(areaInfo) {
 
     const avail = Config().fileBase.storageTags;
 
-    return storageTags.map(storageTag => {
-        if (avail[storageTag]) {
-            return {
-                storageTag,
-                dir: getAreaStorageDirectoryByTag(storageTag),
-                isWildcard: isWildcardStorageTag(storageTag),
-            };
-        }
-    }).filter(Boolean);
+    return storageTags
+        .map(storageTag => {
+            if (avail[storageTag]) {
+                return {
+                    storageTag,
+                    dir: getAreaStorageDirectoryByTag(storageTag),
+                    isWildcard: isWildcardStorageTag(storageTag),
+                };
+            }
+        })
+        .filter(Boolean);
 }
 
 function getExistingFileEntriesBySha256(sha256, cb) {

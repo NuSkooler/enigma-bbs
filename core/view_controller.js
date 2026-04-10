@@ -880,7 +880,10 @@ class ViewController extends events.EventEmitter {
                     callback(null);
                 },
                 callback => {
-                    if (!_.isObject(formConfig) || !Array.isArray(formConfig.actionKeys)) {
+                    if (
+                        !_.isObject(formConfig) ||
+                        !Array.isArray(formConfig.actionKeys)
+                    ) {
                         callback(null);
                         return;
                     }

@@ -305,15 +305,19 @@ module.exports = class Message {
         filter.operator = filter.operator || 'AND';
 
         if ('messageList' === filter.resultType) {
-            filter.extraFields = [...new Set(filter.extraFields.concat([
-                    'area_tag',
-                    'message_uuid',
-                    'reply_to_message_id',
-                    'to_user_name',
-                    'from_user_name',
-                    'subject',
-                    'modified_timestamp',
-                ]))];
+            filter.extraFields = [
+                ...new Set(
+                    filter.extraFields.concat([
+                        'area_tag',
+                        'message_uuid',
+                        'reply_to_message_id',
+                        'to_user_name',
+                        'from_user_name',
+                        'subject',
+                        'modified_timestamp',
+                    ])
+                ),
+            ];
         }
 
         const field = 'uuid' === filter.resultType ? 'message_uuid' : 'message_id';

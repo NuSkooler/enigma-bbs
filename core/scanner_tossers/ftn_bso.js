@@ -2067,7 +2067,12 @@ function FTNMessageScanTossModule() {
 
     this.getLocalAreaTagsForTic = function () {
         const config = Config();
-        return [...new Set([...Object.keys(config.scannerTossers.ftn_bso.ticAreas || {}), ...Object.keys(config.fileBase.areas)])];
+        return [
+            ...new Set([
+                ...Object.keys(config.scannerTossers.ftn_bso.ticAreas || {}),
+                ...Object.keys(config.fileBase.areas),
+            ]),
+        ];
     };
 
     this.processSingleTicFile = function (ticFileInfo, cb) {
