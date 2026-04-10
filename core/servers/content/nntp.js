@@ -113,7 +113,7 @@ class NNTPDatabase {
 
 let nntpDatabase;
 
-const AuthCommands = 'POST';
+const AuthCommands = ['POST'];
 
 // these aren't exported by the NNTP module, unfortunantely
 const Responses = {
@@ -197,7 +197,7 @@ class NNTPServer extends NNTPServerBase {
 
                     this.log.info(
                         { username, ip: this._address(session) },
-                        `NTTP authentication success for "${username}"`
+                        `NNTP authentication success for "${username}"`
                     );
                     return resolve(true);
                 }
@@ -845,7 +845,7 @@ class NNTPServer extends NNTPServerBase {
                                             ...newMessageList.map(m => {
                                                 return {
                                                     areaTag,
-                                                    index: m.nntpMessageId,
+                                                    index: m.index,
                                                     messageUuid: m.messageUuid,
                                                 };
                                             })
@@ -1014,11 +1014,14 @@ class NNTPServer extends NNTPServerBase {
                             parsed.header.get('x-jam-from')
                     );
                     const date = parsed.header.get('date'); // if not present we'll use 'now'
-                    const newsgroups = parsed.header
-                        .get('newsgroups')
+                    const newsgroupsHeader = parsed.header.get('newsgroups');
+                    if (!newsgroupsHeader) {
+                        return callback(Errors.Invalid('Missing required Newsgroups header'));
+                    }
+                    const newsgroups = newsgroupsHeader
                         .split(',')
                         .map(ng => {
-                            const [confTag, areaTag] = ng.split('.');
+                            const [confTag, areaTag] = ng.trim().split('.');
                             return { confTag, areaTag };
                         });
 
@@ -1302,9 +1305,10 @@ exports.getModule = class NNTPServerModule extends ServerModule {
             }
 
             receivePostArticleData(data) {
-                this.articleLinesBuffer.push(...data.split(/r?\n/));
+                const lines = data.split(/\r?\n/);
+                this.articleLinesBuffer.push(...lines);
 
-                const endOfPost = data.length === 1 && data[0] === '.';
+                const endOfPost = lines.some(line => line === '.');
                 if (endOfPost) {
                     this.receivingPostArticle = false;
 
