@@ -1,6 +1,15 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.1.1-beta
+
+* **NNTP server improvements** — several protocol compliance and reliability fixes:
+  * Article posting now correctly detects end-of-post and handles CRLF line endings
+  * `AUTHINFO USER` is now advertised in `CAPABILITIES` so clients know to authenticate before posting
+  * `Xref` header is now generated, improving cross-session read tracking in NNTP clients
+  * Newsgroups header parsing is more robust (null-safe, whitespace-tolerant)
+  * Group message cache TTL increased from 30s to 5 minutes
+
 ## 0.1.0-beta
 
 * **[Sysop Chat / Break Into Chat](./docs/_docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user

@@ -113,7 +113,7 @@ class NNTPDatabase {
 
 let nntpDatabase;
 
-const AuthCommands = 'POST';
+const AuthCommands = ['POST'];
 
 // these aren't exported by the NNTP module, unfortunantely
 const Responses = {
@@ -142,6 +142,11 @@ const PostCommand = {
 
     capability(session, report) {
         report.push('POST');
+        //  Advertise AUTHINFO even on non-TLS connections so clients know to
+        //  authenticate before attempting POST (RFC 4643 allows this for USER/PASS)
+        if (!session.authenticated) {
+            report.push(['AUTHINFO', 'USER']);
+        }
     },
 };
 
@@ -154,7 +159,7 @@ class NNTPServer extends NNTPServerBase {
         const config = Config();
         this.groupCache = new LRU({
             max: _.get(config, 'contentServers.nntp.cache.maxItems', 200),
-            ttl: _.get(config, 'contentServers.nntp.cache.maxAge', 1000 * 30), //  default=30s
+            ttl: _.get(config, 'contentServers.nntp.cache.maxAge', 1000 * 60 * 5), //  default=5min
         });
     }
 
@@ -197,7 +202,7 @@ class NNTPServer extends NNTPServerBase {
 
                     this.log.info(
                         { username, ip: this._address(session) },
-                        `NTTP authentication success for "${username}"`
+                        `NNTP authentication success for "${username}"`
                     );
                     return resolve(true);
                 }
@@ -288,6 +293,16 @@ class NNTPServer extends NNTPServerBase {
             Path: 'ENiGMA1/2!not-for-mail',
             'Content-Type': 'text/plain; charset=utf-8',
         };
+
+        //  Xref: RFC 5536 §3.1.5 — helps clients track read status across sessions
+        if (Array.isArray(_.get(session, 'groupInfo.messageList'))) {
+            const msgEntry = session.groupInfo.messageList.find(
+                m => m.messageUuid === message.messageUuid
+            );
+            if (msgEntry) {
+                message.nntpHeaders.Xref = `${Config().general.boardName} ${session.group.name}:${msgEntry.index}`;
+            }
+        }
 
         const externalFlavor = _.get(message.meta.System, [
             Message.SystemMetaNames.ExternalFlavor,
@@ -845,7 +860,7 @@ class NNTPServer extends NNTPServerBase {
                                             ...newMessageList.map(m => {
                                                 return {
                                                     areaTag,
-                                                    index: m.nntpMessageId,
+                                                    index: m.index,
                                                     messageUuid: m.messageUuid,
                                                 };
                                             })
@@ -1014,13 +1029,21 @@ class NNTPServer extends NNTPServerBase {
                             parsed.header.get('x-jam-from')
                     );
                     const date = parsed.header.get('date'); // if not present we'll use 'now'
-                    const newsgroups = parsed.header
-                        .get('newsgroups')
+                    const newsgroupsHeader = parsed.header.get('newsgroups');
+                    if (!newsgroupsHeader) {
+                        return callback(Errors.Invalid('Missing required Newsgroups header'));
+                    }
+                    const newsgroups = newsgroupsHeader
                         .split(',')
                         .map(ng => {
-                            const [confTag, areaTag] = ng.split('.');
+                            const [confTag, areaTag] = ng.trim().split('.');
                             return { confTag, areaTag };
-                        });
+                        })
+                        .filter(ng => ng.confTag && ng.areaTag);
+
+                    if (0 === newsgroups.length) {
+                        return callback(Errors.Invalid('Newsgroups header contains no valid group entries'));
+                    }
 
                     // validate areaTag exists -- currently only a single area/post; no x-posts
                     //  :TODO: look into x-posting
@@ -1170,7 +1193,8 @@ class NNTPServer extends NNTPServerBase {
             articleLines,
             (line, nextLine) => {
                 if (inHeader) {
-                    if (line === '.' || line === '') {
+                    if (line === '') {
+                        //  RFC 5322: blank line separates headers from body
                         inHeader = false;
                         return nextLine(null);
                     }
@@ -1186,7 +1210,7 @@ class NNTPServer extends NNTPServerBase {
                             let v = header.get(currentHeaderName);
                             v += line
                                 .replace(/^\t/, ' ') // if we're dealign with a legacy tab
-                                .trimRight();
+                                .trimEnd();
                             header.set(currentHeaderName, v);
                             return nextLine(null);
                         }
@@ -1302,9 +1326,10 @@ exports.getModule = class NNTPServerModule extends ServerModule {
             }
 
             receivePostArticleData(data) {
-                this.articleLinesBuffer.push(...data.split(/r?\n/));
+                const lines = data.split(/\r?\n/);
+                this.articleLinesBuffer.push(...lines);
 
-                const endOfPost = data.length === 1 && data[0] === '.';
+                const endOfPost = lines.some(line => line === '.');
                 if (endOfPost) {
                     this.receivingPostArticle = false;
 
@@ -1394,7 +1419,7 @@ exports.getModule = class NNTPServerModule extends ServerModule {
                     },
                     commonOptions
                 ),
-                'NTTPS'
+                'NNTPS'
             );
         }
 
