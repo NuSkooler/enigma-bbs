@@ -4,10 +4,9 @@
 //  ENiGMA½
 const MenuModule = require('./menu_module.js').MenuModule;
 
-const { getModDatabasePath, getTransactionDatabase } = require('./database.js');
+const { getModDatabasePath, openDatabase } = require('./database.js');
 
 //  deps
-const sqlite3 = require('sqlite3');
 const async = require('async');
 const _ = require('lodash');
 const moment = require('moment');
@@ -144,27 +143,30 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         MciViewIds.view.entries
                     );
                     const limit = entriesView.dimens.height;
-                    let entries = [];
 
-                    self.db.each(
-                        `SELECT *
-                        FROM (
-                            SELECT *
-                            FROM onelinerz
-                            ORDER BY timestamp DESC
-                            LIMIT ${limit}
+                    try {
+                        const rows = self.db
+                            .prepare(
+                                `SELECT *
+                                FROM (
+                                    SELECT *
+                                    FROM onelinerz
+                                    ORDER BY timestamp DESC
+                                    LIMIT ${limit}
+                                )
+                                ORDER BY timestamp ASC;`
                             )
-                        ORDER BY timestamp ASC;`,
-                        (err, row) => {
-                            if (!err) {
-                                row.timestamp = moment(row.timestamp); //  convert -> moment
-                                entries.push(row);
-                            }
-                        },
-                        err => {
-                            return callback(err, entriesView, entries);
-                        }
-                    );
+                            .all();
+
+                        const entries = rows.map(row => {
+                            row.timestamp = moment(row.timestamp); //  convert -> moment
+                            return row;
+                        });
+
+                        return callback(null, entriesView, entries);
+                    } catch (err) {
+                        return callback(err);
+                    }
                 },
                 function populateEntries(entriesView, entries, callback) {
                     const tsFormat =
@@ -275,80 +277,53 @@ exports.getModule = class OnelinerzModule extends MenuModule {
     }
 
     initDatabase(cb) {
-        const self = this;
-
-        async.series(
-            [
-                function openDatabase(callback) {
-                    const dbSuffix = self.menuConfig.config.dbSuffix;
-                    self.db = getTransactionDatabase(
-                        new sqlite3.Database(
-                            getModDatabasePath(exports.moduleInfo, dbSuffix),
-                            err => {
-                                return callback(err);
-                            }
-                        )
-                    );
-                },
-                function createTables(callback) {
-                    self.db.run(
-                        `CREATE TABLE IF NOT EXISTS onelinerz (
-                            id              INTEGER PRIMARY KEY,
-                            user_id         INTEGER_NOT NULL,
-                            user_name       VARCHAR NOT NULL,
-                            oneliner        VARCHAR NOT NULL,
-                            timestamp       DATETIME NOT NULL
-                        );`,
-                        err => {
-                            return callback(err);
-                        }
-                    );
-                },
-            ],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            const dbSuffix = this.menuConfig.config.dbSuffix;
+            this.db = openDatabase(getModDatabasePath(exports.moduleInfo, dbSuffix));
+            this.db.exec(
+                `CREATE TABLE IF NOT EXISTS onelinerz (
+                    id              INTEGER PRIMARY KEY,
+                    user_id         INTEGER_NOT NULL,
+                    user_name       VARCHAR NOT NULL,
+                    oneliner        VARCHAR NOT NULL,
+                    timestamp       DATETIME NOT NULL
+                );`
+            );
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     storeNewOneliner(oneliner, cb) {
-        const self = this;
         const ts = moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+        const retainCount = this.menuConfig.config.retainCount || 25;
 
-        async.series(
-            [
-                function addRec(callback) {
-                    self.db.run(
-                        `INSERT INTO onelinerz (user_id, user_name, oneliner, timestamp)
-                        VALUES (?, ?, ?, ?);`,
-                        [
-                            self.client.user.userId,
-                            self.client.user.username,
-                            oneliner,
-                            ts,
-                        ],
-                        callback
-                    );
-                },
-                function removeOld(callback) {
-                    //  keep 25 max most recent items by default - remove the older ones
-                    const retainCount = self.menuConfig.config.retainCount || 25;
-                    self.db.run(
-                        `DELETE FROM onelinerz
-                        WHERE id IN (
-                            SELECT id
-                            FROM onelinerz
-                            ORDER BY id DESC
-                            LIMIT -1 OFFSET ${retainCount}
-                        );`,
-                        callback
-                    );
-                },
-            ],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            this.db
+                .prepare(
+                    `INSERT INTO onelinerz (user_id, user_name, oneliner, timestamp)
+                    VALUES (?, ?, ?, ?);`
+                )
+                .run(this.client.user.userId, this.client.user.username, oneliner, ts);
+
+            //  keep 25 max most recent items by default - remove the older ones
+            this.db
+                .prepare(
+                    `DELETE FROM onelinerz
+                    WHERE id IN (
+                        SELECT id
+                        FROM onelinerz
+                        ORDER BY id DESC
+                        LIMIT -1 OFFSET ${retainCount}
+                    );`
+                )
+                .run();
+
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     beforeArt(cb) {

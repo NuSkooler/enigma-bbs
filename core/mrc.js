@@ -1165,52 +1165,43 @@ exports.getModule = class mrcModule extends MenuModule {
     }
 
     _loadUserPrefsFromDb(callback) {
-        this._db.run(
-            'CREATE TABLE IF NOT EXISTS user_prefs (username TEXT PRIMARY KEY, prefs_json TEXT NOT NULL)',
-            err => {
-                if (err) {
-                    this.log.warn(
-                        { error: err.message },
-                        'Failed to create MRC user_prefs table'
+        try {
+            this._db.exec(
+                'CREATE TABLE IF NOT EXISTS user_prefs (username TEXT PRIMARY KEY, prefs_json TEXT NOT NULL)'
+            );
+
+            const row = this._db
+                .prepare('SELECT prefs_json FROM user_prefs WHERE username = ?')
+                .get(this.state.alias);
+
+            if (row) {
+                try {
+                    this.userPrefs = Object.assign(
+                        this._defaultPrefs(),
+                        JSON.parse(row.prefs_json)
                     );
-                    return callback(null);
+                } catch (e) {
+                    // keep defaults already set
                 }
-                this._db.get(
-                    'SELECT prefs_json FROM user_prefs WHERE username = ?',
-                    [this.state.alias],
-                    (err, row) => {
-                        if (!err && row) {
-                            try {
-                                this.userPrefs = Object.assign(
-                                    this._defaultPrefs(),
-                                    JSON.parse(row.prefs_json)
-                                );
-                            } catch (e) {
-                                // keep defaults already set
-                            }
-                        }
-                        return callback(null);
-                    }
-                );
             }
-        );
+        } catch (err) {
+            this.log.warn({ error: err.message }, 'Failed to load MRC user prefs');
+        }
+        return callback(null);
     }
 
     _saveUserPrefs() {
         if (!this._db) return;
         const json = JSON.stringify(this.userPrefs);
-        this._db.run(
-            'INSERT OR REPLACE INTO user_prefs (username, prefs_json) VALUES (?, ?)',
-            [this.state.alias, json],
-            err => {
-                if (err) {
-                    this.log.warn(
-                        { error: err.message },
-                        'Failed to save MRC user prefs'
-                    );
-                }
-            }
-        );
+        try {
+            this._db
+                .prepare(
+                    'INSERT OR REPLACE INTO user_prefs (username, prefs_json) VALUES (?, ?)'
+                )
+                .run(this.state.alias, json);
+        } catch (err) {
+            this.log.warn({ error: err.message }, 'Failed to save MRC user prefs');
+        }
     }
 
     _formatTimestamp() {

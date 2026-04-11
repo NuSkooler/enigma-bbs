@@ -31,15 +31,15 @@ function createToken(userId, tokenType, options = { bits: 128 }, cb) {
             },
             (token, callback) => {
                 token = token.toString('hex');
-
-                UserDb.run(
-                    `INSERT OR REPLACE INTO user_temporary_token (user_id, token, token_type, timestamp)
-                    VALUES (?, ?, ?, ?);`,
-                    [userId, token, tokenType, getISOTimestampString()],
-                    err => {
-                        return callback(err, token);
-                    }
-                );
+                try {
+                    UserDb.prepare(
+                        `INSERT OR REPLACE INTO user_temporary_token (user_id, token, token_type, timestamp)
+                        VALUES (?, ?, ?, ?);`
+                    ).run(userId, token, tokenType, getISOTimestampString());
+                    return callback(null, token);
+                } catch (err) {
+                    return callback(err);
+                }
             },
         ],
         (err, token) => {
@@ -49,55 +49,48 @@ function createToken(userId, tokenType, options = { bits: 128 }, cb) {
 }
 
 function deleteToken(token, cb) {
-    UserDb.run(
-        `DELETE FROM user_temporary_token
-        WHERE token = ?;`,
-        [token],
-        err => {
-            return cb(err);
-        }
-    );
+    try {
+        UserDb.prepare(`DELETE FROM user_temporary_token WHERE token = ?;`).run(token);
+        return cb(null);
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 function deleteTokenByUserAndType(userId, tokenType, cb) {
-    UserDb.run(
-        `DELETE FROM user_temporary_token
-        WHERE user_id = ? AND token_type = ?;`,
-        [userId, tokenType],
-        err => {
-            return cb(err);
-        }
-    );
+    try {
+        UserDb.prepare(
+            `DELETE FROM user_temporary_token WHERE user_id = ? AND token_type = ?;`
+        ).run(userId, tokenType);
+        return cb(null);
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 function getTokenInfo(token, cb) {
     async.waterfall(
         [
             callback => {
-                UserDb.get(
-                    `SELECT user_id, token_type, timestamp
-                    FROM user_temporary_token
-                    WHERE token = ?;`,
-                    [token],
-                    (err, row) => {
-                        if (err) {
-                            return callback(err);
-                        }
+                try {
+                    const row = UserDb.prepare(
+                        `SELECT user_id, token_type, timestamp
+                        FROM user_temporary_token
+                        WHERE token = ?;`
+                    ).get(token);
 
-                        if (!row) {
-                            return callback(
-                                Errors.DoesNotExist('No entry found for token')
-                            );
-                        }
-
-                        const info = {
-                            userId: row.user_id,
-                            tokenType: row.token_type,
-                            timestamp: moment(row.timestamp),
-                        };
-                        return callback(null, info);
+                    if (!row) {
+                        return callback(Errors.DoesNotExist('No entry found for token'));
                     }
-                );
+
+                    return callback(null, {
+                        userId: row.user_id,
+                        tokenType: row.token_type,
+                        timestamp: moment(row.timestamp),
+                    });
+                } catch (err) {
+                    return callback(err);
+                }
             },
             (info, callback) => {
                 User.getUser(info.userId, (err, user) => {
@@ -123,23 +116,22 @@ function temporaryTokenMaintenanceTask(args, cb) {
 
     const expTime = args[1] || '24 hours';
 
-    UserDb.run(
-        `DELETE FROM user_temporary_token
-        WHERE token IN (
-            SELECT token
-            FROM user_temporary_token
-            WHERE token_type = ?
-            AND DATETIME("now") >= DATETIME(timestamp, "+${expTime}")
-        );`,
-        [tokenType],
-        err => {
-            if (err) {
-                Log.warn(
-                    { error: err.message, tokenType },
-                    'Failed deleting user temporary token'
-                );
-            }
-            return cb(err);
-        }
-    );
+    try {
+        UserDb.prepare(
+            `DELETE FROM user_temporary_token
+            WHERE token IN (
+                SELECT token
+                FROM user_temporary_token
+                WHERE token_type = ?
+                AND DATETIME('now') >= DATETIME(timestamp, '+${expTime}')
+            );`
+        ).run(tokenType);
+        return cb(null);
+    } catch (err) {
+        Log.warn(
+            { error: err.message, tokenType },
+            'Failed deleting user temporary token'
+        );
+        return cb(err);
+    }
 }

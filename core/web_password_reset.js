@@ -360,24 +360,23 @@ function performMaintenanceTask(args, cb) {
     const forgotPassExpireTime = args[0] || '24 hours';
 
     //  remove all reset token associated properties older than |forgotPassExpireTime|
-    userDb.run(
-        `DELETE FROM user_property
+    try {
+        userDb
+            .prepare(
+                `DELETE FROM user_property
         WHERE user_id IN (
             SELECT user_id
             FROM user_property
-            WHERE prop_name = "email_password_reset_token_ts"
-            AND DATETIME("now") >= DATETIME(prop_value, "+${forgotPassExpireTime}")
-        ) AND prop_name IN ("email_password_reset_token_ts", "email_password_reset_token");`,
-        err => {
-            if (err) {
-                Log.warn(
-                    { error: err.message },
-                    'Failed deleting old email reset tokens'
-                );
-            }
-            return cb(err);
-        }
-    );
+            WHERE prop_name = 'email_password_reset_token_ts'
+            AND DATETIME('now') >= DATETIME(prop_value, '+${forgotPassExpireTime}')
+        ) AND prop_name IN ('email_password_reset_token_ts', 'email_password_reset_token');`
+            )
+            .run();
+        return cb(null);
+    } catch (err) {
+        Log.warn({ error: err.message }, 'Failed deleting old email reset tokens');
+        return cb(err);
+    }
 }
 
 exports.WebPasswordReset = WebPasswordReset;
