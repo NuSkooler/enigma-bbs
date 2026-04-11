@@ -1,8 +1,7 @@
 'use strict';
 
 const { strict: assert } = require('assert');
-const sqlite3 = require('sqlite3');
-const sqlite3Trans = require('sqlite3-trans');
+const Database = require('better-sqlite3');
 
 //
 //  Config mock — must be in place before requiring any module that captures
@@ -36,7 +35,8 @@ configModule.get = () => TEST_CONFIG;
 //  captures `fileDb = require('./database.js').dbs.file` at load time.
 //
 const dbModule = require('../core/database.js');
-const _testDb = sqlite3Trans.wrap(new sqlite3.Database(':memory:'));
+const _testDb = new Database(':memory:');
+_testDb.pragma('foreign_keys = ON');
 dbModule.dbs.file = _testDb;
 
 //  Modules under test — loaded after both Config mock and DB are in place.
@@ -47,62 +47,49 @@ const FileEntry = require('../core/file_entry.js');
 //  Minimal file-DB schema that mirrors database.js, executed once before
 //  any test suite in this file touches the DB.
 function applySchema(db, done) {
-    db.serialize(() => {
-        db.run(
-            `CREATE TABLE IF NOT EXISTS file (
-                file_id                 INTEGER PRIMARY KEY,
-                area_tag                VARCHAR NOT NULL,
-                file_sha256             VARCHAR NOT NULL,
-                file_name,
-                storage_tag             VARCHAR NOT NULL,
-                storage_tag_rel_path    VARCHAR DEFAULT NULL,
-                desc,
-                desc_long,
-                upload_timestamp        DATETIME NOT NULL
-            );`
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS file (
+            file_id                 INTEGER PRIMARY KEY,
+            area_tag                VARCHAR NOT NULL,
+            file_sha256             VARCHAR NOT NULL,
+            file_name,
+            storage_tag             VARCHAR NOT NULL,
+            storage_tag_rel_path    VARCHAR DEFAULT NULL,
+            desc,
+            desc_long,
+            upload_timestamp        DATETIME NOT NULL
         );
 
-        db.run(
-            `CREATE TABLE IF NOT EXISTS file_meta (
-                file_id     INTEGER NOT NULL,
-                meta_name   VARCHAR NOT NULL,
-                meta_value  VARCHAR NOT NULL,
-                UNIQUE(file_id, meta_name, meta_value),
-                FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
-            );`
+        CREATE TABLE IF NOT EXISTS file_meta (
+            file_id     INTEGER NOT NULL,
+            meta_name   VARCHAR NOT NULL,
+            meta_value  VARCHAR NOT NULL,
+            UNIQUE(file_id, meta_name, meta_value),
+            FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
         );
 
-        db.run(
-            `CREATE TABLE IF NOT EXISTS hash_tag (
-                hash_tag_id INTEGER PRIMARY KEY,
-                hash_tag    VARCHAR NOT NULL,
-                UNIQUE(hash_tag)
-            );`
+        CREATE TABLE IF NOT EXISTS hash_tag (
+            hash_tag_id INTEGER PRIMARY KEY,
+            hash_tag    VARCHAR NOT NULL,
+            UNIQUE(hash_tag)
         );
 
-        db.run(
-            `CREATE TABLE IF NOT EXISTS file_hash_tag (
-                hash_tag_id INTEGER NOT NULL,
-                file_id     INTEGER NOT NULL,
-                UNIQUE(hash_tag_id, file_id),
-                FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
-            );`
+        CREATE TABLE IF NOT EXISTS file_hash_tag (
+            hash_tag_id INTEGER NOT NULL,
+            file_id     INTEGER NOT NULL,
+            UNIQUE(hash_tag_id, file_id),
+            FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
         );
 
-        db.run(
-            `CREATE TABLE IF NOT EXISTS file_user_rating (
-                file_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                rating  INTEGER NOT NULL,
-                UNIQUE(file_id, user_id),
-                FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
-            );`
+        CREATE TABLE IF NOT EXISTS file_user_rating (
+            file_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            rating  INTEGER NOT NULL,
+            UNIQUE(file_id, user_id),
+            FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
         );
-
-        //  Final no-op SELECT — callback fires only after all preceding
-        //  statements in the serialize queue have completed.
-        db.get('SELECT 1;', done);
-    });
+    `);
+    return done(null);
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -131,7 +118,10 @@ function makeEntry(overrides) {
 describe('FileEntry.quickCheckExistsByPath()', function () {
     before(done => applySchema(_testDb, done));
 
-    beforeEach(done => _testDb.run('DELETE FROM file;', done));
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM file;');
+        done();
+    });
 
     it('returns false when the table is empty', done => {
         FileEntry.quickCheckExistsByPath(
@@ -289,7 +279,10 @@ describe('FileEntry.quickCheckExistsByPath()', function () {
 describe('FileEntry persist() / load() — relPath round-trip', function () {
     before(done => applySchema(_testDb, done));
 
-    beforeEach(done => _testDb.run('DELETE FROM file;', done));
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM file;');
+        done();
+    });
 
     it('round-trips relPath=null (flat file at storage root)', done => {
         const entry = makeEntry({ relPath: null });
@@ -395,7 +388,10 @@ describe('FileEntry persist() / load() — relPath round-trip', function () {
 describe('FileEntry.loadBasicEntry() — relPath aliasing', function () {
     before(done => applySchema(_testDb, done));
 
-    beforeEach(done => _testDb.run('DELETE FROM file;', done));
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM file;');
+        done();
+    });
 
     it('exposes storage_tag_rel_path as relPath (not storageTagRelPath)', done => {
         const entry = makeEntry({ relPath: 'scene/2024' });

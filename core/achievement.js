@@ -236,31 +236,30 @@ class Achievements {
     }
 
     loadAchievementHitCount(user, achievementTag, field, cb) {
-        UserDb.get(
-            `SELECT COUNT() AS count
-            FROM user_achievement
-            WHERE user_id = ? AND achievement_tag = ? AND match = ?;`,
-            [user.userId, achievementTag, field],
-            (err, row) => {
-                return cb(err, row ? row.count : 0);
-            }
-        );
+        try {
+            const row = UserDb.prepare(
+                `SELECT COUNT() AS count
+                FROM user_achievement
+                WHERE user_id = ? AND achievement_tag = ? AND match = ?;`
+            ).get(user.userId, achievementTag, field);
+            return cb(null, row ? row.count : 0);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     //  Returns a Set of already-earned match values (integers) for a given
     //  user/achievementTag pair — one query instead of N per retroactive tier.
     loadEarnedMatchFields(user, achievementTag, cb) {
-        UserDb.all(
-            `SELECT match FROM user_achievement
-            WHERE user_id = ? AND achievement_tag = ?;`,
-            [user.userId, achievementTag],
-            (err, rows) => {
-                if (err) {
-                    return cb(err);
-                }
-                return cb(null, new Set(rows.map(r => parseInt(r.match))));
-            }
-        );
+        try {
+            const rows = UserDb.prepare(
+                `SELECT match FROM user_achievement
+                WHERE user_id = ? AND achievement_tag = ?;`
+            ).all(user.userId, achievementTag);
+            return cb(null, new Set(rows.map(r => parseInt(r.match))));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     record(info, localInterruptItem, cb) {
@@ -279,47 +278,38 @@ class Achievements {
 
         const events = this.events;
 
-        UserDb.run(
-            `INSERT OR IGNORE INTO user_achievement (user_id, achievement_tag, timestamp, match, title, text, points)
-            VALUES (?, ?, ?, ?, ?, ?, ?);`,
-            recordData,
-            function (err) {
-                if (err) {
-                    return cb(err);
-                }
+        try {
+            const info2 = UserDb.prepare(
+                `INSERT OR IGNORE INTO user_achievement (user_id, achievement_tag, timestamp, match, title, text, points)
+                VALUES (?, ?, ?, ?, ?, ?, ?);`
+            ).run(recordData);
 
-                //  0 changes means the UNIQUE constraint fired - already earned; skip stats/display
-                if (0 === this.changes) {
-                    return cb(
-                        Errors.General(
-                            'Achievement already acquired',
-                            ErrorReasons.TooMany
-                        )
-                    );
-                }
-
-                StatLog.incrementUserStat(
-                    info.client.user,
-                    UserProps.AchievementTotalCount,
-                    1
+            //  0 changes means the UNIQUE constraint fired - already earned; skip stats/display
+            if (0 === info2.changes) {
+                return cb(
+                    Errors.General('Achievement already acquired', ErrorReasons.TooMany)
                 );
-                StatLog.incrementUserStat(
-                    info.client.user,
-                    UserProps.AchievementTotalPoints,
-                    info.details.points
-                );
-
-                events.emit(Events.getSystemEvents().UserAchievementEarned, {
-                    user: info.client.user,
-                    achievementTag: info.achievementTag,
-                    points: info.details.points,
-                    title: cleanTitle,
-                    text: cleanText,
-                });
-
-                return cb(null);
             }
+        } catch (err) {
+            return cb(err);
+        }
+
+        StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalCount, 1);
+        StatLog.incrementUserStat(
+            info.client.user,
+            UserProps.AchievementTotalPoints,
+            info.details.points
         );
+
+        events.emit(Events.getSystemEvents().UserAchievementEarned, {
+            user: info.client.user,
+            achievementTag: info.achievementTag,
+            points: info.details.points,
+            title: cleanTitle,
+            text: cleanText,
+        });
+
+        return cb(null);
     }
 
     display(info, interruptItems, cb) {
@@ -734,51 +724,50 @@ class Achievements {
     }
 
     getAchievementsEarnedByUser(userId, cb) {
-        UserDb.all(
-            `SELECT achievement_tag, timestamp, match, title, text, points
-            FROM user_achievement
-            WHERE user_id = ?
-            ORDER BY DATETIME(timestamp);`,
-            [userId],
-            (err, rows) => {
-                if (err) {
-                    return cb(err);
+        let rows;
+        try {
+            rows = UserDb.prepare(
+                `SELECT achievement_tag, timestamp, match, title, text, points
+                FROM user_achievement
+                WHERE user_id = ?
+                ORDER BY DATETIME(timestamp);`
+            ).all(userId);
+        } catch (err) {
+            return cb(err);
+        }
+
+        const earned = rows
+            .map(row => {
+                const achievement = Achievement.factory(
+                    this.getAchievementByTag(row.achievement_tag)
+                );
+                if (!achievement) {
+                    return;
                 }
 
-                const earned = rows
-                    .map(row => {
-                        const achievement = Achievement.factory(
-                            this.getAchievementByTag(row.achievement_tag)
-                        );
-                        if (!achievement) {
-                            return;
-                        }
+                const earnedInfo = {
+                    achievementTag: row.achievement_tag,
+                    type: achievement.data.type,
+                    retroactive: achievement.data.retroactive,
+                    title: row.title,
+                    text: row.text,
+                    points: row.points,
+                    timestamp: moment(row.timestamp),
+                };
 
-                        const earnedInfo = {
-                            achievementTag: row.achievement_tag,
-                            type: achievement.data.type,
-                            retroactive: achievement.data.retroactive,
-                            title: row.title,
-                            text: row.text,
-                            points: row.points,
-                            timestamp: moment(row.timestamp),
-                        };
+                switch (earnedInfo.type) {
+                    case Achievement.Types.UserStatSet:
+                    case Achievement.Types.UserStatInc:
+                    case Achievement.Types.UserStatIncNewVal:
+                        earnedInfo.statName = achievement.data.statName;
+                        break;
+                }
 
-                        switch (earnedInfo.type) {
-                            case Achievement.Types.UserStatSet:
-                            case Achievement.Types.UserStatInc:
-                            case Achievement.Types.UserStatIncNewVal:
-                                earnedInfo.statName = achievement.data.statName;
-                                break;
-                        }
+                return earnedInfo;
+            })
+            .filter(a => a); //  remove any empty records (ie: no achievement.hjson entry exists anymore).
 
-                        return earnedInfo;
-                    })
-                    .filter(a => a); //  remove any empty records (ie: no achievement.hjson entry exists anymore).
-
-                return cb(null, earned);
-            }
-        );
+        return cb(null, earned);
     }
 }
 

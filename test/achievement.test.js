@@ -1,8 +1,7 @@
 'use strict';
 
 const { strict: assert } = require('assert');
-const sqlite3 = require('sqlite3');
-const sqlite3Trans = require('sqlite3-trans');
+const Database = require('better-sqlite3');
 
 //
 //  Config mock — must be in place before requiring any module that captures
@@ -20,7 +19,8 @@ configModule.get = () => TEST_CONFIG;
 //  captures `UserDb = require('./database.js').dbs.user` at load time.
 //
 const dbModule = require('../core/database.js');
-const _testDb = sqlite3Trans.wrap(new sqlite3.Database(':memory:'));
+const _testDb = new Database(':memory:');
+_testDb.pragma('foreign_keys = ON');
 dbModule.dbs.user = _testDb;
 
 //  Stub StatLog.incrementUserStat to avoid triggering the real Events system
@@ -42,22 +42,31 @@ const {
 // ─── schema ──────────────────────────────────────────────────────────────────
 
 function applySchema(db, done) {
-    db.serialize(() => {
-        db.run(
-            `CREATE TABLE IF NOT EXISTS user_achievement (
-                user_id             INTEGER NOT NULL,
-                achievement_tag     VARCHAR NOT NULL,
-                timestamp           DATETIME NOT NULL,
-                match               VARCHAR NOT NULL,
-                title               VARCHAR NOT NULL,
-                text                VARCHAR NOT NULL,
-                points              INTEGER NOT NULL,
-                UNIQUE(user_id, achievement_tag, match),
-                FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
-            );`
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS user (
+            id      INTEGER PRIMARY KEY
         );
-        db.get('SELECT 1;', done);
-    });
+
+        CREATE TABLE IF NOT EXISTS user_achievement (
+            user_id             INTEGER NOT NULL,
+            achievement_tag     VARCHAR NOT NULL,
+            timestamp           DATETIME NOT NULL,
+            match               VARCHAR NOT NULL,
+            title               VARCHAR NOT NULL,
+            text                TEXT NOT NULL,
+            points              INTEGER NOT NULL,
+            UNIQUE(user_id, achievement_tag, match),
+            FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
+        );
+    `);
+
+    //  seed stub user rows so FK checks pass (userId values used by makeUser())
+    const insertUser = db.prepare('INSERT OR IGNORE INTO user (id) VALUES (?)');
+    for (let id = 1; id <= 50; id++) {
+        insertUser.run(id);
+    }
+
+    return done(null);
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -427,7 +436,10 @@ describe('Achievements._buildAchievementIndex()', function () {
 
 describe('Achievements.record()', function () {
     before(done => applySchema(_testDb, done));
-    beforeEach(done => _testDb.run('DELETE FROM user_achievement;', done));
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM user_achievement;');
+        done();
+    });
 
     it('inserts the achievement and calls back with no error on first insert', done => {
         const user = makeUser(1);
@@ -538,7 +550,10 @@ describe('Achievements.record()', function () {
 
 describe('Achievements.loadEarnedMatchFields()', function () {
     before(done => applySchema(_testDb, done));
-    beforeEach(done => _testDb.run('DELETE FROM user_achievement;', done));
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM user_achievement;');
+        done();
+    });
 
     it('returns an empty Set when no records exist for the user/tag', done => {
         const user = makeUser(20);
@@ -635,7 +650,10 @@ describe('Achievements.loadEarnedMatchFields()', function () {
 
 describe('Achievements.getAchievementsEarnedByUser()', function () {
     before(done => applySchema(_testDb, done));
-    beforeEach(done => _testDb.run('DELETE FROM user_achievement;', done));
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM user_achievement;');
+        done();
+    });
 
     function makeInstanceWithConfig() {
         return makeAchievements({

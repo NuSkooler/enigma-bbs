@@ -16,7 +16,6 @@ const { getJson } = require('../http_util');
 // deps
 const { isString } = require('lodash');
 const Log = require('../logger').log;
-const async = require('async');
 
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
@@ -184,110 +183,91 @@ module.exports = class Collection extends ActivityPubObject {
             actorIdOrSubject = `@${actorIdOrSubject}`;
         }
 
-        apDb.get(
-            `SELECT c.name, c.timestamp, c.owner_actor_id, c.is_private, c.object_json, m.meta_value
-            FROM collection c, collection_object_meta m
-            WHERE c.collection_id = ? AND c.name = ? AND m.object_id = c.object_id AND (c.object_id LIKE ? OR (m.meta_name = ? AND m.meta_value LIKE ?))
-            LIMIT 1;`,
-            [
-                ActorCollectionId,
-                Collections.Actors,
-                actorIdOrSubject,
-                'actor_subject',
-                actorIdOrSubject,
-            ],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
+        try {
+            const row = apDb
+                .prepare(
+                    `SELECT c.name, c.timestamp, c.owner_actor_id, c.is_private, c.object_json, m.meta_value
+                    FROM collection c, collection_object_meta m
+                    WHERE c.collection_id = ? AND c.name = ? AND m.object_id = c.object_id AND (c.object_id LIKE ? OR (m.meta_name = ? AND m.meta_value LIKE ?))
+                    LIMIT 1;`
+                )
+                .get(
+                    ActorCollectionId,
+                    Collections.Actors,
+                    actorIdOrSubject,
+                    'actor_subject',
+                    actorIdOrSubject
+                );
 
-                if (!row) {
-                    return cb(
-                        Errors.DoesNotExist(`No Actor found for "${actorIdOrSubject}"`)
-                    );
-                }
-
-                const obj = ActivityPubObject.fromJsonString(row.object_json);
-                if (!obj) {
-                    return cb(Errors.Invalid('Failed to parse Object JSON'));
-                }
-
-                const info = Collection._rowToObjectInfo(row);
-                if (row.meta_value) {
-                    info.subject = row.meta_value;
-                } else {
-                    info.subject = obj.id;
-                }
-
-                return cb(null, obj, info);
+            if (!row) {
+                return cb(
+                    Errors.DoesNotExist(`No Actor found for "${actorIdOrSubject}"`)
+                );
             }
-        );
+
+            const obj = ActivityPubObject.fromJsonString(row.object_json);
+            if (!obj) {
+                return cb(Errors.Invalid('Failed to parse Object JSON'));
+            }
+
+            const info = Collection._rowToObjectInfo(row);
+            if (row.meta_value) {
+                info.subject = row.meta_value;
+            } else {
+                info.subject = obj.id;
+            }
+
+            return cb(null, obj, info);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static addActor(actor, subject, cb) {
-        async.waterfall(
-            [
-                callback => {
-                    return apDb.beginTransaction(callback);
-                },
-                (trans, callback) => {
-                    trans.run(
-                        `REPLACE INTO collection (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
-                        VALUES(?, ?, ?, ?, ?, ?, ?);`,
-                        [
-                            ActorCollectionId,
-                            Collections.Actors,
-                            getISOTimestampString(),
-                            PublicCollectionId,
-                            actor.id,
-                            JSON.stringify(actor),
-                            false,
-                        ],
-                        err => {
-                            return callback(err, trans);
-                        }
-                    );
-                },
-                (trans, callback) => {
-                    trans.run(
-                        `REPLACE INTO collection_object_meta (collection_id, name, object_id, meta_name, meta_value)
-                        VALUES(?, ?, ?, ?, ?);`,
-                        [
-                            ActorCollectionId,
-                            Collections.Actors,
-                            actor.id,
-                            'actor_subject',
-                            subject,
-                        ],
-                        err => {
-                            return callback(err, trans);
-                        }
-                    );
-                },
-            ],
-            (err, trans) => {
-                if (err) {
-                    trans.rollback(err => {
-                        return cb(err);
-                    });
-                } else {
-                    trans.commit(err => {
-                        return cb(err);
-                    });
-                }
-            }
-        );
+        try {
+            apDb.transaction(() => {
+                apDb.prepare(
+                    `REPLACE INTO collection (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
+                        VALUES(?, ?, ?, ?, ?, ?, ?);`
+                ).run(
+                    ActorCollectionId,
+                    Collections.Actors,
+                    getISOTimestampString(),
+                    PublicCollectionId,
+                    actor.id,
+                    JSON.stringify(actor),
+                    false
+                );
+
+                apDb.prepare(
+                    `REPLACE INTO collection_object_meta (collection_id, name, object_id, meta_name, meta_value)
+                        VALUES(?, ?, ?, ?, ?);`
+                ).run(
+                    ActorCollectionId,
+                    Collections.Actors,
+                    actor.id,
+                    'actor_subject',
+                    subject
+                );
+            })();
+
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static removeExpiredActors(maxAgeDays, cb) {
-        apDb.run(
-            `DELETE FROM collection
-            WHERE collection_id = ? AND name = ? AND DATETIME(timestamp, "+${maxAgeDays} days") > DATETIME("now");`,
-            [ActorCollectionId, Collections.Actors],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            apDb.prepare(
+                `DELETE FROM collection
+                    WHERE collection_id = ? AND name = ? AND DATETIME(timestamp, '+${maxAgeDays} days') > DATETIME('now');`
+            ).run(ActorCollectionId, Collections.Actors);
+
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     //  Get Object(s) by ID; There may be multiples as they may be
@@ -295,30 +275,30 @@ module.exports = class Collection extends ActivityPubObject {
     //  This method also returns information about the objects
     //  and any items that can't be parsed
     static objectsById(objectId, cb) {
-        apDb.all(
-            `SELECT name, timestamp, owner_actor_id, object_json, is_private
-            FROM collection
-            WHERE object_id = ?;`,
-            [objectId],
-            (err, rows) => {
-                if (err) {
-                    return cb(err);
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT name, timestamp, owner_actor_id, object_json, is_private
+                    FROM collection
+                    WHERE object_id = ?;`
+                )
+                .all(objectId);
+
+            const results = (rows || []).map(r => {
+                const info = {
+                    info: this._rowToObjectInfo(r),
+                    object: ActivityPubObject.fromJsonString(r.object_json),
+                };
+                if (!info.object) {
+                    info.raw = r.object_json;
                 }
+                return info;
+            });
 
-                const results = (rows || []).map(r => {
-                    const info = {
-                        info: this._rowToObjectInfo(r),
-                        object: ActivityPubObject.fromJsonString(r.object_json),
-                    };
-                    if (!info.object) {
-                        info.raw = r.object_json;
-                    }
-                    return info;
-                });
-
-                return cb(null, results);
-            }
-        );
+            return cb(null, results);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static ownedObjectByNameAndId(collectionName, owningUser, objectId, cb) {
@@ -331,161 +311,161 @@ module.exports = class Collection extends ActivityPubObject {
             );
         }
 
-        apDb.get(
-            `SELECT name, timestamp, owner_actor_id, object_json, is_private
-            FROM collection
-            WHERE name = ? AND owner_actor_id = ? AND object_id = ?
-            LIMIT 1;`,
-            [collectionName, actorId, objectId],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
+        try {
+            const row = apDb
+                .prepare(
+                    `SELECT name, timestamp, owner_actor_id, object_json, is_private
+                    FROM collection
+                    WHERE name = ? AND owner_actor_id = ? AND object_id = ?
+                    LIMIT 1;`
+                )
+                .get(collectionName, actorId, objectId);
 
-                if (!row) {
-                    return cb(null, null);
-                }
-
-                const obj = ActivityPubObject.fromJsonString(row.object_json);
-                if (!obj) {
-                    return cb(Errors.Invalid('Failed to parse Object JSON'));
-                }
-
-                return cb(null, obj, Collection._rowToObjectInfo(row));
+            if (!row) {
+                return cb(null, null);
             }
-        );
+
+            const obj = ActivityPubObject.fromJsonString(row.object_json);
+            if (!obj) {
+                return cb(Errors.Invalid('Failed to parse Object JSON'));
+            }
+
+            return cb(null, obj, Collection._rowToObjectInfo(row));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static objectByNameAndId(collectionName, objectId, cb) {
-        apDb.get(
-            `SELECT name, timestamp, owner_actor_id, object_json, is_private
-            FROM collection
-            WHERE name = ? AND object_id = ?
-            LIMIT 1;`,
-            [collectionName, objectId],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
+        try {
+            const row = apDb
+                .prepare(
+                    `SELECT name, timestamp, owner_actor_id, object_json, is_private
+                    FROM collection
+                    WHERE name = ? AND object_id = ?
+                    LIMIT 1;`
+                )
+                .get(collectionName, objectId);
 
-                if (!row) {
-                    return cb(null, null);
-                }
-
-                const obj = ActivityPubObject.fromJsonString(row.object_json);
-                if (!obj) {
-                    return cb(Errors.Invalid('Failed to parse Object JSON'));
-                }
-
-                return cb(null, obj, Collection._rowToObjectInfo(row));
+            if (!row) {
+                return cb(null, null);
             }
-        );
+
+            const obj = ActivityPubObject.fromJsonString(row.object_json);
+            if (!obj) {
+                return cb(Errors.Invalid('Failed to parse Object JSON'));
+            }
+
+            return cb(null, obj, Collection._rowToObjectInfo(row));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static objectByEmbeddedId(objectId, cb) {
-        apDb.get(
-            `SELECT name, timestamp, owner_actor_id, object_json, is_private
-            FROM collection
-            WHERE json_extract(object_json, '$.object.id') = ?
-            LIMIT 1;`,
-            [objectId],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
+        try {
+            const row = apDb
+                .prepare(
+                    `SELECT name, timestamp, owner_actor_id, object_json, is_private
+                    FROM collection
+                    WHERE json_extract(object_json, '$.object.id') = ?
+                    LIMIT 1;`
+                )
+                .get(objectId);
 
-                if (!row) {
-                    // no match
-                    return cb(null, null);
-                }
-
-                const obj = ActivityPubObject.fromJsonString(row.object_json);
-                if (!obj) {
-                    return cb(Errors.Invalid('Failed to parse Object JSON'));
-                }
-
-                return cb(null, obj, Collection._rowToObjectInfo(row));
+            if (!row) {
+                // no match
+                return cb(null, null);
             }
-        );
+
+            const obj = ActivityPubObject.fromJsonString(row.object_json);
+            if (!obj) {
+                return cb(Errors.Invalid('Failed to parse Object JSON'));
+            }
+
+            return cb(null, obj, Collection._rowToObjectInfo(row));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static publicOrderedById(collectionName, collectionId, page, mapper, cb) {
         if (!page) {
-            return apDb.get(
-                `SELECT COUNT(collection_id) AS count
-                FROM collection
-                WHERE name = ? AND collection_id = ? AND is_private = FALSE;`,
-                [collectionName, collectionId],
-                (err, row) => {
-                    if (err) {
-                        return cb(err);
-                    }
-
-                    let obj;
-                    if (row.count > 0) {
-                        obj = {
-                            id: collectionId,
-                            type: 'OrderedCollection',
-                            first: `${collectionId}?page=1`,
-                            totalItems: row.count,
-                        };
-                    } else {
-                        obj = {
-                            id: collectionId,
-                            type: 'OrderedCollection',
-                            totalItems: 0,
-                            orderedItems: [],
-                        };
-                    }
-
-                    return cb(null, new Collection(obj));
-                }
-            );
-        }
-
-        //  :TODO: actual paging...
-        apDb.all(
-            `SELECT object_json
-            FROM collection
-            WHERE name = ? AND collection_id = ? AND is_private = FALSE
-            ORDER BY timestamp;`,
-            [collectionName, collectionId],
-            (err, entries) => {
-                if (err) {
-                    return cb(err);
-                }
-
-                try {
-                    entries = (entries || []).map(e => JSON.parse(e.object_json));
-                } catch (e) {
-                    Log.error(`Collection "${collectionId}" error: ${e.message}`);
-                }
-
-                if (mapper && entries.length > 0) {
-                    entries = entries.map(mapper);
-                }
+            try {
+                const row = apDb
+                    .prepare(
+                        `SELECT COUNT(collection_id) AS count
+                        FROM collection
+                        WHERE name = ? AND collection_id = ? AND is_private = FALSE;`
+                    )
+                    .get(collectionName, collectionId);
 
                 let obj;
-                if ('all' === page) {
+                if (row.count > 0) {
                     obj = {
                         id: collectionId,
                         type: 'OrderedCollection',
-                        totalItems: entries.length,
-                        orderedItems: entries,
+                        first: `${collectionId}?page=1`,
+                        totalItems: row.count,
                     };
                 } else {
                     obj = {
-                        id: `${collectionId}/page=${page}`,
-                        type: 'OrderedCollectionPage',
-                        totalItems: entries.length,
-                        orderedItems: entries,
-                        partOf: collectionId,
+                        id: collectionId,
+                        type: 'OrderedCollection',
+                        totalItems: 0,
+                        orderedItems: [],
                     };
                 }
 
                 return cb(null, new Collection(obj));
+            } catch (err) {
+                return cb(err);
             }
-        );
+        }
+
+        //  :TODO: actual paging...
+        try {
+            let entries = apDb
+                .prepare(
+                    `SELECT object_json
+                    FROM collection
+                    WHERE name = ? AND collection_id = ? AND is_private = FALSE
+                    ORDER BY timestamp;`
+                )
+                .all(collectionName, collectionId);
+
+            try {
+                entries = (entries || []).map(e => JSON.parse(e.object_json));
+            } catch (e) {
+                Log.error(`Collection "${collectionId}" error: ${e.message}`);
+            }
+
+            if (mapper && entries.length > 0) {
+                entries = entries.map(mapper);
+            }
+
+            let obj;
+            if ('all' === page) {
+                obj = {
+                    id: collectionId,
+                    type: 'OrderedCollection',
+                    totalItems: entries.length,
+                    orderedItems: entries,
+                };
+            } else {
+                obj = {
+                    id: `${collectionId}/page=${page}`,
+                    type: 'OrderedCollectionPage',
+                    totalItems: entries.length,
+                    orderedItems: entries,
+                    partOf: collectionId,
+                };
+            }
+
+            return cb(null, new Collection(obj));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static ownedOrderedByUser(
@@ -510,77 +490,77 @@ module.exports = class Collection extends ActivityPubObject {
         const collectionId = Endpoints.makeUserUrl(owningUser) + `/${collectionName}`;
 
         if (!page) {
-            return apDb.get(
-                `SELECT COUNT(collection_id) AS count
-                FROM collection
-                WHERE owner_actor_id = ? AND name = ?${privateQuery};`,
-                [actorId, collectionName],
-                (err, row) => {
-                    if (err) {
-                        return cb(err);
-                    }
+            try {
+                const row = apDb
+                    .prepare(
+                        `SELECT COUNT(collection_id) AS count
+                        FROM collection
+                        WHERE owner_actor_id = ? AND name = ?${privateQuery};`
+                    )
+                    .get(actorId, collectionName);
 
-                    //
-                    //  Mastodon for instance, will never follow up for the
-                    //  actual data from some Collections such as 'followers';
-                    //  Instead, they only use the |totalItems| to form an
-                    //  approximate follower count.
-                    //
-                    let obj;
-                    if (row.count > 0) {
-                        obj = {
-                            id: collectionId,
-                            type: 'OrderedCollection',
-                            first: `${collectionId}?page=1`,
-                            totalItems: row.count,
-                        };
-                    } else {
-                        obj = {
-                            id: collectionId,
-                            type: 'OrderedCollection',
-                            totalItems: 0,
-                            orderedItems: [],
-                        };
-                    }
-
-                    return cb(null, new Collection(obj));
+                //
+                //  Mastodon for instance, will never follow up for the
+                //  actual data from some Collections such as 'followers';
+                //  Instead, they only use the |totalItems| to form an
+                //  approximate follower count.
+                //
+                let obj;
+                if (row.count > 0) {
+                    obj = {
+                        id: collectionId,
+                        type: 'OrderedCollection',
+                        first: `${collectionId}?page=1`,
+                        totalItems: row.count,
+                    };
+                } else {
+                    obj = {
+                        id: collectionId,
+                        type: 'OrderedCollection',
+                        totalItems: 0,
+                        orderedItems: [],
+                    };
                 }
-            );
+
+                return cb(null, new Collection(obj));
+            } catch (err) {
+                return cb(err);
+            }
         }
 
         //  :TODO: actual paging...
-        apDb.all(
-            `SELECT object_json
-            FROM collection
-            WHERE owner_actor_id = ? AND name = ?${privateQuery}
-            ORDER BY timestamp;`,
-            [actorId, collectionName],
-            (err, entries) => {
-                if (err) {
-                    return cb(err);
-                }
+        try {
+            let entries = apDb
+                .prepare(
+                    `SELECT object_json
+                    FROM collection
+                    WHERE owner_actor_id = ? AND name = ?${privateQuery}
+                    ORDER BY timestamp;`
+                )
+                .all(actorId, collectionName);
 
-                try {
-                    entries = (entries || []).map(e => JSON.parse(e.object_json));
-                } catch (e) {
-                    Log.error(`Collection "${collectionId}" error: ${e.message}`);
-                }
-
-                if (mapper && entries.length > 0) {
-                    entries = entries.map(mapper);
-                }
-
-                const obj = {
-                    id: `${collectionId}/page=${page}`,
-                    type: 'OrderedCollectionPage',
-                    totalItems: entries.length,
-                    orderedItems: entries,
-                    partOf: collectionId,
-                };
-
-                return cb(null, new Collection(obj));
+            try {
+                entries = (entries || []).map(e => JSON.parse(e.object_json));
+            } catch (e) {
+                Log.error(`Collection "${collectionId}" error: ${e.message}`);
             }
-        );
+
+            if (mapper && entries.length > 0) {
+                entries = entries.map(mapper);
+            }
+
+            const obj = {
+                id: `${collectionId}/page=${page}`,
+                type: 'OrderedCollectionPage',
+                totalItems: entries.length,
+                orderedItems: entries,
+                partOf: collectionId,
+            };
+
+            return cb(null, new Collection(obj));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     // https://www.w3.org/TR/activitypub/#update-activity-inbox
@@ -589,15 +569,17 @@ module.exports = class Collection extends ActivityPubObject {
             obj = JSON.stringify(obj);
         }
 
-        apDb.run(
-            `UPDATE collection
-            SET object_json = ?, timestamp = ?
-            WHERE name = ? AND object_id = ?;`,
-            [obj, collectionName, getISOTimestampString(), objectId],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            apDb.prepare(
+                `UPDATE collection
+                    SET object_json = ?, timestamp = ?
+                    WHERE name = ? AND object_id = ?;`
+            ).run(obj, getISOTimestampString(), collectionName, objectId);
+
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static addToCollection(
@@ -630,29 +612,26 @@ module.exports = class Collection extends ActivityPubObject {
 
         isPrivate = isPrivate ? 1 : 0;
 
-        apDb.run(
-            `INSERT OR IGNORE INTO collection (name, timestamp, collection_id, owner_actor_id, object_id, object_json, is_private)
-            VALUES (?, ?, ?, ?, ?, ?, ?);`,
-            [
-                collectionName,
-                getISOTimestampString(),
-                collectionId,
-                actorId,
-                objectId,
-                obj,
-                isPrivate,
-            ],
-            function res(err) {
-                // non-arrow for 'this' scope
-                if (err && 'SQLITE_CONSTRAINT' === err.code) {
-                    if (ignoreDupes) {
-                        err = null; // ignore
-                    }
-                    return cb(err);
-                }
-                return cb(err, this.lastID);
-            }
-        );
+        try {
+            const info = apDb
+                .prepare(
+                    `INSERT OR IGNORE INTO collection (name, timestamp, collection_id, owner_actor_id, object_id, object_json, is_private)
+                    VALUES (?, ?, ?, ?, ?, ?, ?);`
+                )
+                .run(
+                    collectionName,
+                    getISOTimestampString(),
+                    collectionId,
+                    actorId,
+                    objectId,
+                    obj,
+                    isPrivate
+                );
+
+            return cb(null, info.lastInsertRowid);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static removeOwnedById(collectionName, owningUser, objectId, cb) {
@@ -664,69 +643,88 @@ module.exports = class Collection extends ActivityPubObject {
                 )
             );
         }
-        apDb.run(
-            `DELETE FROM collection
-            WHERE name = ? AND owner_actor_id = ? AND object_id = ?;`,
-            [collectionName, actorId, objectId],
-            err => {
-                return cb(err);
-            }
-        );
+
+        try {
+            apDb.prepare(
+                `DELETE FROM collection
+                    WHERE name = ? AND owner_actor_id = ? AND object_id = ?;`
+            ).run(collectionName, actorId, objectId);
+
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static removeById(collectionName, objectId, cb) {
-        apDb.run(
-            `DELETE FROM collection
-            WHERE name = ? AND object_id = ?;`,
-            [collectionName, objectId],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            apDb.prepare(
+                `DELETE FROM collection
+                    WHERE name = ? AND object_id = ?;`
+            ).run(collectionName, objectId);
+
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static removeByMaxCount(collectionName, maxCount, cb) {
-        apDb.run(
-            `DELETE FROM collection
-            WHERE _rowid_ IN (
-                SELECT _rowid_
-                FROM collection
-                WHERE name = ?
-                ORDER BY _rowid_ DESC
-                LIMIT -1 OFFSET ${maxCount}
-            );`,
-            [maxCount],
-            function res(err) {
-                // non-arrow function for 'this'
-                Collection._removeByLogHelper(
-                    collectionName,
-                    'MaxCount',
-                    err,
-                    maxCount,
-                    this.changes
-                );
-                return cb(err);
-            }
-        );
+        try {
+            const info = apDb
+                .prepare(
+                    `DELETE FROM collection
+                    WHERE _rowid_ IN (
+                        SELECT _rowid_
+                        FROM collection
+                        WHERE name = ?
+                        ORDER BY _rowid_ DESC
+                        LIMIT -1 OFFSET ${maxCount}
+                    );`
+                )
+                .run(maxCount);
+
+            Collection._removeByLogHelper(
+                collectionName,
+                'MaxCount',
+                null,
+                maxCount,
+                info.changes
+            );
+            return cb(null);
+        } catch (err) {
+            Collection._removeByLogHelper(collectionName, 'MaxCount', err, maxCount, 0);
+            return cb(err);
+        }
     }
 
     static removeByMaxAgeDays(collectionName, maxAgeDays, cb) {
-        apDb.run(
-            `DELETE FROM collection
-            WHERE name = ? AND timestamp < DATE('now', '-${maxAgeDays} days');`,
-            [maxAgeDays],
-            function res(err) {
-                // non-arrow function for 'this'
-                Collection._removeByLogHelper(
-                    collectionName,
-                    'MaxAgeDays',
-                    err,
-                    maxAgeDays,
-                    this.changes
-                );
-                return cb(err);
-            }
-        );
+        try {
+            const info = apDb
+                .prepare(
+                    `DELETE FROM collection
+                    WHERE name = ? AND timestamp < DATE('now', '-${maxAgeDays} days');`
+                )
+                .run(maxAgeDays);
+
+            Collection._removeByLogHelper(
+                collectionName,
+                'MaxAgeDays',
+                null,
+                maxAgeDays,
+                info.changes
+            );
+            return cb(null);
+        } catch (err) {
+            Collection._removeByLogHelper(
+                collectionName,
+                'MaxAgeDays',
+                err,
+                maxAgeDays,
+                0
+            );
+            return cb(err);
+        }
     }
 
     static _removeByLogHelper(collectionName, type, err, value, deletedCount) {

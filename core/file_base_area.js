@@ -234,23 +234,16 @@ function getAreaStorageLocations(areaInfo) {
 function getExistingFileEntriesBySha256(sha256, cb) {
     const entries = [];
 
-    FileDb.each(
-        `SELECT file_id, area_tag
-        FROM file
-        WHERE file_sha256=?;`,
-        [sha256],
-        (err, fileRow) => {
-            if (fileRow) {
-                entries.push({
-                    fileId: fileRow.file_id,
-                    areaTag: fileRow.area_tag,
-                });
-            }
-        },
-        err => {
-            return cb(err, entries);
+    try {
+        for (const fileRow of FileDb.prepare(
+            `SELECT file_id, area_tag FROM file WHERE file_sha256=?;`
+        ).iterate(sha256)) {
+            entries.push({ fileId: fileRow.file_id, areaTag: fileRow.area_tag });
         }
-    );
+        return cb(null, entries);
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 //  :TODO: This is basically sliceAtEOF() from art.js .... DRY!
@@ -1136,37 +1129,36 @@ function getDescFromFileName(fileName) {
 //  }
 //
 function getAreaStats(cb) {
-    FileDb.all(
-        `SELECT DISTINCT f.area_tag, COUNT(f.file_id) AS total_files, SUM(m.meta_value) AS total_byte_size
-        FROM file f, file_meta m
-        WHERE f.file_id = m.file_id AND m.meta_name='byte_size'
-        GROUP BY f.area_tag;`,
-        (err, statRows) => {
-            if (err) {
-                return cb(err);
-            }
+    try {
+        const statRows = FileDb.prepare(
+            `SELECT DISTINCT f.area_tag, COUNT(f.file_id) AS total_files, SUM(m.meta_value) AS total_byte_size
+            FROM file f, file_meta m
+            WHERE f.file_id = m.file_id AND m.meta_name='byte_size'
+            GROUP BY f.area_tag;`
+        ).all();
 
-            if (!statRows || 0 === statRows.length) {
-                return cb(Errors.DoesNotExist('No file areas to acquire stats from'));
-            }
-
-            return cb(
-                null,
-                statRows.reduce((stats, v) => {
-                    stats.totalFiles = (stats.totalFiles || 0) + v.total_files;
-                    stats.totalBytes = (stats.totalBytes || 0) + v.total_byte_size;
-
-                    stats.areas = stats.areas || {};
-
-                    stats.areas[v.area_tag] = {
-                        files: v.total_files,
-                        bytes: v.total_byte_size,
-                    };
-                    return stats;
-                }, {})
-            );
+        if (!statRows || 0 === statRows.length) {
+            return cb(Errors.DoesNotExist('No file areas to acquire stats from'));
         }
-    );
+
+        return cb(
+            null,
+            statRows.reduce((stats, v) => {
+                stats.totalFiles = (stats.totalFiles || 0) + v.total_files;
+                stats.totalBytes = (stats.totalBytes || 0) + v.total_byte_size;
+
+                stats.areas = stats.areas || {};
+
+                stats.areas[v.area_tag] = {
+                    files: v.total_files,
+                    bytes: v.total_byte_size,
+                };
+                return stats;
+            }, {})
+        );
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 //  method exposed for event scheduler

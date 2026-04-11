@@ -1,9 +1,13 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.2.0-beta
+
+* **SQLite driver migrated to `better-sqlite3`** -- This is an internal change with no impact on existing data or configuration. Results in some major DB performance gains.
+
 ## 0.1.1-beta
 
-* **NNTP server improvements** — several protocol compliance and reliability fixes:
+* **NNTP server improvements** -- several protocol compliance and reliability fixes:
   * Article posting now correctly detects end-of-post and handles CRLF line endings
   * `AUTHINFO USER` is now advertised in `CAPABILITIES` so clients know to authenticate before posting
   * `Xref` header is now generated, improving cross-session read tracking in NNTP clients

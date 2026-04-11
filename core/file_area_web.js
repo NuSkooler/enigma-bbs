@@ -97,44 +97,28 @@ class FileAreaWebAccess {
         //  Sweep expired rows first so crashes or extended downtime don't leave
         //  stale entries that would otherwise get timers re-registered on startup.
         //
-        async.series(
-            [
-                callback => {
-                    FileDb.run(
-                        `DELETE FROM file_web_serve
-                        WHERE expire_timestamp < datetime('now');`,
-                        callback
-                    );
-                },
-                callback => {
-                    FileDb.each(
-                        `SELECT hash_id, expire_timestamp
-                        FROM file_web_serve;`,
-                        (err, row) => {
-                            if (row) {
-                                this.scheduleExpire(
-                                    row.hash_id,
-                                    moment(row.expire_timestamp)
-                                );
-                            }
-                        },
-                        callback
-                    );
-                },
-            ],
-            cb
-        );
+        try {
+            FileDb.prepare(
+                `DELETE FROM file_web_serve
+                WHERE expire_timestamp < datetime('now');`
+            ).run();
+
+            for (const row of FileDb.prepare(
+                `SELECT hash_id, expire_timestamp FROM file_web_serve;`
+            ).iterate()) {
+                this.scheduleExpire(row.hash_id, moment(row.expire_timestamp));
+            }
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     removeEntry(hashId) {
         //
         //  Delete record from DB, and our timer
         //
-        FileDb.run(
-            `DELETE FROM file_web_serve
-            WHERE hash_id = ?;`,
-            [hashId]
-        );
+        FileDb.prepare(`DELETE FROM file_web_serve WHERE hash_id = ?;`).run(hashId);
 
         delete this.expireTimers[hashId];
     }
@@ -161,42 +145,37 @@ class FileAreaWebAccess {
     }
 
     loadServedHashId(hashId, cb) {
-        FileDb.get(
-            `SELECT expire_timestamp FROM
-            file_web_serve
-            WHERE hash_id = ?`,
-            [hashId],
-            (err, result) => {
-                if (err || !result) {
-                    return cb(
-                        err ? err : Errors.DoesNotExist('Invalid or missing hash ID')
-                    );
-                }
+        try {
+            const result = FileDb.prepare(
+                `SELECT expire_timestamp FROM file_web_serve WHERE hash_id = ?`
+            ).get(hashId);
 
-                const decoded = this.hashids.decode(hashId);
-
-                //  decode() should provide an array of [ userId, hashIdType, id, ... ]
-                if (!Array.isArray(decoded) || decoded.length < 3) {
-                    return cb(Errors.Invalid('Invalid or unknown hash ID'));
-                }
-
-                const servedItem = {
-                    hashId: hashId,
-                    userId: decoded[0],
-                    hashIdType: decoded[1],
-                    expireTimestamp: moment(result.expire_timestamp),
-                };
-
-                if (
-                    FileAreaWebAccess.getHashIdTypes().SingleFile ===
-                    servedItem.hashIdType
-                ) {
-                    servedItem.fileIds = decoded.slice(2);
-                }
-
-                return cb(null, servedItem);
+            if (!result) {
+                return cb(Errors.DoesNotExist('Invalid or missing hash ID'));
             }
-        );
+
+            const decoded = this.hashids.decode(hashId);
+
+            //  decode() should provide an array of [ userId, hashIdType, id, ... ]
+            if (!Array.isArray(decoded) || decoded.length < 3) {
+                return cb(Errors.Invalid('Invalid or unknown hash ID'));
+            }
+
+            const servedItem = {
+                hashId: hashId,
+                userId: decoded[0],
+                hashIdType: decoded[1],
+                expireTimestamp: moment(result.expire_timestamp),
+            };
+
+            if (FileAreaWebAccess.getHashIdTypes().SingleFile === servedItem.hashIdType) {
+                servedItem.fileIds = decoded.slice(2);
+            }
+
+            return cb(null, servedItem);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     getSingleFileHashId(client, fileEntry) {
@@ -244,22 +223,19 @@ class FileAreaWebAccess {
         });
     }
 
-    _addOrUpdateHashIdRecord(dbOrTrans, hashId, expireTime, cb) {
-        //  add/update rec with hash id and (latest) timestamp
-        dbOrTrans.run(
-            `REPLACE INTO file_web_serve (hash_id, expire_timestamp)
-            VALUES (?, ?);`,
-            [hashId, getISOTimestampString(expireTime)],
-            err => {
-                if (err) {
-                    return cb(err);
-                }
+    _addOrUpdateHashIdRecord(hashId, expireTime, cb) {
+        //  add/update rec with hash id and (latest) timestamp — caller is
+        //  responsible for wrapping this inside a transaction if needed.
+        try {
+            FileDb.prepare(
+                `REPLACE INTO file_web_serve (hash_id, expire_timestamp) VALUES (?, ?);`
+            ).run(hashId, getISOTimestampString(expireTime));
 
-                this.scheduleExpire(hashId, expireTime);
-
-                return cb(null);
-            }
-        );
+            this.scheduleExpire(hashId, expireTime);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     createAndServeTempDownload(client, fileEntry, options, cb) {
@@ -271,7 +247,7 @@ class FileAreaWebAccess {
         const url = this.buildSingleFileTempDownloadLink(client, fileEntry, hashId);
         options.expireTime = options.expireTime || moment().add(2, 'days');
 
-        this._addOrUpdateHashIdRecord(FileDb, hashId, options.expireTime, err => {
+        this._addOrUpdateHashIdRecord(hashId, options.expireTime, err => {
             return cb(err, url);
         });
     }
@@ -286,38 +262,28 @@ class FileAreaWebAccess {
         const url = this.buildBatchArchiveTempDownloadLink(client, hashId);
         options.expireTime = options.expireTime || moment().add(2, 'days');
 
-        FileDb.beginTransaction((err, trans) => {
-            if (err) {
-                return cb(err);
-            }
+        try {
+            FileDb.transaction(() => {
+                FileDb.prepare(
+                    `REPLACE INTO file_web_serve (hash_id, expire_timestamp) VALUES (?, ?);`
+                ).run(hashId, getISOTimestampString(options.expireTime));
 
-            this._addOrUpdateHashIdRecord(trans, hashId, options.expireTime, err => {
-                if (err) {
-                    return trans.rollback(() => {
-                        return cb(err);
-                    });
-                }
-
-                async.eachSeries(
-                    fileEntries,
-                    (entry, nextEntry) => {
-                        trans.run(
-                            `INSERT INTO file_web_serve_batch (hash_id, file_id)
-                        VALUES (?, ?);`,
-                            [hashId, entry.fileId],
-                            err => {
-                                return nextEntry(err);
-                            }
-                        );
-                    },
-                    err => {
-                        trans[err ? 'rollback' : 'commit'](() => {
-                            return cb(err, url);
-                        });
-                    }
+                const batchStmt = FileDb.prepare(
+                    `INSERT INTO file_web_serve_batch (hash_id, file_id) VALUES (?, ?);`
                 );
-            });
-        });
+                for (const entry of fileEntries) {
+                    batchStmt.run(hashId, entry.fileId);
+                }
+            })();
+
+            //  Schedule expiry outside the transaction (non-DB side-effect).
+            this.scheduleExpire(hashId, options.expireTime);
+            return cb(null, url);
+        } catch (transErr) {
+            //  Preserve original behaviour: url is forwarded even on failure so
+            //  callers can inspect / log it while still seeing the error.
+            return cb(transErr, url);
+        }
     }
 
     fileNotFound(resp) {
@@ -412,30 +378,28 @@ class FileAreaWebAccess {
         async.waterfall(
             [
                 function fetchFileIds(callback) {
-                    FileDb.all(
-                        `SELECT file_id
-                        FROM file_web_serve_batch
-                        WHERE hash_id = ?;`,
-                        [servedItem.hashId],
-                        (err, fileIdRows) => {
-                            if (
-                                err ||
-                                !Array.isArray(fileIdRows) ||
-                                0 === fileIdRows.length
-                            ) {
-                                return callback(
-                                    Errors.DoesNotExist(
-                                        'Could not get file IDs for batch'
-                                    )
-                                );
-                            }
+                    try {
+                        const fileIdRows = FileDb.prepare(
+                            `SELECT file_id
+                            FROM file_web_serve_batch
+                            WHERE hash_id = ?;`
+                        ).all(servedItem.hashId);
 
+                        if (!Array.isArray(fileIdRows) || 0 === fileIdRows.length) {
                             return callback(
-                                null,
-                                fileIdRows.map(r => r.file_id)
+                                Errors.DoesNotExist('Could not get file IDs for batch')
                             );
                         }
-                    );
+
+                        return callback(
+                            null,
+                            fileIdRows.map(r => r.file_id)
+                        );
+                    } catch (err) {
+                        return callback(
+                            Errors.DoesNotExist('Could not get file IDs for batch')
+                        );
+                    }
                 },
                 function loadFileEntries(fileIds, callback) {
                     async.map(

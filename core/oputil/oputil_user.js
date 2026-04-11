@@ -124,14 +124,15 @@ function setUserPassword(user) {
 
 function removeUserRecordsFromDbAndTable(dbName, tableName, userId, col, cb) {
     const db = require('../../core/database.js').dbs[dbName];
-    db.run(
-        `DELETE FROM ${tableName}
-        WHERE ${col} = ?;`,
-        [userId],
-        err => {
-            return cb(err);
-        }
-    );
+    try {
+        db.prepare(
+            `DELETE FROM ${tableName}
+        WHERE ${col} = ?;`
+        ).run(userId);
+        return cb(null);
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 function removeUser(user) {
@@ -231,14 +232,15 @@ function removeUser(user) {
                     async.eachSeries(
                         ids,
                         (messageId, nextMessageId) => {
-                            MsgDb.run(
-                                `DELETE FROM message
-                            WHERE message_id = ?;`,
-                                [messageId],
-                                err => {
-                                    return nextMessageId(err);
-                                }
-                            );
+                            try {
+                                MsgDb.prepare(
+                                    `DELETE FROM message
+                            WHERE message_id = ?;`
+                                ).run(messageId);
+                                return nextMessageId(null);
+                            } catch (err) {
+                                return nextMessageId(err);
+                            }
                         },
                         err => {
                             return callback(err);
@@ -274,15 +276,18 @@ function renameUser(user) {
             },
             callback => {
                 const userDb = require('../../core/database.js').dbs.user;
-                userDb.run(
-                    `UPDATE user
+                try {
+                    userDb
+                        .prepare(
+                            `UPDATE user
                     SET user_name = ?
-                    WHERE id = ?;`,
-                    [newUserName, user.userId],
-                    err => {
-                        return callback(err);
-                    }
-                );
+                    WHERE id = ?;`
+                        )
+                        .run(newUserName, user.userId);
+                    return callback(null);
+                } catch (err) {
+                    return callback(err);
+                }
             },
         ],
         err => {

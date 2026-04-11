@@ -340,7 +340,7 @@ module.exports = class Message {
                 additionalFields += `, CASE WHEN LENGTH(m.subject) > 0 THEN
                         m.subject
                     ELSE
-                        REPLACE(REPLACE(SUBSTR(m.message,1,32),CHAR(10),""),CHAR(13),"") || "..."
+                        REPLACE(REPLACE(SUBSTR(m.message,1,32),CHAR(10),''),CHAR(13),'') || '...'
                     END gen_subject`;
             }
 
@@ -373,17 +373,17 @@ module.exports = class Message {
         }
 
         if (Array.isArray(filter.uuids)) {
-            const uuidList = filter.uuids.map(u => `"${u}"`).join(', ');
+            const uuidList = filter.uuids.map(u => `'${u}'`).join(', ');
             appendWhereClause(`m.message_id IN (${uuidList})`);
         }
 
         if (_.isNumber(filter.privateTagUserId)) {
-            appendWhereClause(`m.area_tag = "${Message.WellKnownAreaTags.Private}"`);
+            appendWhereClause(`m.area_tag = '${Message.WellKnownAreaTags.Private}'`);
             appendWhereClause(
                 `m.message_id IN (
                     SELECT message_id
                     FROM message_meta
-                    WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${filter.privateTagUserId}
+                    WHERE meta_category = 'System' AND meta_name = '${Message.SystemMetaNames.LocalToUserID}' AND meta_value = ${filter.privateTagUserId}
                 )`
             );
         } else {
@@ -394,7 +394,7 @@ module.exports = class Message {
 
                 const areaList = filter.areaTag
                     .filter(t => t !== Message.WellKnownAreaTags.Private)
-                    .map(t => `"${t}"`)
+                    .map(t => `'${t}'`)
                     .join(', ');
                 if (areaList.length > 0) {
                     appendWhereClause(`m.area_tag IN(${areaList})`);
@@ -405,7 +405,7 @@ module.exports = class Message {
             } else {
                 //  explicit exclude of Private
                 appendWhereClause(
-                    `m.area_tag != "${Message.WellKnownAreaTags.Private}"`,
+                    `m.area_tag != '${Message.WellKnownAreaTags.Private}'`,
                     'AND'
                 );
             }
@@ -428,7 +428,7 @@ module.exports = class Message {
                     '(' +
                     val
                         .map(v => {
-                            return `m.${_.snakeCase(field)} LIKE "${sanitizeString(v)}"`;
+                            return `m.${_.snakeCase(field)} LIKE '${sanitizeString(v)}'`;
                         })
                         .join(' OR ') +
                     ')';
@@ -442,13 +442,13 @@ module.exports = class Message {
         ) {
             //  :TODO: should be using "localtime" here?
             appendWhereClause(
-                `DATETIME(m.modified_timestamp) > DATETIME("${filter.newerThanTimestamp}", "+1 seconds")`
+                `DATETIME(m.modified_timestamp) > DATETIME('${filter.newerThanTimestamp}', '+1 seconds')`
             );
         } else if (moment.isMoment(filter.date)) {
             appendWhereClause(
-                `DATE(m.modified_timestamp, "localtime") = DATE("${filter.date.format(
+                `DATE(m.modified_timestamp, 'localtime') = DATE('${filter.date.format(
                     'YYYY-MM-DD'
-                )}")`
+                )}')`
             );
         }
 
@@ -471,9 +471,9 @@ module.exports = class Message {
             let sub = [];
             filter.metaTuples.forEach(mt => {
                 sub.push(
-                    `(meta_category = "${mt.category}" AND meta_name = "${
+                    `(meta_category = '${mt.category}' AND meta_name = '${
                         mt.name
-                    }" AND meta_value = "${sanitizeString(mt.value)}")`
+                    }' AND meta_value = '${sanitizeString(mt.value)}')`
                 );
             });
             sub = sub.join(` ${filter.operator} `);
@@ -495,9 +495,12 @@ module.exports = class Message {
         sql += ';';
 
         if ('count' === filter.resultType) {
-            msgDb.get(sql, (err, row) => {
-                return cb(err, row ? row.count : 0);
-            });
+            try {
+                const row = msgDb.prepare(sql).get();
+                return cb(null, row ? row.count : 0);
+            } catch (err) {
+                return cb(err);
+            }
         } else {
             const matches = [];
             const extra = filter.extraFields.length > 0;
@@ -507,59 +510,58 @@ module.exports = class Message {
                     ? Message.getMessageFromRow
                     : row => row;
 
-            msgDb.each(
-                sql,
-                (err, row) => {
+            try {
+                const rows = msgDb.prepare(sql).all();
+                for (const row of rows) {
                     if (_.isObject(row)) {
                         matches.push(extra ? rowConv(row) : row[field]);
                     }
-                },
-                err => {
-                    return cb(err, matches);
                 }
-            );
+                return cb(null, matches);
+            } catch (err) {
+                return cb(err);
+            }
         }
     }
 
     //  :TODO: use findMessages, by uuid, limit=1
     static getMessageIdByUuid(uuid, cb) {
-        msgDb.get(
-            `SELECT message_id
-            FROM message
-            WHERE message_uuid = ?
-            LIMIT 1;`,
-            [uuid],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
-
-                const success = row && row.message_id;
-                return cb(
-                    success ? null : Errors.DoesNotExist(`No message for UUID ${uuid}`),
-                    success ? row.message_id : null
-                );
-            }
-        );
+        try {
+            const row = msgDb
+                .prepare(
+                    `SELECT message_id
+                    FROM message
+                    WHERE message_uuid = ?
+                    LIMIT 1;`
+                )
+                .get(uuid);
+            const success = row && row.message_id;
+            return cb(
+                success ? null : Errors.DoesNotExist(`No message for UUID ${uuid}`),
+                success ? row.message_id : null
+            );
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     //  :TODO: use findMessages
     static getMessageIdsByMetaValue(category, name, value, cb) {
-        msgDb.all(
-            `SELECT message_id
-            FROM message_meta
-            WHERE meta_category = ? AND meta_name = ? AND meta_value = ?;`,
-            [category, name, value],
-            (err, rows) => {
-                if (err) {
-                    return cb(err);
-                }
-                return cb(
-                    null,
-                    rows.map(r => parseInt(r.message_id))
-                ); //  return array of ID(s)
-            }
-        );
+        try {
+            const rows = msgDb
+                .prepare(
+                    `SELECT message_id
+                    FROM message_meta
+                    WHERE meta_category = ? AND meta_name = ? AND meta_value = ?;`
+                )
+                .all(category, name, value);
+            return cb(
+                null,
+                rows.map(r => parseInt(r.message_id))
+            ); //  return array of ID(s)
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static getMetaValuesByMessageId(messageId, category, name, cb) {
@@ -567,10 +569,8 @@ module.exports = class Message {
             FROM message_meta
             WHERE message_id = ? AND meta_category = ? AND meta_name = ?;`;
 
-        msgDb.all(sql, [messageId, category, name], (err, rows) => {
-            if (err) {
-                return cb(err);
-            }
+        try {
+            const rows = msgDb.prepare(sql).all(messageId, category, name);
 
             if (0 === rows.length) {
                 return cb(Errors.DoesNotExist('No value for category/name'));
@@ -585,7 +585,9 @@ module.exports = class Message {
                 null,
                 rows.map(r => r.meta_value)
             ); //  map to array of values only
-        });
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static getMetaValuesByMessageUuid(uuid, category, name, cb) {
@@ -630,32 +632,30 @@ module.exports = class Message {
             FROM message_meta
             WHERE message_id = ?;`;
 
-        const self = this; //  :TODO: not required - arrow functions below:
-        msgDb.each(
-            sql,
-            [this.messageId],
-            (err, row) => {
-                if (!(row.meta_category in self.meta)) {
-                    self.meta[row.meta_category] = {};
-                    self.meta[row.meta_category][row.meta_name] = row.meta_value;
+        try {
+            const rows = msgDb.prepare(sql).all(this.messageId);
+            for (const row of rows) {
+                if (!(row.meta_category in this.meta)) {
+                    this.meta[row.meta_category] = {};
+                    this.meta[row.meta_category][row.meta_name] = row.meta_value;
                 } else {
-                    if (!(row.meta_name in self.meta[row.meta_category])) {
-                        self.meta[row.meta_category][row.meta_name] = row.meta_value;
+                    if (!(row.meta_name in this.meta[row.meta_category])) {
+                        this.meta[row.meta_category][row.meta_name] = row.meta_value;
                     } else {
-                        if (_.isString(self.meta[row.meta_category][row.meta_name])) {
-                            self.meta[row.meta_category][row.meta_name] = [
-                                self.meta[row.meta_category][row.meta_name],
+                        if (_.isString(this.meta[row.meta_category][row.meta_name])) {
+                            this.meta[row.meta_category][row.meta_name] = [
+                                this.meta[row.meta_category][row.meta_name],
                             ];
                         }
 
-                        self.meta[row.meta_category][row.meta_name].push(row.meta_value);
+                        this.meta[row.meta_category][row.meta_name].push(row.meta_value);
                     }
                 }
-            },
-            err => {
-                return cb(err);
             }
-        );
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     load(loadWith, cb) {
@@ -667,41 +667,39 @@ module.exports = class Message {
             [
                 function loadMessage(callback) {
                     const whereField = loadWith.uuid ? 'message_uuid' : 'message_id';
-                    msgDb.get(
-                        `SELECT message_id, area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject,
-                        message, modified_timestamp, view_count
-                        FROM message
-                        WHERE ${whereField} = ?
-                        LIMIT 1;`,
-                        [loadWith.uuid || loadWith.messageId],
-                        (err, msgRow) => {
-                            if (err) {
-                                return callback(err);
-                            }
+                    try {
+                        const msgRow = msgDb
+                            .prepare(
+                                `SELECT message_id, area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject,
+                                message, modified_timestamp, view_count
+                                FROM message
+                                WHERE ${whereField} = ?
+                                LIMIT 1;`
+                            )
+                            .get(loadWith.uuid || loadWith.messageId);
 
-                            if (!msgRow) {
-                                return callback(
-                                    Errors.DoesNotExist('Message (no longer) available')
-                                );
-                            }
-
-                            self.messageId = msgRow.message_id;
-                            self.areaTag = msgRow.area_tag;
-                            self.messageUuid = msgRow.message_uuid;
-                            self.replyToMsgId = msgRow.reply_to_message_id;
-                            self.toUserName = msgRow.to_user_name;
-                            self.fromUserName = msgRow.from_user_name;
-                            self.subject = msgRow.subject;
-                            self.message = msgRow.message;
-
-                            //  We use parseZone() to *preserve* the time zone information
-                            self.modTimestamp = moment.parseZone(
-                                msgRow.modified_timestamp
+                        if (!msgRow) {
+                            return callback(
+                                Errors.DoesNotExist('Message (no longer) available')
                             );
-
-                            return callback(err);
                         }
-                    );
+
+                        self.messageId = msgRow.message_id;
+                        self.areaTag = msgRow.area_tag;
+                        self.messageUuid = msgRow.message_uuid;
+                        self.replyToMsgId = msgRow.reply_to_message_id;
+                        self.toUserName = msgRow.to_user_name;
+                        self.fromUserName = msgRow.from_user_name;
+                        self.subject = msgRow.subject;
+                        self.message = msgRow.message;
+
+                        //  We use parseZone() to *preserve* the time zone information
+                        self.modTimestamp = moment.parseZone(msgRow.modified_timestamp);
+
+                        return callback(null);
+                    } catch (err) {
+                        return callback(err);
+                    }
                 },
                 function loadMessageMeta(callback) {
                     self.loadMeta(err => {
@@ -720,72 +718,55 @@ module.exports = class Message {
     }
 
     static deleteByMessageUuid(messageUuid, cb) {
-        msgDb.run(
-            `DELETE FROM message
-            WHERE message_uuid = ?;`,
-            [messageUuid],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            msgDb
+                .prepare(
+                    `DELETE FROM message
+                    WHERE message_uuid = ?;`
+                )
+                .run(messageUuid);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
-    persistMetaValue(category, name, value, transOrDb, cb) {
-        if (!_.isFunction(cb) && _.isFunction(transOrDb)) {
-            cb = transOrDb;
-            transOrDb = msgDb;
-        }
-
-        const metaStmt = transOrDb.prepare(
-            `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value)
-            VALUES (?, ?, ?, ?);`
-        );
-
-        if (!Array.isArray(value)) {
-            value = [value];
-        }
-
-        const self = this;
-
-        async.each(
-            value,
-            (v, next) => {
-                metaStmt.run(self.messageId, category, name, v, err => {
-                    return next(err);
-                });
-            },
-            err => {
-                return cb(err);
+    persistMetaValue(category, name, value, cb) {
+        try {
+            if (!Array.isArray(value)) {
+                value = [value];
             }
-        );
+
+            const stmt = msgDb.prepare(
+                `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                VALUES (?, ?, ?, ?);`
+            );
+            for (const v of value) {
+                stmt.run(this.messageId, category, name, v);
+            }
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
-    updateMetaValue(category, name, value, transOrDb, cb) {
-        if (!_.isFunction(cb) && _.isFunction(transOrDb)) {
-            cb = transOrDb;
-            transOrDb = msgDb;
-        }
-
-        const metaStmt = transOrDb.prepare(
-            `REPLACE INTO message_meta (message_id, meta_category, meta_name, meta_value)
-            VALUES (?, ?, ?, ?);`
-        );
-
-        if (!Array.isArray(value)) {
-            value = [value];
-        }
-
-        async.each(
-            value,
-            (v, next) => {
-                metaStmt.run(this.messageId, category, name, v, err => {
-                    return next(err);
-                });
-            },
-            err => {
-                return cb(err);
+    updateMetaValue(category, name, value, cb) {
+        try {
+            if (!Array.isArray(value)) {
+                value = [value];
             }
-        );
+
+            const stmt = msgDb.prepare(
+                `REPLACE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                VALUES (?, ?, ?, ?);`
+            );
+            for (const v of value) {
+                stmt.run(this.messageId, category, name, v);
+            }
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     persist(cb) {
@@ -800,49 +781,35 @@ module.exports = class Message {
 
         const self = this;
 
-        async.waterfall(
-            [
-                function beginTransaction(callback) {
-                    return msgDb.beginTransaction(callback);
-                },
-                function storeMessage(trans, callback) {
-                    //  generate a UUID for this message if required (general case)
-                    if (!self.messageUuid) {
-                        self.messageUuid = Message.createMessageUUID(
-                            self.areaTag,
-                            self.modTimestamp,
-                            self.subject,
-                            self.message
-                        );
-                    }
-
-                    trans.run(
-                        `INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-                        [
-                            self.areaTag,
-                            self.messageUuid,
-                            self.replyToMsgId,
-                            self.toUserName,
-                            self.fromUserName,
-                            self.subject,
-                            self.message,
-                            getISOTimestampString(self.modTimestamp),
-                        ],
-                        function inserted(err) {
-                            //  use non-arrow function for 'this' scope
-                            if (!err) {
-                                self.messageId = this.lastID;
-                            }
-
-                            return callback(err, trans);
-                        }
+        try {
+            msgDb.transaction(() => {
+                if (!self.messageUuid) {
+                    self.messageUuid = Message.createMessageUUID(
+                        self.areaTag,
+                        self.modTimestamp,
+                        self.subject,
+                        self.message
                     );
-                },
-                function storeMeta(trans, callback) {
-                    if (!self.meta) {
-                        return callback(null, trans);
-                    }
+                }
+
+                const info = msgDb
+                    .prepare(
+                        `INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?);`
+                    )
+                    .run(
+                        self.areaTag,
+                        self.messageUuid,
+                        self.replyToMsgId,
+                        self.toUserName,
+                        self.fromUserName,
+                        self.subject,
+                        self.message,
+                        getISOTimestampString(self.modTimestamp)
+                    );
+                self.messageId = info.lastInsertRowid;
+
+                if (self.meta) {
                     /*
                         Example of self.meta:
 
@@ -855,47 +822,27 @@ module.exports = class Message {
                             }
                         }
                     */
-                    async.each(
-                        Object.keys(self.meta),
-                        (category, nextCat) => {
-                            async.each(
-                                Object.keys(self.meta[category]),
-                                (name, nextName) => {
-                                    self.persistMetaValue(
-                                        category,
-                                        name,
-                                        self.meta[category][name],
-                                        trans,
-                                        err => {
-                                            return nextName(err);
-                                        }
-                                    );
-                                },
-                                err => {
-                                    return nextCat(err);
-                                }
-                            );
-                        },
-                        err => {
-                            return callback(err, trans);
-                        }
+                    const metaStmt = msgDb.prepare(
+                        `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                        VALUES (?, ?, ?, ?);`
                     );
-                },
-                function storeHashTags(trans, callback) {
-                    //  :TODO: hash tag support
-                    return callback(null, trans);
-                },
-            ],
-            (err, trans) => {
-                if (trans) {
-                    trans[err ? 'rollback' : 'commit'](transErr => {
-                        return cb(err ? err : transErr, self.messageId);
-                    });
-                } else {
-                    return cb(err);
+                    for (const category of Object.keys(self.meta)) {
+                        for (const name of Object.keys(self.meta[category])) {
+                            const val = self.meta[category][name];
+                            for (const v of Array.isArray(val) ? val : [val]) {
+                                metaStmt.run(self.messageId, category, name, v);
+                            }
+                        }
+                    }
                 }
-            }
-        );
+
+                //  :TODO: hash tag support
+            })();
+
+            return cb(null, self.messageId);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     update(cb) {
@@ -909,77 +856,45 @@ module.exports = class Message {
 
         const self = this;
 
-        async.waterfall(
-            [
-                callback => {
-                    return msgDb.beginTransaction(callback);
-                },
-                (trans, callback) => {
-                    trans.run(
+        try {
+            msgDb.transaction(() => {
+                const info = msgDb
+                    .prepare(
                         `REPLACE INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-                        [
-                            this.areaTag,
-                            this.messageUuid,
-                            this.replyToMsgId,
-                            this.toUserName,
-                            this.fromUserName,
-                            this.subject,
-                            this.message,
-                            getISOTimestampString(this.modTimestamp),
-                        ],
-                        function inserted(err) {
-                            //  use non-arrow function for 'this' scope
-                            if (!err) {
-                                self.messageId = this.lastID;
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?);`
+                    )
+                    .run(
+                        this.areaTag,
+                        this.messageUuid,
+                        this.replyToMsgId,
+                        this.toUserName,
+                        this.fromUserName,
+                        this.subject,
+                        this.message,
+                        getISOTimestampString(this.modTimestamp)
+                    );
+                self.messageId = info.lastInsertRowid;
+
+                if (this.meta) {
+                    const metaStmt = msgDb.prepare(
+                        `REPLACE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                        VALUES (?, ?, ?, ?);`
+                    );
+                    for (const category of Object.keys(this.meta)) {
+                        for (const name of Object.keys(this.meta[category])) {
+                            const val = this.meta[category][name];
+                            for (const v of Array.isArray(val) ? val : [val]) {
+                                metaStmt.run(self.messageId, category, name, v);
                             }
-
-                            return callback(err, trans);
                         }
-                    );
-                },
-                (trans, callback) => {
-                    if (!this.meta) {
-                        return callback(null, trans);
                     }
-
-                    async.each(
-                        Object.keys(this.meta),
-                        (category, nextCat) => {
-                            async.each(
-                                Object.keys(this.meta[category]),
-                                (name, nextName) => {
-                                    this.updateMetaValue(
-                                        category,
-                                        name,
-                                        this.meta[category][name],
-                                        trans,
-                                        err => {
-                                            return nextName(err);
-                                        }
-                                    );
-                                },
-                                err => {
-                                    return nextCat(err);
-                                }
-                            );
-                        },
-                        err => {
-                            return callback(err, trans);
-                        }
-                    );
-                },
-            ],
-            (err, trans) => {
-                if (trans) {
-                    trans[err ? 'rollback' : 'commit'](transErr => {
-                        return cb(err ? err : transErr, self.messageId);
-                    });
-                } else {
-                    return cb(err);
                 }
-            }
-        );
+            })();
+
+            return cb(null, self.messageId);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     deleteMessage(requestingUser, cb) {
@@ -989,14 +904,17 @@ module.exports = class Message {
             );
         }
 
-        msgDb.run(
-            `DELETE FROM message
-            WHERE message_uuid = ?;`,
-            [this.messageUuid],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            msgDb
+                .prepare(
+                    `DELETE FROM message
+                    WHERE message_uuid = ?;`
+                )
+                .run(this.messageUuid);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     _getQuotePrefix(source) {
