@@ -20,6 +20,10 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.1.1-beta to 0.2.0-beta
+
+* Run `npm install` after pulling this update — a core dependency was replaced and the new package must be installed before starting ENiGMA. No configuration or database changes are required.
+
 ## 0.1.0-beta to 0.1.1-beta
 
 
