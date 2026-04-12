@@ -147,6 +147,20 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             handler: this._singlePublicNoteGetHandler.bind(this),
         });
 
+        this.webServer.addRoute({
+            method: 'GET',
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/likes
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/likes$/,
+            handler: this._noteLikesGetHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/shares
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/shares$/,
+            handler: this._noteSharesGetHandler.bind(this),
+        });
+
         //  :TODO: NYI
         // this.webServer.addRoute({
         //     method: 'GET',
@@ -385,22 +399,27 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         case WellKnownActivity.Reject:
                             return this._inboxRejectActivity(resp, activity);
 
-                        case WellKnownActivity.Undo:
-                            //  We only Undo from private inboxes
-                            if (Collections.Inbox === inboxType) {
-                                //  Only Follow Undo's currently supported
-                                const type = _.get(activity, 'object.type');
-                                if (WellKnownActivity.Follow === type) {
+                        case WellKnownActivity.Undo: {
+                            const undoType = _.get(activity, 'object.type');
+                            if (WellKnownActivity.Follow === undoType) {
+                                //  Only process Undo{Follow} from private inboxes
+                                if (Collections.Inbox === inboxType) {
                                     return this._inboxUndoActivity(
                                         resp,
                                         remoteActor,
                                         activity
                                     );
-                                } else {
-                                    this.log.warn(`Unsupported Undo for type "${type}"`);
                                 }
+                            } else if (WellKnownActivity.Like === undoType) {
+                                return this._inboxUndoLikeActivity(resp, activity);
+                            } else {
+                                this.log.warn(
+                                    { undoType, inboxType },
+                                    'Unsupported Undo activity type'
+                                );
                             }
                             break;
+                        }
 
                         default:
                             this.log.warn(
@@ -570,6 +589,32 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 this.log.warn(
                     { activityId: activity.id, objectId, error: err.message },
                     'Failed to record inbound Like'
+                );
+                //  Non-fatal: always accept so the remote doesn't keep retrying
+            }
+            return this.webServer.accepted(resp);
+        });
+    }
+
+    _inboxUndoLikeActivity(resp, activity) {
+        //  activity.object is the original Like activity; its .id is the activity_id
+        //  we stored in note_reactions when the Like arrived.
+        const likeActivityId = _.get(activity, 'object.id');
+
+        this.log.info(
+            { actorId: activity.actor, likeActivityId },
+            'Incoming Undo{Like} activity'
+        );
+
+        if (!likeActivityId) {
+            return this.webServer.badRequest(resp);
+        }
+
+        Collection.removeReactionByActivityId(likeActivityId, err => {
+            if (err) {
+                this.log.warn(
+                    { likeActivityId, error: err.message },
+                    'Failed to remove Like reaction'
                 );
                 //  Non-fatal: always accept so the remote doesn't keep retrying
             }
@@ -1314,9 +1359,63 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            //  :TODO: support a template here
+            //  AP clients (Mastodon, etc.) send Accept: application/activity+json.
+            //  Return the full Note object as JSON so they get likes/shares/context fields.
+            //  Web browsers get the raw HTML content.
+            const accept = req.headers.accept || '';
+            if (
+                accept.includes(ActivityStreamMediaType) ||
+                accept.includes('application/ld+json')
+            ) {
+                const body = JSON.stringify(note);
+                return this.webServer.ok(resp, body, {
+                    'Content-Type': ActivityStreamMediaType,
+                });
+            }
 
             return this.webServer.ok(resp, note.content);
+        });
+    }
+
+    _noteLikesGetHandler(req, resp) {
+        return this._noteReactionCollectionHandler(req, resp, 'Like');
+    }
+
+    _noteSharesGetHandler(req, resp) {
+        return this._noteReactionCollectionHandler(req, resp, 'Announce');
+    }
+
+    _noteReactionCollectionHandler(req, resp, reactionType) {
+        //  Reconstruct the Note ID by stripping the /likes or /shares suffix
+        const fullUrl = getFullUrl(req).toString();
+        const noteId = fullUrl.replace(/\/(likes|shares)$/, '');
+
+        Note.fromPublicNoteId(noteId, (err, note) => {
+            if (err) {
+                return this.webServer.internalServerError(resp, err);
+            }
+            if (!note) {
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            Collection.getReactionActors(noteId, reactionType, (err, actors) => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                const collection = {
+                    '@context': 'https://www.w3.org/ns/activitystreams',
+                    id: fullUrl,
+                    type: 'OrderedCollection',
+                    totalItems: actors.length,
+                    orderedItems: actors,
+                };
+
+                const body = JSON.stringify(collection);
+                return this.webServer.ok(resp, body, {
+                    'Content-Type': ActivityStreamMediaType,
+                });
+            });
         });
     }
 

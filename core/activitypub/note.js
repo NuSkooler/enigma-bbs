@@ -11,6 +11,7 @@ const {
     extractMessageMetadata,
 } = require('./util');
 const { PublicCollectionId } = require('./const');
+const Endpoints = require('./endpoint');
 const { isAnsi } = require('../string_util');
 
 // deps
@@ -119,6 +120,24 @@ module.exports = class Note extends ActivityPubObject {
                     );
                 },
                 (replyToNoteId, fromUser, fromActor, remoteActor, callback) => {
+                    //  When replying, look up the parent's context so we can
+                    //  propagate the thread root ID through the conversation.
+                    if (!replyToNoteId || !message.replyToMsgId) {
+                        return callback(null, null, replyToNoteId, fromUser, fromActor, remoteActor);
+                    }
+
+                    Message.getMetaValuesByMessageId(
+                        message.replyToMsgId,
+                        Message.WellKnownMetaCategories.ActivityPub,
+                        Message.ActivityPubPropertyNames.Context,
+                        (err, parentContext) => {
+                            // ignore error — missing context meta is fine
+                            return callback(null, parentContext || null, replyToNoteId, fromUser, fromActor, remoteActor);
+                        }
+                    );
+                },
+
+                (parentContext, replyToNoteId, fromUser, fromActor, remoteActor, callback) => {
                     const to = [
                         message.isPrivate() ? remoteActor.id : PublicCollectionId,
                     ];
@@ -143,14 +162,33 @@ module.exports = class Note extends ActivityPubObject {
                         tag.push({ type: 'Hashtag', name: ht });
                     });
 
+                    //  Sensitive / CW: strip [NSFW] prefix from summary so Mastodon
+                    //  receives a clean CW label rather than the raw subject prefix.
+                    const isNSFW = message.subject.startsWith('[NSFW]');
+                    const summaryText = isNSFW
+                        ? message.subject.slice(6).trim()
+                        : message.subject.trim();
+
+                    const noteId = ActivityPubObject.makeObjectId('note');
+
+                    //  context: thread root ID — own ID for root posts, parent's context
+                    //  (or inReplyTo) for replies.  Mastodon uses this to reconstruct threads.
+                    const noteContext = replyToNoteId
+                        ? (parentContext || replyToNoteId)
+                        : noteId;
+
                     // https://docs.joinmastodon.org/spec/activitypub/#properties-used
                     const obj = {
-                        id: ActivityPubObject.makeObjectId('note'),
+                        id: noteId,
                         type: 'Note',
                         published: getISOTimestampString(message.modTimestamp),
                         to,
                         attributedTo: fromActor.id,
-                        summary: message.subject.trim(),
+                        conversation: noteContext,
+                        context:      noteContext,
+                        likes:        Endpoints.noteLikes(noteId),
+                        shares:       Endpoints.noteShares(noteId),
+                        summary: summaryText,
                         content: htmlMessage,
                         contentMap: {
                             en: htmlMessage, // English only, for now
@@ -160,7 +198,7 @@ module.exports = class Note extends ActivityPubObject {
                             content: message.message,
                             mediaType: sourceMediaType,
                         },
-                        sensitive: message.subject.startsWith('[NSFW]'),
+                        sensitive: isNSFW,
                         tag: tag.length > 0 ? tag : undefined,
                     };
 
@@ -294,6 +332,14 @@ module.exports = class Note extends ActivityPubObject {
             message.meta.ActivityPub[Message.ActivityPubPropertyNames.ActivityId] =
                 options.activityId || 0;
             message.meta.ActivityPub[Message.ActivityPubPropertyNames.NoteId] = this.id;
+
+            //  Store thread context so the Phase 6 viewer can reconstruct threads.
+            //  Use 'context' first (standard AP), fall back to 'conversation' (Mastodon legacy).
+            const inboundContext = this.context || this.conversation;
+            if (inboundContext) {
+                message.meta.ActivityPub[Message.ActivityPubPropertyNames.Context] =
+                    inboundContext;
+            }
 
             if (this.inReplyTo) {
                 message.meta.ActivityPub[Message.ActivityPubPropertyNames.InReplyTo] =

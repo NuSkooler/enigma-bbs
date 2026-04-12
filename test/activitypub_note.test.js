@@ -299,6 +299,34 @@ describe('Note.toMessage() — message field population', function () {
             done();
         });
     });
+
+    it('stores context field in ActivityPub meta', async () => {
+        const ctx = 'https://remote.example.com/notes/thread-root';
+        const msg = await toMessage(makeNote({ context: ctx }));
+        assert.equal(
+            msg.meta.ActivityPub[Message.ActivityPubPropertyNames.Context],
+            ctx
+        );
+    });
+
+    it('falls back to conversation field when context is absent', async () => {
+        const conv = 'https://remote.example.com/notes/conv-root';
+        const msg = await toMessage(makeNote({ conversation: conv }));
+        assert.equal(
+            msg.meta.ActivityPub[Message.ActivityPubPropertyNames.Context],
+            conv
+        );
+    });
+
+    it('prefers context over conversation when both are present', async () => {
+        const ctx  = 'https://remote.example.com/notes/real-context';
+        const conv = 'https://remote.example.com/notes/legacy-conv';
+        const msg = await toMessage(makeNote({ context: ctx, conversation: conv }));
+        assert.equal(
+            msg.meta.ActivityPub[Message.ActivityPubPropertyNames.Context],
+            ctx
+        );
+    });
 });
 
 // ─── Duplicate delivery — SQLITE_CONSTRAINT dedup ────────────────────────────
