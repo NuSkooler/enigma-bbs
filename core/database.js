@@ -399,6 +399,12 @@ const DB_INIT_TABLE = {
             CREATE INDEX IF NOT EXISTS collection_entry_by_object_id_index0
                 ON collection (object_id);
 
+            CREATE INDEX IF NOT EXISTS collection_by_name_timestamp_index0
+                ON collection (name, timestamp);
+
+            CREATE INDEX IF NOT EXISTS collection_embedded_object_id_index0
+                ON collection (json_extract(object_json, '$.object.id'));
+
             CREATE TABLE IF NOT EXISTS collection_object_meta (
                 collection_id   VARCHAR NOT NULL,
                 name            VARCHAR NOT NULL,
@@ -409,6 +415,29 @@ const DB_INIT_TABLE = {
                 UNIQUE(collection_id, object_id, meta_name),
                 FOREIGN KEY(name, collection_id, object_id) REFERENCES collection(name, collection_id, object_id) ON DELETE CASCADE
             );
+
+            CREATE INDEX IF NOT EXISTS collection_object_meta_by_name_and_meta_index0
+                ON collection_object_meta (name, meta_name, meta_value);
+
+            --
+            --  Dedicated reactions table — stores inbound Like and Announce (boost)
+            --  reactions against Notes.  One row per (note, actor, reaction_type) triple.
+            --  The activity_id column enables idempotent Undo handling.
+            --
+            CREATE TABLE IF NOT EXISTS note_reactions (
+                note_id         VARCHAR NOT NULL,
+                actor_id        VARCHAR NOT NULL,
+                reaction_type   VARCHAR NOT NULL,
+                activity_id     VARCHAR NOT NULL,
+                timestamp       DATETIME NOT NULL,
+                UNIQUE(note_id, actor_id, reaction_type)
+            );
+
+            CREATE INDEX IF NOT EXISTS note_reactions_by_note_index0
+                ON note_reactions (note_id, reaction_type);
+
+            CREATE INDEX IF NOT EXISTS note_reactions_by_actor_index0
+                ON note_reactions (actor_id, reaction_type);
 
             --
             --  FTS5 virtual table for full-text search of actors and sharedInbox notes.
@@ -544,6 +573,129 @@ const DB_INIT_TABLE = {
                 DELETE FROM collection_fts WHERE rowid = old.rowid;
             END;
         `);
+
+        //
+        //  One-time backfill: populate collection_fts for pre-existing rows that
+        //  were inserted before the FTS5 schema was added.  Safe to run on every
+        //  start — the guard conditions make it a no-op once the index is populated.
+        //
+        const ftsCount = dbs.activitypub
+            .prepare('SELECT COUNT(*) AS n FROM collection_fts')
+            .get().n;
+
+        if (ftsCount === 0) {
+            const hasIndexable = dbs.activitypub
+                .prepare(
+                    `SELECT COUNT(*) AS n FROM collection WHERE name IN ('actors', 'sharedInbox')`
+                )
+                .get().n;
+
+            if (hasIndexable > 0) {
+                dbs.activitypub.exec(`
+                    INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                    SELECT
+                        c.rowid,
+                        'actors',
+                        c.object_id,
+                        COALESCE(json_extract(c.object_json, '$.preferredUsername'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.name'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.summary'), ''),
+                        COALESCE(m.meta_value, '')
+                    FROM collection c
+                    LEFT JOIN collection_object_meta m
+                        ON  m.object_id  = c.object_id
+                        AND m.name       = 'actors'
+                        AND m.meta_name  = 'actor_subject'
+                    WHERE c.name = 'actors';
+
+                    INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                    SELECT
+                        c.rowid,
+                        'sharedInbox',
+                        c.object_id,
+                        COALESCE(json_extract(c.object_json, '$.summary'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.content'), ''),
+                        ''
+                    FROM collection c
+                    WHERE c.name = 'sharedInbox';
+                `);
+            }
+        }
+
+        //
+        //  One-time migration: backfill note_reactions from legacy meta-based storage.
+        //  Guard: only runs when note_reactions is empty AND legacy reaction meta exists.
+        //
+        //  Legacy schema stored Like and Announce reactions as collection_object_meta rows
+        //  with meta_name = 'activity_type' and meta_value IN ('Like', 'Announce').
+        //  Each reaction also had corresponding 'liked_by'/'boosted_by' and
+        //  'liked_object_id'/'original_note_id' rows tied to the same object_id.
+        //
+        const reactionsCount = dbs.activitypub
+            .prepare('SELECT COUNT(*) AS n FROM note_reactions')
+            .get().n;
+
+        if (reactionsCount === 0) {
+            const legacyCount = dbs.activitypub
+                .prepare(
+                    `SELECT COUNT(*) AS n FROM collection_object_meta
+                     WHERE meta_name = 'activity_type'
+                       AND meta_value IN ('Like', 'Announce')`
+                )
+                .get().n;
+
+            if (legacyCount > 0) {
+                dbs.activitypub.exec(`
+                    -- Migrate legacy Like reactions
+                    INSERT OR IGNORE INTO note_reactions
+                        (note_id, actor_id, reaction_type, activity_id, timestamp)
+                    SELECT
+                        liked.meta_value    AS note_id,
+                        by_.meta_value      AS actor_id,
+                        'Like'              AS reaction_type,
+                        c.object_id         AS activity_id,
+                        c.timestamp         AS timestamp
+                    FROM collection_object_meta typ
+                    JOIN collection c
+                        ON  c.name      = typ.name
+                        AND c.object_id = typ.object_id
+                    JOIN collection_object_meta liked
+                        ON  liked.collection_id = typ.collection_id
+                        AND liked.object_id     = typ.object_id
+                        AND liked.meta_name     = 'liked_object_id'
+                    JOIN collection_object_meta by_
+                        ON  by_.collection_id   = typ.collection_id
+                        AND by_.object_id       = typ.object_id
+                        AND by_.meta_name       = 'liked_by'
+                    WHERE typ.meta_name  = 'activity_type'
+                      AND typ.meta_value = 'Like';
+
+                    -- Migrate legacy Announce (boost) reactions
+                    INSERT OR IGNORE INTO note_reactions
+                        (note_id, actor_id, reaction_type, activity_id, timestamp)
+                    SELECT
+                        orig.meta_value     AS note_id,
+                        by_.meta_value      AS actor_id,
+                        'Announce'          AS reaction_type,
+                        c.object_id         AS activity_id,
+                        c.timestamp         AS timestamp
+                    FROM collection_object_meta typ
+                    JOIN collection c
+                        ON  c.name      = typ.name
+                        AND c.object_id = typ.object_id
+                    JOIN collection_object_meta orig
+                        ON  orig.collection_id  = typ.collection_id
+                        AND orig.object_id      = typ.object_id
+                        AND orig.meta_name      = 'original_note_id'
+                    JOIN collection_object_meta by_
+                        ON  by_.collection_id   = typ.collection_id
+                        AND by_.object_id       = typ.object_id
+                        AND by_.meta_name       = 'boosted_by'
+                    WHERE typ.meta_name  = 'activity_type'
+                      AND typ.meta_value = 'Announce';
+                `);
+            }
+        }
     },
 };
 

@@ -61,8 +61,8 @@ delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
 const {
     fetchAnnouncedNote,
     recordInboundLike,
-    LikeMeta,
 } = require('../core/activitypub/boost_util.js');
+const Collection = require('../core/activitypub/collection.js');
 const Activity = require('../core/activitypub/activity.js');
 
 // ─── config restore ───────────────────────────────────────────────────────────
@@ -164,6 +164,21 @@ function applyApSchema(db) {
                 REFERENCES collection(name, collection_id, object_id)
                 ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS note_reactions (
+            note_id         VARCHAR NOT NULL,
+            actor_id        VARCHAR NOT NULL,
+            reaction_type   VARCHAR NOT NULL,
+            activity_id     VARCHAR NOT NULL,
+            timestamp       DATETIME NOT NULL,
+            UNIQUE(note_id, actor_id, reaction_type)
+        );
+
+        CREATE INDEX IF NOT EXISTS note_reactions_by_note_index0
+            ON note_reactions (note_id, reaction_type);
+
+        CREATE INDEX IF NOT EXISTS note_reactions_by_actor_index0
+            ON note_reactions (actor_id, reaction_type);
     `);
 }
 
@@ -174,7 +189,7 @@ before(() => {
 
 beforeEach(() => {
     _msgDb.exec('DELETE FROM message_meta; DELETE FROM message;');
-    _apDb.exec('DELETE FROM collection_object_meta; DELETE FROM collection;');
+    _apDb.exec('DELETE FROM note_reactions; DELETE FROM collection_object_meta; DELETE FROM collection;');
 });
 
 // ─── Message.addMetaValue ─────────────────────────────────────────────────────
@@ -468,16 +483,28 @@ describe('recordInboundLike()', function () {
         );
     }
 
-    function getMeta(activityId, metaName) {
+    function getReaction(noteId, actorId) {
         return _apDb
             .prepare(
-                `SELECT meta_value FROM collection_object_meta
-                 WHERE object_id = ? AND meta_name = ?`
+                `SELECT * FROM note_reactions
+                 WHERE note_id = ? AND actor_id = ? AND reaction_type = 'Like'`
             )
-            .get(activityId, metaName);
+            .get(noteId, actorId);
     }
 
-    it('stores the Like activity in the sharedInbox collection', done => {
+    it('records a reaction row in note_reactions', done => {
+        const activity = makeLikeActivity();
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            const row = getReaction(NOTE_ID, ACTOR_ID);
+            assert.ok(row, 'note_reactions row should exist');
+            assert.equal(row.reaction_type, 'Like');
+            assert.equal(row.activity_id, activity.id);
+            done();
+        });
+    });
+
+    it('does NOT store the Like in the sharedInbox collection', done => {
         const activity = makeLikeActivity();
         recordInboundLike(activity, err => {
             assert.ifError(err);
@@ -487,68 +514,33 @@ describe('recordInboundLike()', function () {
                      WHERE name = 'sharedInbox' AND object_id = ?`
                 )
                 .get(activity.id);
-            assert.ok(row, 'Like activity should be stored in sharedInbox');
+            assert.ok(!row, 'Like should not appear in sharedInbox');
             done();
         });
     });
 
-    it(`attaches ${LikeMeta.ActivityType} meta with value 'Like'`, done => {
-        const activity = makeLikeActivity();
-        recordInboundLike(activity, err => {
-            assert.ifError(err);
-            const row = getMeta(activity.id, LikeMeta.ActivityType);
-            assert.ok(row, 'activity_type meta should exist');
-            assert.equal(row.meta_value, 'Like');
-            done();
-        });
-    });
-
-    it(`attaches ${LikeMeta.LikedObjectId} meta with the object ID`, done => {
-        const activity = makeLikeActivity();
-        recordInboundLike(activity, err => {
-            assert.ifError(err);
-            const row = getMeta(activity.id, LikeMeta.LikedObjectId);
-            assert.ok(row, 'liked_object_id meta should exist');
-            assert.equal(row.meta_value, NOTE_ID);
-            done();
-        });
-    });
-
-    it(`attaches ${LikeMeta.LikedBy} meta with the actor ID`, done => {
-        const activity = makeLikeActivity();
-        recordInboundLike(activity, err => {
-            assert.ifError(err);
-            const row = getMeta(activity.id, LikeMeta.LikedBy);
-            assert.ok(row, 'liked_by meta should exist');
-            assert.equal(row.meta_value, ACTOR_ID);
-            done();
-        });
-    });
-
-    it('resolves liked_object_id from an embedded object with .id', done => {
+    it('resolves note_id from an embedded object with .id', done => {
         const embeddedObjectId = 'https://local.example.com/notes/embedded';
         const activity = makeLikeActivity({
             object: { id: embeddedObjectId, type: 'Note' },
         });
         recordInboundLike(activity, err => {
             assert.ifError(err);
-            const row = getMeta(activity.id, LikeMeta.LikedObjectId);
-            assert.ok(row);
-            assert.equal(row.meta_value, embeddedObjectId);
+            const row = getReaction(embeddedObjectId, ACTOR_ID);
+            assert.ok(row, 'reaction row should use embedded object id as note_id');
             done();
         });
     });
 
-    it('resolves liked_by from an embedded actor object with .id', done => {
+    it('resolves actor_id from an embedded actor object with .id', done => {
         const embeddedActorId = 'https://remote.example.com/users/bob';
         const activity = makeLikeActivity({
             actor: { id: embeddedActorId, type: 'Person' },
         });
         recordInboundLike(activity, err => {
             assert.ifError(err);
-            const row = getMeta(activity.id, LikeMeta.LikedBy);
-            assert.ok(row);
-            assert.equal(row.meta_value, embeddedActorId);
+            const row = getReaction(NOTE_ID, embeddedActorId);
+            assert.ok(row, 'reaction row should use embedded actor id');
             done();
         });
     });
@@ -561,29 +553,30 @@ describe('recordInboundLike()', function () {
                 assert.ifError(err2);
                 const count = _apDb
                     .prepare(
-                        `SELECT COUNT(*) AS n FROM collection
-                         WHERE name = 'sharedInbox' AND object_id = ?`
+                        `SELECT COUNT(*) AS n FROM note_reactions
+                         WHERE note_id = ? AND actor_id = ? AND reaction_type = 'Like'`
                     )
-                    .get(activity.id).n;
-                assert.equal(count, 1, 'should have exactly one collection entry');
+                    .get(NOTE_ID, ACTOR_ID).n;
+                assert.equal(count, 1, 'should have exactly one reaction row');
                 done();
             });
         });
     });
 
-    it('stores distinct Like activities from different actors independently', done => {
+    it('stores distinct Like reactions from different actors independently', done => {
         const a1 = makeLikeActivity({ actor: 'https://remote.example.com/users/alice' });
         const a2 = makeLikeActivity({ actor: 'https://remote.example.com/users/bob' });
         recordInboundLike(a1, err => {
             assert.ifError(err);
             recordInboundLike(a2, err2 => {
                 assert.ifError(err2);
-                const actors = [
-                    getMeta(a1.id, LikeMeta.LikedBy),
-                    getMeta(a2.id, LikeMeta.LikedBy),
-                ].map(r => r && r.meta_value);
-                assert.ok(actors.includes('https://remote.example.com/users/alice'));
-                assert.ok(actors.includes('https://remote.example.com/users/bob'));
+                const count = _apDb
+                    .prepare(
+                        `SELECT COUNT(*) AS n FROM note_reactions
+                         WHERE note_id = ? AND reaction_type = 'Like'`
+                    )
+                    .get(NOTE_ID).n;
+                assert.equal(count, 2, 'should have two distinct reaction rows');
                 done();
             });
         });

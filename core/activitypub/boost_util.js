@@ -36,22 +36,6 @@ const { isString } = require('lodash');
 //  Kept short: we're blocking an inbound HTTP response while we make this request.
 const AnnounceObjectFetchTimeoutMs = 3000;
 
-//  meta_name constants stored in collection_object_meta for Announce activities
-const BoostMeta = {
-    ActivityType: 'activity_type',
-    OriginalNoteId: 'original_note_id',
-    BoostedBy: 'boosted_by',
-};
-exports.BoostMeta = BoostMeta;
-
-//  meta_name constants stored in collection_object_meta for Like activities
-const LikeMeta = {
-    ActivityType: 'activity_type', //  value is always 'Like'
-    LikedObjectId: 'liked_object_id',
-    LikedBy: 'liked_by',
-};
-exports.LikeMeta = LikeMeta;
-
 exports.fetchAnnouncedNote = fetchAnnouncedNote;
 exports.recordInboundBoost = recordInboundBoost;
 exports.recordInboundLike = recordInboundLike;
@@ -59,6 +43,8 @@ exports.sendBoost = sendBoost;
 exports.undoBoost = undoBoost;
 exports.getBoostActors = getBoostActors;
 exports.getBoostCount = getBoostCount;
+exports.getLikeActors = getLikeActors;
+exports.getLikeCount = getLikeCount;
 
 //
 //  Resolve an Announce's object field to a Note.
@@ -125,20 +111,19 @@ function fetchAnnouncedNote(objectOrId, cb) {
 }
 
 //
-//  Store an inbound Announce in the sharedInbox collection and attach
-//  metadata so the AP browser can query boosts efficiently.
+//  Store an inbound Announce in the sharedInbox collection and record the
+//  reaction in note_reactions for efficient Phase 6 aggregate queries.
 //
 //  Assumes the Announce's HTTP signature has already been validated.
 //  The Note itself is stored separately (caller's responsibility) via the
 //  standard toMessage() → persist() path.
 //
 function recordInboundBoost(activity, note, cb) {
-    const collectionId = PublicCollectionId;
-    const collectionName = Collections.SharedInbox;
+    const actorId = isString(activity.actor) ? activity.actor : activity.actor.id;
 
     async.series(
         [
-            //  Store the Announce activity itself
+            //  Store the Announce activity itself in sharedInbox (for timeline display)
             callback => {
                 Collection.addSharedInboxItem(activity, true /* ignoreDupes */, err => {
                     //  SQLITE_CONSTRAINT = already stored; idempotent
@@ -149,40 +134,9 @@ function recordInboundBoost(activity, note, cb) {
                 });
             },
 
-            //  Attach meta: activity type tag (allows filtering collection by type)
+            //  Record the reaction in note_reactions
             callback => {
-                Collection.addCollectionObjectMeta(
-                    collectionName,
-                    collectionId,
-                    activity.id,
-                    BoostMeta.ActivityType,
-                    'Announce',
-                    callback
-                );
-            },
-
-            //  Attach meta: the original Note ID that was announced
-            callback => {
-                Collection.addCollectionObjectMeta(
-                    collectionName,
-                    collectionId,
-                    activity.id,
-                    BoostMeta.OriginalNoteId,
-                    note.id,
-                    callback
-                );
-            },
-
-            //  Attach meta: who boosted (the Announce actor)
-            callback => {
-                Collection.addCollectionObjectMeta(
-                    collectionName,
-                    collectionId,
-                    activity.id,
-                    BoostMeta.BoostedBy,
-                    isString(activity.actor) ? activity.actor : activity.actor.id,
-                    callback
-                );
+                Collection.addReaction(note.id, actorId, 'Announce', activity.id, callback);
             },
         ],
         err => cb(err)
@@ -190,68 +144,21 @@ function recordInboundBoost(activity, note, cb) {
 }
 
 //
-//  Store an inbound Like in the sharedInbox collection and attach metadata
-//  so the AP browser can query likes efficiently.
+//  Record an inbound Like reaction against a Note.
+//
+//  Unlike boosts, Like activities are NOT stored in sharedInbox — they are
+//  pure signals and do not appear in the timeline.  The reaction is recorded
+//  directly in note_reactions for efficient aggregate queries.
 //
 //  activity.object may be a plain URL string or an embedded object with an .id.
 //
 function recordInboundLike(activity, cb) {
-    const collectionId = PublicCollectionId;
-    const collectionName = Collections.SharedInbox;
-    const likedId = isString(activity.object)
+    const noteId = isString(activity.object)
         ? activity.object
         : activity.object && activity.object.id;
+    const actorId = isString(activity.actor) ? activity.actor : activity.actor.id;
 
-    async.series(
-        [
-            //  Store the Like activity itself
-            callback => {
-                Collection.addSharedInboxItem(activity, true /* ignoreDupes */, err => {
-                    if (err && err.code !== 'SQLITE_CONSTRAINT') {
-                        return callback(err);
-                    }
-                    return callback(null);
-                });
-            },
-
-            //  Attach meta: activity type tag
-            callback => {
-                Collection.addCollectionObjectMeta(
-                    collectionName,
-                    collectionId,
-                    activity.id,
-                    LikeMeta.ActivityType,
-                    'Like',
-                    callback
-                );
-            },
-
-            //  Attach meta: the object ID that was liked
-            callback => {
-                Collection.addCollectionObjectMeta(
-                    collectionName,
-                    collectionId,
-                    activity.id,
-                    LikeMeta.LikedObjectId,
-                    likedId,
-                    callback
-                );
-            },
-
-            //  Attach meta: who liked
-            callback => {
-                Collection.addCollectionObjectMeta(
-                    collectionName,
-                    collectionId,
-                    activity.id,
-                    LikeMeta.LikedBy,
-                    isString(activity.actor) ? activity.actor : activity.actor.id,
-                    callback
-                );
-            },
-        ],
-        err => cb(err)
-    );
+    Collection.addReaction(noteId, actorId, 'Like', activity.id, cb);
 }
 
 //
@@ -405,39 +312,31 @@ function undoBoost(localUser, noteId, cb) {
 }
 
 //
-//  Return actor IDs of all remote actors who boosted a given Note ID.
-//  Used by the Phase 6 AP browser to display boost counts and actors.
+//  Return actor IDs of all remote actors who boosted (Announced) a given Note ID.
 //
 function getBoostActors(noteId, cb) {
-    Collection.getCollectionObjectsByMeta(
-        Collections.SharedInbox,
-        BoostMeta.OriginalNoteId,
-        noteId,
-        (err, results) => {
-            if (err) {
-                return cb(err);
-            }
-            const actors = results
-                .map(r => {
-                    const actor = r.object.actor;
-                    return isString(actor) ? actor : actor && actor.id;
-                })
-                .filter(Boolean);
-            return cb(null, actors);
-        }
-    );
+    Collection.getReactionActors(noteId, 'Announce', cb);
 }
 
 //
 //  Return the count of boosts for a given Note ID.
 //
 function getBoostCount(noteId, cb) {
-    getBoostActors(noteId, (err, actors) => {
-        if (err) {
-            return cb(err);
-        }
-        return cb(null, actors.length);
-    });
+    Collection.getReactionCount(noteId, 'Announce', cb);
+}
+
+//
+//  Return actor IDs of all remote actors who liked a given Note ID.
+//
+function getLikeActors(noteId, cb) {
+    Collection.getReactionActors(noteId, 'Like', cb);
+}
+
+//
+//  Return the count of likes for a given Note ID.
+//
+function getLikeCount(noteId, cb) {
+    Collection.getReactionCount(noteId, 'Like', cb);
 }
 
 //  Shared helper: collect unique shared-inbox endpoints for the local user's followers.

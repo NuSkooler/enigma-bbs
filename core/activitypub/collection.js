@@ -996,6 +996,80 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //
+    //  Record an inbound reaction (Like or Announce) against a Note.
+    //
+    //  noteId       : AP object ID of the reacted-to Note
+    //  actorId      : AP actor ID of the reacting actor
+    //  reactionType : 'Like' or 'Announce'
+    //  activityId   : AP activity ID (used for idempotent Undo)
+    //
+    //  Idempotent: OR REPLACE updates the activity_id and timestamp if the
+    //  (noteId, actorId, reactionType) triple already exists.
+    //
+    static addReaction(noteId, actorId, reactionType, activityId, cb) {
+        try {
+            apDb.prepare(
+                `INSERT INTO note_reactions (note_id, actor_id, reaction_type, activity_id, timestamp)
+                 VALUES (?, ?, ?, ?, datetime('now'))
+                 ON CONFLICT(note_id, actor_id, reaction_type)
+                 DO UPDATE SET activity_id = excluded.activity_id,
+                               timestamp   = excluded.timestamp;`
+            ).run(noteId, actorId, reactionType, activityId);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Remove a reaction by its AP activity ID.  Used when processing Undo{Like}
+    //  or Undo{Announce}.  No-ops silently when the activity_id is not found.
+    //
+    static removeReactionByActivityId(activityId, cb) {
+        try {
+            apDb.prepare(
+                'DELETE FROM note_reactions WHERE activity_id = ?'
+            ).run(activityId);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Return an array of actor IDs that have reacted to a Note with a given type.
+    //
+    //  reactionType : 'Like' or 'Announce'
+    //
+    static getReactionActors(noteId, reactionType, cb) {
+        try {
+            const rows = apDb.prepare(
+                `SELECT actor_id FROM note_reactions
+                 WHERE note_id = ? AND reaction_type = ?
+                 ORDER BY timestamp ASC;`
+            ).all(noteId, reactionType);
+            return cb(null, rows.map(r => r.actor_id));
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Return the count of reactions of a given type for a Note.
+    //
+    static getReactionCount(noteId, reactionType, cb) {
+        try {
+            const row = apDb.prepare(
+                `SELECT COUNT(*) AS n FROM note_reactions
+                 WHERE note_id = ? AND reaction_type = ?;`
+            ).get(noteId, reactionType);
+            return cb(null, row.n);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static _rowToObjectInfo(row) {
         return {
             name: row.name,

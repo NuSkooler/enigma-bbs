@@ -22,10 +22,9 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.1.1-beta to 0.2.0-beta
 
-* Run `npm install` after pulling this update — a core dependency was replaced and the new package must be installed before starting ENiGMA. No configuration or database changes are required.
 
 ## 0.1.0-beta to 0.1.1-beta
-
+N/A
 
 ## 0.0.14-beta to 0.1.0-beta
 * We are nearing 1.0! Version numbers have changed.
