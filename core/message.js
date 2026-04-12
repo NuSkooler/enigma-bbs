@@ -564,6 +564,22 @@ module.exports = class Message {
         }
     }
 
+    //  Add a single meta value to an already-persisted message.
+    //  OR IGNORE makes this idempotent — calling twice with the same args is safe.
+    static addMetaValue(messageId, category, name, value, cb) {
+        try {
+            msgDb
+                .prepare(
+                    `INSERT OR IGNORE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                    VALUES (?, ?, ?, ?);`
+                )
+                .run(messageId, category, name, value);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static getMetaValuesByMessageId(messageId, category, name, cb) {
         const sql = `SELECT meta_value
             FROM message_meta

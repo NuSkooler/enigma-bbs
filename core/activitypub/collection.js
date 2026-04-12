@@ -854,6 +854,60 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //  Attach a metadata key/value to an existing collection entry.
+    //  Idempotent: OR IGNORE means duplicate calls with identical args are safe.
+    static addCollectionObjectMeta(
+        collectionName,
+        collectionId,
+        objectId,
+        metaName,
+        metaValue,
+        cb
+    ) {
+        try {
+            apDb.prepare(
+                `INSERT OR IGNORE INTO collection_object_meta
+                        (collection_id, name, object_id, meta_name, meta_value)
+                    VALUES (?, ?, ?, ?, ?);`
+            ).run(collectionId, collectionName, objectId, metaName, metaValue);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //  Find collection entries that carry a specific meta_name/meta_value pair.
+    //  Returns an array of parsed objects (same shape as objectsById results).
+    static getCollectionObjectsByMeta(collectionName, metaName, metaValue, cb) {
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT c.name, c.timestamp, c.owner_actor_id, c.object_json, c.is_private
+                    FROM collection c
+                    JOIN collection_object_meta m
+                        ON  m.collection_id = c.collection_id
+                        AND m.name          = c.name
+                        AND m.object_id     = c.object_id
+                    WHERE c.name   = ?
+                      AND m.meta_name  = ?
+                      AND m.meta_value = ?
+                    ORDER BY c.timestamp DESC;`
+                )
+                .all(collectionName, metaName, metaValue);
+
+            const results = [];
+            for (const row of rows) {
+                const obj = ActivityPubObject.fromJsonString(row.object_json);
+                if (obj) {
+                    results.push({ info: Collection._rowToObjectInfo(row), object: obj });
+                }
+            }
+            return cb(null, results);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static _rowToObjectInfo(row) {
         return {
             name: row.name,

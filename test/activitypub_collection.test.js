@@ -655,3 +655,228 @@ describe('Collection.updateCollectionEntry', function () {
         });
     });
 });
+
+// ─── addCollectionObjectMeta ──────────────────────────────────────────────────
+
+describe('Collection.addCollectionObjectMeta', function () {
+    const COLL_ID = 'https://www.w3.org/ns/activitystreams#Public';
+    const COLL_NAME = 'sharedInbox';
+
+    function insertActivity(activityId) {
+        const obj = {
+            id: activityId,
+            type: 'Announce',
+            actor: 'https://remote.example.com/users/alice',
+            object: 'https://bbs.example.com/notes/1',
+        };
+        _apDb
+            .prepare(
+                `INSERT OR IGNORE INTO collection
+                    (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
+                    VALUES (?, ?, datetime('now'), ?, ?, ?, 0)`
+            )
+            .run(COLL_ID, COLL_NAME, COLL_ID, activityId, JSON.stringify(obj));
+    }
+
+    it('inserts a meta row for an existing collection entry', done => {
+        const id = 'https://remote.example.com/activities/meta1';
+        insertActivity(id);
+
+        Collection.addCollectionObjectMeta(
+            COLL_NAME,
+            COLL_ID,
+            id,
+            'activity_type',
+            'Announce',
+            err => {
+                assert.ifError(err);
+                const row = _apDb
+                    .prepare(
+                        'SELECT meta_value FROM collection_object_meta WHERE object_id = ? AND meta_name = ?'
+                    )
+                    .get(id, 'activity_type');
+                assert.ok(row, 'meta row should exist');
+                assert.equal(row.meta_value, 'Announce');
+                done();
+            }
+        );
+    });
+
+    it('is idempotent — inserting the same meta twice does not error', done => {
+        const id = 'https://remote.example.com/activities/meta2';
+        insertActivity(id);
+
+        Collection.addCollectionObjectMeta(
+            COLL_NAME,
+            COLL_ID,
+            id,
+            'boosted_by',
+            'https://remote.example.com/users/bob',
+            err => {
+                assert.ifError(err);
+                Collection.addCollectionObjectMeta(
+                    COLL_NAME,
+                    COLL_ID,
+                    id,
+                    'boosted_by',
+                    'https://remote.example.com/users/bob',
+                    err2 => {
+                        assert.ifError(err2);
+                        const count = _apDb
+                            .prepare(
+                                'SELECT COUNT(*) AS n FROM collection_object_meta WHERE object_id = ? AND meta_name = ?'
+                            )
+                            .get(id, 'boosted_by').n;
+                        assert.equal(count, 1);
+                        done();
+                    }
+                );
+            }
+        );
+    });
+
+    it('multiple distinct meta_name values can coexist on one entry', done => {
+        const id = 'https://remote.example.com/activities/meta3';
+        insertActivity(id);
+
+        Collection.addCollectionObjectMeta(
+            COLL_NAME,
+            COLL_ID,
+            id,
+            'activity_type',
+            'Announce',
+            err => {
+                assert.ifError(err);
+                Collection.addCollectionObjectMeta(
+                    COLL_NAME,
+                    COLL_ID,
+                    id,
+                    'original_note_id',
+                    'https://bbs.example.com/notes/1',
+                    err2 => {
+                        assert.ifError(err2);
+                        const rows = _apDb
+                            .prepare(
+                                'SELECT meta_name FROM collection_object_meta WHERE object_id = ?'
+                            )
+                            .all(id);
+                        assert.equal(rows.length, 2);
+                        done();
+                    }
+                );
+            }
+        );
+    });
+
+    it('meta rows are cascade-deleted when the parent collection entry is removed', done => {
+        const id = 'https://remote.example.com/activities/meta4';
+        insertActivity(id);
+
+        Collection.addCollectionObjectMeta(
+            COLL_NAME,
+            COLL_ID,
+            id,
+            'activity_type',
+            'Announce',
+            err => {
+                assert.ifError(err);
+                _apDb.prepare('DELETE FROM collection WHERE object_id = ?').run(id);
+                const row = _apDb
+                    .prepare('SELECT * FROM collection_object_meta WHERE object_id = ?')
+                    .get(id);
+                assert.equal(row, undefined, 'meta rows should be cascade-deleted');
+                done();
+            }
+        );
+    });
+});
+
+// ─── getCollectionObjectsByMeta ───────────────────────────────────────────────
+
+describe('Collection.getCollectionObjectsByMeta', function () {
+    const COLL_ID = 'https://www.w3.org/ns/activitystreams#Public';
+    const COLL_NAME = 'sharedInbox';
+
+    function insertAnnounce(activityId, noteId, booster) {
+        const obj = { id: activityId, type: 'Announce', actor: booster, object: noteId };
+        _apDb
+            .prepare(
+                `INSERT OR IGNORE INTO collection
+                    (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
+                    VALUES (?, ?, datetime('now'), ?, ?, ?, 0)`
+            )
+            .run(COLL_ID, COLL_NAME, COLL_ID, activityId, JSON.stringify(obj));
+        _apDb
+            .prepare(
+                `INSERT OR IGNORE INTO collection_object_meta
+                (collection_id, name, object_id, meta_name, meta_value)
+             VALUES (?, ?, ?, 'original_note_id', ?)`
+            )
+            .run(COLL_ID, COLL_NAME, activityId, noteId);
+    }
+
+    it('returns entries matching the given meta_name and meta_value', done => {
+        const NOTE = 'https://bbs.example.com/notes/queryme';
+        insertAnnounce(
+            'https://remote.example.com/activities/q1',
+            NOTE,
+            'https://remote.example.com/users/alice'
+        );
+        insertAnnounce(
+            'https://remote.example.com/activities/q2',
+            NOTE,
+            'https://remote.example.com/users/bob'
+        );
+
+        Collection.getCollectionObjectsByMeta(
+            COLL_NAME,
+            'original_note_id',
+            NOTE,
+            (err, results) => {
+                assert.ifError(err);
+                assert.equal(results.length, 2, 'should find both Announces');
+                const actors = results.map(r => r.object.actor).sort();
+                assert.ok(actors.includes('https://remote.example.com/users/alice'));
+                assert.ok(actors.includes('https://remote.example.com/users/bob'));
+                done();
+            }
+        );
+    });
+
+    it('returns empty array when no entries match', done => {
+        Collection.getCollectionObjectsByMeta(
+            COLL_NAME,
+            'original_note_id',
+            'https://bbs.example.com/notes/NOPE',
+            (err, results) => {
+                assert.ifError(err);
+                assert.deepEqual(results, []);
+                done();
+            }
+        );
+    });
+
+    it('does not return entries from a different collection name', done => {
+        const NOTE = 'https://bbs.example.com/notes/isolation';
+        insertAnnounce(
+            'https://remote.example.com/activities/iso1',
+            NOTE,
+            'https://remote.example.com/users/carol'
+        );
+
+        Collection.getCollectionObjectsByMeta(
+            'outbox',
+            'original_note_id',
+            NOTE,
+            (err, results) => {
+                assert.ifError(err);
+                assert.deepEqual(
+                    results,
+                    [],
+                    'should not see sharedInbox entries when querying outbox'
+                );
+                done();
+            }
+        );
+    });
+});

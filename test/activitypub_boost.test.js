@@ -1,0 +1,446 @@
+'use strict';
+
+const { strict: assert } = require('assert');
+const Database = require('better-sqlite3');
+
+//
+//  Config mock — must be in place before any transitive require touches Config.
+//
+const configModule = require('../core/config.js');
+const TEST_CONFIG = {
+    debug: { assertsEnabled: false },
+    general: { boardName: 'TestBoard' },
+    contentServers: {
+        web: {
+            domain: 'test.example.com',
+            https: { enabled: true, port: 443 },
+        },
+    },
+};
+configModule.get = () => TEST_CONFIG;
+
+//
+//  Logger stub — prevents crashes when modules capture Log.log at load time.
+//
+const LogModule = require('../core/logger.js');
+LogModule.log = {
+    error: () => {},
+    warn: () => {},
+    info: () => {},
+    debug: () => {},
+    trace: () => {},
+};
+
+//
+//  In-memory message DB — injected before requiring message.js.
+//
+const dbModule = require('../core/database.js');
+const _msgDb = new Database(':memory:');
+_msgDb.pragma('foreign_keys = ON');
+dbModule.dbs.message = _msgDb;
+
+delete require.cache[require.resolve('../core/message.js')];
+const Message = require('../core/message.js');
+
+//
+//  In-memory activitypub DB — injected before requiring collection.js / boost_util.js.
+//
+const _apDb = new Database(':memory:');
+_apDb.pragma('foreign_keys = ON');
+dbModule.dbs.activitypub = _apDb;
+
+//  Force a fresh load of web_util.js and endpoint.js so their module-level
+//  `Config = require('./config').get` captures our mock rather than whatever
+//  a previously-loaded test file left behind.
+delete require.cache[require.resolve('../core/web_util.js')];
+delete require.cache[require.resolve('../core/activitypub/endpoint.js')];
+delete require.cache[require.resolve('../core/activitypub/object.js')];
+delete require.cache[require.resolve('../core/activitypub/activity.js')];
+delete require.cache[require.resolve('../core/activitypub/collection.js')];
+delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
+const { fetchAnnouncedNote } = require('../core/activitypub/boost_util.js');
+const Activity = require('../core/activitypub/activity.js');
+
+// ─── config restore ───────────────────────────────────────────────────────────
+//
+//  Mocha loads all test files before executing any suite. Other test files may
+//  overwrite configModule.get between load time and test execution. Re-apply
+//  our config in a root-level before hook so it is active for all suites here.
+//
+before(() => {
+    configModule.get = () => TEST_CONFIG;
+});
+
+// ─── schema ───────────────────────────────────────────────────────────────────
+
+function applyMessageSchema(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS message (
+            message_id              INTEGER PRIMARY KEY,
+            area_tag                VARCHAR NOT NULL,
+            message_uuid            VARCHAR(36) NOT NULL,
+            reply_to_message_id     INTEGER,
+            to_user_name            VARCHAR NOT NULL,
+            from_user_name          VARCHAR NOT NULL,
+            subject,
+            message,
+            modified_timestamp      DATETIME NOT NULL,
+            view_count              INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(message_uuid)
+        );
+
+        CREATE TABLE IF NOT EXISTS message_meta (
+            message_id      INTEGER NOT NULL,
+            meta_category   INTEGER NOT NULL,
+            meta_name       VARCHAR NOT NULL,
+            meta_value      VARCHAR NOT NULL,
+            UNIQUE(message_id, meta_category, meta_name, meta_value),
+            FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS user_message_area_last_read (
+            user_id     INTEGER NOT NULL,
+            area_tag    VARCHAR NOT NULL,
+            message_id  INTEGER NOT NULL,
+            UNIQUE(user_id, area_tag)
+        );
+
+        CREATE TABLE IF NOT EXISTS message_area_last_scan (
+            scan_toss   VARCHAR NOT NULL,
+            area_tag    VARCHAR NOT NULL,
+            message_id  INTEGER NOT NULL,
+            UNIQUE(scan_toss, area_tag)
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (
+            content="message",
+            subject,
+            message
+        );
+
+        CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
+            DELETE FROM message_fts WHERE docid=old.rowid;
+        END;
+        CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
+            DELETE FROM message_fts WHERE docid=old.rowid;
+        END;
+        CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
+            INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+        END;
+        CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
+            INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+        END;
+    `);
+}
+
+function applyApSchema(db) {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS collection (
+            collection_id       VARCHAR NOT NULL,
+            name                VARCHAR NOT NULL,
+            timestamp           DATETIME NOT NULL,
+            owner_actor_id      VARCHAR NOT NULL,
+            object_id           VARCHAR NOT NULL,
+            object_json         VARCHAR NOT NULL,
+            is_private          INTEGER NOT NULL,
+            UNIQUE(name, collection_id, object_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS collection_entry_by_object_id_index0
+            ON collection (object_id);
+
+        CREATE TABLE IF NOT EXISTS collection_object_meta (
+            collection_id   VARCHAR NOT NULL,
+            name            VARCHAR NOT NULL,
+            object_id       VARCHAR NOT NULL,
+            meta_name       VARCHAR NOT NULL,
+            meta_value      VARCHAR NOT NULL,
+            UNIQUE(collection_id, object_id, meta_name),
+            FOREIGN KEY(name, collection_id, object_id)
+                REFERENCES collection(name, collection_id, object_id)
+                ON DELETE CASCADE
+        );
+    `);
+}
+
+before(() => {
+    applyMessageSchema(_msgDb);
+    applyApSchema(_apDb);
+});
+
+beforeEach(() => {
+    _msgDb.exec('DELETE FROM message_meta; DELETE FROM message;');
+    _apDb.exec('DELETE FROM collection_object_meta; DELETE FROM collection;');
+});
+
+// ─── Message.addMetaValue ─────────────────────────────────────────────────────
+
+describe('Message.addMetaValue()', function () {
+    function insertMessage() {
+        const info = _msgDb
+            .prepare(
+                `INSERT INTO message
+                    (area_tag, message_uuid, to_user_name, from_user_name, subject, message, modified_timestamp)
+                 VALUES ('activitypub_shared', 'uuid-add-meta-1', 'All', 'alice@remote', 'Test', 'Body text here.', datetime('now'))`
+            )
+            .run();
+        return info.lastInsertRowid;
+    }
+
+    it('inserts a meta row on an existing message', done => {
+        const msgId = insertMessage();
+        Message.addMetaValue(
+            msgId,
+            'ActivityPub',
+            'activitypub_note_id',
+            'https://remote.example.com/notes/1',
+            err => {
+                assert.ifError(err);
+                const row = _msgDb
+                    .prepare(
+                        'SELECT meta_value FROM message_meta WHERE message_id = ? AND meta_name = ?'
+                    )
+                    .get(msgId, 'activitypub_note_id');
+                assert.ok(row, 'meta row should exist');
+                assert.equal(row.meta_value, 'https://remote.example.com/notes/1');
+                done();
+            }
+        );
+    });
+
+    it('is idempotent — calling twice with the same args does not error', done => {
+        const msgId = insertMessage();
+        const val = 'https://remote.example.com/notes/2';
+        Message.addMetaValue(msgId, 'ActivityPub', 'activitypub_note_id', val, err => {
+            assert.ifError(err);
+            Message.addMetaValue(
+                msgId,
+                'ActivityPub',
+                'activitypub_note_id',
+                val,
+                err2 => {
+                    assert.ifError(err2);
+                    const count = _msgDb
+                        .prepare(
+                            'SELECT COUNT(*) AS n FROM message_meta WHERE message_id = ? AND meta_name = ?'
+                        )
+                        .get(msgId, 'activitypub_note_id').n;
+                    assert.equal(count, 1, 'OR IGNORE should keep exactly one row');
+                    done();
+                }
+            );
+        });
+    });
+
+    it('multiple distinct meta_name values can be added to the same message', done => {
+        const msgId = insertMessage();
+        Message.addMetaValue(
+            msgId,
+            'ActivityPub',
+            'activitypub_activity_id',
+            'https://remote.example.com/activities/1',
+            err => {
+                assert.ifError(err);
+                Message.addMetaValue(
+                    msgId,
+                    'ActivityPub',
+                    'activitypub_note_id',
+                    'https://remote.example.com/notes/3',
+                    err2 => {
+                        assert.ifError(err2);
+                        const rows = _msgDb
+                            .prepare(
+                                'SELECT meta_name FROM message_meta WHERE message_id = ?'
+                            )
+                            .all(msgId);
+                        assert.equal(rows.length, 2);
+                        const names = rows.map(r => r.meta_name);
+                        assert.ok(names.includes('activitypub_activity_id'));
+                        assert.ok(names.includes('activitypub_note_id'));
+                        done();
+                    }
+                );
+            }
+        );
+    });
+
+    it('does not affect meta on other messages', done => {
+        const msgId1 = insertMessage();
+        _msgDb
+            .prepare(
+                `INSERT INTO message (area_tag, message_uuid, to_user_name, from_user_name, subject, message, modified_timestamp)
+             VALUES ('activitypub_shared', 'uuid-add-meta-2', 'All', 'bob@remote', 'Other', 'Other body text.', datetime('now'))`
+            )
+            .run();
+
+        Message.addMetaValue(
+            msgId1,
+            'ActivityPub',
+            'activitypub_note_id',
+            'https://remote.example.com/notes/4',
+            err => {
+                assert.ifError(err);
+                const total = _msgDb
+                    .prepare('SELECT COUNT(*) AS n FROM message_meta')
+                    .get().n;
+                assert.equal(
+                    total,
+                    1,
+                    'only one meta row should exist across all messages'
+                );
+                done();
+            }
+        );
+    });
+});
+
+// ─── Activity.makeAnnounce ────────────────────────────────────────────────────
+
+describe('Activity.makeAnnounce()', function () {
+    const ACTOR_ID = 'https://test.example.com/_enig/ap/users/testuser';
+    const NOTE_ID = 'https://mastodon.social/users/alice/statuses/12345';
+    const FOLLOWERS = 'https://test.example.com/_enig/ap/users/testuser/followers';
+
+    it('returns an Activity with type Announce', () => {
+        const a = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.equal(a.type, 'Announce');
+    });
+
+    it('has the correct actor', () => {
+        const a = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.equal(a.actor, ACTOR_ID);
+    });
+
+    it('has the correct object (Note ID)', () => {
+        const a = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.equal(a.object, NOTE_ID);
+    });
+
+    it('to contains the public collection ID', () => {
+        const a = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.ok(Array.isArray(a.to));
+        assert.ok(
+            a.to.includes('https://www.w3.org/ns/activitystreams#Public'),
+            'to should include the public collection'
+        );
+    });
+
+    it('cc contains the followers endpoint', () => {
+        const a = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.ok(Array.isArray(a.cc));
+        assert.ok(a.cc.includes(FOLLOWERS), 'cc should include the followers endpoint');
+    });
+
+    it('has a unique id each time', () => {
+        const a1 = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        const a2 = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.notEqual(a1.id, a2.id, 'each Announce should get a unique ID');
+    });
+
+    it('id is a valid https URL', () => {
+        const a = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.ok(typeof a.id === 'string');
+        assert.ok(a.id.startsWith('https://'), 'id should be an https URL');
+    });
+});
+
+// ─── fetchAnnouncedNote — embedded object cases (no network) ──────────────────
+
+describe('fetchAnnouncedNote() — embedded object (no network)', function () {
+    it('returns a Note when given a valid embedded Note object', done => {
+        const embedded = {
+            id: 'https://remote.example.com/notes/embedded1',
+            type: 'Note',
+            content: '<p>Hello from remote</p>',
+            attributedTo: 'https://remote.example.com/users/alice',
+        };
+
+        fetchAnnouncedNote(embedded, (err, note) => {
+            assert.ifError(err);
+            assert.ok(note, 'should return a note');
+            assert.equal(note.type, 'Note');
+            assert.equal(note.id, embedded.id);
+            done();
+        });
+    });
+
+    it('errors when given an embedded object with a non-Note type', done => {
+        const embedded = {
+            id: 'https://remote.example.com/articles/1',
+            type: 'Article',
+            content: '<p>An article</p>',
+        };
+
+        fetchAnnouncedNote(embedded, err => {
+            assert.ok(err, 'should error for non-Note type');
+            done();
+        });
+    });
+
+    it('errors when given a null embedded object', done => {
+        fetchAnnouncedNote(null, err => {
+            assert.ok(err, 'should error for null');
+            done();
+        });
+    });
+
+    it('errors when given an empty object (no type)', done => {
+        fetchAnnouncedNote({}, err => {
+            assert.ok(err, 'should error for object with no type');
+            done();
+        });
+    });
+});
+
+// ─── fetchAnnouncedNote — local collection lookup ─────────────────────────────
+
+describe('fetchAnnouncedNote() — local collection lookup (no network)', function () {
+    const COLL_ID = 'https://www.w3.org/ns/activitystreams#Public';
+
+    function seedActivity(noteId) {
+        //  Mirrors how _inboxCreateNoteActivity stores a Create{Note} in sharedInbox.
+        const activity = {
+            id: `https://remote.example.com/activities/${Date.now()}`,
+            type: 'Create',
+            actor: 'https://remote.example.com/users/alice',
+            object: {
+                id: noteId,
+                type: 'Note',
+                content: '<p>Seeded content</p>',
+                attributedTo: 'https://remote.example.com/users/alice',
+            },
+        };
+        _apDb
+            .prepare(
+                `INSERT OR IGNORE INTO collection
+                    (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
+                 VALUES (?, 'sharedInbox', datetime('now'), ?, ?, ?, 0)`
+            )
+            .run(COLL_ID, COLL_ID, activity.id, JSON.stringify(activity));
+    }
+
+    it('finds a Note that is already in the local collection (covers boost-of-local)', done => {
+        const noteId = 'https://remote.example.com/notes/local-lookup-1';
+        seedActivity(noteId);
+
+        fetchAnnouncedNote(noteId, (err, note) => {
+            assert.ifError(err);
+            assert.ok(note, 'should return a note');
+            assert.equal(note.type, 'Note');
+            assert.equal(note.id, noteId);
+            done();
+        });
+    });
+
+    //  When the note is NOT in the local collection and no network is available,
+    //  fetchAnnouncedNote will attempt an HTTP fetch which will fail.
+    //  We verify it propagates the error rather than silently succeeding.
+    it('errors (not silently succeeds) when note is unknown and network is unavailable', done => {
+        const unknownId = 'https://192.0.2.1/notes/unreachable'; // TEST-NET, guaranteed unreachable
+
+        fetchAnnouncedNote(unknownId, err => {
+            assert.ok(err, 'should propagate fetch error for unknown note');
+            done();
+        });
+    }).timeout(5000);
+});

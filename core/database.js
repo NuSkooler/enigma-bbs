@@ -396,6 +396,9 @@ const DB_INIT_TABLE = {
             CREATE INDEX IF NOT EXISTS collection_entry_by_name_collection_id_index0
                 ON collection (name, collection_id);
 
+            CREATE INDEX IF NOT EXISTS collection_entry_by_object_id_index0
+                ON collection (object_id);
+
             CREATE TABLE IF NOT EXISTS collection_object_meta (
                 collection_id   VARCHAR NOT NULL,
                 name            VARCHAR NOT NULL,

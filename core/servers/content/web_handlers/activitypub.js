@@ -7,6 +7,10 @@ const {
     prepareLocalUserAsActor,
 } = require('../../../activitypub/util');
 const { acceptFollowRequest } = require('../../../activitypub/follow_util');
+const {
+    fetchAnnouncedNote,
+    recordInboundBoost,
+} = require('../../../activitypub/boost_util');
 const SysLog = require('../../../logger').log;
 const {
     ActivityStreamMediaType,
@@ -342,6 +346,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         case WellKnownActivity.Add:
                             break;
 
+                        case WellKnownActivity.Announce:
+                            return this._inboxAnnounceActivity(resp, activity);
+
                         case WellKnownActivity.Create:
                             return this._inboxCreateActivity(resp, activity);
 
@@ -499,6 +506,70 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.accepted(resp);
             }
         );
+    }
+
+    _inboxAnnounceActivity(resp, activity) {
+        //  Announce.object may be a URL string or an embedded object.
+        //  For now we only handle Notes — log and ignore other types.
+        //  :TODO: Articles and Questions should also be supported (see Vault Phase 2 notes).
+        fetchAnnouncedNote(activity.object, (err, note) => {
+            if (err) {
+                this.log.warn(
+                    {
+                        activityId: activity.id,
+                        object: activity.object,
+                        error: err.message,
+                    },
+                    'Failed to resolve Announce object — ignoring'
+                );
+                //  Return accepted so the remote server does not keep retrying;
+                //  the content just won't appear locally.
+                return this.webServer.accepted(resp);
+            }
+
+            if (!note.isValid()) {
+                this.log.warn(
+                    { activityId: activity.id, noteId: note.id },
+                    'Announced Note failed validation'
+                );
+                return this.webServer.accepted(resp);
+            }
+
+            //  Store the Announce activity + metadata in the shared inbox collection.
+            recordInboundBoost(activity, note, err => {
+                if (err) {
+                    this.log.error(
+                        { activityId: activity.id, noteId: note.id, error: err.message },
+                        'Failed to record inbound boost'
+                    );
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                //  Ensure the Note itself exists as a local BBS message.
+                //  toMessage() generates a deterministic UUID so persist() is idempotent:
+                //  if a Create/Note already delivered this content, the SQLITE_CONSTRAINT
+                //  on message_uuid is silently swallowed.
+                this._storeNoteAsMessage(
+                    activity.id,
+                    'All',
+                    Message.WellKnownAreaTags.ActivityPubShared,
+                    note,
+                    err => {
+                        if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                            this.log.error(
+                                {
+                                    activityId: activity.id,
+                                    noteId: note.id,
+                                    error: err.message,
+                                },
+                                'Failed to store announced Note as message'
+                            );
+                        }
+                        return this.webServer.accepted(resp);
+                    }
+                );
+            });
+        });
     }
 
     _inboxRejectFollowActivity(resp, activity) {
