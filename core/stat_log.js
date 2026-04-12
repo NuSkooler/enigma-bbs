@@ -37,20 +37,16 @@ class StatLog {
         //
         //  Load previous state/values of |this.systemStats|
         //
-        const self = this;
-
-        sysDb.each(
-            `SELECT stat_name, stat_value
-            FROM system_stat;`,
-            (err, row) => {
-                if (row) {
-                    self.systemStats[row.stat_name] = row.stat_value;
-                }
-            },
-            err => {
-                return cb(err);
+        try {
+            for (const row of sysDb
+                .prepare(`SELECT stat_name, stat_value FROM system_stat;`)
+                .iterate()) {
+                this.systemStats[row.stat_name] = row.stat_value;
             }
-        );
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     get KeepDays() {
@@ -99,17 +95,20 @@ class StatLog {
         this.systemStats[statName] = statValue;
 
         //  persisted stats
-        sysDb.run(
-            `REPLACE INTO system_stat (stat_name, stat_value)
-            VALUES (?, ?);`,
-            [statName, statValue],
-            err => {
-                //  cb optional - callers may fire & forget
-                if (cb) {
-                    return cb(err);
-                }
+        try {
+            sysDb
+                .prepare(
+                    `REPLACE INTO system_stat (stat_name, stat_value) VALUES (?, ?);`
+                )
+                .run(statName, statValue);
+            if (cb) {
+                return cb(null);
             }
-        );
+        } catch (err) {
+            if (cb) {
+                return cb(err);
+            }
+        }
     }
 
     getSystemStat(statName) {
@@ -207,56 +206,44 @@ class StatLog {
     }
 
     appendSystemLogEntry(logName, logValue, keep, keepType, cb) {
-        sysDb.run(
-            `INSERT INTO system_event_log (timestamp, log_name, log_value)
-            VALUES (?, ?, ?);`,
-            [this.now, logName, logValue],
-            () => {
-                //
-                //  Handle keep
-                //
-                if (-1 === keep) {
-                    if (cb) {
-                        return cb(null);
-                    }
-                    return;
-                }
+        try {
+            sysDb
+                .prepare(
+                    `INSERT INTO system_event_log (timestamp, log_name, log_value)
+                    VALUES (?, ?, ?);`
+                )
+                .run(this.now, logName, logValue);
 
+            //
+            //  Handle keep
+            //
+            if (-1 !== keep) {
                 switch (keepType) {
                     //  keep # of days
                     case 'days':
-                        sysDb.run(
-                            `DELETE FROM system_event_log
-                            WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keep} day");`,
-                            [logName],
-                            err => {
-                                //  cb optional - callers may fire & forget
-                                if (cb) {
-                                    return cb(err);
-                                }
-                            }
-                        );
+                        sysDb
+                            .prepare(
+                                `DELETE FROM system_event_log
+                                WHERE log_name = ? AND timestamp <= DATETIME('now', '-${keep} day');`
+                            )
+                            .run(logName);
                         break;
 
                     case 'count':
                     case 'max':
                         //  keep max of N/count
-                        sysDb.run(
-                            `DELETE FROM system_event_log
-                            WHERE id IN(
-                                SELECT id
-                                FROM system_event_log
-                                WHERE log_name = ?
-                                ORDER BY id DESC
-                                LIMIT -1 OFFSET ${keep}
-                            );`,
-                            [logName],
-                            err => {
-                                if (cb) {
-                                    return cb(err);
-                                }
-                            }
-                        );
+                        sysDb
+                            .prepare(
+                                `DELETE FROM system_event_log
+                                WHERE id IN(
+                                    SELECT id
+                                    FROM system_event_log
+                                    WHERE log_name = ?
+                                    ORDER BY id DESC
+                                    LIMIT -1 OFFSET ${keep}
+                                );`
+                            )
+                            .run(logName);
                         break;
 
                     case 'forever':
@@ -265,7 +252,15 @@ class StatLog {
                         break;
                 }
             }
-        );
+
+            if (cb) {
+                return cb(null);
+            }
+        } catch (err) {
+            if (cb) {
+                return cb(err);
+            }
+        }
     }
 
     //
@@ -299,40 +294,34 @@ class StatLog {
     }
 
     appendUserLogEntry(user, logName, logValue, keepDays, cb) {
-        sysDb.run(
-            `INSERT INTO user_event_log (timestamp, user_id, session_id, log_name, log_value)
-            VALUES (?, ?, ?, ?, ?);`,
-            [this.now, user.userId, user.sessionId, logName, logValue],
-            err => {
-                if (err) {
-                    if (cb) {
-                        cb(err);
-                    }
-                    return;
-                }
-                //
-                //  Handle keepDays
-                //
-                if (-1 === keepDays) {
-                    if (cb) {
-                        return cb(null);
-                    }
-                    return;
-                }
+        try {
+            sysDb
+                .prepare(
+                    `INSERT INTO user_event_log (timestamp, user_id, session_id, log_name, log_value)
+                    VALUES (?, ?, ?, ?, ?);`
+                )
+                .run(this.now, user.userId, user.sessionId, logName, logValue);
 
-                sysDb.run(
-                    `DELETE FROM user_event_log
-                    WHERE user_id = ? AND log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,
-                    [user.userId, logName],
-                    err => {
-                        //  cb optional - callers may fire & forget
-                        if (cb) {
-                            return cb(err);
-                        }
-                    }
-                );
+            //
+            //  Handle keepDays
+            //
+            if (-1 !== keepDays) {
+                sysDb
+                    .prepare(
+                        `DELETE FROM user_event_log
+                        WHERE user_id = ? AND log_name = ? AND timestamp <= DATETIME('now', '-${keepDays} day');`
+                    )
+                    .run(user.userId, logName);
             }
-        );
+
+            if (cb) {
+                return cb(null);
+            }
+        } catch (err) {
+            if (cb) {
+                return cb(err);
+            }
+        }
     }
 
     initUserEvents(cb) {
@@ -511,14 +500,14 @@ class StatLog {
 
         if (filter.date) {
             filter.date = moment(filter.date);
-            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format(
+            sql += ` AND DATE(timestamp, 'localtime') = DATE('${filter.date.format(
                 'YYYY-MM-DD'
-            )}")`;
+            )}')`;
         } else if (filter.dateNewer) {
             filter.dateNewer = moment(filter.dateNewer);
-            sql += ` AND DATE(timestamp, "localtime") > DATE("${filter.dateNewer.format(
+            sql += ` AND DATE(timestamp, 'localtime') > DATE('${filter.dateNewer.format(
                 'YYYY-MM-DD'
-            )}")`;
+            )}')`;
         }
 
         if ('count' !== filter.resultType) {
@@ -544,14 +533,16 @@ class StatLog {
 
         sql += ';';
 
-        if ('count' === filter.resultType) {
-            sysDb.get(sql, [filter.logName], (err, row) => {
-                return cb(err, row ? row.count : 0);
-            });
-        } else {
-            sysDb.all(sql, [filter.logName], (err, rows) => {
-                return cb(err, rows);
-            });
+        try {
+            if ('count' === filter.resultType) {
+                const row = sysDb.prepare(sql).get(filter.logName);
+                return cb(null, row ? row.count : 0);
+            } else {
+                const rows = sysDb.prepare(sql).all(filter.logName);
+                return cb(null, rows);
+            }
+        } catch (err) {
+            return cb(err);
         }
     }
 }

@@ -1,6 +1,6 @@
 {
     "name": "enigma-bbs",
-    "version": "0.1.1-beta",
+    "version": "0.2.0-beta",
     "description": "ENiGMA½ Bulletin Board System",
     "author": "Bryan Ashby <bryan@l33t.codes>",
     "license": "BSD-2-Clause",
@@ -68,8 +68,7 @@
         "rlogin": "^1.0.0",
         "sane": "5.0.1",
         "sanitize-filename": "^1.6.3",
-        "sqlite3": "6.0.1",
-        "sqlite3-trans": "1.3.0",
+        "better-sqlite3": "^12.8.0",
         "ssh2": "1.17.0",
         "string-strip-html": "8.4.0",
         "systeminformation": "^5.27.10",

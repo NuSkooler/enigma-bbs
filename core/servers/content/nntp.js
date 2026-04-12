@@ -5,7 +5,7 @@
 const Log = require('../../logger.js').log;
 const { ServerModule } = require('../../server_module.js');
 const Config = require('../../config.js').get;
-const { getTransactionDatabase, getModDatabasePath } = require('../../database.js');
+const { openDatabase, getModDatabasePath } = require('../../database.js');
 const {
     getMessageAreaByTag,
     getMessageConferenceByTag,
@@ -34,7 +34,6 @@ const asyncMap = require('async/map');
 const asyncSeries = require('async/series');
 const asyncWaterfall = require('async/waterfall');
 const { LRUCache: LRU } = require('lru-cache');
-const sqlite3 = require('sqlite3');
 const paths = require('path');
 
 //
@@ -70,44 +69,25 @@ class NNTPDatabase {
     constructor() {}
 
     init(cb) {
-        asyncSeries(
-            [
-                callback => {
-                    this.db = getTransactionDatabase(
-                        new sqlite3.Database(
-                            getModDatabasePath(exports.moduleInfo),
-                            err => {
-                                return callback(err);
-                            }
-                        )
-                    );
-                },
-                callback => {
-                    this.db.serialize(() => {
-                        this.db.run(
-                            `CREATE TABLE IF NOT EXISTS nntp_area_message (
-                                nntp_message_id     INTEGER NOT NULL,
-                                message_id          INTEGER NOT NULL,
-                                message_area_tag    VARCHAR NOT NULL,
-                                message_uuid        VARCHAR NOT NULL,
+        try {
+            this.db = openDatabase(getModDatabasePath(exports.moduleInfo));
+            this.db.exec(
+                `CREATE TABLE IF NOT EXISTS nntp_area_message (
+                    nntp_message_id     INTEGER NOT NULL,
+                    message_id          INTEGER NOT NULL,
+                    message_area_tag    VARCHAR NOT NULL,
+                    message_uuid        VARCHAR NOT NULL,
 
-                                UNIQUE(nntp_message_id, message_area_tag)
-                            );`
-                        );
+                    UNIQUE(nntp_message_id, message_area_tag)
+                );
 
-                        this.db.run(
-                            `CREATE INDEX IF NOT EXISTS nntp_area_message_by_uuid_index
-                            ON nntp_area_message (message_uuid);`
-                        );
-
-                        return callback(null);
-                    });
-                },
-            ],
-            err => {
-                return cb(err);
-            }
-        );
+                CREATE INDEX IF NOT EXISTS nntp_area_message_by_uuid_index
+                ON nntp_area_message (message_uuid);`
+            );
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 }
 
@@ -769,35 +749,35 @@ class NNTPServer extends NNTPServerBase {
         asyncWaterfall(
             [
                 callback => {
-                    nntpDatabase.db.all(
-                        `SELECT nntp_message_id, message_id, message_uuid
-                        FROM nntp_area_message
-                        WHERE message_area_tag = ?
-                        ORDER BY nntp_message_id;`,
-                        [areaTag],
-                        (err, rows) => {
-                            if (err) {
-                                return callback(err);
-                            }
+                    try {
+                        const rows = nntpDatabase.db
+                            .prepare(
+                                `SELECT nntp_message_id, message_id, message_uuid
+                                FROM nntp_area_message
+                                WHERE message_area_tag = ?
+                                ORDER BY nntp_message_id;`
+                            )
+                            .all(areaTag);
 
-                            let messageList;
-                            const lastMessageId =
-                                rows.length > 0 ? rows[rows.length - 1].message_id : 0;
-                            if (!lastMessageId) {
-                                messageList = [];
-                            } else {
-                                messageList = rows.map(r => {
-                                    return {
-                                        areaTag,
-                                        index: r.nntp_message_id, //  node-nntp wants this name
-                                        messageUuid: r.message_uuid,
-                                    };
-                                });
-                            }
-
-                            return callback(null, messageList, lastMessageId);
+                        let messageList;
+                        const lastMessageId =
+                            rows.length > 0 ? rows[rows.length - 1].message_id : 0;
+                        if (!lastMessageId) {
+                            messageList = [];
+                        } else {
+                            messageList = rows.map(r => {
+                                return {
+                                    areaTag,
+                                    index: r.nntp_message_id, //  node-nntp wants this name
+                                    messageUuid: r.message_uuid,
+                                };
+                            });
                         }
-                    );
+
+                        return callback(null, messageList, lastMessageId);
+                    } catch (err) {
+                        return callback(err);
+                    }
                 },
                 (messageList, lastMessageId, callback) => {
                     //  Find any new entries
@@ -826,51 +806,36 @@ class NNTPServer extends NNTPServerBase {
                         }
 
                         //  populate mapping DB with any new entries
-                        nntpDatabase.db.beginTransaction((err, trans) => {
-                            if (err) {
-                                return callback(err);
-                            }
-
-                            forEachSeries(
-                                newMessageList,
-                                (newMessage, nextNewMessage) => {
-                                    trans.run(
-                                        `INSERT INTO nntp_area_message (nntp_message_id, message_id, message_area_tag, message_uuid)
-                                    VALUES (?, ?, ?, ?);`,
-                                        [
-                                            newMessage.index,
-                                            newMessage.messageId,
-                                            areaTag,
-                                            newMessage.messageUuid,
-                                        ],
-                                        err => {
-                                            return nextNewMessage(err);
-                                        }
-                                    );
-                                },
-                                err => {
-                                    if (err) {
-                                        return trans.rollback(() => {
-                                            return callback(err);
-                                        });
-                                    }
-
-                                    trans.commit(() => {
-                                        messageList.push(
-                                            ...newMessageList.map(m => {
-                                                return {
-                                                    areaTag,
-                                                    index: m.index,
-                                                    messageUuid: m.messageUuid,
-                                                };
-                                            })
-                                        );
-
-                                        return callback(null, messageList);
-                                    });
-                                }
+                        try {
+                            const stmt = nntpDatabase.db.prepare(
+                                `INSERT INTO nntp_area_message (nntp_message_id, message_id, message_area_tag, message_uuid)
+                                VALUES (?, ?, ?, ?);`
                             );
-                        });
+                            nntpDatabase.db.transaction(() => {
+                                for (const newMessage of newMessageList) {
+                                    stmt.run(
+                                        newMessage.index,
+                                        newMessage.messageId,
+                                        areaTag,
+                                        newMessage.messageUuid
+                                    );
+                                }
+                            })();
+
+                            messageList.push(
+                                ...newMessageList.map(m => {
+                                    return {
+                                        areaTag,
+                                        index: m.index,
+                                        messageUuid: m.messageUuid,
+                                    };
+                                })
+                            );
+
+                            return callback(null, messageList);
+                        } catch (transErr) {
+                            return callback(transErr);
+                        }
                     });
                 },
             ],
@@ -1031,7 +996,9 @@ class NNTPServer extends NNTPServerBase {
                     const date = parsed.header.get('date'); // if not present we'll use 'now'
                     const newsgroupsHeader = parsed.header.get('newsgroups');
                     if (!newsgroupsHeader) {
-                        return callback(Errors.Invalid('Missing required Newsgroups header'));
+                        return callback(
+                            Errors.Invalid('Missing required Newsgroups header')
+                        );
                     }
                     const newsgroups = newsgroupsHeader
                         .split(',')
@@ -1042,7 +1009,11 @@ class NNTPServer extends NNTPServerBase {
                         .filter(ng => ng.confTag && ng.areaTag);
 
                     if (0 === newsgroups.length) {
-                        return callback(Errors.Invalid('Newsgroups header contains no valid group entries'));
+                        return callback(
+                            Errors.Invalid(
+                                'Newsgroups header contains no valid group entries'
+                            )
+                        );
                     }
 
                     // validate areaTag exists -- currently only a single area/post; no x-posts
@@ -1472,49 +1443,34 @@ function performMaintenanceTask(args, cb) {
         return cb(null);
     }
 
-    let attached = false;
-    asyncSeries(
-        [
-            callback => {
-                const messageDbPath = paths.join(Config().paths.db, 'message.sqlite3');
-                nntpDatabase.db.run(
-                    `ATTACH DATABASE "${messageDbPath}" AS msgdb;`,
-                    err => {
-                        attached = !err;
-                        return callback(err);
-                    }
-                );
-            },
-            callback => {
-                nntpDatabase.db.run(
-                    `DELETE FROM nntp_area_message
-                    WHERE message_uuid NOT IN (
-                        SELECT message_uuid
-                        FROM msgdb.message
-                    );`,
-                    function result(err) {
-                        //  no arrow func; need |this.changes|
-                        if (err) {
-                            Log.warn(
-                                { error: err.message },
-                                'Failed to delete from NNTP database'
-                            );
-                        } else {
-                            Log.debug(
-                                { count: this.changes },
-                                'Deleted mapped message IDs from NNTP database'
-                            );
-                        }
-                        return callback(err);
-                    }
-                );
-            },
-        ],
-        err => {
-            if (attached) {
-                nntpDatabase.db.run('DETACH DATABASE msgdb;');
-            }
-            return cb(err);
+    try {
+        const messageDbPath = paths.join(Config().paths.db, 'message.sqlite3');
+        nntpDatabase.db.exec(`ATTACH DATABASE "${messageDbPath}" AS msgdb;`);
+
+        const info = nntpDatabase.db
+            .prepare(
+                `DELETE FROM nntp_area_message
+                WHERE message_uuid NOT IN (
+                    SELECT message_uuid
+                    FROM msgdb.message
+                );`
+            )
+            .run();
+
+        Log.debug(
+            { count: info.changes },
+            'Deleted mapped message IDs from NNTP database'
+        );
+
+        nntpDatabase.db.exec('DETACH DATABASE msgdb;');
+        return cb(null);
+    } catch (err) {
+        Log.warn({ error: err.message }, 'Failed during NNTP database maintenance');
+        try {
+            nntpDatabase.db.exec('DETACH DATABASE msgdb;');
+        } catch (_) {
+            // ignore if not attached
         }
-    );
+        return cb(err);
+    }
 }

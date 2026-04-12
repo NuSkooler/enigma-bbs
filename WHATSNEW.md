@@ -1,14 +1,17 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
-## 0.1.1-beta
+## 0.2.0-beta
 
+* **SQLite driver migrated to `better-sqlite3`** -- This is an internal change with no impact on existing data or configuration. Results in some major DB performance gains.
 * **[Z-Machine Interactive Fiction Door](./docs/_docs/modding/local-doors-zmachine.md)** — new `zmachine_door` module runs Z-Machine IF games (Zork, Colossal Cave Adventure, Photopia, Anchorhead, Lost Pig, and hundreds more) natively in Node.js. No external emulator, no serial bridge, no drop file — a cross-platform pure-JavaScript path for text-adventure games.
 
   * Backed by [ifvms.js](https://github.com/curiousdannii/ifvms.js) (the Z-Machine interpreter used by Parchment) and [glkote-term](https://github.com/curiousdannii/glkote-term), run in a dedicated worker thread per session for isolation.
   * Supports Z-Machine versions 3, 4, 5, and 8 — covers all classic Infocom titles, the original Crowther/Woods Adventure port, and the vast majority of modern Inform games from the [IF Archive](https://www.ifarchive.org/).
 
-* **NNTP server improvements** — several protocol compliance and reliability fixes:
+## 0.1.1-beta
+
+* **NNTP server improvements** -- several protocol compliance and reliability fixes:
   * Article posting now correctly detects end-of-post and handles CRLF line endings
   * `AUTHINFO USER` is now advertised in `CAPABILITIES` so clients know to authenticate before posting
   * `Xref` header is now generated, improving cross-session read tracking in NNTP clients
