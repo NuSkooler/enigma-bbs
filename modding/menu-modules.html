@@ -17,11 +17,11 @@
 <meta property="og:description" content="Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-12T03:01:46+00:00" />
+<meta property="article:published_time" content="2026-04-12T04:11:27+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Menu Modules" />
 <script type="application/ld+json">
-{"description":"Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below.","headline":"Menu Modules","dateModified":"2026-04-12T03:01:46+00:00","datePublished":"2026-04-12T03:01:46+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Menu Modules From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within menu.hjson are backed by Menu Modules. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from MenuModule. More on this below.","headline":"Menu Modules","dateModified":"2026-04-12T04:11:27+00:00","datePublished":"2026-04-12T04:11:27+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/menu-modules.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/menu-modules.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2830,7 +2830,7 @@
   <li>
 <code class="language-plaintext highlighter-rouge">displayQueuedInterruptions(callback)</code> is called, and if interruptions are allowed for this menu, any that may be queued will be displayed first.</li>
   <li>
-<code class="language-plaintext highlighter-rouge">beforeArt(callback)</code> is called before any art is displayed. The default implementation will set emulated baud rate, and clear the screen if either are requested by the menu’s <code class="language-plaintext highlighter-rouge">config</code> block.</li>
+<code class="language-plaintext highlighter-rouge">beforeArt(callback)</code> is called before any art is displayed. The default implementation clears the screen if requested by the menu’s <code class="language-plaintext highlighter-rouge">config</code> block (<code class="language-plaintext highlighter-rouge">cls: true</code>). Baud rate emulation, if configured, is applied during the art display itself rather than here.</li>
   <li>
 <code class="language-plaintext highlighter-rouge">mciReady(mciData, callback)</code> is called when art is loaded and MCI codes are initialized. The default implementation of a custom <code class="language-plaintext highlighter-rouge">MenuModule</code> simply continues. See also <a href="#standardmcireadyhandlermcidata-callback">standardMCIReadyHandler</a>.</li>
 </ul>
