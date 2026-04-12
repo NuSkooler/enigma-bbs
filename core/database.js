@@ -409,6 +409,140 @@ const DB_INIT_TABLE = {
                 UNIQUE(collection_id, object_id, meta_name),
                 FOREIGN KEY(name, collection_id, object_id) REFERENCES collection(name, collection_id, object_id) ON DELETE CASCADE
             );
+
+            --
+            --  FTS5 virtual table for full-text search of actors and sharedInbox notes.
+            --
+            --  coll_name   : 'actors' or 'sharedInbox' — UNINDEXED, used as a post-filter
+            --  object_id   : AP object URL — UNINDEXED, used as a join key
+            --  body        : searchable text:
+            --                  actors    → preferredUsername + name + summary
+            --                  notes     → summary + content (raw HTML; FTS tokenizer
+            --                              treats angle brackets as word separators)
+            --  tags        : actor subject (@user@host); empty for notes
+            --
+            CREATE VIRTUAL TABLE IF NOT EXISTS collection_fts USING fts5(
+                coll_name   UNINDEXED,
+                object_id   UNINDEXED,
+                body,
+                tags
+            );
+
+            -- Actor: index on insert
+            CREATE TRIGGER IF NOT EXISTS collection_fts_actor_ai
+            AFTER INSERT ON collection
+            WHEN new.name = 'actors'
+            BEGIN
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'actors',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.preferredUsername'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.name'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.summary'), ''),
+                    ''
+                );
+            END;
+
+            -- Actor: re-index on update (object_json changed — e.g. profile refresh)
+            CREATE TRIGGER IF NOT EXISTS collection_fts_actor_au
+            AFTER UPDATE OF object_json ON collection
+            WHEN new.name = 'actors'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'actors',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.preferredUsername'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.name'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.summary'), ''),
+                    COALESCE((
+                        SELECT meta_value FROM collection_object_meta
+                        WHERE object_id = new.object_id AND name = 'actors' AND meta_name = 'actor_subject'
+                        LIMIT 1
+                    ), '')
+                );
+            END;
+
+            -- Actor: remove from index on delete
+            CREATE TRIGGER IF NOT EXISTS collection_fts_actor_bd
+            BEFORE DELETE ON collection
+            WHEN old.name = 'actors'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+            END;
+
+            -- Actor subject: update FTS tags when actor_subject meta is inserted
+            CREATE TRIGGER IF NOT EXISTS collection_fts_subject_ai
+            AFTER INSERT ON collection_object_meta
+            WHEN new.name = 'actors' AND new.meta_name = 'actor_subject'
+            BEGIN
+                UPDATE collection_fts
+                SET tags = new.meta_value
+                WHERE rowid = (
+                    SELECT rowid FROM collection
+                    WHERE object_id = new.object_id AND name = 'actors'
+                    LIMIT 1
+                );
+            END;
+
+            -- Actor subject: update FTS tags when actor_subject meta is replaced
+            CREATE TRIGGER IF NOT EXISTS collection_fts_subject_au
+            AFTER UPDATE ON collection_object_meta
+            WHEN new.name = 'actors' AND new.meta_name = 'actor_subject'
+            BEGIN
+                UPDATE collection_fts
+                SET tags = new.meta_value
+                WHERE rowid = (
+                    SELECT rowid FROM collection
+                    WHERE object_id = new.object_id AND name = 'actors'
+                    LIMIT 1
+                );
+            END;
+
+            -- Note (sharedInbox): index on insert
+            CREATE TRIGGER IF NOT EXISTS collection_fts_note_ai
+            AFTER INSERT ON collection
+            WHEN new.name = 'sharedInbox'
+            BEGIN
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'sharedInbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.content'), ''),
+                    ''
+                );
+            END;
+
+            -- Note: re-index on update (Update activity received for a Note)
+            CREATE TRIGGER IF NOT EXISTS collection_fts_note_au
+            AFTER UPDATE OF object_json ON collection
+            WHEN new.name = 'sharedInbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'sharedInbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.content'), ''),
+                    ''
+                );
+            END;
+
+            -- Note: remove from index on delete
+            CREATE TRIGGER IF NOT EXISTS collection_fts_note_bd
+            BEFORE DELETE ON collection
+            WHEN old.name = 'sharedInbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+            END;
         `);
     },
 };

@@ -914,6 +914,88 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //
+    //  Full-text search across cached Actors.
+    //
+    //  term      : FTS5 query string (e.g. 'alice', 'alice smith', 'tags:@alice@ex.com')
+    //  maxResults: maximum rows to return (default 25)
+    //
+    //  Returned results: Array of { actor: ActivityPubObject, subject: string|null }
+    //  ordered by FTS5 relevance rank.
+    //
+    static searchActors(term, maxResults, cb) {
+        if ('function' === typeof maxResults) {
+            cb = maxResults;
+            maxResults = 25;
+        }
+
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT f.object_id, c.object_json, m.meta_value AS subject
+                    FROM collection_fts f
+                    JOIN collection c ON c.rowid = f.rowid
+                    LEFT JOIN collection_object_meta m
+                        ON  m.object_id  = c.object_id
+                        AND m.name       = 'actors'
+                        AND m.meta_name  = 'actor_subject'
+                    WHERE collection_fts MATCH ?
+                      AND f.coll_name = 'actors'
+                    ORDER BY rank
+                    LIMIT ?;`
+                )
+                .all(term, maxResults);
+
+            const results = rows
+                .map(r => {
+                    const actor = ActivityPubObject.fromJsonString(r.object_json);
+                    return actor ? { actor, subject: r.subject || null } : null;
+                })
+                .filter(Boolean);
+
+            return cb(null, results);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Full-text search across sharedInbox Notes.
+    //
+    //  term      : FTS5 query string (e.g. 'hello world', '#bbs', 'summary:retro')
+    //  maxResults: maximum rows to return (default 25)
+    //
+    //  Returned results: Array of ActivityPubObject (Note), ordered by FTS5 rank.
+    //
+    static searchNotes(term, maxResults, cb) {
+        if ('function' === typeof maxResults) {
+            cb = maxResults;
+            maxResults = 25;
+        }
+
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT c.object_json
+                    FROM collection_fts f
+                    JOIN collection c ON c.rowid = f.rowid
+                    WHERE collection_fts MATCH ?
+                      AND f.coll_name = 'sharedInbox'
+                    ORDER BY rank
+                    LIMIT ?;`
+                )
+                .all(term, maxResults);
+
+            const results = rows
+                .map(r => ActivityPubObject.fromJsonString(r.object_json))
+                .filter(Boolean);
+
+            return cb(null, results);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static _rowToObjectInfo(row) {
         return {
             name: row.name,

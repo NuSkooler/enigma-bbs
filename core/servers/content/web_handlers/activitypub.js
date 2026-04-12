@@ -62,6 +62,17 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.log = webServer.logger().child({ webHandler: 'ActivityPub' });
         this.sysLog = SysLog.child({ webHandler: 'ActivityPub' });
 
+        //  If ActivityPub is disabled at the handler level, skip route
+        //  registration entirely — all AP paths will 404 naturally.
+        const enabled = _.get(
+            Config(),
+            'contentServers.web.handlers.activityPub.enabled',
+            false
+        );
+        if (!enabled) {
+            return cb(null);
+        }
+
         Events.addListener(Events.getSystemEvents().NewUserPrePersist, eventInfo => {
             const { user, callback } = eventInfo;
             return this._prepareNewUserAsActor(user, callback);
