@@ -62,7 +62,6 @@ exports.setSyncTermFont = setSyncTermFont;
 exports.getSyncTermFontFromAlias = getSyncTermFontFromAlias;
 exports.setSyncTermFontWithAlias = setSyncTermFontWithAlias;
 exports.setCursorStyle = setCursorStyle;
-exports.setEmulatedBaudRate = setEmulatedBaudRate;
 exports.vtxHyperlink = vtxHyperlink;
 
 //
@@ -142,8 +141,6 @@ const CONTROL = {
 
     blinkToBrightIntensity: '?33h',
     blinkNormal: '?33l',
-
-    emulationSpeed: '*r', //  Set output emulation speed. See cterm.txt
 
     hideCursor: '?25l', //  Nonstandard - cterm.txt
     showCursor: '?25h', //  Nonstandard - cterm.txt
@@ -490,27 +487,6 @@ function goHome() {
 //
 function disableVT100LineWrapping() {
     return `${ESC_CSI}?7l`;
-}
-
-function setEmulatedBaudRate(rate) {
-    const speed =
-        {
-            unlimited: 0,
-            off: 0,
-            0: 0,
-            300: 1,
-            600: 2,
-            1200: 3,
-            2400: 4,
-            4800: 5,
-            9600: 6,
-            19200: 7,
-            38400: 8,
-            57600: 9,
-            76800: 10,
-            115200: 11,
-        }[rate] || 0;
-    return 0 === speed ? exports.emulationSpeed() : exports.emulationSpeed(1, speed);
 }
 
 function vtxHyperlink(client, url, len) {

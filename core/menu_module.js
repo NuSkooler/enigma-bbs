@@ -217,13 +217,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     beforeArt(cb) {
-        if (_.isNumber(this.menuConfig.config.baudRate)) {
-            //  :TODO: some terminals not supporting cterm style emulated baud rate end up displaying a broken ESC sequence or a single "r" here
-            this.client.term.rawWrite(
-                ansi.setEmulatedBaudRate(this.menuConfig.config.baudRate)
-            );
-        }
-
+        //  baudRate is now handled server-side inside art.display() via collect-and-drip;
+        //  no terminal escape sequence needed (and none sent — fixes sticky baud state).
         if (this.cls) {
             this.client.term.rawWrite(ansi.resetScreen());
         }

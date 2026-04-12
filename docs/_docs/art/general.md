@@ -48,7 +48,7 @@ A menu entry has a few elements that control how art is selected and displayed. 
 |------|------------|
 | `font` | Sets the [SyncTERM](http://syncterm.bbsdev.net/) style font to use when displaying this art. If unset, the system will use the art's embedded [SAUCE](http://www.acid.org/info/sauce/sauce.htm) record if present or simply use the current font. See Fonts below. |
 | `pause` | Pause after displaying. `true` or `'end'` pauses at the end; `'pageBreak'` paginates the art screen-by-screen; a prompt name string uses that prompt in end mode. See [Pause Prompts](pause-prompts.md). |
-| `baudRate` | Set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate when displaying this art. In other words, slow down the display. |
+| `baudRate` | Throttle art display to simulate a modem connection at the given baud rate. Works with all terminal clients. See [Baud Rates](#baud-rates) below. |
 | `cls` | Clear the screen before display if set to `true`. |
 | `random` | Set to `false` to explicitly disable random lookup. |
 | `types` | An optional array of types (aka file extensions) to consider for lookup. For example : `[ '.ans', '.asc' ]` |
@@ -151,10 +151,25 @@ Other "fonts" also available:
 
 > :information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
-#### SyncTERM Style Baud Rates
-The `baudRate` member can set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.
+#### Baud Rates
+The `baudRate` member throttles art display on the server side, dripping bytes to the terminal at the rate a real modem of that speed would have delivered them. This works with every terminal client — no special support required. The rate applies only while the art is displaying and resets automatically when it finishes.
 
-> :information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+Accepted values: `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, `115200`. A value of `unlimited`, `off`, or `0` disables throttling (immediate display).
+
+The table below maps each rate to the modem era it evokes:
+
+| Rate | Era | Representative Hardware |
+|------|-----|------------------------|
+| `300` | Late 1970s – early 1980s | Acoustic couplers; Bell 103; Novation CAT |
+| `1200` | 1982 – 1986 | Hayes Smartmodem 1200; Bell 212A |
+| `2400` | 1986 – 1991 | Hayes Smartmodem 2400; USR Courier 2400 |
+| `4800` | 1989 – 1993 | USR Courier HST (early) |
+| `9600` | 1990 – 1994 | USR Courier HST 9600; ZyXEL U-1496 |
+| `19200` | 1992 – 1994 | USR Dual Standard; early V.32bis modems |
+| `38400` | 1993 – 1996 | USR Sportster 14400; SupraFAXModem 14.4 |
+| `57600` | 1994 – 1997 | USR Courier V.Everything (28.8k); SupraFAXModem 28.8 |
+| `76800` | 1996 – 1998 | USR Courier 33.6; Rockwell V.34+ chipsets |
+| `115200` | 1997 – 2000 | USR Courier 56K; Hayes Accura 56K; 3Com 56K |
 
 ### Common Example
 ```hjson

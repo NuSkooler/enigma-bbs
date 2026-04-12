@@ -56,7 +56,7 @@ The `config` block for a menu entry can contain common members as well as a per-
 | `pausePrompt` | Override the prompt name(s) used for pauses. A string uses that prompt for both end-of-art and page-break pauses; an object `{ end, page }` controls each independently. Takes precedence over the `pause: '<promptId>'` shorthand. See [Pause Prompts](../art/pause-prompts.md). |
 | `pausePosition` | Force the pause prompt to a specific screen position: `{ row, col }` (1-based). |
 | `nextTimeout` | Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu. |
-| `baudRate` | See baud rate information in [General Art Information](../art/general.md). |
+| `baudRate` | Throttle art display to simulate a modem at the given speed. Works with all terminal clients. See [Baud Rates](../art/general.md#baud-rates). |
 | `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](../art/general.md). |
 | `menuFlags` | An array of menu flag(s) controlling menu behavior. See **Menu Flags** below.
 

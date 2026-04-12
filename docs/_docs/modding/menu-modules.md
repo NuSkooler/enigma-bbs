@@ -118,7 +118,7 @@ Methods indicated above with `()` in their name such as `enter()` are overridabl
 
 * `enter()` is the first to be called. There is no callback. The default implementation is to simply call `this.initSequence()`.
 * `displayQueuedInterruptions(callback)` is called, and if interruptions are allowed for this menu, any that may be queued will be displayed first.
-* `beforeArt(callback)` is called before any art is displayed. The default implementation will set emulated baud rate, and clear the screen if either are requested by the menu's `config` block.
+* `beforeArt(callback)` is called before any art is displayed. The default implementation clears the screen if requested by the menu's `config` block (`cls: true`). Baud rate emulation, if configured, is applied during the art display itself rather than here.
 * `mciReady(mciData, callback)` is called when art is loaded and MCI codes are initialized. The default implementation of a custom `MenuModule` simply continues. See also [standardMCIReadyHandler](#standardmcireadyhandlermcidata-callback).
 
 ## MenuModule Helper Methods
