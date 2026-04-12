@@ -547,6 +547,7 @@ function displayPreparedArt(options, artInfo, cb) {
         font: options.font,
         trailingLF: options.trailingLF,
         startRow: options.startRow,
+        baudRate: options.baudRate,
     };
     art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
         return cb(err, { mciMap: mciMap, artInfo: artInfo, extraInfo: extraInfo });

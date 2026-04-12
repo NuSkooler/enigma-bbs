@@ -11,7 +11,10 @@
  * packageName (codes.l33t.enigma.zmachine_door).
  */
 
-const { getModDatabasePath, openDatabase: openSqliteDatabase } = require('../database.js');
+const {
+    getModDatabasePath,
+    openDatabase: openSqliteDatabase,
+} = require('../database.js');
 
 const MODULE_INFO = {
     packageName: 'codes.l33t.enigma.zmachine_door',
@@ -123,12 +126,7 @@ function writeAutosave(userId, signature, data, cb) {
             }
 
             //  UPSERT with updated_at and accumulated play stats.
-            _stmtUpsertAutosave.run(
-                userId,
-                signature,
-                data,
-                new Date().toISOString()
-            );
+            _stmtUpsertAutosave.run(userId, signature, data, new Date().toISOString());
             return cb(null);
         } catch (runErr) {
             return cb(runErr);
