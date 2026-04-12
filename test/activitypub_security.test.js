@@ -57,7 +57,11 @@ delete require.cache[require.resolve('../core/activitypub/object.js')];
 delete require.cache[require.resolve('../core/activitypub/collection.js')];
 const Collection = require('../core/activitypub/collection.js');
 
-const { validateRequestDate, verifyDigestHeader, MaxRequestAgeSecs } = require('../core/activitypub/security.js');
+const {
+    validateRequestDate,
+    verifyDigestHeader,
+    MaxRequestAgeSecs,
+} = require('../core/activitypub/security.js');
 
 // ─── schema ───────────────────────────────────────────────────────────────────
 
@@ -102,7 +106,12 @@ beforeEach(() => {
 const PUBLIC_COLL_ID = 'https://www.w3.org/ns/activitystreams#Public';
 
 function seedSharedInboxItem(id, timestampExpr = "datetime('now')") {
-    const obj = { id, type: 'Create', actor: 'https://remote.example.com/users/alice', object: {} };
+    const obj = {
+        id,
+        type: 'Create',
+        actor: 'https://remote.example.com/users/alice',
+        object: {},
+    };
     _apDb
         .prepare(
             `INSERT OR IGNORE INTO collection
@@ -113,7 +122,9 @@ function seedSharedInboxItem(id, timestampExpr = "datetime('now')") {
 }
 
 function sharedInboxCount() {
-    return _apDb.prepare("SELECT COUNT(*) AS n FROM collection WHERE name = 'sharedInbox'").get().n;
+    return _apDb
+        .prepare("SELECT COUNT(*) AS n FROM collection WHERE name = 'sharedInbox'")
+        .get().n;
 }
 
 // ─── sharedInboxMaintenanceTask — feature flag gating ────────────────────────
@@ -128,7 +139,11 @@ describe('Collection.sharedInboxMaintenanceTask() — feature flag', function ()
 
         Collection.sharedInboxMaintenanceTask([], err => {
             assert.ifError(err);
-            assert.equal(sharedInboxCount(), 2, 'items should be untouched when AP is disabled');
+            assert.equal(
+                sharedInboxCount(),
+                2,
+                'items should be untouched when AP is disabled'
+            );
             done();
         });
     });
@@ -145,7 +160,11 @@ describe('Collection.sharedInboxMaintenanceTask() — feature flag', function ()
 
         Collection.sharedInboxMaintenanceTask([], err => {
             assert.ifError(err);
-            assert.equal(sharedInboxCount(), 2, 'should keep only 2 items after count-trim');
+            assert.equal(
+                sharedInboxCount(),
+                2,
+                'should keep only 2 items after count-trim'
+            );
             done();
         });
     });
@@ -164,7 +183,11 @@ describe('Collection.sharedInboxMaintenanceTask() — feature flag', function ()
 
         Collection.sharedInboxMaintenanceTask([], err => {
             assert.ifError(err);
-            assert.equal(sharedInboxCount(), 1, 'old item should be removed; fresh item kept');
+            assert.equal(
+                sharedInboxCount(),
+                1,
+                'old item should be removed; fresh item kept'
+            );
             done();
         });
     });
@@ -222,15 +245,24 @@ describe('validateRequestDate()', function () {
     it('respects a custom maxAgeSecs argument', () => {
         //  10 s ago should be valid with a 60 s window but invalid with a 5 s window
         const headers = { date: new Date(Date.now() - 10 * 1000).toUTCString() };
-        assert.equal(validateRequestDate(headers, 60), null, 'should be valid within 60 s window');
-        assert.ok(validateRequestDate(headers, 5), 'should be invalid outside 5 s window');
+        assert.equal(
+            validateRequestDate(headers, 60),
+            null,
+            'should be valid within 60 s window'
+        );
+        assert.ok(
+            validateRequestDate(headers, 5),
+            'should be invalid outside 5 s window'
+        );
     });
 });
 
 // ─── verifyDigestHeader ───────────────────────────────────────────────────────
 
 describe('verifyDigestHeader()', function () {
-    const BODY = Buffer.from('{"type":"Create","actor":"https://example.com/users/alice"}');
+    const BODY = Buffer.from(
+        '{"type":"Create","actor":"https://example.com/users/alice"}'
+    );
     const CORRECT_DIGEST =
         'SHA-256=' + crypto.createHash('sha256').update(BODY).digest('base64');
 
@@ -245,7 +277,9 @@ describe('verifyDigestHeader()', function () {
     });
 
     it('returns false when the SHA-256 digest does not match the body', () => {
-        const tampered = Buffer.from('{"type":"Create","actor":"https://evil.example.com/users/mallory"}');
+        const tampered = Buffer.from(
+            '{"type":"Create","actor":"https://evil.example.com/users/mallory"}'
+        );
         assert.equal(verifyDigestHeader(CORRECT_DIGEST, tampered), false);
     });
 
@@ -256,7 +290,10 @@ describe('verifyDigestHeader()', function () {
 
     it('returns true for an unrecognized algorithm (skip — no SHA-256 prefix)', () => {
         const md5 = 'MD5=rL0Y20zC+Fzt72VPzMSk2A==';
-        assert.ok(verifyDigestHeader(md5, BODY), 'non-SHA-256 algorithms should be skipped');
+        assert.ok(
+            verifyDigestHeader(md5, BODY),
+            'non-SHA-256 algorithms should be skipped'
+        );
     });
 
     it('works with a string body as well as a Buffer', () => {

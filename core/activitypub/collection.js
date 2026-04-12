@@ -242,7 +242,7 @@ module.exports = class Collection extends ActivityPubObject {
                     PublicCollectionId,
                     actor.id,
                     JSON.stringify(actor),
-                    false
+                    0 // is_private: SQLite requires integer, not boolean
                 );
 
                 apDb.prepare(

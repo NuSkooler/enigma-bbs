@@ -65,10 +65,7 @@ function verifyDigestHeader(digestHeader, rawBody) {
     }
 
     const claimedDigest = match[1];
-    const actualDigest = crypto
-        .createHash('sha256')
-        .update(rawBody)
-        .digest('base64');
+    const actualDigest = crypto.createHash('sha256').update(rawBody).digest('base64');
     return claimedDigest === actualDigest;
 }
 exports.verifyDigestHeader = verifyDigestHeader;
