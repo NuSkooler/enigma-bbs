@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Who’s Online | ENiGMA½ BBS Software</title>
+<title>Local Doors — Z-Machine Interactive Fiction | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Who’s Online" />
+<meta property="og:title" content="Local Doors — Z-Machine Interactive Fiction" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="The Who’s Online Module The built in whos_online module provides a basic who’s online mod." />
-<meta property="og:description" content="The Who’s Online Module The built in whos_online module provides a basic who’s online mod." />
+<meta name="description" content="Z-Machine Interactive Fiction" />
+<meta property="og:description" content="Z-Machine Interactive Fiction" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-12T01:13:52+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Who’s Online" />
+<meta property="twitter:title" content="Local Doors — Z-Machine Interactive Fiction" />
 <script type="application/ld+json">
-{"description":"The Who’s Online Module The built in whos_online module provides a basic who’s online mod.","headline":"Who’s Online","dateModified":"2026-04-12T01:13:52+00:00","datePublished":"2026-04-12T01:13:52+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/whos-online.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/whos-online.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Z-Machine Interactive Fiction","headline":"Local Doors — Z-Machine Interactive Fiction","dateModified":"2026-04-12T01:13:52+00:00","datePublished":"2026-04-12T01:13:52+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors-zmachine.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors-zmachine.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2004,7 +2004,7 @@
 
 
     
-      <li class="active-nav">Who's Online</li>
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
     
 
 
@@ -2625,7 +2625,7 @@
 
 
     
-    <li><a href="/enigma-bbs/modding/local-doors-zmachine.html">Local Doors — Z-Machine Interactive Fiction</a></li>
+      <li class="active-nav">Local Doors — Z-Machine Interactive Fiction</li>
     
 
 
@@ -2675,60 +2675,302 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/last-callers.html">« Last Callers</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">« Troubleshooting SSH</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/user-list.html">User List »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX »</a>
               
               <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Who's Online</h1>
-    <h2 id="the-whos-online-module">The Who’s Online Module</h2>
-<p>The built in <code class="language-plaintext highlighter-rouge">whos_online</code> module provides a basic who’s online mod.</p>
+    <h1 class="page-title">Local Doors — Z-Machine Interactive Fiction</h1>
+    <h2 id="z-machine-interactive-fiction">Z-Machine Interactive Fiction</h2>
 
-<h3 id="theming">Theming</h3>
-<p>The following <code class="language-plaintext highlighter-rouge">itemFormat</code> object is provided to MCI 1 (ie: <code class="language-plaintext highlighter-rouge">%VM1</code>):</p>
+<p>ENiGMA½ includes a native Z-Machine interpreter for running interactive fiction games — the format used by classic Infocom titles (Zork, Hitchhiker’s Guide to the Galaxy, Planetfall, etc.) and hundreds of modern IF competition winners. The <code class="language-plaintext highlighter-rouge">zmachine_door</code> module runs these games directly in a Node.js worker thread. <strong>No external emulator, no drop file, no BIOS image, and no platform-specific setup</strong> — just a path to a <code class="language-plaintext highlighter-rouge">.z3</code>, <code class="language-plaintext highlighter-rouge">.z5</code>, or <code class="language-plaintext highlighter-rouge">.z8</code> game file.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Each active session runs in its own worker thread, isolated from other users. Multiple players can run the same or different games simultaneously with no cross-talk.</p>
+</blockquote>
+
+<hr>
+
+<h3 id="how-it-works">How It Works</h3>
+
+<ol>
+  <li>ENiGMA½ spawns a worker thread per session running <a href="https://github.com/curiousdannii/ifvms.js">ifvms.js</a> — the same Z-Machine interpreter that powers the <a href="https://github.com/curiousdannii/parchment">Parchment</a> web-based IF player.</li>
+  <li>The worker loads the game file, runs the VM, and emits text output + input-mode events over <code class="language-plaintext highlighter-rouge">postMessage</code>.</li>
+  <li>The main thread bridges the user’s terminal connection: forwarding keystrokes as line-mode or character-mode input and routing game output back to the client.</li>
+  <li>Glk text styles are rendered as ANSI SGR; Z-Machine <code class="language-plaintext highlighter-rouge">set_colour</code> calls are hooked at the VM level and emit ANSI color codes inline.</li>
+  <li>Output is word-wrapped server-side to a fixed width, and paginated with “– More –” prompts so long passages don’t scroll off screen.</li>
+  <li>When the user types <code class="language-plaintext highlighter-rouge">QUIT</code> (or disconnects), the worker exits cleanly and control returns to the calling menu.</li>
+</ol>
+
+<hr>
+
+<h3 id="prerequisites">Prerequisites</h3>
+
+<ul>
+  <li>A Z-Machine game file (<code class="language-plaintext highlighter-rouge">.z3</code>, <code class="language-plaintext highlighter-rouge">.z4</code>, <code class="language-plaintext highlighter-rouge">.z5</code>, or <code class="language-plaintext highlighter-rouge">.z8</code>). ENiGMA does not bundle any games — sysops provide their own.</li>
+  <li>No other setup. No emulator, no drop file, no configuration files.</li>
+</ul>
+
+<h4 id="where-to-get-games">Where to Get Games</h4>
+
+<p>Modern free Interactive Fiction is available from the <a href="https://www.ifarchive.org/">IF Archive</a> — see especially <a href="https://www.ifarchive.org/indexes/if-archive/games/zcode/">the Z-code games index</a>. Thousands of free games are available, including IF Competition winners and pioneering works. Highly recommended starting points:</p>
+
 <ul>
   <li>
-<code class="language-plaintext highlighter-rouge">userId</code>: User ID.</li>
+<strong>Colossal Cave Adventure</strong> — <a href="https://www.ifarchive.org/if-archive/games/zcode/Advent.z5"><code class="language-plaintext highlighter-rouge">Advent.z5</code></a>. The original text adventure (Crowther &amp; Woods, 1976), ported to the Z-Machine by Graham Nelson. Public domain.</li>
   <li>
-<code class="language-plaintext highlighter-rouge">authenticated</code>: boolean if the client has a logged in user or not.</li>
+<strong>Photopia</strong> — Adam Cadre’s 1998 IF Competition winner. Famous for its color-coded narrative vignettes; runs in our color pipeline.</li>
   <li>
-<code class="language-plaintext highlighter-rouge">userName</code>: Login username.</li>
+<strong>Lost Pig</strong> — Admiral Jota’s 2007 IF Comp winner. A beloved starting-point for newcomers to IF.</li>
   <li>
-<code class="language-plaintext highlighter-rouge">node</code>: Node ID the user is connected to.</li>
+<strong>Anchorhead</strong> — Michael Gentry’s Lovecraftian horror masterpiece.</li>
   <li>
-<code class="language-plaintext highlighter-rouge">timeOn</code>: A human friendly amount of time the user has been online.</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">realName</code>: User’s real name.</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">location</code>: User’s location.</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">affiliation</code> or <code class="language-plaintext highlighter-rouge">affils</code>: Users affiliations.</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">action</code>: Current action/view in the system taken from the <code class="language-plaintext highlighter-rouge">desc</code> field of the current MenuModule they are interacting with. For example, “Playing L.O.R.D”.</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">isSecure</code>: Is the client securely connected?</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">serverName</code>: Name of connected server such as “Telnet” or “SSH”.</li>
+<strong>An Act of Murder</strong> — Christopher Huang’s procedurally-generated murder mystery. Every playthrough is a different case.</li>
 </ul>
 
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> These properties are available via the <code class="language-plaintext highlighter-rouge">client_connections.js</code> <code class="language-plaintext highlighter-rouge">getActiveConnectionList()</code> API.</p>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> <strong>Infocom games are not legally distributable.</strong> The original commercial Infocom titles (Zork, Hitchhiker’s, etc.) remain under copyright and are still sold commercially (e.g. via GOG). Do not redistribute them; if you own a legitimate copy you can use your own <code class="language-plaintext highlighter-rouge">.z5</code> files.</p>
 </blockquote>
 
+<h4 id="recommended-directory-layout">Recommended Directory Layout</h4>
+
+<p>By convention, game files live under <code class="language-plaintext highlighter-rouge">misc/zmachine/games/</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>misc/zmachine/games/
+├── advent.z5
+├── photopia.z5
+├── LostPig.z8
+└── anchor.z8
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">game_path</code> config field is fully configurable — you can put files wherever you like.</p>
+
+<hr>
+
+<h3 id="configuration">Configuration</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">zmachine_door</code> <code class="language-plaintext highlighter-rouge">config</code> block supports the following fields:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">name</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Door name. Used as a key for tracking concurrent sessions.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">game_path</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Absolute path to the Z-Machine game file (<code class="language-plaintext highlighter-rouge">.z3</code>, <code class="language-plaintext highlighter-rouge">.z4</code>, <code class="language-plaintext highlighter-rouge">.z5</code>, or <code class="language-plaintext highlighter-rouge">.z8</code>).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nodeMax</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Max concurrent sessions. <code class="language-plaintext highlighter-rouge">0</code> = unlimited (default).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tooManyArt</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Art spec to display when <code class="language-plaintext highlighter-rouge">nodeMax</code> is exceeded.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>No drop file configuration is needed — Z-Machine games don’t use them.</p>
+
+<hr>
+
+<h3 id="example-menu-entries">Example Menu Entries</h3>
+
+<h4 id="colossal-cave-adventure">Colossal Cave Adventure</h4>
+
+<pre><code class="language-hjson">doorAdventure: {
+    desc: Playing Colossal Cave Adventure
+    module: zmachine_door
+    config: {
+        name: Adventure
+        game_path: /home/enigma/misc/zmachine/games/advent.z5
+        nodeMax: 3
+        tooManyArt: DOORMANY
+    }
+}
+</code></pre>
+
+<h4 id="photopia-with-color">Photopia (with color)</h4>
+
+<pre><code class="language-hjson">doorPhotopia: {
+    desc: Playing Photopia
+    module: zmachine_door
+    config: {
+        name: Photopia
+        game_path: /home/enigma/misc/zmachine/games/photopia.z5
+        nodeMax: 3
+        tooManyArt: DOORMANY
+    }
+}
+</code></pre>
+
+<h4 id="an-act-of-murder-procedural-mystery">An Act of Murder (procedural mystery)</h4>
+
+<pre><code class="language-hjson">doorActOfMurder: {
+    desc: Playing An Act of Murder
+    module: zmachine_door
+    config: {
+        name: ActOfMurder
+        game_path: /home/enigma/misc/zmachine/games/ActofMurder.z8
+        nodeMax: 3
+        tooManyArt: DOORMANY
+    }
+}
+</code></pre>
+
+<hr>
+
+<h3 id="supported-features">Supported Features</h3>
+
+<h4 id="z-machine-versions">Z-Machine versions</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Version</th>
+      <th style="text-align: center">Supported</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>z1 / z2</td>
+      <td style="text-align: center"><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Very early Infocom releases; not implemented by ifvms.</td>
+    </tr>
+    <tr>
+      <td><strong>z3</strong></td>
+      <td style="text-align: center"><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Most classic Infocom games (Zork, Planetfall, Hitchhiker’s Guide, etc.)</td>
+    </tr>
+    <tr>
+      <td><strong>z4</strong></td>
+      <td style="text-align: center"><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Trinity, A Mind Forever Voyaging, Bureaucracy</td>
+    </tr>
+    <tr>
+      <td><strong>z5</strong></td>
+      <td style="text-align: center"><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Beyond Zork, Sherlock, Border Zone, and most modern IF. The most common target version for modern games.</td>
+    </tr>
+    <tr>
+      <td>z6</td>
+      <td style="text-align: center"><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Graphical variant — requires a full windowed Glk implementation; not applicable for terminal use.</td>
+    </tr>
+    <tr>
+      <td><strong>z8</strong></td>
+      <td style="text-align: center"><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Larger modern IF games (Anchorhead, Lost Pig, Varicella, etc.)</td>
+    </tr>
+    <tr>
+      <td>Glulx</td>
+      <td style="text-align: center"><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>A different virtual machine used by some modern IF; not supported. Most z-machine games also have Glulx builds — use the <code class="language-plaintext highlighter-rouge">.z*</code> version.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="rendering">Rendering</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Glk text styles</strong></td>
+      <td>Bold, italic, header, subheader, alert, emphasized, block-quote, preformatted, and user styles rendered as ANSI SGR.</td>
+    </tr>
+    <tr>
+      <td><strong>Z-Machine colors</strong></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">set_colour</code> opcode emits ANSI SGR inline. The 8 standard Z-Machine colors map to the basic ANSI palette.</td>
+    </tr>
+    <tr>
+      <td><strong>Word wrap</strong></td>
+      <td>Server-side 80-column word wrap with correct handling of embedded ANSI escapes (zero-width).</td>
+    </tr>
+    <tr>
+      <td><strong>Pagination</strong></td>
+      <td>”– More – Press any key to continue” prompts at <code class="language-plaintext highlighter-rouge">termHeight - 2</code> rows (default 23 for an 80×25 terminal).</td>
+    </tr>
+    <tr>
+      <td><strong>Input modes</strong></td>
+      <td>Line-mode (with local echo + backspace editing) for commands; character-mode for “press any key” prompts.</td>
+    </tr>
+    <tr>
+      <td><strong>Input editing</strong></td>
+      <td>Standard server-side line editing: printable keys echoed, backspace erases, Enter submits.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h3 id="known-limitations">Known Limitations</h3>
+
+<p>These reflect the current MVP state of the module. Some are intentional design choices, others are candidates for future improvement.</p>
+
+<ul>
+  <li>
+<strong>No save/restore.</strong> Games start fresh each session. In-game <code class="language-plaintext highlighter-rouge">SAVE</code>/<code class="language-plaintext highlighter-rouge">RESTORE</code> commands will not persist across sessions. (A SQLite schema is already provisioned for per-user autosave, but the full implementation is deferred — glkote-term’s <code class="language-plaintext highlighter-rouge">DumbGlkOte</code> does not implement <code class="language-plaintext highlighter-rouge">save_allstate</code>/<code class="language-plaintext highlighter-rouge">restore_allstate</code>, which are required by ifvms’s built-in autosave path.)</li>
+  <li>
+<strong>No split-window / status line.</strong> ifvms’s “upper window” (the top-of-screen status line used by some games to display score/turn or draw title art) is not rendered. Games that rely heavily on it (most Infocom z3 titles) still run and their main-window content works fine, but the status line is effectively hidden. Photopia’s splash title art is drawn in the upper window, so you’ll see its “press any key” indicator without the title artwork.</li>
+  <li>
+<strong>No Glulx support.</strong> <code class="language-plaintext highlighter-rouge">.gblorb</code> / <code class="language-plaintext highlighter-rouge">.ulx</code> games don’t run. Most modern IF is also available in a <code class="language-plaintext highlighter-rouge">.z*</code> build — use those.</li>
+  <li>
+<strong>No hyperlinks.</strong> Some IF games support clickable hyperlinks via Glk; terminal clients obviously don’t support mouse interaction, so they’re rendered as plain text.</li>
+</ul>
+
+<hr>
+
+<h3 id="see-also">See Also</h3>
+
+<ul>
+  <li>
+<a href="/enigma-bbs/modding/local-doors.html">Local Doors</a> — overview of all local door approaches</li>
+  <li>
+<a href="/enigma-bbs/modding/local-doors-v86.html">Native v86 Emulation</a> — for DOS-based door games</li>
+  <li>
+<a href="/enigma-bbs/modding/local-doors-abracadabra.html">Scripts &amp; Native Binaries</a> — for terminal apps / shell scripts</li>
+  <li>
+<a href="https://github.com/curiousdannii/ifvms.js">ifvms.js</a> — the Z-Machine interpreter used by this module</li>
+  <li>
+<a href="https://www.ifarchive.org/">IF Archive</a> — repository of free interactive fiction</li>
+  <li>
+<a href="https://ifdb.org/">IFDB</a> — Interactive Fiction Database with reviews and ratings</li>
+</ul>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/last-callers.html">« Last Callers</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">« Troubleshooting SSH</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/user-list.html">User List »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX »</a>
               
               <br clear="both">
               </div>
