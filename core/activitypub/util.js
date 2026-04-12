@@ -3,6 +3,10 @@ const { Errors, ErrorReasons } = require('../enig_error');
 const UserProps = require('../user_property');
 const ActivityPubSettings = require('./settings');
 const { stripAnsiControlCodes } = require('../string_util');
+
+//  Strip ENiGMA pipe color codes (|XX) — inlined to avoid the circular
+//  dependency: color_codes.js → predefined_mci.js → activitypub/util.js
+const stripMciColorCodes = s => s.replace(/\|[A-Z\d]{2}/g, '');
 const { WellKnownRecipientFields } = require('./const');
 const Log = require('../logger').log;
 const { getWebDomain } = require('../web_util');
@@ -191,10 +195,9 @@ function getUserProfileTemplatedBody(
 }
 
 function messageBodyToHtml(body) {
-    body = encode(stripAnsiControlCodes(body), { mode: 'nonAsciiPrintable' }).replace(
-        /\r?\n/g,
-        '<br>'
-    );
+    body = encode(stripAnsiControlCodes(stripMciColorCodes(body)), {
+        mode: 'nonAsciiPrintable',
+    }).replace(/\r?\n/g, '<br>');
 
     return `<p>${body}</p>`;
 }
@@ -211,11 +214,12 @@ function messageBodyToHtml(body) {
 //  - https://docs.joinmastodon.org/spec/microformats/
 //
 function messageToHtml(message) {
-    const msg = encode(stripAnsiControlCodes(message.message.trim()), {
-        mode: 'nonAsciiPrintable',
-    }).replace(/\r?\n/g, '<br>');
-
-    //  :TODO: figure out any microformats we should use here...
+    //  Strip BBS pipe color codes (|XX) then ANSI escape sequences before
+    //  HTML-encoding so neither bleeds into the federated AP content field.
+    const msg = encode(
+        stripAnsiControlCodes(stripMciColorCodes(message.message.trim())),
+        { mode: 'nonAsciiPrintable' }
+    ).replace(/\r?\n/g, '<br>');
 
     return `<p>${msg}</p>`;
 }

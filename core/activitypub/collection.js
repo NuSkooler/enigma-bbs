@@ -727,10 +727,14 @@ module.exports = class Collection extends ActivityPubObject {
 
         isPrivate = isPrivate ? 1 : 0;
 
+        //  ignoreDupes = true  → OR IGNORE (silent dedup, lastInsertRowid = 0 on skip)
+        //  ignoreDupes = false → plain INSERT (SQLITE_CONSTRAINT propagated to caller)
+        const insertVerb = ignoreDupes ? 'INSERT OR IGNORE' : 'INSERT';
+
         try {
             const info = apDb
                 .prepare(
-                    `INSERT OR IGNORE INTO collection (name, timestamp, collection_id, owner_actor_id, object_id, object_json, is_private)
+                    `${insertVerb} INTO collection (name, timestamp, collection_id, owner_actor_id, object_id, object_json, is_private)
                     VALUES (?, ?, ?, ?, ?, ?, ?);`
                 )
                 .run(
