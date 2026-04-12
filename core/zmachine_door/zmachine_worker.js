@@ -151,17 +151,17 @@ const SGR_RESET = '\x1b[0m';
 
 const STYLE_SGR = {
     //  Glk style name       -> ANSI SGR (prefix to apply, reset at chunk end)
-    normal:       '',
-    emphasized:   '\x1b[3m',           //  italic
-    preformatted: '',                  //  mono — no special rendering
-    header:       '\x1b[1;4m',         //  bold + underline
-    subheader:    '\x1b[1m',           //  bold
-    alert:        '\x1b[1;3m',         //  bold + italic
-    note:         '\x1b[1;3m',         //  same as alert for now
-    blockquote:   '\x1b[2m',           //  dim
-    input:        '\x1b[36m',          //  cyan — for echoed user input (rare)
-    user1:        '\x1b[1m',           //  bold (mono+bold)
-    user2:        '\x1b[3m',           //  italic (mono+italic)
+    normal: '',
+    emphasized: '\x1b[3m', //  italic
+    preformatted: '', //  mono — no special rendering
+    header: '\x1b[1;4m', //  bold + underline
+    subheader: '\x1b[1m', //  bold
+    alert: '\x1b[1;3m', //  bold + italic
+    note: '\x1b[1;3m', //  same as alert for now
+    blockquote: '\x1b[2m', //  dim
+    input: '\x1b[36m', //  cyan — for echoed user input (rare)
+    user1: '\x1b[1m', //  bold (mono+bold)
+    user2: '\x1b[3m', //  italic (mono+italic)
 };
 
 //  ─── GlkOte subclass: style rendering, input mode, shutdown ──────────────
@@ -174,7 +174,6 @@ const STYLE_SGR = {
 //    3. Override exit() to terminate the worker cleanly on game quit.
 //
 class WorkerGlkOte extends GlkOteLib.DumbGlkOte {
-
     constructor(options) {
         super(options);
         //  Target line width for word wrap. Glkote-term's measure_window
@@ -383,19 +382,19 @@ const Glk = GlkOteLib.Glk;
 //  These are the 8 standard z-machine colors (values 2-9 in the set_colour
 //  opcode; 0 = "current" no-op, 1 = "default" emits reset).
 const Z_COLOUR_FG = {
-    0: null,          // current — no change
-    1: '\x1b[39m',    // default
-    2: '\x1b[30m',    // black
-    3: '\x1b[31m',    // red
-    4: '\x1b[32m',    // green
-    5: '\x1b[33m',    // yellow
-    6: '\x1b[34m',    // blue
-    7: '\x1b[35m',    // magenta
-    8: '\x1b[36m',    // cyan
-    9: '\x1b[37m',    // white
-    10: '\x1b[37m',   // light grey
-    11: '\x1b[90m',   // medium grey (bright black)
-    12: '\x1b[90m',   // dark grey
+    0: null, // current — no change
+    1: '\x1b[39m', // default
+    2: '\x1b[30m', // black
+    3: '\x1b[31m', // red
+    4: '\x1b[32m', // green
+    5: '\x1b[33m', // yellow
+    6: '\x1b[34m', // blue
+    7: '\x1b[35m', // magenta
+    8: '\x1b[36m', // cyan
+    9: '\x1b[37m', // white
+    10: '\x1b[37m', // light grey
+    11: '\x1b[90m', // medium grey (bright black)
+    12: '\x1b[90m', // dark grey
 };
 const Z_COLOUR_BG = {
     0: null,

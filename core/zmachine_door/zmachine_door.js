@@ -217,9 +217,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         const spinnerInterval = setInterval(() => {
             spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
             self.client.term.rawWrite(
-                Buffer.from(
-                    `\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`
-                )
+                Buffer.from(`\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`)
             );
         }, 150);
 
@@ -248,7 +246,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         //  The worker posts an `input_mode` message when it changes mode.
         //
         let lineBuffer = '';
-        let currentInputMode = 'line';  //  default; worker will announce on init
+        let currentInputMode = 'line'; //  default; worker will announce on init
 
         //  Write to the client only if the terminal is still attached.
         //  `client.term.output` can be null after a disconnect has started.
@@ -271,8 +269,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         //  input (the user will see the prompt naturally) or when the user
         //  sends a command (they've obviously seen the content).
         //
-        const termHeight =
-            (self.client.term && self.client.term.termHeight) || 25;
+        const termHeight = (self.client.term && self.client.term.termHeight) || 25;
         //  Leave 1 line for the prompt + 1 for a bit of breathing room
         const PAGE_ROWS = Math.max(10, termHeight - 2);
         let _lineCount = 0;
@@ -280,8 +277,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         let _pausedQueue = [];
         //  Reverse-video prompt, long enough to be unmissable. The trailing
         //  space gives a 1-char buffer between the prompt and the edge.
-        const MORE_PROMPT =
-            '\r\n\x1b[7m  -- More --  Press any key to continue  \x1b[0m';
+        const MORE_PROMPT = '\r\n\x1b[7m  -- More --  Press any key to continue  \x1b[0m';
         //  CR + up 1 line + erase to EOL. The \r\n above means MORE is on
         //  its own line, and we need to undo that line when clearing.
         const CLEAR_MORE = '\r\x1b[K\x1b[1A\x1b[K';
@@ -575,10 +571,7 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
     _decrementInstances() {
         if (this._instanceIncremented) {
             const name = this.config.name;
-            activeDoorInstances[name] = Math.max(
-                0,
-                (activeDoorInstances[name] || 1) - 1
-            );
+            activeDoorInstances[name] = Math.max(0, (activeDoorInstances[name] || 1) - 1);
             this._instanceIncremented = false;
         }
     }
