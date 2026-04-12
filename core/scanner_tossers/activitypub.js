@@ -301,7 +301,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
 
             if (!collection.orderedItems || collection.orderedItems.length < 1) {
                 // no followers :(
-                return cb(null, []);
+                return cb(null, [], localFollowersEndpoint);
             }
 
             async.mapLimit(

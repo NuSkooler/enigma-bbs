@@ -103,14 +103,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.webServer.addRoute({
             method: 'GET',
             path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=[0-9]+)?$/,
-            //  :TODO: fix me: What are we exposing to the outbox? Should be public only; GET's don't have signatures
-            handler: (req, resp) => {
-                return this._enforceMainKeySignatureValidity(
-                    req,
-                    resp,
-                    this._outboxGetHandler.bind(this)
-                );
-            },
+            handler: this._outboxGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
@@ -314,8 +307,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                         activity,
                                         httpSigValidated
                                     );
+                                } else if ('Person' === type || 'Service' === type) {
+                                    //  Remote actor profile updates — silently accept;
+                                    //  actor cache will refresh on next access
+                                    return this.webServer.accepted(resp);
                                 } else {
                                     this.log.warn(
+                                        { type },
                                         `Unsupported Inbox Update for type "${type}"`
                                     );
                                 }
@@ -414,7 +412,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const note = new Note(activity.object);
         if (!note.isValid()) {
             this.log.warn({ note }, 'Invalid Note');
-            return this.webServer.notImplemented();
+            return this.webServer.notImplemented(resp);
         }
 
         const recipientActorIds = note.recipientIds();
@@ -440,7 +438,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this.webServer.internalServerError(resp, err);
                 }
 
-                return this.webServer.created(resp);
+                return this.webServer.accepted(resp);
             }
         );
     }
@@ -607,7 +605,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 // Validate signature; Delete Actor and Following entries if any
                                 break;
 
-                            case Collection.Following:
+                            case Collections.Following:
                                 break;
 
                             default:
@@ -627,7 +625,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 },
                 err => {
                     if (err) {
-                        //  :TODO: log me
+                        this.log.error({ error: err.message, inboxType }, 'Error during Delete processing');
                     }
 
                     this.sysLog.info(
@@ -640,8 +638,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 }
             );
         });
-
-        return this.webServer.accepted(resp);
     }
 
     _updateMessageAssocWithNote(objectId, activity) {
@@ -785,7 +781,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _inboxRejectActivity(resp, activity) {
-        const rejectWhat = _.get(activity, 'object.type');
+        //  The spec allows activity.object to be a full object or just an ID string.
+        //  When it's a string, we cannot inspect .type, but Follow is the only Reject
+        //  we handle, so treat a bare string as an implicit Follow rejection.
+        const rejectWhat = _.isString(activity.object)
+            ? WellKnownActivity.Follow
+            : _.get(activity, 'object.type');
+
         switch (rejectWhat) {
             case WellKnownActivity.Follow:
                 return this._inboxRejectFollowActivity(resp, activity);

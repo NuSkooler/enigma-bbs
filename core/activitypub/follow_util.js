@@ -149,7 +149,7 @@ function rejectFollowRequest(localUser, requestActor, requestActivity, cb) {
                         return callback(err);
                     }
 
-                    const reject = Activity.makeReject(localActor, localActor);
+                    const reject = Activity.makeReject(localActor, requestActivity);
                     reject.sendTo(requestActor.inbox, localUser, (err, respBody, res) => {
                         if (err) {
                             return callback(Errors.HttpError(err.message, err.code));

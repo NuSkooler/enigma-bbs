@@ -221,9 +221,11 @@ function messageToHtml(message) {
 }
 
 function htmlToMessageBody(html) {
-    let res = stripHtml(decode(html));
-    res = anyAscii(res.result);
-    return res;
+    //  Replace <br> variants with line breaks before stripping tags so that
+    //  Mastodon-style line-separated paragraphs survive the HTML strip pass.
+    const withLineBreaks = decode(html).replace(/<br\s*\/?>/gi, '\r\n');
+    const res = stripHtml(withLineBreaks);
+    return anyAscii(res.result);
 }
 
 function userNameFromSubject(subject) {
@@ -286,7 +288,7 @@ function prepareLocalUserAsActor(user, options = { force: false }, cb) {
 
         user.generateNewRandomAvatar((err, outPath) => {
             if (err) {
-                return err;
+                return cb(err);
             }
 
             //  :TODO: fetch over +op default overrides here, e.g. 'enabled'

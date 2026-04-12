@@ -261,7 +261,7 @@ module.exports = class Collection extends ActivityPubObject {
         try {
             apDb.prepare(
                 `DELETE FROM collection
-                    WHERE collection_id = ? AND name = ? AND DATETIME(timestamp, '+${maxAgeDays} days') > DATETIME('now');`
+                    WHERE collection_id = ? AND name = ? AND DATETIME(timestamp, '+${maxAgeDays} days') < DATETIME('now');`
             ).run(ActorCollectionId, Collections.Actors);
 
             return cb(null);
@@ -454,7 +454,7 @@ module.exports = class Collection extends ActivityPubObject {
                 };
             } else {
                 obj = {
-                    id: `${collectionId}/page=${page}`,
+                    id: `${collectionId}?page=${page}`,
                     type: 'OrderedCollectionPage',
                     totalItems: entries.length,
                     orderedItems: entries,
@@ -682,7 +682,7 @@ module.exports = class Collection extends ActivityPubObject {
                         LIMIT -1 OFFSET ${maxCount}
                     );`
                 )
-                .run(maxCount);
+                .run(collectionName);
 
             Collection._removeByLogHelper(
                 collectionName,
@@ -705,7 +705,7 @@ module.exports = class Collection extends ActivityPubObject {
                     `DELETE FROM collection
                     WHERE name = ? AND timestamp < DATE('now', '-${maxAgeDays} days');`
                 )
-                .run(maxAgeDays);
+                .run(collectionName);
 
             Collection._removeByLogHelper(
                 collectionName,

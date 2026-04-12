@@ -270,7 +270,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             const needsRefresh = moment().isAfter(
-                info.timestamp.add(ActorCacheExpiration)
+                moment(info.timestamp).add(ActorCacheExpiration)
             );
 
             actor = new Actor(actor);

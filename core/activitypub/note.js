@@ -8,6 +8,7 @@ const {
     messageToHtml,
     htmlToMessageBody,
     recipientIdsFromObject,
+    extractMessageMetadata,
 } = require('./util');
 const { PublicCollectionId } = require('./const');
 const { isAnsi } = require('../string_util');
@@ -128,6 +129,18 @@ module.exports = class Note extends ActivityPubObject {
 
                     const htmlMessage = messageToHtml(message);
 
+                    //  Build tag array from @mentions and #hashtags found in the message body
+                    const { mentions, hashTags } = extractMessageMetadata(message.message);
+                    const tag = [];
+                    mentions.forEach(mention => {
+                        tag.push({ type: 'Mention', name: mention });
+                    });
+                    hashTags.forEach(ht => {
+                        //  Mastodon expects the href to point to a tag search URL;
+                        //  we use a best-effort value since we don't have a web tag search.
+                        tag.push({ type: 'Hashtag', name: ht });
+                    });
+
                     // https://docs.joinmastodon.org/spec/activitypub/#properties-used
                     const obj = {
                         id: ActivityPubObject.makeObjectId('note'),
@@ -146,6 +159,7 @@ module.exports = class Note extends ActivityPubObject {
                             mediaType: sourceMediaType,
                         },
                         sensitive: message.subject.startsWith('[NSFW]'),
+                        tag: tag.length > 0 ? tag : undefined,
                     };
 
                     if (replyToNoteId) {
