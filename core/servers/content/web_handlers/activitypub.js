@@ -10,6 +10,7 @@ const { acceptFollowRequest } = require('../../../activitypub/follow_util');
 const {
     fetchAnnouncedNote,
     recordInboundBoost,
+    recordInboundLike,
 } = require('../../../activitypub/boost_util');
 const SysLog = require('../../../logger').log;
 const {
@@ -396,6 +397,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             }
                             break;
 
+                        case WellKnownActivity.Like:
+                            return this._inboxLikeActivity(resp, activity);
+
                         case WellKnownActivity.Reject:
                             return this._inboxRejectActivity(resp, activity);
 
@@ -572,6 +576,25 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
+    _inboxLikeActivity(resp, activity) {
+        const objectId = _.isString(activity.object)
+            ? activity.object
+            : _.get(activity, 'object.id');
+
+        this.log.info({ actorId: activity.actor, objectId }, 'Incoming Like activity');
+
+        recordInboundLike(activity, err => {
+            if (err) {
+                this.log.warn(
+                    { activityId: activity.id, objectId, error: err.message },
+                    'Failed to record inbound Like'
+                );
+                //  Non-fatal: always accept so the remote doesn't keep retrying
+            }
+            return this.webServer.accepted(resp);
+        });
+    }
+
     _inboxRejectFollowActivity(resp, activity) {
         // A user Rejected our local Actor/user's Follow request;
         // Update the local Collection to reflect this fact.
@@ -731,8 +754,73 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 );
 
                             case Collections.Actors:
-                                // Validate signature; Delete Actor and Following entries if any
-                                break;
+                                return this._verifyObjectOwner(
+                                    httpSigValidated,
+                                    objInfo.object,
+                                    activity,
+                                    err => {
+                                        if (err) {
+                                            this.log.warn(
+                                                {
+                                                    error: err.message,
+                                                    objectId,
+                                                },
+                                                'Will not Delete Actor: signature mismatch'
+                                            );
+                                            return nextObjInfo(null);
+                                        }
+
+                                        async.series(
+                                            [
+                                                //  Evict from actor cache
+                                                next =>
+                                                    this._deleteObjectWithStats(
+                                                        Collections.Actors,
+                                                        objInfo.object,
+                                                        stats,
+                                                        next
+                                                    ),
+                                                //  Unfollow: remove from all local Following lists
+                                                next =>
+                                                    Collection.removeById(
+                                                        Collections.Following,
+                                                        objectId,
+                                                        removeErr => {
+                                                            if (removeErr) {
+                                                                this.log.warn(
+                                                                    {
+                                                                        objectId,
+                                                                        error: removeErr.message,
+                                                                    },
+                                                                    'Failed removing Following entries for deleted Actor'
+                                                                );
+                                                            }
+                                                            return next(null);
+                                                        }
+                                                    ),
+                                                //  Remove from all local Followers lists
+                                                next =>
+                                                    Collection.removeById(
+                                                        Collections.Followers,
+                                                        objectId,
+                                                        removeErr => {
+                                                            if (removeErr) {
+                                                                this.log.warn(
+                                                                    {
+                                                                        objectId,
+                                                                        error: removeErr.message,
+                                                                    },
+                                                                    'Failed removing Followers entries for deleted Actor'
+                                                                );
+                                                            }
+                                                            return next(null);
+                                                        }
+                                                    ),
+                                            ],
+                                            () => nextObjInfo(null)
+                                        );
+                                    }
+                                );
 
                             case Collections.Following:
                                 break;

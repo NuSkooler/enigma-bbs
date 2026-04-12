@@ -44,8 +44,17 @@ const BoostMeta = {
 };
 exports.BoostMeta = BoostMeta;
 
+//  meta_name constants stored in collection_object_meta for Like activities
+const LikeMeta = {
+    ActivityType: 'activity_type', //  value is always 'Like'
+    LikedObjectId: 'liked_object_id',
+    LikedBy: 'liked_by',
+};
+exports.LikeMeta = LikeMeta;
+
 exports.fetchAnnouncedNote = fetchAnnouncedNote;
 exports.recordInboundBoost = recordInboundBoost;
+exports.recordInboundLike = recordInboundLike;
 exports.sendBoost = sendBoost;
 exports.undoBoost = undoBoost;
 exports.getBoostActors = getBoostActors;
@@ -171,6 +180,71 @@ function recordInboundBoost(activity, note, cb) {
                     collectionId,
                     activity.id,
                     BoostMeta.BoostedBy,
+                    isString(activity.actor) ? activity.actor : activity.actor.id,
+                    callback
+                );
+            },
+        ],
+        err => cb(err)
+    );
+}
+
+//
+//  Store an inbound Like in the sharedInbox collection and attach metadata
+//  so the AP browser can query likes efficiently.
+//
+//  activity.object may be a plain URL string or an embedded object with an .id.
+//
+function recordInboundLike(activity, cb) {
+    const collectionId = PublicCollectionId;
+    const collectionName = Collections.SharedInbox;
+    const likedId = isString(activity.object)
+        ? activity.object
+        : activity.object && activity.object.id;
+
+    async.series(
+        [
+            //  Store the Like activity itself
+            callback => {
+                Collection.addSharedInboxItem(activity, true /* ignoreDupes */, err => {
+                    if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                        return callback(err);
+                    }
+                    return callback(null);
+                });
+            },
+
+            //  Attach meta: activity type tag
+            callback => {
+                Collection.addCollectionObjectMeta(
+                    collectionName,
+                    collectionId,
+                    activity.id,
+                    LikeMeta.ActivityType,
+                    'Like',
+                    callback
+                );
+            },
+
+            //  Attach meta: the object ID that was liked
+            callback => {
+                Collection.addCollectionObjectMeta(
+                    collectionName,
+                    collectionId,
+                    activity.id,
+                    LikeMeta.LikedObjectId,
+                    likedId,
+                    callback
+                );
+            },
+
+            //  Attach meta: who liked
+            callback => {
+                Collection.addCollectionObjectMeta(
+                    collectionName,
+                    collectionId,
+                    activity.id,
+                    LikeMeta.LikedBy,
                     isString(activity.actor) ? activity.actor : activity.actor.id,
                     callback
                 );

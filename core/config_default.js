@@ -443,6 +443,13 @@ module.exports = () => {
             // Implementations including Mastodon should still display
             // longer messages, but this keeps us as a "good citizen"
             maxMessageLength: 500,
+
+            // Maintenance limits for the sharedInbox collection.
+            // Both limits are applied on each scheduled run (every 24 hours).
+            sharedInbox: {
+                maxAgeDays: 90, // remove entries older than this
+                maxCount: 10000, // keep only the N most-recent entries
+            },
         },
 
         infoExtractUtils: {
@@ -1112,6 +1119,12 @@ module.exports = () => {
                 activityPubActorCacheMaintenance: {
                     schedule: 'every 24 hours',
                     action: '@method:/core/activitypub/actor.js:actorCacheMaintenanceTask',
+                },
+
+                //  Trims sharedInbox by age (default 90 days) and count (default 10000)
+                activityPubSharedInboxMaintenance: {
+                    schedule: 'every 24 hours',
+                    action: '@method:/core/activitypub/collection.js:sharedInboxMaintenanceTask',
                 },
 
                 //

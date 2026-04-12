@@ -12,9 +12,11 @@ const {
 } = require('./const');
 const UserProps = require('../user_property');
 const { getJson } = require('../http_util');
+const Config = require('../config').get;
 
 // deps
-const { isString } = require('lodash');
+const { isString, get } = require('lodash');
+const async = require('async');
 const Log = require('../logger').log;
 
 //  Default page size for AP collections (e.g. outbox, followers, following).
@@ -915,5 +917,58 @@ module.exports = class Collection extends ActivityPubObject {
             ownerActorId: row.owner_actor_id,
             isPrivate: row.is_private,
         };
+    }
+
+    //
+    //  Scheduled maintenance task: trim the sharedInbox collection by both
+    //  age and count so it doesn't grow unbounded.  Wired via config_default.js
+    //  as `activityPubSharedInboxMaintenance` in eventScheduler.events.
+    //
+    //  Config knobs (all under contentServers.web.handlers.activityPub):
+    //    sharedInbox.maxAgeDays  — delete entries older than N days  (default 90)
+    //    sharedInbox.maxCount    — keep only the N most-recent entries (default 10000)
+    //
+    static sharedInboxMaintenanceTask(args, cb) {
+        const apConfig = get(Config(), 'contentServers.web.handlers.activityPub');
+        if (!get(apConfig, 'enabled')) {
+            return cb(null);
+        }
+
+        const maxAgeDays = get(apConfig, 'sharedInbox.maxAgeDays', 90);
+        const maxCount = get(apConfig, 'sharedInbox.maxCount', 10000);
+
+        async.series(
+            [
+                next =>
+                    Collection.removeByMaxAgeDays(
+                        Collections.SharedInbox,
+                        maxAgeDays,
+                        err => {
+                            if (err) {
+                                Log.error(
+                                    { error: err.message },
+                                    'sharedInbox age-trim failed'
+                                );
+                            }
+                            return next(null); // non-fatal
+                        }
+                    ),
+                next =>
+                    Collection.removeByMaxCount(
+                        Collections.SharedInbox,
+                        maxCount,
+                        err => {
+                            if (err) {
+                                Log.error(
+                                    { error: err.message },
+                                    'sharedInbox count-trim failed'
+                                );
+                            }
+                            return next(null); // non-fatal
+                        }
+                    ),
+            ],
+            () => cb(null)
+        );
     }
 };

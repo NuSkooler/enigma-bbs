@@ -58,7 +58,11 @@ delete require.cache[require.resolve('../core/activitypub/object.js')];
 delete require.cache[require.resolve('../core/activitypub/activity.js')];
 delete require.cache[require.resolve('../core/activitypub/collection.js')];
 delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
-const { fetchAnnouncedNote } = require('../core/activitypub/boost_util.js');
+const {
+    fetchAnnouncedNote,
+    recordInboundLike,
+    LikeMeta,
+} = require('../core/activitypub/boost_util.js');
 const Activity = require('../core/activitypub/activity.js');
 
 // ─── config restore ───────────────────────────────────────────────────────────
@@ -443,4 +447,145 @@ describe('fetchAnnouncedNote() — local collection lookup (no network)', functi
             done();
         });
     }).timeout(5000);
+});
+
+// ─── recordInboundLike ────────────────────────────────────────────────────────
+
+describe('recordInboundLike()', function () {
+    const ACTOR_ID = 'https://remote.example.com/users/alice';
+    const NOTE_ID = 'https://local.example.com/notes/42';
+
+    let seq = 0;
+    function makeLikeActivity(overrides = {}) {
+        return Object.assign(
+            {
+                id: `https://remote.example.com/likes/${++seq}`,
+                type: 'Like',
+                actor: ACTOR_ID,
+                object: NOTE_ID,
+            },
+            overrides
+        );
+    }
+
+    function getMeta(activityId, metaName) {
+        return _apDb
+            .prepare(
+                `SELECT meta_value FROM collection_object_meta
+                 WHERE object_id = ? AND meta_name = ?`
+            )
+            .get(activityId, metaName);
+    }
+
+    it('stores the Like activity in the sharedInbox collection', done => {
+        const activity = makeLikeActivity();
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            const row = _apDb
+                .prepare(
+                    `SELECT object_id FROM collection
+                     WHERE name = 'sharedInbox' AND object_id = ?`
+                )
+                .get(activity.id);
+            assert.ok(row, 'Like activity should be stored in sharedInbox');
+            done();
+        });
+    });
+
+    it(`attaches ${LikeMeta.ActivityType} meta with value 'Like'`, done => {
+        const activity = makeLikeActivity();
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            const row = getMeta(activity.id, LikeMeta.ActivityType);
+            assert.ok(row, 'activity_type meta should exist');
+            assert.equal(row.meta_value, 'Like');
+            done();
+        });
+    });
+
+    it(`attaches ${LikeMeta.LikedObjectId} meta with the object ID`, done => {
+        const activity = makeLikeActivity();
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            const row = getMeta(activity.id, LikeMeta.LikedObjectId);
+            assert.ok(row, 'liked_object_id meta should exist');
+            assert.equal(row.meta_value, NOTE_ID);
+            done();
+        });
+    });
+
+    it(`attaches ${LikeMeta.LikedBy} meta with the actor ID`, done => {
+        const activity = makeLikeActivity();
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            const row = getMeta(activity.id, LikeMeta.LikedBy);
+            assert.ok(row, 'liked_by meta should exist');
+            assert.equal(row.meta_value, ACTOR_ID);
+            done();
+        });
+    });
+
+    it('resolves liked_object_id from an embedded object with .id', done => {
+        const embeddedObjectId = 'https://local.example.com/notes/embedded';
+        const activity = makeLikeActivity({
+            object: { id: embeddedObjectId, type: 'Note' },
+        });
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            const row = getMeta(activity.id, LikeMeta.LikedObjectId);
+            assert.ok(row);
+            assert.equal(row.meta_value, embeddedObjectId);
+            done();
+        });
+    });
+
+    it('resolves liked_by from an embedded actor object with .id', done => {
+        const embeddedActorId = 'https://remote.example.com/users/bob';
+        const activity = makeLikeActivity({
+            actor: { id: embeddedActorId, type: 'Person' },
+        });
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            const row = getMeta(activity.id, LikeMeta.LikedBy);
+            assert.ok(row);
+            assert.equal(row.meta_value, embeddedActorId);
+            done();
+        });
+    });
+
+    it('is idempotent — calling twice with the same activity does not error', done => {
+        const activity = makeLikeActivity();
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            recordInboundLike(activity, err2 => {
+                assert.ifError(err2);
+                const count = _apDb
+                    .prepare(
+                        `SELECT COUNT(*) AS n FROM collection
+                         WHERE name = 'sharedInbox' AND object_id = ?`
+                    )
+                    .get(activity.id).n;
+                assert.equal(count, 1, 'should have exactly one collection entry');
+                done();
+            });
+        });
+    });
+
+    it('stores distinct Like activities from different actors independently', done => {
+        const a1 = makeLikeActivity({ actor: 'https://remote.example.com/users/alice' });
+        const a2 = makeLikeActivity({ actor: 'https://remote.example.com/users/bob' });
+        recordInboundLike(a1, err => {
+            assert.ifError(err);
+            recordInboundLike(a2, err2 => {
+                assert.ifError(err2);
+                const actors = [
+                    getMeta(a1.id, LikeMeta.LikedBy),
+                    getMeta(a2.id, LikeMeta.LikedBy),
+                ].map(r => r && r.meta_value);
+                assert.ok(actors.includes('https://remote.example.com/users/alice'));
+                assert.ok(actors.includes('https://remote.example.com/users/bob'));
+                done();
+            });
+        });
+    });
 });
