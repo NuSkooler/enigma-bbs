@@ -130,7 +130,9 @@ module.exports = class Note extends ActivityPubObject {
                     const htmlMessage = messageToHtml(message);
 
                     //  Build tag array from @mentions and #hashtags found in the message body
-                    const { mentions, hashTags } = extractMessageMetadata(message.message);
+                    const { mentions, hashTags } = extractMessageMetadata(
+                        message.message
+                    );
                     const tag = [];
                     mentions.forEach(mention => {
                         tag.push({ type: 'Mention', name: mention });

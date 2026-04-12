@@ -31,6 +31,11 @@ const _ = require('lodash');
 const enigma_assert = require('../../../enigma_assert');
 const httpSignature = require('http-signature');
 const async = require('async');
+const crypto = require('crypto');
+
+//  Maximum age for inbound HTTP-signed requests (replay-attack window).
+//  Mastodon uses 12 h; 5 min is a reasonable conservative choice.
+const MaxRequestAgeSecs = 5 * 60;
 
 exports.moduleInfo = {
     name: 'ActivityPub',
@@ -148,7 +153,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     _parseAndValidateSignature(req) {
         let signature;
         try {
-            //  :TODO: validate options passed to parseRequest()
             signature = httpSignature.parseRequest(req);
         } catch (e) {
             this.log.warn(
@@ -161,6 +165,35 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         //  quick check up front
         const keyId = signature.keyId;
         if (!keyId || !keyId.endsWith('#main-key')) {
+            return null;
+        }
+
+        //  Reject stale or future-dated requests to prevent replay attacks.
+        //  The Date header must be present and within MaxRequestAgeSecs of now.
+        const dateHeader = req.headers['date'];
+        if (!dateHeader) {
+            this.log.warn(
+                { url: req.url },
+                'Rejected signed request missing Date header'
+            );
+            return null;
+        }
+
+        const requestDate = new Date(dateHeader);
+        if (isNaN(requestDate.getTime())) {
+            this.log.warn(
+                { url: req.url, dateHeader },
+                'Rejected signed request with unparseable Date header'
+            );
+            return null;
+        }
+
+        const ageMs = Date.now() - requestDate.getTime();
+        if (Math.abs(ageMs) > MaxRequestAgeSecs * 1000) {
+            this.log.warn(
+                { url: req.url, ageMs, maxAgeMs: MaxRequestAgeSecs * 1000 },
+                'Rejected signed request with stale Date header (possible replay)'
+            );
             return null;
         }
 
@@ -247,8 +280,33 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
 
         req.on('end', () => {
+            const rawBody = Buffer.concat(body);
+
+            //  Independently verify the Digest header body hash when present.
+            //  The HTTP signature covers the Digest header, so a valid signature
+            //  proves the body hasn't been tampered with since signing — but only
+            //  if we also check that the Digest header matches the actual body.
+            const digestHeader = req.headers['digest'];
+            if (digestHeader) {
+                const match = /^SHA-256=(.+)$/.exec(digestHeader);
+                if (match) {
+                    const claimedDigest = match[1];
+                    const actualDigest = crypto
+                        .createHash('sha256')
+                        .update(rawBody)
+                        .digest('base64');
+                    if (claimedDigest !== actualDigest) {
+                        this.log.warn(
+                            { url: req.url, inboxType },
+                            'Digest body hash mismatch — request body may have been tampered with'
+                        );
+                        return this.webServer.badRequest(resp);
+                    }
+                }
+            }
+
             //  Collect and validate the posted Activity
-            const activity = Activity.fromJsonString(Buffer.concat(body).toString());
+            const activity = Activity.fromJsonString(rawBody.toString());
             if (!activity || !activity.isValid()) {
                 this.log.error(
                     { url: req.url, method: req.method, inboxType },
@@ -625,7 +683,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 },
                 err => {
                     if (err) {
-                        this.log.error({ error: err.message, inboxType }, 'Error during Delete processing');
+                        this.log.error(
+                            { error: err.message, inboxType },
+                            'Error during Delete processing'
+                        );
                     }
 
                     this.sysLog.info(

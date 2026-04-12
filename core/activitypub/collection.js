@@ -17,6 +17,10 @@ const { getJson } = require('../http_util');
 const { isString } = require('lodash');
 const Log = require('../logger').log;
 
+//  Default page size for AP collections (e.g. outbox, followers, following).
+//  Callers that need all items at once (scanner/tosser) pass page='all'.
+const CollectionPageSize = 20;
+
 module.exports = class Collection extends ActivityPubObject {
     constructor(obj) {
         super(obj);
@@ -423,43 +427,93 @@ module.exports = class Collection extends ActivityPubObject {
             }
         }
 
-        //  :TODO: actual paging...
         try {
-            let entries = apDb
+            //  'all' is an internal-only sentinel used by the scanner/tosser to
+            //  collect every follower endpoint in one pass; it skips pagination.
+            if ('all' === page) {
+                let entries = apDb
+                    .prepare(
+                        `SELECT object_json
+                        FROM collection
+                        WHERE name = ? AND collection_id = ? AND is_private = FALSE
+                        ORDER BY timestamp;`
+                    )
+                    .all(collectionName, collectionId);
+
+                try {
+                    entries = (entries || []).map(e => JSON.parse(e.object_json));
+                } catch (e) {
+                    Log.error(`Collection "${collectionId}" error: ${e.message}`);
+                }
+
+                if (mapper && entries.length > 0) {
+                    entries = entries.map(mapper);
+                }
+
+                return cb(
+                    null,
+                    new Collection({
+                        id: collectionId,
+                        type: 'OrderedCollection',
+                        totalItems: entries.length,
+                        orderedItems: entries,
+                    })
+                );
+            }
+
+            //  Numeric page: proper AP paging with next/prev links
+            const pageNum = Math.max(1, parseInt(page, 10) || 1);
+            const offset = (pageNum - 1) * CollectionPageSize;
+
+            const countRow = apDb
+                .prepare(
+                    `SELECT COUNT(collection_id) AS count
+                    FROM collection
+                    WHERE name = ? AND collection_id = ? AND is_private = FALSE;`
+                )
+                .get(collectionName, collectionId);
+
+            let rows = apDb
                 .prepare(
                     `SELECT object_json
                     FROM collection
                     WHERE name = ? AND collection_id = ? AND is_private = FALSE
-                    ORDER BY timestamp;`
+                    ORDER BY timestamp
+                    LIMIT ? OFFSET ?;`
                 )
-                .all(collectionName, collectionId);
+                .all(collectionName, collectionId, CollectionPageSize + 1, offset);
 
+            const hasNext = rows.length > CollectionPageSize;
+            if (hasNext) {
+                rows = rows.slice(0, CollectionPageSize);
+            }
+
+            let entries;
             try {
-                entries = (entries || []).map(e => JSON.parse(e.object_json));
+                entries = rows.map(e => JSON.parse(e.object_json));
             } catch (e) {
-                Log.error(`Collection "${collectionId}" error: ${e.message}`);
+                Log.error(
+                    `Collection "${collectionId}" page ${pageNum} parse error: ${e.message}`
+                );
+                entries = [];
             }
 
             if (mapper && entries.length > 0) {
                 entries = entries.map(mapper);
             }
 
-            let obj;
-            if ('all' === page) {
-                obj = {
-                    id: collectionId,
-                    type: 'OrderedCollection',
-                    totalItems: entries.length,
-                    orderedItems: entries,
-                };
-            } else {
-                obj = {
-                    id: `${collectionId}?page=${page}`,
-                    type: 'OrderedCollectionPage',
-                    totalItems: entries.length,
-                    orderedItems: entries,
-                    partOf: collectionId,
-                };
+            const obj = {
+                id: `${collectionId}?page=${pageNum}`,
+                type: 'OrderedCollectionPage',
+                totalItems: countRow.count,
+                orderedItems: entries,
+                partOf: collectionId,
+            };
+            if (pageNum > 1) {
+                obj.prev = `${collectionId}?page=${pageNum - 1}`;
+            }
+            if (hasNext) {
+                obj.next = `${collectionId}?page=${pageNum + 1}`;
             }
 
             return cb(null, new Collection(obj));
@@ -528,21 +582,74 @@ module.exports = class Collection extends ActivityPubObject {
             }
         }
 
-        //  :TODO: actual paging...
         try {
-            let entries = apDb
+            //  'all' sentinel: used internally, no pagination
+            if ('all' === page) {
+                let entries = apDb
+                    .prepare(
+                        `SELECT object_json
+                        FROM collection
+                        WHERE owner_actor_id = ? AND name = ?${privateQuery}
+                        ORDER BY timestamp;`
+                    )
+                    .all(actorId, collectionName);
+
+                try {
+                    entries = (entries || []).map(e => JSON.parse(e.object_json));
+                } catch (e) {
+                    Log.error(`Collection "${collectionId}" error: ${e.message}`);
+                }
+
+                if (mapper && entries.length > 0) {
+                    entries = entries.map(mapper);
+                }
+
+                return cb(
+                    null,
+                    new Collection({
+                        id: collectionId,
+                        type: 'OrderedCollection',
+                        totalItems: entries.length,
+                        orderedItems: entries,
+                    })
+                );
+            }
+
+            //  Numeric page: proper AP paging with next/prev links
+            const pageNum = Math.max(1, parseInt(page, 10) || 1);
+            const offset = (pageNum - 1) * CollectionPageSize;
+
+            const countRow = apDb
+                .prepare(
+                    `SELECT COUNT(collection_id) AS count
+                    FROM collection
+                    WHERE owner_actor_id = ? AND name = ?${privateQuery};`
+                )
+                .get(actorId, collectionName);
+
+            let rows = apDb
                 .prepare(
                     `SELECT object_json
                     FROM collection
                     WHERE owner_actor_id = ? AND name = ?${privateQuery}
-                    ORDER BY timestamp;`
+                    ORDER BY timestamp
+                    LIMIT ? OFFSET ?;`
                 )
-                .all(actorId, collectionName);
+                .all(actorId, collectionName, CollectionPageSize + 1, offset);
 
+            const hasNext = rows.length > CollectionPageSize;
+            if (hasNext) {
+                rows = rows.slice(0, CollectionPageSize);
+            }
+
+            let entries;
             try {
-                entries = (entries || []).map(e => JSON.parse(e.object_json));
+                entries = rows.map(e => JSON.parse(e.object_json));
             } catch (e) {
-                Log.error(`Collection "${collectionId}" error: ${e.message}`);
+                Log.error(
+                    `Collection "${collectionId}" page ${pageNum} parse error: ${e.message}`
+                );
+                entries = [];
             }
 
             if (mapper && entries.length > 0) {
@@ -550,12 +657,18 @@ module.exports = class Collection extends ActivityPubObject {
             }
 
             const obj = {
-                id: `${collectionId}/page=${page}`,
+                id: `${collectionId}?page=${pageNum}`,
                 type: 'OrderedCollectionPage',
-                totalItems: entries.length,
+                totalItems: countRow.count,
                 orderedItems: entries,
                 partOf: collectionId,
             };
+            if (pageNum > 1) {
+                obj.prev = `${collectionId}?page=${pageNum - 1}`;
+            }
+            if (hasNext) {
+                obj.next = `${collectionId}?page=${pageNum + 1}`;
+            }
 
             return cb(null, new Collection(obj));
         } catch (err) {

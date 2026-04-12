@@ -224,7 +224,8 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         return Endpoints.actorId(user);
     }
 
-    // :TODO: only if ActivityPub is enabled
+    //  Only called after _localUserFromWebFingerAccountName() validates that
+    //  ActivityPub is enabled for this user, so no extra guard is needed here.
     _selfLink(user) {
         const href = Endpoints.actorId(user);
         return {
@@ -234,7 +235,6 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         };
     }
 
-    // :TODO: only if ActivityPub is enabled
     _subscribeLink() {
         return {
             rel: 'http://ostatus.org/schema/1.0/subscribe',
