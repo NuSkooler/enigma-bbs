@@ -597,9 +597,7 @@
             }
         }
 
-	}
-
-	prompts: {
+    prompts: {
 		loginGlobalNewScan: {
 			art: GNSPMPT
 			mci: {
@@ -614,4 +612,4 @@
 		}
 
 	}
-}
+}	
