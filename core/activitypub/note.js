@@ -123,7 +123,14 @@ module.exports = class Note extends ActivityPubObject {
                     //  When replying, look up the parent's context so we can
                     //  propagate the thread root ID through the conversation.
                     if (!replyToNoteId || !message.replyToMsgId) {
-                        return callback(null, null, replyToNoteId, fromUser, fromActor, remoteActor);
+                        return callback(
+                            null,
+                            null,
+                            replyToNoteId,
+                            fromUser,
+                            fromActor,
+                            remoteActor
+                        );
                     }
 
                     Message.getMetaValuesByMessageId(
@@ -132,12 +139,26 @@ module.exports = class Note extends ActivityPubObject {
                         Message.ActivityPubPropertyNames.Context,
                         (err, parentContext) => {
                             // ignore error — missing context meta is fine
-                            return callback(null, parentContext || null, replyToNoteId, fromUser, fromActor, remoteActor);
+                            return callback(
+                                null,
+                                parentContext || null,
+                                replyToNoteId,
+                                fromUser,
+                                fromActor,
+                                remoteActor
+                            );
                         }
                     );
                 },
 
-                (parentContext, replyToNoteId, fromUser, fromActor, remoteActor, callback) => {
+                (
+                    parentContext,
+                    replyToNoteId,
+                    fromUser,
+                    fromActor,
+                    remoteActor,
+                    callback
+                ) => {
                     const to = [
                         message.isPrivate() ? remoteActor.id : PublicCollectionId,
                     ];
@@ -174,7 +195,7 @@ module.exports = class Note extends ActivityPubObject {
                     //  context: thread root ID — own ID for root posts, parent's context
                     //  (or inReplyTo) for replies.  Mastodon uses this to reconstruct threads.
                     const noteContext = replyToNoteId
-                        ? (parentContext || replyToNoteId)
+                        ? parentContext || replyToNoteId
                         : noteId;
 
                     // https://docs.joinmastodon.org/spec/activitypub/#properties-used
@@ -185,9 +206,9 @@ module.exports = class Note extends ActivityPubObject {
                         to,
                         attributedTo: fromActor.id,
                         conversation: noteContext,
-                        context:      noteContext,
-                        likes:        Endpoints.noteLikes(noteId),
-                        shares:       Endpoints.noteShares(noteId),
+                        context: noteContext,
+                        likes: Endpoints.noteLikes(noteId),
+                        shares: Endpoints.noteShares(noteId),
                         summary: summaryText,
                         content: htmlMessage,
                         contentMap: {

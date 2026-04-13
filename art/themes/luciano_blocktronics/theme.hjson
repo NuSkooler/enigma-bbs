@@ -1463,6 +1463,50 @@
 				}
 			}
 
+			activityPubMsgBrowser: {
+				config: {
+					//  Format strings for %TL10+ custom views placed in art.
+					//  Each view receives the full format object; reference any property.
+					//  Example: TL10 = mode label, TL11 = loaded item count.
+					mainInfoFormat10: "{modeLabel}"
+					//mainInfoFormat11: "{msgCount}"
+
+					//  Configurable display indicators (CP437 defaults set in module).
+					//  Override here to use different characters if desired.
+					// attIndicator:   "*"
+					// likeIndicator:  "\\x03"   // ♥
+					// boostIndicator: "\\1e"   // ▲
+					//  Timestamp format — any moment.js format string.
+					//  'am'/'pm' from the 'a' token are collapsed to a single char.
+					//  Default: "MM/DD hh:mma" → "04/12 02:30p" (12 chars).
+					//  If you change this, also adjust {date:} width in itemFormat below.
+					//  dateTimeFormat: "MM/DD hh:mma"
+				}
+				0: {
+					mci: {
+						VM1: {
+							//  Art: activitypub_msg_browser.ans
+							//  Height and width are set by the operator's art placement.
+							//  Column budget for 71-col VM1:
+							//    from(16) + subject(33) + date(12) + likes(2) + boosts(2) + att(1) + 5 separators = 71
+							//  {field:<width.precision} — width sets pad target, precision truncates to that width.
+							//  Pipe codes are zero-width and do not affect column math.
+							itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							//  textOverflow is not needed — {field:<w.w} precision handles truncation.
+							height: 14
+							width: 72
+						}
+						TL10: {
+							width: 12
+						}
+						TL11: {
+							width: 5
+						}
+					}
+				}
+			}
+
 			// MRC
 			mrc: {
 				config: {

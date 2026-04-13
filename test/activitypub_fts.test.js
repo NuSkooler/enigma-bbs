@@ -293,7 +293,10 @@ describe('Collection.searchActors() — basic body search', function () {
             )
         );
 
-        const results = await search(Collection.searchActors.bind(Collection), 'zzznomatch');
+        const results = await search(
+            Collection.searchActors.bind(Collection),
+            'zzznomatch'
+        );
         assert.equal(results.length, 0);
     });
 
@@ -315,11 +318,7 @@ describe('Collection.searchActors() — basic body search', function () {
     });
 
     it('actor search does not return sharedInbox notes', async () => {
-        addNote(
-            'https://remote.example.com/notes/1',
-            '',
-            '<p>alice in wonderland</p>'
-        );
+        addNote('https://remote.example.com/notes/1', '', '<p>alice in wonderland</p>');
 
         //  'alice' is in the note content — should NOT appear in actor search
         const results = await search(Collection.searchActors.bind(Collection), 'alice');
@@ -331,11 +330,7 @@ describe('Collection.searchActors() — basic body search', function () {
 
 describe('Collection.searchActors() — subject (tags) search', function () {
     it('finds an actor by @user@host subject via tags column', async () => {
-        const actor = makeActor(
-            'https://mastodon.social/users/frank',
-            'frank',
-            'Frank'
-        );
+        const actor = makeActor('https://mastodon.social/users/frank', 'frank', 'Frank');
         await new Promise((res, rej) =>
             Collection.addActor(actor, '@frank@mastodon.social', err =>
                 err ? rej(err) : res()
@@ -394,9 +389,7 @@ describe('Collection.searchActors() — delete removes from index', function () 
 
         // Delete via Collection (triggers BEFORE DELETE on collection)
         _apDb
-            .prepare(
-                `DELETE FROM collection WHERE name = 'actors' AND object_id = ?`
-            )
+            .prepare(`DELETE FROM collection WHERE name = 'actors' AND object_id = ?`)
             .run('https://remote.example.com/users/hank');
 
         const after = await search(Collection.searchActors.bind(Collection), 'hank');
@@ -429,10 +422,7 @@ describe('Collection.searchNotes() — basic content search', function () {
             '<p>Some content</p>'
         );
 
-        const results = await search(
-            Collection.searchNotes.bind(Collection),
-            'weekly'
-        );
+        const results = await search(Collection.searchNotes.bind(Collection), 'weekly');
         assert.equal(results.length, 1);
         assert.equal(results[0].id, 'https://remote.example.com/notes/2');
     });
@@ -445,10 +435,7 @@ describe('Collection.searchNotes() — basic content search', function () {
         );
 
         //  FTS tokenizer strips # so searching 'fidonet' matches
-        const results = await search(
-            Collection.searchNotes.bind(Collection),
-            'fidonet'
-        );
+        const results = await search(Collection.searchNotes.bind(Collection), 'fidonet');
         assert.equal(results.length, 1);
     });
 
@@ -489,11 +476,7 @@ describe('Collection.searchNotes() — basic content search', function () {
             'bbs bbs bbs',
             '<p>bbs content</p>'
         );
-        addNote(
-            'https://remote.example.com/notes/6',
-            '',
-            '<p>mentions bbs once</p>'
-        );
+        addNote('https://remote.example.com/notes/6', '', '<p>mentions bbs once</p>');
 
         const results = await search(Collection.searchNotes.bind(Collection), 'bbs');
         assert.equal(results.length, 2);
@@ -509,20 +492,16 @@ describe('Collection.searchNotes() — delete and update', function () {
         const id = 'https://remote.example.com/notes/del-1';
         addNote(id, '', '<p>unique keyword xyzplugh</p>');
 
-        const before = await search(
-            Collection.searchNotes.bind(Collection),
-            'xyzplugh'
-        );
+        const before = await search(Collection.searchNotes.bind(Collection), 'xyzplugh');
         assert.equal(before.length, 1);
 
         _apDb
-            .prepare(`DELETE FROM collection WHERE name = 'sharedInbox' AND object_id = ?`)
+            .prepare(
+                `DELETE FROM collection WHERE name = 'sharedInbox' AND object_id = ?`
+            )
             .run(id);
 
-        const after = await search(
-            Collection.searchNotes.bind(Collection),
-            'xyzplugh'
-        );
+        const after = await search(Collection.searchNotes.bind(Collection), 'xyzplugh');
         assert.equal(after.length, 0);
     });
 
@@ -551,10 +530,7 @@ describe('Collection.searchNotes() — delete and update', function () {
         );
         assert.equal(oldTerm.length, 0, 'old content should no longer match');
 
-        const newTerm = await search(
-            Collection.searchNotes.bind(Collection),
-            'banjo'
-        );
+        const newTerm = await search(Collection.searchNotes.bind(Collection), 'banjo');
         assert.equal(newTerm.length, 1, 'new content should be indexed');
     });
 });

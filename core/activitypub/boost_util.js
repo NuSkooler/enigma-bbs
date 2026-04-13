@@ -136,7 +136,13 @@ function recordInboundBoost(activity, note, cb) {
 
             //  Record the reaction in note_reactions
             callback => {
-                Collection.addReaction(note.id, actorId, 'Announce', activity.id, callback);
+                Collection.addReaction(
+                    note.id,
+                    actorId,
+                    'Announce',
+                    activity.id,
+                    callback
+                );
             },
         ],
         err => cb(err)

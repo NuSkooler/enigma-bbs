@@ -49,6 +49,18 @@
           value: { command: "P" }
           action: @menu:activityPubPublicMessages
         }
+        {
+          value: { command: "B" }
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubMsgBrowser
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
+        }
       ]
     }
 
@@ -256,6 +268,35 @@
             ]
           }
           actionKeys: @reference:common.quitToPrev
+        }
+      }
+    }
+
+    activityPubMsgBrowser: {
+      desc: ActivityPub Message Browser
+      module: ./activitypub/activity_pub_msg_list
+      config: {
+        art: {
+          main: activitypub_msg_browser
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {
+              focus: true
+            }
+          }
+          actionKeys: [
+            {
+              keys: ["b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down"]
+              action: @method:listKeyPressed
+            }
+            {
+              keys: ["escape", "q", "shift + q"]
+              action: @systemMethod:prevMenu
+            }
+          ]
         }
       }
     }

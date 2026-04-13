@@ -1028,9 +1028,9 @@ module.exports = class Collection extends ActivityPubObject {
     //
     static removeReactionByActivityId(activityId, cb) {
         try {
-            apDb.prepare(
-                'DELETE FROM note_reactions WHERE activity_id = ?'
-            ).run(activityId);
+            apDb.prepare('DELETE FROM note_reactions WHERE activity_id = ?').run(
+                activityId
+            );
             return cb(null);
         } catch (err) {
             return cb(err);
@@ -1044,12 +1044,17 @@ module.exports = class Collection extends ActivityPubObject {
     //
     static getReactionActors(noteId, reactionType, cb) {
         try {
-            const rows = apDb.prepare(
-                `SELECT actor_id FROM note_reactions
+            const rows = apDb
+                .prepare(
+                    `SELECT actor_id FROM note_reactions
                  WHERE note_id = ? AND reaction_type = ?
                  ORDER BY timestamp ASC;`
-            ).all(noteId, reactionType);
-            return cb(null, rows.map(r => r.actor_id));
+                )
+                .all(noteId, reactionType);
+            return cb(
+                null,
+                rows.map(r => r.actor_id)
+            );
         } catch (err) {
             return cb(err);
         }
@@ -1060,11 +1065,132 @@ module.exports = class Collection extends ActivityPubObject {
     //
     static getReactionCount(noteId, reactionType, cb) {
         try {
-            const row = apDb.prepare(
-                `SELECT COUNT(*) AS n FROM note_reactions
+            const row = apDb
+                .prepare(
+                    `SELECT COUNT(*) AS n FROM note_reactions
                  WHERE note_id = ? AND reaction_type = ?;`
-            ).get(noteId, reactionType);
+                )
+                .get(noteId, reactionType);
             return cb(null, row.n);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Cursor-paginated query against a collection, newest-first by default.
+    //
+    //  options:
+    //    cursor   — ISO timestamp (exclusive upper bound); omit for "from latest"
+    //    pageSize — items per page (default 25)
+    //    filter   — optional object with one of:
+    //      { actorId }          — Timeline: Notes attributed to a specific actor
+    //      { mentionsActorId }  — Mentions: Notes whose to/cc/tag contains the actor
+    //
+    //  Returns: { rows: [{timestamp, object_json}], nextCursor: string|null }
+    //
+    static getCollectionPage(collectionName, options, cb) {
+        const { cursor, pageSize = 25, filter = null } = options;
+        const ts = cursor || '9999-12-31T23:59:59.999Z';
+
+        const params = [collectionName, ts];
+        let whereExtra = '';
+
+        if (filter) {
+            if (filter.actorId) {
+                whereExtra += ` AND json_extract(object_json, '$.object.attributedTo') = ?`;
+                params.push(filter.actorId);
+            }
+            if (filter.mentionsActorId) {
+                const like = `%${filter.mentionsActorId}%`;
+                whereExtra += ` AND (
+                    json_extract(object_json, '$.object.to')  LIKE ?
+                 OR json_extract(object_json, '$.object.cc')  LIKE ?
+                 OR json_extract(object_json, '$.object.tag') LIKE ?
+                )`;
+                params.push(like, like, like);
+            }
+        }
+
+        params.push(pageSize + 1);
+
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT timestamp, object_json
+                 FROM collection
+                 WHERE name = ? AND timestamp < ?${whereExtra}
+                 ORDER BY timestamp DESC
+                 LIMIT ?`
+                )
+                .all(...params);
+
+            const hasMore = rows.length > pageSize;
+            if (hasMore) rows.pop();
+
+            const nextCursor = hasMore ? rows[rows.length - 1].timestamp : null;
+            return cb(null, { rows, nextCursor });
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Fetch all collection entries that share a context (thread root ID).
+    //  Checks both $.object.context and $.object.conversation fields.
+    //  Returns rows in chronological order (oldest first — thread display order).
+    //
+    static getCollectionByContext(collectionName, contextId, cb) {
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT timestamp, object_json
+                 FROM collection
+                 WHERE name = ?
+                   AND (
+                       json_extract(object_json, '$.object.context')      = ?
+                    OR json_extract(object_json, '$.object.conversation') = ?
+                   )
+                 ORDER BY timestamp ASC`
+                )
+                .all(collectionName, contextId, contextId);
+
+            return cb(null, { rows, nextCursor: null });
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
+    //
+    //  Fetch Like and Announce counts for a batch of Note IDs in one query.
+    //  Returns a Map<noteId, { likes: number, boosts: number }>.
+    //  Note IDs absent from note_reactions will not appear in the map.
+    //
+    static getReactionCountsBatch(noteIds, cb) {
+        if (!noteIds || noteIds.length === 0) {
+            return cb(null, new Map());
+        }
+        try {
+            const placeholders = noteIds.map(() => '?').join(',');
+            const rows = apDb
+                .prepare(
+                    `SELECT note_id, reaction_type, COUNT(*) AS n
+                 FROM note_reactions
+                 WHERE note_id IN (${placeholders})
+                 GROUP BY note_id, reaction_type`
+                )
+                .all(...noteIds);
+
+            const map = new Map();
+            for (const row of rows) {
+                if (!map.has(row.note_id)) {
+                    map.set(row.note_id, { likes: 0, boosts: 0 });
+                }
+                const c = map.get(row.note_id);
+                if (row.reaction_type === 'Like') c.likes = row.n;
+                if (row.reaction_type === 'Announce') c.boosts = row.n;
+            }
+            return cb(null, map);
         } catch (err) {
             return cb(err);
         }

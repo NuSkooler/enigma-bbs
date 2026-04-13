@@ -189,7 +189,9 @@ before(() => {
 
 beforeEach(() => {
     _msgDb.exec('DELETE FROM message_meta; DELETE FROM message;');
-    _apDb.exec('DELETE FROM note_reactions; DELETE FROM collection_object_meta; DELETE FROM collection;');
+    _apDb.exec(
+        'DELETE FROM note_reactions; DELETE FROM collection_object_meta; DELETE FROM collection;'
+    );
 });
 
 // ─── Message.addMetaValue ─────────────────────────────────────────────────────

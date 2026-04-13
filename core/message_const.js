@@ -101,7 +101,7 @@ exports.QWKPropertyNames = QWKPropertyNames;
 const ActivityPubPropertyNames = {
     ActivityId: 'activitypub_activity_id', //  Activity ID; FK to AP table entries
     InReplyTo: 'activitypub_in_reply_to', //  Activity ID from 'inReplyTo' field
-    NoteId: 'activitypub_note_id',         //  Note ID specific to Note Activities
-    Context:  'activitypub_context',       //  AP context (thread root ID)
+    NoteId: 'activitypub_note_id', //  Note ID specific to Note Activities
+    Context: 'activitypub_context', //  AP context (thread root ID)
 };
 exports.ActivityPubPropertyNames = ActivityPubPropertyNames;
