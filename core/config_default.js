@@ -974,7 +974,7 @@ module.exports = () => {
                 //
                 packetTargetByteSize: 512000, //  512k, before placing messages in a new pkt
                 bundleTargetByteSize: 2048000, //  2M, before creating another archive
-                packetMsgEncoding: 'utf8', //  default packet encoding. Override per node if desired.
+                packetMsgEncoding: 'cp437', //  default packet encoding. Override per node if desired.
                 packetAnsiMsgEncoding: 'cp437', //  packet encoding for *ANSI ART* messages
 
                 tic: {

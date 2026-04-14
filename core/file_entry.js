@@ -681,7 +681,9 @@ module.exports = class FileEntry {
                         `f.file_id IN (
                             SELECT file_id
                             FROM file_meta
-                            WHERE meta_name = '${safeName}' AND meta_value LIKE '${sanitizeString(mp.value)}'
+                            WHERE meta_name = '${safeName}' AND meta_value LIKE '${sanitizeString(
+                            mp.value
+                        )}'
                         )`
                     );
                 } else {
@@ -689,7 +691,9 @@ module.exports = class FileEntry {
                         `f.file_id IN (
                             SELECT file_id
                             FROM file_meta
-                            WHERE meta_name = '${safeName}' AND meta_value = '${sanitizeString(mp.value)}'
+                            WHERE meta_name = '${safeName}' AND meta_value = '${sanitizeString(
+                            mp.value
+                        )}'
                         )`
                     );
                 }

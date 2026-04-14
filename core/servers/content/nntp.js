@@ -280,7 +280,9 @@ class NNTPServer extends NNTPServerBase {
                 m => m.messageUuid === message.messageUuid
             );
             if (msgEntry) {
-                message.nntpHeaders.Xref = `${Config().general.boardName} ${session.group.name}:${msgEntry.index}`;
+                message.nntpHeaders.Xref = `${Config().general.boardName} ${
+                    session.group.name
+                }:${msgEntry.index}`;
             }
         }
 

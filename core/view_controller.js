@@ -259,9 +259,10 @@ class ViewController extends events.EventEmitter {
                             //  :TODO: handle propAsset.location for @method script specification
                             if ('systemMethod' === propAsset.type) {
                                 //  :TODO: implementation validation @systemMethod handling!
-                                const methodModule = require(
-                                    paths.join(__dirname, 'system_view_validate.js')
-                                );
+                                const methodModule = require(paths.join(
+                                    __dirname,
+                                    'system_view_validate.js'
+                                ));
                                 if (_.isFunction(methodModule[propAsset.asset])) {
                                     propValue = methodModule[propAsset.asset];
                                 }

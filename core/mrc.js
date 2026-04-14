@@ -796,7 +796,10 @@ exports.getModule = class mrcModule extends MenuModule {
             case 'me': {
                 const action = cmd.slice(1).join(' ');
                 if (action) {
-                    const meMsg = `|15* |13${this.state.alias} ${action.replace(/~/g, ' ')}`;
+                    const meMsg = `|15* |13${this.state.alias} ${action.replace(
+                        /~/g,
+                        ' '
+                    )}`;
                     try {
                         this.state.lastSentMsg = { msg: meMsg, time: moment() };
                         this.sendMessageToMultiplexer('', '', this.state.room, meMsg);
@@ -811,7 +814,9 @@ exports.getModule = class mrcModule extends MenuModule {
             case 'broadcast': {
                 const text = cmd.slice(1).join(' ');
                 if (text) {
-                    const broadcastMsg = `|15* |08(|15${this.state.alias}|08/|14Broadcast|08) |07${text.replace(/~/g, ' ')}`;
+                    const broadcastMsg = `|15* |08(|15${
+                        this.state.alias
+                    }|08/|14Broadcast|08) |07${text.replace(/~/g, ' ')}`;
                     try {
                         this.sendMessageToMultiplexer('', '', '', broadcastMsg);
                     } catch (e) {
@@ -1313,7 +1318,9 @@ exports.getModule = class mrcModule extends MenuModule {
             `|14SHIELD            |07${p.shield ? 'on' : 'off'}|16|07`,
             `|14HIDECTCPREQ       |07${p.hideCTCPReq ? 'on' : 'off'}|16|07`,
             `|14SHOWSMILIES       |07${p.showSmilies ? 'on' : 'off'}|16|07`,
-            `|14TWITFILTER        |07${p.twitFilter ? 'on' : 'off'} |08(${(p.twitList || []).length} user(s))|16|07`,
+            `|14TWITFILTER        |07${p.twitFilter ? 'on' : 'off'} |08(${
+                (p.twitList || []).length
+            } user(s))|16|07`,
             `|14JOINMSG           |07${p.joinMsg || '(none)'}|16|07`,
             `|14LEAVEMSG          |07${p.leaveMsg || '(none)'}|16|07`,
         ]);
