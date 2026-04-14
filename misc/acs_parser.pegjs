@@ -33,7 +33,7 @@
 							true === _.get(config, 'contentServers.web.https.enabled'));
 					};
 
-					const allEnabled = value.every(svcName => {
+					const allEnabled = value.every(svcName => { svcName = svcName.toLowerCase();
 						switch (svcName) {
 							case 'http':
 								return true === _.get(config, 'contentServers.web.http.enabled');
@@ -47,7 +47,7 @@
 							case 'gopher':
 								return true === _.get(config, 'contentServers.gopher.enabled');
 
-							case 'nttp':
+							case 'nntp':
 								return true === _.get(config, 'contentServers.nntp.nntp.enabled');
 
 							case 'nntps':
@@ -61,6 +61,8 @@
 
 							case 'webfinger':
 								return webEnabled() && true === _.get(config, 'contentServers.web.handlers.webFinger.enabled');
+							default:
+								return false;
 						}
 					});
 					return allEnabled;
@@ -111,7 +113,7 @@
 					if(!user) {
 						return false;
 					}
-					const postCount = user.getPropertyAsNumber(UserProps.PostCount) || 0;
+					const postCount = user.getPropertyAsNumber(UserProps.MessagePostCount) || 0;
 					return !isNaN(value) && postCount >= value;
 				},
 				NC	: function numberOfCalls() {
@@ -127,7 +129,7 @@
 					}
 					const accountCreated = moment(user.getProperty(UserProps.AccountCreated));
 					const now = moment();
-					const daysOld = accountCreated.diff(moment(), 'days');
+					const daysOld = now.diff(accountCreated, 'days');
 					return !isNaN(value) &&
 						accountCreated.isValid() &&
 						now.isAfter(accountCreated) &&
@@ -167,7 +169,7 @@
 					}
 					const ulCount = user.getPropertyAsNumber(UserProps.FileUlTotalCount) || 0;
 					const dlCount = user.getPropertyAsNumber(UserProps.FileDlTotalCount) || 0;
-					const ratio = ~~((ulCount / dlCount) * 100);
+					const ratio = dlCount === 0 ? 0 : ~~((ulCount / dlCount) * 100);
 					return !isNaN(value) && ratio >= value;
 				},
 				KR	: function uploadDownloadByteRatioGreaterThan() {
@@ -176,16 +178,16 @@
 					}
 					const ulBytes = user.getPropertyAsNumber(UserProps.FileUlTotalBytes) || 0;
 					const dlBytes = user.getPropertyAsNumber(UserProps.FileDlTotalBytes) || 0;
-					const ratio = ~~((ulBytes / dlBytes) * 100);
+					const ratio = dlBytes === 0 ? 0 : ~~((ulBytes / dlBytes) * 100);
 					return !isNaN(value) && ratio >= value;
 				},
 				PC	: function postCallRatio() {
 					if(!user) {
 						return false;
 					}
-					const postCount		= user.getPropertyAsNumber(UserProps.PostCount) || 0;
+					const postCount		= user.getPropertyAsNumber(UserProps.MessagePostCount) || 0;
 					const loginCount	= user.getPropertyAsNumber(UserProps.LoginCount) || 0;
-					const ratio = ~~((postCount / loginCount) * 100);
+					const ratio = loginCount === 0 ? 0 : ~~((postCount / loginCount) * 100);
 					return !isNaN(value) && ratio >= value;
 				},
 				SC 	: function isSecureConnection() {
@@ -255,14 +257,14 @@
 						return false;
 					}
 					const count = user.getPropertyAsNumber(UserProps.AchievementTotalCount) || 0;
-					return !isNan(value) && points >= value;
+					return !isNaN(value) && count >= value;
 				},
 				AP	: function achievementPoints() {
 					if(!user) {
 						return false;
 					}
 					const points = user.getPropertyAsNumber(UserProps.AchievementTotalPoints) || 0;
-					return !isNan(value) && points >= value;
+					return !isNaN(value) && points >= value;
 				},
 				PV	: function userPropValue() {
 					if (!user || !Array.isArray(value) || value.length !== 2) {
@@ -283,7 +285,7 @@
 }
 
 start
-	= expr
+	= optWs e:expr optWs { return e; }
 
 expr
 	= orExpr
@@ -304,20 +306,21 @@ groupClose
 	= ')'
 
 orExpr
-	= left:andExpr OR right:expr { return left || right; }
+	= left:andExpr optWs OR optWs right:expr { return left || right; }
 	/ andExpr
 
 andExpr
-	= left:notExpr AND? right:expr { return left && right; }
+	= left:notExpr optWs AND optWs right:expr { return left && right; }
+	/ left:notExpr optWs right:expr { return left && right; }
 	/ notExpr
 
 notExpr
-	= NOT value:atom { return !value; }
+	= NOT optWs value:atom { return !value; }
 	/ atom
 
 atom
 	= acsCheck
-	/ groupOpen value:expr groupClose { return value; }
+	/ groupOpen optWs value:expr optWs groupClose { return value; }
 
 comma
 	= ','
