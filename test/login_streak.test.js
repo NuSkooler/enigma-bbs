@@ -142,7 +142,9 @@ describe('computeLoginStreak()', function () {
             assert.equal(days, 3);
         });
 
-        it(`does not change streak when gap is LOGIN_STREAK_MIN_HOURS - 1 (${LOGIN_STREAK_MIN_HOURS - 1}h)`, () => {
+        it(`does not change streak when gap is LOGIN_STREAK_MIN_HOURS - 1 (${
+            LOGIN_STREAK_MIN_HOURS - 1
+        }h)`, () => {
             const base = moment();
             const user = makeUser({
                 [UserProps.LastLoginTs]: base.toISOString(),

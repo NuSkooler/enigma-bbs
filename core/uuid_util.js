@@ -27,7 +27,10 @@ function parseUUID(uuidStr) {
 // Unparse a 16-byte Buffer into a lowercase UUID string
 function unparseUUID(buf) {
     const h = buf.toString('hex');
-    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(
+        16,
+        20
+    )}-${h.slice(20)}`;
 }
 
 // Generate a v5 UUID Buffer from a namespace Buffer and a key Buffer/string

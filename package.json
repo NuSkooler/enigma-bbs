@@ -12,6 +12,7 @@
         "start": "node main.js",
         "oputil": "node ./oputil.js",
         "pretty": "npx prettier --write .",
+        "build:acs": "peggy --format commonjs -o core/acs_parser.js misc/acs_parser.pegjs",
         "prepare": "husky",
         "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000 --require test/setup.js"
     },
@@ -34,6 +35,7 @@
         "add": "^2.0.6",
         "async": "3.2.6",
         "avatar-generator": "^2.0.4",
+        "better-sqlite3": "^12.8.0",
         "binary-parser": "2.3.0",
         "bunyan": "1.8.15",
         "deepdash": "^5.3.9",
@@ -68,7 +70,6 @@
         "rlogin": "^1.0.0",
         "sane": "5.0.1",
         "sanitize-filename": "^1.6.3",
-        "better-sqlite3": "^12.8.0",
         "ssh2": "1.17.0",
         "string-strip-html": "8.4.0",
         "systeminformation": "^5.27.10",
@@ -89,6 +90,7 @@
         "husky": "^8.0.0",
         "lint-staged": "^13.1.0",
         "mocha": "^10.8.2",
+        "peggy": "^5.1.0",
         "prettier": "2.8.1"
     },
     "engines": {
