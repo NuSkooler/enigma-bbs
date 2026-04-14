@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="Access Condition System (ACS)" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Access Condition System (ACS) ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has it’s own style. With ACS, SysOp’s are able to control access to various areas of the system based on various conditions such as group membership, connection type, etc. Various touch points in the system are configured to allow for acs checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow to define what conditions must be true for certain rights such as read and write (though others exist as well)." />
-<meta property="og:description" content="Access Condition System (ACS) ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has it’s own style. With ACS, SysOp’s are able to control access to various areas of the system based on various conditions such as group membership, connection type, etc. Various touch points in the system are configured to allow for acs checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow to define what conditions must be true for certain rights such as read and write (though others exist as well)." />
+<meta name="description" content="Access Condition System (ACS)" />
+<meta property="og:description" content="Access Condition System (ACS)" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-14T18:45:55+00:00" />
+<meta property="article:published_time" content="2026-04-14T18:53:37+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Access Condition System (ACS)" />
 <script type="application/ld+json">
-{"description":"Access Condition System (ACS) ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has it’s own style. With ACS, SysOp’s are able to control access to various areas of the system based on various conditions such as group membership, connection type, etc. Various touch points in the system are configured to allow for acs checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow to define what conditions must be true for certain rights such as read and write (though others exist as well).","headline":"Access Condition System (ACS)","dateModified":"2026-04-14T18:45:55+00:00","datePublished":"2026-04-14T18:45:55+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/acs.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/acs.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Access Condition System (ACS)","headline":"Access Condition System (ACS)","dateModified":"2026-04-14T18:53:37+00:00","datePublished":"2026-04-14T18:53:37+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/acs.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/acs.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2687,25 +2687,192 @@
                 <div class="page">
     <h1 class="page-title">Access Condition System (ACS)</h1>
     <h2 id="access-condition-system-acs">Access Condition System (ACS)</h2>
-<p>ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has it’s own style. With ACS, SysOp’s are able to control access to various areas of the system based on various conditions such as group membership, connection type, etc. Various touch points in the system are configured to allow for <code class="language-plaintext highlighter-rouge">acs</code> checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow to define what conditions must be true for certain <em>rights</em> such as <code class="language-plaintext highlighter-rouge">read</code> and <code class="language-plaintext highlighter-rouge">write</code> (though others exist as well).</p>
+
+<p>ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has its own style. With ACS, SysOps are able to control access to various areas of the system based on conditions such as group membership, connection type, terminal capabilities, and more. Various touch points in the system are configured to allow for <code class="language-plaintext highlighter-rouge">acs</code> checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow defining what conditions must be true for certain <em>rights</em> such as <code class="language-plaintext highlighter-rouge">read</code> and <code class="language-plaintext highlighter-rouge">write</code> (though others exist as well).</p>
+
+<hr>
 
 <h2 id="group-membership">Group Membership</h2>
-<p>ENiGMA½ does not utilize legacy “security levels” (see note below) but instead utilizes a group system. Users may belong to one or more groups which can be checked by the <code class="language-plaintext highlighter-rouge">GM</code> ACS (See <a href="#acs-codes">ACS Codes</a> below). Two special groups exist out of the box:</p>
+
+<p>ENiGMA½ does not utilize legacy “security levels” (see note below) but instead uses a group system. Users may belong to one or more groups which can be checked by the <code class="language-plaintext highlighter-rouge">GM</code> ACS code (see <a href="#acs-codes">ACS Codes</a> below). Two special groups exist out of the box:</p>
+
 <ol>
   <li>
-<code class="language-plaintext highlighter-rouge">users</code>: Any regular user</li>
+<code class="language-plaintext highlighter-rouge">users</code>: Any regular user.</li>
   <li>
-<code class="language-plaintext highlighter-rouge">sysops</code>: System Operators. The first user (your root, or admin) will alwasy belong to this group.</li>
+<code class="language-plaintext highlighter-rouge">sysops</code>: System Operators. The first user (your root/admin) will always belong to this group.</li>
 </ol>
 
-<p>You do not need to explicitly create groups: By checking for them via ACS, and adding members to a group, they implicitly exist within the system. You may use as many groups within your system as you would like. See <a href="/enigma-bbs/admin/oputil.html#user">‘optuil user group’</a> for information adding and removing users to groups.</p>
+<p>You do not need to explicitly create groups: by checking for them via ACS and adding members to a group, they implicitly exist within the system. You may use as many groups as you like. See <a href="/enigma-bbs/admin/oputil.html#user"><code class="language-plaintext highlighter-rouge">oputil user group</code></a> for adding and removing users to groups.</p>
 
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Many dropfile formats require a security level. As such, the following apply: Root user or users in <code class="language-plaintext highlighter-rouge">sysops</code> group receive a security level of <code class="language-plaintext highlighter-rouge">100</code> while standard <code class="language-plaintext highlighter-rouge">users</code> receive <code class="language-plaintext highlighter-rouge">30</code>.</p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Many drop file formats require a security level. As such, the following apply: root user or users in <code class="language-plaintext highlighter-rouge">sysops</code> group receive a security level of <code class="language-plaintext highlighter-rouge">100</code> while standard <code class="language-plaintext highlighter-rouge">users</code> receive <code class="language-plaintext highlighter-rouge">30</code>.</p>
 </blockquote>
 
+<hr>
+
+<h2 id="acs-grammar">ACS Grammar</h2>
+
+<p>ACS strings are one or more ACS codes combined with logical operators. Whitespace (spaces) between operators, codes, and parentheses is optional — you can write compact strings like <code class="language-plaintext highlighter-rouge">GM[users]|NC5</code> or readable ones like <code class="language-plaintext highlighter-rouge">GM[users] | NC5</code>.</p>
+
+<h3 id="operators">Operators</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th style="text-align: center">Operator</th>
+      <th>Name</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: center"><code class="language-plaintext highlighter-rouge">&amp;</code></td>
+      <td>AND</td>
+      <td>Both sides must be true. <strong>This is also the default</strong> — two adjacent codes with no operator are implicitly AND’d.</td>
+    </tr>
+    <tr>
+      <td style="text-align: center"><code class="language-plaintext highlighter-rouge">\|</code></td>
+      <td>OR</td>
+      <td>Either side must be true.</td>
+    </tr>
+    <tr>
+      <td style="text-align: center"><code class="language-plaintext highlighter-rouge">!</code></td>
+      <td>NOT</td>
+      <td>Negates the following check.</td>
+    </tr>
+    <tr>
+      <td style="text-align: center">
+<code class="language-plaintext highlighter-rouge">(</code> <code class="language-plaintext highlighter-rouge">)</code>
+</td>
+      <td>Grouping</td>
+      <td>Control evaluation order.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="operator-precedence">Operator Precedence</h3>
+
+<p>From highest to lowest:</p>
+
+<ol>
+  <li>
+<code class="language-plaintext highlighter-rouge">!</code> (NOT) — binds tightest, applies to the immediately following code or group</li>
+  <li>Implicit AND / <code class="language-plaintext highlighter-rouge">&amp;</code> — adjacent codes or explicit <code class="language-plaintext highlighter-rouge">&amp;</code>
+</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">|</code> (OR) — loosest binding</li>
+</ol>
+
+<p>Parentheses override precedence: <code class="language-plaintext highlighter-rouge">(A | B) &amp; C</code> requires either A or B to be true, AND C to be true.</p>
+
+<h3 id="arguments">Arguments</h3>
+
+<p>ACS codes take an optional argument immediately after the two-letter code:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Form</th>
+      <th>Description</th>
+      <th>Examples</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><em>number</em></td>
+      <td>A single integer value</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">NC5</code>, <code class="language-plaintext highlighter-rouge">TH24</code>, <code class="language-plaintext highlighter-rouge">AA30</code>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">[</code><em>values</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>A comma-separated list of values in brackets</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">GM[users,sysops]</code>, <code class="language-plaintext highlighter-rouge">ID[1,42]</code>, <code class="language-plaintext highlighter-rouge">WD[0,6]</code>
+</td>
+    </tr>
+    <tr>
+      <td><em>(none)</em></td>
+      <td>Some codes take no argument</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">SC</code>, <code class="language-plaintext highlighter-rouge">LC</code>
+</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Spaces are allowed around commas inside lists: <code class="language-plaintext highlighter-rouge">GM[users, sysops]</code> is valid.</p>
+
+<h3 id="examples">Examples</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>ACS String</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+      <td>User belongs to the <code class="language-plaintext highlighter-rouge">users</code> group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">NC2</code></td>
+      <td>User has called at least 2 times</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ID1</code></td>
+      <td>User is ID 1 (the SysOp)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GM[elite,power]</code></td>
+      <td>User belongs to <code class="language-plaintext highlighter-rouge">elite</code> or <code class="language-plaintext highlighter-rouge">power</code> group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ID1 \| GM[co-op]</code></td>
+      <td>User is the SysOp OR belongs to <code class="language-plaintext highlighter-rouge">co-op</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">!TH24</code></td>
+      <td>Terminal height is NOT exactly 24 (i.e., 24 fails; 25+ passes since <code class="language-plaintext highlighter-rouge">TH</code> checks <code class="language-plaintext highlighter-rouge">&gt;=</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GM[users] &amp; SC</code></td>
+      <td>User is in <code class="language-plaintext highlighter-rouge">users</code> group AND connection is secure</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GM[users] NC5</code></td>
+      <td>Same as above but with implicit AND — user is in group AND has 5+ calls</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">(GM[sysops] \| ID1) &amp; SC</code></td>
+      <td>SysOp or ID 1, AND secure connection required</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">!GM[banned]</code></td>
+      <td>User is NOT in the <code class="language-plaintext highlighter-rouge">banned</code> group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GM[users] &amp; !GM[restricted]</code></td>
+      <td>In <code class="language-plaintext highlighter-rouge">users</code> but not in <code class="language-plaintext highlighter-rouge">restricted</code>
+</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
+
 <h2 id="acs-codes">ACS Codes</h2>
-<p>The following are ACS codes available as of this writing:</p>
+
+<p>The following ACS codes are available:</p>
+
+<h3 id="user--authentication">User &amp; Authentication</h3>
 
 <table>
   <thead>
@@ -2716,217 +2883,398 @@
   </thead>
   <tbody>
     <tr>
-      <td>LC</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">ID</code><em>n</em>, <code class="language-plaintext highlighter-rouge">ID[</code><em>n,…</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>User’s ID is <em>n</em> or one of [<em>n,…</em>]</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">GM[</code><em>group,…</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>User belongs to one of [<em>group,…</em>]</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AG</code><em>age</em>
+</td>
+      <td>User’s age is &gt;= <em>age</em> years</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AS</code><em>status</em>, <code class="language-plaintext highlighter-rouge">AS[</code><em>status,…</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>User’s account status is <em>status</em> or one of [<em>status,…</em>]. <code class="language-plaintext highlighter-rouge">0</code>=inactive, <code class="language-plaintext highlighter-rouge">1</code>=active.</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AF</code><em>factor</em>
+</td>
+      <td>User’s current authentication factor is &gt;= <em>factor</em>. Factor 1 = password/pubkey, factor 2 = 2FA (OTP).</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AR</code><em>factor</em>
+</td>
+      <td>User <strong>requires</strong> authentication factor &gt;= <em>factor</em>. <code class="language-plaintext highlighter-rouge">1</code>=always true, <code class="language-plaintext highlighter-rouge">2</code>=true only if user has 2FA configured.</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">PV[</code><em>name</em><code class="language-plaintext highlighter-rouge">,</code><em>value</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>User property <em>name</em> is exactly <em>value</em>. Allows arbitrary property checks, e.g. <code class="language-plaintext highlighter-rouge">PV[message_conf,local]</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="activity--statistics">Activity &amp; Statistics</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Condition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">NC</code><em>calls</em>
+</td>
+      <td>User’s login/call count is &gt;= <em>calls</em>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">NP</code><em>posts</em>
+</td>
+      <td>User’s message post count is &gt;= <em>posts</em>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AA</code><em>days</em>
+</td>
+      <td>User’s account is &gt;= <em>days</em> old</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">UP</code><em>count</em>
+</td>
+      <td>User’s upload file count is &gt;= <em>count</em>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">DL</code><em>count</em>
+</td>
+      <td>User’s download file count is &gt;= <em>count</em>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">BU</code><em>bytes</em>
+</td>
+      <td>User’s total uploaded bytes is &gt;= <em>bytes</em>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">BD</code><em>bytes</em>
+</td>
+      <td>User’s total downloaded bytes is &gt;= <em>bytes</em>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">NR</code><em>ratio</em>
+</td>
+      <td>User’s upload/download count ratio is &gt;= <em>ratio</em>%</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">KR</code><em>ratio</em>
+</td>
+      <td>User’s upload/download byte ratio is &gt;= <em>ratio</em>%</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">PC</code><em>ratio</em>
+</td>
+      <td>User’s post/call ratio is &gt;= <em>ratio</em>%</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="achievements">Achievements</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Condition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AC</code><em>count</em>
+</td>
+      <td>User’s total achievement count is &gt;= <em>count</em>
+</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AP</code><em>points</em>
+</td>
+      <td>User’s total achievement points is &gt;= <em>points</em>
+</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="connection--terminal">Connection &amp; Terminal</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Condition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LC</code></td>
       <td>Connection is local</td>
     </tr>
     <tr>
-      <td>AG<i>age</i>
-</td>
-      <td>User’s age is &gt;= <em>age</em>
-</td>
+      <td><code class="language-plaintext highlighter-rouge">SC</code></td>
+      <td>Connection is secure (SSL/TLS, secure WebSocket, etc.)</td>
     </tr>
     <tr>
-      <td>AS<i>status</i>, AS[<em>status</em>,…]</td>
-      <td>User’s account status is <em>group</em> or one of [<em>group</em>,…]</td>
-    </tr>
-    <tr>
-      <td>EC<i>encoding</i>
+      <td>
+<code class="language-plaintext highlighter-rouge">EC</code><em>encoding</em>
 </td>
-      <td>Terminal encoding is set to <em>encoding</em> where <code class="language-plaintext highlighter-rouge">0</code> is <code class="language-plaintext highlighter-rouge">CP437</code> and <code class="language-plaintext highlighter-rouge">1</code> is <code class="language-plaintext highlighter-rouge">UTF-8</code>
-</td>
+      <td>Terminal encoding: <code class="language-plaintext highlighter-rouge">0</code> = CP437, <code class="language-plaintext highlighter-rouge">1</code> = UTF-8</td>
     </tr>
     <tr>
-      <td>GM[<em>group</em>,…]</td>
-      <td>User belongs to one of [<em>group</em>,…]</td>
-    </tr>
-    <tr>
-      <td>NN<i>node</i>, NN[<em>node</em>,…]</td>
-      <td>Current node is <em>node</em> or one of [<em>node</em>,…]</td>
-    </tr>
-    <tr>
-      <td>NP<i>posts</i>
-</td>
-      <td>User’s number of message posts is &gt;= <em>posts</em>
-</td>
-    </tr>
-    <tr>
-      <td>NC<i>calls</i>
-</td>
-      <td>User’s number of calls is &gt;= <em>calls</em>
-</td>
-    </tr>
-    <tr>
-      <td>SC</td>
-      <td>Connection is considered secure (SSL, secure WebSockets, etc.)</td>
-    </tr>
-    <tr>
-      <td>TH<i>height</i>
+      <td>
+<code class="language-plaintext highlighter-rouge">TH</code><em>height</em>
 </td>
       <td>Terminal height is &gt;= <em>height</em>
 </td>
     </tr>
     <tr>
-      <td>TW<i>width</i>
+      <td>
+<code class="language-plaintext highlighter-rouge">TW</code><em>width</em>
 </td>
       <td>Terminal width is &gt;= <em>width</em>
 </td>
     </tr>
     <tr>
-      <td>TM[<em>themeId</em>,…]</td>
-      <td>User’s current theme ID is one of [<em>themeId</em>,…] (e.g. <code class="language-plaintext highlighter-rouge">luciano_blocktronics</code>)</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">TT[</code><em>type,…</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>Terminal type is one of [<em>type,…</em>] (<code class="language-plaintext highlighter-rouge">ansi</code>, <code class="language-plaintext highlighter-rouge">xterm</code>, etc.)</td>
     </tr>
     <tr>
-      <td>TT[<em>termType</em>,…]</td>
-      <td>User’s current terminal type is one of [<em>termType</em>,…] (<code class="language-plaintext highlighter-rouge">ANSI-BBS</code>, <code class="language-plaintext highlighter-rouge">utf8</code>, <code class="language-plaintext highlighter-rouge">xterm</code>, etc.)</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">TM[</code><em>theme,…</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>User’s current theme ID is one of [<em>theme,…</em>] (e.g. <code class="language-plaintext highlighter-rouge">luciano_blocktronics</code>)</td>
     </tr>
     <tr>
-      <td>ID<i>id</i>, ID[<em>id</em>,…]</td>
-      <td>User’s ID is <em>id</em> or one of [<em>id</em>,…]</td>
-    </tr>
-    <tr>
-      <td>WD<i>weekDay</i>, WD[<em>weekDay</em>,…]</td>
-      <td>Current day of week is <em>weekDay</em> or one of [<em>weekDay</em>,…] where <code class="language-plaintext highlighter-rouge">0</code> is Sunday, <code class="language-plaintext highlighter-rouge">1</code> is Monday, and so on.</td>
-    </tr>
-    <tr>
-      <td>AA<i>days</i>
+      <td>
+<code class="language-plaintext highlighter-rouge">NN</code><em>node</em>, <code class="language-plaintext highlighter-rouge">NN[</code><em>node,…</em><code class="language-plaintext highlighter-rouge">]</code>
 </td>
-      <td>Account is &gt;= <em>days</em> old</td>
-    </tr>
-    <tr>
-      <td>BU<i>bytes</i>
-</td>
-      <td>User has uploaded &gt;= <em>bytes</em>
-</td>
-    </tr>
-    <tr>
-      <td>UP<i>uploads</i>
-</td>
-      <td>User has uploaded &gt;= <em>uploads</em> files</td>
-    </tr>
-    <tr>
-      <td>BD<i>bytes</i>
-</td>
-      <td>User has downloaded &gt;= <em>bytes</em>
-</td>
-    </tr>
-    <tr>
-      <td>DL<i>downloads</i>
-</td>
-      <td>User has downloaded &gt;= <em>downloads</em> files</td>
-    </tr>
-    <tr>
-      <td>NR<i>ratio</i>
-</td>
-      <td>User has upload/download count ratio &gt;= <em>ratio</em>
-</td>
-    </tr>
-    <tr>
-      <td>KR<i>ratio</i>
-</td>
-      <td>User has a upload/download byte ratio &gt;= <em>ratio</em>
-</td>
-    </tr>
-    <tr>
-      <td>PC<i>ratio</i>
-</td>
-      <td>User has a post/call ratio &gt;= <em>ratio</em>
-</td>
-    </tr>
-    <tr>
-      <td>MM<i>minutes</i>
-</td>
-      <td>It is currently &gt;= <em>minutes</em> past midnight (system time)</td>
-    </tr>
-    <tr>
-      <td>AC<i>achievementCount</i>
-</td>
-      <td>User has &gt;= <em>achievementCount</em> achievements</td>
-    </tr>
-    <tr>
-      <td>AP<i>achievementPoints</i>
-</td>
-      <td>User has &gt;= <em>achievementPoints</em> achievement points</td>
-    </tr>
-    <tr>
-      <td>AF<i>authFactor</i>
-</td>
-      <td>User’s current <em>Authentication Factor</em> is &gt;= <em>authFactor</em>. Authentication factor 1 refers to username + password (or PubKey) while factor 2 refers to 2FA such as One-Time-Password authentication.</td>
-    </tr>
-    <tr>
-      <td>AR<i>authFactorReq</i>
-</td>
-      <td>Current user <strong>requires</strong> an Authentication Factor &gt;= <em>authFactorReq</em>
-</td>
-    </tr>
-    <tr>
-      <td>PV[<em>name,_value</em>]</td>
-      <td>Checks that the property by <em>name</em> for the current user is exactly <em>value</em>. This ACS allows arbitrary user property values to be checked. For example, <code class="language-plaintext highlighter-rouge">PV[message_conf,local]</code> checks that the user is currently in the “local” message conference.</td>
-    </tr>
-    <tr>
-      <td>SE[<em>service</em>,<em>service</em>,…]</td>
-      <td>Checks that all services listed by <em>service</em> listed are enabled. Available services: <code class="language-plaintext highlighter-rouge">http</code>, <code class="language-plaintext highlighter-rouge">https</code>, <code class="language-plaintext highlighter-rouge">web</code> (<code class="language-plaintext highlighter-rouge">http</code> or <code class="language-plaintext highlighter-rouge">https</code>), <code class="language-plaintext highlighter-rouge">gopher</code>, <code class="language-plaintext highlighter-rouge">nntp</code>, <code class="language-plaintext highlighter-rouge">nntps</code>, <code class="language-plaintext highlighter-rouge">activitypub</code> (requires <code class="language-plaintext highlighter-rouge">web</code>), <code class="language-plaintext highlighter-rouge">nodeinfo2</code> (requires <code class="language-plaintext highlighter-rouge">web</code>), <code class="language-plaintext highlighter-rouge">webfinger</code> (requires <code class="language-plaintext highlighter-rouge">web</code>). Example: <code class="language-plaintext highlighter-rouge">SE[activitypub]</code>.</td>
-    </tr>
-    <tr>
-      <td>AE<i>enabled</i>
-</td>
-      <td>ActivityPub is <em>enabled</em>: 1=true, 0=false</td>
+      <td>Current node number is <em>node</em> or one of [<em>node,…</em>]</td>
     </tr>
   </tbody>
 </table>
 
-<h2 id="acs-strings">ACS Strings</h2>
-<p>ACS strings are one or more ACS codes in addition to some basic language semantics.</p>
+<h3 id="time--date">Time &amp; Date</h3>
 
-<p>The following logical operators are supported:</p>
-<ul>
-  <li>
-<code class="language-plaintext highlighter-rouge">!</code> NOT</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">|</code> OR</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">&amp;</code> AND (this is the default)</li>
-</ul>
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Condition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">WD</code><em>day</em>, <code class="language-plaintext highlighter-rouge">WD[</code><em>day,…</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>Day of week is <em>day</em> or one of [<em>day,…</em>]. <code class="language-plaintext highlighter-rouge">0</code>=Sunday, <code class="language-plaintext highlighter-rouge">1</code>=Monday, …, <code class="language-plaintext highlighter-rouge">6</code>=Saturday.</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">MM</code><em>minutes</em>
+</td>
+      <td>Current time is &gt;= <em>minutes</em> past midnight (system time)</td>
+    </tr>
+  </tbody>
+</table>
 
-<p>ENiGMA½ also supports groupings using <code class="language-plaintext highlighter-rouge">(</code> and <code class="language-plaintext highlighter-rouge">)</code>. Lastly, some ACS codes allow for lists of acceptable values using <code class="language-plaintext highlighter-rouge">[</code> and <code class="language-plaintext highlighter-rouge">]</code> — for example, <code class="language-plaintext highlighter-rouge">GM[users,sysops]</code>.</p>
+<h3 id="services--features">Services &amp; Features</h3>
 
-<h3 id="example-acs-strings">Example ACS Strings</h3>
-<ul>
-  <li>
-<code class="language-plaintext highlighter-rouge">NC2</code>: User must have called two or more times for the check to return true (to pass)</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">ID1</code>: User must be ID 1 (the +op)</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">GM[elite,power]</code>: User must be a member of the <code class="language-plaintext highlighter-rouge">elite</code> or <code class="language-plaintext highlighter-rouge">power</code> user group (they could be both)</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">ID1|GM[co-op]</code>: User must be ID 1 (SysOp!) or belong to the <code class="language-plaintext highlighter-rouge">co-op</code> group</li>
-  <li>
-<code class="language-plaintext highlighter-rouge">!TH24</code>: Terminal height must NOT be 24</li>
-</ul>
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Condition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">SE[</code><em>service,…</em><code class="language-plaintext highlighter-rouge">]</code>
+</td>
+      <td>All listed services are enabled. Service names are <strong>case-insensitive</strong>. Available: <code class="language-plaintext highlighter-rouge">http</code>, <code class="language-plaintext highlighter-rouge">https</code>, <code class="language-plaintext highlighter-rouge">web</code> (either http or https), <code class="language-plaintext highlighter-rouge">gopher</code>, <code class="language-plaintext highlighter-rouge">nntp</code>, <code class="language-plaintext highlighter-rouge">nntps</code>, <code class="language-plaintext highlighter-rouge">activitypub</code> (requires web), <code class="language-plaintext highlighter-rouge">nodeinfo2</code> (requires web), <code class="language-plaintext highlighter-rouge">webfinger</code> (requires web). Unknown service names always fail.</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">AE</code><em>enabled</em>
+</td>
+      <td>ActivityPub is enabled for the current user: <code class="language-plaintext highlighter-rouge">1</code>=yes, <code class="language-plaintext highlighter-rouge">0</code>=no</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
 
 <h2 id="acs-blocks">ACS Blocks</h2>
-<p>Some areas of the system require more than a single ACS string. In these situations an <em>ACS block</em> is used to allow for finer grain control. As an example, consider the following file area <code class="language-plaintext highlighter-rouge">acs</code> block:</p>
+
+<p>Some areas of the system require more than a single ACS string. In these situations an <em>ACS block</em> is used to allow finer-grained control. Each key in the block names a right (<code class="language-plaintext highlighter-rouge">read</code>, <code class="language-plaintext highlighter-rouge">write</code>, <code class="language-plaintext highlighter-rouge">download</code>, etc.) and maps to an ACS string.</p>
+
 <pre><code class="language-hjson">acs: {
     read: GM[users]
     write: GM[sysops,co-ops]
-    download: GM[elite-users]
+    download: GM[elite] | UP10
 }
 </code></pre>
 
-<p>All <code class="language-plaintext highlighter-rouge">users</code> can read (see) the area, <code class="language-plaintext highlighter-rouge">sysops</code> and <code class="language-plaintext highlighter-rouge">co-ops</code> can write (upload), and only members of the <code class="language-plaintext highlighter-rouge">elite-users</code> group can download.</p>
+<p>All <code class="language-plaintext highlighter-rouge">users</code> can read (see) the area, <code class="language-plaintext highlighter-rouge">sysops</code> and <code class="language-plaintext highlighter-rouge">co-ops</code> can write (upload), and only members of <code class="language-plaintext highlighter-rouge">elite</code> or those with 10+ uploads can download.</p>
+
+<h3 id="defaults">Defaults</h3>
+
+<p>When an ACS block is not specified (or a particular scope is missing), the system applies sensible defaults:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Context</th>
+      <th>Scope</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Message Conference</td>
+      <td><code class="language-plaintext highlighter-rouge">read</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+    </tr>
+    <tr>
+      <td>Message Conference</td>
+      <td><code class="language-plaintext highlighter-rouge">write</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+    </tr>
+    <tr>
+      <td>Message Area</td>
+      <td><code class="language-plaintext highlighter-rouge">read</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+    </tr>
+    <tr>
+      <td>Message Area</td>
+      <td><code class="language-plaintext highlighter-rouge">write</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+    </tr>
+    <tr>
+      <td>File Area</td>
+      <td><code class="language-plaintext highlighter-rouge">read</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+    </tr>
+    <tr>
+      <td>File Area</td>
+      <td><code class="language-plaintext highlighter-rouge">write</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[sysops]</code></td>
+    </tr>
+    <tr>
+      <td>File Area</td>
+      <td><code class="language-plaintext highlighter-rouge">download</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+    </tr>
+    <tr>
+      <td>FSE Body Upload</td>
+      <td><code class="language-plaintext highlighter-rouge">uploadAcs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GM[users]</code></td>
+    </tr>
+    <tr>
+      <td>Menu Module</td>
+      <td><code class="language-plaintext highlighter-rouge">acs</code></td>
+      <td><em>(no check — all users can access)</em></td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> The FSE (Full Screen Editor) uses a scope called <code class="language-plaintext highlighter-rouge">uploadAcs</code> (not <code class="language-plaintext highlighter-rouge">upload</code>) for controlling who can upload a file into a message body. This is distinct from the file area <code class="language-plaintext highlighter-rouge">write</code> scope which controls file base uploads. The <code class="language-plaintext highlighter-rouge">uploadAcs</code> scope is checked on the FSE’s menu config to decide whether the “Upload” option appears in the editor menu. If you want to restrict message body file uploads, set <code class="language-plaintext highlighter-rouge">uploadAcs</code> in your FSE menu entry’s config block:</p>
+
+  <pre><code class="language-hjson">config: {
+    uploadAcs: GM[sysops]  // only sysops can upload files into messages
+}
+</code></pre>
+</blockquote>
+
+<hr>
 
 <h2 id="acs-touch-points">ACS Touch Points</h2>
-<p>The following touch points exist in the system. Many more are planned:</p>
+
+<p>The following areas of the system support ACS checks:</p>
 
 <ul>
   <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message conferences and areas</a></li>
   <li>
 <a href="/enigma-bbs/filebase/first-file-area.html">File base areas</a> and <a href="/enigma-bbs/filebase/uploads.html">Uploads</a>
 </li>
-  <li>Menus within <a href="/enigma-bbs/configuration/menu-hjson.html">Menu HJSON (menu.hjson)</a>
-</li>
+  <li>Menus within <a href="/enigma-bbs/configuration/menu-hjson.html">Menu HJSON (menu.hjson)</a> — use <code class="language-plaintext highlighter-rouge">acs</code> in a menu’s <code class="language-plaintext highlighter-rouge">config</code> block to restrict access</li>
+  <li>Conditional <code class="language-plaintext highlighter-rouge">next</code> / <code class="language-plaintext highlighter-rouge">action</code> arrays in menu configuration — each entry can include an <code class="language-plaintext highlighter-rouge">acs</code> field to control which branch is taken</li>
 </ul>
 
-<p>See the specific areas documentation for information on available ACS checks.</p>
+<p>See the specific area documentation for details on available scopes and defaults.</p>
+
+<hr>
+
+<h2 id="conditional-values">Conditional Values</h2>
+
+<p>Some configuration fields (such as <code class="language-plaintext highlighter-rouge">next</code> in menus) support conditional arrays where each element may include an <code class="language-plaintext highlighter-rouge">acs</code> check. The first matching condition is used:</p>
+
+<pre><code class="language-hjson">next: [
+    {
+        acs: GM[sysops]
+        next: sysopMainMenu
+    }
+    {
+        acs: GM[users]
+        next: userMainMenu
+    }
+    {
+        // No acs — fallback for everyone else
+        next: guestMenu
+    }
+]
+</code></pre>
+
+<hr>
+
+<h2 id="see-also">See Also</h2>
+
+<ul>
+  <li><a href="/enigma-bbs/filebase/acs.html">File Base ACS</a></li>
+  <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Configuring Message Areas</a></li>
+  <li><a href="/enigma-bbs/configuration/menu-hjson.html">Menu HJSON</a></li>
+</ul>
 
 </div>
 

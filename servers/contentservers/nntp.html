@@ -17,11 +17,11 @@
 <meta property="og:description" content="The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://)." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-14T18:45:55+00:00" />
+<meta property="article:published_time" content="2026-04-14T18:53:37+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="NNTP Server" />
 <script type="application/ld+json">
-{"description":"The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).","headline":"NNTP Server","dateModified":"2026-04-14T18:45:55+00:00","datePublished":"2026-04-14T18:45:55+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/nntp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/contentservers/nntp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"The NNTP Content Server The NNTP content server provides access to publicly exposed message conferences and areas over either secure NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).","headline":"NNTP Server","dateModified":"2026-04-14T18:53:37+00:00","datePublished":"2026-04-14T18:53:37+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/nntp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/contentservers/nntp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2807,7 +2807,52 @@
 </ol>
 
 <blockquote>
-  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Not all <a href="/enigma-bbs/configuration/acs.html">ACS</a> checks can be made over NNTP. Any ACS requiring a “client” will return false (fail), such as <code class="language-plaintext highlighter-rouge">LC</code> (“is local?”).</p>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> <strong>Not all <a href="/enigma-bbs/configuration/acs.html">ACS</a> codes can be evaluated over NNTP.</strong> NNTP sessions do not have a traditional BBS client connection — there is no terminal, no node number, and no theme. The ACS subject is constructed with <code class="language-plaintext highlighter-rouge">client: null</code> and only the authenticated user object. Any ACS code that depends on client properties will <strong>fail closed</strong> (return false, denying access). Affected codes include:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code class="language-plaintext highlighter-rouge">LC</code></td>
+        <td>No client to check for local connection</td>
+      </tr>
+      <tr>
+        <td><code class="language-plaintext highlighter-rouge">SC</code></td>
+        <td>No client session to check for TLS (use NNTPS server-level config instead)</td>
+      </tr>
+      <tr>
+        <td>
+<code class="language-plaintext highlighter-rouge">TH</code>, <code class="language-plaintext highlighter-rouge">TW</code>
+</td>
+        <td>No terminal dimensions</td>
+      </tr>
+      <tr>
+        <td><code class="language-plaintext highlighter-rouge">TT</code></td>
+        <td>No terminal type</td>
+      </tr>
+      <tr>
+        <td><code class="language-plaintext highlighter-rouge">TM</code></td>
+        <td>No theme</td>
+      </tr>
+      <tr>
+        <td><code class="language-plaintext highlighter-rouge">NN</code></td>
+        <td>No node number</td>
+      </tr>
+      <tr>
+        <td><code class="language-plaintext highlighter-rouge">EC</code></td>
+        <td>No terminal encoding</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>ACS codes that only depend on <strong>user properties</strong> work normally over NNTP: <code class="language-plaintext highlighter-rouge">GM</code>, <code class="language-plaintext highlighter-rouge">ID</code>, <code class="language-plaintext highlighter-rouge">NC</code>, <code class="language-plaintext highlighter-rouge">NP</code>, <code class="language-plaintext highlighter-rouge">AA</code>, <code class="language-plaintext highlighter-rouge">AF</code>, <code class="language-plaintext highlighter-rouge">AR</code>, <code class="language-plaintext highlighter-rouge">AC</code>, <code class="language-plaintext highlighter-rouge">AP</code>, <code class="language-plaintext highlighter-rouge">UP</code>, <code class="language-plaintext highlighter-rouge">DL</code>, <code class="language-plaintext highlighter-rouge">BU</code>, <code class="language-plaintext highlighter-rouge">BD</code>, <code class="language-plaintext highlighter-rouge">NR</code>, <code class="language-plaintext highlighter-rouge">KR</code>, <code class="language-plaintext highlighter-rouge">PC</code>, <code class="language-plaintext highlighter-rouge">PV</code>, <code class="language-plaintext highlighter-rouge">AG</code>, <code class="language-plaintext highlighter-rouge">AS</code>.</p>
+
+  <p>This means if your message area ACS uses any client-dependent code, NNTP users will be denied access even if they are otherwise authorized. Design NNTP-exposed area ACS strings using only user-based codes.</p>
 </blockquote>
 
 <h2 id="example-configuration">Example Configuration</h2>
