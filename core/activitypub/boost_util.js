@@ -41,6 +41,8 @@ exports.recordInboundBoost = recordInboundBoost;
 exports.recordInboundLike = recordInboundLike;
 exports.sendBoost = sendBoost;
 exports.undoBoost = undoBoost;
+exports.sendLike = sendLike;
+exports.undoLike = undoLike;
 exports.getBoostActors = getBoostActors;
 exports.getBoostCount = getBoostCount;
 exports.getLikeActors = getLikeActors;
@@ -188,6 +190,19 @@ function sendBoost(localUser, noteId, cb) {
 
     async.waterfall(
         [
+            //  Guard: reject duplicate outbound boosts before any delivery.
+            callback => {
+                Collection.hasReaction(noteId, localActorId, 'Announce', (err, already) => {
+                    if (err) return callback(err);
+                    if (already) {
+                        return callback(
+                            Errors.Duplicate(`Note "${noteId}" already boosted by "${localActorId}"`)
+                        );
+                    }
+                    return callback(null);
+                });
+            },
+
             //  Collect follower shared-inbox endpoints (same helper as scanner/tosser)
             callback => {
                 _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
@@ -230,8 +245,16 @@ function sendBoost(localUser, noteId, cb) {
                     callback
                 );
             },
+
+            //  Record in note_reactions so getBoostCount reflects outbound boosts.
+            //  _rowid is the lastInsertRowid from addOutboxItem; ignored here.
+            (_rowid, callback) => {
+                Collection.addReaction(noteId, localActorId, 'Announce', announce.id, callback);
+            },
         ],
-        err => cb(err, announce)
+        //  setImmediate ensures the caller's callback fires on a fresh tick
+        //  even though all steps run synchronously (better-sqlite3).
+        err => setImmediate(() => cb(err, announce))
     );
 }
 
@@ -343,6 +366,168 @@ function getLikeActors(noteId, cb) {
 //
 function getLikeCount(noteId, cb) {
     Collection.getReactionCount(noteId, 'Like', cb);
+}
+
+//
+//  Outbound like: build a Like activity, deliver it to the local user's
+//  followers' shared inboxes, and store it in the user's Outbox collection.
+//
+//  noteId: the AP object ID (URL) of the Note to like.
+//
+function sendLike(localUser, noteId, cb) {
+    const localActorId = localUser.getProperty(UserProps.ActivityPubActorId);
+    if (!localActorId) {
+        return cb(
+            Errors.MissingProperty(
+                `User "${localUser.username}" missing property '${UserProps.ActivityPubActorId}'`
+            )
+        );
+    }
+
+    const followersEndpoint = Endpoints.followers(localUser);
+    const like = Activity.makeLike(localActorId, noteId, followersEndpoint);
+
+    async.waterfall(
+        [
+            //  Guard: reject duplicate outbound likes before any delivery.
+            callback => {
+                Collection.hasReaction(noteId, localActorId, 'Like', (err, already) => {
+                    if (err) return callback(err);
+                    if (already) {
+                        return callback(
+                            Errors.Duplicate(`Note "${noteId}" already liked by "${localActorId}"`)
+                        );
+                    }
+                    return callback(null);
+                });
+            },
+            callback => {
+                _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
+                    return callback(err, sharedInboxes);
+                });
+            },
+            (sharedInboxes, callback) => {
+                async.eachLimit(
+                    sharedInboxes,
+                    4,
+                    (inbox, next) => {
+                        like.sendTo(inbox, localUser, (err, body, res) => {
+                            if (err) {
+                                Log.warn(
+                                    { inbox, noteId, error: err.message },
+                                    'Failed to deliver Like to shared inbox'
+                                );
+                            } else if (res.statusCode !== 200 && res.statusCode !== 202) {
+                                Log.warn(
+                                    { inbox, noteId, statusCode: res.statusCode },
+                                    'Unexpected status delivering Like'
+                                );
+                            }
+                            return next(null);
+                        });
+                    },
+                    callback
+                );
+            },
+            callback => {
+                Collection.addOutboxItem(
+                    localUser,
+                    like,
+                    false, // not private
+                    false, // do not ignore dupes
+                    callback
+                );
+            },
+            //  _rowid is the lastInsertRowid from addOutboxItem; ignored here.
+            (_rowid, callback) => {
+                Collection.addReaction(noteId, localActorId, 'Like', like.id, callback);
+            },
+        ],
+        //  setImmediate ensures the caller's callback fires on a fresh tick.
+        err => setImmediate(() => cb(err, like))
+    );
+}
+
+//
+//  Outbound undo-like: send Undo{Like} to followers and remove from Outbox.
+//
+//  noteId: the AP object ID of the Note whose like to retract.
+//
+function undoLike(localUser, noteId, cb) {
+    const localActorId = localUser.getProperty(UserProps.ActivityPubActorId);
+    if (!localActorId) {
+        return cb(
+            Errors.MissingProperty(
+                `User "${localUser.username}" missing property '${UserProps.ActivityPubActorId}'`
+            )
+        );
+    }
+
+    const followersEndpoint = Endpoints.followers(localUser);
+
+    //  Find the Like in the Outbox by matching object == noteId and type == Like
+    Collection.objectByEmbeddedId(noteId, (err, outboxActivity) => {
+        if (err) {
+            return cb(err);
+        }
+
+        if (!outboxActivity || outboxActivity.type !== 'Like') {
+            return cb(
+                Errors.DoesNotExist(`No outbound Like found for Note "${noteId}"`)
+            );
+        }
+
+        const likeId = outboxActivity.id;
+
+        const undo = new ActivityPubObject({
+            id: ActivityPubObject.makeObjectId('undo'),
+            type: 'Undo',
+            actor: localActorId,
+            object: outboxActivity,
+            to: [PublicCollectionId],
+            cc: [followersEndpoint],
+        });
+
+        async.waterfall(
+            [
+                callback => {
+                    _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
+                        return callback(err, sharedInboxes);
+                    });
+                },
+                (sharedInboxes, callback) => {
+                    async.eachLimit(
+                        sharedInboxes,
+                        4,
+                        (inbox, next) => {
+                            undo.sendTo(inbox, localUser, (err) => {
+                                if (err) {
+                                    Log.warn(
+                                        { inbox, noteId, error: err.message },
+                                        'Failed to deliver Undo{Like}'
+                                    );
+                                }
+                                return next(null);
+                            });
+                        },
+                        callback
+                    );
+                },
+                callback => {
+                    Collection.removeOwnedById(
+                        Collections.Outbox,
+                        localUser,
+                        likeId,
+                        callback
+                    );
+                },
+                callback => {
+                    Collection.removeReactionByActivityId(likeId, callback);
+                },
+            ],
+            err => cb(err)
+        );
+    });
 }
 
 //  Shared helper: collect unique shared-inbox endpoints for the local user's followers.

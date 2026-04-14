@@ -86,6 +86,18 @@ module.exports = class Activity extends ActivityPubObject {
         });
     }
 
+    //  https://www.w3.org/TR/activitypub/#like-activity-outbox
+    static makeLike(actorId, objectId, followersEndpoint) {
+        return new Activity({
+            id: Activity.activityObjectId(),
+            type: WellKnownActivity.Like,
+            actor: actorId,
+            object: objectId,
+            to: [PublicCollectionId],
+            cc: [followersEndpoint],
+        });
+    }
+
     static makeTombstone(obj) {
         const deleted = getISOTimestampString();
         return new Activity({

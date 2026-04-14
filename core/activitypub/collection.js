@@ -396,7 +396,14 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     static publicOrderedById(collectionName, collectionId, page, mapper, cb) {
+        //
+        //  IMPORTANT: all three paths below call cb() OUTSIDE their try blocks.
+        //  Putting cb() inside a try block means any exception thrown by downstream
+        //  code (in cb's synchronous call chain) would be caught here and cause a
+        //  spurious second cb(err) call — a "Callback was already called" cascade.
+        //
         if (!page) {
+            let obj;
             try {
                 const row = apDb
                     .prepare(
@@ -406,7 +413,6 @@ module.exports = class Collection extends ActivityPubObject {
                     )
                     .get(collectionName, collectionId);
 
-                let obj;
                 if (row.count > 0) {
                     obj = {
                         id: collectionId,
@@ -422,17 +428,17 @@ module.exports = class Collection extends ActivityPubObject {
                         orderedItems: [],
                     };
                 }
-
-                return cb(null, new Collection(obj));
             } catch (err) {
                 return cb(err);
             }
+            return cb(null, new Collection(obj));
         }
 
-        try {
-            //  'all' is an internal-only sentinel used by the scanner/tosser to
-            //  collect every follower endpoint in one pass; it skips pagination.
-            if ('all' === page) {
+        //  'all' is an internal-only sentinel used by the scanner/tosser to
+        //  collect every follower endpoint in one pass; it skips pagination.
+        if ('all' === page) {
+            let collection;
+            try {
                 let entries = apDb
                     .prepare(
                         `SELECT object_json
@@ -446,24 +452,28 @@ module.exports = class Collection extends ActivityPubObject {
                     entries = (entries || []).map(e => JSON.parse(e.object_json));
                 } catch (e) {
                     Log.error(`Collection "${collectionId}" error: ${e.message}`);
+                    entries = [];
                 }
 
                 if (mapper && entries.length > 0) {
                     entries = entries.map(mapper);
                 }
 
-                return cb(
-                    null,
-                    new Collection({
-                        id: collectionId,
-                        type: 'OrderedCollection',
-                        totalItems: entries.length,
-                        orderedItems: entries,
-                    })
-                );
+                collection = new Collection({
+                    id: collectionId,
+                    type: 'OrderedCollection',
+                    totalItems: entries.length,
+                    orderedItems: entries,
+                });
+            } catch (err) {
+                return cb(err);
             }
+            return cb(null, collection);
+        }
 
-            //  Numeric page: proper AP paging with next/prev links
+        //  Numeric page: proper AP paging with next/prev links
+        let collection;
+        try {
             const pageNum = Math.max(1, parseInt(page, 10) || 1);
             const offset = (pageNum - 1) * CollectionPageSize;
 
@@ -518,10 +528,11 @@ module.exports = class Collection extends ActivityPubObject {
                 obj.next = `${collectionId}?page=${pageNum + 1}`;
             }
 
-            return cb(null, new Collection(obj));
+            collection = new Collection(obj);
         } catch (err) {
             return cb(err);
         }
+        return cb(null, collection);
     }
 
     static ownedOrderedByUser(
@@ -1007,6 +1018,25 @@ module.exports = class Collection extends ActivityPubObject {
     //  Idempotent: OR REPLACE updates the activity_id and timestamp if the
     //  (noteId, actorId, reactionType) triple already exists.
     //
+    //
+    //  Return true if (noteId, actorId, reactionType) already exists in note_reactions.
+    //  Used as a guard in sendBoost/sendLike to prevent duplicate outbound reactions.
+    //
+    static hasReaction(noteId, actorId, reactionType, cb) {
+        try {
+            const row = apDb
+                .prepare(
+                    `SELECT 1 FROM note_reactions
+                     WHERE note_id = ? AND actor_id = ? AND reaction_type = ?
+                     LIMIT 1;`
+                )
+                .get(noteId, actorId, reactionType);
+            return cb(null, !!row);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static addReaction(noteId, actorId, reactionType, activityId, cb) {
         try {
             apDb.prepare(

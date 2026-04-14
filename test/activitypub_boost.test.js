@@ -61,9 +61,14 @@ delete require.cache[require.resolve('../core/activitypub/boost_util.js')];
 const {
     fetchAnnouncedNote,
     recordInboundLike,
+    sendBoost,
+    sendLike,
+    getBoostCount,
+    getLikeCount,
 } = require('../core/activitypub/boost_util.js');
 const Collection = require('../core/activitypub/collection.js');
 const Activity = require('../core/activitypub/activity.js');
+const UserProps = require('../core/user_property.js');
 
 // ─── config restore ───────────────────────────────────────────────────────────
 //
@@ -579,6 +584,242 @@ describe('recordInboundLike()', function () {
                     )
                     .get(NOTE_ID).n;
                 assert.equal(count, 2, 'should have two distinct reaction rows');
+                done();
+            });
+        });
+    });
+});
+
+// ─── Activity.makeLike ────────────────────────────────────────────────────────
+
+describe('Activity.makeLike()', function () {
+    const ACTOR_ID = 'https://test.example.com/_enig/ap/users/testuser';
+    const NOTE_ID = 'https://mastodon.social/users/alice/statuses/12345';
+    const FOLLOWERS = 'https://test.example.com/_enig/ap/users/testuser/followers';
+
+    it('returns an Activity with type Like', () => {
+        const a = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.equal(a.type, 'Like');
+    });
+
+    it('has the correct actor', () => {
+        const a = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.equal(a.actor, ACTOR_ID);
+    });
+
+    it('has the correct object (Note ID)', () => {
+        const a = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.equal(a.object, NOTE_ID);
+    });
+
+    it('to contains the public collection ID', () => {
+        const a = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.ok(Array.isArray(a.to));
+        assert.ok(a.to.includes('https://www.w3.org/ns/activitystreams#Public'));
+    });
+
+    it('cc contains the followers endpoint', () => {
+        const a = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.ok(Array.isArray(a.cc));
+        assert.ok(a.cc.includes(FOLLOWERS));
+    });
+
+    it('has a unique id each time', () => {
+        const a1 = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        const a2 = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.notEqual(a1.id, a2.id);
+    });
+
+    it('id is a valid https URL', () => {
+        const a = Activity.makeLike(ACTOR_ID, NOTE_ID, FOLLOWERS);
+        assert.ok(typeof a.id === 'string');
+        assert.ok(a.id.startsWith('https://'));
+    });
+});
+
+// ─── getBoostCount / getLikeCount ────────────────────────────────────────────
+
+describe('getBoostCount() / getLikeCount()', function () {
+    const NOTE_ID = 'https://remote.example.com/notes/count-test-1';
+
+    it('getBoostCount returns 0 with no reactions', done => {
+        getBoostCount(NOTE_ID, (err, n) => {
+            assert.ifError(err);
+            assert.equal(n, 0);
+            done();
+        });
+    });
+
+    it('getLikeCount returns 0 with no reactions', done => {
+        getLikeCount(NOTE_ID, (err, n) => {
+            assert.ifError(err);
+            assert.equal(n, 0);
+            done();
+        });
+    });
+
+    it('getLikeCount reflects recordInboundLike', done => {
+        const activity = {
+            id: 'https://remote.example.com/likes/count-1',
+            type: 'Like',
+            actor: 'https://remote.example.com/users/counter',
+            object: NOTE_ID,
+        };
+        recordInboundLike(activity, err => {
+            assert.ifError(err);
+            getLikeCount(NOTE_ID, (err2, n) => {
+                assert.ifError(err2);
+                assert.equal(n, 1);
+                done();
+            });
+        });
+    });
+
+    it('getBoostCount reflects a direct addReaction(Announce)', done => {
+        Collection.addReaction(
+            NOTE_ID,
+            'https://remote.example.com/users/booster',
+            'Announce',
+            'https://remote.example.com/announces/count-1',
+            err => {
+                assert.ifError(err);
+                getBoostCount(NOTE_ID, (err2, n) => {
+                    assert.ifError(err2);
+                    assert.equal(n, 1);
+                    done();
+                });
+            }
+        );
+    });
+});
+
+// ─── sendBoost / sendLike outbound reaction tracking ─────────────────────────
+//
+//  These tests verify that sendBoost and sendLike record outbound reactions in
+//  note_reactions (so that getBoostCount/getLikeCount reflect local actions),
+//  and that the setImmediate in the final callback breaks the synchronous chain.
+//
+//  Delivery to remote inboxes is skipped because the test user has no followers
+//  in the DB (Collection.followers returns an empty list).
+//
+describe('sendBoost() outbound reaction tracking', function () {
+    const NOTE_ID = 'https://remote.example.com/notes/outbound-boost-1';
+    const ACTOR_ID = 'https://test.example.com/_enig/ap/users/testuser';
+
+    const mockUser = {
+        username: 'testuser',
+        getProperty: prop => {
+            if (prop === UserProps.ActivityPubActorId) return ACTOR_ID;
+            return null;
+        },
+    };
+
+    it('records an Announce in note_reactions on success', done => {
+        sendBoost(mockUser, NOTE_ID, err => {
+            assert.ifError(err);
+            getBoostCount(NOTE_ID, (err2, n) => {
+                assert.ifError(err2);
+                assert.equal(n, 1, 'boost count should be 1 after outbound sendBoost');
+                done();
+            });
+        });
+    });
+
+    it('stores the Announce activity in the Outbox collection', done => {
+        sendBoost(mockUser, NOTE_ID + '-outbox', err => {
+            assert.ifError(err);
+            const outboxId = `https://test.example.com/_enig/ap/users/testuser/outbox`;
+            const rows = _apDb
+                .prepare(
+                    `SELECT object_json FROM collection
+                     WHERE name = 'outbox' AND collection_id = ?`
+                )
+                .all(outboxId);
+            assert.ok(rows.length > 0, 'Announce should be in the outbox collection');
+            const activities = rows.map(r => JSON.parse(r.object_json));
+            assert.ok(activities.some(a => a.type === 'Announce'));
+            done();
+        });
+    });
+
+    it('callback fires asynchronously (setImmediate break)', done => {
+        let afterCall = false;
+        sendBoost(mockUser, NOTE_ID + '-async', err => {
+            assert.ifError(err);
+            assert.ok(afterCall, 'sendBoost callback must fire asynchronously via setImmediate');
+            done();
+        });
+        afterCall = true;
+    });
+
+    it('fails when called twice for the same note (no duplicate outbox entry)', done => {
+        const n = NOTE_ID + '-dup';
+        sendBoost(mockUser, n, err => {
+            assert.ifError(err);
+            sendBoost(mockUser, n, err2 => {
+                assert.ok(err2, 'second sendBoost of same note should return an error');
+                done();
+            });
+        });
+    });
+});
+
+describe('sendLike() outbound reaction tracking', function () {
+    const NOTE_ID = 'https://remote.example.com/notes/outbound-like-1';
+    const ACTOR_ID = 'https://test.example.com/_enig/ap/users/testuser';
+
+    const mockUser = {
+        username: 'testuser',
+        getProperty: prop => {
+            if (prop === UserProps.ActivityPubActorId) return ACTOR_ID;
+            return null;
+        },
+    };
+
+    it('records a Like in note_reactions on success', done => {
+        sendLike(mockUser, NOTE_ID, err => {
+            assert.ifError(err);
+            getLikeCount(NOTE_ID, (err2, n) => {
+                assert.ifError(err2);
+                assert.equal(n, 1, 'like count should be 1 after outbound sendLike');
+                done();
+            });
+        });
+    });
+
+    it('stores the Like activity in the Outbox collection', done => {
+        sendLike(mockUser, NOTE_ID + '-outbox', err => {
+            assert.ifError(err);
+            const outboxId = `https://test.example.com/_enig/ap/users/testuser/outbox`;
+            const rows = _apDb
+                .prepare(
+                    `SELECT object_json FROM collection
+                     WHERE name = 'outbox' AND collection_id = ?`
+                )
+                .all(outboxId);
+            assert.ok(rows.length > 0, 'Like should be in the outbox collection');
+            const activities = rows.map(r => JSON.parse(r.object_json));
+            assert.ok(activities.some(a => a.type === 'Like'));
+            done();
+        });
+    });
+
+    it('callback fires asynchronously (setImmediate break)', done => {
+        let afterCall = false;
+        sendLike(mockUser, NOTE_ID + '-async', err => {
+            assert.ifError(err);
+            assert.ok(afterCall, 'sendLike callback must fire asynchronously via setImmediate');
+            done();
+        });
+        afterCall = true;
+    });
+
+    it('fails when called twice for the same note (no duplicate outbox entry)', done => {
+        const n = NOTE_ID + '-dup';
+        sendLike(mockUser, n, err => {
+            assert.ifError(err);
+            sendLike(mockUser, n, err2 => {
+                assert.ok(err2, 'second sendLike of same note should return an error');
                 done();
             });
         });

@@ -4,6 +4,7 @@ const { MenuModule } = require('../menu_module');
 const Collection = require('./collection');
 const { Collections } = require('./const');
 const UserProps = require('../user_property');
+const { sendBoost, sendLike, getBoostCount, getLikeCount } = require('./boost_util');
 
 // deps
 const async = require('async');
@@ -177,6 +178,9 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                     case 't':
                     case '+':
                         return this._openThread(cb);
+                    case 'return':
+                    case 'space':
+                        return this._openViewer(cb);
                 }
                 return cb(null);
             },
@@ -371,15 +375,41 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
     _boostSelected(cb) {
         const item = this._selectedItem();
         if (!item) return cb(null);
-        // :TODO: Phase 6 — wire up sendBoost(this.client.user, item.noteId, cb)
-        return cb(null);
+        sendBoost(this.client.user, item.noteId, (err) => {
+            if (err) {
+                this.client.log.warn({ err: err.message }, 'AP browser: boost failed');
+                return cb(null);
+            }
+            getBoostCount(item.noteId, (err, count) => {
+                if (!err) {
+                    item.boosts = count > 0 ? String(Math.min(count, 99)) : '';
+                    item.text = formatItemLine(item, this.indicators);
+                }
+                const listView = this.getView('main', MciViewIds.main.list);
+                if (listView) listView.redraw();
+                return cb(null);
+            });
+        });
     }
 
     _likeSelected(cb) {
         const item = this._selectedItem();
         if (!item) return cb(null);
-        // :TODO: Phase 6 — wire up sendLike(this.client.user, item.noteId, cb)
-        return cb(null);
+        sendLike(this.client.user, item.noteId, (err) => {
+            if (err) {
+                this.client.log.warn({ err: err.message }, 'AP browser: like failed');
+                return cb(null);
+            }
+            getLikeCount(item.noteId, (err, count) => {
+                if (!err) {
+                    item.likes = count > 0 ? String(Math.min(count, 99)) : '';
+                    item.text = formatItemLine(item, this.indicators);
+                }
+                const listView = this.getView('main', MciViewIds.main.list);
+                if (listView) listView.redraw();
+                return cb(null);
+            });
+        });
     }
 
     _replySelected(cb) {
@@ -395,6 +425,26 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         return this.gotoMenu(
             this.menuConfig.config.threadMenu || 'actPubThread',
             { extraArgs: { mode: Modes.Thread, contextId: item.contextId } },
+            cb
+        );
+    }
+
+    _openViewer(cb) {
+        const listView = this.getView('main', MciViewIds.main.list);
+        if (!listView) return cb(null);
+        const itemIndex = listView.getFocusItemIndex();
+        const item = this.items[itemIndex];
+        if (!item) return cb(null);
+        return this.gotoMenu(
+            this.menuConfig.config.viewerMenu || 'activityPubMsgViewer',
+            {
+                extraArgs: {
+                    item,
+                    itemIndex,
+                    items: this.items,
+                    modeLabel: ModeLabelMap[this.mode] || this.mode,
+                },
+            },
             cb
         );
     }

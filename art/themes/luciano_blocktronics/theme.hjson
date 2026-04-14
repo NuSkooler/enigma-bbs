@@ -1507,6 +1507,55 @@
 				}
 			}
 
+			activityPubMsgViewer: {
+				config: {
+					//  Format strings for %TL10+ custom views in the body art.
+					//  Available properties: from, subject, date,
+					//    threadPos, threadTotal, threadInfo, hasPrev, hasNext
+					//  bodyInfoFormat10: "From : {from:<40.40}"
+					//  bodyInfoFormat11: "Subj : {subject:<40.40}"
+					//  bodyInfoFormat12: "{date:<14.14}  {threadInfo}"
+					bodyInfoFormat10: "{modeLabel}"
+					bodyInfoFormat11: "{from:<40.40}"
+					bodyInfoFormat12: "{subject:<40.40}"
+					bodyInfoFormat13: "{date:<14.14}"
+					bodyInfoFormat14: "|12{likeIndicator} {likes} |10\u001e {boosts} |13{att}"
+				}
+				//  Form 1 — body art (activitypub_msg_viewer.ans)
+				1: {
+					mci: {
+						MT1: {
+							mode: preview
+							width: 78
+							height: 17
+						}
+						ET10: {
+							width: 20
+						}
+						ET11: {
+							width: 40
+						}
+						ET12: {
+							width: 40
+						}
+						ET13: {
+							width: 13
+						}
+					}
+				}
+				//  Form 4 — footer art (activitypub_msg_viewer_footer.ans)
+				4: {
+					mci: {
+						HM1: {
+							// focusItemFormat: "|00|19|15{text}"
+							// itemFormat:      "|00|03{text}"
+							focusTextStyle: first lower
+							styleSGR1: "|00|08"
+						}
+					}
+				}
+			}
+
 			// MRC
 			mrc: {
 				config: {
