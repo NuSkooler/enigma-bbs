@@ -404,7 +404,7 @@
                 }
                 //  Status line — art uses %TL10 (or %TL11, etc. for additional fields).
                 //  Tokens: {partnerName} {duration} {userName} {userNode}
-                chatInfoFormat10: "|08Chatting with |15{partnerName}|08 \xb7 {duration} \xb7 |07ESC|08 to end|07"
+                chatInfoFormat10: "|08Chatting with |15{partnerName}|08 \u00b7 {duration} \u00b7 |07ESC|08 to end|07"
             }
             form: {
                 0: {
