@@ -15,6 +15,9 @@
 //    getBoostActors(noteId, cb)         — list of actor IDs that boosted a given Note
 //    getBoostCount(noteId, cb)          — count of boosts for a Note
 //
+//  Reply helper:
+//    messageForNoteId(noteId, cb)       — resolve a Note's AP URL to its local BBS Message
+//
 
 const Collection = require('./collection');
 const Activity = require('./activity');
@@ -27,6 +30,7 @@ const { Errors } = require('../enig_error');
 const { ActivityStreamMediaType, Collections, PublicCollectionId } = require('./const');
 const UserProps = require('../user_property');
 const Log = require('../logger').log;
+const Message = require('../message');
 
 // deps
 const async = require('async');
@@ -47,6 +51,7 @@ exports.getBoostActors = getBoostActors;
 exports.getBoostCount = getBoostCount;
 exports.getLikeActors = getLikeActors;
 exports.getLikeCount = getLikeCount;
+exports.messageForNoteId = messageForNoteId;
 
 //
 //  Resolve an Announce's object field to a Note.
@@ -528,6 +533,99 @@ function undoLike(localUser, noteId, cb) {
             err => cb(err)
         );
     });
+}
+
+//
+//  Resolve a Note's AP URL (noteId) to its local BBS Message object.
+//
+//  Used by the reply action in the browser and viewer to get the Message that FSE
+//  needs as `replyToMessage`.
+//
+//  Primary path: query message_meta for the activitypub_note_id meta value.
+//
+//  Fallback path: if no BBS message exists (e.g. seeded/legacy collection rows that
+//  predate the toMessage() persist step, or a storage failure on ingest), look up the
+//  Note in the collection table, call toMessage() + persist() to create it on the fly,
+//  and return the newly-created message.  toMessage() generates a deterministic UUID so
+//  this is idempotent — a concurrent ingest of the same note will hit SQLITE_CONSTRAINT
+//  and be handled gracefully.
+//
+function messageForNoteId(noteId, cb) {
+    Message.getMessageIdsByMetaValue(
+        Message.WellKnownMetaCategories.ActivityPub,
+        Message.ActivityPubPropertyNames.NoteId,
+        noteId,
+        (err, ids) => {
+            if (err) {
+                return cb(err);
+            }
+
+            if (ids && ids.length > 0) {
+                const msg = new Message();
+                return msg.load({ messageId: ids[0] }, err => {
+                    if (err) {
+                        return cb(err);
+                    }
+                    return cb(null, msg);
+                });
+            }
+
+            //  Fallback: note is in the collection but never persisted as a BBS message.
+            //  Fetch it and create the message now.
+            Collection.objectByEmbeddedId(noteId, (err, activity) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                if (!activity || !activity.object || activity.object.type !== 'Note') {
+                    return cb(null, null);
+                }
+
+                const note = new Note(activity.object);
+                const messageOpts = {
+                    activityId: activity.id || 0,
+                    toUser: 'All',
+                    areaTag: Message.WellKnownAreaTags.ActivityPubShared,
+                };
+
+                note.toMessage(messageOpts, (err, msg) => {
+                    if (err) {
+                        return cb(err);
+                    }
+
+                    msg.persist((err, messageId) => {
+                        if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                            return cb(err);
+                        }
+
+                        //  If SQLITE_CONSTRAINT, a concurrent persist won — reload by meta.
+                        if (err) {
+                            const reloaded = new Message();
+                            return Message.getMessageIdsByMetaValue(
+                                Message.WellKnownMetaCategories.ActivityPub,
+                                Message.ActivityPubPropertyNames.NoteId,
+                                noteId,
+                                (err2, ids2) => {
+                                    if (err2 || !ids2 || ids2.length === 0) {
+                                        return cb(err2 || null, null);
+                                    }
+                                    return reloaded.load({ messageId: ids2[0] }, err3 =>
+                                        cb(err3, err3 ? null : reloaded)
+                                    );
+                                }
+                            );
+                        }
+
+                        //  Reload to get the full populated message (incl. messageId).
+                        const reloaded = new Message();
+                        return reloaded.load({ messageId }, err2 =>
+                            cb(err2, err2 ? null : reloaded)
+                        );
+                    });
+                });
+            });
+        }
+    );
 }
 
 //  Shared helper: collect unique shared-inbox endpoints for the local user's followers.

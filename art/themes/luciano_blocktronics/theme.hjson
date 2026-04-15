@@ -1465,35 +1465,13 @@
 
 			activityPubMsgBrowser: {
 				config: {
-					//  Format strings for %TL10+ custom views placed in art.
-					//  Each view receives the full format object; reference any property.
-					//  Example: TL10 = mode label, TL11 = loaded item count.
 					mainInfoFormat10: "{modeLabel}"
-					//mainInfoFormat11: "{msgCount}"
-
-					//  Configurable display indicators (CP437 defaults set in module).
-					//  Override here to use different characters if desired.
-					// attIndicator:   "*"
-					// likeIndicator:  "\\x03"   // ♥
-					// boostIndicator: "\\1e"   // ▲
-					//  Timestamp format — any moment.js format string.
-					//  'am'/'pm' from the 'a' token are collapsed to a single char.
-					//  Default: "MM/DD hh:mma" → "04/12 02:30p" (12 chars).
-					//  If you change this, also adjust {date:} width in itemFormat below.
-					//  dateTimeFormat: "MM/DD hh:mma"
 				}
 				0: {
 					mci: {
 						VM1: {
-							//  Art: activitypub_msg_browser.ans
-							//  Height and width are set by the operator's art placement.
-							//  Column budget for 71-col VM1:
-							//    from(16) + subject(33) + date(12) + likes(2) + boosts(2) + att(1) + 5 separators = 71
-							//  {field:<width.precision} — width sets pad target, precision truncates to that width.
-							//  Pipe codes are zero-width and do not affect column math.
 							itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
 							focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
-							//  textOverflow is not needed — {field:<w.w} precision handles truncation.
 							height: 14
 							width: 72
 						}
@@ -1507,19 +1485,95 @@
 				}
 			}
 
+			activityPubBrowseLocal: {
+			config: {
+				mainInfoFormat10: "{modeLabel}"
+			}
+			0: {
+				mci: {
+					VM1: {
+						itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						height: 14
+						width: 72
+					}
+					TL10: {
+						width: 12
+					}
+					TL11: {
+						width: 5
+					}
+				}
+			}
+		}
+
+		activityPubBrowseFavorites: {
+			config: {
+				mainInfoFormat10: "{modeLabel}"
+			}
+			0: {
+				mci: {
+					VM1: {
+						itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						height: 14
+						width: 72
+					}
+					TL10: {
+						width: 12
+					}
+					TL11: {
+						width: 5
+					}
+				}
+			}
+		}
+
+		activityPubBrowseMentions: {
+			config: {
+				mainInfoFormat10: "{modeLabel}"
+			}
+			0: {
+				mci: {
+					VM1: {
+						itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						height: 14
+						width: 72
+					}
+					TL10: {
+						width: 12
+					}
+					TL11: {
+						width: 5
+					}
+				}
+			}
+		}
+
+		activityPubCompose: {
+					0: {
+						mci: {
+							TL1: { width: 19, textOverflow: "..." }
+							ET2: { width: 19, textOverflow: "..." }
+							ET3: { width: 19, textOverflow: "..." }
+							ET4: { width: 21, textOverflow: "..." }
+						}
+					}
+					1: {
+						mci: {
+							MT1: { height: 14 }
+						}
+					}
+				}
+
 			activityPubMsgViewer: {
 				config: {
-					//  Format strings for %TL10+ custom views in the body art.
-					//  Available properties: from, subject, date,
-					//    threadPos, threadTotal, threadInfo, hasPrev, hasNext
-					//  bodyInfoFormat10: "From : {from:<40.40}"
-					//  bodyInfoFormat11: "Subj : {subject:<40.40}"
-					//  bodyInfoFormat12: "{date:<14.14}  {threadInfo}"
 					bodyInfoFormat10: "{modeLabel}"
 					bodyInfoFormat11: "{from:<40.40}"
 					bodyInfoFormat12: "{subject:<40.40}"
 					bodyInfoFormat13: "{date:<14.14}"
-					bodyInfoFormat14: "|12{likeIndicator} {likes} |10\u001e {boosts} |13{att}"
+					bodyInfoFormat14: "|12{likeIndicator} {likes} |10{boostIndicator} {boosts} |13{att}"
 				}
 				//  Form 1 — body art (activitypub_msg_viewer.ans)
 				1: {
@@ -1547,10 +1601,9 @@
 				4: {
 					mci: {
 						HM1: {
-							// focusItemFormat: "|00|19|15{text}"
-							// itemFormat:      "|00|03{text}"
 							focusTextStyle: first lower
-							styleSGR1: "|00|08"
+							styleSGR1: "|03"
+							styleSGR2: "|11"
 						}
 					}
 				}

@@ -65,6 +65,7 @@ const {
     sendLike,
     getBoostCount,
     getLikeCount,
+    messageForNoteId,
 } = require('../core/activitypub/boost_util.js');
 const Collection = require('../core/activitypub/collection.js');
 const Activity = require('../core/activitypub/activity.js');
@@ -822,6 +823,76 @@ describe('sendLike() outbound reaction tracking', function () {
                 assert.ok(err2, 'second sendLike of same note should return an error');
                 done();
             });
+        });
+    });
+});
+
+// ─── messageForNoteId() ───────────────────────────────────────────────────────
+//
+//  Verifies that the reply helper correctly resolves a Note's AP URL to its
+//  local BBS Message object, and returns null cleanly when not found.
+//
+describe('messageForNoteId()', function () {
+    const NOTE_ID = 'https://remote.example.com/notes/reply-lookup-1';
+
+    //  Insert a message + its activitypub_note_id meta directly so we can
+    //  test the lookup without going through the full Note.toMessage() path.
+    function insertMessageWithNoteId(noteId) {
+        const info = _msgDb
+            .prepare(
+                `INSERT INTO message
+                    (area_tag, message_uuid, to_user_name, from_user_name, subject, message, modified_timestamp)
+                 VALUES ('activitypub_shared', ?, 'All', 'alice@remote.example.com', 'Hello', 'Body text.', datetime('now'))`
+            )
+            .run(require('crypto').randomUUID());
+        const msgId = info.lastInsertRowid;
+        _msgDb
+            .prepare(
+                `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                 VALUES (?, 'ActivityPub', 'activitypub_note_id', ?)`
+            )
+            .run(msgId, noteId);
+        return msgId;
+    }
+
+    it('returns a Message when the noteId is found in the local DB', done => {
+        const msgId = insertMessageWithNoteId(NOTE_ID);
+        messageForNoteId(NOTE_ID, (err, msg) => {
+            assert.ifError(err);
+            assert.ok(msg, 'should return a Message object');
+            assert.equal(msg.messageId, msgId);
+            assert.equal(msg.areaTag, 'activitypub_shared');
+            done();
+        });
+    });
+
+    it('returns null (no error) when noteId is not in the local DB', done => {
+        messageForNoteId('https://remote.example.com/notes/nonexistent', (err, msg) => {
+            assert.ifError(err);
+            assert.equal(msg, null, 'should return null for unknown noteId');
+            done();
+        });
+    });
+
+    it('returns the first matching Message when multiple meta rows exist for the same noteId', done => {
+        //  Insert two messages with the same note_id (degenerate but possible after a storage glitch).
+        const first = insertMessageWithNoteId(NOTE_ID + '-multi');
+        insertMessageWithNoteId(NOTE_ID + '-multi');
+        messageForNoteId(NOTE_ID + '-multi', (err, msg) => {
+            assert.ifError(err);
+            assert.ok(msg, 'should return a Message');
+            assert.equal(msg.messageId, first, 'should return the first (lowest) message_id');
+            done();
+        });
+    });
+
+    it('returned Message has the correct fromUserName', done => {
+        insertMessageWithNoteId(NOTE_ID + '-from');
+        messageForNoteId(NOTE_ID + '-from', (err, msg) => {
+            assert.ifError(err);
+            assert.ok(msg);
+            assert.equal(msg.fromUserName, 'alice@remote.example.com');
+            done();
         });
     });
 });

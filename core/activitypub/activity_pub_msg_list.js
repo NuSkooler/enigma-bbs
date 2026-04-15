@@ -1,10 +1,12 @@
 'use strict';
 
 const { MenuModule } = require('../menu_module');
+const { ErrorCodes } = require('../enig_error');
 const Collection = require('./collection');
 const { Collections } = require('./const');
 const UserProps = require('../user_property');
-const { sendBoost, sendLike, getBoostCount, getLikeCount } = require('./boost_util');
+const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId } = require('./boost_util');
+const Message = require('../message');
 
 // deps
 const async = require('async');
@@ -30,6 +32,7 @@ const Modes = {
     Federated: 'federated',
     Local: 'local',
     Timeline: 'timeline',
+    Favorites: 'favorites',
     Mentions: 'mentions',
     Thread: 'thread',
 };
@@ -38,6 +41,7 @@ const ModeLabelMap = {
     [Modes.Federated]: 'Federated',
     [Modes.Local]: 'Local',
     [Modes.Timeline]: 'Timeline',
+    [Modes.Favorites]: 'Favorites',
     [Modes.Mentions]: 'Mentions',
     [Modes.Thread]: 'Thread',
 };
@@ -134,7 +138,9 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         super(options);
         this.setConfigWithExtraArgs(options);
 
-        this.mode = _.get(options, 'extraArgs.mode', Modes.Federated);
+        //  Mode can come from extraArgs (runtime push) or config.mode (static menu entry).
+        this.mode = _.get(options, 'extraArgs.mode') ||
+                    _.get(this.config, 'mode', Modes.Federated);
         this.contextId = _.get(options, 'extraArgs.contextId'); // thread mode
         this.actorId = _.get(options, 'extraArgs.actorId'); // timeline mode
 
@@ -158,6 +164,9 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         this.hasMore = true;
         this.loading = false;
 
+        //  Restore focus position when returning from the viewer.
+        this.restoreItemIndex = _.get(options, 'lastMenuResult.itemIndex', 0);
+
         this.menuMethods = {
             listKeyPressed: (formData, extraArgs, cb) => {
                 const key = _.get(formData, 'key.name');
@@ -168,6 +177,18 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                         break;
                     case 'up arrow':
                         if (listView) listView.focusPrevious();
+                        break;
+                    case 'page up':
+                        if (listView) listView.focusPreviousPageItem();
+                        break;
+                    case 'page down':
+                        if (listView) listView.focusNextPageItem();
+                        break;
+                    case 'home':
+                        if (listView) listView.focusFirst();
+                        break;
+                    case 'end':
+                        if (listView) listView.focusLast();
                         break;
                     case 'b':
                         return this._boostSelected(cb);
@@ -188,8 +209,22 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
     }
 
     initSequence() {
-        async.series([cb => this.beforeArt(cb), cb => this._displayMainPage(cb)], () =>
-            this.finishedLoading()
+        async.series(
+            [
+                cb => this.beforeArt(cb),
+                cb => this._displayMainPage(cb),
+                cb => {
+                    if (this.restoreItemIndex > 0) {
+                        const listView = this.getView('main', MciViewIds.main.list);
+                        if (listView && this.restoreItemIndex < listView.items.length) {
+                            listView.setFocusItemIndex(this.restoreItemIndex);
+                            //  setFocusItemIndex already calls redraw() internally
+                        }
+                    }
+                    return cb(null);
+                },
+            ],
+            () => this.finishedLoading()
         );
     }
 
@@ -268,6 +303,13 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                           this.contextId || '',
                           innerCb
                       )
+                : this.mode === Modes.Favorites
+                ? innerCb =>
+                      Collection.getFavoritesPage(
+                          this._localActorId(),
+                          { cursor: this.nextCursor, pageSize: PageSize },
+                          innerCb
+                      )
                 : innerCb =>
                       Collection.getCollectionPage(
                           this._collectionName(),
@@ -310,6 +352,10 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
             }
 
             if (parsed.length === 0) {
+                this.client.log.warn(
+                    { mode: this.mode, cursor: this.nextCursor, rowCount: rows.length },
+                    'AP browser: _loadPage returned 0 usable notes'
+                );
                 return cb(null);
             }
 
@@ -377,7 +423,11 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         if (!item) return cb(null);
         sendBoost(this.client.user, item.noteId, (err) => {
             if (err) {
-                this.client.log.warn({ err: err.message }, 'AP browser: boost failed');
+                if (err.code === ErrorCodes.Duplicate) {
+                    this.client.log.debug({ noteId: item.noteId }, 'AP browser: already boosted');
+                } else {
+                    this.client.log.warn({ err: err.message }, 'AP browser: boost failed');
+                }
                 return cb(null);
             }
             getBoostCount(item.noteId, (err, count) => {
@@ -397,7 +447,11 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         if (!item) return cb(null);
         sendLike(this.client.user, item.noteId, (err) => {
             if (err) {
-                this.client.log.warn({ err: err.message }, 'AP browser: like failed');
+                if (err.code === ErrorCodes.Duplicate) {
+                    this.client.log.debug({ noteId: item.noteId }, 'AP browser: already liked');
+                } else {
+                    this.client.log.warn({ err: err.message }, 'AP browser: like failed');
+                }
                 return cb(null);
             }
             getLikeCount(item.noteId, (err, count) => {
@@ -414,9 +468,27 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
 
     _replySelected(cb) {
         const item = this._selectedItem();
-        if (!item) return cb(null);
-        // :TODO: Phase 6 — push FSE with inReplyTo = item.noteId
-        return cb(null);
+        if (!item || !item.noteId) return cb(null);
+        messageForNoteId(item.noteId, (err, msg) => {
+            if (err || !msg) {
+                this.client.log.warn(
+                    { noteId: item.noteId, err: err && err.message },
+                    'AP browser: reply — note not found in local message DB'
+                );
+                return cb(null);
+            }
+            msg.fromUserName = actorUrlToHandle(msg.fromUserName);
+            return this.gotoMenu(
+                this.menuConfig.config.composeMenu || 'activityPubCompose',
+                {
+                    extraArgs: {
+                        messageAreaTag: Message.WellKnownAreaTags.ActivityPubShared,
+                        replyToMessage: msg,
+                    },
+                },
+                cb
+            );
+        });
     }
 
     _openThread(cb) {

@@ -61,6 +61,42 @@
             }
           ]
         }
+        {
+          value: { command: "L" }
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubBrowseLocal
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
+        }
+        {
+          value: { command: "F" }
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubBrowseFavorites
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
+        }
+        {
+          value: { command: "N" }
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubBrowseMentions
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
+        }
       ]
     }
 
@@ -226,12 +262,20 @@
           }
           actionKeys: [
             {
-              keys: ["space"]
-              action: @method:spaceKeyPressed
+              keys: ["space", "delete"]
+              action: @method:actorListKeyPressed
             }
             {
               keys: ["down arrow", "up arrow"]
               action: @method:listKeyPressed
+            }
+            {
+              keys: ["c"]
+              action: @method:composeToSelected
+            }
+            {
+              keys: ["s"]
+              action: @method:searchActors
             }
             {
               keys: ["escape"]
@@ -289,7 +333,97 @@
           }
           actionKeys: [
             {
-              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down"]
+              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              action: @method:listKeyPressed
+            }
+            {
+              keys: ["escape", "q", "shift + q"]
+              action: @systemMethod:prevMenu
+            }
+          ]
+        }
+      }
+    }
+
+    activityPubBrowseLocal: {
+      desc: ActivityPub Browse Local
+      module: ./activitypub/activity_pub_msg_list
+      config: {
+        mode: local
+        art: {
+          main: activitypub_msg_browser
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {
+              focus: true
+            }
+          }
+          actionKeys: [
+            {
+              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              action: @method:listKeyPressed
+            }
+            {
+              keys: ["escape", "q", "shift + q"]
+              action: @systemMethod:prevMenu
+            }
+          ]
+        }
+      }
+    }
+
+    activityPubBrowseFavorites: {
+      desc: ActivityPub Favorites
+      module: ./activitypub/activity_pub_msg_list
+      config: {
+        mode: favorites
+        art: {
+          main: activitypub_msg_browser
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {
+              focus: true
+            }
+          }
+          actionKeys: [
+            {
+              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              action: @method:listKeyPressed
+            }
+            {
+              keys: ["escape", "q", "shift + q"]
+              action: @systemMethod:prevMenu
+            }
+          ]
+        }
+      }
+    }
+
+    activityPubBrowseMentions: {
+      desc: ActivityPub Mentions
+      module: ./activitypub/activity_pub_msg_list
+      config: {
+        mode: mentions
+        art: {
+          main: activitypub_msg_browser
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {
+              focus: true
+            }
+          }
+          actionKeys: [
+            {
+              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
             {
@@ -398,6 +532,187 @@
             }
           ]
         }
+      }
+    }
+
+    //
+    //  AP compose / reply — thin FSE wrapper.
+    //  Pushed by the browser (_replySelected) and viewer (replyNote) with
+    //  extraArgs: { messageAreaTag, replyToMessage }.
+    //  The scanner/tosser picks up the saved message and delivers it as
+    //  a Create{Note} activity with inReplyTo set from the parent's meta.
+    //
+    activityPubCompose: {
+      desc: ActivityPub Compose
+      module: msg_area_post_fse
+      config: {
+        cls: true
+        messageAreaTag: activitypub_shared
+        art: {
+          header: MSGEHDR
+          body: MSGBODY
+          footerEditor: MSGEFTR
+          footerEditorMenu: MSGEMFT
+          footerFind: MSGFND
+          help: MSGEHLP
+        }
+        editorMode: edit
+        editorType: area
+      }
+      form: {
+        0: {
+          mci: {
+            TL1: {
+              argName: from
+            }
+            ET2: {
+              argName: to
+              focus: true
+              text: All
+              maxLength: 36
+            }
+            ET3: {
+              argName: subject
+              maxLength: 72
+              submit: true
+            }
+          }
+          submit: {
+            3: [
+              {
+                value: { subject: null }
+                action: @method:headerSubmit
+              }
+            ]
+          }
+          actionKeys: [
+            {
+              keys: ["escape"]
+              action: @method:headerEscapePressed
+            }
+          ]
+        }
+        1: {
+          mci: {
+            MT1: {
+              width: 79
+              argName: message
+              mode: edit
+            }
+          }
+          submit: {
+            *: [
+              {
+                value: message
+                action: "@method:editModeEscPressed"
+              }
+            ]
+          }
+          actionKeys: [
+            {
+              keys: ["escape"]
+              viewId: 1
+            }
+            {
+              keys: ["ctrl + s"]
+              action: @method:editModeQuickSave
+            }
+            {
+              keys: ["ctrl + o"]
+              action: @method:editModeQuickHelp
+            }
+            {
+              keys: ["ctrl + f"]
+              action: @method:editModeFind
+            }
+            {
+              keys: ["ctrl + n"]
+              action: @method:editModeFindNext
+            }
+            {
+              keys: ["ctrl + p"]
+              action: @method:editModeFindPrev
+            }
+            {
+              keys: ["ctrl + a"]
+              action: @method:editModeChangeSubject
+            }
+          ]
+        }
+        2: {
+          mci: {
+            SB1: {
+              width: 9
+              anchor: left
+              justify: left
+              separator: " "
+              panels: [
+                {
+                  name: modeLabel
+                  width: 5
+                  text: "|03mode|08:"
+                  justify: left
+                }
+                {
+                  name: mode
+                  width: 3
+                  justify: right
+                }
+                {
+                  name: posLabel
+                  width: 5
+                  text: " |03pos|08:"
+                  justify: left
+                }
+                {
+                  name: pos
+                  width: 5
+                  justify: left
+                }
+              ]
+            }
+          }
+        }
+        3: {
+          HM: {
+            mci: {
+              HM1: {
+                items: ["save", "discard", "help", "upload"]
+              }
+            }
+            submit: {
+              *: [
+                {
+                  value: { 1: 0 }
+                  action: @method:editModeMenuSave
+                }
+                {
+                  value: { 1: 1 }
+                  action: @systemMethod:prevMenu
+                }
+                {
+                  value: { 1: 2 }
+                  action: @method:editModeMenuHelp
+                }
+                {
+                  value: { 1: 3 }
+                  action: @method:editModeMenuUpload
+                }
+              ]
+            }
+            actionKeys: [
+              {
+                keys: ["escape"]
+                action: @method:editModeEscPressed
+              }
+              {
+                keys: ["?"]
+                action: @method:editModeMenuHelp
+              }
+            ]
+          }
+        }
+        6: @reference:common.fseFindFooterForm
       }
     }
 

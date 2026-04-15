@@ -263,6 +263,46 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //  Batch fetch actors from local cache by actor ID list.
+    //  Returns a Map of actorId → { actor: Actor, subject: string }.
+    //  IDs not found in cache are absent from the map (caller should network-fetch those).
+    static actorsFromIds(ids, cb) {
+        if (!ids || ids.length === 0) {
+            return cb(null, new Map());
+        }
+
+        const placeholders = ids.map(() => '?').join(', ');
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT c.object_id, c.object_json, m.meta_value AS subject
+                    FROM collection c
+                    LEFT JOIN collection_object_meta m
+                        ON  m.object_id      = c.object_id
+                        AND m.collection_id  = c.collection_id
+                        AND m.name           = c.name
+                        AND m.meta_name      = 'actor_subject'
+                    WHERE c.collection_id = ? AND c.name = ? AND c.object_id IN (${placeholders});`
+                )
+                .all(ActorCollectionId, Collections.Actors, ...ids);
+
+            const result = new Map();
+            for (const row of rows) {
+                const obj = ActivityPubObject.fromJsonString(row.object_json);
+                if (obj) {
+                    result.set(row.object_id, {
+                        actor: obj,
+                        subject: row.subject || row.object_id,
+                    });
+                }
+            }
+
+            return cb(null, result);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static removeExpiredActors(maxAgeDays, cb) {
         try {
             apDb.prepare(
@@ -1170,6 +1210,41 @@ module.exports = class Collection extends ActivityPubObject {
     //  Checks both $.object.context and $.object.conversation fields.
     //  Returns rows in chronological order (oldest first — thread display order).
     //
+    //
+    //  Fetch a page of Notes that a given actor has liked (favorites).
+    //  Joins note_reactions (WHERE actor_id = localActorId AND reaction_type = 'Like')
+    //  to collection via the expression index on json_extract(object_json, '$.object.id').
+    //  cursor is the nr.timestamp of the last item from the previous page.
+    //  Returns: { rows: [{timestamp, object_json}], nextCursor: string|null }
+    //
+    static getFavoritesPage(localActorId, options, cb) {
+        const { cursor, pageSize = 25 } = options;
+        const ts = cursor || '9999-12-31T23:59:59.999Z';
+
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT nr.timestamp, c.object_json
+                     FROM note_reactions nr
+                     JOIN collection c
+                       ON json_extract(c.object_json, '$.object.id') = nr.note_id
+                     WHERE nr.actor_id     = ?
+                       AND nr.reaction_type = 'Like'
+                       AND nr.timestamp     < ?
+                     ORDER BY nr.timestamp DESC
+                     LIMIT ?`
+                )
+                .all(localActorId, ts, pageSize + 1);
+
+            const hasMore = rows.length > pageSize;
+            if (hasMore) rows.pop();
+            const nextCursor = hasMore ? rows[rows.length - 1].timestamp : null;
+            return cb(null, { rows, nextCursor });
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static getCollectionByContext(collectionName, contextId, cb) {
         try {
             const rows = apDb

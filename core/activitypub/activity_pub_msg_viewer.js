@@ -1,10 +1,12 @@
 'use strict';
 
 const { MenuModule } = require('../menu_module');
+const { ErrorCodes } = require('../enig_error');
 const Collection = require('./collection');
 const { Collections } = require('./const');
 const { htmlToMessageBody } = require('./util');
-const { sendBoost, sendLike, getBoostCount, getLikeCount } = require('./boost_util');
+const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId } = require('./boost_util');
+const Message = require('../message');
 
 // deps
 const async  = require('async');
@@ -144,7 +146,11 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                 if (!this.item || !this.item.noteId) return cb(null);
                 sendBoost(this.client.user, this.item.noteId, (err) => {
                     if (err) {
-                        this.client.log.warn({ err: err.message }, 'AP viewer: boost failed');
+                        if (err.code === ErrorCodes.Duplicate) {
+                            this.client.log.debug({ noteId: this.item.noteId }, 'AP viewer: already boosted');
+                        } else {
+                            this.client.log.warn({ err: err.message }, 'AP viewer: boost failed');
+                        }
                         return cb(null);
                     }
                     getBoostCount(this.item.noteId, (err, count) => {
@@ -160,7 +166,11 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                 if (!this.item || !this.item.noteId) return cb(null);
                 sendLike(this.client.user, this.item.noteId, (err) => {
                     if (err) {
-                        this.client.log.warn({ err: err.message }, 'AP viewer: like failed');
+                        if (err.code === ErrorCodes.Duplicate) {
+                            this.client.log.debug({ noteId: this.item.noteId }, 'AP viewer: already liked');
+                        } else {
+                            this.client.log.warn({ err: err.message }, 'AP viewer: like failed');
+                        }
                         return cb(null);
                     }
                     getLikeCount(this.item.noteId, (err, count) => {
@@ -173,13 +183,36 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                 });
             },
             replyNote: (_formData, _extraArgs, cb) => {
-                // :TODO: Phase 6 — push FSE with inReplyTo = this.item.noteId
-                return cb(null);
+                if (!this.item || !this.item.noteId) return cb(null);
+                messageForNoteId(this.item.noteId, (err, msg) => {
+                    if (err || !msg) {
+                        this.client.log.warn(
+                            { noteId: this.item.noteId, err: err && err.message },
+                            'AP viewer: reply — note not found in local message DB'
+                        );
+                        return cb(null);
+                    }
+                    msg.fromUserName = actorUrlToHandle(msg.fromUserName);
+                    return this.gotoMenu(
+                        this.menuConfig.config.composeMenu || 'activityPubCompose',
+                        {
+                            extraArgs: {
+                                messageAreaTag: Message.WellKnownAreaTags.ActivityPubShared,
+                                replyToMessage: msg,
+                            },
+                        },
+                        cb
+                    );
+                });
             },
             quitViewer: (_formData, _extraArgs, cb) => {
                 return this.prevMenu(cb);
             },
         };
+    }
+
+    getMenuResult() {
+        return { itemIndex: this.listItemIndex };
     }
 
     get _bodyView() {
