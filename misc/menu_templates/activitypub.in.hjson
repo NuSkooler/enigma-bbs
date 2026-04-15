@@ -100,31 +100,48 @@
       ]
     }
 
-    activityPubActorSearch: {
+    activityPubSearch: {
       desc: ActivityPub Search
-      module: activitypub/actor_search
+      module: activitypub/ap_search
       config: {
         cls: true
         art: {
-          main: activitypub_actor_search_main
-          view: activitypub_actor_view
+          main: activitypub_search_main
+          actorView: activitypub_actor_view
         }
       }
       form: {
         0: {
           mci: {
-            ET1: {
+            HM1: {
+              items: ["People", "Posts", "Hashtags"]
+              argName: tab
+              submit: true
+            }
+            ET2: {
               focus: true
               maxLength: 70
               argName: searchQuery
+              submit: true
+            }
+            LV3: {
+              argName: result
               submit: true
             }
           }
           submit: {
             *: [
               {
+                value: {tab: null}
+                action: @method:tabChanged
+              }
+              {
                 value: {searchQuery: null}
                 action: @method:search
+              }
+              {
+                value: {result: null}
+                action: @method:openResult
               }
             ]
           }
@@ -136,7 +153,9 @@
           ]
         }
         1: {
-          mci: {}
+          mci: {
+            MT1: {}
+          }
           actionKeys: [
             {
               keys: ["escape", "q", "shift + q"]

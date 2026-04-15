@@ -1383,50 +1383,51 @@
 				}
 			}
 
-			activityPubActorSearch: {
+			activityPubSearch: {
 				config: {
-					followingIndicator: "|00|14FOLLOWING"
+					followingIndicator:    "|00|14FOLLOWING"
 					notFollowingIndicator: "|00|12not following"
-					viewInfoFormat10: "{actorFollowingIndicator}"
+					//  TL10+ format strings for the actor view (Form 1)
+					actorViewInfoFormat10: "{handle}"
+					actorViewInfoFormat11: "{displayName}"
+					actorViewInfoFormat12: "{published}"
+					actorViewInfoFormat13: "{followIndicator}"
+					actorViewInfoFormat14: "{followersCount}"
+					actorViewInfoFormat15: "{followingCount}"
+					actorViewInfoFormat16: "{manuallyApprovesFollowers}"
+					//  TL10+ for the main form status bar (Form 0)
+					mainInfoFormat10: "{tabLabel}"
+					mainInfoFormat11: "{resultCount}"
 				}
 				0: {
 					mci: {
-						TL1: {
-							width: 70
-							submit: true
+						HM1: {
+							width: 30
+						}
+						ET2: {
+							width: 50
+						}
+						LV3: {
+							width: 79
+							height: 14
 						}
 					}
 				}
 				1: {
 					mci: {
-						TL1: {
-							width: 70
-						}
-						TL2: {
-							width: 70
-						}
-						TL3: {
-							width: 70
-						}
-						TL4: {
-							width: 10
-						}
-						TL5: {
-							width: 4
-						}
-						TL6: {
-							width: 4
-						}
-						MT7: {
+						MT1: {
 							focus: true
 							width: 69
-							height: 3
+							height: 5
 							mode: preview
 						}
-						TL10: {
-							width: 24
-
-						}
+						TL10: { width: 40 }
+						TL11: { width: 40 }
+						TL12: { width: 20 }
+						TL13: { width: 20 }
+						TL14: { width: 6  }
+						TL15: { width: 6  }
+						TL16: { width: 5  }
 					}
 				}
 			}
