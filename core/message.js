@@ -973,9 +973,17 @@ module.exports = class Message {
             Ot> Nu> right after doing so, don't ya think? yeah I think so
 
         */
-        const quotePrefix = options.includePrefix
-            ? this._getQuotePrefix(options.prefixSource || 'fromUserName')
-            : '';
+        const quotePrefix =
+            options.quotePrefix !== undefined
+                ? options.quotePrefix
+                : options.includePrefix
+                ? this._getQuotePrefix(options.prefixSource || 'fromUserName')
+                : '';
+
+        //  When the caller explicitly provides a quotePrefix, the content is
+        //  known plain text (e.g. HTML-stripped AP note). Skip isFormattedLine
+        //  checks and always word-wrap, regardless of non-ASCII characters.
+        const skipFormattedCheck = options.quotePrefix !== undefined;
 
         function getWrapped(text, extraPrefix) {
             extraPrefix = extraPrefix ? ` ${extraPrefix}` : '';
@@ -1102,7 +1110,7 @@ module.exports = class Message {
                         switch (state) {
                             case 'line':
                                 if (quoteMatch) {
-                                    if (isFormattedLine(line)) {
+                                    if (!skipFormattedCheck && isFormattedLine(line)) {
                                         quoted.push(
                                             getFormattedLine(line.replace(/\s/, ''))
                                         );
@@ -1133,7 +1141,7 @@ module.exports = class Message {
                                 break;
 
                             default:
-                                if (isFormattedLine(line)) {
+                                if (!skipFormattedCheck && isFormattedLine(line)) {
                                     quoted.push(getFormattedLine(line));
                                 } else {
                                     state = quoteMatch ? 'quote_line' : 'line';
