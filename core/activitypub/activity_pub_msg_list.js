@@ -493,6 +493,15 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         });
     }
 
+    //  Return the current focused index so the parent browser can restore
+    //  scroll position when we exit (prevMenu) — whether we were opened as a
+    //  thread view or as the primary browser returning from the viewer.
+    getMenuResult() {
+        const listView = this.getView('main', MciViewIds.main.list);
+        const itemIndex = listView ? listView.getFocusItemIndex() : 0;
+        return { itemIndex };
+    }
+
     _deleteSelected(cb) {
         const item = this._selectedItem();
         if (!item || !item.noteId) return cb(null);
