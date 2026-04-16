@@ -34,7 +34,7 @@ module.exports = class Note extends ActivityPubObject {
             return false;
         }
 
-        if (this.type !== 'Note') {
+        if (this.type !== 'Note' && this.type !== 'Article') {
             return false;
         }
 
@@ -57,7 +57,8 @@ module.exports = class Note extends ActivityPubObject {
                 return cb(null, null);
             }
 
-            if (objInfo.isPrivate || !obj.object || obj.object.type !== 'Note') {
+            const objType = obj.object && obj.object.type;
+            if (objInfo.isPrivate || (objType !== 'Note' && objType !== 'Article')) {
                 return cb(null, null);
             }
 

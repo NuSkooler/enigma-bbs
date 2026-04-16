@@ -366,9 +366,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                         case WellKnownActivity.Update:
                             {
-                                //  Only Notes currently supported
                                 const type = _.get(activity, 'object.type');
-                                if ('Note' === type) {
+                                if ('Note' === type || 'Article' === type) {
                                     //  :TODO: get rid of this extra indirection
                                     return this._inboxUpdateExistingObject(
                                         inboxType,
@@ -461,6 +460,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const createWhat = _.get(activity, 'object.type');
         switch (createWhat) {
             case 'Note':
+            case 'Article':
                 return this._inboxCreateNoteActivity(resp, activity);
 
             default:
@@ -522,8 +522,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _inboxAnnounceActivity(resp, activity) {
         //  Announce.object may be a URL string or an embedded object.
-        //  For now we only handle Notes — log and ignore other types.
-        //  :TODO: Articles and Questions should also be supported (see Vault Phase 2 notes).
         fetchAnnouncedNote(activity.object, (err, note) => {
             if (err) {
                 this.log.warn(

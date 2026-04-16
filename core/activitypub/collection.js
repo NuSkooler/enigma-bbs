@@ -1313,8 +1313,8 @@ module.exports = class Collection extends ActivityPubObject {
                      FROM collection
                      WHERE name = 'outbox'
                        AND is_private = 0
-                       AND json_extract(object_json, '$.type')        = 'Create'
-                       AND json_extract(object_json, '$.object.type') = 'Note'`
+                       AND json_extract(object_json, '$.type') = 'Create'
+                       AND json_extract(object_json, '$.object.type') IN ('Note', 'Article')`
                 )
                 .get();
             return cb(null, row ? row.n : 0);

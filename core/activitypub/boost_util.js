@@ -58,26 +58,28 @@ exports.sendDelete = sendDelete;
 //  Resolve an Announce's object field to a Note.
 //
 //  Handles three cases:
-//    1. String URL that is one of our own Note endpoints → local collection lookup
+//    1. String URL that is one of our own Note/Article endpoints → local collection lookup
 //    2. String URL that is remote → HTTP GET with 3s timeout
-//    3. Embedded object (non-conforming senders) → use directly if type === 'Note'
+//    3. Embedded object (non-conforming senders) → use directly if Note or Article
 //
 function fetchAnnouncedNote(objectOrId, cb) {
+    const isNoteOrArticle = t => t === 'Note' || t === 'Article';
+
     //  Case 3: already an embedded object
     if (!isString(objectOrId)) {
-        if (objectOrId && objectOrId.type === 'Note') {
+        if (objectOrId && isNoteOrArticle(objectOrId.type)) {
             return cb(null, new Note(objectOrId));
         }
         return cb(
             Errors.Invalid(
-                `Announce.object is an embedded non-Note type: ${objectOrId && objectOrId.type}`
+                `Announce.object is an embedded non-Note/Article type: ${objectOrId && objectOrId.type}`
             )
         );
     }
 
     const noteId = objectOrId;
 
-    //  Case 1: check our own collection first (covers boosts of local Notes)
+    //  Case 1: check our own collection first (covers boosts of local Notes/Articles)
     Collection.objectByEmbeddedId(noteId, (err, wrappingActivity) => {
         if (err) {
             return cb(err);
@@ -85,7 +87,7 @@ function fetchAnnouncedNote(objectOrId, cb) {
 
         if (wrappingActivity) {
             const embedded = wrappingActivity.object;
-            if (embedded && embedded.type === 'Note') {
+            if (embedded && isNoteOrArticle(embedded.type)) {
                 return cb(null, new Note(embedded));
             }
         }
@@ -100,15 +102,15 @@ function fetchAnnouncedNote(objectOrId, cb) {
             if (err) {
                 return cb(
                     Errors.HttpError(
-                        `Failed to fetch announced Note "${noteId}": ${err.message}`
+                        `Failed to fetch announced Note/Article "${noteId}": ${err.message}`
                     )
                 );
             }
 
-            if (!parsed || parsed.type !== 'Note') {
+            if (!parsed || !isNoteOrArticle(parsed.type)) {
                 return cb(
                     Errors.Invalid(
-                        `Fetched object at "${noteId}" is not a Note (got type: ${parsed && parsed.type})`
+                        `Fetched object at "${noteId}" is not a Note or Article (got type: ${parsed && parsed.type})`
                     )
                 );
             }
@@ -578,7 +580,8 @@ function messageForNoteId(noteId, cb) {
                     return cb(err);
                 }
 
-                if (!activity || !activity.object || activity.object.type !== 'Note') {
+                const objType = activity && activity.object && activity.object.type;
+                if (objType !== 'Note' && objType !== 'Article') {
                     return cb(null, null);
                 }
 

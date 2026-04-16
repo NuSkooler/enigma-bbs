@@ -391,15 +391,33 @@ describe('fetchAnnouncedNote() — embedded object (no network)', function () {
         });
     });
 
-    it('errors when given an embedded object with a non-Note type', done => {
+    it('accepts an embedded Article object', done => {
         const embedded = {
             id: 'https://remote.example.com/articles/1',
             type: 'Article',
+            name: 'An Article Title',
             content: '<p>An article</p>',
+            attributedTo: 'https://remote.example.com/users/alice',
+        };
+
+        fetchAnnouncedNote(embedded, (err, note) => {
+            assert.ifError(err);
+            assert.ok(note, 'should return a note');
+            assert.equal(note.type, 'Article');
+            assert.equal(note.id, embedded.id);
+            done();
+        });
+    });
+
+    it('errors when given an embedded object with an unsupported type', done => {
+        const embedded = {
+            id: 'https://remote.example.com/videos/1',
+            type: 'Video',
+            content: '<p>A video</p>',
         };
 
         fetchAnnouncedNote(embedded, err => {
-            assert.ok(err, 'should error for non-Note type');
+            assert.ok(err, 'should error for unsupported type');
             done();
         });
     });
