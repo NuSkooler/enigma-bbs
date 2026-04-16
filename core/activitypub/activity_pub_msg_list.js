@@ -144,6 +144,11 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         this.contextId = _.get(options, 'extraArgs.contextId'); // thread mode
         this.actorId = _.get(options, 'extraArgs.actorId'); // timeline mode
 
+        //  When opened as a child (e.g. thread view), the parent passes its own
+        //  focused item index here so we can return it via getMenuResult() on exit,
+        //  allowing the parent to restore its scroll position correctly.
+        this.returnItemIndex = _.get(options, 'extraArgs.returnItemIndex');
+
         //  Configurable display indicators — operator overrides via menu config.
         //  CP437 defaults: ♥ = 0x03, ▲ = 0x1E, * = attachment
         this.indicators = {
@@ -493,13 +498,17 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         });
     }
 
-    //  Return the current focused index so the parent browser can restore
-    //  scroll position when we exit (prevMenu) — whether we were opened as a
-    //  thread view or as the primary browser returning from the viewer.
+    //  Return the item index the parent should restore to when we exit.
+    //  - Thread mode: return returnItemIndex (the parent's index, passed in extraArgs)
+    //    so the parent re-instantiates at the right position.
+    //  - Primary browser: return our own focus index (read by the parent viewer
+    //    via its own getMenuResult — this path is rarely used but safe to have).
     getMenuResult() {
+        if (this.returnItemIndex !== undefined) {
+            return { itemIndex: this.returnItemIndex };
+        }
         const listView = this.getView('main', MciViewIds.main.list);
-        const itemIndex = listView ? listView.getFocusItemIndex() : 0;
-        return { itemIndex };
+        return { itemIndex: listView ? listView.getFocusItemIndex() : 0 };
     }
 
     _deleteSelected(cb) {
@@ -534,11 +543,19 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
     }
 
     _openThread(cb) {
+        const listView = this.getView('main', MciViewIds.main.list);
+        const currentIndex = listView ? listView.getFocusItemIndex() : 0;
         const item = this._selectedItem();
         if (!item || !item.contextId) return cb(null);
         return this.gotoMenu(
             this.menuConfig.config.threadMenu || 'activityPubThread',
-            { extraArgs: { mode: Modes.Thread, contextId: item.contextId } },
+            {
+                extraArgs: {
+                    mode: Modes.Thread,
+                    contextId: item.contextId,
+                    returnItemIndex: currentIndex,
+                },
+            },
             cb
         );
     }
