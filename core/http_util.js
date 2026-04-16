@@ -3,7 +3,8 @@ const { Errors } = require('./enig_error.js');
 // deps
 const { isString, isObject, truncate } = require('lodash');
 const httpsNoRedirects = require('node:https');
-const { https: httpsWithRedirects } = require('follow-redirects');
+const httpNoRedirects = require('node:http');
+const { https: httpsWithRedirects, http: httpWithRedirects } = require('follow-redirects');
 const httpSignature = require('http-signature');
 const crypto = require('crypto');
 
@@ -79,14 +80,15 @@ function _makeRequest(url, options, cb) {
         }
     };
 
-    let https;
+    const isHttp = /^http:\/\//i.test(url);
+    let httpLib;
     if (options.method === 'POST' || options.sign) {
-        https = httpsNoRedirects;
+        httpLib = isHttp ? httpNoRedirects : httpsNoRedirects;
     } else {
-        https = httpsWithRedirects;
+        httpLib = isHttp ? httpWithRedirects : httpsWithRedirects;
     }
 
-    const req = https.request(url, options, res => {
+    const req = httpLib.request(url, options, res => {
         let body = [];
         res.on('data', d => {
             body.push(d);
