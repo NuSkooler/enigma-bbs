@@ -2,7 +2,8 @@
 *.pem
 
 #	Exclude User-Customized Directories
-config/
+config/*
+!config/achievements.hjson
 db/
 drop/
 file_base/
