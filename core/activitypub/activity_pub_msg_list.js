@@ -5,7 +5,7 @@ const { ErrorCodes } = require('../enig_error');
 const Collection = require('./collection');
 const { Collections } = require('./const');
 const UserProps = require('../user_property');
-const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId } = require('./boost_util');
+const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId, sendDelete } = require('./boost_util');
 const Message = require('../message');
 
 // deps
@@ -196,6 +196,8 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                         return this._likeSelected(cb);
                     case 'r':
                         return this._replySelected(cb);
+                    case 'd':
+                        return this._deleteSelected(cb);
                     case 't':
                     case '+':
                         return this._openThread(cb);
@@ -491,11 +493,42 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         });
     }
 
+    _deleteSelected(cb) {
+        const item = this._selectedItem();
+        if (!item || !item.noteId) return cb(null);
+
+        //  Only allow deleting posts owned by the local user.
+        const localHandle = actorUrlToHandle(this._localActorId());
+        if (item.from !== localHandle) return cb(null);
+
+        sendDelete(this.client.user, item.noteId, err => {
+            if (err) {
+                if (err.code === ErrorCodes.AccessDenied) {
+                    //  Not our post — already guarded above, but handle gracefully.
+                    return cb(null);
+                }
+                this.client.log.warn({ noteId: item.noteId, err }, 'AP browser: delete failed');
+                return cb(null); // don't surface delivery errors to the user
+            }
+
+            //  Remove from local items array and redraw.
+            const listView = this.getView('main', MciViewIds.main.list);
+            const idx = this.items.indexOf(item);
+            if (idx !== -1) this.items.splice(idx, 1);
+            if (listView) {
+                listView.setItems(this.items);
+                listView.redraw();
+            }
+
+            return cb(null);
+        });
+    }
+
     _openThread(cb) {
         const item = this._selectedItem();
         if (!item || !item.contextId) return cb(null);
         return this.gotoMenu(
-            this.menuConfig.config.threadMenu || 'actPubThread',
+            this.menuConfig.config.threadMenu || 'activityPubThread',
             { extraArgs: { mode: Modes.Thread, contextId: item.contextId } },
             cb
         );

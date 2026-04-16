@@ -98,6 +98,21 @@ module.exports = class Activity extends ActivityPubObject {
         });
     }
 
+    //  https://www.w3.org/TR/activitypub/#delete-activity-outbox
+    static makeDelete(actorId, noteId, followersEndpoint) {
+        return new Activity({
+            id: Activity.activityObjectId(),
+            type: WellKnownActivity.Delete,
+            actor: actorId,
+            object: {
+                id:   noteId,
+                type: WellKnownActivity.Tombstone,
+            },
+            to: [PublicCollectionId],
+            cc: [followersEndpoint],
+        });
+    }
+
     static makeTombstone(obj) {
         const deleted = getISOTimestampString();
         return new Activity({

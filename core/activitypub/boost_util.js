@@ -52,6 +52,7 @@ exports.getBoostCount = getBoostCount;
 exports.getLikeActors = getLikeActors;
 exports.getLikeCount = getLikeCount;
 exports.messageForNoteId = messageForNoteId;
+exports.sendDelete = sendDelete;
 
 //
 //  Resolve an Announce's object field to a Note.
@@ -625,6 +626,93 @@ function messageForNoteId(noteId, cb) {
                 });
             });
         }
+    );
+}
+
+//  Outbound delete: build a Delete{Tombstone} activity, deliver it to the local
+//  user's followers' shared inboxes, and remove the note from the Outbox and
+//  sharedInbox collections.
+//
+//  noteId: the AP object ID (URL) of the Note to delete (must be owned by localUser).
+//
+function sendDelete(localUser, noteId, cb) {
+    const localActorId = localUser.getProperty(UserProps.ActivityPubActorId);
+    if (!localActorId) {
+        return cb(
+            Errors.MissingProperty(
+                `User "${localUser.username}" missing property '${UserProps.ActivityPubActorId}'`
+            )
+        );
+    }
+
+    const followersEndpoint = Endpoints.followers(localUser);
+    const deleteActivity = Activity.makeDelete(localActorId, noteId, followersEndpoint);
+
+    async.waterfall(
+        [
+            //  Guard: only allow deleting notes owned by this user.
+            callback => {
+                Collection.ownedObjectByNameAndId(
+                    Collections.Outbox,
+                    localUser,
+                    noteId,
+                    (err, obj) => {
+                        if (err) return callback(err);
+                        if (!obj) {
+                            return callback(
+                                Errors.AccessDenied(
+                                    `Note "${noteId}" not found in Outbox for "${localActorId}"`
+                                )
+                            );
+                        }
+                        return callback(null);
+                    }
+                );
+            },
+
+            //  Collect follower shared-inbox endpoints.
+            callback => {
+                _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
+                    return callback(err, sharedInboxes);
+                });
+            },
+
+            //  Deliver Delete activity to each follower shared inbox.
+            (sharedInboxes, callback) => {
+                async.eachLimit(
+                    sharedInboxes,
+                    4,
+                    (inbox, next) => {
+                        deleteActivity.sendTo(inbox, localUser, (err, body, res) => {
+                            if (err) {
+                                Log.warn(
+                                    { inbox, noteId, error: err.message },
+                                    'Failed to deliver Delete to shared inbox'
+                                );
+                            } else if (res.statusCode !== 200 && res.statusCode !== 202) {
+                                Log.warn(
+                                    { inbox, noteId, statusCode: res.statusCode },
+                                    'Unexpected status delivering Delete'
+                                );
+                            }
+                            return next(null); // don't abort on per-inbox failure
+                        });
+                    },
+                    callback
+                );
+            },
+
+            //  Remove from Outbox.
+            callback => {
+                Collection.removeOwnedById(Collections.Outbox, localUser, noteId, callback);
+            },
+
+            //  Remove from sharedInbox (in case it was echoed there).
+            callback => {
+                Collection.removeById(Collections.SharedInbox, noteId, callback);
+            },
+        ],
+        err => setImmediate(cb, err)
     );
 }
 

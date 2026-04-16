@@ -1486,6 +1486,28 @@
 				}
 			}
 
+			activityPubThread: {
+				config: {
+					mainInfoFormat10: "{modeLabel}"
+				}
+				0: {
+					mci: {
+						VM1: {
+							itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							height: 14
+							width: 72
+						}
+						TL10: {
+							width: 12
+						}
+						TL11: {
+							width: 5
+						}
+					}
+				}
+			}
+
 			activityPubBrowseLocal: {
 			config: {
 				mainInfoFormat10: "{modeLabel}"

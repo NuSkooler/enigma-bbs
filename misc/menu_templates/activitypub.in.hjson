@@ -339,6 +339,7 @@
       desc: ActivityPub Message Browser
       module: ./activitypub/activity_pub_msg_list
       config: {
+        threadMenu: activityPubThread
         art: {
           main: activitypub_msg_browser
         }
@@ -352,7 +353,37 @@
           }
           actionKeys: [
             {
-              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              action: @method:listKeyPressed
+            }
+            {
+              keys: ["escape", "q", "shift + q"]
+              action: @systemMethod:prevMenu
+            }
+          ]
+        }
+      }
+    }
+
+    activityPubThread: {
+      desc: ActivityPub Thread View
+      module: ./activitypub/activity_pub_msg_list
+      config: {
+        threadMenu: activityPubThread
+        art: {
+          main: activitypub_msg_browser
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {
+              focus: true
+            }
+          }
+          actionKeys: [
+            {
+              keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
             {
@@ -369,6 +400,7 @@
       module: ./activitypub/activity_pub_msg_list
       config: {
         mode: local
+        threadMenu: activityPubThread
         art: {
           main: activitypub_msg_browser
         }
@@ -382,7 +414,7 @@
           }
           actionKeys: [
             {
-              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
             {
@@ -399,6 +431,7 @@
       module: ./activitypub/activity_pub_msg_list
       config: {
         mode: favorites
+        threadMenu: activityPubThread
         art: {
           main: activitypub_msg_browser
         }
@@ -412,7 +445,7 @@
           }
           actionKeys: [
             {
-              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
             {
@@ -429,6 +462,7 @@
       module: ./activitypub/activity_pub_msg_list
       config: {
         mode: mentions
+        threadMenu: activityPubThread
         art: {
           main: activitypub_msg_browser
         }
@@ -442,7 +476,7 @@
           }
           actionKeys: [
             {
-              keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
             {
