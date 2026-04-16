@@ -1301,6 +1301,28 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //
+    //  Count public Create{Note} activities across all local user outboxes.
+    //  Used by NodeInfo2 for the `localPosts` field.
+    //
+    static countLocalPosts(cb) {
+        try {
+            const row = apDb
+                .prepare(
+                    `SELECT COUNT(*) AS n
+                     FROM collection
+                     WHERE name = 'outbox'
+                       AND is_private = 0
+                       AND json_extract(object_json, '$.type')        = 'Create'
+                       AND json_extract(object_json, '$.object.type') = 'Note'`
+                )
+                .get();
+            return cb(null, row ? row.n : 0);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static _rowToObjectInfo(row) {
         return {
             name: row.name,

@@ -7,10 +7,45 @@ const StatLog = require('../../../stat_log');
 const SysProps = require('../../../system_property');
 const SysLogKeys = require('../../../system_log');
 const { getBaseUrl, getWebDomain } = require('../../../web_util');
+const Collection = require('../../activitypub/collection');
 
 // deps
+const { get: _get } = require('lodash');
 const moment = require('moment');
 const async = require('async');
+
+function _buildProtocols(config) {
+    const p = [];
+
+    //  Telnet: core BBS protocol; enabled unless explicitly set to false.
+    if (_get(config, 'loginServers.telnet.enabled', true)) p.push('telnet');
+
+    if (_get(config, 'loginServers.ssh.enabled', false)) p.push('ssh');
+
+    //  WebSocket (ws/wss share the same NodeInfo2 token).
+    if (
+        _get(config, 'loginServers.webSocket.ws.enabled', false) ||
+        _get(config, 'loginServers.webSocket.wss.enabled', false)
+    ) {
+        p.push('ws');
+    }
+
+    if (_get(config, 'contentServers.gopher.enabled', false)) p.push('gopher');
+
+    //  NNTP: either plain or TLS counts.
+    if (
+        _get(config, 'contentServers.nntp.nntp.enabled', false) ||
+        _get(config, 'contentServers.nntp.nntps.enabled', false)
+    ) {
+        p.push('nntp');
+    }
+
+    if (_get(config, 'contentServers.web.handlers.activityPub.enabled', false)) {
+        p.push('activitypub');
+    }
+
+    return p;
+}
 
 exports.moduleInfo = {
     name: 'NodeInfo2',
@@ -71,24 +106,17 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
                 software: 'ENiGMA½ Bulletin Board Software',
                 version: packageJson.version,
             },
-            //  :TODO: Only list what's enabled
-            protocols: ['telnet', 'ssh', 'gopher', 'nntp', 'ws', 'activitypub'],
+            protocols: _buildProtocols(config),
 
-            //  :TODO: what should we really be doing here???
-            // services: {
-            //     inbound: [],
-            //     outbound: [],
-            // },
+            //  ENiGMA does not integrate with any external services (RSS, email, etc.)
+            services: { inbound: [], outbound: [] },
             openRegistrations: !config.general.closedSystem,
             usage: {
                 users: {
                     total: StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1,
                     // others fetched dynamically below
                 },
-
-                //  :TODO: pop with local message
-                //   select count() from message_meta where meta_name='local_from_user_id';
-                localPosts: 0,
+                localPosts: 0, // updated below
             },
         };
 
@@ -116,6 +144,14 @@ exports.getModule = class NodeInfo2WebHandler extends WebHandlerModule {
                 },
                 callback => {
                     return setActive(7, 'activeWeek', callback);
+                },
+                callback => {
+                    Collection.countLocalPosts((err, count) => {
+                        if (!err) {
+                            nodeInfo.usage.localPosts = count;
+                        }
+                        return callback(null); // non-fatal
+                    });
                 },
             ],
             () => {

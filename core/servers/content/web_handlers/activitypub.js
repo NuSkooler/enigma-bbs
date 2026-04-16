@@ -161,6 +161,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             handler: this._noteSharesGetHandler.bind(this),
         });
 
+        this.webServer.addRoute({
+            method: 'GET',
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/context
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/context$/,
+            handler: this._noteContextGetHandler.bind(this),
+        });
+
         //  :TODO: NYI
         // this.webServer.addRoute({
         //     method: 'GET',
@@ -1383,6 +1390,56 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _noteSharesGetHandler(req, resp) {
         return this._noteReactionCollectionHandler(req, resp, 'Announce');
+    }
+
+    _noteContextGetHandler(req, resp) {
+        this.log.debug({ url: req.url }, 'Request for "Note" context collection');
+
+        //  Reconstruct the Note ID by stripping the /context suffix.
+        const fullUrl = getFullUrl(req).toString();
+        const noteId = fullUrl.replace(/\/context$/, '');
+
+        //  The context ID for a root note equals the noteId itself; for replies it
+        //  equals the root's noteId.  Use noteId as the context to query, which
+        //  returns all notes in the thread whose context field points to this note.
+        Collection.getCollectionByContext(
+            Collections.SharedInbox,
+            noteId,
+            (err, result) => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                const notes = [];
+                (result.rows || []).forEach(row => {
+                    try {
+                        const activity = JSON.parse(row.object_json);
+                        if (
+                            activity &&
+                            typeof activity.object === 'object' &&
+                            activity.object.type === 'Note'
+                        ) {
+                            notes.push(activity.object);
+                        }
+                    } catch (_) {
+                        // skip malformed rows
+                    }
+                });
+
+                const collection = {
+                    '@context': 'https://www.w3.org/ns/activitystreams',
+                    id: fullUrl,
+                    type: 'OrderedCollection',
+                    totalItems: notes.length,
+                    orderedItems: notes,
+                };
+
+                const body = JSON.stringify(collection);
+                return this.webServer.ok(resp, body, {
+                    'Content-Type': ActivityStreamMediaType,
+                });
+            }
+        );
     }
 
     _noteReactionCollectionHandler(req, resp, reactionType) {
