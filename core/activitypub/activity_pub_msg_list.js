@@ -144,11 +144,6 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         this.contextId = _.get(options, 'extraArgs.contextId'); // thread mode
         this.actorId = _.get(options, 'extraArgs.actorId'); // timeline mode
 
-        //  When opened as a child (e.g. thread view), the parent passes its own
-        //  focused item index here so we can return it via getMenuResult() on exit,
-        //  allowing the parent to restore its scroll position correctly.
-        this.returnItemIndex = _.get(options, 'extraArgs.returnItemIndex');
-
         //  Configurable display indicators — operator overrides via menu config.
         //  CP437 defaults: ♥ = 0x03, ▲ = 0x1E, * = attachment
         this.indicators = {
@@ -169,7 +164,15 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         this.hasMore = true;
         this.loading = false;
 
-        //  Restore focus position when returning from the viewer.
+        //  Tracked focus index — updated by 'index update' events and when
+        //  position is explicitly restored.  Used by getSaveState().
+        this._focusIndex = 0;
+
+        //  Restore focus position when returning from a sub-menu (viewer or thread).
+        //  lastMenuResult.itemIndex is set by the viewer's getMenuResult() when
+        //  it tracked navigation within the browser list.  savedState (via
+        //  restoreSavedState) is the fallback for cases where no lastMenuResult
+        //  is present (e.g. returning from thread view).
         this.restoreItemIndex = _.get(options, 'lastMenuResult.itemIndex', 0);
 
         this.menuMethods = {
@@ -221,14 +224,32 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                 cb => this.beforeArt(cb),
                 cb => this._displayMainPage(cb),
                 cb => {
-                    if (this.restoreItemIndex > 0) {
+                    if (this.restoreItemIndex <= 0) return cb(null);
+                    //  The first page may not contain the saved index (e.g. index 46
+                    //  with PageSize 25).  Keep fetching pages until we have enough
+                    //  items, then restore focus.
+                    const tryRestore = () => {
                         const listView = this.getView('main', MciViewIds.main.list);
-                        if (listView && this.restoreItemIndex < listView.items.length) {
-                            listView.setFocusItemIndex(this.restoreItemIndex);
-                            //  setFocusItemIndex already calls redraw() internally
+                        if (this.restoreItemIndex < this.items.length) {
+                            if (listView) {
+                                listView.setFocusItemIndex(this.restoreItemIndex);
+                                this._focusIndex = this.restoreItemIndex;
+                            }
+                            return cb(null);
                         }
-                    }
-                    return cb(null);
+                        if (!this.hasMore) return cb(null); // index beyond all available items
+                        this.loading = true;
+                        this._loadPage(() => {
+                            this.loading = false;
+                            if (listView) {
+                                listView.setItems(this.items);
+                                listView.redraw();
+                                this._updateCustomViews();
+                            }
+                            tryRestore();
+                        });
+                    };
+                    tryRestore();
                 },
             ],
             () => this.finishedLoading()
@@ -255,6 +276,9 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                     this._updateCustomViews();
 
                     listView.on('index update', index => {
+                        //  Track current position for getSaveState().
+                        this._focusIndex = index;
+
                         //  Lazy-load next page when within 5 items of the end.
                         //  Thread mode loads everything at once so hasMore will be false.
                         if (
@@ -498,17 +522,21 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         });
     }
 
-    //  Return the item index the parent should restore to when we exit.
-    //  - Thread mode: return returnItemIndex (the parent's index, passed in extraArgs)
-    //    so the parent re-instantiates at the right position.
-    //  - Primary browser: return our own focus index (read by the parent viewer
-    //    via its own getMenuResult — this path is rarely used but safe to have).
-    getMenuResult() {
-        if (this.returnItemIndex !== undefined) {
-            return { itemIndex: this.returnItemIndex };
+    //  Save current scroll position so the parent (or ourselves on re-entry) can
+    //  restore it.  Called by menu_stack.goto() before we are suspended.
+    //  Uses this._focusIndex (not the view) to avoid any timing dependency on
+    //  whether the view controller is still attached.
+    getSaveState() {
+        return { focusIndex: this._focusIndex };
+    }
+
+    //  Called by menu_stack after the new instance is created but before run().
+    //  Only apply savedState when lastMenuResult didn't give us a position (i.e.
+    //  we are returning from a thread browser rather than the item viewer).
+    restoreSavedState(savedState) {
+        if (savedState && this.restoreItemIndex === 0) {
+            this.restoreItemIndex = savedState.focusIndex || 0;
         }
-        const listView = this.getView('main', MciViewIds.main.list);
-        return { itemIndex: listView ? listView.getFocusItemIndex() : 0 };
     }
 
     _deleteSelected(cb) {
@@ -543,19 +571,11 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
     }
 
     _openThread(cb) {
-        const listView = this.getView('main', MciViewIds.main.list);
-        const currentIndex = listView ? listView.getFocusItemIndex() : 0;
         const item = this._selectedItem();
         if (!item || !item.contextId) return cb(null);
         return this.gotoMenu(
             this.menuConfig.config.threadMenu || 'activityPubThread',
-            {
-                extraArgs: {
-                    mode: Modes.Thread,
-                    contextId: item.contextId,
-                    returnItemIndex: currentIndex,
-                },
-            },
+            { extraArgs: { mode: Modes.Thread, contextId: item.contextId } },
             cb
         );
     }
