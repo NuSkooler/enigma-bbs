@@ -11,6 +11,8 @@ const Endpoints = require('../activitypub/endpoint');
 const { getAddressedToInfo } = require('../mail_util');
 const { PublicCollectionId } = require('../activitypub/const');
 const Actor = require('../activitypub/actor');
+const StatLog = require('../stat_log');
+const UserProps = require('../user_property');
 
 // deps
 const async = require('async');
@@ -191,6 +193,9 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                                     { localId, activityId: activity.id, noteId: note.id },
                                     'Note Activity persisted to "outbox" collection"'
                                 );
+                                if (!message.isPrivate()) {
+                                    StatLog.incrementUserStat(fromUser, UserProps.ApPostCount, 1);
+                                }
                             }
                             return callback(err, activity);
                         }

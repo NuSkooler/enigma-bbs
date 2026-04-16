@@ -111,12 +111,18 @@ const REMOTE_ACTOR_ID = 'https://remote.example.com/users/alice';
 
 //  Minimal local user stub — follow_util.js reads ActivityPubActorId property.
 function makeLocalUser(actorId = LOCAL_ACTOR_ID) {
+    const props = {};
     return {
         username: 'bob',
         getProperty: prop => {
             if (prop === 'activitypub_actor_id') return actorId;
             if (prop === 'private_key_activitypub_sign_rsa_pem') return 'dummy-key';
-            return null;
+            return props[prop] || null;
+        },
+        getPropertyAsNumber: prop => parseInt(props[prop] || 0) || 0,
+        persistProperty: (prop, val, cb) => {
+            props[prop] = String(val);
+            if (cb) cb(null);
         },
     };
 }

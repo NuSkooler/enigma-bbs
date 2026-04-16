@@ -667,6 +667,148 @@
             }
         }
 
+        ap_post_count: {
+            type: userStatIncNewVal
+            statName: ap_post_count
+            match: {
+                1: {
+                    title: "Federated!"
+                    globalText: "{userName} made their first post to the Fediverse!"
+                    text: "You made your first post to the Fediverse!"
+                    points: 5
+                }
+                10: {
+                    title: "Getting Social"
+                    globalText: "{userName} has posted {achievedValue} notes to the Fediverse!"
+                    text: "You've posted {achievedValue} notes to the Fediverse!"
+                    points: 10
+                }
+                50: {
+                    title: "Fedi Regular"
+                    globalText: "{userName} has posted {achievedValue} notes to the Fediverse!"
+                    text: "You've posted {achievedValue} notes to the Fediverse!"
+                    points: 20
+                }
+                100: {
+                    title: "Prolific Poster"
+                    globalText: "{userName} has posted {achievedValue} notes to the Fediverse!"
+                    text: "You've posted {achievedValue} notes to the Fediverse!"
+                    points: 35
+                }
+                500: {
+                    title: "Fedi Legend"
+                    globalText: "{userName} has posted {achievedValue} notes to the Fediverse. Legendary!"
+                    text: "You've posted {achievedValue} notes to the Fediverse. Legendary!"
+                    points: 75
+                }
+            }
+        }
+
+        ap_boost_count: {
+            type: userStatIncNewVal
+            statName: ap_boost_count
+            match: {
+                1: {
+                    title: "Signal Booster"
+                    globalText: "{userName} boosted their first post!"
+                    text: "You boosted your first post!"
+                    points: 5
+                }
+                10: {
+                    title: "Amplifier"
+                    globalText: "{userName} has boosted {achievedValue} posts!"
+                    text: "You've boosted {achievedValue} posts!"
+                    points: 10
+                }
+                50: {
+                    title: "Megaphone"
+                    globalText: "{userName} has boosted {achievedValue} posts!"
+                    text: "You've boosted {achievedValue} posts!"
+                    points: 20
+                }
+                100: {
+                    title: "The Algorithm"
+                    globalText: "{userName} has boosted {achievedValue} posts. They ARE the algorithm!"
+                    text: "You've boosted {achievedValue} posts. You ARE the algorithm!"
+                    points: 35
+                }
+            }
+        }
+
+        ap_like_count: {
+            type: userStatIncNewVal
+            statName: ap_like_count
+            match: {
+                1: {
+                    title: "Generous Heart"
+                    globalText: "{userName} gave their first like on the Fediverse!"
+                    text: "You gave your first like on the Fediverse!"
+                    points: 5
+                }
+                10: {
+                    title: "Appreciator"
+                    globalText: "{userName} has liked {achievedValue} posts!"
+                    text: "You've liked {achievedValue} posts!"
+                    points: 10
+                }
+                50: {
+                    title: "Enthusiast"
+                    globalText: "{userName} has liked {achievedValue} posts!"
+                    text: "You've liked {achievedValue} posts!"
+                    points: 15
+                }
+                100: {
+                    title: "Heart Emoji Energy"
+                    globalText: "{userName} has liked {achievedValue} posts!"
+                    text: "You've liked {achievedValue} posts. Maximum heart energy!"
+                    points: 25
+                }
+            }
+        }
+
+        ap_delete_count: {
+            type: userStatIncNewVal
+            statName: ap_delete_count
+            match: {
+                1: {
+                    title: "Second Thoughts"
+                    text: "You deleted one of your own posts. No regrets!"
+                    points: 5
+                }
+            }
+        }
+
+        ap_follow_count: {
+            type: userStatIncNewVal
+            statName: ap_follow_count
+            match: {
+                1: {
+                    title: "Connected"
+                    globalText: "{userName} followed their first Fediverse account!"
+                    text: "You followed your first Fediverse account!"
+                    points: 5
+                }
+                5: {
+                    title: "Building a Feed"
+                    globalText: "{userName} is following {achievedValue} Fediverse accounts!"
+                    text: "You're following {achievedValue} Fediverse accounts!"
+                    points: 10
+                }
+                20: {
+                    title: "Networked"
+                    globalText: "{userName} is following {achievedValue} Fediverse accounts!"
+                    text: "You're following {achievedValue} Fediverse accounts!"
+                    points: 20
+                }
+                50: {
+                    title: "Fedi Socialite"
+                    globalText: "{userName} is following {achievedValue} Fediverse accounts. Quite the socialite!"
+                    text: "You're following {achievedValue} Fediverse accounts. Quite the socialite!"
+                    points: 35
+                }
+            }
+        }
+
         user_failed_login_count: {
             type: userStatIncNewVal
             statName: failed_login_attempts

@@ -725,11 +725,17 @@ describe('sendBoost() outbound reaction tracking', function () {
     const NOTE_ID = 'https://remote.example.com/notes/outbound-boost-1';
     const ACTOR_ID = 'https://test.example.com/_enig/ap/users/testuser';
 
+    const _boostUserProps = {};
     const mockUser = {
         username: 'testuser',
         getProperty: prop => {
             if (prop === UserProps.ActivityPubActorId) return ACTOR_ID;
-            return null;
+            return _boostUserProps[prop] || null;
+        },
+        getPropertyAsNumber: prop => parseInt(_boostUserProps[prop] || 0) || 0,
+        persistProperty: (prop, val, cb) => {
+            _boostUserProps[prop] = String(val);
+            if (cb) cb(null);
         },
     };
 
@@ -787,11 +793,17 @@ describe('sendLike() outbound reaction tracking', function () {
     const NOTE_ID = 'https://remote.example.com/notes/outbound-like-1';
     const ACTOR_ID = 'https://test.example.com/_enig/ap/users/testuser';
 
+    const _likeUserProps = {};
     const mockUser = {
         username: 'testuser',
         getProperty: prop => {
             if (prop === UserProps.ActivityPubActorId) return ACTOR_ID;
-            return null;
+            return _likeUserProps[prop] || null;
+        },
+        getPropertyAsNumber: prop => parseInt(_likeUserProps[prop] || 0) || 0,
+        persistProperty: (prop, val, cb) => {
+            _likeUserProps[prop] = String(val);
+            if (cb) cb(null);
         },
     };
 

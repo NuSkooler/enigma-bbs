@@ -1,6 +1,7 @@
 const { Collections, WellKnownActivity } = require('./const');
 const ActivityPubObject = require('./object');
 const UserProps = require('../user_property');
+const StatLog = require('../stat_log');
 const { Errors } = require('../enig_error');
 const Collection = require('./collection');
 const Actor = require('./actor');
@@ -39,7 +40,12 @@ function sendFollowRequest(fromUser, toActor, cb) {
             return cb(err);
         }
 
-        return followRequest.sendTo(toActor.inbox, fromUser, cb);
+        return followRequest.sendTo(toActor.inbox, fromUser, (err, body, res) => {
+            if (!err) {
+                StatLog.incrementUserStat(fromUser, UserProps.ApFollowCount, 1);
+            }
+            return cb(err, body, res);
+        });
     });
 }
 

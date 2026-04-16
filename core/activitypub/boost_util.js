@@ -29,6 +29,7 @@ const { getJson } = require('../http_util');
 const { Errors } = require('../enig_error');
 const { ActivityStreamMediaType, Collections, PublicCollectionId } = require('./const');
 const UserProps = require('../user_property');
+const StatLog = require('../stat_log');
 const Log = require('../logger').log;
 const Message = require('../message');
 
@@ -259,6 +260,12 @@ function sendBoost(localUser, noteId, cb) {
             (_rowid, callback) => {
                 Collection.addReaction(noteId, localActorId, 'Announce', announce.id, callback);
             },
+
+            //  Track for AP boost achievement.
+            callback => {
+                StatLog.incrementUserStat(localUser, UserProps.ApBoostCount, 1);
+                return callback(null);
+            },
         ],
         //  setImmediate ensures the caller's callback fires on a fresh tick
         //  even though all steps run synchronously (better-sqlite3).
@@ -449,6 +456,12 @@ function sendLike(localUser, noteId, cb) {
             //  _rowid is the lastInsertRowid from addOutboxItem; ignored here.
             (_rowid, callback) => {
                 Collection.addReaction(noteId, localActorId, 'Like', like.id, callback);
+            },
+
+            //  Track for AP like achievement.
+            callback => {
+                StatLog.incrementUserStat(localUser, UserProps.ApLikeCount, 1);
+                return callback(null);
             },
         ],
         //  setImmediate ensures the caller's callback fires on a fresh tick.
@@ -715,7 +728,12 @@ function sendDelete(localUser, noteId, cb) {
                 Collection.removeById(Collections.SharedInbox, noteId, callback);
             },
         ],
-        err => setImmediate(cb, err)
+        err => {
+            if (!err) {
+                StatLog.incrementUserStat(localUser, UserProps.ApDeleteCount, 1);
+            }
+            return setImmediate(cb, err);
+        }
     );
 }
 

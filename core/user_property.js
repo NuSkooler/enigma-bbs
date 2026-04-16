@@ -57,6 +57,13 @@ module.exports = {
     DoorRunTotalCount: 'door_run_total_count',
     DoorRunTotalMinutes: 'door_run_total_minutes',
 
+    //  ActivityPub activity counters (used for AP achievements)
+    ApPostCount:   'ap_post_count',
+    ApBoostCount:  'ap_boost_count',
+    ApLikeCount:   'ap_like_count',
+    ApDeleteCount: 'ap_delete_count',
+    ApFollowCount: 'ap_follow_count',
+
     AchievementTotalCount: 'achievement_total_count',
     AchievementTotalPoints: 'achievement_total_points',
 
