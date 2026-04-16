@@ -109,7 +109,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                     localUser,
                     localActor,
                     DefaultProfileTemplate,
-                    'text/plain',
+                    'text/html',
                     (err, body, contentType) => {
                         if (err) {
                             return this.webServer.resourceNotFound(resp);
@@ -215,7 +215,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         const href = Endpoints.profile(user);
         return {
             rel: 'http://webfinger.net/rel/profile-page',
-            type: 'text/plain',
+            type: 'text/html',
             href,
         };
     }

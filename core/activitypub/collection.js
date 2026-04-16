@@ -1323,6 +1323,38 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //
+    //  Fetch the most recent |limit| public Create{Note|Article} activities
+    //  from a user's outbox collection, newest first.  Used by the profile
+    //  template renderer to show recent posts on the web profile page.
+    //
+    static recentPublicPosts(outboxCollectionId, limit, cb) {
+        let rows;
+        try {
+            rows = apDb
+                .prepare(
+                    `SELECT object_json
+                     FROM collection
+                     WHERE name = ? AND collection_id = ? AND is_private = FALSE
+                       AND json_extract(object_json, '$.type') = 'Create'
+                       AND json_extract(object_json, '$.object.type') IN ('Note', 'Article')
+                     ORDER BY timestamp DESC
+                     LIMIT ?`
+                )
+                .all(Collections.Outbox, outboxCollectionId, limit);
+        } catch (err) {
+            return cb(err);
+        }
+
+        let posts;
+        try {
+            posts = (rows || []).map(r => JSON.parse(r.object_json));
+        } catch (e) {
+            posts = [];
+        }
+        return cb(null, posts);
+    }
+
     static _rowToObjectInfo(row) {
         return {
             name: row.name,

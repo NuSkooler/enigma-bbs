@@ -1500,7 +1500,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             localUser,
             localActor,
             DefaultProfileTemplate,
-            'text/plain',
+            'text/html',
             (err, body, contentType) => {
                 if (err) {
                     return this.webServer.resourceNotFound(resp);

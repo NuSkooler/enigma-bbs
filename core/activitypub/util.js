@@ -17,6 +17,7 @@ const anyAscii = require('../anyascii/any-ascii');
 const _ = require('lodash');
 const mimeTypes = require('mime-types');
 const waterfall = require('async/waterfall');
+const parallel = require('async/parallel');
 const fs = require('graceful-fs');
 const paths = require('path');
 const moment = require('moment');
@@ -38,17 +39,172 @@ exports.extractMessageMetadata = extractMessageMetadata;
 exports.recipientIdsFromObject = recipientIdsFromObject;
 exports.prepareLocalUserAsActor = prepareLocalUserAsActor;
 
-//  :TODO: more info in default
-// this profile template is the *default* for both WebFinger
-// profiles and 'self' requests without the
-// Accept: application/activity+json headers present
-exports.DefaultProfileTemplate = `
-User information for: %PREFERRED_USERNAME%
+//  Default HTML profile page served for WebFinger profile requests and
+//  'self' actor requests that lack the Accept: application/activity+json header.
+//  Operators may override via contentServers.web.handlers.webFinger.profileTemplate
+//  (webfinger) or contentServers.web.handlers.activityPub.selfTemplate (AP self).
+//
+//  Available template vars (scalar, HTML-encoded):
+//    %PREFERRED_USERNAME%  %NAME%           %SUBJECT%         %BOARDNAME%
+//    %FOLLOWER_COUNT%      %FOLLOWING_COUNT% %LOGIN_COUNT%
+//    %ACHIEVEMENT_COUNT%   %ACHIEVEMENT_POINTS%
+//    %LOCATION%            %AFFILIATIONS%   %WEB_ADDRESS%
+//    %ACCOUNT_CREATED%     %LAST_LOGIN%     %AGE%             %SEX%
+//    %USER_ICON%           %USER_IMAGE%
+//    %INBOX%               %OUTBOX%         %FOLLOWERS%       %FOLLOWING%
+//    %ACTOR_OBJ%           (full actor JSON)
+//
+//  Raw HTML vars (not encoded — HTML templates only):
+//    %AVATAR_HTML%         %SUMMARY_HTML%
+//    %RECENT_POSTS_HTML%   %RECENT_POSTS_TEXT%
+//
+exports.DefaultProfileTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>@%PREFERRED_USERNAME% \u2014 %BOARDNAME%</title>
+  <style>
+    :root {
+      --bg:     #080808;
+      --panel:  #101010;
+      --border: #1a6b3a;
+      --head:   #33dd66;
+      --label:  #668866;
+      --text:   #aabbaa;
+      --link:   #44aaff;
+      --accent: #ffaa33;
+      --muted:  #445544;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      line-height: 1.65;
+      padding: 2rem 1rem;
+    }
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 740px; margin: 0 auto; }
+    .board-line {
+      color: var(--muted);
+      font-size: 0.8em;
+      border-bottom: 1px solid var(--muted);
+      padding-bottom: 0.4rem;
+      margin-bottom: 1.5rem;
+    }
+    .profile-header {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+      margin-bottom: 1.5rem;
+    }
+    .avatar {
+      width: 72px; height: 72px;
+      border: 2px solid var(--border);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .avatar-placeholder {
+      width: 72px; height: 72px;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--border);
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+    .handle { color: var(--head); font-size: 1.2em; font-weight: bold; }
+    .display-name { color: var(--accent); margin-top: 0.15rem; }
+    .summary { color: var(--text); margin-top: 0.4rem; font-size: 0.9em; max-width: 500px; }
+    .social-line {
+      margin-top: 0.5rem;
+      color: var(--label);
+      font-size: 0.85em;
+    }
+    .social-line strong { color: var(--text); }
+    .section {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 0.6rem 1rem 0.8rem;
+      margin-bottom: 1.25rem;
+    }
+    .section-head {
+      color: var(--border);
+      font-size: 0.75em;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      border-bottom: 1px solid #0e2e1a;
+      padding-bottom: 0.3rem;
+      margin-bottom: 0.6rem;
+    }
+    .kv { display: grid; grid-template-columns: 148px 1fr; gap: 0.15rem 0.5rem; }
+    .kv-l { color: var(--label); }
+    .kv-v { color: var(--text); word-break: break-word; }
+    .recent-posts { list-style: none; padding: 0; }
+    .recent-posts li {
+      padding: 0.35rem 0;
+      border-bottom: 1px solid #141f14;
+      font-size: 0.88em;
+    }
+    .recent-posts li:last-child { border-bottom: none; }
+    .post-date { color: var(--muted); margin-right: 0.4rem; }
+    .post-subject { color: var(--accent); }
+    .no-posts { color: var(--muted); font-size: 0.88em; font-style: italic; }
+    .footer {
+      margin-top: 2rem;
+      color: var(--muted);
+      font-size: 0.75em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
 
-Name: %NAME%
-Login Count: %LOGIN_COUNT%
-Affiliations: %AFFILIATIONS%
-Achievement Points: %ACHIEVEMENT_POINTS%
+  <div class="board-line">%BOARDNAME%</div>
+
+  <div class="profile-header">
+    %AVATAR_HTML%
+    <div>
+      <div class="handle">@%PREFERRED_USERNAME%</div>
+      <div class="display-name">%NAME%</div>
+      %SUMMARY_HTML%
+      <div class="social-line">
+        <strong>%FOLLOWER_COUNT%</strong> followers &nbsp;&middot;&nbsp;
+        <strong>%FOLLOWING_COUNT%</strong> following &nbsp;&middot;&nbsp;
+        <strong>%LOGIN_COUNT%</strong> logins
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">Info</div>
+    <div class="kv">
+      <div class="kv-l">Location</div>       <div class="kv-v">%LOCATION%</div>
+      <div class="kv-l">Affiliations</div>   <div class="kv-v">%AFFILIATIONS%</div>
+      <div class="kv-l">Web</div>            <div class="kv-v"><a href="%WEB_ADDRESS%">%WEB_ADDRESS%</a></div>
+      <div class="kv-l">Member since</div>   <div class="kv-v">%ACCOUNT_CREATED%</div>
+      <div class="kv-l">Last seen</div>      <div class="kv-v">%LAST_LOGIN%</div>
+      <div class="kv-l">Achievements</div>   <div class="kv-v">%ACHIEVEMENT_COUNT% &nbsp;(%ACHIEVEMENT_POINTS% pts)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">Recent Posts</div>
+    %RECENT_POSTS_HTML%
+  </div>
+
+  <div class="footer">
+    Powered by <a href="https://enigma-bbs.github.io">ENiGMA&frac12; BBS</a>
+  </div>
+
+</div>
+</body>
+</html>
 `;
 
 function parseTimestampOrNow(s) {
@@ -103,6 +259,67 @@ function userFromActorId(actorId, cb) {
     });
 }
 
+function _notePreview(note, maxLen) {
+    const raw = note.content || note.name || note.summary || '';
+    const text = (stripHtml(raw).result || '').replace(/\s+/g, ' ').trim();
+    return text.length > maxLen ? text.slice(0, maxLen - 1) + '\u2026' : text || '(no content)';
+}
+
+function _formatRecentPostsHtml(posts) {
+    if (!posts || posts.length === 0) {
+        return '<p class="no-posts">No posts yet.</p>';
+    }
+    const items = posts
+        .map(activity => {
+            const note = activity.object || {};
+            const url = encode(note.url || note.id || '#');
+            const subject = note.name || note.summary || '';
+            const preview = encode(_notePreview(note, 100));
+            const date = activity.published
+                ? moment(activity.published).format('YYYY-MM-DD')
+                : '';
+            const subjectPart = subject
+                ? `<span class="post-subject">${encode(subject)}</span> \u2014 `
+                : '';
+            return `  <li><span class="post-date">${encode(date)}</span> ${subjectPart}<a href="${url}">${preview}</a></li>`;
+        })
+        .join('\n');
+    return `<ul class="recent-posts">\n${items}\n</ul>`;
+}
+
+function _formatRecentPostsText(posts) {
+    if (!posts || posts.length === 0) {
+        return '  (no posts yet)';
+    }
+    return posts
+        .map(activity => {
+            const note = activity.object || {};
+            const url = note.url || note.id || '';
+            const preview = _notePreview(note, 72);
+            const date = activity.published
+                ? moment(activity.published).format('YYYY-MM-DD')
+                : '';
+            return `  ${date}  ${preview}\n  ${url}`;
+        })
+        .join('\n\n');
+}
+
+function _actorAvatarHtml(actor) {
+    const iconUrl = get(actor, 'icon.url', '');
+    if (iconUrl) {
+        return `<img class="avatar" src="${encode(iconUrl)}" alt="avatar">`;
+    }
+    return '<div class="avatar-placeholder">[ ]</div>';
+}
+
+function _actorSummaryHtml(actor) {
+    //  actor.summary is AP HTML originating from our own local actor record.
+    if (!actor.summary) {
+        return '';
+    }
+    return `<div class="summary">${actor.summary}</div>`;
+}
+
 function getUserProfileTemplatedBody(
     templateFile,
     user,
@@ -133,6 +350,34 @@ function getUserProfileTemplatedBody(
                 return callback(null, template, contentType);
             },
             (template, contentType, callback) => {
+                //  Lazy require to avoid circular dep at module load time:
+                //  collection.js already requires util.js at its top level.
+                const Collection = require('./collection');
+
+                parallel(
+                    {
+                        followerCount: cb =>
+                            Collection.followers(userAsActor.followers, null, (err, coll) =>
+                                cb(null, err ? 0 : coll.totalItems)
+                            ),
+                        followingCount: cb =>
+                            Collection.following(userAsActor.following, null, (err, coll) =>
+                                cb(null, err ? 0 : coll.totalItems)
+                            ),
+                        recentPosts: cb =>
+                            Collection.recentPublicPosts(userAsActor.outbox, 10, (err, posts) =>
+                                cb(null, err ? [] : posts)
+                            ),
+                    },
+                    (err, collData) => {
+                        if (err) {
+                            collData = { followerCount: 0, followingCount: 0, recentPosts: [] };
+                        }
+                        return callback(null, template, contentType, collData);
+                    }
+                );
+            },
+            (template, contentType, collData, callback) => {
                 const val = v => {
                     if (isString(v)) {
                         return v ? encode(v) : '';
@@ -149,6 +394,7 @@ function getUserProfileTemplatedBody(
                     birthDate = moment(birthDate);
                 }
 
+                //  Encoded (HTML-safe) scalar vars.
                 const varMap = {
                     ACTOR_OBJ: JSON.stringify(userAsActor),
                     SUBJECT: userNameToSubject(user.username),
@@ -157,6 +403,8 @@ function getUserProfileTemplatedBody(
                     OUTBOX: userAsActor.outbox,
                     FOLLOWERS: userAsActor.followers,
                     FOLLOWING: userAsActor.following,
+                    FOLLOWER_COUNT: collData.followerCount,
+                    FOLLOWING_COUNT: collData.followingCount,
                     USER_ICON: get(userAsActor, 'icon.url', ''),
                     USER_IMAGE: get(userAsActor, 'image.url', ''),
                     PREFERRED_USERNAME: userAsActor.preferredUsername,
@@ -180,9 +428,21 @@ function getUserProfileTemplatedBody(
                     BOARDNAME: Config().general.boardName,
                 };
 
+                //  Raw HTML vars — substituted after the encoded pass so they
+                //  are never double-encoded.  Safe to use in HTML templates only.
+                const rawVars = {
+                    RECENT_POSTS_HTML: _formatRecentPostsHtml(collData.recentPosts),
+                    RECENT_POSTS_TEXT: _formatRecentPostsText(collData.recentPosts),
+                    AVATAR_HTML: _actorAvatarHtml(userAsActor),
+                    SUMMARY_HTML: _actorSummaryHtml(userAsActor),
+                };
+
                 let body = template;
                 _.each(varMap, (v, varName) => {
                     body = body.replace(new RegExp(`%${varName}%`, 'g'), val(v));
+                });
+                _.each(rawVars, (v, varName) => {
+                    body = body.replace(new RegExp(`%${varName}%`, 'g'), v);
                 });
 
                 return callback(null, body, contentType);
