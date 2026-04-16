@@ -23,6 +23,13 @@ const { htmlToMessageBody } = require('./util');
 const { sendFollowRequest, sendUnfollowRequest } = require('./follow_util');
 const { getServer } = require('../listening_server');
 const UserProps = require('../user_property');
+const {
+    padR,
+    ftsPhrase,
+    looksLikeActorId,
+    actorUrlToHandle,
+    noteToItem,
+} = require('./ap_search_util');
 const moment = require('moment');
 
 // deps
@@ -59,42 +66,7 @@ const Tabs = { People: 0, Posts: 1, Hashtags: 2 };
 
 const TabLabels = ['People', 'Posts', 'Hashtags'];
 
-//  Regex to detect a direct actor URL or @user@host handle — bypasses FTS5.
-const AP_HANDLE_RE = /^@\S+@\S+$/;
-const AP_URL_RE    = /^https?:\/\//i;
-
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-//  Pad / truncate s to exactly n chars.
-function padR(s, n) {
-    s = String(s == null ? '' : s);
-    return s.length >= n ? s.slice(0, n) : s.padEnd(n);
-}
-
-//  Wrap a user-supplied search term as an FTS5 phrase (double-quoted).
-//  Internal double-quotes are stripped so FTS5 doesn't choke.
-function ftsPhrase(term) {
-    return '"' + term.replace(/"/g, '') + '"';
-}
-
-//  True when input looks like a direct actor identifier rather than a search term.
-function looksLikeActorId(term) {
-    return AP_HANDLE_RE.test(term) || AP_URL_RE.test(term);
-}
-
-//  Extract a short display handle from an AP actor URL.
-//  https://mastodon.social/users/alice  →  @alice@mastodon.social
-function actorUrlToHandle(url) {
-    if (!url) return '';
-    try {
-        const u = new URL(url);
-        const parts = u.pathname.split('/').filter(Boolean);
-        const user = parts[parts.length - 1] || '?';
-        return `@${user}@${u.hostname}`;
-    } catch {
-        return url;
-    }
-}
 
 //  Build the default People result line (78 chars).
 //    handle(40) + ' ' + displayName(37)
@@ -135,21 +107,6 @@ function formatHashtagNoteLine(item) {
         ' ' +
         (item.hasAttachment ? '*' : ' ')
     );
-}
-
-//  Convert a sharedInbox Note into a viewer-compatible item object.
-function noteToItem(note, timestamp) {
-    const ts = timestamp || note.published || '';
-    const dateStr = ts ? moment(ts).format('MM/DD hh:mma') : '';
-    return {
-        from:          actorUrlToHandle(note.attributedTo),
-        subject:       note.name || note.summary || note.content || '',
-        date:          dateStr,
-        hasAttachment: Array.isArray(note.attachment) && note.attachment.length > 0,
-        noteId:        note.id,
-        contextId:     note.context || note.conversation || null,
-        inReplyTo:     note.inReplyTo || null,
-    };
 }
 
 // ─── module ───────────────────────────────────────────────────────────────────

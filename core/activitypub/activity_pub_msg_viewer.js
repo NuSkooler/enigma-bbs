@@ -6,6 +6,7 @@ const Collection = require('./collection');
 const { Collections } = require('./const');
 const { htmlToMessageBody } = require('./util');
 const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId } = require('./boost_util');
+const { actorUrlToHandle } = require('./ap_search_util');
 const Message = require('../message');
 
 // deps
@@ -50,19 +51,6 @@ const MciViewIds = {
 };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-function actorUrlToHandle(url) {
-    if (!url) return '';
-    try {
-        const u = new URL(url);
-        const m =
-            u.pathname.match(/\/users\/([^/]+)/) ||
-            u.pathname.match(/\/@([^/]+)/);
-        return m ? `@${m[1]}@${u.hostname}` : `@${u.hostname}`;
-    } catch (_) {
-        return String(url);
-    }
-}
 
 function formatSubject(note) {
     const base = (note.summary || note.name || '').trim();

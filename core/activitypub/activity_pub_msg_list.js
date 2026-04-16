@@ -6,6 +6,7 @@ const Collection = require('./collection');
 const { Collections } = require('./const');
 const UserProps = require('../user_property');
 const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId, sendDelete } = require('./boost_util');
+const { actorUrlToHandle } = require('./ap_search_util');
 const Message = require('../message');
 
 // deps
@@ -49,19 +50,6 @@ const ModeLabelMap = {
 const PageSize = 25;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-//  Convert an AP actor URL to a short @user@host handle.
-//  Handles both /users/name and /@name path conventions.
-function actorUrlToHandle(url) {
-    if (!url) return '';
-    try {
-        const u = new URL(url);
-        const m = u.pathname.match(/\/users\/([^/]+)/) || u.pathname.match(/\/@([^/]+)/);
-        return m ? `@${m[1]}@${u.hostname}` : `@${u.hostname}`;
-    } catch (_) {
-        return String(url);
-    }
-}
 
 //  Build the subject/summary field including [CW] or re: prefix.
 function formatSubject(note) {
