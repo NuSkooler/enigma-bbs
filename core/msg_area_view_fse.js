@@ -5,6 +5,11 @@
 const { FullScreenEditorModule, MciViewIds } = require('./fse.js');
 const Message = require('./message.js');
 
+// add from delete and edit function
+const path = require('path');
+const { execFile } = require('child_process');
+
+
 //  deps
 const _ = require('lodash');
 
@@ -119,6 +124,89 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
                 self.client.log(extraArgs, 'Missing extraArgs.menu');
                 return cb(null);
             },
+
+            editMessage: (formData, extraArgs, cb) => {
+                if (!_.isString(extraArgs.menu) || !self.message) {
+                    return cb(null);
+                }
+
+                const currentUser = self.client.user && self.client.user.username;
+                const fromUser = self.message.fromUserName || self.message.from_user_name;
+
+                const isAuthor =
+                    currentUser &&
+                    fromUser &&
+                    String(currentUser).toLowerCase() === String(fromUser).toLowerCase();
+
+                const isSysop = self.client.acs.check({ read: 'GM[sysops]' }, 'read', 'GM[users]');
+
+                if (!(isAuthor || isSysop)) {
+                    return cb(null);
+                }
+
+                const modOpts = {
+                    extraArgs: {
+                        messageAreaTag: self.messageAreaTag,
+                         editMessageUuid: self.message.messageUuid, // enthält subject/message/uuid/id
+                    },
+                };
+
+                return self.gotoMenu(extraArgs.menu, modOpts, cb);
+            },
+
+            deleteMessage: (formData, extraArgs, cb) => {
+                if (!self.message) {
+                    return cb(null);
+                }
+
+                // Nur Autor darf löschen 
+                const currentUser = self.client.user && self.client.user.username;
+                const fromUser =
+                    self.message.fromUserName ||
+                    self.message.from_user_name ||
+                    self.message.fromUser;
+
+                const isAuthor =
+                    currentUser &&
+                    fromUser &&
+                    String(currentUser).toLowerCase() === String(fromUser).toLowerCase();
+
+                const isSysop = self.client.acs.check({ read: 'GM[sysops]' }, 'read', 'GM[users]');
+
+                if (!(isAuthor || isSysop)) {
+                return cb(null);
+                }
+
+                const msgId = self.message.messageId || self.message.message_id;
+                if (!msgId) {
+                    return cb(null);
+                }
+
+                const dbPath = path.join(__dirname, '..', 'db', 'message.sqlite3');
+                const sql =
+                    "UPDATE message " +
+                    "SET subject='[DELETED]', " +
+                    "    modified_timestamp=datetime('now') " +
+                    "WHERE message_id=" + Number(msgId) + ";";
+
+                execFile('sqlite3', [dbPath, sql], (err, stdout, stderr) => {
+                    if (err) {
+                        // nicht hart crashen – nur loggen
+                        if (self.client && self.client.log) {
+                            self.client.log.error({ err: err.message, stderr }, 'deleteMessage failed');
+                        }
+                        return cb(null);
+                    }
+
+                    // neu laden, damit du es sofort siehst
+                    return self.loadMessageByUuid(
+                        self.messageList[self.messageIndex].messageUuid,
+                        cb
+                    );
+                });
+            },
+
+
         });
     }
 
