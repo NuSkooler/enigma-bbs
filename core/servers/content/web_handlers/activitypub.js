@@ -34,6 +34,8 @@ const { getFullUrl } = require('../../../web_util');
 const {
     validateRequestDate,
     verifyDigestHeader,
+    normalizeHttpSigHeader,
+    actorIdFromKeyId,
     MaxRequestAgeSecs,
 } = require('../../../activitypub/security');
 
@@ -182,6 +184,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         // the request must be signed, and the signature must be valid
         const signature = this._parseAndValidateSignature(req);
         if (!signature) {
+            this.log.warn(
+                { url: req.url, method: req.method },
+                'Signature validation failed — access denied'
+            );
             return this.webServer.accessDenied(resp);
         }
 
@@ -189,6 +195,16 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _parseAndValidateSignature(req) {
+        //  Normalize hs2019 → rsa-sha256 before parsing.
+        //  hs2019 is a draft-spec algorithm alias used by GoToSocial (and others);
+        //  it is functionally rsa-sha256 for RSA keys.
+        for (const h of ['signature', 'authorization']) {
+            if (req.headers[h] && req.headers[h].includes('hs2019')) {
+                this.log.info({ header: h }, 'Normalizing hs2019 → rsa-sha256');
+                req.headers[h] = normalizeHttpSigHeader(req.headers[h]);
+            }
+        }
+
         let signature;
         try {
             signature = httpSignature.parseRequest(req);
@@ -200,9 +216,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return null;
         }
 
-        //  quick check up front
+        //  Sanity check: keyId must be a non-empty URL. The AP ecosystem uses
+        //  many key ID conventions (#main-key, /main-key, /keys/1, etc.) so we
+        //  only enforce that it looks like a URL; actual key verification happens below.
         const keyId = signature.keyId;
-        if (!keyId || !keyId.endsWith('#main-key')) {
+        if (!keyId || !/^https?:\/\//i.test(keyId)) {
             return null;
         }
 
@@ -326,10 +344,12 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     : this.webServer.notImplemented(resp);
             }
 
+            const sigActorId = actorIdFromKeyId(signature.keyId);
+
             //  Fetch and validate the signature of the remote Actor
             this._getAssociatedActors(
                 getActorId(activity),
-                signature.keyId.split('#', 1)[0], // trim #main-key
+                sigActorId,
                 (err, remoteActor, signatureActor) => {
                     if (err) {
                         return this.webServer.accessDenied(resp);

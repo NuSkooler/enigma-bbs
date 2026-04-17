@@ -60,6 +60,8 @@ const Collection = require('../core/activitypub/collection.js');
 const {
     validateRequestDate,
     verifyDigestHeader,
+    normalizeHttpSigHeader,
+    actorIdFromKeyId,
     MaxRequestAgeSecs,
 } = require('../core/activitypub/security.js');
 
@@ -305,5 +307,79 @@ describe('verifyDigestHeader()', function () {
         const modified = Buffer.from(BODY);
         modified[0] = modified[0] ^ 0xff; // flip bits in first byte
         assert.equal(verifyDigestHeader(CORRECT_DIGEST, modified), false);
+    });
+});
+
+// ─── normalizeHttpSigHeader ───────────────────────────────────────────────────
+
+describe('normalizeHttpSigHeader()', function () {
+    it('rewrites hs2019 to rsa-sha256', () => {
+        const h = 'keyId="https://example.com/users/alice#main-key",algorithm="hs2019",headers="date",signature="abc"';
+        assert.ok(normalizeHttpSigHeader(h).includes('algorithm="rsa-sha256"'));
+        assert.ok(!normalizeHttpSigHeader(h).includes('hs2019'));
+    });
+
+    it('leaves rsa-sha256 unchanged', () => {
+        const h = 'keyId="https://example.com/users/alice#main-key",algorithm="rsa-sha256",headers="date",signature="abc"';
+        assert.equal(normalizeHttpSigHeader(h), h);
+    });
+
+    it('handles headers with no algorithm field', () => {
+        const h = 'keyId="https://example.com/users/alice#main-key",headers="date",signature="abc"';
+        assert.equal(normalizeHttpSigHeader(h), h);
+    });
+
+    it('returns falsy input unchanged', () => {
+        assert.equal(normalizeHttpSigHeader(null), null);
+        assert.equal(normalizeHttpSigHeader(''), '');
+    });
+});
+
+// ─── actorIdFromKeyId ─────────────────────────────────────────────────────────
+
+describe('actorIdFromKeyId()', function () {
+    it('strips fragment from Mastodon-style keyId', () => {
+        assert.equal(
+            actorIdFromKeyId('https://mastodon.social/users/alice#main-key'),
+            'https://mastodon.social/users/alice'
+        );
+    });
+
+    it('strips /main-key path segment from GoToSocial-style keyId', () => {
+        assert.equal(
+            actorIdFromKeyId('http://localhost:8181/users/bryan/main-key'),
+            'http://localhost:8181/users/bryan'
+        );
+    });
+
+    it('strips /publicKey path segment', () => {
+        assert.equal(
+            actorIdFromKeyId('https://example.com/users/alice/publicKey'),
+            'https://example.com/users/alice'
+        );
+    });
+
+    it('strips /keys/<id> path segment', () => {
+        assert.equal(
+            actorIdFromKeyId('https://example.com/users/alice/keys/1'),
+            'https://example.com/users/alice'
+        );
+    });
+
+    it('returns the keyId unchanged when no known suffix is present', () => {
+        assert.equal(
+            actorIdFromKeyId('https://example.com/users/alice'),
+            'https://example.com/users/alice'
+        );
+    });
+
+    it('returns null for non-URL input', () => {
+        assert.equal(actorIdFromKeyId('not-a-url'), null);
+        assert.equal(actorIdFromKeyId(''), null);
+        assert.equal(actorIdFromKeyId(null), null);
+    });
+
+    it('returns null for non-http(s) URLs', () => {
+        assert.equal(actorIdFromKeyId('ftp://example.com/key'), null);
     });
 });

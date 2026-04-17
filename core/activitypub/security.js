@@ -69,3 +69,48 @@ function verifyDigestHeader(digestHeader, rawBody) {
     return claimedDigest === actualDigest;
 }
 exports.verifyDigestHeader = verifyDigestHeader;
+
+//
+//  Normalize HTTP Signature algorithm names for compatibility with servers
+//  that use non-standard algorithm identifiers.
+//
+//  The 'hs2019' identifier (from draft-ietf-httpbis-message-signatures) is
+//  used by GoToSocial and potentially others.  For RSA keys it is functionally
+//  equivalent to rsa-sha256 and the http-signature library does not recognise
+//  it, so we rewrite it before parsing.
+//
+//  header — value of the 'signature' or 'authorization' header (string)
+//  Returns the (possibly rewritten) header value.
+//
+function normalizeHttpSigHeader(header) {
+    if (!header) return header;
+    return header.replace(/algorithm="hs2019"/g, 'algorithm="rsa-sha256"');
+}
+exports.normalizeHttpSigHeader = normalizeHttpSigHeader;
+
+//
+//  Derive the actor URL from an HTTP Signature keyId.
+//
+//  The ActivityPub ecosystem uses two conventions for key IDs:
+//    Fragment style (Mastodon, Pleroma, etc.):
+//      https://host/users/alice#main-key  →  https://host/users/alice
+//    Path-segment style (GoToSocial, etc.):
+//      https://host/users/alice/main-key  →  https://host/users/alice
+//      https://host/users/alice/publicKey →  https://host/users/alice
+//      https://host/users/alice/keys/1    →  https://host/users/alice
+//
+//  Returns null when keyId is not a recognisable https?:// URL.
+//
+const KEY_PATH_RE = /\/(main-key|publicKey|keys\/[^/]+)$/;
+
+function actorIdFromKeyId(keyId) {
+    if (!keyId || !/^https?:\/\//i.test(keyId)) {
+        return null;
+    }
+    if (keyId.includes('#')) {
+        return keyId.split('#', 1)[0];
+    }
+    const stripped = keyId.replace(KEY_PATH_RE, '');
+    return stripped || keyId;
+}
+exports.actorIdFromKeyId = actorIdFromKeyId;
