@@ -8,7 +8,7 @@
 //
 //  Forms:
 //    0 — Main search: HM1 (tab), ET2 (input), LV3 (results), TL10+ (custom)
-//    1 — Actor view:  MT1 (bio/summary), TL10+ (all actor fields)
+//    1 — Actor view:  TL1-6 (fixed fields), MT7 (bio/summary), TL10+ (custom)
 //
 //  On the People tab, full @user@host or https:// input bypasses FTS5 and goes
 //  directly to Actor.fromId (remote fetch + cache), matching current behaviour.
@@ -27,6 +27,7 @@ const {
     padR,
     ftsPhrase,
     looksLikeActorId,
+    normaliseHandle,
     actorUrlToHandle,
     noteToItem,
 } = require('./ap_search_util');
@@ -51,14 +52,14 @@ const FormIds = {
 
 const MciViewIds = {
     main: {
-        tabSelect:       1,  // HM1 — People | Posts | Hashtags
-        searchInput:     2,  // ET2 — search text input
-        results:         3,  // LV3 — result list
-        customRangeStart: 10,
+        tabSelect:        1,  // HM1 — People | Posts | Hashtags
+        searchInput:      2,  // ET2 — search text input
+        results:          3,  // LV3 — result list
+        customRangeStart: 10, // TL10+ — status, tab label, result count, etc.
     },
     actorView: {
-        summary:          1,  // MT1 — bio / summary (HTML-stripped)
-        customRangeStart: 10, // TL10+ — all actor fields
+        summary:          1,  // MT7 — bio/summary (set directly; optional)
+        customRangeStart: 10, // TL10+ — all actor fields (operator-configured)
     },
 };
 
@@ -126,11 +127,26 @@ exports.getModule = class ApSearchModule extends MenuModule {
 
         this.menuMethods = {
             tabChanged: (formData, _extraArgs, cb) => {
+                //  {tab: null} in the submit config is a wildcard that matches ALL
+                //  form submissions (HM1 always has a value). Dispatch to the correct
+                //  handler based on which view actually triggered the submit.
+                const submitId = formData.submitId;
+                if (submitId === MciViewIds.main.searchInput) {
+                    const term = (formData.value.searchQuery || '').trim();
+                    if (!term) return cb(null);
+                    return this._runSearch(term, cb);
+                }
+                if (submitId === MciViewIds.main.results) {
+                    return this._openSelected(formData.value.result, cb);
+                }
+                //  Actual tab change from HM1
                 this._currentTab = formData.value.tab || Tabs.People;
                 this._clearResults();
                 return cb(null);
             },
             search: (formData, _extraArgs, cb) => {
+                //  Unreachable in practice — tabChanged intercepts all submits.
+                //  Kept for menu-config documentation clarity.
                 const term = (formData.value.searchQuery || '').trim();
                 if (!term) return cb(null);
                 return this._runSearch(term, cb);
@@ -140,6 +156,16 @@ exports.getModule = class ApSearchModule extends MenuModule {
             },
             backKeyPressed: (_formData, _extraArgs, cb) => {
                 return this._displayMainPage(true, cb);
+            },
+            scrollSummaryUp: (_formData, _extraArgs, cb) => {
+                const v = this.getView('actorView', MciViewIds.actorView.summary);
+                if (v) v.scrollUp();
+                return cb(null);
+            },
+            scrollSummaryDown: (_formData, _extraArgs, cb) => {
+                const v = this.getView('actorView', MciViewIds.actorView.summary);
+                if (v) v.scrollDown();
+                return cb(null);
             },
             toggleFollowKeyPressed: (_formData, _extraArgs, cb) => {
                 return this._toggleFollowStatus(err => {
@@ -212,13 +238,20 @@ exports.getModule = class ApSearchModule extends MenuModule {
             {
                 tabLabel:     TabLabels[this._currentTab] || '',
                 resultCount:  String(this._results.length),
+                statusText:   this._statusText || '',
             }
         );
+    }
+
+    _setStatus(text) {
+        this._statusText = text;
+        this._updateMainCustomViews();
     }
 
     // ─── search dispatch ──────────────────────────────────────────────────────
 
     _runSearch(term, cb) {
+        this._setStatus(this.config.statusSearching || 'Searching...');
         switch (this._currentTab) {
             case Tabs.People:
                 return this._searchPeople(term, cb);
@@ -236,13 +269,15 @@ exports.getModule = class ApSearchModule extends MenuModule {
     //    Free text              → FTS5 local actor cache
     _searchPeople(term, cb) {
         if (looksLikeActorId(term)) {
-            return Actor.fromId(term, (err, actor) => {
+            return Actor.fromId(normaliseHandle(term), this.client.user, (err, actor) => {
                 if (err) {
                     this.client.log.warn({ term, err }, 'AP search: Actor.fromId failed');
                     this._clearResults();
+                    this._setStatus(this.config.statusNotFound || 'Not found');
                     return cb(null);
                 }
                 //  Direct-lookup result: open actor view immediately.
+                this._setStatus('');
                 this._selectedActor = actor;
                 return this._displayActorView(cb);
             });
@@ -337,10 +372,16 @@ exports.getModule = class ApSearchModule extends MenuModule {
         this._results = items;
 
         const lv = this.getView('main', MciViewIds.main.results);
-        if (!lv) return cb(null);
+        if (lv) {
+            lv.setItems(items);
+            lv.redraw();
+        }
 
-        lv.setItems(items);
-        lv.redraw();
+        if (items.length === 0) {
+            this._setStatus(this.config.statusNoResults || 'No results found');
+        } else {
+            this._setStatus('');
+        }
         this._updateMainCustomViews();
 
         return cb(null);
@@ -353,6 +394,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
             lv.setItems([]);
             lv.redraw();
         }
+        this._setStatus('');
         this._updateMainCustomViews();
     }
 
@@ -395,20 +437,12 @@ exports.getModule = class ApSearchModule extends MenuModule {
                         'actorView',
                         FormIds.actorView,
                         { clearScreen: true },
-                        (err, _artInfo, wasCreated) => {
-                            if (!err && !wasCreated) {
-                                this.viewControllers.actorView.setFocus(true);
-                            }
-                            return callback(err);
-                        }
+                        callback
                     );
                 },
                 callback => {
-                    return this.validateMCIByViewIds(
-                        'actorView',
-                        [MciViewIds.actorView.summary],
-                        callback
-                    );
+                    this.viewControllers.actorView.setFocus(true);
+                    return callback(null);
                 },
                 callback => {
                     return this._setFollowStatus(callback);
@@ -427,15 +461,29 @@ exports.getModule = class ApSearchModule extends MenuModule {
     _updateActorView(cb) {
         const summaryView = this.getView('actorView', MciViewIds.actorView.summary);
         if (summaryView) {
+            const parts = [];
             const bioText = htmlToMessageBody(this._selectedActor.summary || '');
-            summaryView.setText(bioText);
+            if (bioText) parts.push(bioText);
+
+            //  Append PropertyValue attachment fields (profile metadata like links, BBS, etc.)
+            const attachment = this._selectedActor.attachment;
+            if (Array.isArray(attachment)) {
+                const props = attachment
+                    .filter(a => a.type === 'PropertyValue' && a.name)
+                    .map(a => `${a.name}: ${htmlToMessageBody(a.value || '')}`);
+                if (props.length > 0) {
+                    if (parts.length > 0) parts.push('');  // blank separator
+                    parts.push(...props);
+                }
+            }
+
+            summaryView.setText(parts.join('\n'));
             summaryView.redraw();
         }
 
+        //  TL10+: all actor fields are operator-configured
         this.updateCustomViewTextsWithFilter(
-            'actorView',
-            MciViewIds.actorView.customRangeStart,
-            this._actorFormatObject()
+            'actorView', MciViewIds.actorView.customRangeStart, this._actorFormatObject()
         );
 
         return cb(null);
@@ -448,35 +496,23 @@ exports.getModule = class ApSearchModule extends MenuModule {
         const v = f => a[f] || '';
 
         return {
-            //  Display fields
-            handle:                   a._subject || actorUrlToHandle(a.id),
-            preferredUsername:         v('preferredUsername'),
-            displayName:              v('name'),
-            published:                isEmpty(a.published)
+            handle:                    a._subject || actorUrlToHandle(a.id),
+            preferredUsername:          v('preferredUsername'),
+            displayName:               v('name'),
+            published:                 isEmpty(a.published)
                 ? ''
                 : moment(a.published).format(this.getDateFormat()),
-            followersCount:           a._followersCount >= 0 ? a._followersCount : '--',
-            followingCount:           a._followingCount >= 0 ? a._followingCount : '--',
-            followIndicator:          this._followIndicator(),
+            followersCount:            a._followersCount >= 0 ? a._followersCount : '--',
+            followingCount:            a._followingCount >= 0 ? a._followingCount : '--',
+            followIndicator:           this._followIndicator(),
             manuallyApprovesFollowers: a.manuallyApprovesFollowers ? 'Yes' : 'No',
-
-            //  Raw fields for advanced theme formatting
-            actorId:      v('id'),
-            actorUrl:     v('url'),
-            actorType:    v('type'),
-            actorSummary: v('summary'),
-            actorImage:   v('image'),
-            actorIcon:    v('icon'),
-            actorFollowing: !!a._isFollowing,
-
-            //  Legacy compat for themes built against actor_search.js
-            text:              v('name'),
-            actorName:         v('name'),
-            actorPreferredUsername: v('preferredUsername'),
-            actorSubject:      a._subject || actorUrlToHandle(a.id),
-            actorFollowingIndicator: this._followIndicator(),
-            followingCount:    a._followingCount >= 0 ? a._followingCount : '--',
-            followerCount:     a._followersCount >= 0 ? a._followersCount : '--',
+            actorId:                   v('id'),
+            actorUrl:                  v('url'),
+            actorType:                 v('type'),
+            actorSummary:              v('summary'),
+            actorImage:                v('image'),
+            actorIcon:                 v('icon'),
+            actorFollowing:            !!a._isFollowing,
         };
     }
 
@@ -518,12 +554,8 @@ exports.getModule = class ApSearchModule extends MenuModule {
 
         const actor = this._cleanActor();
         const done = e => {
-            this.updateCustomViewTextsWithFilter(
-                'actorView',
-                MciViewIds.actorView.customRangeStart,
-                this._actorFormatObject()
-            );
-            return cb(e);
+            //  Full view refresh so all fixed fields (TL1-6) and TL10+ reflect new state
+            return this._updateActorView(cb);
         };
 
         return this._selectedActor._isFollowing

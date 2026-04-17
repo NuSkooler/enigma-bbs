@@ -15,7 +15,8 @@
 
 version: "3"
 
-authtoken: ""   # ← paste your ngrok authtoken here
+agent:
+  authtoken: "2JyPhGIEJwpGs2G8UIQFGrCMvqO_iwTTdcqZU7d1drJKuFS6"
 
 tunnels:
   enigma-web:

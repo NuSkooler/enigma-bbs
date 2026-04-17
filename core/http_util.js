@@ -62,6 +62,15 @@ function postJson(url, json, options, cb) {
 function _makeRequest(url, options, cb) {
     options = Object.assign({}, { timeout: DefaultTimeoutMilliseconds }, options);
 
+    //  Ensure headers object exists and always send a User-Agent.
+    //  Some servers (e.g. GoToSocial) reject requests without one.
+    if (!options.headers) {
+        options.headers = {};
+    }
+    if (!options.headers['User-Agent']) {
+        options.headers['User-Agent'] = 'ENiGMA-BBS/ActivityPub (+https://enigma-bbs.github.io)';
+    }
+
     if (options.body) {
         options.headers['Content-Length'] = Buffer.from(options.body).length;
 

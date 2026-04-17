@@ -1385,24 +1385,26 @@
 
 			activityPubSearch: {
 				config: {
-					followingIndicator:    "|00|14FOLLOWING"
-					notFollowingIndicator: "|00|12not following"
-					//  TL10+ format strings for the actor view (Form 1)
+					followingIndicator:    "|00|14YES"
+					notFollowingIndicator: "|00|12NO"
+					//  Form 0 (main): TL10+ custom fields
+					mainInfoFormat10: "|11{statusText}"
+					//  Form 1 (actor view): TL10+ custom fields — all optional
 					actorViewInfoFormat10: "{handle}"
-					actorViewInfoFormat11: "{displayName}"
-					actorViewInfoFormat12: "{published}"
-					actorViewInfoFormat13: "{followIndicator}"
-					actorViewInfoFormat14: "{followersCount}"
-					actorViewInfoFormat15: "{followingCount}"
-					actorViewInfoFormat16: "{manuallyApprovesFollowers}"
-					//  TL10+ for the main form status bar (Form 0)
-					mainInfoFormat10: "{tabLabel}"
-					mainInfoFormat11: "{resultCount}"
+					actorViewInfoFormat11: "{followIndicator}"
+					actorViewInfoFormat12: "{preferredUsername}"
+					actorViewInfoFormat13: "{displayName}"
+					actorViewInfoFormat14: "{published}"
+					actorViewInfoFormat15: "{manuallyApprovesFollowers}"
+					actorViewInfoFormat16: "{followersCount}"
+					actorViewInfoFormat17: "{followingCount}"
 				}
 				0: {
 					mci: {
 						HM1: {
 							width: 30
+							itemFormat: "|08[|03{text}|08]"
+							focusItemFormat: "|08[|11{text!styleFirstLower}|08]"
 						}
 						ET2: {
 							width: 50
@@ -1416,18 +1418,12 @@
 				1: {
 					mci: {
 						MT1: {
-							focus: true
 							width: 69
 							height: 5
-							mode: preview
 						}
-						TL10: { width: 40 }
-						TL11: { width: 40 }
-						TL12: { width: 20 }
-						TL13: { width: 20 }
-						TL14: { width: 6  }
-						TL15: { width: 6  }
-						TL16: { width: 5  }
+						TL11: {
+							width: 10
+						}
 					}
 				}
 			}

@@ -12,7 +12,7 @@ if [[ ! -x "$BIN" ]]; then
     exit 1
 fi
 
-if grep -q 'authtoken: ""' "$CFG"; then
+if grep -q 'authtoken: ""' "$CFG" || ! grep -q 'authtoken:' "$CFG"; then
     echo "ERROR: set your authtoken in $CFG first"
     echo "  Get it from: https://dashboard.ngrok.com/get-started/your-authtoken"
     exit 1

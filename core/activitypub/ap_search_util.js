@@ -21,12 +21,19 @@ function ftsPhrase(term) {
 }
 
 //  Regex to detect a direct actor URL or @user@host handle — bypasses FTS5.
-const AP_HANDLE_RE = /^@\S+@\S+$/;
+//  Also matches user@host (no leading @) since users often omit it.
+const AP_HANDLE_RE = /^@?\S+@\S+$/;
 const AP_URL_RE    = /^https?:\/\//i;
 
 //  True when input looks like a direct actor identifier rather than a search term.
 function looksLikeActorId(term) {
     return AP_HANDLE_RE.test(term) || AP_URL_RE.test(term);
+}
+
+//  Normalise a handle to the @user@host form expected by Actor.fromId / WebFinger.
+function normaliseHandle(term) {
+    if (AP_URL_RE.test(term)) return term;
+    return term.startsWith('@') ? term : `@${term}`;
 }
 
 //  Extract a short display handle from an AP actor URL.
@@ -40,7 +47,7 @@ function actorUrlToHandle(url) {
         const m =
             u.pathname.match(/\/users\/([^/]+)/) ||
             u.pathname.match(/\/@([^/]+)/);
-        return m ? `@${m[1]}@${u.hostname}` : `@${u.hostname}`;
+        return m ? `@${m[1]}@${u.host}` : `@${u.host}`;
     } catch (_) {
         return String(url);
     }
@@ -82,6 +89,7 @@ module.exports = {
     padR,
     ftsPhrase,
     looksLikeActorId,
+    normaliseHandle,
     actorUrlToHandle,
     formatSubject,
     formatDate,

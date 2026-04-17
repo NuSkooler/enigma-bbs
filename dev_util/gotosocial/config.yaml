@@ -9,13 +9,15 @@
 # For local-only testing leave as localhost.
 # If you need GTS reachable from the internet, swap this for an ngrok URL
 # and restart (note: actor IDs will change, so nuke the DB first).
-host: "localhost"
+host: "localhost:8181"
 
 # Plain HTTP; ngrok or a real cert would make this https.
 protocol: "http"
 
 port: 8181
 bind-address: "127.0.0.1"
+trusted-proxies:
+  - "127.0.0.1/32"
 
 log-level: "info"
 log-db-queries: false
@@ -28,9 +30,9 @@ db-sqlite-journal-mode: "WAL"
 storage-backend: "local"
 storage-local-base-path: "data/storage"
 
-# Web/template assets ship inside the binary — no external path needed.
-web-template-base-dir: ""
-web-asset-base-dir: ""
+# Web assets extracted from the release tarball alongside the binary.
+web-template-base-dir: "web/template"
+web-asset-base-dir: "web/assets"
 
 # Single-user dev instance; no public signups.
 accounts-registration-open: false

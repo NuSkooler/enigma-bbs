@@ -221,13 +221,40 @@ function isValidLink(l) {
 }
 
 function userFromActorId(actorId, cb) {
-    User.getUserIdsWithProperty(UserProps.ActivityPubActorId, actorId, (err, userId) => {
-        if (err) {
-            return cb(err);
+    //  Local actor IDs embed the username in the path: /ap/users/{username}
+    //  Extract it so we can fall back to a username lookup when the stored
+    //  actor ID has a stale domain (e.g. after an ngrok rotation or domain change).
+    const localActorPathRe = /\/ap\/users\/([^/?#]+)$/;
+
+    const finishWithUser = (userId, next) => {
+        User.getUser(userId, (err, user) => {
+            if (err) {
+                return next(err);
+            }
+            const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
+            if (
+                User.AccountStatus.disabled == accountStatus ||
+                User.AccountStatus.inactive == accountStatus
+            ) {
+                return next(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+            }
+            const activityPubSettings = ActivityPubSettings.fromUser(user);
+            if (!activityPubSettings.enabled) {
+                return next(Errors.AccessDenied('ActivityPub is not enabled for user'));
+            }
+            return next(null, user);
+        });
+    };
+
+    User.getUserIdsWithProperty(UserProps.ActivityPubActorId, actorId, (err, userIds) => {
+        if (!err && Array.isArray(userIds) && userIds.length === 1) {
+            return finishWithUser(userIds[0], cb);
         }
 
-        // must only be 0 or 1
-        if (!Array.isArray(userId) || userId.length !== 1) {
+        //  Exact match failed — try path-based username extraction so a stale
+        //  stored actor ID (different domain/scheme) doesn't block local lookups.
+        const m = localActorPathRe.exec(actorId);
+        if (!m) {
             return cb(
                 Errors.DoesNotExist(
                     `No user with property '${UserProps.ActivityPubActorId}' of ${actorId}`
@@ -235,26 +262,16 @@ function userFromActorId(actorId, cb) {
             );
         }
 
-        userId = userId[0];
-        User.getUser(userId, (err, user) => {
+        const username = decodeURIComponent(m[1]);
+        User.getUserIdAndName(username, (err, userId) => {
             if (err) {
-                return cb(err);
+                return cb(
+                    Errors.DoesNotExist(
+                        `No user with property '${UserProps.ActivityPubActorId}' of ${actorId}`
+                    )
+                );
             }
-
-            const accountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
-            if (
-                User.AccountStatus.disabled == accountStatus ||
-                User.AccountStatus.inactive == accountStatus
-            ) {
-                return cb(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
-            }
-
-            const activityPubSettings = ActivityPubSettings.fromUser(user);
-            if (!activityPubSettings.enabled) {
-                return cb(Errors.AccessDenied('ActivityPub is not enabled for user'));
-            }
-
-            return cb(null, user);
+            return finishWithUser(userId, cb);
         });
     });
 }

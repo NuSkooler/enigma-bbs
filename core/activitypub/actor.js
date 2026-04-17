@@ -94,9 +94,26 @@ module.exports = class Actor extends ActivityPubObject {
 
         const userSettings = ActivityPubSettings.fromUser(user);
 
+        //  Local auto-generated avatar paths follow /_enig/users/{user}/avatar/{file}.
+        //  When a stored URL matches this pattern, rebuild it from the current base URL
+        //  using the deterministic filename (user-avatar-{userId}.png) so that domain
+        //  changes (e.g. ngrok rotation) are reflected without re-conditioning, and any
+        //  stored filename corruption is bypassed.
+        //  External/custom URLs (anything else) are used verbatim.
+        const localAvatarRe = new RegExp(
+            `/users/${_.escapeRegExp(user.username)}/avatar/`
+        );
+
         const addImage = (o, t) => {
-            const url = userSettings[t];
-            if (url) {
+            const storedUrl = userSettings[t];
+            if (storedUrl) {
+                let url = storedUrl;
+                if (localAvatarRe.test(storedUrl)) {
+                    //  Use the deterministic local filename rather than whatever
+                    //  may be stored (avoids stale domains and filename corruption).
+                    const localFn = `user-avatar-${user.userId}.png`;
+                    url = Endpoints.avatar(user, localFn);
+                }
                 const fn = paths.basename(url);
                 const mt =
                     mimeTypes.contentType(fn) || mimeTypes.contentType('dummy.png');
@@ -175,7 +192,15 @@ module.exports = class Actor extends ActivityPubObject {
         return cb(null, new Actor(obj));
     }
 
-    static fromId(id, cb) {
+    //  fromUser is optional; when supplied the remote actor fetch is HTTP-signed.
+    //  Some strict servers (e.g. GoToSocial) require signatures on GET requests.
+    static fromId(id, fromUser, cb) {
+        //  Support legacy two-arg call: fromId(id, cb)
+        if (typeof fromUser === 'function') {
+            cb = fromUser;
+            fromUser = null;
+        }
+
         let delivered = false;
         const callback = (e, a, s) => {
             if (!delivered) {
@@ -199,7 +224,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             //  Cache miss or needs refreshed; Try to do so now
-            Actor._fromWebFinger(id, (err, actor, subject) => {
+            Actor._fromWebFinger(id, fromUser, (err, actor, subject) => {
                 if (err) {
                     return callback(err);
                 }
@@ -243,12 +268,29 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
-    static _fromRemoteQuery(id, cb) {
-        const headers = {
-            Accept: ActivityStreamMediaType,
+    static _fromRemoteQuery(id, fromUser, cb) {
+        const reqOpts = {
+            headers: {
+                Accept: ActivityStreamMediaType,
+            },
         };
 
-        getJson(id, { headers }, (err, actor) => {
+        //  Sign the GET if a local user was provided — required by strict servers
+        //  such as GoToSocial that reject unsigned actor fetch requests.
+        if (fromUser) {
+            const privateKey = fromUser.getProperty(UserProps.PrivateActivityPubSigningKey);
+            if (privateKey) {
+                reqOpts.sign = {
+                    key: privateKey,
+                    keyId: Endpoints.actorId(fromUser) + '#main-key',
+                    authorizationHeaderName: 'Signature',
+                    //  GET has no body — omit digest and content-type
+                    headers: ['(request-target)', 'host', 'date'],
+                };
+            }
+        }
+
+        getJson(id, { ...reqOpts, timeout: 15000 }, (err, actor) => {
             if (err) {
                 return cb(err);
             }
@@ -282,7 +324,7 @@ module.exports = class Actor extends ActivityPubObject {
         });
     }
 
-    static _fromWebFinger(actorQuery, cb) {
+    static _fromWebFinger(actorQuery, fromUser, cb) {
         queryWebFinger(actorQuery, (err, res) => {
             if (err) {
                 return cb(err);
@@ -305,7 +347,7 @@ module.exports = class Actor extends ActivityPubObject {
             }
 
             // we can now query the href value for an Actor
-            return Actor._fromRemoteQuery(activityLink.href, (err, actor) => {
+            return Actor._fromRemoteQuery(activityLink.href, fromUser, (err, actor) => {
                 return cb(err, actor, res.subject);
             });
         });

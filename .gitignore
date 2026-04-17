@@ -26,4 +26,5 @@ www/assets/*
 #   Dev/test tooling — binaries and runtime data, not configs/scripts
 dev_util/gotosocial/bin/
 dev_util/gotosocial/data/
+dev_util/gotosocial/web/
 dev_util/ngrok/bin/

@@ -107,14 +107,16 @@
         cls: true
         art: {
           main: activitypub_search_main
-          actorView: activitypub_actor_view
+          actorView: activitypub_search_results
         }
+        //  See activityPubSearch config block in theme.hjson for format strings,
+        //  dimensions, and indicators — theme is the right home for those.
       }
       form: {
         0: {
           mci: {
             HM1: {
-              items: ["People", "Posts", "Hashtags"]
+              items: [{text: "People"}, {text: "Posts"}, {text: "Hashtags"}]
               argName: tab
               submit: true
             }
@@ -154,8 +156,13 @@
         }
         1: {
           mci: {
-            MT1: {}
+            MT7: {
+              mode: preview
+              acceptsFocus: false
+              acceptsInput: false
+            }
           }
+          submit: {}
           actionKeys: [
             {
               keys: ["escape", "q", "shift + q"]
@@ -164,6 +171,14 @@
             {
               keys: ["space"]
               action: @method:toggleFollowKeyPressed
+            }
+            {
+              keys: ["up arrow"]
+              action: @method:scrollSummaryUp
+            }
+            {
+              keys: ["down arrow"]
+              action: @method:scrollSummaryDown
             }
           ]
         }

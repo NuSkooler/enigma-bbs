@@ -316,11 +316,11 @@ module.exports = () => {
                     },
                     webFinger: {
                         enabled: false,
-                        profileTemplate: './wf/profile.template.html',
+                        profileTemplate: '',
                     },
                     activityPub: {
                         enabled: false,
-                        selfTemplate: './wf/profile.template.html',
+                        selfTemplate: '',
                     },
                 },
 
