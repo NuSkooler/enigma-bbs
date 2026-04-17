@@ -23,4 +23,6 @@ echo "First time? After GTS starts, run in another terminal:"
 echo "  ./create_admin.sh <username> <email>"
 echo ""
 
-exec "$BIN" --config-path config.yaml server start
+LOG="$SCRIPT_DIR/data/gotosocial.log"
+echo "Logging to: $LOG"
+"$BIN" --config-path config.yaml server start 2>&1 | tee -a "$LOG"

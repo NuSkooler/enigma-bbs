@@ -187,9 +187,12 @@ module.exports = class Note extends ActivityPubObject {
                     //  Sensitive / CW: strip [NSFW] prefix from summary so Mastodon
                     //  receives a clean CW label rather than the raw subject prefix.
                     const isNSFW = message.subject.startsWith('[NSFW]');
+                    //  summary is AP's Content Warning — only set for NSFW/CW posts.
+                    //  Non-NSFW reply subjects are BBS conventions and must not be
+                    //  sent as CW text to remote servers.
                     const summaryText = isNSFW
                         ? message.subject.slice(6).trim()
-                        : message.subject.trim();
+                        : undefined;
 
                     const noteId = ActivityPubObject.makeObjectId('note');
 
@@ -202,6 +205,7 @@ module.exports = class Note extends ActivityPubObject {
                     // https://docs.joinmastodon.org/spec/activitypub/#properties-used
                     const obj = {
                         id: noteId,
+                        url: noteId,
                         type: 'Note',
                         published: getISOTimestampString(message.modTimestamp),
                         to,
@@ -210,7 +214,6 @@ module.exports = class Note extends ActivityPubObject {
                         context: noteContext,
                         likes: Endpoints.noteLikes(noteId),
                         shares: Endpoints.noteShares(noteId),
-                        summary: summaryText,
                         content: htmlMessage,
                         contentMap: {
                             en: htmlMessage, // English only, for now
@@ -222,6 +225,7 @@ module.exports = class Note extends ActivityPubObject {
                         },
                         sensitive: isNSFW,
                         tag: tag.length > 0 ? tag : undefined,
+                        summary: summaryText,
                     };
 
                     if (replyToNoteId) {

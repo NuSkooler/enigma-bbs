@@ -1372,12 +1372,15 @@
 							width: 34
 						}
 						HM3: {
-							focusTextStyle: first lower
-							styleSGR1: "|00|08"
+							itemFormat: "|08[|03{text}|08]"
+							focusItemFormat: "|08[|11{text!styleFirstLower}|08]"
 						}
 						MT10: {
 							width: 22
 							height: 2
+							mode: preview
+							acceptsFocus: false
+							acceptsInput: false
 						}
 					}
 				}

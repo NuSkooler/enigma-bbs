@@ -25,6 +25,7 @@ const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
 const Collection = require('../../../activitypub/collection');
 const Note = require('../../../activitypub/note');
+const ActivityPubObject = require('../../../activitypub/object');
 const EnigAssert = require('../../../enigma_assert');
 const Message = require('../../../message');
 const Events = require('../../../events');
@@ -352,6 +353,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 sigActorId,
                 (err, remoteActor, signatureActor) => {
                     if (err) {
+                        this.log.warn(
+                            { err: err.message, sigActorId, inboxType },
+                            'Failed to fetch remote actor — access denied'
+                        );
                         return this.webServer.accessDenied(resp);
                     }
 
@@ -360,6 +365,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         remoteActor &&
                         this._validateActorSignature(signatureActor, signature);
                     if (activity.type !== WellKnownActivity.Delete && !httpSigValidated) {
+                        this.log.warn(
+                            { sigActorId, activityType: activity.type, inboxType },
+                            'HTTP signature validation failed — access denied'
+                        );
                         return this.webServer.accessDenied(resp);
                     }
 
@@ -409,15 +418,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             break;
 
                         case WellKnownActivity.Follow:
-                            // Follow requests are only allowed directly
-                            if (Collections.Inbox === inboxType) {
-                                return this._inboxFollowActivity(
-                                    resp,
-                                    remoteActor,
-                                    activity
-                                );
-                            }
-                            break;
+                            return this._inboxFollowActivity(
+                                resp,
+                                remoteActor,
+                                activity
+                            );
 
                         case WellKnownActivity.Like:
                             return this._inboxLikeActivity(resp, activity);
@@ -428,14 +433,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         case WellKnownActivity.Undo: {
                             const undoType = _.get(activity, 'object.type');
                             if (WellKnownActivity.Follow === undoType) {
-                                //  Only process Undo{Follow} from private inboxes
-                                if (Collections.Inbox === inboxType) {
-                                    return this._inboxUndoActivity(
-                                        resp,
-                                        remoteActor,
-                                        activity
-                                    );
-                                }
+                                return this._inboxUndoActivity(
+                                    resp,
+                                    remoteActor,
+                                    activity
+                                );
                             } else if (WellKnownActivity.Like === undoType) {
                                 return this._inboxUndoLikeActivity(resp, activity);
                             } else {
@@ -1372,7 +1374,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _singlePublicNoteGetHandler(req, resp) {
-        this.log.debug({ url: req.url }, 'Request for "Note"');
+        this.log.info({ url: req.url, userAgent: req.headers['user-agent'] }, 'Request for "Note"');
 
         const noteId = getFullUrl(req).toString();
         Note.fromPublicNoteId(noteId, (err, note) => {
@@ -1392,7 +1394,18 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 accept.includes(ActivityStreamMediaType) ||
                 accept.includes('application/ld+json')
             ) {
-                const body = JSON.stringify(note);
+                //  Notes are stored without @context (they're normally embedded in
+                //  a Create wrapper).  When served standalone, add it so remote
+                //  servers can parse the document as valid JSON-LD.
+                const noteWithContext = Object.assign(
+                    {
+                        '@context': ActivityPubObject.makeContext([], {
+                            sensitive: 'as:sensitive',
+                        }),
+                    },
+                    note
+                );
+                const body = JSON.stringify(noteWithContext);
                 return this.webServer.ok(resp, body, {
                     'Content-Type': ActivityStreamMediaType,
                 });

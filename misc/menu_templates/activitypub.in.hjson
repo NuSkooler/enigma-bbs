@@ -289,9 +289,9 @@
           mci: {
             VM1: {}
             MT2: {mode: "preview", acceptsFocus: false, acceptsInput: false}
-            TM3: {
+            HM3: {
               focus: true
-              items: ["following", "followers", "pending requests"]
+              items: [{text: "following"}, {text: "followers"}, {text: "pending requests"}]
             }
           }
           actionKeys: [

@@ -212,24 +212,24 @@ function sendBoost(localUser, noteId, cb) {
                 });
             },
 
-            //  Collect follower shared-inbox endpoints (same helper as scanner/tosser)
+            //  Collect delivery targets: note author's inbox + followers' shared inboxes
             callback => {
-                _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                    return callback(err, sharedInboxes);
+                _collectReactionInboxes(localUser, noteId, (err, inboxes) => {
+                    return callback(err, inboxes);
                 });
             },
 
-            //  Deliver to each unique shared inbox
-            (sharedInboxes, callback) => {
+            //  Deliver to each unique inbox
+            (inboxes, callback) => {
                 async.eachLimit(
-                    sharedInboxes,
+                    inboxes,
                     4,
                     (inbox, next) => {
                         announce.sendTo(inbox, localUser, (err, body, res) => {
                             if (err) {
                                 Log.warn(
                                     { inbox, noteId, error: err.message },
-                                    'Failed to deliver Announce to shared inbox'
+                                    'Failed to deliver Announce to inbox'
                                 );
                             } else if (res.statusCode !== 200 && res.statusCode !== 202) {
                                 Log.warn(
@@ -417,20 +417,20 @@ function sendLike(localUser, noteId, cb) {
                 });
             },
             callback => {
-                _collectFollowerSharedInboxes(localUser, (err, sharedInboxes) => {
-                    return callback(err, sharedInboxes);
+                _collectReactionInboxes(localUser, noteId, (err, inboxes) => {
+                    return callback(err, inboxes);
                 });
             },
-            (sharedInboxes, callback) => {
+            (inboxes, callback) => {
                 async.eachLimit(
-                    sharedInboxes,
+                    inboxes,
                     4,
                     (inbox, next) => {
                         like.sendTo(inbox, localUser, (err, body, res) => {
                             if (err) {
                                 Log.warn(
                                     { inbox, noteId, error: err.message },
-                                    'Failed to deliver Like to shared inbox'
+                                    'Failed to deliver Like to inbox'
                                 );
                             } else if (res.statusCode !== 200 && res.statusCode !== 202) {
                                 Log.warn(
@@ -733,6 +733,49 @@ function sendDelete(localUser, noteId, cb) {
                 StatLog.incrementUserStat(localUser, UserProps.ApDeleteCount, 1);
             }
             return setImmediate(cb, err);
+        }
+    );
+}
+
+//  Collect all delivery targets for an outbound reaction (Like or Announce):
+//    - the note author's inbox (or their server's sharedInbox)
+//    - all of the local user's followers' shared inboxes
+//  Returns a de-duplicated array of inbox URLs.
+function _collectReactionInboxes(localUser, noteId, cb) {
+    async.parallel(
+        {
+            authorInbox: next => {
+                //  Resolve note → attributedTo actor → inbox
+                Collection.objectByEmbeddedId(noteId, (err, activity) => {
+                    const note = activity && activity.object;
+                    const attributedTo =
+                        note &&
+                        (isString(note.attributedTo)
+                            ? note.attributedTo
+                            : note.attributedTo && note.attributedTo.id);
+                    if (!attributedTo) {
+                        return next(null, null);
+                    }
+                    Actor.fromId(attributedTo, (err, actor) => {
+                        if (err || !actor) return next(null, null);
+                        const inbox =
+                            (actor.endpoints && actor.endpoints.sharedInbox) ||
+                            actor.inbox;
+                        return next(null, inbox || null);
+                    });
+                });
+            },
+            followerInboxes: next => {
+                _collectFollowerSharedInboxes(localUser, next);
+            },
+        },
+        (err, results) => {
+            if (err) return cb(err);
+            const all = [...results.followerInboxes];
+            if (results.authorInbox) {
+                all.push(results.authorInbox);
+            }
+            return cb(null, Array.from(new Set(all.filter(Boolean))));
         }
     );
 }

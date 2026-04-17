@@ -19,7 +19,7 @@ bind-address: "127.0.0.1"
 trusted-proxies:
   - "127.0.0.1/32"
 
-log-level: "info"
+log-level: "debug"
 log-db-queries: false
 
 # SQLite — fine for dev.
