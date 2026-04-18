@@ -1045,12 +1045,13 @@ module.exports = class Collection extends ActivityPubObject {
     }
 
     //
-    //  Full-text search across sharedInbox Notes.
+    //  Full-text search across sharedInbox (federated) and outbox (local) Notes.
     //
-    //  term      : FTS5 query string (e.g. 'hello world', '#bbs', 'summary:retro')
+    //  term      : FTS5 query string (e.g. 'hello world', '#bbs', 'tags:"retro"')
     //  maxResults: maximum rows to return (default 25)
     //
     //  Returned results: Array of ActivityPubObject (Note), ordered by FTS5 rank.
+    //  Each stored row is a Create{Note} activity; the inner Note object is returned.
     //
     static searchNotes(term, maxResults, cb) {
         if ('function' === typeof maxResults) {
@@ -1061,11 +1062,15 @@ module.exports = class Collection extends ActivityPubObject {
         try {
             const rows = apDb
                 .prepare(
-                    `SELECT c.object_json
+                    `SELECT
+                        COALESCE(
+                            json_extract(c.object_json, '$.object'),
+                            c.object_json
+                        ) AS object_json
                     FROM collection_fts f
                     JOIN collection c ON c.rowid = f.rowid
                     WHERE collection_fts MATCH ?
-                      AND f.coll_name = 'sharedInbox'
+                      AND f.coll_name IN ('sharedInbox', 'outbox')
                     ORDER BY rank
                     LIMIT ?;`
                 )

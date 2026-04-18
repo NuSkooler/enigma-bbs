@@ -532,8 +532,12 @@ const DB_INIT_TABLE = {
                 );
             END;
 
-            -- Note (sharedInbox): index on insert
-            CREATE TRIGGER IF NOT EXISTS collection_fts_note_ai
+            -- Note (sharedInbox): index on insert.
+            --   Body comes from the inner Note ($.object.*); the stored row is a
+            --   Create{Note} activity, so content lives one level deeper than $.content.
+            --   Tags are extracted from the Note's tag array (Hashtag entries only).
+            DROP TRIGGER IF EXISTS collection_fts_note_ai;
+            CREATE TRIGGER collection_fts_note_ai
             AFTER INSERT ON collection
             WHEN new.name = 'sharedInbox'
             BEGIN
@@ -542,14 +546,19 @@ const DB_INIT_TABLE = {
                     new.rowid,
                     'sharedInbox',
                     new.object_id,
-                    COALESCE(json_extract(new.object_json, '$.summary'), '') || ' ' ||
-                    COALESCE(json_extract(new.object_json, '$.content'), ''),
-                    ''
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
                 );
             END;
 
             -- Note: re-index on update (Update activity received for a Note)
-            CREATE TRIGGER IF NOT EXISTS collection_fts_note_au
+            DROP TRIGGER IF EXISTS collection_fts_note_au;
+            CREATE TRIGGER collection_fts_note_au
             AFTER UPDATE OF object_json ON collection
             WHEN new.name = 'sharedInbox'
             BEGIN
@@ -559,16 +568,72 @@ const DB_INIT_TABLE = {
                     new.rowid,
                     'sharedInbox',
                     new.object_id,
-                    COALESCE(json_extract(new.object_json, '$.summary'), '') || ' ' ||
-                    COALESCE(json_extract(new.object_json, '$.content'), ''),
-                    ''
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
                 );
             END;
 
             -- Note: remove from index on delete
-            CREATE TRIGGER IF NOT EXISTS collection_fts_note_bd
+            DROP TRIGGER IF EXISTS collection_fts_note_bd;
+            CREATE TRIGGER collection_fts_note_bd
             BEFORE DELETE ON collection
             WHEN old.name = 'sharedInbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+            END;
+
+            -- Outbox (local posts): same structure as sharedInbox triggers.
+            --   Local Create{Note} activities are stored in the outbox collection.
+            DROP TRIGGER IF EXISTS collection_fts_outbox_ai;
+            CREATE TRIGGER collection_fts_outbox_ai
+            AFTER INSERT ON collection
+            WHEN new.name = 'outbox'
+            BEGIN
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'outbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                );
+            END;
+
+            DROP TRIGGER IF EXISTS collection_fts_outbox_au;
+            CREATE TRIGGER collection_fts_outbox_au
+            AFTER UPDATE OF object_json ON collection
+            WHEN new.name = 'outbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'outbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                );
+            END;
+
+            DROP TRIGGER IF EXISTS collection_fts_outbox_bd;
+            CREATE TRIGGER collection_fts_outbox_bd
+            BEFORE DELETE ON collection
+            WHEN old.name = 'outbox'
             BEGIN
                 DELETE FROM collection_fts WHERE rowid = old.rowid;
             END;
@@ -613,13 +678,75 @@ const DB_INIT_TABLE = {
                         c.rowid,
                         'sharedInbox',
                         c.object_id,
-                        COALESCE(json_extract(c.object_json, '$.summary'), '') || ' ' ||
-                        COALESCE(json_extract(c.object_json, '$.content'), ''),
-                        ''
+                        COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                        COALESCE((
+                            SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                            FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                            WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                        ), '')
                     FROM collection c
                     WHERE c.name = 'sharedInbox';
+
+                    INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                    SELECT
+                        c.rowid,
+                        'outbox',
+                        c.object_id,
+                        COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                        COALESCE((
+                            SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                            FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                            WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                        ), '')
+                    FROM collection c
+                    WHERE c.name = 'outbox';
                 `);
             }
+        }
+
+        //
+        //  Migration v1: fix sharedInbox FTS body/tags paths (were pointing at the
+        //  Create activity root instead of $.object.*), and add outbox indexing for
+        //  local posts.  Guarded by PRAGMA user_version so it runs exactly once.
+        //
+        const apDbVersion = dbs.activitypub.pragma('user_version', { simple: true });
+        if (apDbVersion < 1) {
+            dbs.activitypub.exec(`
+                DELETE FROM collection_fts WHERE coll_name IN ('sharedInbox', 'outbox');
+
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                SELECT
+                    c.rowid,
+                    'sharedInbox',
+                    c.object_id,
+                    COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                FROM collection c
+                WHERE c.name = 'sharedInbox';
+
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                SELECT
+                    c.rowid,
+                    'outbox',
+                    c.object_id,
+                    COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                FROM collection c
+                WHERE c.name = 'outbox';
+            `);
+            dbs.activitypub.pragma('user_version = 1');
         }
 
         //
