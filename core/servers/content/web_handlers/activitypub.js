@@ -1374,7 +1374,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _singlePublicNoteGetHandler(req, resp) {
-        this.log.info({ url: req.url, userAgent: req.headers['user-agent'] }, 'Request for "Note"');
+        this.log.debug({ url: req.url }, 'Request for "Note"');
 
         const noteId = getFullUrl(req).toString();
         Note.fromPublicNoteId(noteId, (err, note) => {

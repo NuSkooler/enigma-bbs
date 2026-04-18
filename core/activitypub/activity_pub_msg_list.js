@@ -533,10 +533,6 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
 
         //  Only allow deleting posts owned by the local user.
         const localHandle = actorUrlToHandle(this._localActorId());
-        this.client.log.info(
-            { itemFrom: item.from, localHandle, noteId: item.noteId },
-            'AP browser: delete guard'
-        );
         if (item.from !== localHandle) return cb(null);
 
         sendDelete(this.client.user, item.noteId, err => {
