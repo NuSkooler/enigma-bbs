@@ -55,6 +55,7 @@ exports.getLikeActors = getLikeActors;
 exports.getLikeCount = getLikeCount;
 exports.messageForNoteId = messageForNoteId;
 exports.sendDelete = sendDelete;
+exports.sendActorDelete = sendActorDelete;
 
 //
 //  Resolve an Announce's object field to a Note.
@@ -775,6 +776,71 @@ function sendDelete(localUser, noteId, cb) {
             return setImmediate(cb, err);
         }
     );
+}
+
+//
+//  Send a Delete{Actor} activity to all of a local user's followers.
+//
+//  Called by oputil when a user is permanently deleted so that remote
+//  instances can remove the actor from their follower lists.  Designed
+//  to work without the BBS web server running — only the DB and HTTP
+//  stack are required.
+//
+//  Delivery is best-effort: per-inbox failures are logged but do not
+//  abort the sequence, and the overall callback always succeeds so that
+//  the caller (oputil removeUser) can proceed with the DB delete.
+//
+function sendActorDelete(localUser, cb) {
+    const localActorId = localUser.getProperty(UserProps.ActivityPubActorId);
+    if (!localActorId) {
+        //  AP was never enabled for this user — nothing to federate.
+        return cb(null);
+    }
+
+    const followersEndpoint = Endpoints.followers(localUser);
+
+    //  A Delete{Actor} wraps the actor's own ID as the object.
+    //  Per spec the actor and object IDs must match for self-deletion.
+    const deleteActivity = new Activity({
+        id: Activity.activityObjectId(),
+        type: 'Delete',
+        actor: localActorId,
+        object: {
+            id: localActorId,
+            type: 'Tombstone',
+        },
+        to: [PublicCollectionId],
+        cc: [followersEndpoint],
+    });
+
+    Collection.getFollowerSharedInboxes(followersEndpoint, (err, sharedInboxes) => {
+        if (err || sharedInboxes.length === 0) {
+            //  No followers cached or DB error — nothing to deliver.
+            return cb(null);
+        }
+
+        async.eachLimit(
+            sharedInboxes,
+            4,
+            (inbox, next) => {
+                deleteActivity.sendTo(inbox, localUser, (err, _body, res) => {
+                    if (err) {
+                        Log.warn(
+                            { inbox, actorId: localActorId, error: err.message },
+                            'Failed to deliver Delete{Actor} to shared inbox'
+                        );
+                    } else if (res.statusCode !== 200 && res.statusCode !== 202) {
+                        Log.warn(
+                            { inbox, actorId: localActorId, statusCode: res.statusCode },
+                            'Unexpected status delivering Delete{Actor}'
+                        );
+                    }
+                    return next(null); // always continue
+                });
+            },
+            () => cb(null) // best-effort; never fail the caller
+        );
+    });
 }
 
 //  Collect all delivery targets for an outbound reaction (Like or Announce):

@@ -74,6 +74,17 @@ function _allowHttp() {
     }
 }
 
+function _maxResponseBodyBytes() {
+    try {
+        return (
+            Config().contentServers.web.handlers.activityPub.maxResponseBodyBytes ||
+            524288 // 512 KiB default
+        );
+    } catch {
+        return 524288;
+    }
+}
+
 function _makeRequest(url, options, cb) {
     options = Object.assign({}, { timeout: DefaultTimeoutMilliseconds }, options);
 
@@ -120,8 +131,7 @@ function _makeRequest(url, options, cb) {
         //  redirect target for SSRF before following it.
         const redirectOpts = {
             beforeRedirect(reqOptions) {
-                const redirectUrl =
-                    `${reqOptions.protocol}//${reqOptions.hostname}${reqOptions.path}`;
+                const redirectUrl = `${reqOptions.protocol}//${reqOptions.hostname}${reqOptions.path}`;
                 const reason = isSafeOutboundUrl(redirectUrl, _allowHttp());
                 if (reason) {
                     throw new Error(`Redirect blocked: ${reason}`);
@@ -133,8 +143,20 @@ function _makeRequest(url, options, cb) {
     }
 
     const req = httpLib.request(url, options, res => {
+        const maxBytes = _maxResponseBodyBytes();
         let body = [];
+        let totalBytes = 0;
+
         res.on('data', d => {
+            totalBytes += d.length;
+            if (totalBytes > maxBytes) {
+                res.destroy();
+                return cbWrapper(
+                    Errors.HttpError(
+                        `Response from ${url} exceeds ${maxBytes} byte limit`
+                    )
+                );
+            }
             body.push(d);
         });
 

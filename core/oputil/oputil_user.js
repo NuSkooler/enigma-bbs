@@ -174,6 +174,26 @@ function removeUser(user) {
                 );
             },
             callback => {
+                //  Notify AP followers of actor deletion before wiping DB records.
+                //  Best-effort: failure here does not abort the delete.
+                const ActivityPubSettings = require('../activitypub/settings');
+                const apSettings = ActivityPubSettings.fromUser(user);
+                if (!apSettings.enabled) {
+                    return callback(null);
+                }
+
+                const { sendActorDelete } = require('../activitypub/boost_util');
+                console.info('Notifying ActivityPub followers of account deletion…');
+                sendActorDelete(user, err => {
+                    if (err) {
+                        console.warn(
+                            `Warning: failed to send Delete{Actor} to followers: ${err.message}`
+                        );
+                    }
+                    return callback(null); // always continue
+                });
+            },
+            callback => {
                 //  op has confirmed they are wanting ready to proceed (or passed --no-prompt)
                 const DeleteFrom = {
                     message: ['user_message_area_last_read'],
