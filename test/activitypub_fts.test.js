@@ -151,9 +151,13 @@ before(() => {
             INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
             VALUES (
                 new.rowid, 'sharedInbox', new.object_id,
-                COALESCE(json_extract(new.object_json, '$.summary'), '') || ' ' ||
-                COALESCE(json_extract(new.object_json, '$.content'), ''),
-                ''
+                COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                COALESCE((
+                    SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                    FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                    WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                ), '')
             );
         END;
 
@@ -164,14 +168,57 @@ before(() => {
             INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
             VALUES (
                 new.rowid, 'sharedInbox', new.object_id,
-                COALESCE(json_extract(new.object_json, '$.summary'), '') || ' ' ||
-                COALESCE(json_extract(new.object_json, '$.content'), ''),
-                ''
+                COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                COALESCE((
+                    SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                    FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                    WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                ), '')
             );
         END;
 
         CREATE TRIGGER IF NOT EXISTS collection_fts_note_bd
         BEFORE DELETE ON collection WHEN old.name = 'sharedInbox'
+        BEGIN
+            DELETE FROM collection_fts WHERE rowid = old.rowid;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS collection_fts_outbox_ai
+        AFTER INSERT ON collection WHEN new.name = 'outbox'
+        BEGIN
+            INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+            VALUES (
+                new.rowid, 'outbox', new.object_id,
+                COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                COALESCE((
+                    SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                    FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                    WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                ), '')
+            );
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS collection_fts_outbox_au
+        AFTER UPDATE OF object_json ON collection WHEN new.name = 'outbox'
+        BEGIN
+            DELETE FROM collection_fts WHERE rowid = old.rowid;
+            INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+            VALUES (
+                new.rowid, 'outbox', new.object_id,
+                COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                COALESCE((
+                    SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                    FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                    WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                ), '')
+            );
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS collection_fts_outbox_bd
+        BEFORE DELETE ON collection WHEN old.name = 'outbox'
         BEGIN
             DELETE FROM collection_fts WHERE rowid = old.rowid;
         END;
@@ -199,22 +246,29 @@ function makeActor(id, preferredUsername, name, summary = '') {
     });
 }
 
-function addNote(id, summary, content) {
-    const note = {
+function addNote(id, summary, content, tags = []) {
+    //  Production stores Create{Note} activities, not raw Notes.
+    const activity = {
         '@context': 'https://www.w3.org/ns/activitystreams',
-        id,
-        type: 'Note',
-        summary: summary || '',
-        content: content || '',
-        attributedTo: 'https://remote.example.com/users/alice',
-        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        type: 'Create',
+        id: id + '/activity',
+        actor: 'https://remote.example.com/users/alice',
+        object: {
+            id,
+            type: 'Note',
+            summary: summary || '',
+            content: content || '',
+            attributedTo: 'https://remote.example.com/users/alice',
+            to: ['https://www.w3.org/ns/activitystreams#Public'],
+            tag: tags,
+        },
     };
     _apDb
         .prepare(
             `INSERT INTO collection (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
              VALUES (?, 'sharedInbox', datetime('now'), 'https://www.w3.org/ns/activitystreams#Public', ?, ?, 0)`
         )
-        .run('https://www.w3.org/ns/activitystreams#Public', id, JSON.stringify(note));
+        .run('https://www.w3.org/ns/activitystreams#Public', id, JSON.stringify(activity));
 }
 
 function search(fn, term) {
@@ -509,20 +563,25 @@ describe('Collection.searchNotes() — delete and update', function () {
         const id = 'https://remote.example.com/notes/upd-1';
         addNote(id, '', '<p>original xylophone content</p>');
 
-        //  Update the object_json (simulates Update activity)
-        const updatedNote = {
+        //  Update the object_json (simulates Update{Note} activity)
+        const updatedActivity = {
             '@context': 'https://www.w3.org/ns/activitystreams',
-            id,
-            type: 'Note',
-            summary: '',
-            content: '<p>completely different banjo content</p>',
-            attributedTo: 'https://remote.example.com/users/alice',
+            type: 'Update',
+            id: id + '/activity',
+            actor: 'https://remote.example.com/users/alice',
+            object: {
+                id,
+                type: 'Note',
+                summary: '',
+                content: '<p>completely different banjo content</p>',
+                attributedTo: 'https://remote.example.com/users/alice',
+            },
         };
         _apDb
             .prepare(
                 `UPDATE collection SET object_json = ? WHERE name = 'sharedInbox' AND object_id = ?`
             )
-            .run(JSON.stringify(updatedNote), id);
+            .run(JSON.stringify(updatedActivity), id);
 
         const oldTerm = await search(
             Collection.searchNotes.bind(Collection),
@@ -571,5 +630,43 @@ describe('Collection.searchActors() / searchNotes() — maxResults', function ()
             Collection.searchNotes('spork', 2, (err, r) => (err ? rej(err) : res(r)))
         );
         assert.equal(results.length, 2);
+    });
+});
+
+// ─── Note FTS — hashtag tag-column search ────────────────────────────────────
+
+describe('Collection.searchNotes() — hashtag tag column', function () {
+    it('finds a note by hashtag in the tags FTS column', async () => {
+        addNote(
+            'https://remote.example.com/notes/ht-1',
+            '',
+            '<p>Check out the BBS scene</p>',
+            [{ type: 'Hashtag', name: '#bbs', href: 'https://remote.example.com/tags/bbs' }]
+        );
+        addNote(
+            'https://remote.example.com/notes/ht-2',
+            '',
+            '<p>Totally unrelated post</p>'
+        );
+
+        const results = await search(Collection.searchNotes.bind(Collection), 'tags:bbs');
+        assert.equal(results.length, 1);
+        assert.equal(results[0].id, 'https://remote.example.com/notes/ht-1');
+    });
+
+    it('does not match non-Hashtag tag entries', async () => {
+        addNote(
+            'https://remote.example.com/notes/ht-3',
+            '',
+            '<p>Reply post</p>',
+            [{ type: 'Mention', name: '@alice@remote.example.com' }]
+        );
+
+        //  Mention type should not be indexed in tags column
+        const results = await search(
+            Collection.searchNotes.bind(Collection),
+            'tags:alice'
+        );
+        assert.equal(results.length, 0);
     });
 });

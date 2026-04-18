@@ -304,7 +304,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
         });
     }
 
-    //  Posts tab — FTS5 sharedInbox full-text search
+    //  Posts tab — FTS5 sharedInbox + outbox full-text search
     _searchPosts(term, cb) {
         Collection.searchNotes(ftsPhrase(term), (err, notes) => {
             if (err) {
@@ -312,11 +312,17 @@ exports.getModule = class ApSearchModule extends MenuModule {
                 notes = [];
             }
 
-            const items = notes.map(note => {
-                const item = Object.assign({ type: 'note' }, noteToItem(note));
-                item.text = formatPostLine(item);
-                return item;
-            });
+            let items;
+            try {
+                items = notes.map(note => {
+                    const item = Object.assign({ type: 'note' }, noteToItem(note));
+                    item.text = formatPostLine(item);
+                    return item;
+                });
+            } catch (e) {
+                this.client.log.error({ term, err: e }, 'AP search: error building post items');
+                items = [];
+            }
 
             return this._populateResultsList(items, cb);
         });
@@ -342,26 +348,34 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     res = { actors: [], notes: [] };
                 }
 
-                const actorItems = (res.actors || []).map(({ actor, subject }) => {
-                    const handle = subject || actorUrlToHandle(actor.id);
-                    const item = {
-                        type: 'actor',
-                        handle,
-                        displayName: actor.name || actor.preferredUsername || '',
-                        actorId: actor.id,
-                        _actor: actor,
-                    };
-                    item.text = formatHashtagActorLine(item);
-                    return item;
-                });
+                let items;
+                try {
+                    const actorItems = (res.actors || []).map(({ actor, subject }) => {
+                        const handle = subject || actorUrlToHandle(actor.id);
+                        const item = {
+                            type: 'actor',
+                            handle,
+                            displayName: actor.name || actor.preferredUsername || '',
+                            actorId: actor.id,
+                            _actor: actor,
+                        };
+                        item.text = formatHashtagActorLine(item);
+                        return item;
+                    });
 
-                const noteItems = (res.notes || []).map(note => {
-                    const item = Object.assign({ type: 'note' }, noteToItem(note));
-                    item.text = formatHashtagNoteLine(item);
-                    return item;
-                });
+                    const noteItems = (res.notes || []).map(note => {
+                        const item = Object.assign({ type: 'note' }, noteToItem(note));
+                        item.text = formatHashtagNoteLine(item);
+                        return item;
+                    });
 
-                return this._populateResultsList([...actorItems, ...noteItems], cb);
+                    items = [...actorItems, ...noteItems];
+                } catch (e) {
+                    this.client.log.error({ term, err: e }, 'AP search: error building hashtag items');
+                    items = [];
+                }
+
+                return this._populateResultsList(items, cb);
             }
         );
     }

@@ -1062,11 +1062,7 @@ module.exports = class Collection extends ActivityPubObject {
         try {
             const rows = apDb
                 .prepare(
-                    `SELECT
-                        COALESCE(
-                            json_extract(c.object_json, '$.object'),
-                            c.object_json
-                        ) AS object_json
+                    `SELECT c.object_json
                     FROM collection_fts f
                     JOIN collection c ON c.rowid = f.rowid
                     WHERE collection_fts MATCH ?
@@ -1076,8 +1072,16 @@ module.exports = class Collection extends ActivityPubObject {
                 )
                 .all(term, maxResults);
 
+            //  Each stored row is a Create{Note} activity.  Extract the inner Note
+            //  object (.object) so callers receive a Note, not a Create activity.
             const results = rows
-                .map(r => ActivityPubObject.fromJsonString(r.object_json))
+                .map(r => {
+                    const activity = ActivityPubObject.fromJsonString(r.object_json);
+                    if (!activity) return null;
+                    const noteObj = activity.object;
+                    if (!noteObj || typeof noteObj !== 'object') return null;
+                    return new ActivityPubObject(noteObj);
+                })
                 .filter(Boolean);
 
             return cb(null, results);
