@@ -62,6 +62,8 @@ const {
     verifyDigestHeader,
     normalizeHttpSigHeader,
     actorIdFromKeyId,
+    hostsMatch,
+    verifyObjectOwner,
     MaxRequestAgeSecs,
 } = require('../core/activitypub/security.js');
 
@@ -314,18 +316,21 @@ describe('verifyDigestHeader()', function () {
 
 describe('normalizeHttpSigHeader()', function () {
     it('rewrites hs2019 to rsa-sha256', () => {
-        const h = 'keyId="https://example.com/users/alice#main-key",algorithm="hs2019",headers="date",signature="abc"';
+        const h =
+            'keyId="https://example.com/users/alice#main-key",algorithm="hs2019",headers="date",signature="abc"';
         assert.ok(normalizeHttpSigHeader(h).includes('algorithm="rsa-sha256"'));
         assert.ok(!normalizeHttpSigHeader(h).includes('hs2019'));
     });
 
     it('leaves rsa-sha256 unchanged', () => {
-        const h = 'keyId="https://example.com/users/alice#main-key",algorithm="rsa-sha256",headers="date",signature="abc"';
+        const h =
+            'keyId="https://example.com/users/alice#main-key",algorithm="rsa-sha256",headers="date",signature="abc"';
         assert.equal(normalizeHttpSigHeader(h), h);
     });
 
     it('handles headers with no algorithm field', () => {
-        const h = 'keyId="https://example.com/users/alice#main-key",headers="date",signature="abc"';
+        const h =
+            'keyId="https://example.com/users/alice#main-key",headers="date",signature="abc"';
         assert.equal(normalizeHttpSigHeader(h), h);
     });
 
@@ -381,5 +386,90 @@ describe('actorIdFromKeyId()', function () {
 
     it('returns null for non-http(s) URLs', () => {
         assert.equal(actorIdFromKeyId('ftp://example.com/key'), null);
+    });
+});
+
+// ─── hostsMatch ───────────────────────────────────────────────────────────────
+
+describe('hostsMatch()', function () {
+    it('returns true for identical hostnames', () => {
+        assert.equal(
+            hostsMatch('https://example.com/users/alice', 'https://example.com/users/alice#main-key'),
+            true
+        );
+    });
+
+    it('returns true when schemes differ but hostnames match', () => {
+        assert.equal(
+            hostsMatch('http://example.com/users/alice', 'https://example.com/keys/1'),
+            true
+        );
+    });
+
+    it('returns false for different hostnames', () => {
+        assert.equal(
+            hostsMatch('https://good.example/users/alice', 'https://evil.example/users/alice#main-key'),
+            false
+        );
+    });
+
+    it('returns false when either URL is unparseable', () => {
+        assert.equal(hostsMatch('not-a-url', 'https://example.com/users/alice'), false);
+        assert.equal(hostsMatch('https://example.com/users/alice', 'not-a-url'), false);
+        assert.equal(hostsMatch(null, 'https://example.com/'), false);
+        assert.equal(hostsMatch('https://example.com/', null), false);
+    });
+
+    it('returns false for two unparseable inputs', () => {
+        assert.equal(hostsMatch('bad', 'also-bad'), false);
+    });
+
+    it('compares only hostname, not port', () => {
+        //  Same hostname, different ports → true (port is not part of the match)
+        assert.equal(
+            hostsMatch('https://example.com:8080/users/alice', 'https://example.com:443/users/alice'),
+            true
+        );
+    });
+});
+
+// ─── verifyObjectOwner ────────────────────────────────────────────────────────
+
+describe('verifyObjectOwner()', function () {
+    it('returns null (permit) when httpSigValidated is true', () => {
+        assert.equal(verifyObjectOwner(true, false, 'Note'), null);
+        assert.equal(verifyObjectOwner(true, false, 'Actor'), null);
+        assert.equal(verifyObjectOwner(true, true, 'Note'), null);
+    });
+
+    it('returns a reason string when sig is not validated and domainVerifiedOnly is false', () => {
+        const reason = verifyObjectOwner(false, false, 'Note');
+        assert.ok(typeof reason === 'string' && reason.length > 0, `expected reason string, got: ${reason}`);
+    });
+
+    it('returns a reason string when sig is not validated and domainVerifiedOnly is false (Actor)', () => {
+        const reason = verifyObjectOwner(false, false, 'Actor');
+        assert.ok(typeof reason === 'string' && reason.length > 0);
+    });
+
+    it('returns null (permit) for Actor self-deletion with domainVerifiedOnly', () => {
+        //  Actor deleted themselves; we verified domain binding; allow cache cleanup.
+        assert.equal(verifyObjectOwner(false, true, 'Actor'), null);
+    });
+
+    it('returns a reason string for Note deletion with domainVerifiedOnly (Notes always need sig)', () => {
+        const reason = verifyObjectOwner(false, true, 'Note');
+        assert.ok(typeof reason === 'string' && reason.length > 0,
+            'Note delete without valid sig must be refused even with domain binding');
+    });
+
+    it('returns a reason string for Article deletion with domainVerifiedOnly', () => {
+        const reason = verifyObjectOwner(false, true, 'Article');
+        assert.ok(typeof reason === 'string' && reason.length > 0);
+    });
+
+    it('returns a reason string when objectType is undefined/null with domainVerifiedOnly', () => {
+        const reason = verifyObjectOwner(false, true, undefined);
+        assert.ok(typeof reason === 'string' && reason.length > 0);
     });
 });

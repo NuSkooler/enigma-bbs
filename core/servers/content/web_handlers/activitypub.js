@@ -37,6 +37,8 @@ const {
     verifyDigestHeader,
     normalizeHttpSigHeader,
     actorIdFromKeyId,
+    hostsMatch,
+    verifyObjectOwner,
     MaxRequestAgeSecs,
 } = require('../../../activitypub/security');
 
@@ -353,6 +355,28 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 sigActorId,
                 (err, remoteActor, signatureActor) => {
                     if (err) {
+                        //  For Delete activities the remote actor may have already been
+                        //  removed from the origin server before the Delete reaches us.
+                        //  If the objectId and keyId share the same hostname we accept
+                        //  the delete for Actor-type objects only (domain binding).
+                        //  Note deletes and all other activity types still require a
+                        //  verifiable signature.
+                        if (activity.type === WellKnownActivity.Delete) {
+                            const objectId = _.get(activity, 'object.id', activity.object);
+                            if (objectId && sigActorId && hostsMatch(objectId, sigActorId)) {
+                                this.log.info(
+                                    { objectId, sigActorId, inboxType },
+                                    'Delete: actor fetch failed; accepting via domain binding'
+                                );
+                                return this._inboxDeleteActivity(
+                                    inboxType,
+                                    resp,
+                                    activity,
+                                    false, // httpSigValidated
+                                    true   // domainVerifiedOnly
+                                );
+                            }
+                        }
                         this.log.warn(
                             { err: err.message, sigActorId, inboxType },
                             'Failed to fetch remote actor — access denied'
@@ -360,11 +384,11 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         return this.webServer.accessDenied(resp);
                     }
 
-                    // validate sig up front
+                    // validate sig up front — all activity types require a valid signature
                     const httpSigValidated =
                         remoteActor &&
                         this._validateActorSignature(signatureActor, signature);
-                    if (activity.type !== WellKnownActivity.Delete && !httpSigValidated) {
+                    if (!httpSigValidated) {
                         this.log.warn(
                             { sigActorId, activityType: activity.type, inboxType },
                             'HTTP signature validation failed — access denied'
@@ -418,11 +442,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             break;
 
                         case WellKnownActivity.Follow:
-                            return this._inboxFollowActivity(
-                                resp,
-                                remoteActor,
-                                activity
-                            );
+                            return this._inboxFollowActivity(resp, remoteActor, activity);
 
                         case WellKnownActivity.Like:
                             return this._inboxLikeActivity(resp, activity);
@@ -707,7 +727,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
-    _inboxDeleteActivity(inboxType, resp, activity, httpSigValidated) {
+    _inboxDeleteActivity(inboxType, resp, activity, httpSigValidated, domainVerifiedOnly = false) {
         const objectId = _.get(activity, 'object.id', activity.object);
 
         this.log.info({ inboxType, objectId }, 'Incoming Delete request');
@@ -756,8 +776,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                                 return this._verifyObjectOwner(
                                     httpSigValidated,
+                                    false, // Notes always require a proper sig
                                     objInfo.object,
-                                    activity,
                                     err => {
                                         if (err) {
                                             this.log.warn(
@@ -810,8 +830,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             case Collections.Actors:
                                 return this._verifyObjectOwner(
                                     httpSigValidated,
+                                    domainVerifiedOnly,
                                     objInfo.object,
-                                    activity,
                                     err => {
                                         if (err) {
                                             this.log.warn(
@@ -984,30 +1004,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _verifyObjectOwner(httpSigValidated, object, activity, cb) {
-        if (httpSigValidated) {
-            //  owner signed
-            return cb(null);
-        }
-
-        const creator = activity.signature?.creator;
-        if (creator !== `${object.actor}#main-key`) {
-            return cb(Errors.ValidationFailed('Creator mismatch'));
-        }
-
-        //
-        //  We can't fetch an Actor for deleted Actors, so
-        //  we're left with a basic comparison (above)
-        //
-        if (object.type === 'Actor') {
-            return cb(null);
-        }
-
-        return cb(
-            Errors.ValidationFailed(
-                'Object does not appear to be owned by calling Activity'
-            )
+    _verifyObjectOwner(httpSigValidated, domainVerifiedOnly, object, cb) {
+        const reason = verifyObjectOwner(
+            httpSigValidated,
+            domainVerifiedOnly,
+            object && object.type
         );
+        return reason ? cb(Errors.ValidationFailed(reason)) : cb(null);
     }
 
     _inboxFollowActivity(resp, remoteActor, activity) {
@@ -1178,7 +1181,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            this._verifyObjectOwner(httpSigValidated, obj, activity, err => {
+            this._verifyObjectOwner(httpSigValidated, false, obj, err => {
                 if (err) {
                     this.log.warn(
                         {

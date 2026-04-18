@@ -114,3 +114,43 @@ function actorIdFromKeyId(keyId) {
     return stripped || keyId;
 }
 exports.actorIdFromKeyId = actorIdFromKeyId;
+
+//
+//  Return true when both URLs share the same hostname (scheme-insensitive).
+//  Returns false for any non-parseable input.
+//
+function hostsMatch(urlA, urlB) {
+    try {
+        return new URL(urlA).hostname === new URL(urlB).hostname;
+    } catch {
+        return false;
+    }
+}
+exports.hostsMatch = hostsMatch;
+
+//
+//  Determine whether an inbox operation is permitted to modify an object.
+//
+//  httpSigValidated  — true when the HTTP signature was cryptographically
+//                      verified against the remote actor's public key
+//  domainVerifiedOnly — true when the remote actor could not be fetched
+//                       (e.g. self-deleted) but domain binding was confirmed
+//                       by the caller; only Actor-type objects are allowed
+//                       without a full signature in this case
+//  objectType        — the `type` field of the object being modified/deleted
+//
+//  Returns null when the operation is permitted, or a human-readable reason
+//  string when it should be refused.
+//
+function verifyObjectOwner(httpSigValidated, domainVerifiedOnly, objectType) {
+    if (httpSigValidated) {
+        return null; // cryptographic proof — permit
+    }
+    if (domainVerifiedOnly && objectType === 'Actor') {
+        // Actor self-deletion: fetch failed (actor already removed from remote),
+        // but domain binding was confirmed.  Permit cleanup of local state.
+        return null;
+    }
+    return 'HTTP signature required to verify object ownership';
+}
+exports.verifyObjectOwner = verifyObjectOwner;
