@@ -212,7 +212,11 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                                     'Note Activity persisted to "outbox" collection"'
                                 );
                                 if (!message.isPrivate()) {
-                                    StatLog.incrementUserStat(fromUser, UserProps.ApPostCount, 1);
+                                    StatLog.incrementUserStat(
+                                        fromUser,
+                                        UserProps.ApPostCount,
+                                        1
+                                    );
                                 }
                             }
                             return callback(err, activity);
@@ -343,52 +347,19 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
     _collectFollowersSharedInboxEndpoints(localUser, cb) {
         const localFollowersEndpoint = Endpoints.followers(localUser);
 
-        Collection.followers(localFollowersEndpoint, 'all', (err, collection) => {
-            if (err) {
-                return cb(err);
-            }
-
-            if (!collection.orderedItems || collection.orderedItems.length < 1) {
-                // no followers :(
-                return cb(null, [], localFollowersEndpoint);
-            }
-
-            async.mapLimit(
-                collection.orderedItems,
-                4,
-                (actorId, nextActorId) => {
-                    Actor.fromId(actorId, (err, actor) => {
-                        if (err) {
-                            this.log.warn(
-                                { error: err.message, actorId },
-                                'Failed to fetch actor from ID; skipping'
-                            );
-                            return nextActorId(null, null);
-                        }
-                        return nextActorId(null, actor);
-                    });
-                },
-                (err, followerActors) => {
-                    if (err) {
-                        return cb(err);
-                    }
-
-                    followerActors = followerActors.filter(v => v); //  drop any missing actors
-
-                    const sharedInboxEndpoints = Array.from(
-                        new Set(
-                            followerActors
-                                .map(actor => {
-                                    return _.get(actor, 'endpoints.sharedInbox');
-                                })
-                                .filter(inbox => inbox) // drop nulls
-                        )
-                    );
-
-                    return cb(null, sharedInboxEndpoints, localFollowersEndpoint);
+        //  Single SQL query: join the followers collection against the actor
+        //  cache and extract sharedInbox URLs directly.  O(1) DB round-trips
+        //  regardless of follower count; actors not yet cached are skipped
+        //  (same behaviour as the previous per-actor fromId() fan-out loop).
+        Collection.getFollowerSharedInboxes(
+            localFollowersEndpoint,
+            (err, sharedInboxEndpoints) => {
+                if (err) {
+                    return cb(err);
                 }
-            );
-        });
+                return cb(null, sharedInboxEndpoints, localFollowersEndpoint);
+            }
+        );
     }
 
     _isEnabled() {

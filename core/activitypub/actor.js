@@ -278,7 +278,9 @@ module.exports = class Actor extends ActivityPubObject {
         //  Sign the GET if a local user was provided — required by strict servers
         //  such as GoToSocial that reject unsigned actor fetch requests.
         if (fromUser) {
-            const privateKey = fromUser.getProperty(UserProps.PrivateActivityPubSigningKey);
+            const privateKey = fromUser.getProperty(
+                UserProps.PrivateActivityPubSigningKey
+            );
             if (privateKey) {
                 reqOpts.sign = {
                     key: privateKey,
@@ -290,19 +292,31 @@ module.exports = class Actor extends ActivityPubObject {
             }
         }
 
-        getJson(id, { ...reqOpts, timeout: 15000 }, (err, actor) => {
-            if (err) {
-                return cb(err);
+        getJson(
+            id,
+            {
+                ...reqOpts,
+                timeout: 15000,
+                validContentTypes: [
+                    ActivityStreamMediaType,
+                    'application/json',
+                    'application/ld+json',
+                ],
+            },
+            (err, actor) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                actor = new Actor(actor);
+
+                if (!actor.isValid()) {
+                    return cb(Errors.Invalid('Invalid Actor'));
+                }
+
+                return cb(null, actor);
             }
-
-            actor = new Actor(actor);
-
-            if (!actor.isValid()) {
-                return cb(Errors.Invalid('Invalid Actor'));
-            }
-
-            return cb(null, actor);
-        });
+        );
     }
 
     static _fromCache(actorIdOrSubject, cb) {

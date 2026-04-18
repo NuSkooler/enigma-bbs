@@ -32,9 +32,7 @@ function readInboxBody(req, maxBytes, cb) {
         if (done) return;
         totalBytes += chunk.length;
         if (totalBytes > maxBytes) {
-            const err = new Error(
-                `Request body exceeds limit of ${maxBytes} bytes`
-            );
+            const err = new Error(`Request body exceeds limit of ${maxBytes} bytes`);
             err.code = 'ENTITY_TOO_LARGE';
             if (typeof req.destroy === 'function') {
                 req.destroy();
@@ -157,6 +155,12 @@ function actorIdFromKeyId(keyId) {
     if (keyId.includes('#')) {
         return keyId.split('#', 1)[0];
     }
+    //  If no known suffix is stripped, the full keyId URL is returned as the
+    //  actor ID.  Non-standard suffixes (e.g. /key, /signing-key, /keys/primary)
+    //  will not be recognised.  In that case Actor.fromId() fetches the URL; if
+    //  it does not resolve to a valid Actor the request is rejected cleanly.
+    //  The domain-binding check in _getAssociatedActors further mitigates any
+    //  impersonation risk from exotic key IDs (audit finding #2).
     const stripped = keyId.replace(KEY_PATH_RE, '');
     return stripped || keyId;
 }
@@ -204,9 +208,9 @@ const BLOCKED_HOST_SUFFIXES = [
     '.internal',
     '.lan',
     '.localhost',
-    '.example',     // RFC 2606 reserved
-    '.invalid',     // RFC 2606 reserved
-    '.test',        // RFC 2606 reserved
+    '.example', // RFC 2606 reserved
+    '.invalid', // RFC 2606 reserved
+    '.test', // RFC 2606 reserved
 ];
 
 //
@@ -214,23 +218,24 @@ const BLOCKED_HOST_SUFFIXES = [
 //  Each entry is [networkInt, maskInt].
 //
 const BLOCKED_IPV4_CIDRS = [
-    ['0.0.0.0',   8],   // "this" network
-    ['10.0.0.0',  8],   // RFC-1918
+    ['0.0.0.0', 8], // "this" network
+    ['10.0.0.0', 8], // RFC-1918
     ['100.64.0.0', 10], // CGNAT shared address
-    ['127.0.0.0', 8],   // loopback
+    ['127.0.0.0', 8], // loopback
     ['169.254.0.0', 16], // link-local / cloud metadata
     ['172.16.0.0', 12], // RFC-1918
-    ['192.0.0.0', 24],  // IETF protocol assignments
+    ['192.0.0.0', 24], // IETF protocol assignments
     ['192.168.0.0', 16], // RFC-1918
     ['198.18.0.0', 15], // benchmarking
     ['198.51.100.0', 24], // RFC 5737 TEST-NET-2
-    ['203.0.113.0', 24],  // RFC 5737 TEST-NET-3
-    ['224.0.0.0', 4],   // multicast
-    ['240.0.0.0', 4],   // reserved / experimental
+    ['203.0.113.0', 24], // RFC 5737 TEST-NET-3
+    ['224.0.0.0', 4], // multicast
+    ['240.0.0.0', 4], // reserved / experimental
     ['255.255.255.255', 32], // broadcast
 ].map(([addr, prefix]) => {
     const parts = addr.split('.').map(Number);
-    const network = (parts[0] << 24 | parts[1] << 16 | parts[2] << 8 | parts[3]) >>> 0;
+    const network =
+        ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
     const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
     return [network, mask];
 });
@@ -241,16 +246,17 @@ function _isBlockedIPv4(hostname) {
     if (parts.length !== 4) return false;
     const nums = parts.map(Number);
     if (nums.some(n => isNaN(n) || n < 0 || n > 255)) return false;
-    const addr = (nums[0] << 24 | nums[1] << 16 | nums[2] << 8 | nums[3]) >>> 0;
+    const addr = ((nums[0] << 24) | (nums[1] << 16) | (nums[2] << 8) | nums[3]) >>> 0;
     // `&` operates on signed int32; `>>> 0` converts back to unsigned for comparison.
-    return BLOCKED_IPV4_CIDRS.some(([network, mask]) => ((addr & mask) >>> 0) === network);
+    return BLOCKED_IPV4_CIDRS.some(([network, mask]) => (addr & mask) >>> 0 === network);
 }
 
 function _isBlockedIPv6(hostname) {
     // strip brackets if present: [::1] → ::1
-    const raw = hostname.startsWith('[') && hostname.endsWith(']')
-        ? hostname.slice(1, -1)
-        : hostname;
+    const raw =
+        hostname.startsWith('[') && hostname.endsWith(']')
+            ? hostname.slice(1, -1)
+            : hostname;
 
     if (!net.isIPv6(raw)) return false;
 
@@ -259,16 +265,16 @@ function _isBlockedIPv6(hostname) {
     if (!buf) return false;
 
     const first = buf[0];
-    const firstTwo = (buf[0] << 8 | buf[1]);
+    const firstTwo = (buf[0] << 8) | buf[1];
 
     return (
-        raw === '::' ||                 // unspecified
-        raw === '::1' ||                // loopback
-        (first & 0xe0) === 0x20 && buf[1] === 0x02 || // 2002::/16 6to4
+        raw === '::' || // unspecified
+        raw === '::1' || // loopback
+        ((first & 0xe0) === 0x20 && buf[1] === 0x02) || // 2002::/16 6to4
         (firstTwo & 0xffc0) === 0xfe80 || // fe80::/10 link-local
         (firstTwo & 0xffc0) === 0xfec0 || // fec0::/10 site-local (deprecated)
-        (first & 0xfe) === 0xfc ||      // fc00::/7  unique local
-        (first & 0xff) === 0xff         // ff00::/8  multicast
+        (first & 0xfe) === 0xfc || // fc00::/7  unique local
+        (first & 0xff) === 0xff // ff00::/8  multicast
     );
 }
 
@@ -330,9 +336,11 @@ function isSafeOutboundUrl(urlString, allowHttp = false) {
     const hostname = parsed.hostname.toLowerCase();
 
     // Blocked named hosts
-    if (BLOCKED_HOST_SUFFIXES.some(s =>
-        hostname === s.replace(/^\./, '') || hostname.endsWith(s)
-    )) {
+    if (
+        BLOCKED_HOST_SUFFIXES.some(
+            s => hostname === s.replace(/^\./, '') || hostname.endsWith(s)
+        )
+    ) {
         return `hostname "${hostname}" is a reserved/internal name`;
     }
 

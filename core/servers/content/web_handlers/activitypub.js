@@ -93,7 +93,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'POST',
-            path: /^\/_enig\/ap\/users\/.+\/inbox$/,
+            path: /^\/_enig\/ap\/users\/[^/]+\/inbox$/,
             handler: (req, resp) => {
                 return this._enforceMainKeySignatureValidity(
                     req,
@@ -131,19 +131,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=[0-9]+)?$/,
+            path: /^\/_enig\/ap\/users\/[^/]+\/outbox(\?page=[0-9]+)?$/,
             handler: this._outboxGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/followers(\?page=[0-9]+)?$/,
+            path: /^\/_enig\/ap\/users\/[^/]+\/followers(\?page=[0-9]+)?$/,
             handler: this._followersGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/following(\?page=[0-9]+)?$/,
+            path: /^\/_enig\/ap\/users\/[^/]+\/following(\?page=[0-9]+)?$/,
             handler: this._followingGetHandler.bind(this),
         });
 
@@ -378,6 +378,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     : this.webServer.notImplemented(resp);
             }
 
+            //  Verify activity.id belongs to the same domain as activity.actor.
+            //  The id is used for deduplication and logging; a mismatch is a
+            //  sign of a forged or misrouted activity.
+            if (
+                activity.id &&
+                activity.actor &&
+                !hostsMatch(activity.id, activity.actor)
+            ) {
+                this.log.warn(
+                    { activityId: activity.id, actor: activity.actor, inboxType },
+                    'activity.id domain does not match actor domain — rejected'
+                );
+                return this.webServer.badRequest(resp);
+            }
+
             const sigActorId = actorIdFromKeyId(signature.keyId);
 
             //  Fetch and validate the signature of the remote Actor
@@ -393,8 +408,16 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                         //  Note deletes and all other activity types still require a
                         //  verifiable signature.
                         if (activity.type === WellKnownActivity.Delete) {
-                            const objectId = _.get(activity, 'object.id', activity.object);
-                            if (objectId && sigActorId && hostsMatch(objectId, sigActorId)) {
+                            const objectId = _.get(
+                                activity,
+                                'object.id',
+                                activity.object
+                            );
+                            if (
+                                objectId &&
+                                sigActorId &&
+                                hostsMatch(objectId, sigActorId)
+                            ) {
                                 this.log.info(
                                     { objectId, sigActorId, inboxType },
                                     'Delete: actor fetch failed; accepting via domain binding'
@@ -404,7 +427,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                     resp,
                                     activity,
                                     false, // httpSigValidated
-                                    true   // domainVerifiedOnly
+                                    true // domainVerifiedOnly
                                 );
                             }
                         }
@@ -758,7 +781,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
-    _inboxDeleteActivity(inboxType, resp, activity, httpSigValidated, domainVerifiedOnly = false) {
+    _inboxDeleteActivity(
+        inboxType,
+        resp,
+        activity,
+        httpSigValidated,
+        domainVerifiedOnly = false
+    ) {
         const objectId = _.get(activity, 'object.id', activity.object);
 
         this.log.info({ inboxType, objectId }, 'Incoming Delete request');

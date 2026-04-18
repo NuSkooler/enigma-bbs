@@ -303,6 +303,40 @@ module.exports = class Collection extends ActivityPubObject {
         }
     }
 
+    //  Return the unique set of sharedInbox URLs for all followers in a given
+    //  followers collection, using a single SQL query against the actor cache.
+    //
+    //  Followers whose actors are not yet cached are silently skipped — this is
+    //  the same behaviour as the previous Actor.fromId() fan-out loop, but in
+    //  O(1) DB round-trips instead of O(n).
+    //
+    //  followersEndpoint — the collection name (URL) for the followers list
+    //  cb(err, sharedInboxes: string[])
+    //
+    static getFollowerSharedInboxes(followersEndpoint, cb) {
+        try {
+            const rows = apDb
+                .prepare(
+                    `SELECT DISTINCT json_extract(a.object_json, '$.endpoints.sharedInbox') AS shared_inbox
+                    FROM collection f
+                    JOIN collection a
+                        ON  a.collection_id = ?
+                        AND a.name          = ?
+                        AND a.object_id     = f.object_id
+                    WHERE f.name = ?
+                      AND json_extract(a.object_json, '$.endpoints.sharedInbox') IS NOT NULL`
+                )
+                .all(ActorCollectionId, Collections.Actors, followersEndpoint);
+
+            return cb(
+                null,
+                rows.map(r => r.shared_inbox)
+            );
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static removeExpiredActors(maxAgeDays, cb) {
         try {
             apDb.prepare(

@@ -97,6 +97,11 @@ function fetchAnnouncedNote(objectOrId, cb) {
         const fetchOpts = {
             headers: { Accept: ActivityStreamMediaType },
             timeout: AnnounceObjectFetchTimeoutMs,
+            validContentTypes: [
+                ActivityStreamMediaType,
+                'application/json',
+                'application/ld+json',
+            ],
         };
 
         getJson(noteId, fetchOpts, (err, parsed) => {
@@ -201,15 +206,22 @@ function sendBoost(localUser, noteId, cb) {
         [
             //  Guard: reject duplicate outbound boosts before any delivery.
             callback => {
-                Collection.hasReaction(noteId, localActorId, 'Announce', (err, already) => {
-                    if (err) return callback(err);
-                    if (already) {
-                        return callback(
-                            Errors.Duplicate(`Note "${noteId}" already boosted by "${localActorId}"`)
-                        );
+                Collection.hasReaction(
+                    noteId,
+                    localActorId,
+                    'Announce',
+                    (err, already) => {
+                        if (err) return callback(err);
+                        if (already) {
+                            return callback(
+                                Errors.Duplicate(
+                                    `Note "${noteId}" already boosted by "${localActorId}"`
+                                )
+                            );
+                        }
+                        return callback(null);
                     }
-                    return callback(null);
-                });
+                );
             },
 
             //  Collect delivery targets: note author's inbox + followers' shared inboxes
@@ -258,7 +270,13 @@ function sendBoost(localUser, noteId, cb) {
             //  Record in note_reactions so getBoostCount reflects outbound boosts.
             //  _rowid is the lastInsertRowid from addOutboxItem; ignored here.
             (_rowid, callback) => {
-                Collection.addReaction(noteId, localActorId, 'Announce', announce.id, callback);
+                Collection.addReaction(
+                    noteId,
+                    localActorId,
+                    'Announce',
+                    announce.id,
+                    callback
+                );
             },
 
             //  Track for AP boost achievement.
@@ -410,7 +428,9 @@ function sendLike(localUser, noteId, cb) {
                     if (err) return callback(err);
                     if (already) {
                         return callback(
-                            Errors.Duplicate(`Note "${noteId}" already liked by "${localActorId}"`)
+                            Errors.Duplicate(
+                                `Note "${noteId}" already liked by "${localActorId}"`
+                            )
                         );
                     }
                     return callback(null);
@@ -493,9 +513,7 @@ function undoLike(localUser, noteId, cb) {
         }
 
         if (!outboxActivity || outboxActivity.type !== 'Like') {
-            return cb(
-                Errors.DoesNotExist(`No outbound Like found for Note "${noteId}"`)
-            );
+            return cb(Errors.DoesNotExist(`No outbound Like found for Note "${noteId}"`));
         }
 
         const likeId = outboxActivity.id;
@@ -521,7 +539,7 @@ function undoLike(localUser, noteId, cb) {
                         sharedInboxes,
                         4,
                         (inbox, next) => {
-                            undo.sendTo(inbox, localUser, (err) => {
+                            undo.sendTo(inbox, localUser, err => {
                                 if (err) {
                                     Log.warn(
                                         { inbox, noteId, error: err.message },
@@ -717,7 +735,12 @@ function sendDelete(localUser, noteId, cb) {
 
             //  Remove from Outbox.
             callback => {
-                Collection.removeOwnedById(Collections.Outbox, localUser, noteId, callback);
+                Collection.removeOwnedById(
+                    Collections.Outbox,
+                    localUser,
+                    noteId,
+                    callback
+                );
             },
 
             //  Remove from sharedInbox (in case it was echoed there).
