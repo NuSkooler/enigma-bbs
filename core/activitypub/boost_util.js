@@ -26,6 +26,7 @@ const Note = require('./note');
 const ActivityPubObject = require('./object');
 const Endpoints = require('./endpoint');
 const { getJson } = require('../http_util');
+const { hostsMatch } = require('./security');
 const { Errors } = require('../enig_error');
 const { ActivityStreamMediaType, Collections, PublicCollectionId } = require('./const');
 const UserProps = require('../user_property');
@@ -63,7 +64,15 @@ exports.sendDelete = sendDelete;
 //    2. String URL that is remote → HTTP GET with 3s timeout
 //    3. Embedded object (non-conforming senders) → use directly if Note or Article
 //
-function fetchAnnouncedNote(objectOrId, cb) {
+//  fromActorId (optional) — when provided, the fetched URL's hostname must match
+//  the actor's hostname to prevent cross-domain content injection (audit finding #7).
+//
+function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
+    //  Support legacy two-arg call: fetchAnnouncedNote(objectOrId, cb)
+    if (typeof fromActorId === 'function') {
+        cb = fromActorId;
+        fromActorId = null;
+    }
     const isNoteOrArticle = t => t === 'Note' || t === 'Article';
 
     //  Case 3: already an embedded object
@@ -93,7 +102,18 @@ function fetchAnnouncedNote(objectOrId, cb) {
             }
         }
 
-        //  Case 2: not found locally — fetch from remote
+        //  Case 2: not found locally — fetch from remote.
+        //  Guard: the announced object URL must belong to the same domain as
+        //  the announcing actor.  Without this check a malicious actor could
+        //  cause ENiGMA to fetch and store content from an arbitrary server.
+        if (fromActorId && !hostsMatch(noteId, fromActorId)) {
+            return cb(
+                Errors.ValidationFailed(
+                    `Announced object URL domain does not match actor domain (actor: ${fromActorId}, object: ${noteId})`
+                )
+            );
+        }
+
         const fetchOpts = {
             headers: { Accept: ActivityStreamMediaType },
             timeout: AnnounceObjectFetchTimeoutMs,
