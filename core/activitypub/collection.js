@@ -1060,14 +1060,19 @@ module.exports = class Collection extends ActivityPubObject {
         }
 
         try {
+            //  Join the FTS match results directly to the collection table via rowid.
+            //  Avoid filtering on UNINDEXED column (f.coll_name) in the WHERE clause —
+            //  some SQLite/FTS5 versions make the query planner hang when an UNINDEXED
+            //  column filter appears alongside MATCH with ORDER BY rank.  Instead, join
+            //  on c.name so the regular-table index is used for the collection filter,
+            //  and skip ORDER BY rank (results are returned in FTS5 match order anyway).
             const rows = apDb
                 .prepare(
                     `SELECT c.object_json
                     FROM collection_fts f
                     JOIN collection c ON c.rowid = f.rowid
+                        AND c.name IN ('sharedInbox', 'outbox')
                     WHERE collection_fts MATCH ?
-                      AND f.coll_name IN ('sharedInbox', 'outbox')
-                    ORDER BY rank
                     LIMIT ?;`
                 )
                 .all(term, maxResults);
