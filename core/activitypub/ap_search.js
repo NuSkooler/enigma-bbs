@@ -46,19 +46,19 @@ exports.moduleInfo = {
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const FormIds = {
-    main:      0,
+    main: 0,
     actorView: 1,
 };
 
 const MciViewIds = {
     main: {
-        tabSelect:        1,  // HM1 — People | Posts | Hashtags
-        searchInput:      2,  // ET2 — search text input
-        results:          3,  // LV3 — result list
+        tabSelect: 1, // HM1 — People | Posts | Hashtags
+        searchInput: 2, // ET2 — search text input
+        results: 3, // LV3 — result list
         customRangeStart: 10, // TL10+ — status, tab label, result count, etc.
     },
     actorView: {
-        summary:          1,  // MT1 — bio/summary (set directly; optional)
+        summary: 1, // MT1 — bio/summary (set directly; optional)
         customRangeStart: 10, // TL10+ — all actor fields (operator-configured)
     },
 };
@@ -121,15 +121,20 @@ exports.getModule = class ApSearchModule extends MenuModule {
         });
 
         //  Tab state
-        this._currentTab    = Tabs.People;
-        this._results       = [];   // parallel array of raw objects for Enter dispatch
+        this._currentTab = Tabs.People;
+        this._results = []; // parallel array of raw objects for Enter dispatch
         this._selectedActor = null; // actor info for Form 1
 
         this.menuMethods = {
             tabChanged: (formData, _extraArgs, cb) => {
                 //  {tab: null} in the submit config is a wildcard that matches ALL
-                //  form submissions (HM1 always has a value). Dispatch to the correct
-                //  handler based on which view actually triggered the submit.
+                //  form submissions (HM1 always has a value). Always sync tab state
+                //  first — the user may have arrowed to a new tab without triggering
+                //  an HM1 submit, so formData.value.tab is the authoritative source.
+                if (formData.value.tab != null) {
+                    this._currentTab = formData.value.tab;
+                }
+
                 const submitId = formData.submitId;
                 if (submitId === MciViewIds.main.searchInput) {
                     const term = (formData.value.searchQuery || '').trim();
@@ -139,8 +144,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
                 if (submitId === MciViewIds.main.results) {
                     return this._openSelected(formData.value.result, cb);
                 }
-                //  Actual tab change from HM1
-                this._currentTab = formData.value.tab || Tabs.People;
+                //  Actual tab change from HM1 — clear stale results.
                 this._clearResults();
                 return cb(null);
             },
@@ -187,10 +191,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
         this.webServer = this.webServer.instance;
 
         async.series(
-            [
-                cb => this.beforeArt(cb),
-                cb => this._displayMainPage(false, cb),
-            ],
+            [cb => this.beforeArt(cb), cb => this._displayMainPage(false, cb)],
             () => this.finishedLoading()
         );
     }
@@ -232,15 +233,11 @@ exports.getModule = class ApSearchModule extends MenuModule {
     }
 
     _updateMainCustomViews() {
-        this.updateCustomViewTextsWithFilter(
-            'main',
-            MciViewIds.main.customRangeStart,
-            {
-                tabLabel:     TabLabels[this._currentTab] || '',
-                resultCount:  String(this._results.length),
-                statusText:   this._statusText || '',
-            }
-        );
+        this.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, {
+            tabLabel: TabLabels[this._currentTab] || '',
+            resultCount: String(this._results.length),
+            statusText: this._statusText || '',
+        });
     }
 
     _setStatus(text) {
@@ -293,11 +290,11 @@ exports.getModule = class ApSearchModule extends MenuModule {
                 const handle = subject || actorUrlToHandle(actor.id);
                 const displayName = actor.name || actor.preferredUsername || '';
                 const item = {
-                    type:        'actor',
+                    type: 'actor',
                     handle,
                     displayName,
-                    actorId:     actor.id,
-                    _actor:      actor,
+                    actorId: actor.id,
+                    _actor: actor,
                 };
                 item.text = formatPeopleLine(item);
                 return item;
@@ -334,22 +331,25 @@ exports.getModule = class ApSearchModule extends MenuModule {
         async.parallel(
             {
                 actors: innerCb => Collection.searchActors(ftsTag, innerCb),
-                notes:  innerCb => Collection.searchNotes(ftsTag, innerCb),
+                notes: innerCb => Collection.searchNotes(ftsTag, innerCb),
             },
             (err, res) => {
                 if (err) {
-                    this.client.log.warn({ term, err }, 'AP search: hashtag search failed');
+                    this.client.log.warn(
+                        { term, err },
+                        'AP search: hashtag search failed'
+                    );
                     res = { actors: [], notes: [] };
                 }
 
                 const actorItems = (res.actors || []).map(({ actor, subject }) => {
                     const handle = subject || actorUrlToHandle(actor.id);
                     const item = {
-                        type:        'actor',
+                        type: 'actor',
                         handle,
                         displayName: actor.name || actor.preferredUsername || '',
-                        actorId:     actor.id,
-                        _actor:      actor,
+                        actorId: actor.id,
+                        _actor: actor,
                     };
                     item.text = formatHashtagActorLine(item);
                     return item;
@@ -416,7 +416,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
                 extraArgs: {
                     item,
                     itemIndex: index,
-                    items:     this._results.filter(r => r.type === 'note'),
+                    items: this._results.filter(r => r.type === 'note'),
                     modeLabel: 'Search',
                 },
             },
@@ -472,7 +472,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     .filter(a => a.type === 'PropertyValue' && a.name)
                     .map(a => `${a.name}: ${htmlToMessageBody(a.value || '')}`);
                 if (props.length > 0) {
-                    if (parts.length > 0) parts.push('');  // blank separator
+                    if (parts.length > 0) parts.push(''); // blank separator
                     parts.push(...props);
                 }
             }
@@ -483,7 +483,9 @@ exports.getModule = class ApSearchModule extends MenuModule {
 
         //  TL10+: all actor fields are operator-configured
         this.updateCustomViewTextsWithFilter(
-            'actorView', MciViewIds.actorView.customRangeStart, this._actorFormatObject()
+            'actorView',
+            MciViewIds.actorView.customRangeStart,
+            this._actorFormatObject()
         );
 
         return cb(null);
@@ -496,23 +498,23 @@ exports.getModule = class ApSearchModule extends MenuModule {
         const v = f => a[f] || '';
 
         return {
-            handle:                    a._subject || actorUrlToHandle(a.id),
-            preferredUsername:          v('preferredUsername'),
-            displayName:               v('name'),
-            published:                 isEmpty(a.published)
+            handle: a._subject || actorUrlToHandle(a.id),
+            preferredUsername: v('preferredUsername'),
+            displayName: v('name'),
+            published: isEmpty(a.published)
                 ? ''
                 : moment(a.published).format(this.getDateFormat()),
-            followersCount:            a._followersCount >= 0 ? a._followersCount : '--',
-            followingCount:            a._followingCount >= 0 ? a._followingCount : '--',
-            followIndicator:           this._followIndicator(),
+            followersCount: a._followersCount >= 0 ? a._followersCount : '--',
+            followingCount: a._followingCount >= 0 ? a._followingCount : '--',
+            followIndicator: this._followIndicator(),
             manuallyApprovesFollowers: a.manuallyApprovesFollowers ? 'Yes' : 'No',
-            actorId:                   v('id'),
-            actorUrl:                  v('url'),
-            actorType:                 v('type'),
-            actorSummary:              v('summary'),
-            actorImage:                v('image'),
-            actorIcon:                 v('icon'),
-            actorFollowing:            !!a._isFollowing,
+            actorId: v('id'),
+            actorUrl: v('url'),
+            actorType: v('type'),
+            actorSummary: v('summary'),
+            actorImage: v('image'),
+            actorIcon: v('icon'),
+            actorFollowing: !!a._isFollowing,
         };
     }
 
@@ -520,7 +522,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
 
     _followIndicator() {
         return this._selectedActor && this._selectedActor._isFollowing
-            ? this.config.followingIndicator    || 'Following'
+            ? this.config.followingIndicator || 'Following'
             : this.config.notFollowingIndicator || 'Not following';
     }
 
@@ -596,7 +598,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
             return cb(null);
         }
         Collection.getRemoteCollectionStats(url.trim(), (err, stats) => {
-            this._selectedActor[prop] = err ? -1 : (stats.totalItems || 0);
+            this._selectedActor[prop] = err ? -1 : stats.totalItems || 0;
             return cb(null);
         });
     }
