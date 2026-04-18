@@ -321,6 +321,7 @@ module.exports = () => {
                     activityPub: {
                         enabled: false,
                         selfTemplate: '',
+                        allowInsecureHttp: false, // set true only for local dev/test (no TLS)
                     },
                 },
 

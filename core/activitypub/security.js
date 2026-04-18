@@ -6,6 +6,7 @@
 //
 
 const crypto = require('crypto');
+const net = require('net');
 
 //  Maximum age for inbound HTTP-signed requests (replay-attack window).
 //  Mastodon uses 12 h; 5 min is a reasonable conservative choice.
@@ -146,6 +147,162 @@ function actorDomainMatchesKeyId(actorId, keyId) {
     return hostsMatch(actorId, keyId);
 }
 exports.actorDomainMatchesKeyId = actorDomainMatchesKeyId;
+
+//
+//  Blocked hostname suffixes for SSRF protection.
+//  Hostnames matching any of these are treated as internal/private.
+//
+const BLOCKED_HOST_SUFFIXES = [
+    'localhost',
+    '.local',
+    '.internal',
+    '.lan',
+    '.localhost',
+    '.example',     // RFC 2606 reserved
+    '.invalid',     // RFC 2606 reserved
+    '.test',        // RFC 2606 reserved
+];
+
+//
+//  IPv4 CIDR ranges that must never be contacted.
+//  Each entry is [networkInt, maskInt].
+//
+const BLOCKED_IPV4_CIDRS = [
+    ['0.0.0.0',   8],   // "this" network
+    ['10.0.0.0',  8],   // RFC-1918
+    ['100.64.0.0', 10], // CGNAT shared address
+    ['127.0.0.0', 8],   // loopback
+    ['169.254.0.0', 16], // link-local / cloud metadata
+    ['172.16.0.0', 12], // RFC-1918
+    ['192.0.0.0', 24],  // IETF protocol assignments
+    ['192.168.0.0', 16], // RFC-1918
+    ['198.18.0.0', 15], // benchmarking
+    ['198.51.100.0', 24], // RFC 5737 TEST-NET-2
+    ['203.0.113.0', 24],  // RFC 5737 TEST-NET-3
+    ['224.0.0.0', 4],   // multicast
+    ['240.0.0.0', 4],   // reserved / experimental
+    ['255.255.255.255', 32], // broadcast
+].map(([addr, prefix]) => {
+    const parts = addr.split('.').map(Number);
+    const network = (parts[0] << 24 | parts[1] << 16 | parts[2] << 8 | parts[3]) >>> 0;
+    const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
+    return [network, mask];
+});
+
+function _isBlockedIPv4(hostname) {
+    // hostname may be a bare IPv4 literal
+    const parts = hostname.split('.');
+    if (parts.length !== 4) return false;
+    const nums = parts.map(Number);
+    if (nums.some(n => isNaN(n) || n < 0 || n > 255)) return false;
+    const addr = (nums[0] << 24 | nums[1] << 16 | nums[2] << 8 | nums[3]) >>> 0;
+    // `&` operates on signed int32; `>>> 0` converts back to unsigned for comparison.
+    return BLOCKED_IPV4_CIDRS.some(([network, mask]) => ((addr & mask) >>> 0) === network);
+}
+
+function _isBlockedIPv6(hostname) {
+    // strip brackets if present: [::1] → ::1
+    const raw = hostname.startsWith('[') && hostname.endsWith(']')
+        ? hostname.slice(1, -1)
+        : hostname;
+
+    if (!net.isIPv6(raw)) return false;
+
+    // Expand to full form for prefix matching
+    const buf = _ipv6ToBuffer(raw);
+    if (!buf) return false;
+
+    const first = buf[0];
+    const firstTwo = (buf[0] << 8 | buf[1]);
+
+    return (
+        raw === '::' ||                 // unspecified
+        raw === '::1' ||                // loopback
+        (first & 0xe0) === 0x20 && buf[1] === 0x02 || // 2002::/16 6to4
+        (firstTwo & 0xffc0) === 0xfe80 || // fe80::/10 link-local
+        (firstTwo & 0xffc0) === 0xfec0 || // fec0::/10 site-local (deprecated)
+        (first & 0xfe) === 0xfc ||      // fc00::/7  unique local
+        (first & 0xff) === 0xff         // ff00::/8  multicast
+    );
+}
+
+function _ipv6ToBuffer(addr) {
+    try {
+        // Node's dns module isn't available here; do a simple expansion.
+        // We only need the first two bytes for our prefix checks.
+        const groups = addr.split(':');
+        const expanded = [];
+        for (const g of groups) {
+            if (g === '') {
+                // double-colon — fill with zeros
+                const missing = 8 - groups.filter(x => x !== '').length;
+                for (let i = 0; i <= missing; i++) expanded.push(0);
+            } else {
+                expanded.push(parseInt(g, 16));
+            }
+        }
+        return expanded.map(g => [(g >> 8) & 0xff, g & 0xff]).flat();
+    } catch {
+        return null;
+    }
+}
+
+//
+//  Check whether a URL is safe to fetch as an outbound ActivityPub request.
+//
+//  allowHttp  — when true, http:// URLs are permitted (dev/test only);
+//               defaults to false (https:// only)
+//
+//  Returns null when the URL is safe to fetch, or a human-readable reason
+//  string when it must be blocked.
+//
+function isSafeOutboundUrl(urlString, allowHttp = false) {
+    let parsed;
+    try {
+        parsed = new URL(urlString);
+    } catch {
+        return `unparseable URL: "${urlString}"`;
+    }
+
+    const scheme = parsed.protocol; // includes trailing ':'
+
+    //  In dev/test mode (allowHttp=true) plain HTTP is intentional and the
+    //  operator is explicitly targeting a local server.  Skip all further
+    //  SSRF checks — the flag is an "I know what I'm doing" override.
+    if (allowHttp && scheme === 'http:') {
+        return null;
+    }
+
+    if (scheme === 'https:') {
+        // always OK scheme-wise
+    } else if (scheme === 'http:') {
+        return `http:// not permitted for ActivityPub requests (use https://)`;
+    } else {
+        return `scheme "${scheme}" not permitted for ActivityPub requests`;
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Blocked named hosts
+    if (BLOCKED_HOST_SUFFIXES.some(s =>
+        hostname === s.replace(/^\./, '') || hostname.endsWith(s)
+    )) {
+        return `hostname "${hostname}" is a reserved/internal name`;
+    }
+
+    // IPv4 literal
+    if (_isBlockedIPv4(hostname)) {
+        return `IPv4 address "${hostname}" is in a blocked range`;
+    }
+
+    // IPv6 literal
+    if (_isBlockedIPv6(hostname)) {
+        return `IPv6 address "${hostname}" is in a blocked range`;
+    }
+
+    return null; // safe
+}
+exports.isSafeOutboundUrl = isSafeOutboundUrl;
 
 //
 //  Determine whether an inbox operation is permitted to modify an object.

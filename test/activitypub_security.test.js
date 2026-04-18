@@ -65,6 +65,7 @@ const {
     hostsMatch,
     verifyObjectOwner,
     actorDomainMatchesKeyId,
+    isSafeOutboundUrl,
     MaxRequestAgeSecs,
 } = require('../core/activitypub/security.js');
 
@@ -535,5 +536,131 @@ describe('actorDomainMatchesKeyId()', function () {
             ),
             false
         );
+    });
+});
+
+// ─── isSafeOutboundUrl ────────────────────────────────────────────────────────
+
+describe('isSafeOutboundUrl()', function () {
+    //  ── safe URLs ────────────────────────────────────────────────────────
+
+    it('returns null (safe) for a normal https:// URL', () => {
+        assert.equal(isSafeOutboundUrl('https://mastodon.social/users/alice'), null);
+    });
+
+    it('returns null (safe) for http:// when allowHttp=true (dev mode bypasses all SSRF checks)', () => {
+        // In dev mode the operator is explicitly targeting a local server — no restrictions.
+        assert.equal(isSafeOutboundUrl('http://localhost:8181/users/bryan', true), null);
+        assert.equal(isSafeOutboundUrl('http://127.0.0.1:8181/inbox', true), null);
+        assert.equal(isSafeOutboundUrl('http://192.168.1.1/users/alice', true), null);
+    });
+
+    //  ── scheme enforcement ───────────────────────────────────────────────
+
+    it('blocks http:// when allowHttp is false (default)', () => {
+        const reason = isSafeOutboundUrl('http://example.com/users/alice');
+        assert.ok(typeof reason === 'string', 'should return a reason string');
+        assert.ok(reason.includes('http://'), `reason: "${reason}"`);
+    });
+
+    it('blocks non-http(s) schemes', () => {
+        assert.ok(isSafeOutboundUrl('ftp://example.com/file'));
+        assert.ok(isSafeOutboundUrl('file:///etc/passwd'));
+        assert.ok(isSafeOutboundUrl('gopher://example.com/'));
+    });
+
+    it('blocks an unparseable URL', () => {
+        assert.ok(isSafeOutboundUrl('not a url at all'));
+    });
+
+    //  ── loopback ─────────────────────────────────────────────────────────
+
+    it('blocks 127.0.0.1 (loopback)', () => {
+        assert.ok(isSafeOutboundUrl('https://127.0.0.1/'));
+    });
+
+    it('blocks 127.x.x.x range (whole /8)', () => {
+        assert.ok(isSafeOutboundUrl('https://127.1.2.3/'));
+        assert.ok(isSafeOutboundUrl('https://127.255.255.255/'));
+    });
+
+    it('blocks [::1] (IPv6 loopback)', () => {
+        assert.ok(isSafeOutboundUrl('https://[::1]/'));
+    });
+
+    it('blocks the named host "localhost"', () => {
+        assert.ok(isSafeOutboundUrl('https://localhost/'));
+    });
+
+    it('blocks subdomains of localhost suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://internal.localhost/'));
+    });
+
+    //  ── RFC-1918 / private ranges ─────────────────────────────────────────
+
+    it('blocks 10.x.x.x (RFC-1918)', () => {
+        assert.ok(isSafeOutboundUrl('https://10.0.0.1/'));
+        assert.ok(isSafeOutboundUrl('https://10.255.255.255/'));
+    });
+
+    it('blocks 192.168.x.x (RFC-1918)', () => {
+        assert.ok(isSafeOutboundUrl('https://192.168.1.1/'));
+    });
+
+    it('blocks 172.16.x.x through 172.31.x.x (RFC-1918)', () => {
+        assert.ok(isSafeOutboundUrl('https://172.16.0.1/'));
+        assert.ok(isSafeOutboundUrl('https://172.31.255.255/'));
+    });
+
+    it('allows 172.32.x.x (just outside RFC-1918 /12)', () => {
+        assert.equal(isSafeOutboundUrl('https://172.32.0.1/'), null);
+    });
+
+    //  ── link-local / cloud metadata ───────────────────────────────────────
+
+    it('blocks 169.254.x.x (link-local / AWS metadata)', () => {
+        assert.ok(isSafeOutboundUrl('https://169.254.169.254/'));
+        assert.ok(isSafeOutboundUrl('https://169.254.0.1/'));
+    });
+
+    it('blocks fe80:: (IPv6 link-local)', () => {
+        assert.ok(isSafeOutboundUrl('https://[fe80::1]/'));
+    });
+
+    //  ── IPv6 private ──────────────────────────────────────────────────────
+
+    it('blocks fc00::/7 (IPv6 unique-local fc range)', () => {
+        assert.ok(isSafeOutboundUrl('https://[fc00::1]/'));
+    });
+
+    it('blocks fd00::/8 (IPv6 unique-local fd range)', () => {
+        assert.ok(isSafeOutboundUrl('https://[fd12:3456:789a::1]/'));
+    });
+
+    it('blocks ff00::/8 (IPv6 multicast)', () => {
+        assert.ok(isSafeOutboundUrl('https://[ff02::1]/'));
+    });
+
+    //  ── reserved hostnames ────────────────────────────────────────────────
+
+    it('blocks .local suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://myserver.local/'));
+    });
+
+    it('blocks .internal suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://db.internal/'));
+    });
+
+    it('blocks .lan suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://router.lan/'));
+    });
+
+    it('blocks .example suffix (RFC 2606)', () => {
+        assert.ok(isSafeOutboundUrl('https://anything.example/'));
+    });
+
+    it('does not block a real public domain that happens to contain "local"', () => {
+        //  "localdomain" is blocked, but "local" as a substring in a real domain is fine
+        assert.equal(isSafeOutboundUrl('https://localbitcoins.com/users/alice'), null);
     });
 });

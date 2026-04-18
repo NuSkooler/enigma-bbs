@@ -1,10 +1,15 @@
 const { Errors } = require('./enig_error.js');
+const { isSafeOutboundUrl } = require('./activitypub/security.js');
+const Config = require('./config').get;
 
 // deps
 const { isString, isObject, truncate } = require('lodash');
 const httpsNoRedirects = require('node:https');
 const httpNoRedirects = require('node:http');
-const { https: httpsWithRedirects, http: httpWithRedirects } = require('follow-redirects');
+const {
+    https: httpsWithRedirects,
+    http: httpWithRedirects,
+} = require('follow-redirects');
 const httpSignature = require('http-signature');
 const crypto = require('crypto');
 
@@ -59,8 +64,24 @@ function postJson(url, json, options, cb) {
     return _makeRequest(url, options, cb);
 }
 
+function _allowHttp() {
+    try {
+        return (
+            Config().contentServers.web.handlers.activityPub.allowInsecureHttp === true
+        );
+    } catch {
+        return false;
+    }
+}
+
 function _makeRequest(url, options, cb) {
     options = Object.assign({}, { timeout: DefaultTimeoutMilliseconds }, options);
+
+    //  SSRF protection: reject private/loopback/reserved URLs before connecting.
+    const ssrfReason = isSafeOutboundUrl(url, _allowHttp());
+    if (ssrfReason) {
+        return cb(Errors.AccessDenied(`Outbound request blocked: ${ssrfReason}`));
+    }
 
     //  Ensure headers object exists and always send a User-Agent.
     //  Some servers (e.g. GoToSocial) reject requests without one.
@@ -68,7 +89,8 @@ function _makeRequest(url, options, cb) {
         options.headers = {};
     }
     if (!options.headers['User-Agent']) {
-        options.headers['User-Agent'] = 'ENiGMA-BBS/ActivityPub (+https://enigma-bbs.github.io)';
+        options.headers['User-Agent'] =
+            'ENiGMA-BBS/ActivityPub (+https://enigma-bbs.github.io)';
     }
 
     if (options.body) {
@@ -94,6 +116,19 @@ function _makeRequest(url, options, cb) {
     if (options.method === 'POST' || options.sign) {
         httpLib = isHttp ? httpNoRedirects : httpsNoRedirects;
     } else {
+        //  For unsigned GETs we use follow-redirects, but we must check each
+        //  redirect target for SSRF before following it.
+        const redirectOpts = {
+            beforeRedirect(reqOptions) {
+                const redirectUrl =
+                    `${reqOptions.protocol}//${reqOptions.hostname}${reqOptions.path}`;
+                const reason = isSafeOutboundUrl(redirectUrl, _allowHttp());
+                if (reason) {
+                    throw new Error(`Redirect blocked: ${reason}`);
+                }
+            },
+        };
+        options = Object.assign({}, redirectOpts, options);
         httpLib = isHttp ? httpWithRedirects : httpsWithRedirects;
     }
 
