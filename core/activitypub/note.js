@@ -376,7 +376,7 @@ module.exports = class Note extends ActivityPubObject {
                     metaTuples: [
                         {
                             category: Message.WellKnownMetaCategories.ActivityPub,
-                            name: Message.ActivityPubPropertyNames.InReplyTo,
+                            name: Message.ActivityPubPropertyNames.NoteId,
                             value: this.inReplyTo,
                         },
                     ],

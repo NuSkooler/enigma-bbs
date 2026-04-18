@@ -8,7 +8,7 @@
 //
 //  Forms:
 //    0 — Main search: HM1 (tab), ET2 (input), LV3 (results), TL10+ (custom)
-//    1 — Actor view:  TL1-6 (fixed fields), MT7 (bio/summary), TL10+ (custom)
+//    1 — Actor view:  TL1-6 (fixed fields), MT1 (bio/summary), TL10+ (custom)
 //
 //  On the People tab, full @user@host or https:// input bypasses FTS5 and goes
 //  directly to Actor.fromId (remote fetch + cache), matching current behaviour.
@@ -58,7 +58,7 @@ const MciViewIds = {
         customRangeStart: 10, // TL10+ — status, tab label, result count, etc.
     },
     actorView: {
-        summary:          1,  // MT7 — bio/summary (set directly; optional)
+        summary:          1,  // MT1 — bio/summary (set directly; optional)
         customRangeStart: 10, // TL10+ — all actor fields (operator-configured)
     },
 };

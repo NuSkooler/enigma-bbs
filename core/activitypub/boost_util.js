@@ -667,23 +667,20 @@ function sendDelete(localUser, noteId, cb) {
     async.waterfall(
         [
             //  Guard: only allow deleting notes owned by this user.
+            //  The outbox stores Create activities; object_id is the activity ID,
+            //  so we search by embedded note ID and then verify the actor matches.
             callback => {
-                Collection.ownedObjectByNameAndId(
-                    Collections.Outbox,
-                    localUser,
-                    noteId,
-                    (err, obj) => {
-                        if (err) return callback(err);
-                        if (!obj) {
-                            return callback(
-                                Errors.AccessDenied(
-                                    `Note "${noteId}" not found in Outbox for "${localActorId}"`
-                                )
-                            );
-                        }
-                        return callback(null);
+                Collection.objectByEmbeddedId(noteId, (err, activity, objInfo) => {
+                    if (err) return callback(err);
+                    if (!activity || objInfo.ownerActorId !== localActorId) {
+                        return callback(
+                            Errors.AccessDenied(
+                                `Note "${noteId}" not found in Outbox for "${localActorId}"`
+                            )
+                        );
                     }
-                );
+                    return callback(null);
+                });
             },
 
             //  Collect follower shared-inbox endpoints.

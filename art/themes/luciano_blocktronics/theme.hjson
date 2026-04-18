@@ -1422,7 +1422,7 @@
 					mci: {
 						MT1: {
 							width: 69
-							height: 5
+							height: 3
 						}
 						TL11: {
 							width: 10
