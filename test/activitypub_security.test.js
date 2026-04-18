@@ -64,6 +64,7 @@ const {
     actorIdFromKeyId,
     hostsMatch,
     verifyObjectOwner,
+    actorDomainMatchesKeyId,
     MaxRequestAgeSecs,
 } = require('../core/activitypub/security.js');
 
@@ -471,5 +472,68 @@ describe('verifyObjectOwner()', function () {
     it('returns a reason string when objectType is undefined/null with domainVerifiedOnly', () => {
         const reason = verifyObjectOwner(false, true, undefined);
         assert.ok(typeof reason === 'string' && reason.length > 0);
+    });
+});
+
+// ─── actorDomainMatchesKeyId ──────────────────────────────────────────────────
+
+describe('actorDomainMatchesKeyId()', function () {
+    it('returns true when actor id and keyId share the same hostname', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://mastodon.social/users/alice',
+                'https://mastodon.social/users/alice#main-key'
+            ),
+            true
+        );
+    });
+
+    it('returns true for GoToSocial-style path-segment keyId', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://gts.example.com/users/bob',
+                'https://gts.example.com/users/bob/main-key'
+            ),
+            true
+        );
+    });
+
+    it('returns false when actor id domain differs from keyId domain (cross-domain impersonation)', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://good.example/users/victim',  // actor claims to be on good.example
+                'https://evil.example/users/attacker#main-key' // key is on evil.example
+            ),
+            false
+        );
+    });
+
+    it('returns false when actor id is unparseable', () => {
+        assert.equal(
+            actorDomainMatchesKeyId('not-a-url', 'https://example.com/users/alice#main-key'),
+            false
+        );
+    });
+
+    it('returns false when keyId is unparseable', () => {
+        assert.equal(
+            actorDomainMatchesKeyId('https://example.com/users/alice', 'not-a-url'),
+            false
+        );
+    });
+
+    it('returns false for null inputs', () => {
+        assert.equal(actorDomainMatchesKeyId(null, 'https://example.com/users/alice#main-key'), false);
+        assert.equal(actorDomainMatchesKeyId('https://example.com/users/alice', null), false);
+    });
+
+    it('is not fooled by a subdomain of the legitimate host', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://mastodon.social/users/alice',
+                'https://evil.mastodon.social/users/alice#main-key'
+            ),
+            false
+        );
     });
 });

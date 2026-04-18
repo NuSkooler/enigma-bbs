@@ -39,6 +39,7 @@ const {
     actorIdFromKeyId,
     hostsMatch,
     verifyObjectOwner,
+    actorDomainMatchesKeyId,
     MaxRequestAgeSecs,
 } = require('../../../activitypub/security');
 
@@ -300,7 +301,26 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     }
 
                     Actor.fromId(signatureActorId, (err, signatureActor) => {
-                        return callback(err, objectActor, signatureActor);
+                        if (err) {
+                            return callback(err);
+                        }
+
+                        //  Domain binding: the fetched actor's canonical id must belong
+                        //  to the same host as the keyId.  Without this check an attacker
+                        //  could host a key at evil.example and return an actor JSON
+                        //  claiming id: "https://good.example/users/victim".
+                        if (
+                            signatureActor &&
+                            !actorDomainMatchesKeyId(signatureActor.id, signatureActorId)
+                        ) {
+                            return callback(
+                                Errors.ValidationFailed(
+                                    `Actor id domain (${signatureActor.id}) does not match keyId domain (${signatureActorId})`
+                                )
+                            );
+                        }
+
+                        return callback(null, objectActor, signatureActor);
                     });
                 },
             ],

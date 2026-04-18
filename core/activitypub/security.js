@@ -129,6 +129,25 @@ function hostsMatch(urlA, urlB) {
 exports.hostsMatch = hostsMatch;
 
 //
+//  Verify that a fetched actor's canonical ID belongs to the same hostname as
+//  the keyId that was used to sign an inbound request.
+//
+//  Without this check an attacker could host a key at evil.example and serve
+//  an actor JSON claiming id: "https://good.example/users/victim", causing
+//  ENiGMA to treat their signed activities as coming from the victim.
+//
+//  actorId — the `id` field of the fetched Actor object
+//  keyId   — the keyId from the HTTP Signature header
+//
+//  Returns true when the hostnames match (binding is satisfied).
+//  Returns false for any mismatch or non-parseable input.
+//
+function actorDomainMatchesKeyId(actorId, keyId) {
+    return hostsMatch(actorId, keyId);
+}
+exports.actorDomainMatchesKeyId = actorDomainMatchesKeyId;
+
+//
 //  Determine whether an inbox operation is permitted to modify an object.
 //
 //  httpSigValidated  — true when the HTTP signature was cryptographically
