@@ -326,6 +326,15 @@ exports.getModule = class WebServerModule extends ServerModule {
         return this.respondWithError(resp, 501, 'Not implemented.', 'Not Implemented');
     }
 
+    requestEntityTooLarge(resp) {
+        return this.respondWithError(
+            resp,
+            413,
+            'Request entity too large.',
+            'Request Entity Too Large'
+        );
+    }
+
     tryRouteIndex(req, resp, cb) {
         const tryFiles = Config().contentServers.web.tryFiles || [
             'index.html',

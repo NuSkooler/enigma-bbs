@@ -40,6 +40,7 @@ const {
     hostsMatch,
     verifyObjectOwner,
     actorDomainMatchesKeyId,
+    readInboxBody,
     MaxRequestAgeSecs,
 } = require('../../../activitypub/security');
 
@@ -334,13 +335,23 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         EnigAssert(signature, 'Called without signature!');
         EnigAssert(signature.keyId, 'No keyId in signature!');
 
-        const body = [];
-        req.on('data', d => {
-            body.push(d);
-        });
+        const maxBytes = _.get(
+            Config(),
+            'contentServers.web.handlers.activityPub.maxInboxBodyBytes',
+            1048576
+        );
 
-        req.on('end', () => {
-            const rawBody = Buffer.concat(body);
+        readInboxBody(req, maxBytes, (err, rawBody) => {
+            if (err) {
+                if (err.code === 'ENTITY_TOO_LARGE') {
+                    this.log.warn(
+                        { url: req.url, maxBytes, inboxType },
+                        'Inbox body exceeds size limit — rejected'
+                    );
+                    return this.webServer.requestEntityTooLarge(resp);
+                }
+                return this.webServer.internalServerError(resp, err);
+            }
 
             //  Independently verify the Digest header body hash when present.
             //  The HTTP signature covers the Digest header, so a valid signature

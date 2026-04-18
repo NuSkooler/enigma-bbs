@@ -8,6 +8,52 @@
 const crypto = require('crypto');
 const net = require('net');
 
+//
+//  Read an HTTP request body up to maxBytes, accumulating chunks as they arrive.
+//
+//  req      — Node.js IncomingMessage (or any EventEmitter emitting 'data'/'end'/'error')
+//  maxBytes — maximum number of bytes to accept; request is aborted if exceeded
+//  cb       — callback(err, rawBody: Buffer)
+//               err.code === 'ENTITY_TOO_LARGE' when the limit is exceeded
+//
+function readInboxBody(req, maxBytes, cb) {
+    const chunks = [];
+    let totalBytes = 0;
+    let done = false;
+
+    const finish = (err, result) => {
+        if (!done) {
+            done = true;
+            return cb(err, result);
+        }
+    };
+
+    req.on('data', chunk => {
+        if (done) return;
+        totalBytes += chunk.length;
+        if (totalBytes > maxBytes) {
+            const err = new Error(
+                `Request body exceeds limit of ${maxBytes} bytes`
+            );
+            err.code = 'ENTITY_TOO_LARGE';
+            if (typeof req.destroy === 'function') {
+                req.destroy();
+            }
+            return finish(err);
+        }
+        chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+        return finish(null, Buffer.concat(chunks));
+    });
+
+    req.on('error', err => {
+        return finish(err);
+    });
+}
+exports.readInboxBody = readInboxBody;
+
 //  Maximum age for inbound HTTP-signed requests (replay-attack window).
 //  Mastodon uses 12 h; 5 min is a reasonable conservative choice.
 const MaxRequestAgeSecs = 5 * 60;

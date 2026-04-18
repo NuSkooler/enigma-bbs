@@ -321,7 +321,8 @@ module.exports = () => {
                     activityPub: {
                         enabled: false,
                         selfTemplate: '',
-                        allowInsecureHttp: false, // set true only for local dev/test (no TLS)
+                        allowInsecureHttp: false,   // set true only for local dev/test (no TLS)
+                        maxInboxBodyBytes: 1048576, // 1 MiB; ActivityPub activities are JSON
                     },
                 },
 

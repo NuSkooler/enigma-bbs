@@ -57,6 +57,8 @@ delete require.cache[require.resolve('../core/activitypub/object.js')];
 delete require.cache[require.resolve('../core/activitypub/collection.js')];
 const Collection = require('../core/activitypub/collection.js');
 
+const { EventEmitter } = require('events');
+
 const {
     validateRequestDate,
     verifyDigestHeader,
@@ -66,6 +68,7 @@ const {
     verifyObjectOwner,
     actorDomainMatchesKeyId,
     isSafeOutboundUrl,
+    readInboxBody,
     MaxRequestAgeSecs,
 } = require('../core/activitypub/security.js');
 
@@ -662,5 +665,136 @@ describe('isSafeOutboundUrl()', function () {
     it('does not block a real public domain that happens to contain "local"', () => {
         //  "localdomain" is blocked, but "local" as a substring in a real domain is fine
         assert.equal(isSafeOutboundUrl('https://localbitcoins.com/users/alice'), null);
+    });
+});
+
+// ─── readInboxBody ────────────────────────────────────────────────────────────
+
+//  Helper: build a fake req EventEmitter that emits the given chunks then 'end'.
+function makeFakeReq(chunks, errorAfterBytes = null) {
+    const req = new EventEmitter();
+    req.destroyed = false;
+    req.destroy = () => { req.destroyed = true; };
+
+    process.nextTick(() => {
+        for (const chunk of chunks) {
+            if (req.destroyed) break;
+            req.emit('data', Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        if (!req.destroyed) {
+            req.emit('end');
+        }
+    });
+
+    return req;
+}
+
+function makeFakeReqWithError(errorMsg) {
+    const req = new EventEmitter();
+    req.destroy = () => {};
+    process.nextTick(() => req.emit('error', new Error(errorMsg)));
+    return req;
+}
+
+describe('readInboxBody()', function () {
+    it('returns an empty Buffer for an empty body', done => {
+        const req = makeFakeReq([]);
+        readInboxBody(req, 1024, (err, body) => {
+            assert.ifError(err);
+            assert.ok(Buffer.isBuffer(body));
+            assert.equal(body.length, 0);
+            done();
+        });
+    });
+
+    it('returns the full body when within the limit', done => {
+        const payload = '{"type":"Create","actor":"https://example.com/users/alice"}';
+        const req = makeFakeReq([payload]);
+        readInboxBody(req, 1024, (err, body) => {
+            assert.ifError(err);
+            assert.equal(body.toString(), payload);
+            done();
+        });
+    });
+
+    it('accepts a body split across multiple chunks', done => {
+        const req = makeFakeReq(['{"type":', '"Create"}']);
+        readInboxBody(req, 1024, (err, body) => {
+            assert.ifError(err);
+            assert.equal(body.toString(), '{"type":"Create"}');
+            done();
+        });
+    });
+
+    it('accepts a body exactly at the limit', done => {
+        const payload = 'x'.repeat(100);
+        const req = makeFakeReq([payload]);
+        readInboxBody(req, 100, (err, body) => {
+            assert.ifError(err);
+            assert.equal(body.length, 100);
+            done();
+        });
+    });
+
+    it('rejects a body one byte over the limit with ENTITY_TOO_LARGE', done => {
+        const payload = 'x'.repeat(101);
+        const req = makeFakeReq([payload]);
+        readInboxBody(req, 100, (err) => {
+            assert.ok(err, 'expected an error');
+            assert.equal(err.code, 'ENTITY_TOO_LARGE');
+            done();
+        });
+    });
+
+    it('rejects when multi-chunk sum exceeds the limit', done => {
+        //  Each chunk is within limit, but together they exceed it
+        const req = makeFakeReq(['x'.repeat(60), 'x'.repeat(60)]);
+        readInboxBody(req, 100, (err) => {
+            assert.ok(err, 'expected an error');
+            assert.equal(err.code, 'ENTITY_TOO_LARGE');
+            done();
+        });
+    });
+
+    it('destroys the request when the limit is exceeded', done => {
+        const req = makeFakeReq(['x'.repeat(200)]);
+        readInboxBody(req, 100, (err) => {
+            assert.ok(err);
+            assert.ok(req.destroyed, 'req.destroy() should have been called');
+            done();
+        });
+    });
+
+    it('propagates stream errors', done => {
+        const req = makeFakeReqWithError('connection reset');
+        readInboxBody(req, 1024, (err) => {
+            assert.ok(err, 'expected an error');
+            assert.equal(err.message, 'connection reset');
+            done();
+        });
+    });
+
+    it('calls cb only once even if error fires after limit exceeded', done => {
+        //  Emit a large chunk (triggers ENTITY_TOO_LARGE) then an error —
+        //  cb must not fire twice.
+        const req = new EventEmitter();
+        req.destroyed = false;
+        req.destroy = () => { req.destroyed = true; };
+
+        let callCount = 0;
+        readInboxBody(req, 10, (err) => {
+            callCount++;
+            assert.equal(callCount, 1, 'cb must not be called more than once');
+            if (callCount === 1) {
+                // Allow a tick for any second callback attempt
+                process.nextTick(() => {
+                    assert.equal(callCount, 1);
+                    done();
+                });
+            }
+        });
+
+        req.emit('data', Buffer.from('x'.repeat(20)));
+        req.emit('error', new Error('secondary error'));
     });
 });
