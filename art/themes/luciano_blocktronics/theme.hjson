@@ -1412,9 +1412,12 @@
 						ET2: {
 							width: 50
 						}
-						LV3: {
+						VM3: {
 							width: 79
 							height: 14
+						}
+						TL10: {
+							width: 65
 						}
 					}
 				}

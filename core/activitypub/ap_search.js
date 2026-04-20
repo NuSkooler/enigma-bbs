@@ -7,7 +7,7 @@
 //  Replaces the old actor_search.js (URL-only lookup) with a full search UX.
 //
 //  Forms:
-//    0 — Main search: HM1 (tab), ET2 (input), LV3 (results), TL10+ (custom)
+//    0 — Main search: HM1 (tab), ET2 (input), VM3 (results), TL10+ (custom)
 //    1 — Actor view:  TL1-6 (fixed fields), MT1 (bio/summary), TL10+ (custom)
 //
 //  On the People tab, full @user@host or https:// input bypasses FTS5 and goes
@@ -54,7 +54,7 @@ const MciViewIds = {
     main: {
         tabSelect: 1, // HM1 — People | Posts | Hashtags
         searchInput: 2, // ET2 — search text input
-        results: 3, // LV3 — result list
+        results: 3, // VM3 — result list
         customRangeStart: 10, // TL10+ — status, tab label, result count, etc.
     },
     actorView: {
@@ -320,7 +320,10 @@ exports.getModule = class ApSearchModule extends MenuModule {
                     return item;
                 });
             } catch (e) {
-                this.client.log.error({ term, err: e }, 'AP search: error building post items');
+                this.client.log.error(
+                    { term, err: e },
+                    'AP search: error building post items'
+                );
                 items = [];
             }
 
@@ -371,7 +374,10 @@ exports.getModule = class ApSearchModule extends MenuModule {
 
                     items = [...actorItems, ...noteItems];
                 } catch (e) {
-                    this.client.log.error({ term, err: e }, 'AP search: error building hashtag items');
+                    this.client.log.error(
+                        { term, err: e },
+                        'AP search: error building hashtag items'
+                    );
                     items = [];
                 }
 

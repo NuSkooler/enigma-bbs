@@ -126,7 +126,7 @@
               argName: searchQuery
               submit: true
             }
-            LV3: {
+            VM3: {
               argName: result
               submit: true
             }
