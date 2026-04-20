@@ -47,12 +47,16 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         this.acceptedResourceRegExps = [
             // acct:NAME@our.domain.tld
             // https://www.rfc-editor.org/rfc/rfc7565
-            new RegExp(`^acct:(.+)@${domain}$`),
+            new RegExp(`^acct:(.+)@${_.escapeRegExp(domain)}$`),
             // profile page
             // https://webfinger.net/rel/profile-page/
-            new RegExp(`^${buildUrl(WellKnownLocations.Internal + '/wf/@')}(.+)$`),
+            new RegExp(
+                `^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/wf/@'))}(.+)$`
+            ),
             // self URL
-            new RegExp(`^${buildUrl(WellKnownLocations.Internal + '/ap/users/')}(.+)$`),
+            new RegExp(
+                `^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/ap/users/'))}(.+)$`
+            ),
         ];
 
         this.webServer.addRoute({

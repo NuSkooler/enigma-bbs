@@ -836,8 +836,10 @@ describe('Collection.getCollectionObjectsByMeta', function () {
                 assert.ifError(err);
                 assert.equal(results.length, 2, 'should find both Announces');
                 const actors = results.map(r => r.object.actor).sort();
-                assert.ok(actors.includes('https://remote.example.com/users/alice'));
-                assert.ok(actors.includes('https://remote.example.com/users/bob'));
+                assert.ok(
+                    actors.some(x => x === 'https://remote.example.com/users/alice')
+                );
+                assert.ok(actors.some(x => x === 'https://remote.example.com/users/bob'));
                 done();
             }
         );

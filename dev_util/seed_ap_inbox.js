@@ -335,8 +335,10 @@ function addMessage(note, activityId, ts) {
     const msgUuid = uuidV5(note.id, PublicMessageIdNamespace);
     const fromUser = note.attributedTo || '';
     const subject = note.name || note.summary || '';
-    //  Strip HTML tags for the BBS message body (simple regex — good enough for seeding).
-    const body = (note.content || '').replace(/<[^>]+>/g, '').trim();
+    const body = (note.content || '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/[<>]/g, '')
+        .trim();
 
     const info = insertMessage.run(msgUuid, fromUser, subject, body, ts);
     if (info.lastInsertRowid === 0) {
