@@ -1,0 +1,27 @@
+# ngrok config for tunnelling ENiGMA's web server port.
+# Add your authtoken here (ngrok dashboard → Your Authtoken).
+#
+# Usage:
+#   ./start.sh
+#
+# After the tunnel starts, note the Forwarding URL (e.g. https://abc123.ngrok-free.app)
+# then update config/config.hjson:
+#   contentServers.web.domain      →  abc123.ngrok-free.app
+#   contentServers.web.https.port  →  443
+#
+# ENiGMA does NOT need to restart for domain changes — just update config.hjson
+# and the next AP request will use the new domain.  Actor IDs are built at
+# request time, so existing DB records retain old IDs until actors are re-fetched.
+
+version: '3'
+
+agent:
+    authtoken: '2JyPhGIEJwpGs2G8UIQFGrCMvqO_iwTTdcqZU7d1drJKuFS6'
+
+tunnels:
+    enigma-web:
+        proto: http
+        addr: 8080 # ENiGMA default HTTP port — change if yours differs
+        schemes:
+            - https # expose only HTTPS to the internet
+        inspect: true # enable the ngrok web inspector at localhost:4040

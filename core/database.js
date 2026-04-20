@@ -396,6 +396,15 @@ const DB_INIT_TABLE = {
             CREATE INDEX IF NOT EXISTS collection_entry_by_name_collection_id_index0
                 ON collection (name, collection_id);
 
+            CREATE INDEX IF NOT EXISTS collection_entry_by_object_id_index0
+                ON collection (object_id);
+
+            CREATE INDEX IF NOT EXISTS collection_by_name_timestamp_index0
+                ON collection (name, timestamp);
+
+            CREATE INDEX IF NOT EXISTS collection_embedded_object_id_index0
+                ON collection (json_extract(object_json, '$.object.id'));
+
             CREATE TABLE IF NOT EXISTS collection_object_meta (
                 collection_id   VARCHAR NOT NULL,
                 name            VARCHAR NOT NULL,
@@ -406,7 +415,414 @@ const DB_INIT_TABLE = {
                 UNIQUE(collection_id, object_id, meta_name),
                 FOREIGN KEY(name, collection_id, object_id) REFERENCES collection(name, collection_id, object_id) ON DELETE CASCADE
             );
+
+            CREATE INDEX IF NOT EXISTS collection_object_meta_by_name_and_meta_index0
+                ON collection_object_meta (name, meta_name, meta_value);
+
+            --
+            --  Dedicated reactions table — stores inbound Like and Announce (boost)
+            --  reactions against Notes.  One row per (note, actor, reaction_type) triple.
+            --  The activity_id column enables idempotent Undo handling.
+            --
+            CREATE TABLE IF NOT EXISTS note_reactions (
+                note_id         VARCHAR NOT NULL,
+                actor_id        VARCHAR NOT NULL,
+                reaction_type   VARCHAR NOT NULL,
+                activity_id     VARCHAR NOT NULL,
+                timestamp       DATETIME NOT NULL,
+                UNIQUE(note_id, actor_id, reaction_type)
+            );
+
+            CREATE INDEX IF NOT EXISTS note_reactions_by_note_index0
+                ON note_reactions (note_id, reaction_type);
+
+            CREATE INDEX IF NOT EXISTS note_reactions_by_actor_index0
+                ON note_reactions (actor_id, reaction_type);
+
+            --
+            --  FTS5 virtual table for full-text search of actors and sharedInbox notes.
+            --
+            --  coll_name   : 'actors' or 'sharedInbox' — UNINDEXED, used as a post-filter
+            --  object_id   : AP object URL — UNINDEXED, used as a join key
+            --  body        : searchable text:
+            --                  actors    → preferredUsername + name + summary
+            --                  notes     → summary + content (raw HTML; FTS tokenizer
+            --                              treats angle brackets as word separators)
+            --  tags        : actor subject (@user@host); empty for notes
+            --
+            CREATE VIRTUAL TABLE IF NOT EXISTS collection_fts USING fts5(
+                coll_name   UNINDEXED,
+                object_id   UNINDEXED,
+                body,
+                tags
+            );
+
+            -- Actor: index on insert
+            CREATE TRIGGER IF NOT EXISTS collection_fts_actor_ai
+            AFTER INSERT ON collection
+            WHEN new.name = 'actors'
+            BEGIN
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'actors',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.preferredUsername'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.name'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.summary'), ''),
+                    ''
+                );
+            END;
+
+            -- Actor: re-index on update (object_json changed — e.g. profile refresh)
+            CREATE TRIGGER IF NOT EXISTS collection_fts_actor_au
+            AFTER UPDATE OF object_json ON collection
+            WHEN new.name = 'actors'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'actors',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.preferredUsername'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.name'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.summary'), ''),
+                    COALESCE((
+                        SELECT meta_value FROM collection_object_meta
+                        WHERE object_id = new.object_id AND name = 'actors' AND meta_name = 'actor_subject'
+                        LIMIT 1
+                    ), '')
+                );
+            END;
+
+            -- Actor: remove from index on delete
+            CREATE TRIGGER IF NOT EXISTS collection_fts_actor_bd
+            BEFORE DELETE ON collection
+            WHEN old.name = 'actors'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+            END;
+
+            -- Actor subject: update FTS tags when actor_subject meta is inserted
+            CREATE TRIGGER IF NOT EXISTS collection_fts_subject_ai
+            AFTER INSERT ON collection_object_meta
+            WHEN new.name = 'actors' AND new.meta_name = 'actor_subject'
+            BEGIN
+                UPDATE collection_fts
+                SET tags = new.meta_value
+                WHERE rowid = (
+                    SELECT rowid FROM collection
+                    WHERE object_id = new.object_id AND name = 'actors'
+                    LIMIT 1
+                );
+            END;
+
+            -- Actor subject: update FTS tags when actor_subject meta is replaced
+            CREATE TRIGGER IF NOT EXISTS collection_fts_subject_au
+            AFTER UPDATE ON collection_object_meta
+            WHEN new.name = 'actors' AND new.meta_name = 'actor_subject'
+            BEGIN
+                UPDATE collection_fts
+                SET tags = new.meta_value
+                WHERE rowid = (
+                    SELECT rowid FROM collection
+                    WHERE object_id = new.object_id AND name = 'actors'
+                    LIMIT 1
+                );
+            END;
+
+            -- Note (sharedInbox): index on insert.
+            --   Body comes from the inner Note ($.object.*); the stored row is a
+            --   Create{Note} activity, so content lives one level deeper than $.content.
+            --   Tags are extracted from the Note's tag array (Hashtag entries only).
+            DROP TRIGGER IF EXISTS collection_fts_note_ai;
+            CREATE TRIGGER collection_fts_note_ai
+            AFTER INSERT ON collection
+            WHEN new.name = 'sharedInbox'
+            BEGIN
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'sharedInbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                );
+            END;
+
+            -- Note: re-index on update (Update activity received for a Note)
+            DROP TRIGGER IF EXISTS collection_fts_note_au;
+            CREATE TRIGGER collection_fts_note_au
+            AFTER UPDATE OF object_json ON collection
+            WHEN new.name = 'sharedInbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'sharedInbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                );
+            END;
+
+            -- Note: remove from index on delete
+            DROP TRIGGER IF EXISTS collection_fts_note_bd;
+            CREATE TRIGGER collection_fts_note_bd
+            BEFORE DELETE ON collection
+            WHEN old.name = 'sharedInbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+            END;
+
+            -- Outbox (local posts): same structure as sharedInbox triggers.
+            --   Local Create{Note} activities are stored in the outbox collection.
+            DROP TRIGGER IF EXISTS collection_fts_outbox_ai;
+            CREATE TRIGGER collection_fts_outbox_ai
+            AFTER INSERT ON collection
+            WHEN new.name = 'outbox'
+            BEGIN
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'outbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                );
+            END;
+
+            DROP TRIGGER IF EXISTS collection_fts_outbox_au;
+            CREATE TRIGGER collection_fts_outbox_au
+            AFTER UPDATE OF object_json ON collection
+            WHEN new.name = 'outbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                VALUES (
+                    new.rowid,
+                    'outbox',
+                    new.object_id,
+                    COALESCE(json_extract(new.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(new.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(new.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                );
+            END;
+
+            DROP TRIGGER IF EXISTS collection_fts_outbox_bd;
+            CREATE TRIGGER collection_fts_outbox_bd
+            BEFORE DELETE ON collection
+            WHEN old.name = 'outbox'
+            BEGIN
+                DELETE FROM collection_fts WHERE rowid = old.rowid;
+            END;
         `);
+
+        //
+        //  One-time backfill: populate collection_fts for pre-existing rows that
+        //  were inserted before the FTS5 schema was added.  Safe to run on every
+        //  start — the guard conditions make it a no-op once the index is populated.
+        //
+        const ftsCount = dbs.activitypub
+            .prepare('SELECT COUNT(*) AS n FROM collection_fts')
+            .get().n;
+
+        if (ftsCount === 0) {
+            const hasIndexable = dbs.activitypub
+                .prepare(
+                    `SELECT COUNT(*) AS n FROM collection WHERE name IN ('actors', 'sharedInbox')`
+                )
+                .get().n;
+
+            if (hasIndexable > 0) {
+                dbs.activitypub.exec(`
+                    INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                    SELECT
+                        c.rowid,
+                        'actors',
+                        c.object_id,
+                        COALESCE(json_extract(c.object_json, '$.preferredUsername'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.name'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.summary'), ''),
+                        COALESCE(m.meta_value, '')
+                    FROM collection c
+                    LEFT JOIN collection_object_meta m
+                        ON  m.object_id  = c.object_id
+                        AND m.name       = 'actors'
+                        AND m.meta_name  = 'actor_subject'
+                    WHERE c.name = 'actors';
+
+                    INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                    SELECT
+                        c.rowid,
+                        'sharedInbox',
+                        c.object_id,
+                        COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                        COALESCE((
+                            SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                            FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                            WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                        ), '')
+                    FROM collection c
+                    WHERE c.name = 'sharedInbox';
+
+                    INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                    SELECT
+                        c.rowid,
+                        'outbox',
+                        c.object_id,
+                        COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                        COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                        COALESCE((
+                            SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                            FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                            WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                        ), '')
+                    FROM collection c
+                    WHERE c.name = 'outbox';
+                `);
+            }
+        }
+
+        //
+        //  Migration v1: fix sharedInbox FTS body/tags paths (were pointing at the
+        //  Create activity root instead of $.object.*), and add outbox indexing for
+        //  local posts.  Guarded by PRAGMA user_version so it runs exactly once.
+        //
+        const apDbVersion = dbs.activitypub.pragma('user_version', { simple: true });
+        if (apDbVersion < 1) {
+            dbs.activitypub.exec(`
+                DELETE FROM collection_fts WHERE coll_name IN ('sharedInbox', 'outbox');
+
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                SELECT
+                    c.rowid,
+                    'sharedInbox',
+                    c.object_id,
+                    COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                FROM collection c
+                WHERE c.name = 'sharedInbox';
+
+                INSERT INTO collection_fts(rowid, coll_name, object_id, body, tags)
+                SELECT
+                    c.rowid,
+                    'outbox',
+                    c.object_id,
+                    COALESCE(json_extract(c.object_json, '$.object.summary'), '') || ' ' ||
+                    COALESCE(json_extract(c.object_json, '$.object.content'), ''),
+                    COALESCE((
+                        SELECT GROUP_CONCAT(json_extract(t.value, '$.name'), ' ')
+                        FROM json_each(json_extract(c.object_json, '$.object.tag')) t
+                        WHERE json_extract(t.value, '$.type') = 'Hashtag'
+                    ), '')
+                FROM collection c
+                WHERE c.name = 'outbox';
+            `);
+            dbs.activitypub.pragma('user_version = 1');
+        }
+
+        //
+        //  One-time migration: backfill note_reactions from legacy meta-based storage.
+        //  Guard: only runs when note_reactions is empty AND legacy reaction meta exists.
+        //
+        //  Legacy schema stored Like and Announce reactions as collection_object_meta rows
+        //  with meta_name = 'activity_type' and meta_value IN ('Like', 'Announce').
+        //  Each reaction also had corresponding 'liked_by'/'boosted_by' and
+        //  'liked_object_id'/'original_note_id' rows tied to the same object_id.
+        //
+        const reactionsCount = dbs.activitypub
+            .prepare('SELECT COUNT(*) AS n FROM note_reactions')
+            .get().n;
+
+        if (reactionsCount === 0) {
+            const legacyCount = dbs.activitypub
+                .prepare(
+                    `SELECT COUNT(*) AS n FROM collection_object_meta
+                     WHERE meta_name = 'activity_type'
+                       AND meta_value IN ('Like', 'Announce')`
+                )
+                .get().n;
+
+            if (legacyCount > 0) {
+                dbs.activitypub.exec(`
+                    -- Migrate legacy Like reactions
+                    INSERT OR IGNORE INTO note_reactions
+                        (note_id, actor_id, reaction_type, activity_id, timestamp)
+                    SELECT
+                        liked.meta_value    AS note_id,
+                        by_.meta_value      AS actor_id,
+                        'Like'              AS reaction_type,
+                        c.object_id         AS activity_id,
+                        c.timestamp         AS timestamp
+                    FROM collection_object_meta typ
+                    JOIN collection c
+                        ON  c.name      = typ.name
+                        AND c.object_id = typ.object_id
+                    JOIN collection_object_meta liked
+                        ON  liked.collection_id = typ.collection_id
+                        AND liked.object_id     = typ.object_id
+                        AND liked.meta_name     = 'liked_object_id'
+                    JOIN collection_object_meta by_
+                        ON  by_.collection_id   = typ.collection_id
+                        AND by_.object_id       = typ.object_id
+                        AND by_.meta_name       = 'liked_by'
+                    WHERE typ.meta_name  = 'activity_type'
+                      AND typ.meta_value = 'Like';
+
+                    -- Migrate legacy Announce (boost) reactions
+                    INSERT OR IGNORE INTO note_reactions
+                        (note_id, actor_id, reaction_type, activity_id, timestamp)
+                    SELECT
+                        orig.meta_value     AS note_id,
+                        by_.meta_value      AS actor_id,
+                        'Announce'          AS reaction_type,
+                        c.object_id         AS activity_id,
+                        c.timestamp         AS timestamp
+                    FROM collection_object_meta typ
+                    JOIN collection c
+                        ON  c.name      = typ.name
+                        AND c.object_id = typ.object_id
+                    JOIN collection_object_meta orig
+                        ON  orig.collection_id  = typ.collection_id
+                        AND orig.object_id      = typ.object_id
+                        AND orig.meta_name      = 'original_note_id'
+                    JOIN collection_object_meta by_
+                        ON  by_.collection_id   = typ.collection_id
+                        AND by_.object_id       = typ.object_id
+                        AND by_.meta_name       = 'boosted_by'
+                    WHERE typ.meta_name  = 'activity_type'
+                      AND typ.meta_value = 'Announce';
+                `);
+            }
+        }
     },
 };
 

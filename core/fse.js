@@ -419,7 +419,10 @@ exports.FullScreenEditorModule =
                 //  on the first line selected.
                 if (this.newQuoteBlock) {
                     this.newQuoteBlock = false;
-                    quoteMsgView.addText(this.getQuoteByHeader(), { scrollMode: 'end' });
+                    const header = this.getQuoteByHeader();
+                    if (header) {
+                        quoteMsgView.addText(header, { scrollMode: 'end' });
+                    }
                 }
                 quoteMsgView.addText(quoteText, { scrollMode: 'end' });
                 afterUpdate();
@@ -1634,14 +1637,17 @@ exports.FullScreenEditorModule =
                         );
 
                         self.replyToMessage.getQuoteLines(
-                            {
-                                termWidth: self.client.term.termWidth,
-                                termHeight: self.client.term.termHeight,
-                                cols: quoteView.dimens.width,
-                                startCol: quoteView.position.col,
-                                ansiResetSgr: bodyView.styleSGR1,
-                                ansiFocusPrefixSgr: quoteView.styleSGR2,
-                            },
+                            Object.assign(
+                                {
+                                    termWidth: self.client.term.termWidth,
+                                    termHeight: self.client.term.termHeight,
+                                    cols: quoteView.dimens.width,
+                                    startCol: quoteView.position.col,
+                                    ansiResetSgr: bodyView.styleSGR1,
+                                    ansiFocusPrefixSgr: quoteView.styleSGR2,
+                                },
+                                self._getQuoteLineOptions()
+                            ),
                             (err, quoteLines, focusQuoteLines, replyIsAnsi) => {
                                 if (err) {
                                     return callback(err);
@@ -1808,6 +1814,12 @@ exports.FullScreenEditorModule =
                     this.switchFromQuoteBuilderToBody();
                 });
             }
+        }
+
+        //  Returns extra options merged into the getQuoteLines() call.
+        //  Subclasses can override to inject e.g. a custom quotePrefix.
+        _getQuoteLineOptions() {
+            return {};
         }
 
         getQuoteByHeader() {

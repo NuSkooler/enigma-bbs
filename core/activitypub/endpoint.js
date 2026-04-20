@@ -14,6 +14,8 @@ exports.profile = profile;
 exports.avatar = avatar;
 exports.sharedInbox = sharedInbox;
 exports.objectId = objectId;
+exports.noteLikes = noteLikes;
+exports.noteShares = noteShares;
 
 const ActivityPubUsersPrefix = '/ap/users/';
 
@@ -55,4 +57,14 @@ function sharedInbox() {
 
 function objectId(objectType) {
     return buildUrl(WellKnownLocations.Internal + `/ap/${randomUUID()}/${objectType}`);
+}
+
+//  Reaction collection endpoints for a Note identified by its full AP URL.
+//  These URLs are embedded in outgoing Notes and served by the AP web handler.
+function noteLikes(noteId) {
+    return `${noteId}/likes`;
+}
+
+function noteShares(noteId) {
+    return `${noteId}/shares`;
 }

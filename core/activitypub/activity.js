@@ -1,4 +1,8 @@
-const { WellKnownActivityTypes, WellKnownActivity } = require('./const');
+const {
+    WellKnownActivityTypes,
+    WellKnownActivity,
+    PublicCollectionId,
+} = require('./const');
 const { recipientIdsFromObject } = require('./util');
 const ActivityPubObject = require('./object');
 const { getISOTimestampString } = require('../database');
@@ -68,6 +72,45 @@ module.exports = class Activity extends ActivityPubObject {
         //  :TODO: Others?
 
         return activity;
+    }
+
+    //  https://www.w3.org/TR/activitypub/#announce-activity-outbox
+    static makeAnnounce(actorId, objectId, followersEndpoint) {
+        return new Activity({
+            id: Activity.activityObjectId(),
+            type: WellKnownActivity.Announce,
+            actor: actorId,
+            object: objectId,
+            to: [PublicCollectionId],
+            cc: [followersEndpoint],
+        });
+    }
+
+    //  https://www.w3.org/TR/activitypub/#like-activity-outbox
+    static makeLike(actorId, objectId, followersEndpoint) {
+        return new Activity({
+            id: Activity.activityObjectId(),
+            type: WellKnownActivity.Like,
+            actor: actorId,
+            object: objectId,
+            to: [PublicCollectionId],
+            cc: [followersEndpoint],
+        });
+    }
+
+    //  https://www.w3.org/TR/activitypub/#delete-activity-outbox
+    static makeDelete(actorId, noteId, followersEndpoint) {
+        return new Activity({
+            id: Activity.activityObjectId(),
+            type: WellKnownActivity.Delete,
+            actor: actorId,
+            object: {
+                id: noteId,
+                type: WellKnownActivity.Tombstone,
+            },
+            to: [PublicCollectionId],
+            cc: [followersEndpoint],
+        });
     }
 
     static makeTombstone(obj) {

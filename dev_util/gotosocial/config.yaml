@@ -1,0 +1,55 @@
+###############################################
+#  GoToSocial — ENiGMA BBS dev/test instance  #
+#                                             #
+#  Runs on plain HTTP so ENiGMA can reach it  #
+#  without TLS. Not for production use.       #
+###############################################
+
+# The domain this instance uses. Must match what's in actor IDs.
+# For local-only testing leave as localhost.
+# If you need GTS reachable from the internet, swap this for an ngrok URL
+# and restart (note: actor IDs will change, so nuke the DB first).
+host: 'localhost:8181'
+
+# Plain HTTP; ngrok or a real cert would make this https.
+protocol: 'http'
+
+port: 8181
+bind-address: '127.0.0.1'
+trusted-proxies:
+    - '127.0.0.1/32'
+
+log-level: 'debug'
+log-db-queries: false
+
+# SQLite — fine for dev.
+db-type: 'sqlite'
+db-address: 'data/gotosocial.db'
+db-sqlite-journal-mode: 'WAL'
+
+storage-backend: 'local'
+storage-local-base-path: 'data/storage'
+
+# Web assets extracted from the release tarball alongside the binary.
+web-template-base-dir: 'web/template'
+web-asset-base-dir: 'web/assets'
+
+# Single-user dev instance; no public signups.
+accounts-registration-open: false
+accounts-approval-required: true
+accounts-reason-required: false
+
+# Media limits (generous for dev).
+media-image-max-size: 10485760
+media-video-max-size: 41943040
+
+# No LetsEncrypt — we're on HTTP.
+letsencrypt-enabled: false
+
+# No SMTP needed for dev.
+smtp-host: ''
+
+# Instance info shown in the UI.
+instance-expose-peers: true
+instance-expose-suspended: false
+instance-deliver-to-shared-inboxes: true

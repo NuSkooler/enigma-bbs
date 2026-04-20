@@ -564,6 +564,22 @@ module.exports = class Message {
         }
     }
 
+    //  Add a single meta value to an already-persisted message.
+    //  OR IGNORE makes this idempotent — calling twice with the same args is safe.
+    static addMetaValue(messageId, category, name, value, cb) {
+        try {
+            msgDb
+                .prepare(
+                    `INSERT OR IGNORE INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                    VALUES (?, ?, ?, ?);`
+                )
+                .run(messageId, category, name, value);
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     static getMetaValuesByMessageId(messageId, category, name, cb) {
         const sql = `SELECT meta_value
             FROM message_meta
@@ -957,9 +973,17 @@ module.exports = class Message {
             Ot> Nu> right after doing so, don't ya think? yeah I think so
 
         */
-        const quotePrefix = options.includePrefix
-            ? this._getQuotePrefix(options.prefixSource || 'fromUserName')
-            : '';
+        const quotePrefix =
+            options.quotePrefix !== undefined
+                ? options.quotePrefix
+                : options.includePrefix
+                  ? this._getQuotePrefix(options.prefixSource || 'fromUserName')
+                  : '';
+
+        //  When the caller explicitly provides a quotePrefix, the content is
+        //  known plain text (e.g. HTML-stripped AP note). Skip isFormattedLine
+        //  checks and always word-wrap, regardless of non-ASCII characters.
+        const skipFormattedCheck = options.quotePrefix !== undefined;
 
         function getWrapped(text, extraPrefix) {
             extraPrefix = extraPrefix ? ` ${extraPrefix}` : '';
@@ -1086,7 +1110,7 @@ module.exports = class Message {
                         switch (state) {
                             case 'line':
                                 if (quoteMatch) {
-                                    if (isFormattedLine(line)) {
+                                    if (!skipFormattedCheck && isFormattedLine(line)) {
                                         quoted.push(
                                             getFormattedLine(line.replace(/\s/, ''))
                                         );
@@ -1117,7 +1141,7 @@ module.exports = class Message {
                                 break;
 
                             default:
-                                if (isFormattedLine(line)) {
+                                if (!skipFormattedCheck && isFormattedLine(line)) {
                                     quoted.push(getFormattedLine(line));
                                 } else {
                                     state = quoteMatch ? 'quote_line' : 'line';

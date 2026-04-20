@@ -8,8 +8,10 @@ const {
     messageToHtml,
     htmlToMessageBody,
     recipientIdsFromObject,
+    extractMessageMetadata,
 } = require('./util');
 const { PublicCollectionId } = require('./const');
+const Endpoints = require('./endpoint');
 const { isAnsi } = require('../string_util');
 
 // deps
@@ -32,7 +34,7 @@ module.exports = class Note extends ActivityPubObject {
             return false;
         }
 
-        if (this.type !== 'Note') {
+        if (this.type !== 'Note' && this.type !== 'Article') {
             return false;
         }
 
@@ -55,7 +57,8 @@ module.exports = class Note extends ActivityPubObject {
                 return cb(null, null);
             }
 
-            if (objInfo.isPrivate || !obj.object || obj.object.type !== 'Note') {
+            const objType = obj.object && obj.object.type;
+            if (objInfo.isPrivate || (objType !== 'Note' && objType !== 'Article')) {
                 return cb(null, null);
             }
 
@@ -118,6 +121,45 @@ module.exports = class Note extends ActivityPubObject {
                     );
                 },
                 (replyToNoteId, fromUser, fromActor, remoteActor, callback) => {
+                    //  When replying, look up the parent's context so we can
+                    //  propagate the thread root ID through the conversation.
+                    if (!replyToNoteId || !message.replyToMsgId) {
+                        return callback(
+                            null,
+                            null,
+                            replyToNoteId,
+                            fromUser,
+                            fromActor,
+                            remoteActor
+                        );
+                    }
+
+                    Message.getMetaValuesByMessageId(
+                        message.replyToMsgId,
+                        Message.WellKnownMetaCategories.ActivityPub,
+                        Message.ActivityPubPropertyNames.Context,
+                        (err, parentContext) => {
+                            // ignore error — missing context meta is fine
+                            return callback(
+                                null,
+                                parentContext || null,
+                                replyToNoteId,
+                                fromUser,
+                                fromActor,
+                                remoteActor
+                            );
+                        }
+                    );
+                },
+
+                (
+                    parentContext,
+                    replyToNoteId,
+                    fromUser,
+                    fromActor,
+                    remoteActor,
+                    callback
+                ) => {
                     const to = [
                         message.isPrivate() ? remoteActor.id : PublicCollectionId,
                     ];
@@ -128,14 +170,50 @@ module.exports = class Note extends ActivityPubObject {
 
                     const htmlMessage = messageToHtml(message);
 
+                    //  Build tag array from @mentions and #hashtags found in the message body
+                    const { mentions, hashTags } = extractMessageMetadata(
+                        message.message
+                    );
+                    const tag = [];
+                    mentions.forEach(mention => {
+                        tag.push({ type: 'Mention', name: mention });
+                    });
+                    hashTags.forEach(ht => {
+                        //  Mastodon expects the href to point to a tag search URL;
+                        //  we use a best-effort value since we don't have a web tag search.
+                        tag.push({ type: 'Hashtag', name: ht });
+                    });
+
+                    //  Sensitive / CW: strip [NSFW] prefix from summary so Mastodon
+                    //  receives a clean CW label rather than the raw subject prefix.
+                    const isNSFW = message.subject.startsWith('[NSFW]');
+                    //  summary is AP's Content Warning — only set for NSFW/CW posts.
+                    //  Non-NSFW reply subjects are BBS conventions and must not be
+                    //  sent as CW text to remote servers.
+                    const summaryText = isNSFW
+                        ? message.subject.slice(6).trim()
+                        : undefined;
+
+                    const noteId = ActivityPubObject.makeObjectId('note');
+
+                    //  context: thread root ID — own ID for root posts, parent's context
+                    //  (or inReplyTo) for replies.  Mastodon uses this to reconstruct threads.
+                    const noteContext = replyToNoteId
+                        ? parentContext || replyToNoteId
+                        : noteId;
+
                     // https://docs.joinmastodon.org/spec/activitypub/#properties-used
                     const obj = {
-                        id: ActivityPubObject.makeObjectId('note'),
+                        id: noteId,
+                        url: noteId,
                         type: 'Note',
                         published: getISOTimestampString(message.modTimestamp),
                         to,
                         attributedTo: fromActor.id,
-                        summary: message.subject.trim(),
+                        conversation: noteContext,
+                        context: noteContext,
+                        likes: Endpoints.noteLikes(noteId),
+                        shares: Endpoints.noteShares(noteId),
                         content: htmlMessage,
                         contentMap: {
                             en: htmlMessage, // English only, for now
@@ -145,7 +223,9 @@ module.exports = class Note extends ActivityPubObject {
                             content: message.message,
                             mediaType: sourceMediaType,
                         },
-                        sensitive: message.subject.startsWith('[NSFW]'),
+                        sensitive: isNSFW,
+                        tag: tag.length > 0 ? tag : undefined,
+                        summary: summaryText,
                     };
 
                     if (replyToNoteId) {
@@ -279,6 +359,14 @@ module.exports = class Note extends ActivityPubObject {
                 options.activityId || 0;
             message.meta.ActivityPub[Message.ActivityPubPropertyNames.NoteId] = this.id;
 
+            //  Store thread context so the Phase 6 viewer can reconstruct threads.
+            //  Use 'context' first (standard AP), fall back to 'conversation' (Mastodon legacy).
+            const inboundContext = this.context || this.conversation;
+            if (inboundContext) {
+                message.meta.ActivityPub[Message.ActivityPubPropertyNames.Context] =
+                    inboundContext;
+            }
+
             if (this.inReplyTo) {
                 message.meta.ActivityPub[Message.ActivityPubPropertyNames.InReplyTo] =
                     this.inReplyTo;
@@ -288,7 +376,7 @@ module.exports = class Note extends ActivityPubObject {
                     metaTuples: [
                         {
                             category: Message.WellKnownMetaCategories.ActivityPub,
-                            name: Message.ActivityPubPropertyNames.InReplyTo,
+                            name: Message.ActivityPubPropertyNames.NoteId,
                             value: this.inReplyTo,
                         },
                     ],

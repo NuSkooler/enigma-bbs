@@ -15,6 +15,7 @@ configModule.get = () => ({ debug: { assertsEnabled: false } });
 //
 const dbModule = require('../core/database.js');
 const _testDb = new Database(':memory:');
+_testDb.pragma('foreign_keys = ON');
 dbModule.dbs.user = _testDb;
 
 //

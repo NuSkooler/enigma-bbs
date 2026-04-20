@@ -98,6 +98,12 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                 }
                 return cb(null);
             },
+            composeToSelected: (formData, extraArgs, cb) => {
+                return this._composeToSelected(cb);
+            },
+            searchActors: (formData, extraArgs, cb) => {
+                return this._searchActors(cb);
+            },
         };
     }
 
@@ -300,11 +306,7 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
             async.series(
                 [
                     callback => {
-                        if (Collections.Following === this.currentCollection) {
-                            return this._followingActorToggled(selectedActor, callback);
-                        } else {
-                            return this._followerActorToggled(selectedActor, callback);
-                        }
+                        return this._followingActorToggled(selectedActor, callback);
                     },
                 ],
                 err => {
@@ -318,6 +320,15 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                     //  :TODO: we really need updateItem() call on MenuView
                     actorListView.setItems(this._getCurrentActorList());
                     actorListView.redraw(); //  oof
+
+                    const selectedActorInfoView = this.getView(
+                        'main',
+                        MciViewIds.main.selectedActorInfo
+                    );
+                    this._updateSelectedActorInfo(
+                        selectedActorInfoView,
+                        this._getSelectedActorItem(actorListView.getFocusItemIndex())
+                    );
 
                     return cb(null);
                 }
@@ -368,8 +379,31 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
     }
 
     _removeFollower(cb) {
-        // :TODO: Send a Undo
-        return cb(null);
+        const actorListView = this.getView('main', MciViewIds.main.actorList);
+        const idx = actorListView.getFocusItemIndex();
+        const selectedActor = this._getSelectedActorItem(idx);
+        if (!selectedActor) {
+            return cb(null);
+        }
+
+        Collection.removeOwnedById(
+            Collections.Followers,
+            this.client.user,
+            selectedActor.id,
+            err => {
+                if (err) {
+                    this.client.log.error(
+                        { error: err.message },
+                        'Error removing follower'
+                    );
+                    return cb(err);
+                }
+
+                this.followerActors.splice(idx, 1);
+                this._switchTo(this.currentCollection); // redraw
+                return cb(null);
+            }
+        );
     }
 
     _rejectFollowRequest(cb) {
@@ -424,8 +458,24 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
         return actor;
     }
 
-    _followerActorToggled(actorInfo, cb) {
-        return cb(null);
+    _composeToSelected(cb) {
+        const actorListView = this.getView('main', MciViewIds.main.actorList);
+        const selectedActor = this._getSelectedActorItem(
+            actorListView.getFocusItemIndex()
+        );
+        return this.gotoMenu(
+            this.menuConfig.config.menuCompose || 'activityPubCompose',
+            selectedActor ? { extraArgs: { toActor: selectedActor.subject } } : {},
+            cb
+        );
+    }
+
+    _searchActors(cb) {
+        return this.gotoMenu(
+            this.menuConfig.config.menuSearch || 'activityPubActorSearch',
+            {},
+            cb
+        );
     }
 
     _getCustomInfoFormatObject(actorInfo) {
@@ -507,44 +557,73 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                 return cb(err);
             }
 
-            if (!collection.orderedItems || collection.orderedItems.length < 1) {
+            const requests = collection.orderedItems;
+            if (!requests || requests.length < 1) {
                 return cb(null, []);
             }
 
             const statusIndicator = this._getStatusIndicator(false);
+            const ids = requests.map(r => r.actor);
 
-            async.mapLimit(
-                collection.orderedItems,
-                4,
-                (request, nextRequest) => {
-                    const actorId = request.actor;
-                    Actor.fromId(actorId, (err, actor, subject) => {
-                        if (err) {
-                            this.client.log.warn({ actorId }, 'Failed to retrieve Actor');
-                            return nextRequest(null, null);
-                        }
+            //  Batch fetch from local actor cache; network-fetch misses
+            Collection.actorsFromIds(ids, (err, cached) => {
+                if (err) {
+                    return cb(err);
+                }
 
-                        //  Add some of our own properties
-                        Object.assign(actor, {
-                            subject,
+                const actorsList = [];
+                const missRequests = [];
+
+                for (const request of requests) {
+                    const hit = cached.get(request.actor);
+                    if (hit) {
+                        Object.assign(hit.actor, {
+                            subject: hit.subject,
                             status: false,
                             statusIndicator,
-                            text: actor.preferredUsername,
+                            text: hit.actor.preferredUsername,
                             request,
                         });
-
-                        return nextRequest(null, actor);
-                    });
-                },
-                (err, actorsList) => {
-                    if (err) {
-                        return cb(err);
+                        actorsList.push(hit.actor);
+                    } else {
+                        missRequests.push(request);
                     }
+                }
 
-                    actorsList = actorsList.filter(f => f); //   drop nulls
+                if (missRequests.length === 0) {
                     return cb(null, actorsList);
                 }
-            );
+
+                async.eachLimit(
+                    missRequests,
+                    4,
+                    (request, next) => {
+                        const actorId = request.actor;
+                        Actor.fromId(actorId, (err, actor, subject) => {
+                            if (err) {
+                                this.client.log.warn(
+                                    { actorId },
+                                    'Failed to retrieve Actor'
+                                );
+                                return next(null); // non-fatal; skip
+                            }
+
+                            Object.assign(actor, {
+                                subject,
+                                status: false,
+                                statusIndicator,
+                                text: actor.preferredUsername,
+                                request,
+                            });
+                            actorsList.push(actor);
+                            return next(null);
+                        });
+                    },
+                    err => {
+                        return cb(err || null, actorsList);
+                    }
+                );
+            });
         });
     }
 
@@ -555,42 +634,67 @@ exports.getModule = class activityPubSocialManager extends MenuModule {
                 return cb(err);
             }
 
-            if (!collection.orderedItems || collection.orderedItems.length < 1) {
+            const ids = collection.orderedItems;
+            if (!ids || ids.length < 1) {
                 return cb(null, []);
             }
 
             const statusIndicator = this._getStatusIndicator(true);
 
-            async.mapLimit(
-                collection.orderedItems,
-                4,
-                (actorId, nextActorId) => {
-                    Actor.fromId(actorId, (err, actor, subject) => {
-                        if (err) {
-                            this.client.log.warn({ actorId }, 'Failed to retrieve Actor');
-                            return nextActorId(null, null);
-                        }
+            //  Batch fetch from local actor cache first; only network-fetch cache misses
+            Collection.actorsFromIds(ids, (err, cached) => {
+                if (err) {
+                    return cb(err);
+                }
 
-                        //  Add some of our own properties
-                        Object.assign(actor, {
-                            subject,
-                            status: true,
-                            statusIndicator,
-                            text: actor.name,
-                        });
+                const misses = ids.filter(id => !cached.has(id));
 
-                        return nextActorId(null, actor);
+                const finalize = (actor, subject) => {
+                    Object.assign(actor, {
+                        subject,
+                        status: true,
+                        statusIndicator,
+                        text: actor.name,
                     });
-                },
-                (err, actorsList) => {
-                    if (err) {
-                        return cb(err);
-                    }
+                    return actor;
+                };
 
-                    actorsList = actorsList.filter(f => f); //   drop nulls
+                //  Build list from cache hits (preserves original order)
+                const actorsList = [];
+                for (const id of ids) {
+                    const hit = cached.get(id);
+                    if (hit) {
+                        actorsList.push(finalize(hit.actor, hit.subject));
+                    }
+                }
+
+                if (misses.length === 0) {
                     return cb(null, actorsList);
                 }
-            );
+
+                //  Fetch cache misses from the network (limit concurrency)
+                async.eachLimit(
+                    misses,
+                    4,
+                    (actorId, next) => {
+                        Actor.fromId(actorId, (err, actor, subject) => {
+                            if (err) {
+                                this.client.log.warn(
+                                    { actorId },
+                                    'Failed to retrieve Actor'
+                                );
+                                return next(null); // non-fatal; skip entry
+                            }
+
+                            actorsList.push(finalize(actor, subject));
+                            return next(null);
+                        });
+                    },
+                    err => {
+                        return cb(err || null, actorsList);
+                    }
+                );
+            });
         });
     }
 };
