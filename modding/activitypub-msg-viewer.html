@@ -1,0 +1,3115 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/enigma-bbs/assets/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
+    <!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>ActivityPub Message Viewer | ENiGMA½ BBS Software</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="ActivityPub Message Viewer" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="The ActivityPub Message Viewer Module The built-in activity_pub_msg_viewer module provides a read-only, scrollable viewer for individual ActivityPub Notes from the Fediverse. It uses a two-art layout — a body art containing the message text and header labels, and a footer art containing a horizontal action menu — mirroring the FSE view-mode design." />
+<meta property="og:description" content="The ActivityPub Message Viewer Module The built-in activity_pub_msg_viewer module provides a read-only, scrollable viewer for individual ActivityPub Notes from the Fediverse. It uses a two-art layout — a body art containing the message text and header labels, and a footer art containing a horizontal action menu — mirroring the FSE view-mode design." />
+<meta property="og:site_name" content="ENiGMA½ BBS Software" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2026-04-20T22:48:26+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="ActivityPub Message Viewer" />
+<script type="application/ld+json">
+{"description":"The ActivityPub Message Viewer Module The built-in activity_pub_msg_viewer module provides a read-only, scrollable viewer for individual ActivityPub Notes from the Fediverse. It uses a two-art layout — a body art containing the message text and header labels, and a footer art containing a horizontal action menu — mirroring the FSE view-mode design.","headline":"ActivityPub Message Viewer","dateModified":"2026-04-20T22:48:26+00:00","datePublished":"2026-04-20T22:48:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/activitypub-msg-viewer.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/activitypub-msg-viewer.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>
+    
+    <div id="container">
+        <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide">
+            <div class="container">
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
+            </div>
+            
+            <ul>
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+  <li>Installation</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/installation-methods.html">Installation Methods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/install-script.html">Install Script</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/docker.html">Docker</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/manual.html">Manual Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>OS / Hardware Specific</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/rpi.html">Raspberry Pi</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/windows.html">Installation Under Windows</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/network.html">Network Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/production.html">Production Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/development.html">Development Environment Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Configuration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/hjson.html">HJSON Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/menu-hjson.html">Menu HSJON</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/directory-structure.html">Directory Structure</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/external-binaries.html">External Support Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/email.html">Email</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/colour-codes.html">Colour Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/event-scheduler.html">Event Scheduler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/acs.html">Access Condition System (ACS)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/achievements.html">Achievements</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/security.html">Security</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Miscellaneous</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/misc/user-interrupt.html">User Interruptions</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>File Base</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/index.html">About File Areas</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/first-file-area.html">Configuring a File Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/acs.html">ACS</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/uploads.html">Uploads</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/web-access.html">Web Access</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/tic-support.html">TIC Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Message Areas</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import / Export</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/netmail.html">Netmail</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Art</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/general.html">General Art Information</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/themes.html">Themes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/pause-prompts.html">Pause Prompts</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>Views</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/views.html">Views</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/button_view.html">Button View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/text_view.html">Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/status_bar_view.html">Status Bar View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/ticker_view.html">Ticker View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Login Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">WebSocket / Web Interface Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/webfinger-handler.html">WebFinger Web Handler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/gopher.html">Gopher Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors-abracadabra.html">Local Doors — Scripts &amp; Native Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors-dos-emulation.html">Local Doors — External DOS Emulators</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors-v86.html">Local Doors — Native v86 Emulation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/existing-mods.html">Existing Mods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-area-list.html">File Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/last-callers.html">Last Callers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-list.html">User List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-conf-list.html">Message Conference List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-area-list.html">Message Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/bbs-list.html">BBS List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/onelinerz.html">Onelinerz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/show-art.html">The Show Art Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-download-manager.html">File Base Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-web-download-manager.html">File Base Web Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/top-x.html">TopX</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-2fa-otp-config.html">2FA/OTP Config</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/autosig-edit.html">Auto Signature Editor</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/menu-modules.html">Menu Modules</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/wfc.html">Waiting For Caller (WFC)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/sysop-chat.html">Sysop Chat</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/upgrading.html">Upgrading</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">Troubleshooting SSH</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/activitypub-msg-browser.html">ActivityPub Message Browser</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+      <li class="active-nav">ActivityPub Message Viewer</li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors-zmachine.html">Local Doors — Z-Machine Interactive Fiction</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/websocket-troubleshooting.html">Troubleshooting WebSocket &amp; VTX</a></li>
+    
+
+
+  
+  
+    </ul>
+    
+  
+
+</ul>
+
+        </div>
+        <div class="main_area">
+          <div class="container">
+            <section id="main_content">
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/activitypub-msg-browser.html">« ActivityPub Message Browser</a>
+              
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/local-doors-zmachine.html">Local Doors — Z-Machine Interactive Fiction »</a>
+              
+              <br clear="both">
+              </div>
+
+                <div class="page">
+    <h1 class="page-title">ActivityPub Message Viewer</h1>
+    <h2 id="the-activitypub-message-viewer-module">The ActivityPub Message Viewer Module</h2>
+<p>The built-in <code class="language-plaintext highlighter-rouge">activity_pub_msg_viewer</code> module provides a read-only, scrollable viewer for individual ActivityPub Notes from the Fediverse. It uses a two-art layout — a body art containing the message text and header labels, and a footer art containing a horizontal action menu — mirroring the FSE view-mode design.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> This module is normally pushed by the <a href="/enigma-bbs/modding/activitypub-msg-browser.html">ActivityPub Message Browser</a> and receives the selected message via <code class="language-plaintext highlighter-rouge">extraArgs</code>. It can also be launched directly from a menu if needed.</p>
+</blockquote>
+
+<h2 id="layout">Layout</h2>
+<p>Two separate art files are used:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Art key</th>
+      <th>Form ID</th>
+      <th>Contents</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">art.body</code></td>
+      <td>1</td>
+      <td>Message body (<code class="language-plaintext highlighter-rouge">%MT1</code>) and header label views (<code class="language-plaintext highlighter-rouge">%TL10</code>+).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">art.footer</code></td>
+      <td>4</td>
+      <td>Single-row action menu (<code class="language-plaintext highlighter-rouge">%HM1</code>).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The body occupies the top portion of the screen; the footer is drawn immediately below it.</p>
+
+<h2 id="focus-model">Focus Model</h2>
+<p>The footer (<code class="language-plaintext highlighter-rouge">%HM1</code>) is <strong>always focused</strong> — this matches FSE view mode. The body form (form 1) exists only to hold <code class="language-plaintext highlighter-rouge">%MT1</code> and the <code class="language-plaintext highlighter-rouge">%TL10+</code> label views; it is never directly focused and accepts no input.</p>
+
+<p>All user interaction — including scrolling the message body — is handled by action keys and the HM1 menu in form 4.</p>
+
+<h2 id="config-block">Config Block</h2>
+<p>| Key | Required | Description |
+|—–|———-|————-|
+| <code class="language-plaintext highlighter-rouge">art.body</code> | <img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"> | Art spec for the body screen (contains <code class="language-plaintext highlighter-rouge">%MT1</code> and <code class="language-plaintext highlighter-rouge">%TL10</code>+). |
+| <code class="language-plaintext highlighter-rouge">art.footer</code> | <img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"> | Art spec for the footer screen (contains <code class="language-plaintext highlighter-rouge">%HM1</code>). |
+| <code class="language-plaintext highlighter-rouge">dateTimeFormat</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | <a href="https://momentjs.com/docs/#/displaying/format/">moment.js</a> format string for the message date. <code class="language-plaintext highlighter-rouge">am</code>/<code class="language-plaintext highlighter-rouge">pm</code> are collapsed to <code class="language-plaintext highlighter-rouge">a</code>/<code class="language-plaintext highlighter-rouge">p</code>. Defaults to <code class="language-plaintext highlighter-rouge">MM/DD hh:mma</code>. |</p>
+
+<p><strong>Example</strong>:</p>
+<pre><code class="language-hjson">activityPubMsgViewer: {
+    desc: ActivityPub Message Viewer
+    module: ./activitypub/activity_pub_msg_viewer
+    config: {
+        art: {
+            body:   activitypub_msg_viewer
+            footer: activitypub_msg_viewer_footer
+        }
+    }
+    // ...
+}
+</code></pre>
+
+<h2 id="theming">Theming</h2>
+
+<h3 id="mci-1--mt1-message-body-form-1">MCI 1 — <code class="language-plaintext highlighter-rouge">%MT1</code> Message Body (Form 1)</h3>
+<p>A multi-line text view displaying the decoded Note content. Should be configured in <code class="language-plaintext highlighter-rouge">preview</code> mode with <code class="language-plaintext highlighter-rouge">acceptsFocus: false</code> and <code class="language-plaintext highlighter-rouge">acceptsInput: false</code>. <code class="language-plaintext highlighter-rouge">width</code> and <code class="language-plaintext highlighter-rouge">height</code> must be set explicitly in the theme to match the art layout — the view system does not derive dimensions from art for <code class="language-plaintext highlighter-rouge">MT</code> type views.</p>
+
+<p><strong>Example</strong> in <code class="language-plaintext highlighter-rouge">theme.hjson</code>:</p>
+<pre><code class="language-hjson">activityPubMsgViewer: {
+    1: {
+        mci: {
+            MT1: {
+                mode: preview
+                width: 78
+                height: 17
+            }
+        }
+    }
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> If <code class="language-plaintext highlighter-rouge">width</code> or <code class="language-plaintext highlighter-rouge">height</code> are omitted, <code class="language-plaintext highlighter-rouge">%MT1</code> will render as an empty area. Set them to match the usable space in your body art file.</p>
+</blockquote>
+
+<h3 id="mci-10--custom-header-views-form-1">MCI 10+ — Custom Header Views (Form 1)</h3>
+<p><code class="language-plaintext highlighter-rouge">%TL10</code>, <code class="language-plaintext highlighter-rouge">%TL11</code>, etc. may be placed anywhere in the body art and configured via <code class="language-plaintext highlighter-rouge">bodyInfoFormat##</code> keys in the menu’s <code class="language-plaintext highlighter-rouge">config</code> block:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">from</code></td>
+      <td>Sender handle in <code class="language-plaintext highlighter-rouge">@user@host</code> form.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">subject</code></td>
+      <td>Message subject/summary. Prefixed with <code class="language-plaintext highlighter-rouge">[CW] </code> for content-warned posts, <code class="language-plaintext highlighter-rouge">re: </code> for replies.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">date</code></td>
+      <td>Formatted timestamp string (see <code class="language-plaintext highlighter-rouge">dateTimeFormat</code>).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">likes</code></td>
+      <td>Like count as a string; empty when zero.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">boosts</code></td>
+      <td>Boost count as a string; empty when zero.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">att</code></td>
+      <td>Attachment indicator character, or a space when no attachment.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hasAtt</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">'1'</code> if the Note has attachments, otherwise <code class="language-plaintext highlighter-rouge">''</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">threadPos</code></td>
+      <td>Position of this Note within its thread (e.g. <code class="language-plaintext highlighter-rouge">'3'</code>), or <code class="language-plaintext highlighter-rouge">''</code> if unknown.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">threadTotal</code></td>
+      <td>Total number of Notes in the thread, or <code class="language-plaintext highlighter-rouge">''</code> if unknown.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">threadInfo</code></td>
+      <td>Formatted thread position string (e.g. <code class="language-plaintext highlighter-rouge">'3 of 7'</code>), or <code class="language-plaintext highlighter-rouge">''</code> if unknown.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hasPrev</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">'1'</code> if the Note is a reply (has a parent), otherwise <code class="language-plaintext highlighter-rouge">''</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hasNext</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">'1'</code> if a next Note exists in the thread, otherwise <code class="language-plaintext highlighter-rouge">''</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">modeLabel</code></td>
+      <td>Source mode label passed from the browser: <code class="language-plaintext highlighter-rouge">Federated</code>, <code class="language-plaintext highlighter-rouge">Local</code>, <code class="language-plaintext highlighter-rouge">Timeline</code>, <code class="language-plaintext highlighter-rouge">Mentions</code>, or <code class="language-plaintext highlighter-rouge">Thread</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">likeIndicator</code></td>
+      <td>Like indicator character (CP437 ♥ by default; configurable via <code class="language-plaintext highlighter-rouge">likeIndicator</code> in config).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">boostIndicator</code></td>
+      <td>Boost indicator character (CP437 ▲ by default; configurable via <code class="language-plaintext highlighter-rouge">boostIndicator</code> in config).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Example</strong> config:</p>
+<pre><code class="language-hjson">activityPubMsgViewer: {
+    config: {
+        bodyInfoFormat10: "{modeLabel}"
+        bodyInfoFormat11: "{from:&lt;40.40}"
+        bodyInfoFormat12: "{subject:&lt;40.40}"
+        bodyInfoFormat13: "{date:&lt;14.14}"
+        bodyInfoFormat14: "{threadInfo}"
+    }
+}
+</code></pre>
+
+<h3 id="mci-1--hm1-footer-action-menu-form-4">MCI 1 — <code class="language-plaintext highlighter-rouge">%HM1</code> Footer Action Menu (Form 4)</h3>
+<p>A horizontal menu with the following items (by index):</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Index</th>
+      <th>Default label</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>0</td>
+      <td><code class="language-plaintext highlighter-rouge">prev</code></td>
+      <td>Navigate to the previous message in the browser list.</td>
+    </tr>
+    <tr>
+      <td>1</td>
+      <td><code class="language-plaintext highlighter-rouge">next</code></td>
+      <td>Navigate to the next message in the browser list.</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><code class="language-plaintext highlighter-rouge">next thd</code></td>
+      <td>Navigate to the next Note in the thread context (<code class="language-plaintext highlighter-rouge">]</code>).</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code class="language-plaintext highlighter-rouge">prev thd</code></td>
+      <td>Navigate to the parent Note via <code class="language-plaintext highlighter-rouge">inReplyTo</code> (<code class="language-plaintext highlighter-rouge">[</code>).</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><code class="language-plaintext highlighter-rouge">boost</code></td>
+      <td>Boost (announce) the current Note.</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><code class="language-plaintext highlighter-rouge">like</code></td>
+      <td>Like the current Note.</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><code class="language-plaintext highlighter-rouge">reply</code></td>
+      <td>Reply to the current Note.</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td><code class="language-plaintext highlighter-rouge">quit</code></td>
+      <td>Exit the viewer and return to the browser.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Items are plain strings; focus appearance is controlled by the art file or <code class="language-plaintext highlighter-rouge">focusTextStyle</code> in the <code class="language-plaintext highlighter-rouge">HM1</code> MCI config. Place <code class="language-plaintext highlighter-rouge">%HM1^[[...m%HM1</code> (two codes with a focus SGR between them) in the art to give the focused item a distinct style.</p>
+
+<h2 id="default-action-keys">Default Action Keys</h2>
+<p>These may be changed in your board’s <code class="language-plaintext highlighter-rouge">menu.hjson</code>. All keys are handled by the <strong>footer</strong> form (form 4) — the footer is always focused.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key(s)</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">up arrow</code></td>
+      <td>Scroll message body up one line.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">down arrow</code></td>
+      <td>Scroll message body down one line.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">page up</code></td>
+      <td>Scroll message body up one page.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">page down</code></td>
+      <td>Scroll message body down one page.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">[</code></td>
+      <td>Navigate to the parent Note via <code class="language-plaintext highlighter-rouge">inReplyTo</code> (thread nav).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">]</code></td>
+      <td>Navigate to the next Note in the thread context.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">b</code></td>
+      <td>Boost the current Note.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">l</code></td>
+      <td>Like the current Note.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">r</code></td>
+      <td>Reply to the current Note.</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">q</code>, <code class="language-plaintext highlighter-rouge">Q</code>, <code class="language-plaintext highlighter-rouge">escape</code>
+</td>
+      <td>Quit and return to the browser.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Menu config example</strong>:</p>
+<pre><code class="language-hjson">activityPubMsgViewer: {
+    form: {
+        1: {
+            mci: {
+                MT1: {
+                    mode: preview
+                    acceptsFocus: false
+                    acceptsInput: false
+                }
+            }
+        }
+        4: {
+            mci: {
+                HM1: {
+                    items: ["prev", "next", "next thd", "prev thd", "boost", "like", "reply", "quit"]
+                    focusItemIndex: 1
+                    submit: true
+                }
+            }
+            submit: {
+                *: [
+                    { value: { 1: 0 }  action: @method:prevNote }
+                    { value: { 1: 1 }  action: @method:nextNote }
+                    { value: { 1: 2 }  action: @method:threadNext }
+                    { value: { 1: 3 }  action: @method:threadPrev }
+                    { value: { 1: 4 }  action: @method:boostNote }
+                    { value: { 1: 5 }  action: @method:likeNote }
+                    { value: { 1: 6 }  action: @method:replyNote }
+                    { value: { 1: 7 }  action: @method:quitViewer }
+                ]
+            }
+            actionKeys: [
+                {
+                    keys: ["up arrow", "down arrow", "page up", "page down"]
+                    action: @method:movementKeyPressed
+                }
+                {
+                    keys: ["["]
+                    action: @method:threadPrev
+                }
+                {
+                    keys: ["]"]
+                    action: @method:threadNext
+                }
+                {
+                    keys: ["b"]
+                    action: @method:boostNote
+                }
+                {
+                    keys: ["l"]
+                    action: @method:likeNote
+                }
+                {
+                    keys: ["r"]
+                    action: @method:replyNote
+                }
+                {
+                    keys: ["escape", "q", "shift + q"]
+                    action: @method:quitViewer
+                }
+            ]
+        }
+    }
+}
+</code></pre>
+
+<h2 id="navigation">Navigation</h2>
+
+<p><strong>List navigation</strong> (<code class="language-plaintext highlighter-rouge">prev</code>/<code class="language-plaintext highlighter-rouge">next</code> menu items, Enter): walks backwards and forwards through the message list that was open in the browser when the viewer was launched. This is the primary navigation mechanism.</p>
+
+<p><strong>Thread navigation</strong> (<code class="language-plaintext highlighter-rouge">[</code> / <code class="language-plaintext highlighter-rouge">]</code>): <code class="language-plaintext highlighter-rouge">[</code> follows the <code class="language-plaintext highlighter-rouge">inReplyTo</code> link to the parent Note; <code class="language-plaintext highlighter-rouge">]</code> loads the thread context and advances to the next Note within it. These are available regardless of how the viewer was opened, but only work when the Note has <code class="language-plaintext highlighter-rouge">inReplyTo</code> or <code class="language-plaintext highlighter-rouge">context</code>/<code class="language-plaintext highlighter-rouge">conversation</code> fields set.</p>
+
+</div>
+
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/activitypub-msg-browser.html">« ActivityPub Message Browser</a>
+              
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/local-doors-zmachine.html">Local Doors — Z-Machine Interactive Fiction »</a>
+              
+              <br clear="both">
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    
+  </body>
+</html>

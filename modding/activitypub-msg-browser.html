@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>QWK Support | ENiGMA½ BBS Software</title>
+<title>ActivityPub Message Browser | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="QWK Support" />
+<meta property="og:title" content="ActivityPub Message Browser" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="QWK and QWK-Net Style Networks As like all other networks such as FidoNet-Style (FTN) networks, ENiGMA½ considers QWK external to the system but can import and export the format." />
-<meta property="og:description" content="QWK and QWK-Net Style Networks As like all other networks such as FidoNet-Style (FTN) networks, ENiGMA½ considers QWK external to the system but can import and export the format." />
+<meta name="description" content="The ActivityPub Message Browser Module The built-in activity_pub_msg_list module provides a scrollable, paginated list of messages (Notes) received from the Fediverse. It supports multiple view modes, lazy-loading of additional pages as the user scrolls, and navigation to a message viewer or thread view." />
+<meta property="og:description" content="The ActivityPub Message Browser Module The built-in activity_pub_msg_list module provides a scrollable, paginated list of messages (Notes) received from the Fediverse. It supports multiple view modes, lazy-loading of additional pages as the user scrolls, and navigation to a message viewer or thread view." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-20T22:48:26+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="QWK Support" />
+<meta property="twitter:title" content="ActivityPub Message Browser" />
 <script type="application/ld+json">
-{"description":"QWK and QWK-Net Style Networks As like all other networks such as FidoNet-Style (FTN) networks, ENiGMA½ considers QWK external to the system but can import and export the format.","headline":"QWK Support","dateModified":"2026-04-20T22:48:26+00:00","datePublished":"2026-04-20T22:48:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/qwk.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/qwk.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"The ActivityPub Message Browser Module The built-in activity_pub_msg_list module provides a scrollable, paginated list of messages (Notes) received from the Fediverse. It supports multiple view modes, lazy-loading of additional pages as the user scrolls, and navigation to a message viewer or thread view.","headline":"ActivityPub Message Browser","dateModified":"2026-04-20T22:48:26+00:00","datePublished":"2026-04-20T22:48:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/activitypub-msg-browser.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/activitypub-msg-browser.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1043,7 +1043,7 @@
 
 
     
-      <li class="active-nav">QWK Support</li>
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
     
 
 
@@ -2625,7 +2625,7 @@
 
 
     
-    <li><a href="/enigma-bbs/modding/activitypub-msg-browser.html">ActivityPub Message Browser</a></li>
+      <li class="active-nav">ActivityPub Message Browser</li>
     
 
 
@@ -2725,89 +2725,306 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/messageareas/netmail.html">« Netmail</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">« Troubleshooting SSH</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN) »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/activitypub-msg-viewer.html">ActivityPub Message Viewer »</a>
               
               <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">QWK Support</h1>
-    <h2 id="qwk-and-qwk-net-style-networks">QWK and QWK-Net Style Networks</h2>
-<p>As like all other networks such as FidoNet-Style (FTN) networks, ENiGMA½ considers QWK external to the system but can import and export the format.</p>
-
-<h3 id="supported-standards">Supported Standards</h3>
-<p>QWK must be considered a semi-standard as there are many implementations. What follows is a short &amp; incomplete list of such standards ENiGMA½ supports:</p>
-<ul>
-  <li>The basic <a href="http://fileformats.archiveteam.org/wiki/QWK">QWK packet format</a>.</li>
-  <li>
-<a href="https://github.com/wwivbbs/wwiv/blob/master/specs/qwk/qwke.txt">QWKE extensions</a>.</li>
-  <li>
-<a href="http://wiki.synchro.net/ref:qwk">Synchronet BBS style extensions</a> such as <code class="language-plaintext highlighter-rouge">HEADERS.DAT</code>, <code class="language-plaintext highlighter-rouge">@</code> kludges, and UTF-8 handling.</li>
-</ul>
-
-<h3 id="configuration">Configuration</h3>
-<p>QWK configuration occurs in the <code class="language-plaintext highlighter-rouge">messageNetworks.qwk</code> config block of <code class="language-plaintext highlighter-rouge">config.hjson</code>. As QWK wants to deal with conference numbers and ENiGMA½ uses area tags (conferences and conference tags are only used for logical grouping), a mapping can be made.</p>
+    <h1 class="page-title">ActivityPub Message Browser</h1>
+    <h2 id="the-activitypub-message-browser-module">The ActivityPub Message Browser Module</h2>
+<p>The built-in <code class="language-plaintext highlighter-rouge">activity_pub_msg_list</code> module provides a scrollable, paginated list of messages (Notes) received from the Fediverse. It supports multiple view modes, lazy-loading of additional pages as the user scrolls, and navigation to a message viewer or thread view.</p>
 
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> During a regular, non QWK-Net exports, conference numbers can be auto-generated. Note that for QWK-Net style networks, you will need to create mappings however.</p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> ActivityPub must be enabled and the <a href="/enigma-bbs/servers/contentservers/activitypub-handler.html">ActivityPub Web Handler</a> must be configured for messages to appear.</p>
 </blockquote>
 
-<p>Example:</p>
+<h2 id="view-modes">View Modes</h2>
+<p>The browser can be opened in one of the following modes by passing <code class="language-plaintext highlighter-rouge">mode</code> via <code class="language-plaintext highlighter-rouge">extraArgs</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Mode</th>
+      <th><code class="language-plaintext highlighter-rouge">extraArgs.mode</code></th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Federated</td>
+      <td><code class="language-plaintext highlighter-rouge">federated</code></td>
+      <td>All Notes received in the shared inbox. <strong>(default)</strong>
+</td>
+    </tr>
+    <tr>
+      <td>Local</td>
+      <td><code class="language-plaintext highlighter-rouge">local</code></td>
+      <td>Notes sent by users on this system.</td>
+    </tr>
+    <tr>
+      <td>Timeline</td>
+      <td><code class="language-plaintext highlighter-rouge">timeline</code></td>
+      <td>Notes from a specific actor. Requires <code class="language-plaintext highlighter-rouge">extraArgs.actorId</code>.</td>
+    </tr>
+    <tr>
+      <td>Mentions</td>
+      <td><code class="language-plaintext highlighter-rouge">mentions</code></td>
+      <td>Notes that mention the current user.</td>
+    </tr>
+    <tr>
+      <td>Thread</td>
+      <td><code class="language-plaintext highlighter-rouge">thread</code></td>
+      <td>All Notes in a single thread/context. Requires <code class="language-plaintext highlighter-rouge">extraArgs.contextId</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Example</strong> — launching the browser in Mentions mode from a menu action:</p>
 <pre><code class="language-hjson">{
-    messageNetworks: {
-        qwk: {
-            areas: {
-                general: {          // local ENiGMA½ area tag
-                    conference: 1   // conference number to map to
-                }
+    action: @menu:activityPubMsgBrowser
+    extraArgs: {
+        mode: mentions
+    }
+}
+</code></pre>
+
+<h2 id="config-block">Config Block</h2>
+<p>| Key | Required | Description |
+|—–|———-|————-|
+| <code class="language-plaintext highlighter-rouge">art.main</code> | <img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"> | Art spec for the main browser screen. |
+| <code class="language-plaintext highlighter-rouge">dateTimeFormat</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | <a href="https://momentjs.com/docs/#/displaying/format/">moment.js</a> format string for message timestamps. <code class="language-plaintext highlighter-rouge">am</code>/<code class="language-plaintext highlighter-rouge">pm</code> are collapsed to <code class="language-plaintext highlighter-rouge">a</code>/<code class="language-plaintext highlighter-rouge">p</code>. Defaults to <code class="language-plaintext highlighter-rouge">MM/DD hh:mma</code> (12-char output). |
+| <code class="language-plaintext highlighter-rouge">attIndicator</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Single character shown in the attachment column. Defaults to <code class="language-plaintext highlighter-rouge">*</code>. |
+| <code class="language-plaintext highlighter-rouge">likeIndicator</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Single character shown as the like indicator in TL10+ views. Defaults to <code class="language-plaintext highlighter-rouge">♥</code> (CP437 <code class="language-plaintext highlighter-rouge">0x03</code>). |
+| <code class="language-plaintext highlighter-rouge">boostIndicator</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Single character shown as the boost indicator in TL10+ views. Defaults to <code class="language-plaintext highlighter-rouge">▲</code> (CP437 <code class="language-plaintext highlighter-rouge">0x1E</code>). |
+| <code class="language-plaintext highlighter-rouge">viewerMenu</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Menu name to push when opening a message. Defaults to <code class="language-plaintext highlighter-rouge">activityPubMsgViewer</code>. |
+| <code class="language-plaintext highlighter-rouge">threadMenu</code> | <img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> | Menu name to push when opening a thread. Defaults to <code class="language-plaintext highlighter-rouge">actPubThread</code>. |</p>
+
+<p><strong>Example</strong>:</p>
+<pre><code class="language-hjson">activityPubMsgBrowser: {
+    desc: ActivityPub Message Browser
+    module: ./activitypub/activity_pub_msg_list
+    config: {
+        art: {
+            main: activitypub_msg_browser
+        }
+        dateTimeFormat: "MM/DD hh:mma"
+        attIndicator: "@"
+    }
+    // ...
+}
+</code></pre>
+
+<h2 id="theming">Theming</h2>
+
+<h3 id="mci-1--vm1-message-list">MCI 1 — <code class="language-plaintext highlighter-rouge">%VM1</code> Message List</h3>
+<p>Each row in the list provides the following <code class="language-plaintext highlighter-rouge">itemFormat</code> / <code class="language-plaintext highlighter-rouge">focusItemFormat</code> fields:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">from</code></td>
+      <td>Sender handle in <code class="language-plaintext highlighter-rouge">@user@host</code> form. Full length, truncate with <code class="language-plaintext highlighter-rouge">{from:&lt;16.16}</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">subject</code></td>
+      <td>Message subject/summary. Prefixed with <code class="language-plaintext highlighter-rouge">[CW] </code> for content-warned posts, <code class="language-plaintext highlighter-rouge">re: </code> for replies.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">date</code></td>
+      <td>Formatted timestamp string (see <code class="language-plaintext highlighter-rouge">dateTimeFormat</code>).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">likes</code></td>
+      <td>Like count as a string; empty string when zero (blank-if-zero in right-justified formats).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">boosts</code></td>
+      <td>Boost count as a string; empty string when zero.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">att</code></td>
+      <td>Attachment indicator character, or a space when no attachment.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hasAttachment</code></td>
+      <td>Boolean <code class="language-plaintext highlighter-rouge">true</code>/<code class="language-plaintext highlighter-rouge">false</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">noteId</code></td>
+      <td>Internal ActivityPub Note ID (URL).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">contextId</code></td>
+      <td>Thread context/conversation ID, if present.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inReplyTo</code></td>
+      <td>ID of the parent Note, if this is a reply.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">text</code></td>
+      <td>Pre-built fallback display string (fixed 71-char layout). Used when <code class="language-plaintext highlighter-rouge">itemFormat</code> is not set in the theme.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Example</strong> <code class="language-plaintext highlighter-rouge">itemFormat</code> in <code class="language-plaintext highlighter-rouge">theme.hjson</code>:</p>
+<pre><code class="language-hjson">activityPubMsgBrowser: {
+    0: {
+        mci: {
+            VM1: {
+                itemFormat:      "|00|07{from:&lt;16.16} {subject:&lt;33.33} {date:&lt;12.12} {likes:&gt;2} {boosts:&gt;2} {att}"
+                focusItemFormat: "|00|15{from:&lt;16.16} {subject:&lt;33.33} {date:&lt;12.12} {likes:&gt;2} {boosts:&gt;2} {att}"
             }
         }
     }
 }
 </code></pre>
 
-<h3 id="oputil">oputil</h3>
-<p>The <code class="language-plaintext highlighter-rouge">oputil.js</code> utility can export packet files, dump the messages of a packet to stdout, etc. See <a href="/enigma-bbs/admin/oputil.html">the oputil documentation</a> for more information.</p>
-
-<h3 id="offline-readers">Offline Readers</h3>
-<p>A few of the offline readers that have been tested with QWK packet files produced by ENiGMA½:</p>
+<h3 id="mci-10--custom-views">MCI 10+ — Custom Views</h3>
+<p><code class="language-plaintext highlighter-rouge">%TL10</code>, <code class="language-plaintext highlighter-rouge">%TL11</code>, etc. may be placed in the art and configured in the menu’s <code class="language-plaintext highlighter-rouge">config</code> block using <code class="language-plaintext highlighter-rouge">infoFormat##</code> keys (e.g. <code class="language-plaintext highlighter-rouge">infoFormat10</code>). The following properties are available:</p>
 
 <table>
   <thead>
     <tr>
-      <th>Software</th>
-      <th>Status</th>
-      <th>Notes</th>
+      <th>Property</th>
+      <th>Description</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td>MultiMail/Win v0.52</td>
-      <td>Supported</td>
-      <td>Private mail seems to break even with bundles from other systems</td>
+      <td><code class="language-plaintext highlighter-rouge">modeLabel</code></td>
+      <td>Current mode name: <code class="language-plaintext highlighter-rouge">Federated</code>, <code class="language-plaintext highlighter-rouge">Local</code>, <code class="language-plaintext highlighter-rouge">Timeline</code>, <code class="language-plaintext highlighter-rouge">Mentions</code>, or <code class="language-plaintext highlighter-rouge">Thread</code>.</td>
     </tr>
     <tr>
-      <td>SkyReader/W32 v1.00</td>
-      <td>Supported</td>
-      <td>Works well. No QWKE or HEADERS.DAT support. Gets confused with low conference numbers.</td>
+      <td><code class="language-plaintext highlighter-rouge">msgCount</code></td>
+      <td>Current number of loaded messages (as a string).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">attIndicator</code></td>
+      <td>Configured attachment indicator character.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">likeIndicator</code></td>
+      <td>Configured like indicator character.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">boostIndicator</code></td>
+      <td>Configured boost indicator character.</td>
     </tr>
   </tbody>
 </table>
 
-<p>There are also <a href="https://www.softwolves.pp.se/old/2000/faq/bwprod">many other readers</a> for various systems.</p>
+<p><strong>Example</strong>:</p>
+<pre><code class="language-hjson">activityPubMsgBrowser: {
+    config: {
+        infoFormat10: "{modeLabel} ({msgCount} messages)"
+    }
+}
+</code></pre>
+
+<h2 id="action-keys">Action Keys</h2>
+<p>The following keys are handled by the <code class="language-plaintext highlighter-rouge">listKeyPressed</code> menu method, which should be assigned via <code class="language-plaintext highlighter-rouge">actionKeys</code> in form <code class="language-plaintext highlighter-rouge">0</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key(s)</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">return</code>, <code class="language-plaintext highlighter-rouge">space</code>
+</td>
+      <td>Open the selected message in the viewer.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">b</code></td>
+      <td>Boost (announce) the selected message.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">l</code></td>
+      <td>Like the selected message.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">r</code></td>
+      <td>Reply to the selected message.</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">t</code>, <code class="language-plaintext highlighter-rouge">+</code>
+</td>
+      <td>Open the thread containing the selected message.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">down arrow</code></td>
+      <td>Move focus to the next message.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">up arrow</code></td>
+      <td>Move focus to the previous message.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">page down</code></td>
+      <td>Scroll list down one page.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">page up</code></td>
+      <td>Scroll list up one page.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Menu config example</strong>:</p>
+<pre><code class="language-hjson">activityPubMsgBrowser: {
+    form: {
+        0: {
+            mci: {
+                VM1: {
+                    focus: true
+                }
+            }
+            actionKeys: [
+                {
+                    keys: ["return", "space", "b", "l", "r", "t", "+", "down arrow", "up arrow", "page up", "page down"]
+                    action: @method:listKeyPressed
+                }
+                {
+                    keys: ["escape", "q", "shift + q"]
+                    action: @systemMethod:prevMenu
+                }
+            ]
+        }
+    }
+}
+</code></pre>
+
+<h2 id="lazy-loading">Lazy Loading</h2>
+<p>The browser fetches messages in pages of 25. When the focused row comes within 5 entries of the end of the loaded list, the next page is automatically fetched and appended — no user action is required.</p>
+
+<p>Thread mode (<code class="language-plaintext highlighter-rouge">mode: thread</code>) loads all messages in the thread at once and does not paginate.</p>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/messageareas/netmail.html">« Netmail</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/troubleshooting/ssh-troubleshooting.html">« Troubleshooting SSH</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN) »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/activitypub-msg-viewer.html">ActivityPub Message Viewer »</a>
               
               <br clear="both">
               </div>
