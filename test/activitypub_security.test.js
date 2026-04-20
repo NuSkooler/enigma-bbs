@@ -1,0 +1,827 @@
+'use strict';
+
+const { strict: assert } = require('assert');
+const Database = require('better-sqlite3');
+const crypto = require('crypto');
+
+//
+//  Config mock — mutable so individual tests can flip the AP enabled flag
+//  without reloading modules.  collection.js captures `Config = require('./config').get`
+//  at load time; because we set configModule.get = () => TEST_CONFIG (the same
+//  object reference), Config() always sees whatever TEST_CONFIG currently contains.
+//
+const configModule = require('../core/config.js');
+const mutableApConfig = {
+    enabled: true,
+    sharedInbox: { maxAgeDays: 90, maxCount: 10000 },
+};
+const TEST_CONFIG = {
+    debug: { assertsEnabled: false },
+    general: { boardName: 'TestBoard' },
+    contentServers: {
+        web: {
+            domain: 'test.example.com',
+            https: { enabled: true, port: 443 },
+            handlers: {
+                activityPub: mutableApConfig,
+            },
+        },
+    },
+};
+configModule.get = () => TEST_CONFIG;
+
+//
+//  Logger stub
+//
+const LogModule = require('../core/logger.js');
+LogModule.log = {
+    error: () => {},
+    warn: () => {},
+    info: () => {},
+    debug: () => {},
+    trace: () => {},
+};
+
+//
+//  In-memory activitypub DB — injected before requiring collection.js
+//
+const dbModule = require('../core/database.js');
+const _apDb = new Database(':memory:');
+_apDb.pragma('foreign_keys = ON');
+dbModule.dbs.activitypub = _apDb;
+
+//  Force a fresh load so collection.js captures our config mock
+delete require.cache[require.resolve('../core/web_util.js')];
+delete require.cache[require.resolve('../core/activitypub/endpoint.js')];
+delete require.cache[require.resolve('../core/activitypub/object.js')];
+delete require.cache[require.resolve('../core/activitypub/collection.js')];
+const Collection = require('../core/activitypub/collection.js');
+
+const { EventEmitter } = require('events');
+
+const {
+    validateRequestDate,
+    verifyDigestHeader,
+    normalizeHttpSigHeader,
+    actorIdFromKeyId,
+    hostsMatch,
+    verifyObjectOwner,
+    actorDomainMatchesKeyId,
+    isSafeOutboundUrl,
+    readInboxBody,
+    MaxRequestAgeSecs,
+} = require('../core/activitypub/security.js');
+
+// ─── schema ───────────────────────────────────────────────────────────────────
+
+before(() => {
+    _apDb.exec(`
+        CREATE TABLE IF NOT EXISTS collection (
+            collection_id       VARCHAR NOT NULL,
+            name                VARCHAR NOT NULL,
+            timestamp           DATETIME NOT NULL,
+            owner_actor_id      VARCHAR NOT NULL,
+            object_id           VARCHAR NOT NULL,
+            object_json         VARCHAR NOT NULL,
+            is_private          INTEGER NOT NULL,
+            UNIQUE(name, collection_id, object_id)
+        );
+        CREATE TABLE IF NOT EXISTS collection_object_meta (
+            collection_id   VARCHAR NOT NULL,
+            name            VARCHAR NOT NULL,
+            object_id       VARCHAR NOT NULL,
+            meta_name       VARCHAR NOT NULL,
+            meta_value      VARCHAR NOT NULL,
+            UNIQUE(collection_id, object_id, meta_name),
+            FOREIGN KEY(name, collection_id, object_id)
+                REFERENCES collection(name, collection_id, object_id)
+                ON DELETE CASCADE
+        );
+    `);
+
+    //  Ensure the AP enabled flag is reset to true before each test
+    mutableApConfig.enabled = true;
+    mutableApConfig.sharedInbox = { maxAgeDays: 90, maxCount: 10000 };
+});
+
+beforeEach(() => {
+    _apDb.exec('DELETE FROM collection_object_meta; DELETE FROM collection;');
+    mutableApConfig.enabled = true;
+    mutableApConfig.sharedInbox = { maxAgeDays: 90, maxCount: 10000 };
+});
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+const PUBLIC_COLL_ID = 'https://www.w3.org/ns/activitystreams#Public';
+
+function seedSharedInboxItem(id, timestampExpr = "datetime('now')") {
+    const obj = {
+        id,
+        type: 'Create',
+        actor: 'https://remote.example.com/users/alice',
+        object: {},
+    };
+    _apDb
+        .prepare(
+            `INSERT OR IGNORE INTO collection
+                (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
+             VALUES (?, 'sharedInbox', ${timestampExpr}, ?, ?, ?, 0)`
+        )
+        .run(PUBLIC_COLL_ID, PUBLIC_COLL_ID, id, JSON.stringify(obj));
+}
+
+function sharedInboxCount() {
+    return _apDb
+        .prepare("SELECT COUNT(*) AS n FROM collection WHERE name = 'sharedInbox'")
+        .get().n;
+}
+
+// ─── sharedInboxMaintenanceTask — feature flag gating ────────────────────────
+
+describe('Collection.sharedInboxMaintenanceTask() — feature flag', function () {
+    it('bails immediately and leaves data intact when AP is disabled', done => {
+        seedSharedInboxItem('https://remote.example.com/activities/1');
+        seedSharedInboxItem('https://remote.example.com/activities/2');
+        assert.equal(sharedInboxCount(), 2, 'precondition: 2 items seeded');
+
+        mutableApConfig.enabled = false;
+
+        Collection.sharedInboxMaintenanceTask([], err => {
+            assert.ifError(err);
+            assert.equal(
+                sharedInboxCount(),
+                2,
+                'items should be untouched when AP is disabled'
+            );
+            done();
+        });
+    });
+
+    it('runs cleanup when AP is enabled — count limit enforced', done => {
+        //  Seed 5 items; cap at 2 — 3 should be removed
+        for (let i = 1; i <= 5; i++) {
+            seedSharedInboxItem(`https://remote.example.com/activities/${i}`);
+        }
+        assert.equal(sharedInboxCount(), 5, 'precondition: 5 items seeded');
+
+        mutableApConfig.enabled = true;
+        mutableApConfig.sharedInbox = { maxAgeDays: 9999, maxCount: 2 };
+
+        Collection.sharedInboxMaintenanceTask([], err => {
+            assert.ifError(err);
+            assert.equal(
+                sharedInboxCount(),
+                2,
+                'should keep only 2 items after count-trim'
+            );
+            done();
+        });
+    });
+
+    it('runs cleanup when AP is enabled — age limit enforced', done => {
+        //  Seed 1 old item (31 days ago) and 1 fresh item; maxAgeDays: 30
+        seedSharedInboxItem(
+            'https://remote.example.com/activities/old',
+            "datetime('now', '-31 days')"
+        );
+        seedSharedInboxItem('https://remote.example.com/activities/fresh');
+        assert.equal(sharedInboxCount(), 2, 'precondition: 2 items seeded');
+
+        mutableApConfig.enabled = true;
+        mutableApConfig.sharedInbox = { maxAgeDays: 30, maxCount: 99999 };
+
+        Collection.sharedInboxMaintenanceTask([], err => {
+            assert.ifError(err);
+            assert.equal(
+                sharedInboxCount(),
+                1,
+                'old item should be removed; fresh item kept'
+            );
+            done();
+        });
+    });
+});
+
+// ─── validateRequestDate ──────────────────────────────────────────────────────
+
+describe('validateRequestDate()', function () {
+    it('returns null (valid) for a Date within the allowed window', () => {
+        const headers = { date: new Date().toUTCString() };
+        assert.equal(validateRequestDate(headers), null);
+    });
+
+    it('returns null (valid) for a Date slightly in the past (within window)', () => {
+        const past = new Date(Date.now() - 60 * 1000); // 60 s ago
+        const headers = { date: past.toUTCString() };
+        assert.equal(validateRequestDate(headers), null);
+    });
+
+    it('returns null (valid) for a Date slightly in the future (within window)', () => {
+        const future = new Date(Date.now() + 60 * 1000); // 60 s ahead
+        const headers = { date: future.toUTCString() };
+        assert.equal(validateRequestDate(headers), null);
+    });
+
+    it('returns a reason string when the Date header is missing', () => {
+        const reason = validateRequestDate({});
+        assert.ok(typeof reason === 'string', 'should return a reason string');
+        assert.ok(reason.toLowerCase().includes('missing'), `reason: "${reason}"`);
+    });
+
+    it('returns a reason string for an unparseable Date header', () => {
+        const headers = { date: 'not-a-date' };
+        const reason = validateRequestDate(headers);
+        assert.ok(typeof reason === 'string');
+        assert.ok(reason.toLowerCase().includes('unparseable'), `reason: "${reason}"`);
+    });
+
+    it('returns a reason string for a Date too far in the past (replay attack)', () => {
+        const stale = new Date(Date.now() - (MaxRequestAgeSecs + 60) * 1000);
+        const headers = { date: stale.toUTCString() };
+        const reason = validateRequestDate(headers);
+        assert.ok(typeof reason === 'string', 'stale date should be rejected');
+        assert.ok(reason.includes('exceeds'), `reason: "${reason}"`);
+    });
+
+    it('returns a reason string for a Date too far in the future', () => {
+        const future = new Date(Date.now() + (MaxRequestAgeSecs + 60) * 1000);
+        const headers = { date: future.toUTCString() };
+        const reason = validateRequestDate(headers);
+        assert.ok(typeof reason === 'string', 'far-future date should be rejected');
+        assert.ok(reason.includes('exceeds'), `reason: "${reason}"`);
+    });
+
+    it('respects a custom maxAgeSecs argument', () => {
+        //  10 s ago should be valid with a 60 s window but invalid with a 5 s window
+        const headers = { date: new Date(Date.now() - 10 * 1000).toUTCString() };
+        assert.equal(
+            validateRequestDate(headers, 60),
+            null,
+            'should be valid within 60 s window'
+        );
+        assert.ok(
+            validateRequestDate(headers, 5),
+            'should be invalid outside 5 s window'
+        );
+    });
+});
+
+// ─── verifyDigestHeader ───────────────────────────────────────────────────────
+
+describe('verifyDigestHeader()', function () {
+    const BODY = Buffer.from(
+        '{"type":"Create","actor":"https://example.com/users/alice"}'
+    );
+    const CORRECT_DIGEST =
+        'SHA-256=' + crypto.createHash('sha256').update(BODY).digest('base64');
+
+    it('returns true when no Digest header is present', () => {
+        assert.ok(verifyDigestHeader(null, BODY));
+        assert.ok(verifyDigestHeader(undefined, BODY));
+        assert.ok(verifyDigestHeader('', BODY));
+    });
+
+    it('returns true when the SHA-256 digest matches the body', () => {
+        assert.ok(verifyDigestHeader(CORRECT_DIGEST, BODY));
+    });
+
+    it('returns false when the SHA-256 digest does not match the body', () => {
+        const tampered = Buffer.from(
+            '{"type":"Create","actor":"https://evil.example.com/users/mallory"}'
+        );
+        assert.equal(verifyDigestHeader(CORRECT_DIGEST, tampered), false);
+    });
+
+    it('returns false when the digest value is corrupted (wrong base64)', () => {
+        const bad = 'SHA-256=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+        assert.equal(verifyDigestHeader(bad, BODY), false);
+    });
+
+    it('returns true for an unrecognized algorithm (skip — no SHA-256 prefix)', () => {
+        const md5 = 'MD5=rL0Y20zC+Fzt72VPzMSk2A==';
+        assert.ok(
+            verifyDigestHeader(md5, BODY),
+            'non-SHA-256 algorithms should be skipped'
+        );
+    });
+
+    it('works with a string body as well as a Buffer', () => {
+        const strBody = BODY.toString();
+        assert.ok(verifyDigestHeader(CORRECT_DIGEST, strBody));
+    });
+
+    it('is sensitive to body content — even a single byte change fails', () => {
+        const modified = Buffer.from(BODY);
+        modified[0] = modified[0] ^ 0xff; // flip bits in first byte
+        assert.equal(verifyDigestHeader(CORRECT_DIGEST, modified), false);
+    });
+});
+
+// ─── normalizeHttpSigHeader ───────────────────────────────────────────────────
+
+describe('normalizeHttpSigHeader()', function () {
+    it('rewrites hs2019 to rsa-sha256', () => {
+        const h =
+            'keyId="https://example.com/users/alice#main-key",algorithm="hs2019",headers="date",signature="abc"';
+        assert.ok(normalizeHttpSigHeader(h).includes('algorithm="rsa-sha256"'));
+        assert.ok(!normalizeHttpSigHeader(h).includes('hs2019'));
+    });
+
+    it('leaves rsa-sha256 unchanged', () => {
+        const h =
+            'keyId="https://example.com/users/alice#main-key",algorithm="rsa-sha256",headers="date",signature="abc"';
+        assert.equal(normalizeHttpSigHeader(h), h);
+    });
+
+    it('handles headers with no algorithm field', () => {
+        const h =
+            'keyId="https://example.com/users/alice#main-key",headers="date",signature="abc"';
+        assert.equal(normalizeHttpSigHeader(h), h);
+    });
+
+    it('returns falsy input unchanged', () => {
+        assert.equal(normalizeHttpSigHeader(null), null);
+        assert.equal(normalizeHttpSigHeader(''), '');
+    });
+});
+
+// ─── actorIdFromKeyId ─────────────────────────────────────────────────────────
+
+describe('actorIdFromKeyId()', function () {
+    it('strips fragment from Mastodon-style keyId', () => {
+        assert.equal(
+            actorIdFromKeyId('https://mastodon.social/users/alice#main-key'),
+            'https://mastodon.social/users/alice'
+        );
+    });
+
+    it('strips /main-key path segment from GoToSocial-style keyId', () => {
+        assert.equal(
+            actorIdFromKeyId('http://localhost:8181/users/bryan/main-key'),
+            'http://localhost:8181/users/bryan'
+        );
+    });
+
+    it('strips /publicKey path segment', () => {
+        assert.equal(
+            actorIdFromKeyId('https://example.com/users/alice/publicKey'),
+            'https://example.com/users/alice'
+        );
+    });
+
+    it('strips /keys/<id> path segment', () => {
+        assert.equal(
+            actorIdFromKeyId('https://example.com/users/alice/keys/1'),
+            'https://example.com/users/alice'
+        );
+    });
+
+    it('returns the keyId unchanged when no known suffix is present', () => {
+        assert.equal(
+            actorIdFromKeyId('https://example.com/users/alice'),
+            'https://example.com/users/alice'
+        );
+    });
+
+    it('returns null for non-URL input', () => {
+        assert.equal(actorIdFromKeyId('not-a-url'), null);
+        assert.equal(actorIdFromKeyId(''), null);
+        assert.equal(actorIdFromKeyId(null), null);
+    });
+
+    it('returns null for non-http(s) URLs', () => {
+        assert.equal(actorIdFromKeyId('ftp://example.com/key'), null);
+    });
+});
+
+// ─── hostsMatch ───────────────────────────────────────────────────────────────
+
+describe('hostsMatch()', function () {
+    it('returns true for identical hostnames', () => {
+        assert.equal(
+            hostsMatch(
+                'https://example.com/users/alice',
+                'https://example.com/users/alice#main-key'
+            ),
+            true
+        );
+    });
+
+    it('returns true when schemes differ but hostnames match', () => {
+        assert.equal(
+            hostsMatch('http://example.com/users/alice', 'https://example.com/keys/1'),
+            true
+        );
+    });
+
+    it('returns false for different hostnames', () => {
+        assert.equal(
+            hostsMatch(
+                'https://good.example/users/alice',
+                'https://evil.example/users/alice#main-key'
+            ),
+            false
+        );
+    });
+
+    it('returns false when either URL is unparseable', () => {
+        assert.equal(hostsMatch('not-a-url', 'https://example.com/users/alice'), false);
+        assert.equal(hostsMatch('https://example.com/users/alice', 'not-a-url'), false);
+        assert.equal(hostsMatch(null, 'https://example.com/'), false);
+        assert.equal(hostsMatch('https://example.com/', null), false);
+    });
+
+    it('returns false for two unparseable inputs', () => {
+        assert.equal(hostsMatch('bad', 'also-bad'), false);
+    });
+
+    it('compares only hostname, not port', () => {
+        //  Same hostname, different ports → true (port is not part of the match)
+        assert.equal(
+            hostsMatch(
+                'https://example.com:8080/users/alice',
+                'https://example.com:443/users/alice'
+            ),
+            true
+        );
+    });
+});
+
+// ─── verifyObjectOwner ────────────────────────────────────────────────────────
+
+describe('verifyObjectOwner()', function () {
+    it('returns null (permit) when httpSigValidated is true', () => {
+        assert.equal(verifyObjectOwner(true, false, 'Note'), null);
+        assert.equal(verifyObjectOwner(true, false, 'Actor'), null);
+        assert.equal(verifyObjectOwner(true, true, 'Note'), null);
+    });
+
+    it('returns a reason string when sig is not validated and domainVerifiedOnly is false', () => {
+        const reason = verifyObjectOwner(false, false, 'Note');
+        assert.ok(
+            typeof reason === 'string' && reason.length > 0,
+            `expected reason string, got: ${reason}`
+        );
+    });
+
+    it('returns a reason string when sig is not validated and domainVerifiedOnly is false (Actor)', () => {
+        const reason = verifyObjectOwner(false, false, 'Actor');
+        assert.ok(typeof reason === 'string' && reason.length > 0);
+    });
+
+    it('returns null (permit) for Actor self-deletion with domainVerifiedOnly', () => {
+        //  Actor deleted themselves; we verified domain binding; allow cache cleanup.
+        assert.equal(verifyObjectOwner(false, true, 'Actor'), null);
+    });
+
+    it('returns a reason string for Note deletion with domainVerifiedOnly (Notes always need sig)', () => {
+        const reason = verifyObjectOwner(false, true, 'Note');
+        assert.ok(
+            typeof reason === 'string' && reason.length > 0,
+            'Note delete without valid sig must be refused even with domain binding'
+        );
+    });
+
+    it('returns a reason string for Article deletion with domainVerifiedOnly', () => {
+        const reason = verifyObjectOwner(false, true, 'Article');
+        assert.ok(typeof reason === 'string' && reason.length > 0);
+    });
+
+    it('returns a reason string when objectType is undefined/null with domainVerifiedOnly', () => {
+        const reason = verifyObjectOwner(false, true, undefined);
+        assert.ok(typeof reason === 'string' && reason.length > 0);
+    });
+});
+
+// ─── actorDomainMatchesKeyId ──────────────────────────────────────────────────
+
+describe('actorDomainMatchesKeyId()', function () {
+    it('returns true when actor id and keyId share the same hostname', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://mastodon.social/users/alice',
+                'https://mastodon.social/users/alice#main-key'
+            ),
+            true
+        );
+    });
+
+    it('returns true for GoToSocial-style path-segment keyId', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://gts.example.com/users/bob',
+                'https://gts.example.com/users/bob/main-key'
+            ),
+            true
+        );
+    });
+
+    it('returns false when actor id domain differs from keyId domain (cross-domain impersonation)', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://good.example/users/victim', // actor claims to be on good.example
+                'https://evil.example/users/attacker#main-key' // key is on evil.example
+            ),
+            false
+        );
+    });
+
+    it('returns false when actor id is unparseable', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'not-a-url',
+                'https://example.com/users/alice#main-key'
+            ),
+            false
+        );
+    });
+
+    it('returns false when keyId is unparseable', () => {
+        assert.equal(
+            actorDomainMatchesKeyId('https://example.com/users/alice', 'not-a-url'),
+            false
+        );
+    });
+
+    it('returns false for null inputs', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(null, 'https://example.com/users/alice#main-key'),
+            false
+        );
+        assert.equal(
+            actorDomainMatchesKeyId('https://example.com/users/alice', null),
+            false
+        );
+    });
+
+    it('is not fooled by a subdomain of the legitimate host', () => {
+        assert.equal(
+            actorDomainMatchesKeyId(
+                'https://mastodon.social/users/alice',
+                'https://evil.mastodon.social/users/alice#main-key'
+            ),
+            false
+        );
+    });
+});
+
+// ─── isSafeOutboundUrl ────────────────────────────────────────────────────────
+
+describe('isSafeOutboundUrl()', function () {
+    //  ── safe URLs ────────────────────────────────────────────────────────
+
+    it('returns null (safe) for a normal https:// URL', () => {
+        assert.equal(isSafeOutboundUrl('https://mastodon.social/users/alice'), null);
+    });
+
+    it('returns null (safe) for http:// when allowHttp=true (dev mode bypasses all SSRF checks)', () => {
+        // In dev mode the operator is explicitly targeting a local server — no restrictions.
+        assert.equal(isSafeOutboundUrl('http://localhost:8181/users/bryan', true), null);
+        assert.equal(isSafeOutboundUrl('http://127.0.0.1:8181/inbox', true), null);
+        assert.equal(isSafeOutboundUrl('http://192.168.1.1/users/alice', true), null);
+    });
+
+    //  ── scheme enforcement ───────────────────────────────────────────────
+
+    it('blocks http:// when allowHttp is false (default)', () => {
+        const reason = isSafeOutboundUrl('http://example.com/users/alice');
+        assert.ok(typeof reason === 'string', 'should return a reason string');
+        assert.ok(reason.includes('http://'), `reason: "${reason}"`);
+    });
+
+    it('blocks non-http(s) schemes', () => {
+        assert.ok(isSafeOutboundUrl('ftp://example.com/file'));
+        assert.ok(isSafeOutboundUrl('file:///etc/passwd'));
+        assert.ok(isSafeOutboundUrl('gopher://example.com/'));
+    });
+
+    it('blocks an unparseable URL', () => {
+        assert.ok(isSafeOutboundUrl('not a url at all'));
+    });
+
+    //  ── loopback ─────────────────────────────────────────────────────────
+
+    it('blocks 127.0.0.1 (loopback)', () => {
+        assert.ok(isSafeOutboundUrl('https://127.0.0.1/'));
+    });
+
+    it('blocks 127.x.x.x range (whole /8)', () => {
+        assert.ok(isSafeOutboundUrl('https://127.1.2.3/'));
+        assert.ok(isSafeOutboundUrl('https://127.255.255.255/'));
+    });
+
+    it('blocks [::1] (IPv6 loopback)', () => {
+        assert.ok(isSafeOutboundUrl('https://[::1]/'));
+    });
+
+    it('blocks the named host "localhost"', () => {
+        assert.ok(isSafeOutboundUrl('https://localhost/'));
+    });
+
+    it('blocks subdomains of localhost suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://internal.localhost/'));
+    });
+
+    //  ── RFC-1918 / private ranges ─────────────────────────────────────────
+
+    it('blocks 10.x.x.x (RFC-1918)', () => {
+        assert.ok(isSafeOutboundUrl('https://10.0.0.1/'));
+        assert.ok(isSafeOutboundUrl('https://10.255.255.255/'));
+    });
+
+    it('blocks 192.168.x.x (RFC-1918)', () => {
+        assert.ok(isSafeOutboundUrl('https://192.168.1.1/'));
+    });
+
+    it('blocks 172.16.x.x through 172.31.x.x (RFC-1918)', () => {
+        assert.ok(isSafeOutboundUrl('https://172.16.0.1/'));
+        assert.ok(isSafeOutboundUrl('https://172.31.255.255/'));
+    });
+
+    it('allows 172.32.x.x (just outside RFC-1918 /12)', () => {
+        assert.equal(isSafeOutboundUrl('https://172.32.0.1/'), null);
+    });
+
+    //  ── link-local / cloud metadata ───────────────────────────────────────
+
+    it('blocks 169.254.x.x (link-local / AWS metadata)', () => {
+        assert.ok(isSafeOutboundUrl('https://169.254.169.254/'));
+        assert.ok(isSafeOutboundUrl('https://169.254.0.1/'));
+    });
+
+    it('blocks fe80:: (IPv6 link-local)', () => {
+        assert.ok(isSafeOutboundUrl('https://[fe80::1]/'));
+    });
+
+    //  ── IPv6 private ──────────────────────────────────────────────────────
+
+    it('blocks fc00::/7 (IPv6 unique-local fc range)', () => {
+        assert.ok(isSafeOutboundUrl('https://[fc00::1]/'));
+    });
+
+    it('blocks fd00::/8 (IPv6 unique-local fd range)', () => {
+        assert.ok(isSafeOutboundUrl('https://[fd12:3456:789a::1]/'));
+    });
+
+    it('blocks ff00::/8 (IPv6 multicast)', () => {
+        assert.ok(isSafeOutboundUrl('https://[ff02::1]/'));
+    });
+
+    //  ── reserved hostnames ────────────────────────────────────────────────
+
+    it('blocks .local suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://myserver.local/'));
+    });
+
+    it('blocks .internal suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://db.internal/'));
+    });
+
+    it('blocks .lan suffix', () => {
+        assert.ok(isSafeOutboundUrl('https://router.lan/'));
+    });
+
+    it('blocks .example suffix (RFC 2606)', () => {
+        assert.ok(isSafeOutboundUrl('https://anything.example/'));
+    });
+
+    it('does not block a real public domain that happens to contain "local"', () => {
+        //  "localdomain" is blocked, but "local" as a substring in a real domain is fine
+        assert.equal(isSafeOutboundUrl('https://localbitcoins.com/users/alice'), null);
+    });
+});
+
+// ─── readInboxBody ────────────────────────────────────────────────────────────
+
+//  Helper: build a fake req EventEmitter that emits the given chunks then 'end'.
+function makeFakeReq(chunks, errorAfterBytes = null) {
+    const req = new EventEmitter();
+    req.destroyed = false;
+    req.destroy = () => {
+        req.destroyed = true;
+    };
+
+    process.nextTick(() => {
+        for (const chunk of chunks) {
+            if (req.destroyed) break;
+            req.emit('data', Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        if (!req.destroyed) {
+            req.emit('end');
+        }
+    });
+
+    return req;
+}
+
+function makeFakeReqWithError(errorMsg) {
+    const req = new EventEmitter();
+    req.destroy = () => {};
+    process.nextTick(() => req.emit('error', new Error(errorMsg)));
+    return req;
+}
+
+describe('readInboxBody()', function () {
+    it('returns an empty Buffer for an empty body', done => {
+        const req = makeFakeReq([]);
+        readInboxBody(req, 1024, (err, body) => {
+            assert.ifError(err);
+            assert.ok(Buffer.isBuffer(body));
+            assert.equal(body.length, 0);
+            done();
+        });
+    });
+
+    it('returns the full body when within the limit', done => {
+        const payload = '{"type":"Create","actor":"https://example.com/users/alice"}';
+        const req = makeFakeReq([payload]);
+        readInboxBody(req, 1024, (err, body) => {
+            assert.ifError(err);
+            assert.equal(body.toString(), payload);
+            done();
+        });
+    });
+
+    it('accepts a body split across multiple chunks', done => {
+        const req = makeFakeReq(['{"type":', '"Create"}']);
+        readInboxBody(req, 1024, (err, body) => {
+            assert.ifError(err);
+            assert.equal(body.toString(), '{"type":"Create"}');
+            done();
+        });
+    });
+
+    it('accepts a body exactly at the limit', done => {
+        const payload = 'x'.repeat(100);
+        const req = makeFakeReq([payload]);
+        readInboxBody(req, 100, (err, body) => {
+            assert.ifError(err);
+            assert.equal(body.length, 100);
+            done();
+        });
+    });
+
+    it('rejects a body one byte over the limit with ENTITY_TOO_LARGE', done => {
+        const payload = 'x'.repeat(101);
+        const req = makeFakeReq([payload]);
+        readInboxBody(req, 100, err => {
+            assert.ok(err, 'expected an error');
+            assert.equal(err.code, 'ENTITY_TOO_LARGE');
+            done();
+        });
+    });
+
+    it('rejects when multi-chunk sum exceeds the limit', done => {
+        //  Each chunk is within limit, but together they exceed it
+        const req = makeFakeReq(['x'.repeat(60), 'x'.repeat(60)]);
+        readInboxBody(req, 100, err => {
+            assert.ok(err, 'expected an error');
+            assert.equal(err.code, 'ENTITY_TOO_LARGE');
+            done();
+        });
+    });
+
+    it('destroys the request when the limit is exceeded', done => {
+        const req = makeFakeReq(['x'.repeat(200)]);
+        readInboxBody(req, 100, err => {
+            assert.ok(err);
+            assert.ok(req.destroyed, 'req.destroy() should have been called');
+            done();
+        });
+    });
+
+    it('propagates stream errors', done => {
+        const req = makeFakeReqWithError('connection reset');
+        readInboxBody(req, 1024, err => {
+            assert.ok(err, 'expected an error');
+            assert.equal(err.message, 'connection reset');
+            done();
+        });
+    });
+
+    it('calls cb only once even if error fires after limit exceeded', done => {
+        //  Emit a large chunk (triggers ENTITY_TOO_LARGE) then an error —
+        //  cb must not fire twice.
+        const req = new EventEmitter();
+        req.destroyed = false;
+        req.destroy = () => {
+            req.destroyed = true;
+        };
+
+        let callCount = 0;
+        readInboxBody(req, 10, err => {
+            callCount++;
+            assert.equal(callCount, 1, 'cb must not be called more than once');
+            if (callCount === 1) {
+                // Allow a tick for any second callback attempt
+                process.nextTick(() => {
+                    assert.equal(callCount, 1);
+                    done();
+                });
+            }
+        });
+
+        req.emit('data', Buffer.from('x'.repeat(20)));
+        req.emit('error', new Error('secondary error'));
+    });
+});

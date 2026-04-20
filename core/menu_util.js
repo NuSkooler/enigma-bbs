@@ -98,7 +98,7 @@ function loadMenu(options, cb) {
                 Log.trace(
                     {
                         moduleName: modData.name,
-                        extraArgs: options.extraArgs,
+                        extraArgs: _.omit(options.extraArgs, ['items']),
                         config: modData.config,
                         info: modData.mod.modInfo,
                     },

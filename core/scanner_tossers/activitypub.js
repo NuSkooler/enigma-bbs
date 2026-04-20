@@ -11,6 +11,8 @@ const Endpoints = require('../activitypub/endpoint');
 const { getAddressedToInfo } = require('../mail_util');
 const { PublicCollectionId } = require('../activitypub/const');
 const Actor = require('../activitypub/actor');
+const StatLog = require('../stat_log');
+const UserProps = require('../user_property');
 
 // deps
 const async = require('async');
@@ -82,6 +84,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     //  public: we need to build a list of sharedInbox's
                     this._collectDeliveryEndpoints(
                         message,
+                        noteInfo.note,
                         noteInfo.fromUser,
                         (err, deliveryEndpoints) => {
                             return callback(err, noteInfo, deliveryEndpoints);
@@ -105,21 +108,38 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     if (message.isPrivate()) {
                         note.to = deliveryEndpoints;
                     } else {
-                        if (deliveryEndpoints.additionalTo) {
-                            note.to = [
-                                PublicCollectionId,
-                                deliveryEndpoints.additionalTo,
-                            ];
-                        } else {
-                            note.to = PublicCollectionId;
-                        }
-                        note.cc = [
-                            deliveryEndpoints.followers,
-                            ...deliveryEndpoints.sharedInboxes,
-                        ];
+                        //  Public posts follow Mastodon/GTS convention:
+                        //    to:  [Public]
+                        //    cc:  [followersCollection, mentionedActorId?]
+                        //
+                        //  sharedInboxes are *delivery* targets only — they are inbox
+                        //  URLs (not actor/collection IDs) and must NOT appear in cc.
+                        note.to = [PublicCollectionId];
+                        note.cc = [deliveryEndpoints.followers];
+                        if (deliveryEndpoints.additionalToActorId) {
+                            note.cc.push(deliveryEndpoints.additionalToActorId);
 
-                        if (note.to.length < 2 && note.cc.length < 2) {
-                            // If we only have a generic 'followers' endpoint, there is no where to send to
+                            //  GTS (and others) require a Mention tag for the reply
+                            //  target's actor; without it they drop the note as
+                            //  "not relevant to receiver (not mentioned)".
+                            note.tag = Array.isArray(note.tag) ? note.tag : [];
+                            if (
+                                !note.tag.some(
+                                    t =>
+                                        t.type === 'Mention' &&
+                                        t.href === deliveryEndpoints.additionalToActorId
+                                )
+                            ) {
+                                note.tag.push({
+                                    type: 'Mention',
+                                    href: deliveryEndpoints.additionalToActorId,
+                                });
+                            }
+                        }
+                        note.cc = note.cc.filter(Boolean);
+
+                        if (note.to.length < 1 && note.cc.length < 1) {
+                            // nowhere to send
                             return callback(null, activity, fromUser);
                         }
                     }
@@ -133,8 +153,8 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     let allEndpoints = Array.isArray(deliveryEndpoints)
                         ? deliveryEndpoints
                         : deliveryEndpoints.sharedInboxes;
-                    if (deliveryEndpoints.additionalTo) {
-                        allEndpoints.push(deliveryEndpoints.additionalTo);
+                    if (deliveryEndpoints.additionalToInbox) {
+                        allEndpoints.push(deliveryEndpoints.additionalToInbox);
                     }
                     allEndpoints = Array.from(new Set(allEndpoints)); //  unique again
 
@@ -191,6 +211,13 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                                     { localId, activityId: activity.id, noteId: note.id },
                                     'Note Activity persisted to "outbox" collection"'
                                 );
+                                if (!message.isPrivate()) {
+                                    StatLog.incrementUserStat(
+                                        fromUser,
+                                        UserProps.ApPostCount,
+                                        1
+                                    );
+                                }
                             }
                             return callback(err, activity);
                         }
@@ -250,7 +277,7 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
         );
     }
 
-    _collectDeliveryEndpoints(message, localUser, cb) {
+    _collectDeliveryEndpoints(message, note, localUser, cb) {
         this._collectFollowersSharedInboxEndpoints(
             localUser,
             (err, endpoints, followersEndpoint) => {
@@ -258,35 +285,61 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
                     return cb(err);
                 }
 
-                //
-                //  Don't inspect the remote address/remote to
-                //  Here; We already know this in a public
-                //  area. Instead, see if the user typed in
-                //  a reasonable AP address here. If so, we'll
-                //  try to send directly to them as well.
-                //
+                const base = { sharedInboxes: endpoints, followers: followersEndpoint };
+
+                //  Priority 1: explicit AP address in the TO field
                 const addrInfo = getAddressedToInfo(message.toUserName);
                 if (
                     !message.isPrivate() &&
                     AddressFlavor.ActivityPub === addrInfo.flavor
                 ) {
-                    Actor.fromId(addrInfo.remote, (err, actor) => {
+                    return Actor.fromId(addrInfo.remote, (err, actor) => {
                         if (err) {
                             return cb(err);
                         }
-
                         return cb(null, {
-                            additionalTo: actor.inbox,
-                            sharedInboxes: endpoints,
-                            followers: followersEndpoint,
+                            ...base,
+                            additionalToActorId: actor.id,
+                            additionalToInbox: actor.inbox,
                         });
                     });
-                } else {
-                    return cb(null, {
-                        sharedInboxes: endpoints,
-                        followers: followersEndpoint,
-                    });
                 }
+
+                //  Priority 2: reply — deliver to the inReplyTo note's author
+                if (note && note.inReplyTo) {
+                    return Collection.objectByEmbeddedId(
+                        note.inReplyTo,
+                        (err, activity) => {
+                            const parentNote = activity && activity.object;
+                            const attributedTo =
+                                parentNote &&
+                                (typeof parentNote.attributedTo === 'string'
+                                    ? parentNote.attributedTo
+                                    : parentNote.attributedTo &&
+                                      parentNote.attributedTo.id);
+
+                            if (!attributedTo) {
+                                return cb(null, base);
+                            }
+
+                            Actor.fromId(attributedTo, (err, actor) => {
+                                if (err || !actor) {
+                                    return cb(null, base);
+                                }
+                                const inbox =
+                                    (actor.endpoints && actor.endpoints.sharedInbox) ||
+                                    actor.inbox;
+                                return cb(null, {
+                                    ...base,
+                                    additionalToActorId: actor.id,
+                                    additionalToInbox: inbox,
+                                });
+                            });
+                        }
+                    );
+                }
+
+                return cb(null, base);
             }
         );
     }
@@ -294,52 +347,19 @@ exports.getModule = class ActivityPubScannerTosser extends MessageScanTossModule
     _collectFollowersSharedInboxEndpoints(localUser, cb) {
         const localFollowersEndpoint = Endpoints.followers(localUser);
 
-        Collection.followers(localFollowersEndpoint, 'all', (err, collection) => {
-            if (err) {
-                return cb(err);
-            }
-
-            if (!collection.orderedItems || collection.orderedItems.length < 1) {
-                // no followers :(
-                return cb(null, []);
-            }
-
-            async.mapLimit(
-                collection.orderedItems,
-                4,
-                (actorId, nextActorId) => {
-                    Actor.fromId(actorId, (err, actor) => {
-                        if (err) {
-                            this.log.warn(
-                                { error: err.message, actorId },
-                                'Failed to fetch actor from ID; skipping'
-                            );
-                            return nextActorId(null, null);
-                        }
-                        return nextActorId(null, actor);
-                    });
-                },
-                (err, followerActors) => {
-                    if (err) {
-                        return cb(err);
-                    }
-
-                    followerActors = followerActors.filter(v => v); //  drop any missing actors
-
-                    const sharedInboxEndpoints = Array.from(
-                        new Set(
-                            followerActors
-                                .map(actor => {
-                                    return _.get(actor, 'endpoints.sharedInbox');
-                                })
-                                .filter(inbox => inbox) // drop nulls
-                        )
-                    );
-
-                    return cb(null, sharedInboxEndpoints, localFollowersEndpoint);
+        //  Single SQL query: join the followers collection against the actor
+        //  cache and extract sharedInbox URLs directly.  O(1) DB round-trips
+        //  regardless of follower count; actors not yet cached are skipped
+        //  (same behaviour as the previous per-actor fromId() fan-out loop).
+        Collection.getFollowerSharedInboxes(
+            localFollowersEndpoint,
+            (err, sharedInboxEndpoints) => {
+                if (err) {
+                    return cb(err);
                 }
-            );
-        });
+                return cb(null, sharedInboxEndpoints, localFollowersEndpoint);
+            }
+        );
     }
 
     _isEnabled() {
