@@ -399,7 +399,10 @@ describe('actorIdFromKeyId()', function () {
 describe('hostsMatch()', function () {
     it('returns true for identical hostnames', () => {
         assert.equal(
-            hostsMatch('https://example.com/users/alice', 'https://example.com/users/alice#main-key'),
+            hostsMatch(
+                'https://example.com/users/alice',
+                'https://example.com/users/alice#main-key'
+            ),
             true
         );
     });
@@ -413,7 +416,10 @@ describe('hostsMatch()', function () {
 
     it('returns false for different hostnames', () => {
         assert.equal(
-            hostsMatch('https://good.example/users/alice', 'https://evil.example/users/alice#main-key'),
+            hostsMatch(
+                'https://good.example/users/alice',
+                'https://evil.example/users/alice#main-key'
+            ),
             false
         );
     });
@@ -432,7 +438,10 @@ describe('hostsMatch()', function () {
     it('compares only hostname, not port', () => {
         //  Same hostname, different ports → true (port is not part of the match)
         assert.equal(
-            hostsMatch('https://example.com:8080/users/alice', 'https://example.com:443/users/alice'),
+            hostsMatch(
+                'https://example.com:8080/users/alice',
+                'https://example.com:443/users/alice'
+            ),
             true
         );
     });
@@ -449,7 +458,10 @@ describe('verifyObjectOwner()', function () {
 
     it('returns a reason string when sig is not validated and domainVerifiedOnly is false', () => {
         const reason = verifyObjectOwner(false, false, 'Note');
-        assert.ok(typeof reason === 'string' && reason.length > 0, `expected reason string, got: ${reason}`);
+        assert.ok(
+            typeof reason === 'string' && reason.length > 0,
+            `expected reason string, got: ${reason}`
+        );
     });
 
     it('returns a reason string when sig is not validated and domainVerifiedOnly is false (Actor)', () => {
@@ -464,8 +476,10 @@ describe('verifyObjectOwner()', function () {
 
     it('returns a reason string for Note deletion with domainVerifiedOnly (Notes always need sig)', () => {
         const reason = verifyObjectOwner(false, true, 'Note');
-        assert.ok(typeof reason === 'string' && reason.length > 0,
-            'Note delete without valid sig must be refused even with domain binding');
+        assert.ok(
+            typeof reason === 'string' && reason.length > 0,
+            'Note delete without valid sig must be refused even with domain binding'
+        );
     });
 
     it('returns a reason string for Article deletion with domainVerifiedOnly', () => {
@@ -505,7 +519,7 @@ describe('actorDomainMatchesKeyId()', function () {
     it('returns false when actor id domain differs from keyId domain (cross-domain impersonation)', () => {
         assert.equal(
             actorDomainMatchesKeyId(
-                'https://good.example/users/victim',  // actor claims to be on good.example
+                'https://good.example/users/victim', // actor claims to be on good.example
                 'https://evil.example/users/attacker#main-key' // key is on evil.example
             ),
             false
@@ -514,7 +528,10 @@ describe('actorDomainMatchesKeyId()', function () {
 
     it('returns false when actor id is unparseable', () => {
         assert.equal(
-            actorDomainMatchesKeyId('not-a-url', 'https://example.com/users/alice#main-key'),
+            actorDomainMatchesKeyId(
+                'not-a-url',
+                'https://example.com/users/alice#main-key'
+            ),
             false
         );
     });
@@ -527,8 +544,14 @@ describe('actorDomainMatchesKeyId()', function () {
     });
 
     it('returns false for null inputs', () => {
-        assert.equal(actorDomainMatchesKeyId(null, 'https://example.com/users/alice#main-key'), false);
-        assert.equal(actorDomainMatchesKeyId('https://example.com/users/alice', null), false);
+        assert.equal(
+            actorDomainMatchesKeyId(null, 'https://example.com/users/alice#main-key'),
+            false
+        );
+        assert.equal(
+            actorDomainMatchesKeyId('https://example.com/users/alice', null),
+            false
+        );
     });
 
     it('is not fooled by a subdomain of the legitimate host', () => {
@@ -674,7 +697,9 @@ describe('isSafeOutboundUrl()', function () {
 function makeFakeReq(chunks, errorAfterBytes = null) {
     const req = new EventEmitter();
     req.destroyed = false;
-    req.destroy = () => { req.destroyed = true; };
+    req.destroy = () => {
+        req.destroyed = true;
+    };
 
     process.nextTick(() => {
         for (const chunk of chunks) {
@@ -739,7 +764,7 @@ describe('readInboxBody()', function () {
     it('rejects a body one byte over the limit with ENTITY_TOO_LARGE', done => {
         const payload = 'x'.repeat(101);
         const req = makeFakeReq([payload]);
-        readInboxBody(req, 100, (err) => {
+        readInboxBody(req, 100, err => {
             assert.ok(err, 'expected an error');
             assert.equal(err.code, 'ENTITY_TOO_LARGE');
             done();
@@ -749,7 +774,7 @@ describe('readInboxBody()', function () {
     it('rejects when multi-chunk sum exceeds the limit', done => {
         //  Each chunk is within limit, but together they exceed it
         const req = makeFakeReq(['x'.repeat(60), 'x'.repeat(60)]);
-        readInboxBody(req, 100, (err) => {
+        readInboxBody(req, 100, err => {
             assert.ok(err, 'expected an error');
             assert.equal(err.code, 'ENTITY_TOO_LARGE');
             done();
@@ -758,7 +783,7 @@ describe('readInboxBody()', function () {
 
     it('destroys the request when the limit is exceeded', done => {
         const req = makeFakeReq(['x'.repeat(200)]);
-        readInboxBody(req, 100, (err) => {
+        readInboxBody(req, 100, err => {
             assert.ok(err);
             assert.ok(req.destroyed, 'req.destroy() should have been called');
             done();
@@ -767,7 +792,7 @@ describe('readInboxBody()', function () {
 
     it('propagates stream errors', done => {
         const req = makeFakeReqWithError('connection reset');
-        readInboxBody(req, 1024, (err) => {
+        readInboxBody(req, 1024, err => {
             assert.ok(err, 'expected an error');
             assert.equal(err.message, 'connection reset');
             done();
@@ -779,10 +804,12 @@ describe('readInboxBody()', function () {
         //  cb must not fire twice.
         const req = new EventEmitter();
         req.destroyed = false;
-        req.destroy = () => { req.destroyed = true; };
+        req.destroy = () => {
+            req.destroyed = true;
+        };
 
         let callCount = 0;
-        readInboxBody(req, 10, (err) => {
+        readInboxBody(req, 10, err => {
             callCount++;
             assert.equal(callCount, 1, 'cb must not be called more than once');
             if (callCount === 1) {

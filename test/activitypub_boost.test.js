@@ -771,7 +771,10 @@ describe('sendBoost() outbound reaction tracking', function () {
         let afterCall = false;
         sendBoost(mockUser, NOTE_ID + '-async', err => {
             assert.ifError(err);
-            assert.ok(afterCall, 'sendBoost callback must fire asynchronously via setImmediate');
+            assert.ok(
+                afterCall,
+                'sendBoost callback must fire asynchronously via setImmediate'
+            );
             done();
         });
         afterCall = true;
@@ -839,7 +842,10 @@ describe('sendLike() outbound reaction tracking', function () {
         let afterCall = false;
         sendLike(mockUser, NOTE_ID + '-async', err => {
             assert.ifError(err);
-            assert.ok(afterCall, 'sendLike callback must fire asynchronously via setImmediate');
+            assert.ok(
+                afterCall,
+                'sendLike callback must fire asynchronously via setImmediate'
+            );
             done();
         });
         afterCall = true;
@@ -911,7 +917,11 @@ describe('messageForNoteId()', function () {
         messageForNoteId(NOTE_ID + '-multi', (err, msg) => {
             assert.ifError(err);
             assert.ok(msg, 'should return a Message');
-            assert.equal(msg.messageId, first, 'should return the first (lowest) message_id');
+            assert.equal(
+                msg.messageId,
+                first,
+                'should return the first (lowest) message_id'
+            );
             done();
         });
     });

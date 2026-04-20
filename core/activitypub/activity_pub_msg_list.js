@@ -5,7 +5,14 @@ const { ErrorCodes } = require('../enig_error');
 const Collection = require('./collection');
 const { Collections } = require('./const');
 const UserProps = require('../user_property');
-const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId, sendDelete } = require('./boost_util');
+const {
+    sendBoost,
+    sendLike,
+    getBoostCount,
+    getLikeCount,
+    messageForNoteId,
+    sendDelete,
+} = require('./boost_util');
 const { actorUrlToHandle } = require('./ap_search_util');
 const Message = require('../message');
 
@@ -127,8 +134,9 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
         this.setConfigWithExtraArgs(options);
 
         //  Mode can come from extraArgs (runtime push) or config.mode (static menu entry).
-        this.mode = _.get(options, 'extraArgs.mode') ||
-                    _.get(this.config, 'mode', Modes.Federated);
+        this.mode =
+            _.get(options, 'extraArgs.mode') ||
+            _.get(this.config, 'mode', Modes.Federated);
         this.contextId = _.get(options, 'extraArgs.contextId'); // thread mode
         this.actorId = _.get(options, 'extraArgs.actorId'); // timeline mode
 
@@ -323,22 +331,22 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                           innerCb
                       )
                 : this.mode === Modes.Favorites
-                ? innerCb =>
-                      Collection.getFavoritesPage(
-                          this._localActorId(),
-                          { cursor: this.nextCursor, pageSize: PageSize },
-                          innerCb
-                      )
-                : innerCb =>
-                      Collection.getCollectionPage(
-                          this._collectionName(),
-                          {
-                              cursor: this.nextCursor,
-                              pageSize: PageSize,
-                              filter: this._pageFilter(),
-                          },
-                          innerCb
-                      );
+                  ? innerCb =>
+                        Collection.getFavoritesPage(
+                            this._localActorId(),
+                            { cursor: this.nextCursor, pageSize: PageSize },
+                            innerCb
+                        )
+                  : innerCb =>
+                        Collection.getCollectionPage(
+                            this._collectionName(),
+                            {
+                                cursor: this.nextCursor,
+                                pageSize: PageSize,
+                                filter: this._pageFilter(),
+                            },
+                            innerCb
+                        );
 
         fetchFn((err, result) => {
             if (err) {
@@ -440,12 +448,18 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
     _boostSelected(cb) {
         const item = this._selectedItem();
         if (!item) return cb(null);
-        sendBoost(this.client.user, item.noteId, (err) => {
+        sendBoost(this.client.user, item.noteId, err => {
             if (err) {
                 if (err.code === ErrorCodes.Duplicate) {
-                    this.client.log.debug({ noteId: item.noteId }, 'AP browser: already boosted');
+                    this.client.log.debug(
+                        { noteId: item.noteId },
+                        'AP browser: already boosted'
+                    );
                 } else {
-                    this.client.log.warn({ err: err.message }, 'AP browser: boost failed');
+                    this.client.log.warn(
+                        { err: err.message },
+                        'AP browser: boost failed'
+                    );
                 }
                 return cb(null);
             }
@@ -464,10 +478,13 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
     _likeSelected(cb) {
         const item = this._selectedItem();
         if (!item) return cb(null);
-        sendLike(this.client.user, item.noteId, (err) => {
+        sendLike(this.client.user, item.noteId, err => {
             if (err) {
                 if (err.code === ErrorCodes.Duplicate) {
-                    this.client.log.debug({ noteId: item.noteId }, 'AP browser: already liked');
+                    this.client.log.debug(
+                        { noteId: item.noteId },
+                        'AP browser: already liked'
+                    );
                 } else {
                     this.client.log.warn({ err: err.message }, 'AP browser: like failed');
                 }
@@ -541,7 +558,10 @@ exports.getModule = class ActivityPubMsgListModule extends MenuModule {
                     //  Not our post — already guarded above, but handle gracefully.
                     return cb(null);
                 }
-                this.client.log.warn({ noteId: item.noteId, err }, 'AP browser: delete failed');
+                this.client.log.warn(
+                    { noteId: item.noteId, err },
+                    'AP browser: delete failed'
+                );
                 return cb(null); // don't surface delivery errors to the user
             }
 

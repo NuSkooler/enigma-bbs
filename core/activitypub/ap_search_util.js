@@ -23,7 +23,7 @@ function ftsPhrase(term) {
 //  Regex to detect a direct actor URL or @user@host handle — bypasses FTS5.
 //  Also matches user@host (no leading @) since users often omit it.
 const AP_HANDLE_RE = /^@?\S+@\S+$/;
-const AP_URL_RE    = /^https?:\/\//i;
+const AP_URL_RE = /^https?:\/\//i;
 
 //  True when input looks like a direct actor identifier rather than a search term.
 function looksLikeActorId(term) {
@@ -44,9 +44,7 @@ function actorUrlToHandle(url) {
     if (!url) return '';
     try {
         const u = new URL(url);
-        const m =
-            u.pathname.match(/\/users\/([^/]+)/) ||
-            u.pathname.match(/\/@([^/]+)/);
+        const m = u.pathname.match(/\/users\/([^/]+)/) || u.pathname.match(/\/@([^/]+)/);
         return m ? `@${m[1]}@${u.host}` : `@${u.host}`;
     } catch (_) {
         return String(url);
@@ -75,13 +73,13 @@ function noteToItem(note, timestamp, dateTimeFormat) {
     const fmt = dateTimeFormat || 'MM/DD hh:mma';
     const ts = timestamp || note.published || '';
     return {
-        from:          actorUrlToHandle(note.attributedTo),
-        subject:       formatSubject(note),
-        date:          formatDate(ts, fmt),
+        from: actorUrlToHandle(note.attributedTo),
+        subject: formatSubject(note),
+        date: formatDate(ts, fmt),
         hasAttachment: Array.isArray(note.attachment) && note.attachment.length > 0,
-        noteId:        note.id,
-        contextId:     note.context || note.conversation || null,
-        inReplyTo:     note.inReplyTo || null,
+        noteId: note.id,
+        contextId: note.context || note.conversation || null,
+        inReplyTo: note.inReplyTo || null,
     };
 }
 

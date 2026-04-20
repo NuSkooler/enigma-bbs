@@ -120,10 +120,7 @@ describe('actorUrlToHandle()', function () {
     });
 
     it('falls back to @hostname for unrecognised path', () => {
-        assert.equal(
-            actorUrlToHandle('https://mastodon.social/'),
-            '@mastodon.social'
-        );
+        assert.equal(actorUrlToHandle('https://mastodon.social/'), '@mastodon.social');
     });
 
     it('returns empty string for null/undefined/empty', () => {
@@ -161,14 +158,17 @@ describe('formatSubject()', function () {
 
     it('prepends re: for replies (inReplyTo set)', () => {
         assert.equal(
-            formatSubject({ summary: 'original', inReplyTo: 'https://example.com/notes/1' }),
+            formatSubject({
+                summary: 'original',
+                inReplyTo: 'https://example.com/notes/1',
+            }),
             're: original'
         );
     });
 
     it('[CW] takes precedence over re: when both flags are set', () => {
         const result = formatSubject({
-            summary:   'cw topic',
+            summary: 'cw topic',
             sensitive: true,
             inReplyTo: 'https://example.com/notes/1',
         });
@@ -193,7 +193,10 @@ describe('formatDate()', function () {
         //  2026-04-16T12:00:00Z → "04/16 12:00p" with default fmt
         const ts = '2026-04-16T12:00:00.000Z';
         const result = formatDate(ts, 'MM/DD hh:mma');
-        assert.ok(result.startsWith('04/16'), `expected date to start with 04/16, got: ${result}`);
+        assert.ok(
+            result.startsWith('04/16'),
+            `expected date to start with 04/16, got: ${result}`
+        );
     });
 
     it('collapses am → a and pm → p', () => {
@@ -204,8 +207,14 @@ describe('formatDate()', function () {
         const pmResult = formatDate(pmTs, 'hh:mma');
         assert.ok(!amResult.includes('am'), `should collapse am to a: ${amResult}`);
         assert.ok(!pmResult.includes('pm'), `should collapse pm to p: ${pmResult}`);
-        assert.ok(amResult.endsWith('a') || amResult.endsWith('p'), `should end with a or p: ${amResult}`);
-        assert.ok(pmResult.endsWith('a') || pmResult.endsWith('p'), `should end with a or p: ${pmResult}`);
+        assert.ok(
+            amResult.endsWith('a') || amResult.endsWith('p'),
+            `should end with a or p: ${amResult}`
+        );
+        assert.ok(
+            pmResult.endsWith('a') || pmResult.endsWith('p'),
+            `should end with a or p: ${pmResult}`
+        );
     });
 });
 
@@ -213,11 +222,11 @@ describe('formatDate()', function () {
 
 describe('noteToItem()', function () {
     const baseNote = {
-        id:           'https://remote.example.com/notes/1',
+        id: 'https://remote.example.com/notes/1',
         attributedTo: 'https://mastodon.social/users/alice',
-        summary:      'Hello world',
-        content:      '<p>Body text</p>',
-        published:    '2026-04-16T12:00:00.000Z',
+        summary: 'Hello world',
+        content: '<p>Body text</p>',
+        published: '2026-04-16T12:00:00.000Z',
     };
 
     it('builds a minimal item from a Note', () => {
@@ -232,7 +241,10 @@ describe('noteToItem()', function () {
         //  Use a midday UTC timestamp to avoid local-timezone date boundary issues.
         const ts = '2025-06-15T12:00:00.000Z';
         const item = noteToItem(baseNote, ts);
-        assert.ok(item.date.startsWith('06/15'), `expected 06/15 date, got: ${item.date}`);
+        assert.ok(
+            item.date.startsWith('06/15'),
+            `expected 06/15 date, got: ${item.date}`
+        );
     });
 
     it('sets hasAttachment true when attachments are present', () => {

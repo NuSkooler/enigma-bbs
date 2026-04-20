@@ -13,15 +13,15 @@
 # and the next AP request will use the new domain.  Actor IDs are built at
 # request time, so existing DB records retain old IDs until actors are re-fetched.
 
-version: "3"
+version: '3'
 
 agent:
-  authtoken: "2JyPhGIEJwpGs2G8UIQFGrCMvqO_iwTTdcqZU7d1drJKuFS6"
+    authtoken: '2JyPhGIEJwpGs2G8UIQFGrCMvqO_iwTTdcqZU7d1drJKuFS6'
 
 tunnels:
-  enigma-web:
-    proto: http
-    addr: 8080          # ENiGMA default HTTP port — change if yours differs
-    schemes:
-      - https           # expose only HTTPS to the internet
-    inspect: true       # enable the ngrok web inspector at localhost:4040
+    enigma-web:
+        proto: http
+        addr: 8080 # ENiGMA default HTTP port — change if yours differs
+        schemes:
+            - https # expose only HTTPS to the internet
+        inspect: true # enable the ngrok web inspector at localhost:4040

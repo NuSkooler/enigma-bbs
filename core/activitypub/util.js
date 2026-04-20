@@ -236,7 +236,9 @@ function userFromActorId(actorId, cb) {
                 User.AccountStatus.disabled == accountStatus ||
                 User.AccountStatus.inactive == accountStatus
             ) {
-                return next(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+                return next(
+                    Errors.AccessDenied('Account disabled', ErrorReasons.Disabled)
+                );
             }
             const activityPubSettings = ActivityPubSettings.fromUser(user);
             if (!activityPubSettings.enabled) {
@@ -279,7 +281,9 @@ function userFromActorId(actorId, cb) {
 function _notePreview(note, maxLen) {
     const raw = note.content || note.name || note.summary || '';
     const text = (stripHtml(raw).result || '').replace(/\s+/g, ' ').trim();
-    return text.length > maxLen ? text.slice(0, maxLen - 1) + '\u2026' : text || '(no content)';
+    return text.length > maxLen
+        ? text.slice(0, maxLen - 1) + '\u2026'
+        : text || '(no content)';
 }
 
 function _formatRecentPostsHtml(posts) {
@@ -374,21 +378,31 @@ function getUserProfileTemplatedBody(
                 parallel(
                     {
                         followerCount: cb =>
-                            Collection.followers(userAsActor.followers, null, (err, coll) =>
-                                cb(null, err ? 0 : coll.totalItems)
+                            Collection.followers(
+                                userAsActor.followers,
+                                null,
+                                (err, coll) => cb(null, err ? 0 : coll.totalItems)
                             ),
                         followingCount: cb =>
-                            Collection.following(userAsActor.following, null, (err, coll) =>
-                                cb(null, err ? 0 : coll.totalItems)
+                            Collection.following(
+                                userAsActor.following,
+                                null,
+                                (err, coll) => cb(null, err ? 0 : coll.totalItems)
                             ),
                         recentPosts: cb =>
-                            Collection.recentPublicPosts(userAsActor.outbox, 10, (err, posts) =>
-                                cb(null, err ? [] : posts)
+                            Collection.recentPublicPosts(
+                                userAsActor.outbox,
+                                10,
+                                (err, posts) => cb(null, err ? [] : posts)
                             ),
                     },
                     (err, collData) => {
                         if (err) {
-                            collData = { followerCount: 0, followingCount: 0, recentPosts: [] };
+                            collData = {
+                                followerCount: 0,
+                                followingCount: 0,
+                                recentPosts: [],
+                            };
                         }
                         return callback(null, template, contentType, collData);
                     }

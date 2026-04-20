@@ -41,7 +41,9 @@ class HorizontalMenuView extends MenuView {
                     //  Measure the visual (rendered) width of the format string so
                     //  extra characters added by the format (e.g. brackets, pipe codes)
                     //  are accounted for and items don't overlap.
-                    const rendered = pipeToAnsi(formatString(this.itemFormat, this.items[i]));
+                    const rendered = pipeToAnsi(
+                        formatString(this.itemFormat, this.items[i])
+                    );
                     itemWidth = strUtil.renderStringLength(rendered);
                 } else {
                     itemWidth = this.items[i].text.length;

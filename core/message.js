@@ -977,8 +977,8 @@ module.exports = class Message {
             options.quotePrefix !== undefined
                 ? options.quotePrefix
                 : options.includePrefix
-                ? this._getQuotePrefix(options.prefixSource || 'fromUserName')
-                : '';
+                  ? this._getQuotePrefix(options.prefixSource || 'fromUserName')
+                  : '';
 
         //  When the caller explicitly provides a quotePrefix, the content is
         //  known plain text (e.g. HTML-stripped AP note). Skip isFormattedLine

@@ -268,7 +268,11 @@ function addNote(id, summary, content, tags = []) {
             `INSERT INTO collection (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
              VALUES (?, 'sharedInbox', datetime('now'), 'https://www.w3.org/ns/activitystreams#Public', ?, ?, 0)`
         )
-        .run('https://www.w3.org/ns/activitystreams#Public', id, JSON.stringify(activity));
+        .run(
+            'https://www.w3.org/ns/activitystreams#Public',
+            id,
+            JSON.stringify(activity)
+        );
 }
 
 function search(fn, term) {
@@ -641,7 +645,13 @@ describe('Collection.searchNotes() — hashtag tag column', function () {
             'https://remote.example.com/notes/ht-1',
             '',
             '<p>Check out the BBS scene</p>',
-            [{ type: 'Hashtag', name: '#bbs', href: 'https://remote.example.com/tags/bbs' }]
+            [
+                {
+                    type: 'Hashtag',
+                    name: '#bbs',
+                    href: 'https://remote.example.com/tags/bbs',
+                },
+            ]
         );
         addNote(
             'https://remote.example.com/notes/ht-2',
@@ -655,12 +665,9 @@ describe('Collection.searchNotes() — hashtag tag column', function () {
     });
 
     it('does not match non-Hashtag tag entries', async () => {
-        addNote(
-            'https://remote.example.com/notes/ht-3',
-            '',
-            '<p>Reply post</p>',
-            [{ type: 'Mention', name: '@alice@remote.example.com' }]
-        );
+        addNote('https://remote.example.com/notes/ht-3', '', '<p>Reply post</p>', [
+            { type: 'Mention', name: '@alice@remote.example.com' },
+        ]);
 
         //  Mention type should not be indexed in tags column
         const results = await search(

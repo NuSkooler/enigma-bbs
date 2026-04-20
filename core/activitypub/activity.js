@@ -105,7 +105,7 @@ module.exports = class Activity extends ActivityPubObject {
             type: WellKnownActivity.Delete,
             actor: actorId,
             object: {
-                id:   noteId,
+                id: noteId,
                 type: WellKnownActivity.Tombstone,
             },
             to: [PublicCollectionId],

@@ -66,9 +66,7 @@ module.exports = class ActivityPubObject {
         if (Array.isArray(this[Context])) {
             //  ActivityStreams context may appear at any position in the array.
             //  GoToSocial (and potentially others) put their own namespace first.
-            return this[Context].some(
-                c => c === ActivityStreamsContext
-            );
+            return this[Context].some(c => c === ActivityStreamsContext);
         } else if (isString(this[Context])) {
             return ActivityStreamsContext === this[Context];
         }

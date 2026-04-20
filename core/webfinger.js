@@ -25,7 +25,7 @@ function queryWebFinger(query, cb) {
     //  for hosts that include a port number (e.g. @bryan@localhost:8181).
     const acctMatch = /^@?([^@]+)@([^@]+)$/.exec(query);
     if (acctMatch) {
-        host = acctMatch[2];   //  may include :port
+        host = acctMatch[2]; //  may include :port
         resource = `acct:${acctMatch[1]}@${host}`;
     } else if (/^https?:\/\/.+$/.test(query)) {
         resource = query;

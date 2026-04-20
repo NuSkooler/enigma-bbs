@@ -322,7 +322,7 @@ module.exports = () => {
                         enabled: false,
                         selfTemplate: '',
                         allowInsecureHttp: false, // set true only for local dev/test (no TLS)
-                        maxInboxBodyBytes: 1048576,   // 1 MiB; ActivityPub activities are JSON
+                        maxInboxBodyBytes: 1048576, // 1 MiB; ActivityPub activities are JSON
                         maxResponseBodyBytes: 524288, // 512 KiB; remote actor/note fetch responses
                     },
                 },

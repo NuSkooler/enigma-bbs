@@ -5,15 +5,21 @@ const { ErrorCodes } = require('../enig_error');
 const Collection = require('./collection');
 const { Collections } = require('./const');
 const { htmlToMessageBody } = require('./util');
-const { sendBoost, sendLike, getBoostCount, getLikeCount, messageForNoteId } = require('./boost_util');
+const {
+    sendBoost,
+    sendLike,
+    getBoostCount,
+    getLikeCount,
+    messageForNoteId,
+} = require('./boost_util');
 const { actorUrlToHandle } = require('./ap_search_util');
 const Message = require('../message');
 
 // deps
-const async  = require('async');
+const async = require('async');
 const moment = require('moment');
-const ansi   = require('../ansi_term');
-const _      = require('lodash');
+const ansi = require('../ansi_term');
+const _ = require('lodash');
 
 exports.moduleInfo = {
     name: 'ActivityPub Message Viewer',
@@ -36,17 +42,17 @@ exports.moduleInfo = {
 //
 
 const FormIds = {
-    body:   1,
+    body: 1,
     footer: 4,
 };
 
 const MciViewIds = {
     body: {
-        message:          1,  // %MT1  — message body (preview / read-only)
+        message: 1, // %MT1  — message body (preview / read-only)
         customRangeStart: 10, // %TL10+— from, subject, date, thread pos, etc.
     },
     footer: {
-        menu: 1,  // %HM1  — horizontal action menu
+        menu: 1, // %HM1  — horizontal action menu
     },
 };
 
@@ -66,14 +72,14 @@ function formatDate(ts, fmt) {
 
 function noteToItem(note, timestamp, dateTimeFormat) {
     return {
-        from:          actorUrlToHandle(note.attributedTo),
-        subject:       formatSubject(note),
-        date:          formatDate(timestamp, dateTimeFormat),
-        noteId:        note.id,
-        contextId:     note.context || note.conversation || null,
-        inReplyTo:     note.inReplyTo || null,
+        from: actorUrlToHandle(note.attributedTo),
+        subject: formatSubject(note),
+        date: formatDate(timestamp, dateTimeFormat),
+        noteId: note.id,
+        contextId: note.context || note.conversation || null,
+        inReplyTo: note.inReplyTo || null,
         hasAttachment: Array.isArray(note.attachment) && note.attachment.length > 0,
-        url:           note.url || note.id,
+        url: note.url || note.id,
     };
 }
 
@@ -84,22 +90,22 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
         super(options);
         this.setConfigWithExtraArgs(options);
 
-        this.item      = _.get(options, 'extraArgs.item', null);
+        this.item = _.get(options, 'extraArgs.item', null);
         this.modeLabel = _.get(options, 'extraArgs.modeLabel', '');
         this.dateTimeFormat = _.get(this.config, 'dateTimeFormat', 'MM/DD hh:mma');
 
         //  Display indicators — same defaults as the browser (raw CP437 bytes).
         this.indicators = {
-            like:  _.get(this.config, 'likeIndicator',  '\x03'), // ♥
+            like: _.get(this.config, 'likeIndicator', '\x03'), // ♥
             boost: _.get(this.config, 'boostIndicator', '\x1e'), // ▲
         };
 
         //  List navigation — items/itemIndex passed from the browser.
-        this.listItems     = _.get(options, 'extraArgs.items', []);
+        this.listItems = _.get(options, 'extraArgs.items', []);
         this.listItemIndex = _.get(options, 'extraArgs.itemIndex', 0);
 
         //  Thread state — lazy-loaded on first [ / ] nav.
-        this.threadItems  = [];
+        this.threadItems = [];
         this.threadLoaded = false;
 
         this.menuMethods = {
@@ -108,10 +114,18 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                 const bodyView = this._bodyView;
                 if (!bodyView) return cb(null);
                 switch (formData.key.name) {
-                    case 'down arrow': bodyView.scrollDocumentUp();   break;
-                    case 'up arrow':   bodyView.scrollDocumentDown(); break;
-                    case 'page down':  bodyView.keyPressPageDown();   break;
-                    case 'page up':    bodyView.keyPressPageUp();     break;
+                    case 'down arrow':
+                        bodyView.scrollDocumentUp();
+                        break;
+                    case 'up arrow':
+                        bodyView.scrollDocumentDown();
+                        break;
+                    case 'page down':
+                        bodyView.keyPressPageDown();
+                        break;
+                    case 'page up':
+                        bodyView.keyPressPageUp();
+                        break;
                 }
                 return cb(null);
             },
@@ -132,18 +146,25 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
             },
             boostNote: (_formData, _extraArgs, cb) => {
                 if (!this.item || !this.item.noteId) return cb(null);
-                sendBoost(this.client.user, this.item.noteId, (err) => {
+                sendBoost(this.client.user, this.item.noteId, err => {
                     if (err) {
                         if (err.code === ErrorCodes.Duplicate) {
-                            this.client.log.debug({ noteId: this.item.noteId }, 'AP viewer: already boosted');
+                            this.client.log.debug(
+                                { noteId: this.item.noteId },
+                                'AP viewer: already boosted'
+                            );
                         } else {
-                            this.client.log.warn({ err: err.message }, 'AP viewer: boost failed');
+                            this.client.log.warn(
+                                { err: err.message },
+                                'AP viewer: boost failed'
+                            );
                         }
                         return cb(null);
                     }
                     getBoostCount(this.item.noteId, (err, count) => {
                         if (!err) {
-                            this.item.boosts = count > 0 ? String(Math.min(count, 99)) : '';
+                            this.item.boosts =
+                                count > 0 ? String(Math.min(count, 99)) : '';
                         }
                         this._updateCustomViews();
                         return cb(null);
@@ -152,18 +173,25 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
             },
             likeNote: (_formData, _extraArgs, cb) => {
                 if (!this.item || !this.item.noteId) return cb(null);
-                sendLike(this.client.user, this.item.noteId, (err) => {
+                sendLike(this.client.user, this.item.noteId, err => {
                     if (err) {
                         if (err.code === ErrorCodes.Duplicate) {
-                            this.client.log.debug({ noteId: this.item.noteId }, 'AP viewer: already liked');
+                            this.client.log.debug(
+                                { noteId: this.item.noteId },
+                                'AP viewer: already liked'
+                            );
                         } else {
-                            this.client.log.warn({ err: err.message }, 'AP viewer: like failed');
+                            this.client.log.warn(
+                                { err: err.message },
+                                'AP viewer: like failed'
+                            );
                         }
                         return cb(null);
                     }
                     getLikeCount(this.item.noteId, (err, count) => {
                         if (!err) {
-                            this.item.likes = count > 0 ? String(Math.min(count, 99)) : '';
+                            this.item.likes =
+                                count > 0 ? String(Math.min(count, 99)) : '';
                         }
                         this._updateCustomViews();
                         return cb(null);
@@ -185,7 +213,8 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                         this.menuConfig.config.composeMenu || 'activityPubCompose',
                         {
                             extraArgs: {
-                                messageAreaTag: Message.WellKnownAreaTags.ActivityPubShared,
+                                messageAreaTag:
+                                    Message.WellKnownAreaTags.ActivityPubShared,
                                 replyToMessage: msg,
                             },
                         },
@@ -238,16 +267,12 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                 cb => {
                     const startRow = this._footerStartRow;
                     this.client.term.rawWrite(ansi.goto(startRow, 1));
-                    this.displayAsset(
-                        art.footer,
-                        { startRow },
-                        (err, artInfo) => {
-                            if (artInfo) {
-                                mciData.footer = artInfo;
-                            }
-                            return cb(err);
+                    this.displayAsset(art.footer, { startRow }, (err, artInfo) => {
+                        if (artInfo) {
+                            mciData.footer = artInfo;
                         }
-                    );
+                        return cb(err);
+                    });
                 },
                 cb => {
                     async.series(
@@ -303,9 +328,7 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
             }
 
             const note =
-                activity && typeof activity.object === 'object'
-                    ? activity.object
-                    : null;
+                activity && typeof activity.object === 'object' ? activity.object : null;
 
             const bodyView = this._bodyView;
             if (bodyView) {
@@ -329,29 +352,29 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
     //  Thread:   threadPos, threadTotal, threadInfo ("3 of 7"), hasPrev, hasNext
     //  Source:   modeLabel ("Federated", "Local", "Timeline", "Mentions", "Thread")
     _customFormatObject() {
-        const pos  = this._threadPosition();
+        const pos = this._threadPosition();
         const item = this.item;
         return {
             //  header
-            from:        item ? item.from    : '',
-            subject:     item ? item.subject : '',
-            date:        item ? item.date    : '',
+            from: item ? item.from : '',
+            subject: item ? item.subject : '',
+            date: item ? item.date : '',
             //  reaction counts (pre-formatted: '' when zero so {likes:>2} renders blank)
-            likes:       item ? (item.likes  || '') : '',
-            boosts:      item ? (item.boosts || '') : '',
+            likes: item ? item.likes || '' : '',
+            boosts: item ? item.boosts || '' : '',
             //  attachment
-            att:         item ? (item.att    || ' ') : ' ',
-            hasAtt:      item && item.hasAttachment  ? '1' : '',
+            att: item ? item.att || ' ' : ' ',
+            hasAtt: item && item.hasAttachment ? '1' : '',
             //  thread position
-            threadPos:   pos.pos   > 0 ? String(pos.pos)   : '',
+            threadPos: pos.pos > 0 ? String(pos.pos) : '',
             threadTotal: pos.total > 0 ? String(pos.total) : '',
-            threadInfo:  pos.pos   > 0 ? `${pos.pos} of ${pos.total}` : '',
-            hasPrev:     item && !!item.inReplyTo ? '1' : '',
-            hasNext:     this._hasNext()          ? '1' : '',
+            threadInfo: pos.pos > 0 ? `${pos.pos} of ${pos.total}` : '',
+            hasPrev: item && !!item.inReplyTo ? '1' : '',
+            hasNext: this._hasNext() ? '1' : '',
             //  source mode passed from browser
-            modeLabel:      this.modeLabel,
+            modeLabel: this.modeLabel,
             //  indicator characters (configurable, same defaults as browser)
-            likeIndicator:  this.indicators.like,
+            likeIndicator: this.indicators.like,
             boostIndicator: this.indicators.boost,
         };
     }
@@ -372,7 +395,7 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
         }
         const idx = this.threadItems.findIndex(t => t.noteId === this.item.noteId);
         return {
-            pos:   idx >= 0 ? idx + 1 : 0,
+            pos: idx >= 0 ? idx + 1 : 0,
             total: this.threadItems.length,
         };
     }
@@ -406,7 +429,9 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                                 ? activity.object
                                 : null;
                         if (note && note.id) {
-                            acc.push(noteToItem(note, row.timestamp, this.dateTimeFormat));
+                            acc.push(
+                                noteToItem(note, row.timestamp, this.dateTimeFormat)
+                            );
                         }
                     } catch (_) {
                         // skip malformed rows
@@ -427,16 +452,17 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
         this.listItemIndex--;
         this.item = this.listItems[this.listItemIndex];
         this.threadLoaded = false;
-        this.threadItems  = [];
+        this.threadItems = [];
         return this._displayNote(cb);
     }
 
     _nextListItem(cb) {
-        if (!this.listItems.length || this.listItemIndex >= this.listItems.length - 1) return cb(null);
+        if (!this.listItems.length || this.listItemIndex >= this.listItems.length - 1)
+            return cb(null);
         this.listItemIndex++;
         this.item = this.listItems[this.listItemIndex];
         this.threadLoaded = false;
-        this.threadItems  = [];
+        this.threadItems = [];
         return this._displayNote(cb);
     }
 
@@ -445,12 +471,15 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
         if (!this.item || !this.item.inReplyTo) return cb(null);
         Collection.objectByEmbeddedId(this.item.inReplyTo, (err, activity, info) => {
             if (err || !activity) return cb(null);
-            const note =
-                typeof activity.object === 'object' ? activity.object : null;
+            const note = typeof activity.object === 'object' ? activity.object : null;
             if (!note || !note.id) return cb(null);
-            this.item         = noteToItem(note, info ? info.timestamp : null, this.dateTimeFormat);
+            this.item = noteToItem(
+                note,
+                info ? info.timestamp : null,
+                this.dateTimeFormat
+            );
             this.threadLoaded = false;
-            this.threadItems  = [];
+            this.threadItems = [];
             return this._displayNote(cb);
         });
     }

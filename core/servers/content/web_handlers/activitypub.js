@@ -618,9 +618,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
     _inboxAnnounceActivity(resp, activity) {
         //  Announce.object may be a URL string or an embedded object.
-        const announceActorId = typeof activity.actor === 'string'
-            ? activity.actor
-            : activity.actor && activity.actor.id;
+        const announceActorId =
+            typeof activity.actor === 'string'
+                ? activity.actor
+                : activity.actor && activity.actor.id;
         fetchAnnouncedNote(activity.object, announceActorId, (err, note) => {
             if (err) {
                 this.log.warn(

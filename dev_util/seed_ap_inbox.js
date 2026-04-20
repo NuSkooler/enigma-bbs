@@ -31,7 +31,7 @@ const PublicMessageIdNamespace = 'a26ae389-5dfb-4b24-a58e-5472085c8e42';
 const args = process.argv.slice(2);
 let count = 50;
 let clear = false;
-let dbPath    = path.join(__dirname, '..', 'db', 'activitypub.sqlite3');
+let dbPath = path.join(__dirname, '..', 'db', 'activitypub.sqlite3');
 let msgDbPath = path.join(__dirname, '..', 'db', 'message.sqlite3');
 
 for (let i = 0; i < args.length; i++) {
@@ -334,7 +334,7 @@ const insertSystemMeta = msgDb.prepare(`
 function addMessage(note, activityId, ts) {
     const msgUuid = uuidV5(note.id, PublicMessageIdNamespace);
     const fromUser = note.attributedTo || '';
-    const subject  = note.name || note.summary || '';
+    const subject = note.name || note.summary || '';
     //  Strip HTML tags for the BBS message body (simple regex — good enough for seeding).
     const body = (note.content || '').replace(/<[^>]+>/g, '').trim();
 
@@ -343,10 +343,14 @@ function addMessage(note, activityId, ts) {
         return; // OR IGNORE hit — message already exists, skip meta
     }
     const msgId = info.lastInsertRowid;
-    insertMessageMeta.run(msgId, 'activitypub_note_id',     note.id);
+    insertMessageMeta.run(msgId, 'activitypub_note_id', note.id);
     insertMessageMeta.run(msgId, 'activitypub_activity_id', activityId);
     if (note.context || note.conversation) {
-        insertMessageMeta.run(msgId, 'activitypub_context', note.context || note.conversation);
+        insertMessageMeta.run(
+            msgId,
+            'activitypub_context',
+            note.context || note.conversation
+        );
     }
     if (note.inReplyTo) {
         insertMessageMeta.run(msgId, 'activitypub_in_reply_to', note.inReplyTo);
@@ -355,7 +359,7 @@ function addMessage(note, activityId, ts) {
     //  System meta — required for isFromRemoteUser() and getAddressFlavor() to work
     //  (e.g. quote-reply prefix selection, AP-aware FSE behaviour).
     insertSystemMeta.run(msgId, 'remote_from_user', fromUser);
-    insertSystemMeta.run(msgId, 'external_flavor',  'activitypub');
+    insertSystemMeta.run(msgId, 'external_flavor', 'activitypub');
 }
 
 function addReaction(noteId, reactionType, reactorHost, reactorUser, ts) {
@@ -376,7 +380,9 @@ if (clear) {
     console.log(`  Deleted ${rResult.changes} row(s).`);
 
     console.log('Clearing seeded AP messages...');
-    const mResult = msgDb.prepare(`DELETE FROM message WHERE area_tag = 'activitypub_shared'`).run();
+    const mResult = msgDb
+        .prepare(`DELETE FROM message WHERE area_tag = 'activitypub_shared'`)
+        .run();
     console.log(`  Deleted ${mResult.changes} message row(s).`);
 }
 
