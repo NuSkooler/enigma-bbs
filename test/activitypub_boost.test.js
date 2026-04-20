@@ -355,7 +355,10 @@ describe('Activity.makeAnnounce()', function () {
     it('cc contains the followers endpoint', () => {
         const a = Activity.makeAnnounce(ACTOR_ID, NOTE_ID, FOLLOWERS);
         assert.ok(Array.isArray(a.cc));
-        assert.ok(a.cc.some(x => x === FOLLOWERS), 'cc should include the followers endpoint');
+        assert.ok(
+            a.cc.some(x => x === FOLLOWERS),
+            'cc should include the followers endpoint'
+        );
     });
 
     it('has a unique id each time', () => {

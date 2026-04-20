@@ -50,9 +50,13 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
             new RegExp(`^acct:(.+)@${_.escapeRegExp(domain)}$`),
             // profile page
             // https://webfinger.net/rel/profile-page/
-            new RegExp(`^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/wf/@'))}(.+)$`),
+            new RegExp(
+                `^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/wf/@'))}(.+)$`
+            ),
             // self URL
-            new RegExp(`^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/ap/users/'))}(.+)$`),
+            new RegExp(
+                `^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/ap/users/'))}(.+)$`
+            ),
         ];
 
         this.webServer.addRoute({
