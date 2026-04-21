@@ -19,10 +19,21 @@ exports.loadDatabaseForMod = loadDatabaseForMod;
 exports.openDatabase = openDatabase;
 exports.getISOTimestampString = getISOTimestampString;
 exports.sanitizeString = sanitizeString;
+exports.coerceToText = coerceToText;
 exports.initializeDatabases = initializeDatabases;
 exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
 
 exports.dbs = dbs;
+
+//
+//  better-sqlite3 binds a JavaScript Number as REAL, so SQLite writes '1.0'
+//  (not '1') into TEXT-affinity columns. Call this on any value that may be a
+//  Number before binding to a text column so the stored form is the plain
+//  integer/decimal representation.
+//
+function coerceToText(v) {
+    return typeof v === 'number' ? String(v) : v;
+}
 
 //
 //  openDatabase — open (or create) a better-sqlite3 Database with standard
@@ -120,10 +131,79 @@ function initializeDatabases(cb) {
             dbs[dbName] = openDatabase(getDatabasePath(dbName));
             DB_INIT_TABLE[dbName]();
         }
+        repairNumberTextValuesV1();
         return cb(null);
     } catch (err) {
         return cb(err);
     }
+}
+
+//
+//  One-shot repair for rows written while better-sqlite3 was binding Numbers
+//  as REAL into TEXT columns (landed with the node-sqlite3 → better-sqlite3
+//  migration). Rewrites values of the form '<integer>.0' back to '<integer>'
+//  in columns known to hold integer identifiers. Non-integer decimals and
+//  strings that merely end in '.0' are preserved by the round-trip guard.
+//
+//  Gated via system_stat so each installation only pays the cost once.
+//
+const NUMBER_TEXT_REPAIR_FLAG = 'db_number_text_repair_v1';
+//  keyColumns mirror each table's UNIQUE constraint minus the value column —
+//  used to drop duplicate '<int>.0' rows that would otherwise clash with their
+//  canonical '<int>' sibling on UPDATE.
+const NUMBER_TEXT_REPAIR_TARGETS = [
+    { db: 'message', table: 'message_meta', column: 'meta_value',
+        keyColumns: ['message_id', 'meta_category', 'meta_name'] },
+    { db: 'user', table: 'user_property', column: 'prop_value',
+        keyColumns: ['user_id', 'prop_name'] },
+    { db: 'user', table: 'user_achievement', column: 'match',
+        keyColumns: ['user_id', 'achievement_tag'] },
+    { db: 'system', table: 'user_event_log', column: 'log_value',
+        keyColumns: ['timestamp', 'user_id', 'session_id', 'log_name'] },
+    { db: 'system', table: 'system_event_log', column: 'log_value',
+        keyColumns: ['timestamp', 'log_name'] },
+    { db: 'system', table: 'system_stat', column: 'stat_value',
+        keyColumns: ['stat_name'] },
+    { db: 'file', table: 'file_meta', column: 'meta_value',
+        keyColumns: ['file_id', 'meta_name'] },
+];
+
+function repairNumberTextValuesV1() {
+    const flagRow = dbs.system
+        .prepare('SELECT stat_value FROM system_stat WHERE stat_name = ?;')
+        .get(NUMBER_TEXT_REPAIR_FLAG);
+    if (flagRow) {
+        return;
+    }
+
+    let totalRepaired = 0;
+    let totalDeleted = 0;
+    for (const { db, table, column, keyColumns } of NUMBER_TEXT_REPAIR_TARGETS) {
+        //  Drop any '<int>.0' row whose canonical '<int>' sibling already exists
+        //  for the same unique-key tuple (e.g. an achievement re-recorded under
+        //  '50.0' alongside the original '50' earn).
+        const keyCond = keyColumns.map(c => `a."${c}" = b."${c}"`).join(' AND ');
+        const deleteSql = `DELETE FROM "${table}" WHERE rowid IN (
+            SELECT a.rowid FROM "${table}" a
+            JOIN "${table}" b ON ${keyCond}
+            WHERE a."${column}" LIKE '%.0'
+              AND b."${column}" = CAST(CAST(a."${column}" AS INTEGER) AS TEXT)
+              AND CAST(CAST(a."${column}" AS INTEGER) AS TEXT) || '.0' = a."${column}"
+        );`;
+        totalDeleted += dbs[db].prepare(deleteSql).run().changes;
+
+        //  Round-trip guard: only rewrite when CAST(value AS INTEGER) + '.0' === value.
+        //  Preserves literal strings that merely end in '.0' (e.g. '1.5', 'v2.0',
+        //  FTN tosser version banners).
+        const updateSql = `UPDATE "${table}" SET "${column}" = CAST(CAST("${column}" AS INTEGER) AS TEXT)
+            WHERE "${column}" LIKE '%.0'
+              AND CAST(CAST("${column}" AS INTEGER) AS TEXT) || '.0' = "${column}";`;
+        totalRepaired += dbs[db].prepare(updateSql).run().changes;
+    }
+
+    dbs.system
+        .prepare('REPLACE INTO system_stat (stat_name, stat_value) VALUES (?, ?);')
+        .run(NUMBER_TEXT_REPAIR_FLAG, `${totalRepaired}/${totalDeleted}`);
 }
 
 const DB_INIT_TABLE = {

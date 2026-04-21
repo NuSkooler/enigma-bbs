@@ -6,7 +6,7 @@ const wordWrapText = require('./word_wrap.js').wordWrapText;
 const { createNamedUUID, parseUUID, unparseUUID } = require('./uuid_util.js');
 const Errors = require('./enig_error.js').Errors;
 const ANSI = require('./ansi_term.js');
-const { sanitizeString, getISOTimestampString } = require('./database.js');
+const { sanitizeString, getISOTimestampString, coerceToText } = require('./database.js');
 const { isCP437Encodable } = require('./cp437util');
 const { containsNonLatinCodepoints } = require('./string_util');
 const MessageConst = require('./message_const');
@@ -573,7 +573,7 @@ module.exports = class Message {
                     `INSERT OR IGNORE INTO message_meta (message_id, meta_category, meta_name, meta_value)
                     VALUES (?, ?, ?, ?);`
                 )
-                .run(messageId, category, name, value);
+                .run(messageId, category, name, coerceToText(value));
             return cb(null);
         } catch (err) {
             return cb(err);
@@ -758,7 +758,7 @@ module.exports = class Message {
                 VALUES (?, ?, ?, ?);`
             );
             for (const v of value) {
-                stmt.run(this.messageId, category, name, v);
+                stmt.run(this.messageId, category, name, coerceToText(v));
             }
             return cb(null);
         } catch (err) {
@@ -777,7 +777,7 @@ module.exports = class Message {
                 VALUES (?, ?, ?, ?);`
             );
             for (const v of value) {
-                stmt.run(this.messageId, category, name, v);
+                stmt.run(this.messageId, category, name, coerceToText(v));
             }
             return cb(null);
         } catch (err) {
@@ -846,7 +846,7 @@ module.exports = class Message {
                         for (const name of Object.keys(self.meta[category])) {
                             const val = self.meta[category][name];
                             for (const v of Array.isArray(val) ? val : [val]) {
-                                metaStmt.run(self.messageId, category, name, v);
+                                metaStmt.run(self.messageId, category, name, coerceToText(v));
                             }
                         }
                     }
@@ -900,7 +900,7 @@ module.exports = class Message {
                         for (const name of Object.keys(this.meta[category])) {
                             const val = this.meta[category][name];
                             for (const v of Array.isArray(val) ? val : [val]) {
-                                metaStmt.run(self.messageId, category, name, v);
+                                metaStmt.run(self.messageId, category, name, coerceToText(v));
                             }
                         }
                     }
