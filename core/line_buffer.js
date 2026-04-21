@@ -141,8 +141,11 @@ function _wrapText(text, attrs, width, hardEol) {
     while (pos < text.length) {
         const remaining = text.slice(pos);
         const remAttrs = attrs.slice(pos);
+        //  Replace \t with ' ' for measurement — each tab renders as one space column.
+        //  Indices stay 1:1 since both are single BMP chars, so splitAt is reusable.
+        const remainingVis = remaining.replace(/\t/g, ' ');
 
-        if (renderStringLength(remaining) <= width) {
+        if (renderStringLength(remainingVis) <= width) {
             lines.push({
                 chars: remaining,
                 attrs: remAttrs,
@@ -153,7 +156,7 @@ function _wrapText(text, attrs, width, hardEol) {
         }
 
         //  Find the last space within the first `width` visible chars
-        const splitAt = renderSplitPos(remaining, width);
+        const splitAt = renderSplitPos(remainingVis, width);
         const window = remaining.slice(0, splitAt);
         const lastSpace = window.lastIndexOf(' ');
         const wrapAt = lastSpace > 0 ? lastSpace : splitAt;

@@ -240,6 +240,10 @@ class MultiLineEditTextView extends View {
     _bufferToDisplayCol(lineIndex, bufferCol) {
         const chars = this.buffer.lines[lineIndex]?.chars ?? '';
 
+        //  Tab chars in the buffer render as a single space (getVisibleText replaces
+        //  \t→' '), so they count as 1 display column even though wcwidth('\t') = -1.
+        const charWidth = ch => (ch === '\t' ? 1 : strUtil.charDisplayWidth(ch));
+
         if (!chars.includes('|')) {
             //  Fast path: no pipe codes — walk codepoints accumulating display width
             let dispCol = 0;
@@ -247,7 +251,7 @@ class MultiLineEditTextView extends View {
             while (i < bufferCol && i < chars.length) {
                 const cp = chars.codePointAt(i);
                 const ch = String.fromCodePoint(cp);
-                dispCol += strUtil.charDisplayWidth(ch);
+                dispCol += charWidth(ch);
                 i += ch.length;
             }
             return dispCol;
@@ -275,7 +279,7 @@ class MultiLineEditTextView extends View {
             } else {
                 const cp = chars.codePointAt(i);
                 const ch = String.fromCodePoint(cp);
-                dispCol += strUtil.charDisplayWidth(ch);
+                dispCol += charWidth(ch);
                 i += ch.length;
             }
         }
@@ -765,7 +769,7 @@ class MultiLineEditTextView extends View {
         }
         this.cursorPos.col += c.length;
 
-        if (this.buffer.lines[index].chars.length > this.buffer.width) {
+        if (strUtil.renderStringLength(this.getVisibleText(index)) > this.buffer.width) {
             //  Track cursor position in paragraph coordinates before rewrap
             const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
             const { start } = this.buffer.rewrapParagraph(index);
@@ -818,11 +822,10 @@ class MultiLineEditTextView extends View {
             //  the view.
             //
             const writeCol = this.cursorPos.col - c.length;
-            const startPos = this.getAbsolutePosition(this.cursorPos.row, writeCol);
-            const absPos = this.getAbsolutePosition(
-                this.cursorPos.row,
-                this.cursorPos.col
-            );
+            const writeDispCol = this._bufferToDisplayCol(index, writeCol);
+            const cursorDispCol = this._bufferToDisplayCol(index, this.cursorPos.col);
+            const startPos = this.getAbsolutePosition(this.cursorPos.row, writeDispCol);
+            const absPos = this.getAbsolutePosition(this.cursorPos.row, cursorDispCol);
             const renderText = this.getRenderText(index).slice(writeCol);
 
             this.client.term.write(
@@ -1014,7 +1017,9 @@ class MultiLineEditTextView extends View {
             this.replaceCharacterInText(c, index, this.cursorPos.col);
             this.cursorPos.col++;
 
-            if (this.buffer.lines[index].chars.length > this.buffer.width) {
+            if (
+                strUtil.renderStringLength(this.getVisibleText(index)) > this.buffer.width
+            ) {
                 //  Typed past EOL in OVR mode — the append made the line too long.
                 //  Rewrap and advance the cursor to the next line, exactly as
                 //  insertCharactersInText does for the wrap case.
@@ -1225,8 +1230,9 @@ class MultiLineEditTextView extends View {
 
     keyPressTab() {
         const index = this.getTextLinesIndex();
+        const dispCol = this._bufferToDisplayCol(index, this.cursorPos.col);
         this.insertCharactersInText(
-            this.expandTab(this.cursorPos.col, '\t') + '\t',
+            this.expandTab(dispCol, '\t') + '\t',
             index,
             this.cursorPos.col
         );
@@ -1248,12 +1254,15 @@ class MultiLineEditTextView extends View {
 
             if (this.isTab()) {
                 let col = this.cursorPos.col;
-                const prevTabStop = this.getPrevTabStop(this.cursorPos.col);
-                while (col >= prevTabStop) {
+                const dispCol = this._bufferToDisplayCol(index, col);
+                const prevTabStop = this.getPrevTabStop(dispCol);
+                let remaining = dispCol - prevTabStop;
+                while (col > 0 && remaining > 0) {
                     if (!this.isTab(index, col)) {
                         break;
                     }
                     --col;
+                    --remaining;
                 }
 
                 count = this.cursorPos.col - col;
@@ -1364,13 +1373,15 @@ class MultiLineEditTextView extends View {
 
     adjustCursorToNextTab(direction) {
         if (this.isTab()) {
+            const lineIndex = this.getTextLinesIndex();
+            const dispCol = this._bufferToDisplayCol(lineIndex, this.cursorPos.col);
             let move;
             switch (direction) {
                 //
                 //  Next tabstop to the right
                 //
                 case 'right':
-                    move = this.getNextTabStop(this.cursorPos.col) - this.cursorPos.col;
+                    move = this.getNextTabStop(dispCol) - dispCol;
                     this.cursorPos.col += move;
                     this.client.term.rawWrite(ansi.right(move));
                     break;
@@ -1379,7 +1390,7 @@ class MultiLineEditTextView extends View {
                 //  Next tabstop to the left
                 //
                 case 'left':
-                    move = this.cursorPos.col - this.getPrevTabStop(this.cursorPos.col);
+                    move = dispCol - this.getPrevTabStop(dispCol);
                     this.cursorPos.col -= move;
                     this.client.term.rawWrite(ansi.left(move));
                     break;
@@ -1390,19 +1401,18 @@ class MultiLineEditTextView extends View {
                     //  Jump to the tabstop nearest the cursor
                     //
                     {
-                        const newCol = this.tabStops.reduce((prev, curr) => {
-                            return Math.abs(curr - this.cursorPos.col) <
-                                Math.abs(prev - this.cursorPos.col)
+                        const newStop = this.tabStops.reduce((prev, curr) => {
+                            return Math.abs(curr - dispCol) < Math.abs(prev - dispCol)
                                 ? curr
                                 : prev;
                         });
 
-                        if (newCol > this.cursorPos.col) {
-                            move = newCol - this.cursorPos.col;
+                        if (newStop > dispCol) {
+                            move = newStop - dispCol;
                             this.cursorPos.col += move;
                             this.client.term.rawWrite(ansi.right(move));
-                        } else if (newCol < this.cursorPos.col) {
-                            move = this.cursorPos.col - newCol;
+                        } else if (newStop < dispCol) {
+                            move = dispCol - newStop;
                             this.cursorPos.col -= move;
                             this.client.term.rawWrite(ansi.left(move));
                         }

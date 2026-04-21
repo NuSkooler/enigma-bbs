@@ -830,3 +830,113 @@ describe('MultiLineEditTextView — wide character cursor math', () => {
         });
     });
 });
+
+// ─── insertCharactersInText — wide-char fast-path positions ───────────────────
+
+describe('MultiLineEditTextView — insertCharactersInText wide-char positioning', () => {
+    //  Regression: the no-wrap / no-pipe-code fast path used raw buffer indices
+    //  as screen columns when building the ansi.goto() sequences.  For lines
+    //  containing wide characters the write-start and cursor-end positions were
+    //  off by the total extra width contributed by those characters.
+
+    function makeCapture(v) {
+        const writes = [];
+        v.client.term.write = (s, _lf) => {
+            if (s) writes.push(s);
+        };
+        return writes;
+    }
+
+    function gotosFrom(writes) {
+        const all = writes.join('');
+        const re = /\x1b\[(\d+);(\d+)H/g;
+        const result = [];
+        let m;
+        while ((m = re.exec(all)) !== null) {
+            result.push({ row: parseInt(m[1]), col: parseInt(m[2]) });
+        }
+        return result;
+    }
+
+    it('uses display column (not buffer index) for write-start goto after a wide char', () => {
+        const v = makeMltev({ width: 20, height: 5 });
+        v.position = { row: 1, col: 1 };
+        const writes = makeCapture(v);
+
+        //  Load '中' (1 buffer char, 2 display cols), cursor at buffer col 1.
+        load(v, '中', 0, 1);
+        writes.length = 0;
+
+        //  Insert 'A' — triggers the no-wrap fast path.
+        v.keyPressCharacter('A');
+
+        const gotos = gotosFrom(writes);
+        assert.ok(gotos.length >= 2, 'fast path should emit two goto sequences');
+
+        //  writeCol = 1 (buffer), writeDispCol = 2 (中 = 2 cols).
+        //  startPos.col = position.col(1) + writeDispCol(2) = 3.
+        //  With the bug: position.col(1) + writeCol(1) = 2.
+        assert.strictEqual(
+            gotos[0].col,
+            3,
+            'write-start col should be position.col + writeDispCol(2), not + writeCol(1)'
+        );
+
+        //  cursorPos.col = 2, cursorDispCol = 3 (中+A = 2+1).
+        //  absPos.col = position.col(1) + cursorDispCol(3) = 4.
+        assert.strictEqual(
+            gotos[gotos.length - 1].col,
+            4,
+            'cursor-end col should be position.col + cursorDispCol(3)'
+        );
+    });
+
+    it('uses display column for write-start when multiple wide chars precede the insert', () => {
+        const v = makeMltev({ width: 20, height: 5 });
+        v.position = { row: 1, col: 1 };
+        const writes = makeCapture(v);
+
+        //  Load '日日' (2 wide chars = 4 display cols), cursor at buffer col 2.
+        load(v, '日日', 0, 2);
+        writes.length = 0;
+
+        //  Insert 'X' at end — no wrap, no pipe codes.
+        v.keyPressCharacter('X');
+
+        const gotos = gotosFrom(writes);
+        assert.ok(gotos.length >= 2, 'fast path should emit two goto sequences');
+
+        //  writeCol = 2, writeDispCol = 4.  startPos.col = 1 + 4 = 5.
+        assert.strictEqual(
+            gotos[0].col,
+            5,
+            'write-start col = position.col(1) + writeDispCol(4) = 5'
+        );
+
+        //  cursorPos.col = 3, cursorDispCol = 5.  absPos.col = 1 + 5 = 6.
+        assert.strictEqual(
+            gotos[gotos.length - 1].col,
+            6,
+            'cursor-end col = position.col(1) + cursorDispCol(5) = 6'
+        );
+    });
+
+    it('pure ASCII line is unaffected — buffer col equals display col', () => {
+        const v = makeMltev({ width: 20, height: 5 });
+        v.position = { row: 1, col: 1 };
+        const writes = makeCapture(v);
+
+        load(v, 'AB', 0, 2);
+        writes.length = 0;
+
+        v.keyPressCharacter('C');
+
+        const gotos = gotosFrom(writes);
+        assert.ok(gotos.length >= 2, 'fast path should emit two goto sequences');
+
+        //  writeCol = 2, writeDispCol = 2 (all ASCII).  startPos.col = 1 + 2 = 3.
+        assert.strictEqual(gotos[0].col, 3);
+        //  cursorPos.col = 3, cursorDispCol = 3.  absPos.col = 1 + 3 = 4.
+        assert.strictEqual(gotos[gotos.length - 1].col, 4);
+    });
+});

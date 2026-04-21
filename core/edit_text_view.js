@@ -382,9 +382,14 @@ class EditTextView extends TextView {
     //  Override drawText to apply our managed scroll offset instead of
     //  TextView's default "always show last N chars" horizScroll behaviour.
     drawText(s) {
-        if (this.hasFocus && this.lineBuffer && s.length > this.dimens.width) {
+        if (
+            this.hasFocus &&
+            this.lineBuffer &&
+            strUtil.renderStringLength(s) > this.dimens.width
+        ) {
             this._scrollOffset = this._computeScrollOffset();
-            s = s.slice(this._scrollOffset, this._scrollOffset + this.dimens.width);
+            const tail = s.slice(this._scrollOffset);
+            s = tail.slice(0, strUtil.renderSplitPos(tail, this.dimens.width));
         }
         super.drawText(s);
     }
@@ -564,7 +569,8 @@ class EditTextView extends TextView {
                 } else {
                     const newLen = len + 1;
                     const atEnd = this.cursorPos.col === newLen;
-                    const notScrolled = newLen <= this.dimens.width;
+                    const notScrolled =
+                        this._bufferToDisplayCol(newLen) <= this.dimens.width;
 
                     if (atEnd && notScrolled) {
                         //  Fast path: appended at end with no scroll — write char directly
