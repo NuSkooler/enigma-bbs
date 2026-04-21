@@ -1,6 +1,12 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.4.0-beta
+* Major FTN compatibility fixes, especially for those wanting to run a point.
+
+
+## 0.3.0-beta
+
 ## 0.2.0-beta
 
 * **Server-side baud rate emulation** — `baudRate` in a menu's `config` block now throttles art display on the server rather than delegating to a SyncTERM-specific terminal escape sequence. Emulation now works with every terminal client. The previous approach was sticky (rate persisted across menus until explicitly cleared); the new approach is scoped precisely to each art display and resets automatically. Existing `baudRate` config values require no changes.

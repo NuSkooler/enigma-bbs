@@ -39,6 +39,7 @@ const sane = require('sane');
 const fse = require('fs-extra');
 const iconv = require('iconv-lite');
 const { randomUUID } = require('crypto');
+const properLockfile = require('proper-lockfile');
 
 exports.moduleInfo = {
     name: 'FTN BSO',
@@ -1637,7 +1638,29 @@ function FTNMessageScanTossModule() {
                             )
                         );
                     } else {
-                        //  :TODO: password needs validated - need to determine if it will use the same node config (which can have wildcards) or something else?!
+                        //  Validate packet password against node config (if configured)
+                        const originAddr = new Address(packetHeader.origAddress);
+                        const nodeConfig = _.find(
+                            self.moduleConfig.nodes,
+                            (node, addrWildcard) =>
+                                originAddr.isPatternMatch(addrWildcard)
+                        );
+                        if (nodeConfig && nodeConfig.packetPassword) {
+                            const expected = nodeConfig.packetPassword.toUpperCase();
+                            const actual = (packetHeader.password || '').toUpperCase();
+                            if (expected !== actual) {
+                                importStats.otherFail += 1;
+                                Log.warn(
+                                    { origin: originAddr.toString() },
+                                    'Packet rejected: password mismatch'
+                                );
+                                return next(
+                                    new Error(
+                                        `Packet password mismatch from ${originAddr.toString()}`
+                                    )
+                                );
+                            }
+                        }
                         return next(null);
                     }
                 } else if ('message' === entryType) {
@@ -2871,27 +2894,84 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
     FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 };
 
+//
+//  Acquire a .bsy lock on |dir| for the duration of |fn|, then release it.
+//  Uses proper-lockfile for cross-platform stale-safe locking:
+//    - O_EXCL atomic creation prevents races
+//    - mtime refresh detects crashes (lock becomes stale after BSY_LOCK_STALE_MS)
+//  The enigma.bsy file is also created in |dir| for external mailer visibility (FTS-5005).
+//
+const BSY_LOCK_STALE_MS = 30000;
+
+function withBsyLock(dir, fn, cb) {
+    const bsyPath = paths.join(dir, 'enigma.bsy');
+
+    fse.ensureFile(bsyPath, ensureErr => {
+        if (ensureErr) {
+            Log.warn(
+                { path: bsyPath, error: ensureErr.message },
+                'Could not create .bsy file; proceeding without lock'
+            );
+            return fn(cb);
+        }
+
+        properLockfile.lock(
+            bsyPath,
+            { realpath: false, stale: BSY_LOCK_STALE_MS, retries: 0 },
+            lockErr => {
+                if (lockErr) {
+                    Log.warn(
+                        { path: bsyPath, error: lockErr.message },
+                        'BSO directory is locked by another process; skipping'
+                    );
+                    return cb(null); //  non-fatal: skip this cycle
+                }
+
+                fn(fnErr => {
+                    properLockfile.unlock(bsyPath, { realpath: false }, unlockErr => {
+                        if (unlockErr) {
+                            Log.warn(
+                                { path: bsyPath, error: unlockErr.message },
+                                'Failed to release .bsy lock'
+                            );
+                        }
+                        fse.remove(bsyPath, () => {}); //  best effort cleanup
+                        return cb(fnErr);
+                    });
+                });
+            }
+        );
+    });
+}
+
 FTNMessageScanTossModule.prototype.performImport = function (cb) {
     if (!this.hasValidConfiguration()) {
         return cb(Errors.MissingConfig('Invalid or missing configuration'));
     }
 
     const self = this;
+    const inboundDir = self.moduleConfig.paths.inbound;
 
-    async.each(
-        ['inbound', 'secInbound'],
-        (inboundType, nextDir) => {
-            const importDir = self.moduleConfig.paths[inboundType];
-            self.importFromDirectory(inboundType, importDir, err => {
-                if (err) {
-                    Log.trace(
-                        { importDir, error: err.message },
-                        'Cannot perform FTN import for directory'
-                    );
-                }
+    withBsyLock(
+        inboundDir,
+        doneFn => {
+            async.each(
+                ['inbound', 'secInbound'],
+                (inboundType, nextDir) => {
+                    const importDir = self.moduleConfig.paths[inboundType];
+                    self.importFromDirectory(inboundType, importDir, err => {
+                        if (err) {
+                            Log.trace(
+                                { importDir, error: err.message },
+                                'Cannot perform FTN import for directory'
+                            );
+                        }
 
-                return nextDir(null);
-            });
+                        return nextDir(null);
+                    });
+                },
+                doneFn
+            );
         },
         cb
     );
@@ -2907,20 +2987,30 @@ FTNMessageScanTossModule.prototype.performExport = function (cb) {
     }
 
     const self = this;
+    const outboundDir = self.moduleConfig.paths.outbound;
 
-    async.eachSeries(
-        ['EchoMail', 'NetMail'],
-        (type, nextType) => {
-            self[`perform${type}Export`](err => {
-                if (err) {
-                    Log.warn({ type, error: err.message }, 'Error(s) during export');
+    withBsyLock(
+        outboundDir,
+        doneFn => {
+            async.eachSeries(
+                ['EchoMail', 'NetMail'],
+                (type, nextType) => {
+                    self[`perform${type}Export`](err => {
+                        if (err) {
+                            Log.warn(
+                                { type, error: err.message },
+                                'Error(s) during export'
+                            );
+                        }
+                        return nextType(null); //  try next, always
+                    });
+                },
+                () => {
+                    return doneFn(null);
                 }
-                return nextType(null); //  try next, always
-            });
+            );
         },
-        () => {
-            return cb(null);
-        }
+        cb
     );
 };
 

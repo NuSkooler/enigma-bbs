@@ -20,6 +20,12 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.3.0-beta to 0.4.0-beta
+
+
+## 0.2.0-beta to 0.3.0-beta
+N/A
+
 ## 0.1.1-beta to 0.2.0-beta
 
 
