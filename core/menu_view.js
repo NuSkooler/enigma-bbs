@@ -50,7 +50,7 @@ class MenuView extends View {
     }
 
     hasFocusItems() {
-        return !_.isUndefined(this.focusItems);
+        return this.focusItems !== undefined;
     }
 
     getHotKeyItemIndex(ch) {

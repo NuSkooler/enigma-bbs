@@ -4,7 +4,7 @@
 //  ENiGMA½
 const MenuModule = require('./menu_module.js').MenuModule;
 
-const { getModDatabasePath, getTransactionDatabase } = require('./database.js');
+const { getModDatabasePath, openDatabase } = require('./database.js');
 
 const ViewController = require('./view_controller.js').ViewController;
 const ansi = require('./ansi_term.js');
@@ -14,7 +14,6 @@ const stringFormat = require('./string_format.js');
 
 //  deps
 const async = require('async');
-const sqlite3 = require('sqlite3');
 const _ = require('lodash');
 
 //  :TODO: add notes field
@@ -118,31 +117,24 @@ exports.getModule = class BBSListModule extends MenuModule {
                     return cb(null);
                 }
 
-                self.database.run(
-                    `DELETE FROM bbs_list
-                    WHERE id=?;`,
-                    [entry.id],
-                    err => {
-                        if (err) {
-                            self.client.log.error(
-                                { err: err },
-                                'Error deleting from BBS list'
-                            );
-                        } else {
-                            self.entries.splice(self.selectedBBS, 1);
+                try {
+                    self.database
+                        .prepare(`DELETE FROM bbs_list WHERE id=?;`)
+                        .run(entry.id);
 
-                            self.setEntries(entriesView);
+                    self.entries.splice(self.selectedBBS, 1);
+                    self.setEntries(entriesView);
 
-                            if (self.entries.length > 0) {
-                                entriesView.focusPrevious();
-                            }
-
-                            self.viewControllers.view.redrawAll();
-                        }
-
-                        return cb(null);
+                    if (self.entries.length > 0) {
+                        entriesView.focusPrevious();
                     }
-                );
+
+                    self.viewControllers.view.redrawAll();
+                } catch (err) {
+                    self.client.log.error({ err: err }, 'Error deleting from BBS list');
+                }
+
+                return cb(null);
             },
             submitBBS: function (formData, extraArgs, cb) {
                 let ok = true;
@@ -161,31 +153,28 @@ exports.getModule = class BBSListModule extends MenuModule {
                     return cb(null);
                 }
 
-                self.database.run(
-                    `INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes)
-                    VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
-                    [
-                        formData.value.name,
-                        formData.value.sysop,
-                        formData.value.telnet,
-                        formData.value.www,
-                        formData.value.location,
-                        formData.value.software,
-                        self.client.user.userId,
-                        formData.value.notes,
-                    ],
-                    err => {
-                        if (err) {
-                            self.client.log.error(
-                                { err: err },
-                                'Error adding to BBS list'
-                            );
-                        }
+                try {
+                    self.database
+                        .prepare(
+                            `INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes)
+                            VALUES(?, ?, ?, ?, ?, ?, ?, ?);`
+                        )
+                        .run(
+                            formData.value.name,
+                            formData.value.sysop,
+                            formData.value.telnet,
+                            formData.value.www,
+                            formData.value.location,
+                            formData.value.software,
+                            self.client.user.userId,
+                            formData.value.notes
+                        );
+                } catch (err) {
+                    self.client.log.error({ err: err }, 'Error adding to BBS list');
+                }
 
-                        self.clearAddForm();
-                        self.displayBBSList(true, cb);
-                    }
-                );
+                self.clearAddForm();
+                self.displayBBSList(true, cb);
             },
             cancelSubmit: function (formData, extraArgs, cb) {
                 self.clearAddForm();
@@ -269,7 +258,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
-                    if (_.isUndefined(self.viewControllers.add)) {
+                    if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
                             'view',
                             new ViewController({
@@ -306,31 +295,32 @@ exports.getModule = class BBSListModule extends MenuModule {
                     const entriesView = self.viewControllers.view.getView(
                         MciViewIds.view.BBSList
                     );
-                    self.entries = [];
 
-                    self.database.each(
-                        `SELECT id, bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes
-                        FROM bbs_list;`,
-                        (err, row) => {
-                            if (!err) {
-                                self.entries.push({
-                                    text: row.bbs_name, //  standard field
-                                    id: row.id,
-                                    bbsName: row.bbs_name,
-                                    sysOp: row.sysop,
-                                    telnet: row.telnet,
-                                    www: row.www,
-                                    location: row.location,
-                                    software: row.software,
-                                    submitterUserId: row.submitter_user_id,
-                                    notes: row.notes,
-                                });
-                            }
-                        },
-                        err => {
-                            return callback(err, entriesView);
-                        }
-                    );
+                    try {
+                        const rows = self.database
+                            .prepare(
+                                `SELECT id, bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes
+                                FROM bbs_list;`
+                            )
+                            .all();
+
+                        self.entries = rows.map(row => ({
+                            text: row.bbs_name, //  standard field
+                            id: row.id,
+                            bbsName: row.bbs_name,
+                            sysOp: row.sysop,
+                            telnet: row.telnet,
+                            www: row.www,
+                            location: row.location,
+                            software: row.software,
+                            submitterUserId: row.submitter_user_id,
+                            notes: row.notes,
+                        }));
+
+                        return callback(null, entriesView);
+                    } catch (err) {
+                        return callback(err);
+                    }
                 },
                 function getUserNames(entriesView, callback) {
                     async.each(
@@ -406,7 +396,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
-                    if (_.isUndefined(self.viewControllers.add)) {
+                    if (self.viewControllers.add === undefined) {
                         const vc = self.addViewController(
                             'add',
                             new ViewController({
@@ -467,38 +457,25 @@ exports.getModule = class BBSListModule extends MenuModule {
     }
 
     initDatabase(cb) {
-        const self = this;
-
-        async.series(
-            [
-                function openDatabase(callback) {
-                    self.database = getTransactionDatabase(
-                        new sqlite3.Database(getModDatabasePath(moduleInfo), callback)
-                    );
-                },
-                function createTables(callback) {
-                    self.database.serialize(() => {
-                        self.database.run(
-                            `CREATE TABLE IF NOT EXISTS bbs_list (
-                                id                  INTEGER PRIMARY KEY,
-                                bbs_name            VARCHAR NOT NULL,
-                                sysop               VARCHAR NOT NULL,
-                                telnet              VARCHAR NOT NULL,
-                                www                 VARCHAR,
-                                location            VARCHAR,
-                                software            VARCHAR,
-                                submitter_user_id   INTEGER NOT NULL,
-                                notes               VARCHAR
-                            );`
-                        );
-                    });
-                    callback(null);
-                },
-            ],
-            err => {
-                return cb(err);
-            }
-        );
+        try {
+            this.database = openDatabase(getModDatabasePath(moduleInfo));
+            this.database.exec(
+                `CREATE TABLE IF NOT EXISTS bbs_list (
+                    id                  INTEGER PRIMARY KEY,
+                    bbs_name            VARCHAR NOT NULL,
+                    sysop               VARCHAR NOT NULL,
+                    telnet              VARCHAR NOT NULL,
+                    www                 VARCHAR,
+                    location            VARCHAR,
+                    software            VARCHAR,
+                    submitter_user_id   INTEGER NOT NULL,
+                    notes               VARCHAR
+                );`
+            );
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     beforeArt(cb) {

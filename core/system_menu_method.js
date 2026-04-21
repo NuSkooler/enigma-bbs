@@ -285,14 +285,14 @@ function optimizeDatabases(callingMenu, formData, extraArgs, cb) {
         client.term.write(`Optimizing ${dbName}. Please wait...\r\n`);
 
         //  https://www.sqlite.org/pragma.html#pragma_optimize
-        dbs[dbName].run('PRAGMA optimize;', err => {
-            if (err) {
-                client.log.error(
-                    { error: err, dbName },
-                    'Error attempting to optimize database'
-                );
-            }
-        });
+        try {
+            dbs[dbName].pragma('optimize');
+        } catch (err) {
+            client.log.error(
+                { error: err, dbName },
+                'Error attempting to optimize database'
+            );
+        }
     });
 
     return callingMenu.prevMenu(cb);

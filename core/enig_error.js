@@ -65,6 +65,29 @@ exports.Errors = {
         new EnigError('Validation failed', -32018, reason, reasonCode),
 };
 
+exports.ErrorCodes = {
+    General: -33000,
+    MenuStack: -33001,
+    DoesNotExist: -33002,
+    AccessDenied: -32003,
+    Invalid: -32004,
+    ExternalProcess: -32005,
+    MissingConfig: -32006,
+    UnexpectedState: -32007,
+    MissingParam: -32008,
+    MissingMci: -32009,
+    BadLogin: -32010,
+    UserInterrupt: -32011,
+    NothingToDo: -32012,
+    HttpError: -32013,
+    Timeout: -32014,
+    MissingProperty: -32014,
+    Expired: -32015,
+    BadFormData: -32016,
+    Duplicate: -32017,
+    ValidationFailed: -32018,
+};
+
 exports.ErrorReasons = {
     AlreadyThere: 'ALREADYTHERE',
     InvalidNextMenu: 'BADNEXT',

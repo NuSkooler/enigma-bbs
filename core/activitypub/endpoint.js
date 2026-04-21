@@ -2,7 +2,7 @@ const { WellKnownLocations } = require('../servers/content/web');
 const { buildUrl } = require('../web_util');
 
 // deps
-const { v4: UUIDv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 exports.makeUserUrl = makeUserUrl;
 exports.inbox = inbox;
@@ -14,6 +14,8 @@ exports.profile = profile;
 exports.avatar = avatar;
 exports.sharedInbox = sharedInbox;
 exports.objectId = objectId;
+exports.noteLikes = noteLikes;
+exports.noteShares = noteShares;
 
 const ActivityPubUsersPrefix = '/ap/users/';
 
@@ -54,5 +56,15 @@ function sharedInbox() {
 }
 
 function objectId(objectType) {
-    return buildUrl(WellKnownLocations.Internal + `/ap/${UUIDv4()}/${objectType}`);
+    return buildUrl(WellKnownLocations.Internal + `/ap/${randomUUID()}/${objectType}`);
+}
+
+//  Reaction collection endpoints for a Note identified by its full AP URL.
+//  These URLs are embedded in outgoing Notes and served by the AP web handler.
+function noteLikes(noteId) {
+    return `${noteId}/likes`;
+}
+
+function noteShares(noteId) {
+    return `${noteId}/shares`;
 }

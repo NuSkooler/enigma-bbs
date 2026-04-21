@@ -2,15 +2,25 @@
 layout: page
 title: File Transfer Protocols
 ---
-ENiGMA½ currently relies on external executable binaries for "legacy" file transfer protocols such as X, Y, and ZModem. Remember that ENiGMA½ also support modern web (HTTP/HTTPS) downloads!
+ENiGMA½ currently relies on external executable binaries for "legacy" file transfer protocols such as X, Y, and ZModem. Remember that ENiGMA½ also supports modern web (HTTP/HTTPS) downloads!
 
 ## File Transfer Protocols
 File transfer protocols are managed via the `fileTransferProtocols` configuration block of `config.hjson`. Each entry defines an **external** protocol handler that can be used for uploads (recv), downloads (send), or both. Depending on the protocol and handler, batch receiving of files (uploads) may also be available.
 
+### Quick Check
+
+On Linux, you can quickly check what is available in your PATH:
+
+```sh
+command -v sexyz sz rz
+```
+
 ### Predefined File Transfer Protocols
 Please see [External Binaries](external-binaries.md) for a table of built in / predefined protocol handlers. You will need to have the binaries in ENiGMA's PATH.
 #### SEXYZ
-[SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ. An x86_64 Linux binary, and hopefully more in the future, [can be downloaded here](https://l33t.codes/bbs-linux-binaries/).
+[SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ. An x86_64 Linux binary, and hopefully more in the future, [can be downloaded here](https://l33t.codes/outgoing/sexyz).
+
+ENiGMA's default handlers execute the `sexyz` binary (see [External Binaries](external-binaries.md) for install notes and links).
 
 #### sz/rz
 ZModem-8k is configured using the standard Linux [sz(1)](https://linux.die.net/man/1/sz) and [rz(1)](https://linux.die.net/man/1/rz) binaries. Note that these binaries also support XModem and YModem, and as such adding the configurations to your system should be fairly straight forward.
@@ -29,7 +39,9 @@ For protocols of type `external` the following members may be defined:
 * `recvCmd`: Required for protocols that can receive (allow user uploads); The command/binary to execute.
 * `recvArgs`: Required if using `recvCmd` and supporting **batch** uploads; An array of arguments. A placeholder of `{uploadDir}` may be used to supply the system provided upload directory. If `{uploadDir}` is not present, the system expects uploaded files to be placed in CWD which will be set to the upload directory.
 * `recvArgsNonBatch`: Required if using `recvCmd` and supporting non-batch (single file) uploads; A placeholder of `{fileName}` may be supplied to indicate to the protocol what the uploaded file should be named (this will be collected from the user before the upload starts).
-* `escapeTelnet`: Optional; If set to `true`, escape all internal Telnet related codes such as IAC's. This option is required for external protocol handlers such as `sz` and `rz` that do not escape themselves.
+* `processIACs`: Optional; If set to `true`, escape/de-escape Telnet IAC (0xff) bytes when the connection is Telnet-based. This is required for external protocol handlers such as `sz` and `rz` that do not escape themselves.
+
+    :information_source: `escapeTelnet` is a deprecated name; it is still accepted for compatibility.
 
 ### Adding Your Own
 Take a look a the example below as well as [core/config_default.js](/core/config_default.js).

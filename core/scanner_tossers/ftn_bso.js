@@ -38,7 +38,7 @@ const assert = require('assert');
 const sane = require('sane');
 const fse = require('fs-extra');
 const iconv = require('iconv-lite');
-const { v4: UUIDv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 exports.moduleInfo = {
     name: 'FTN BSO',
@@ -105,7 +105,7 @@ function FTNMessageScanTossModule() {
     this.getNetworkNameByAddress = function (remoteAddress) {
         return _.findKey(Config().messageNetworks.ftn.networks, network => {
             const localAddress = Address.fromString(network.localAddress);
-            return !_.isUndefined(localAddress) && localAddress.isEqual(remoteAddress);
+            return localAddress !== undefined && localAddress.isEqual(remoteAddress);
         });
     };
 
@@ -113,7 +113,7 @@ function FTNMessageScanTossModule() {
         return _.findKey(Config().messageNetworks.ftn.networks, network => {
             const localAddress = Address.fromString(network.localAddress);
             return (
-                !_.isUndefined(localAddress) &&
+                localAddress !== undefined &&
                 localAddress.isPatternMatch(remoteAddressPattern)
             );
         });
@@ -134,7 +134,7 @@ function FTNMessageScanTossModule() {
 
     /*
     this.getSeenByAddresses = function(messageSeenBy) {
-        if(!_.isArray(messageSeenBy)) {
+        if(!Array.isArray(messageSeenBy)) {
             messageSeenBy = [ messageSeenBy ];
         }
 
@@ -589,7 +589,7 @@ function FTNMessageScanTossModule() {
             areaConfig.uplinks = areaConfig.uplinks.split(' ');
         }
 
-        return _.isArray(areaConfig.uplinks);
+        return Array.isArray(areaConfig.uplinks);
     };
 
     this.hasValidConfiguration = function ({ shouldLog = false } = {}) {
@@ -648,21 +648,27 @@ function FTNMessageScanTossModule() {
     this.getAreaLastScanId = function (areaTag, cb) {
         const sql = `SELECT area_tag, message_id
             FROM message_area_last_scan
-            WHERE scan_toss = "ftn_bso" AND area_tag = ?
+            WHERE scan_toss = 'ftn_bso' AND area_tag = ?
             LIMIT 1;`;
 
-        msgDb.get(sql, [areaTag], (err, row) => {
-            return cb(err, row ? row.message_id : 0);
-        });
+        try {
+            const row = msgDb.prepare(sql).get(areaTag);
+            return cb(null, row ? row.message_id : 0);
+        } catch (err) {
+            return cb(err);
+        }
     };
 
     this.setAreaLastScanId = function (areaTag, lastScanId, cb) {
         const sql = `REPLACE INTO message_area_last_scan (scan_toss, area_tag, message_id)
-            VALUES ("ftn_bso", ?, ?);`;
+            VALUES ('ftn_bso', ?, ?);`;
 
-        msgDb.run(sql, [areaTag, lastScanId], err => {
+        try {
+            msgDb.prepare(sql).run(areaTag, lastScanId);
+            return cb(null);
+        } catch (err) {
             return cb(err);
-        });
+        }
     };
 
     this.getNodeConfigByAddress = function (addr) {
@@ -1456,7 +1462,7 @@ function FTNMessageScanTossModule() {
                         )
                     ) {
                         //  just generate a UUID & therefor always allow for dupes
-                        message.messageUuid = UUIDv4();
+                        message.messageUuid = randomUUID();
                     }
 
                     return callback(null);
@@ -1927,7 +1933,7 @@ function FTNMessageScanTossModule() {
                     async.each(
                         bundleFiles,
                         (bundleFile, nextFile) => {
-                            if (_.isUndefined(bundleFile.archName)) {
+                            if (bundleFile.archName === undefined) {
                                 Log.warn(
                                     { fileName: bundleFile.path },
                                     'Unknown bundle archive type'
@@ -2067,10 +2073,12 @@ function FTNMessageScanTossModule() {
 
     this.getLocalAreaTagsForTic = function () {
         const config = Config();
-        return _.union(
-            Object.keys(config.scannerTossers.ftn_bso.ticAreas || {}),
-            Object.keys(config.fileBase.areas)
-        );
+        return [
+            ...new Set([
+                ...Object.keys(config.scannerTossers.ftn_bso.ticAreas || {}),
+                ...Object.keys(config.fileBase.areas),
+            ]),
+        ];
     };
 
     this.processSingleTicFile = function (ticFileInfo, cb) {
@@ -2467,25 +2475,20 @@ function FTNMessageScanTossModule() {
                             self.getAreaLastScanId(areaTag, callback);
                         },
                         function getNewUuids(lastScanId, callback) {
-                            msgDb.all(
-                                getNewUuidsSql,
-                                [areaTag, lastScanId],
-                                (err, rows) => {
-                                    if (err) {
-                                        callback(err);
-                                    } else {
-                                        if (0 === rows.length) {
-                                            let nothingToDoErr = new Error(
-                                                'Nothing to do!'
-                                            );
-                                            nothingToDoErr.noRows = true;
-                                            callback(nothingToDoErr);
-                                        } else {
-                                            callback(null, rows);
-                                        }
-                                    }
-                                }
-                            );
+                            let rows;
+                            try {
+                                rows = msgDb
+                                    .prepare(getNewUuidsSql)
+                                    .all(areaTag, lastScanId);
+                            } catch (err) {
+                                return callback(err);
+                            }
+                            if (0 === rows.length) {
+                                let nothingToDoErr = new Error('Nothing to do!');
+                                nothingToDoErr.noRows = true;
+                                return callback(nothingToDoErr);
+                            }
+                            return callback(null, rows);
                         },
                         function exportToConfiguredUplinks(msgRows, callback) {
                             const uuidsOnly = msgRows.map(r => r.message_uuid); //  convert to array of UUIDs only
@@ -2564,17 +2567,16 @@ function FTNMessageScanTossModule() {
                     );
                 },
                 function getNewUuids(lastScanId, callback) {
-                    msgDb.all(getNewUuidsSql, [lastScanId], (err, rows) => {
-                        if (err) {
-                            return callback(err);
-                        }
-
-                        if (0 === rows.length) {
-                            return cb(null); //  note |cb| -- early bail out!
-                        }
-
-                        return callback(null, rows);
-                    });
+                    let rows;
+                    try {
+                        rows = msgDb.prepare(getNewUuidsSql).all(lastScanId);
+                    } catch (err) {
+                        return callback(err);
+                    }
+                    if (0 === rows.length) {
+                        return cb(null); //  note |cb| -- early bail out!
+                    }
+                    return callback(null, rows);
                 },
                 function exportMessages(rows, callback) {
                     const messageUuids = rows.map(r => r.message_uuid);

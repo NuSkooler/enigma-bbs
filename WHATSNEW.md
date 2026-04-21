@@ -1,7 +1,8 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
-## 0.1.2-beta
+## 0.4.0-beta
+
 * **Wide Character (CJK/UTF-8) Support** — full-width Unicode characters (CJK ideographs, Hangul, Hiragana, Katakana, fullwidth forms) are now handled correctly throughout the view and word-wrap layers
 
   * All display-width measurements use `wcwidth(3)` semantics — wide characters count as 2 terminal columns, combining marks as 0
@@ -14,7 +15,29 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   * Opt-in upward UTF-8 probe — set `term.probeUtf8Encoding: true` in `config.hjson` to enable a CPR-based check that upgrades CP437-identified terminals (e.g. `ansi`, `syncterm`) to UTF-8 output when the terminal actually supports it. Uses the same cursor-advance technique as `checkUtf8Encoding`. Default: `false`.
 
+## 0.3.0-beta
+
+* ActivityPub MAJOR updates have landed.
+
+* **Server-side baud rate emulation** — `baudRate` in a menu's `config` block now throttles art display on the server rather than delegating to a SyncTERM-specific terminal escape sequence. Emulation now works with every terminal client. The previous approach was sticky (rate persisted across menus until explicitly cleared); the new approach is scoped precisely to each art display and resets automatically. Existing `baudRate` config values require no changes.
+
+* **SQLite driver migrated to `better-sqlite3`** -- This is an internal change with no impact on existing data or configuration. Results in some major DB performance gains.
+
+* **[Z-Machine Interactive Fiction Door](./docs/_docs/modding/local-doors-zmachine.md)** — new `zmachine_door` module runs Z-Machine IF games (Zork, Colossal Cave Adventure, Photopia, Anchorhead, Lost Pig, and hundreds more) natively in Node.js. No external emulator, no serial bridge, no drop file — a cross-platform pure-JavaScript path for text-adventure games.
+
+  * Backed by [ifvms.js](https://github.com/curiousdannii/ifvms.js) (the Z-Machine interpreter used by Parchment) and [glkote-term](https://github.com/curiousdannii/glkote-term), run in a dedicated worker thread per session for isolation.
+  * Supports Z-Machine versions 3, 4, 5, and 8 — covers all classic Infocom titles, the original Crowther/Woods Adventure port, and the vast majority of modern Inform games from the [IF Archive](https://www.ifarchive.org/).
+
 ## 0.1.1-beta
+
+* **NNTP server improvements** -- several protocol compliance and reliability fixes:
+  * Article posting now correctly detects end-of-post and handles CRLF line endings
+  * `AUTHINFO USER` is now advertised in `CAPABILITIES` so clients know to authenticate before posting
+  * `Xref` header is now generated, improving cross-session read tracking in NNTP clients
+  * Newsgroups header parsing is more robust (null-safe, whitespace-tolerant)
+  * Group message cache TTL increased from 30s to 5 minutes
+
+## 0.1.0-beta
 
 * **[Sysop Chat / Break Into Chat](./docs/_docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user
 

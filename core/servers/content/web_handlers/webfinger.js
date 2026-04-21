@@ -47,12 +47,16 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         this.acceptedResourceRegExps = [
             // acct:NAME@our.domain.tld
             // https://www.rfc-editor.org/rfc/rfc7565
-            new RegExp(`^acct:(.+)@${domain}$`),
+            new RegExp(`^acct:(.+)@${_.escapeRegExp(domain)}$`),
             // profile page
             // https://webfinger.net/rel/profile-page/
-            new RegExp(`^${buildUrl(WellKnownLocations.Internal + '/wf/@')}(.+)$`),
+            new RegExp(
+                `^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/wf/@'))}(.+)$`
+            ),
             // self URL
-            new RegExp(`^${buildUrl(WellKnownLocations.Internal + '/ap/users/')}(.+)$`),
+            new RegExp(
+                `^${_.escapeRegExp(buildUrl(WellKnownLocations.Internal + '/ap/users/'))}(.+)$`
+            ),
         ];
 
         this.webServer.addRoute({
@@ -109,7 +113,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                     localUser,
                     localActor,
                     DefaultProfileTemplate,
-                    'text/plain',
+                    'text/html',
                     (err, body, contentType) => {
                         if (err) {
                             return this.webServer.resourceNotFound(resp);
@@ -215,7 +219,7 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         const href = Endpoints.profile(user);
         return {
             rel: 'http://webfinger.net/rel/profile-page',
-            type: 'text/plain',
+            type: 'text/html',
             href,
         };
     }
@@ -224,7 +228,8 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         return Endpoints.actorId(user);
     }
 
-    // :TODO: only if ActivityPub is enabled
+    //  Only called after _localUserFromWebFingerAccountName() validates that
+    //  ActivityPub is enabled for this user, so no extra guard is needed here.
     _selfLink(user) {
         const href = Endpoints.actorId(user);
         return {
@@ -234,7 +239,6 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
         };
     }
 
-    // :TODO: only if ActivityPub is enabled
     _subscribeLink() {
         return {
             rel: 'http://ostatus.org/schema/1.0/subscribe',

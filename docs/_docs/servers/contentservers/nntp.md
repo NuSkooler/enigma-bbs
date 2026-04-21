@@ -50,7 +50,21 @@ Authenticated users may write messages to a group given the following are true:
 2. They are connected securely (NNTPS). This is a strict requirement due to how NNTP authenticates in plain-text otherwise.
 3. The authenticated user has write [ACS](../../configuration/acs.md) to the target message conference and area.
 
-> :warning: Not all [ACS](../../configuration/acs.md) checks can be made over NNTP. Any ACS requiring a "client" will return false (fail), such as `LC` ("is local?").
+> :warning: **Not all [ACS](../../configuration/acs.md) codes can be evaluated over NNTP.** NNTP sessions do not have a traditional BBS client connection — there is no terminal, no node number, and no theme. The ACS subject is constructed with `client: null` and only the authenticated user object. Any ACS code that depends on client properties will **fail closed** (return false, denying access). Affected codes include:
+>
+> | Code | Reason |
+> |------|--------|
+> | `LC` | No client to check for local connection |
+> | `SC` | No client session to check for TLS (use NNTPS server-level config instead) |
+> | `TH`, `TW` | No terminal dimensions |
+> | `TT` | No terminal type |
+> | `TM` | No theme |
+> | `NN` | No node number |
+> | `EC` | No terminal encoding |
+>
+> ACS codes that only depend on **user properties** work normally over NNTP: `GM`, `ID`, `NC`, `NP`, `AA`, `AF`, `AR`, `AC`, `AP`, `UP`, `DL`, `BU`, `BD`, `NR`, `KR`, `PC`, `PV`, `AG`, `AS`.
+>
+> This means if your message area ACS uses any client-dependent code, NNTP users will be denied access even if they are otherwise authorized. Design NNTP-exposed area ACS strings using only user-based codes.
 
 ## Example Configuration
 ```hjson

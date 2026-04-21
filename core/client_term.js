@@ -254,6 +254,39 @@ ClientTerminal.prototype.pipeWrite = function (s, cb) {
     this.write(renegadeToAnsi(s, this), null, cb); //  null = use default for |convertLineFeeds|
 };
 
+//  dripWrite() — send |buf| to the socket at |bytesPerSec|, calling |cb| when done.
+//  Goes directly to this.output, intentionally bypassing _writeBuf batching (the two
+//  are mutually exclusive: batch = instant display; drip = throttled display).
+ClientTerminal.prototype.dripWrite = function (buf, bytesPerSec, cb) {
+    if (!buf || buf.length === 0) {
+        return cb(null);
+    }
+
+    const INTERVAL_MS = 16; //  ~60fps
+    const bytesPerInterval = Math.max(1, Math.round((bytesPerSec * INTERVAL_MS) / 1000));
+    let offset = 0;
+
+    const sendChunk = () => {
+        if (!this.output || !this.output.writable) {
+            return cb(new Error('Connection closed during baud emulation'));
+        }
+        const end = Math.min(offset + bytesPerInterval, buf.length);
+        const chunk = buf.slice(offset, end);
+        offset = end;
+        this.output.write(chunk, err => {
+            if (err) {
+                return cb(err);
+            }
+            if (offset >= buf.length) {
+                return cb(null);
+            }
+            setTimeout(sendChunk, INTERVAL_MS);
+        });
+    };
+
+    sendChunk();
+};
+
 ClientTerminal.prototype.encode = function (s, convertLineFeeds) {
     convertLineFeeds = _.isBoolean(convertLineFeeds) ? convertLineFeeds : this.convertLF;
 

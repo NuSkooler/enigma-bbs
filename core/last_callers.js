@@ -227,28 +227,32 @@ exports.getModule = class LastCallersModule extends MenuModule {
                             return nextHistoryItem(null, item);
                         }
 
-                        sysDb.get(
-                            `SELECT ${indicatorSumsSql.join(', ')}
-                        FROM user_event_log
-                        WHERE user_id=? AND session_id=?
-                        LIMIT 1;`,
-                            [item.userId, item.sessionId],
-                            (err, results) => {
-                                if (_.isObject(results)) {
-                                    item.actions = '';
-                                    Object.keys(results).forEach(n => {
-                                        const indicator =
-                                            results[n] > 0
-                                                ? this.actionIndicators[n] ||
-                                                  this.actionIndicatorDefault
-                                                : this.actionIndicatorDefault;
-                                        item[n] = indicator;
-                                        item.actions += indicator;
-                                    });
-                                }
-                                return nextHistoryItem(null, item);
+                        try {
+                            const results = sysDb
+                                .prepare(
+                                    `SELECT ${indicatorSumsSql.join(', ')}
+                                    FROM user_event_log
+                                    WHERE user_id=? AND session_id=?
+                                    LIMIT 1;`
+                                )
+                                .get(item.userId, item.sessionId);
+
+                            if (_.isObject(results)) {
+                                item.actions = '';
+                                Object.keys(results).forEach(n => {
+                                    const indicator =
+                                        results[n] > 0
+                                            ? this.actionIndicators[n] ||
+                                              this.actionIndicatorDefault
+                                            : this.actionIndicatorDefault;
+                                    item[n] = indicator;
+                                    item.actions += indicator;
+                                });
                             }
-                        );
+                            return nextHistoryItem(null, item);
+                        } catch (err) {
+                            return nextHistoryItem(err);
+                        }
                     });
                 });
             },

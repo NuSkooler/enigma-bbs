@@ -264,7 +264,7 @@ function getSuitableMessageConfAndAreaTags(client) {
             }
             _.forEach(conf.areas, (area, at) => {
                 if (
-                    !_.includes(Message.WellKnownAreaTags, at) &&
+                    !Message.WellKnownAreaTags.includes(at) &&
                     client.acs.hasMessageAreaRead(area)
                 ) {
                     confTag = ct;
@@ -642,15 +642,18 @@ function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
 }
 
 function getMessageAreaLastReadId(userId, areaTag, cb) {
-    msgDb.get(
-        'SELECT message_id ' +
-            'FROM user_message_area_last_read ' +
-            'WHERE user_id = ? AND area_tag = ?;',
-        [userId, areaTag.toLowerCase()],
-        function complete(err, row) {
-            cb(err, row ? row.message_id : 0);
-        }
-    );
+    try {
+        const row = msgDb
+            .prepare(
+                'SELECT message_id ' +
+                    'FROM user_message_area_last_read ' +
+                    'WHERE user_id = ? AND area_tag = ?;'
+            )
+            .get(userId, areaTag.toLowerCase());
+        return cb(null, row ? row.message_id : 0);
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb) {
@@ -670,14 +673,17 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
             },
             function update(lastId, callback) {
                 if (allowOlder || messageId > lastId) {
-                    msgDb.run(
-                        'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) ' +
-                            'VALUES (?, ?, ?);',
-                        [userId, areaTag, messageId],
-                        function written(err) {
-                            callback(err, true); //  true=didUpdate
-                        }
-                    );
+                    try {
+                        msgDb
+                            .prepare(
+                                'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) ' +
+                                    'VALUES (?, ?, ?);'
+                            )
+                            .run(userId, areaTag, messageId);
+                        return callback(null, true); //  true=didUpdate
+                    } catch (err) {
+                        return callback(err);
+                    }
                 } else {
                     callback(null);
                 }
@@ -728,32 +734,31 @@ function trimMessageAreasScheduledEvent(args, cb) {
             return cb(null);
         }
 
-        msgDb.run(
-            `DELETE FROM message
-            WHERE message_id IN(
-                SELECT message_id
-                FROM message
-                WHERE area_tag = ?
-                ORDER BY message_id DESC
-                LIMIT -1 OFFSET ${areaInfo.maxMessages}
-            );`,
-            [areaInfo.areaTag.toLowerCase()],
-            function result(err) {
-                //  no arrow func; need this
-                if (err) {
-                    Log.error(
-                        { areaInfo: areaInfo, error: err.message, type: 'maxMessages' },
-                        'Error trimming message area'
-                    );
-                } else {
-                    Log.debug(
-                        { areaInfo: areaInfo, type: 'maxMessages', count: this.changes },
-                        'Area trimmed successfully'
-                    );
-                }
-                return cb(err);
-            }
-        );
+        try {
+            const info = msgDb
+                .prepare(
+                    `DELETE FROM message
+                    WHERE message_id IN(
+                        SELECT message_id
+                        FROM message
+                        WHERE area_tag = ?
+                        ORDER BY message_id DESC
+                        LIMIT -1 OFFSET ${areaInfo.maxMessages}
+                    );`
+                )
+                .run(areaInfo.areaTag.toLowerCase());
+            Log.debug(
+                { areaInfo: areaInfo, type: 'maxMessages', count: info.changes },
+                'Area trimmed successfully'
+            );
+            return cb(null);
+        } catch (err) {
+            Log.error(
+                { areaInfo: areaInfo, error: err.message, type: 'maxMessages' },
+                'Error trimming message area'
+            );
+            return cb(err);
+        }
     }
 
     function trimMessageAreaByMaxAgeDays(areaInfo, cb) {
@@ -761,53 +766,47 @@ function trimMessageAreasScheduledEvent(args, cb) {
             return cb(null);
         }
 
-        msgDb.run(
-            `DELETE FROM message
-            WHERE area_tag = ? AND modified_timestamp < date('now', '-${areaInfo.maxAgeDays} days');`,
-            [areaInfo.areaTag],
-            function result(err) {
-                //  no arrow func; need this
-                if (err) {
-                    Log.warn(
-                        { areaInfo: areaInfo, error: err.message, type: 'maxAgeDays' },
-                        'Error trimming message area'
-                    );
-                } else {
-                    Log.debug(
-                        { areaInfo: areaInfo, type: 'maxAgeDays', count: this.changes },
-                        'Area trimmed successfully'
-                    );
-                }
-                return cb(err);
-            }
-        );
+        try {
+            const info = msgDb
+                .prepare(
+                    `DELETE FROM message
+                    WHERE area_tag = ? AND modified_timestamp < date('now', '-${areaInfo.maxAgeDays} days');`
+                )
+                .run(areaInfo.areaTag);
+            Log.debug(
+                { areaInfo: areaInfo, type: 'maxAgeDays', count: info.changes },
+                'Area trimmed successfully'
+            );
+            return cb(null);
+        } catch (err) {
+            Log.warn(
+                { areaInfo: areaInfo, error: err.message, type: 'maxAgeDays' },
+                'Error trimming message area'
+            );
+            return cb(err);
+        }
     }
 
     async.waterfall(
         [
             function getAreaTags(callback) {
-                const areaTags = [];
-
                 //
                 //  We use SQL here vs API such that no-longer-used tags are picked up
                 //
-                msgDb.each(
-                    `SELECT DISTINCT area_tag
-                    FROM message;`,
-                    (err, row) => {
-                        if (err) {
-                            return callback(err);
-                        }
-
-                        //  We treat private mail special
-                        if (!Message.isPrivateAreaTag(row.area_tag)) {
-                            areaTags.push(row.area_tag);
-                        }
-                    },
-                    err => {
-                        return callback(err, areaTags);
-                    }
-                );
+                try {
+                    const rows = msgDb
+                        .prepare(
+                            `SELECT DISTINCT area_tag
+                            FROM message;`
+                        )
+                        .all();
+                    const areaTags = (rows || [])
+                        .map(row => row.area_tag)
+                        .filter(tag => !Message.isPrivateAreaTag(tag));
+                    return callback(null, areaTags);
+                } catch (err) {
+                    return callback(err);
+                }
             },
             function prepareAreaInfo(areaTags, callback) {
                 let areaInfos = [];
@@ -928,34 +927,33 @@ function trimMessageAreasScheduledEvent(args, cb) {
                     30
                 );
 
-                msgDb.run(
-                    `DELETE FROM message
-                    WHERE message_id IN (
-                        SELECT m.message_id
-                        FROM message m
-                        JOIN message_meta mms
-                            ON m.message_id = mms.message_id AND
-                            (mms.meta_category='System' AND mms.meta_name='${Message.SystemMetaNames.StateFlags0}' AND (mms.meta_value & ${Message.StateFlags0.Exported} = ${Message.StateFlags0.Exported}))
-                        JOIN message_meta mmf
-                            ON m.message_id = mmf.message_id AND
-                            (mmf.meta_category='System' AND mmf.meta_name='${Message.SystemMetaNames.ExternalFlavor}')
-                        WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND DATETIME('now') > DATETIME(m.modified_timestamp, '+${maxExternalSentAgeDays} days')
-                    );`,
-                    function results(err) {
-                        //  no arrow func; need this
-                        if (err) {
-                            Log.warn(
-                                { error: err.message },
-                                'Error trimming private externally sent messages'
-                            );
-                        } else {
-                            Log.debug(
-                                { count: this.changes },
-                                'Private externally sent messages trimmed successfully'
-                            );
-                        }
-                    }
-                );
+                try {
+                    const info = msgDb
+                        .prepare(
+                            `DELETE FROM message
+                            WHERE message_id IN (
+                                SELECT m.message_id
+                                FROM message m
+                                JOIN message_meta mms
+                                    ON m.message_id = mms.message_id AND
+                                    (mms.meta_category='System' AND mms.meta_name='${Message.SystemMetaNames.StateFlags0}' AND (mms.meta_value & ${Message.StateFlags0.Exported} = ${Message.StateFlags0.Exported}))
+                                JOIN message_meta mmf
+                                    ON m.message_id = mmf.message_id AND
+                                    (mmf.meta_category='System' AND mmf.meta_name='${Message.SystemMetaNames.ExternalFlavor}')
+                                WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND DATETIME('now') > DATETIME(m.modified_timestamp, '+${maxExternalSentAgeDays} days')
+                            );`
+                        )
+                        .run();
+                    Log.debug(
+                        { count: info.changes },
+                        'Private externally sent messages trimmed successfully'
+                    );
+                } catch (err) {
+                    Log.warn(
+                        { error: err.message },
+                        'Error trimming private externally sent messages'
+                    );
+                }
 
                 return callback(null);
             },

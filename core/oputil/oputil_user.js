@@ -124,14 +124,15 @@ function setUserPassword(user) {
 
 function removeUserRecordsFromDbAndTable(dbName, tableName, userId, col, cb) {
     const db = require('../../core/database.js').dbs[dbName];
-    db.run(
-        `DELETE FROM ${tableName}
-        WHERE ${col} = ?;`,
-        [userId],
-        err => {
-            return cb(err);
-        }
-    );
+    try {
+        db.prepare(
+            `DELETE FROM ${tableName}
+        WHERE ${col} = ?;`
+        ).run(userId);
+        return cb(null);
+    } catch (err) {
+        return cb(err);
+    }
 }
 
 function removeUser(user) {
@@ -171,6 +172,26 @@ function removeUser(user) {
                         return callback(Errors.General('User canceled'));
                     }
                 );
+            },
+            callback => {
+                //  Notify AP followers of actor deletion before wiping DB records.
+                //  Best-effort: failure here does not abort the delete.
+                const ActivityPubSettings = require('../activitypub/settings');
+                const apSettings = ActivityPubSettings.fromUser(user);
+                if (!apSettings.enabled) {
+                    return callback(null);
+                }
+
+                const { sendActorDelete } = require('../activitypub/boost_util');
+                console.info('Notifying ActivityPub followers of account deletion…');
+                sendActorDelete(user, err => {
+                    if (err) {
+                        console.warn(
+                            `Warning: failed to send Delete{Actor} to followers: ${err.message}`
+                        );
+                    }
+                    return callback(null); // always continue
+                });
             },
             callback => {
                 //  op has confirmed they are wanting ready to proceed (or passed --no-prompt)
@@ -231,14 +252,15 @@ function removeUser(user) {
                     async.eachSeries(
                         ids,
                         (messageId, nextMessageId) => {
-                            MsgDb.run(
-                                `DELETE FROM message
-                            WHERE message_id = ?;`,
-                                [messageId],
-                                err => {
-                                    return nextMessageId(err);
-                                }
-                            );
+                            try {
+                                MsgDb.prepare(
+                                    `DELETE FROM message
+                            WHERE message_id = ?;`
+                                ).run(messageId);
+                                return nextMessageId(null);
+                            } catch (err) {
+                                return nextMessageId(err);
+                            }
                         },
                         err => {
                             return callback(err);
@@ -274,15 +296,18 @@ function renameUser(user) {
             },
             callback => {
                 const userDb = require('../../core/database.js').dbs.user;
-                userDb.run(
-                    `UPDATE user
+                try {
+                    userDb
+                        .prepare(
+                            `UPDATE user
                     SET user_name = ?
-                    WHERE id = ?;`,
-                    [newUserName, user.userId],
-                    err => {
-                        return callback(err);
-                    }
-                );
+                    WHERE id = ?;`
+                        )
+                        .run(newUserName, user.userId);
+                    return callback(null);
+                } catch (err) {
+                    return callback(err);
+                }
             },
         ],
         err => {

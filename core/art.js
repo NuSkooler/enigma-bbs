@@ -49,8 +49,8 @@ function getFontNameFromSAUCE(sauce) {
 
 function getWidthFromSAUCE(sauce) {
     if (sauce && sauce.Character) {
-        let sauceWidth = _.toNumber(sauce.Character.characterWidth);
-        if (!_.isNaN(sauceWidth) && sauceWidth > 0) {
+        let sauceWidth = Number(sauce.Character.characterWidth);
+        if (!Number.isNaN(sauceWidth) && sauceWidth > 0) {
             return sauceWidth;
         }
     }
@@ -158,7 +158,7 @@ function getArt(name, options, cb) {
     if ('' !== ext) {
         options.types = [ext.toLowerCase()];
     } else {
-        if (_.isUndefined(options.types)) {
+        if (options.types === undefined) {
             options.types = Object.keys(SUPPORTED_ART_TYPES);
         } else if (_.isString(options.types)) {
             options.types = [options.types.toLowerCase()];
@@ -417,8 +417,29 @@ function display(client, art, options, cb) {
         });
     });
 
-    ansiParser.on('literal', literal => client.term.write(literal, false));
-    ansiParser.on('control', control => client.term.rawWrite(control));
+    //  Server-side baud emulation: collect all output into chunks, then drip at
+    //  the target byte rate after parsing completes. Works for every terminal.
+    //  baudRate / 10 = bytes/sec (standard 8N1: 8 data + 1 start + 1 stop bits).
+    const bytesPerSec = options.baudRate > 0 ? Math.floor(options.baudRate / 10) : 0;
+    const drip = bytesPerSec > 0;
+    const dripChunks = drip ? [] : null;
+
+    ansiParser.on('literal', literal => {
+        const encoded = client.term.encode(literal, false);
+        if (drip) {
+            dripChunks.push(encoded);
+        } else {
+            client.term.rawWrite(encoded);
+        }
+    });
+
+    ansiParser.on('control', control => {
+        if (drip) {
+            dripChunks.push(Buffer.isBuffer(control) ? control : Buffer.from(control));
+        } else {
+            client.term.rawWrite(control);
+        }
+    });
 
     ansiParser.on('complete', () => {
         ansiParser.removeAllListeners();
@@ -427,7 +448,13 @@ function display(client, art, options, cb) {
             height: ansiParser.row - 1,
         };
 
-        return cb(null, mciMap, extraInfo);
+        if (!drip) {
+            return cb(null, mciMap, extraInfo);
+        }
+
+        client.term.dripWrite(Buffer.concat(dripChunks), bytesPerSec, err =>
+            cb(err, mciMap, extraInfo)
+        );
     });
 
     let initSeq = '';

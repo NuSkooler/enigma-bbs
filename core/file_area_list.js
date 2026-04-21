@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule } = require('./menu_module.js');
+const { MenuModule, MenuFlags } = require('./menu_module.js');
 const ansi = require('./ansi_term.js');
 const FileEntry = require('./file_entry.js');
 const stringFormat = require('./string_format.js');
@@ -210,12 +210,17 @@ exports.getModule = class FileAreaList extends MenuModule {
                 function display(callback) {
                     return self.displayBrowsePage(false, err => {
                         if (err) {
+                            //  Remove fileBaseListEntries from history so that
+                            //  dismissing the no-results screen returns to the
+                            //  file menu, not back into this (empty) list.
+                            self.menuConfig.config.menuFlags.push(MenuFlags.NoHistory);
                             self.gotoMenu(
                                 self.menuConfig.config.noResultsMenu ||
                                     'fileBaseListEntriesNoResults'
                             );
+                            return callback(null);
                         }
-                        return callback(err);
+                        return callback(null);
                     });
                 },
             ],
@@ -264,9 +269,8 @@ exports.getModule = class FileAreaList extends MenuModule {
         //
         const metaValues = FileEntry.WellKnownMetaValues;
         metaValues.forEach(name => {
-            const value = !_.isUndefined(currEntry.meta[name])
-                ? currEntry.meta[name]
-                : 'N/A';
+            const value =
+                currEntry.meta[name] !== undefined ? currEntry.meta[name] : 'N/A';
             entryInfo[_.camelCase(name)] = value;
         });
 
@@ -811,11 +815,7 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     loadFileIds(force, cb) {
-        if (
-            force ||
-            _.isUndefined(this.fileList) ||
-            _.isUndefined(this.fileListPosition)
-        ) {
+        if (force || this.fileList === undefined || this.fileListPosition === undefined) {
             this.fileListPosition = 0;
 
             const filterCriteria = Object.assign({}, this.filterCriteria);

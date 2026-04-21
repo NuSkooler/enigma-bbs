@@ -7,6 +7,11 @@ const {
     prepareLocalUserAsActor,
 } = require('../../../activitypub/util');
 const { acceptFollowRequest } = require('../../../activitypub/follow_util');
+const {
+    fetchAnnouncedNote,
+    recordInboundBoost,
+    recordInboundLike,
+} = require('../../../activitypub/boost_util');
 const SysLog = require('../../../logger').log;
 const {
     ActivityStreamMediaType,
@@ -20,11 +25,24 @@ const ActivityPubSettings = require('../../../activitypub/settings');
 const Actor = require('../../../activitypub/actor');
 const Collection = require('../../../activitypub/collection');
 const Note = require('../../../activitypub/note');
+const ActivityPubObject = require('../../../activitypub/object');
 const EnigAssert = require('../../../enigma_assert');
 const Message = require('../../../message');
 const Events = require('../../../events');
 const { Errors } = require('../../../enig_error');
 const { getFullUrl } = require('../../../web_util');
+
+const {
+    validateRequestDate,
+    verifyDigestHeader,
+    normalizeHttpSigHeader,
+    actorIdFromKeyId,
+    hostsMatch,
+    verifyObjectOwner,
+    actorDomainMatchesKeyId,
+    readInboxBody,
+    MaxRequestAgeSecs,
+} = require('../../../activitypub/security');
 
 // deps
 const _ = require('lodash');
@@ -51,6 +69,17 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         this.log = webServer.logger().child({ webHandler: 'ActivityPub' });
         this.sysLog = SysLog.child({ webHandler: 'ActivityPub' });
 
+        //  If ActivityPub is disabled at the handler level, skip route
+        //  registration entirely — all AP paths will 404 naturally.
+        const enabled = _.get(
+            Config(),
+            'contentServers.web.handlers.activityPub.enabled',
+            false
+        );
+        if (!enabled) {
+            return cb(null);
+        }
+
         Events.addListener(Events.getSystemEvents().NewUserPrePersist, eventInfo => {
             const { user, callback } = eventInfo;
             return this._prepareNewUserAsActor(user, callback);
@@ -64,7 +93,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'POST',
-            path: /^\/_enig\/ap\/users\/.+\/inbox$/,
+            path: /^\/_enig\/ap\/users\/[^/]+\/inbox$/,
             handler: (req, resp) => {
                 return this._enforceMainKeySignatureValidity(
                     req,
@@ -102,26 +131,19 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/outbox(\?page=[0-9]+)?$/,
-            //  :TODO: fix me: What are we exposing to the outbox? Should be public only; GET's don't have signatures
-            handler: (req, resp) => {
-                return this._enforceMainKeySignatureValidity(
-                    req,
-                    resp,
-                    this._outboxGetHandler.bind(this)
-                );
-            },
+            path: /^\/_enig\/ap\/users\/[^/]+\/outbox(\?page=[0-9]+)?$/,
+            handler: this._outboxGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/followers(\?page=[0-9]+)?$/,
+            path: /^\/_enig\/ap\/users\/[^/]+\/followers(\?page=[0-9]+)?$/,
             handler: this._followersGetHandler.bind(this),
         });
 
         this.webServer.addRoute({
             method: 'GET',
-            path: /^\/_enig\/ap\/users\/.+\/following(\?page=[0-9]+)?$/,
+            path: /^\/_enig\/ap\/users\/[^/]+\/following(\?page=[0-9]+)?$/,
             handler: this._followingGetHandler.bind(this),
         });
 
@@ -130,6 +152,27 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note
             path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note$/,
             handler: this._singlePublicNoteGetHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/likes
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/likes$/,
+            handler: this._noteLikesGetHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/shares
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/shares$/,
+            handler: this._noteSharesGetHandler.bind(this),
+        });
+
+        this.webServer.addRoute({
+            method: 'GET',
+            // e.g. http://some.host/_enig/ap/bf81a22e-cb3e-41c8-b114-21f375b61124/note/context
+            path: /^\/_enig\/ap\/[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}\/note\/context$/,
+            handler: this._noteContextGetHandler.bind(this),
         });
 
         //  :TODO: NYI
@@ -146,6 +189,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         // the request must be signed, and the signature must be valid
         const signature = this._parseAndValidateSignature(req);
         if (!signature) {
+            this.log.warn(
+                { url: req.url, method: req.method },
+                'Signature validation failed — access denied'
+            );
             return this.webServer.accessDenied(resp);
         }
 
@@ -153,9 +200,18 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _parseAndValidateSignature(req) {
+        //  Normalize hs2019 → rsa-sha256 before parsing.
+        //  hs2019 is a draft-spec algorithm alias used by GoToSocial (and others);
+        //  it is functionally rsa-sha256 for RSA keys.
+        for (const h of ['signature', 'authorization']) {
+            if (req.headers[h] && req.headers[h].includes('hs2019')) {
+                this.log.info({ header: h }, 'Normalizing hs2019 → rsa-sha256');
+                req.headers[h] = normalizeHttpSigHeader(req.headers[h]);
+            }
+        }
+
         let signature;
         try {
-            //  :TODO: validate options passed to parseRequest()
             signature = httpSignature.parseRequest(req);
         } catch (e) {
             this.log.warn(
@@ -165,9 +221,21 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             return null;
         }
 
-        //  quick check up front
+        //  Sanity check: keyId must be a non-empty URL. The AP ecosystem uses
+        //  many key ID conventions (#main-key, /main-key, /keys/1, etc.) so we
+        //  only enforce that it looks like a URL; actual key verification happens below.
         const keyId = signature.keyId;
-        if (!keyId || !keyId.endsWith('#main-key')) {
+        if (!keyId || !/^https?:\/\//i.test(keyId)) {
+            return null;
+        }
+
+        //  Reject stale or future-dated requests to prevent replay attacks.
+        const dateReason = validateRequestDate(req.headers);
+        if (dateReason) {
+            this.log.warn(
+                { url: req.url, reason: dateReason },
+                'Rejected signed request: invalid Date header'
+            );
             return null;
         }
 
@@ -234,7 +302,26 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     }
 
                     Actor.fromId(signatureActorId, (err, signatureActor) => {
-                        return callback(err, objectActor, signatureActor);
+                        if (err) {
+                            return callback(err);
+                        }
+
+                        //  Domain binding: the fetched actor's canonical id must belong
+                        //  to the same host as the keyId.  Without this check an attacker
+                        //  could host a key at evil.example and return an actor JSON
+                        //  claiming id: "https://good.example/users/victim".
+                        if (
+                            signatureActor &&
+                            !actorDomainMatchesKeyId(signatureActor.id, signatureActorId)
+                        ) {
+                            return callback(
+                                Errors.ValidationFailed(
+                                    `Actor id domain (${signatureActor.id}) does not match keyId domain (${signatureActorId})`
+                                )
+                            );
+                        }
+
+                        return callback(null, objectActor, signatureActor);
                     });
                 },
             ],
@@ -248,14 +335,38 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         EnigAssert(signature, 'Called without signature!');
         EnigAssert(signature.keyId, 'No keyId in signature!');
 
-        const body = [];
-        req.on('data', d => {
-            body.push(d);
-        });
+        const maxBytes = _.get(
+            Config(),
+            'contentServers.web.handlers.activityPub.maxInboxBodyBytes',
+            1048576
+        );
 
-        req.on('end', () => {
+        readInboxBody(req, maxBytes, (err, rawBody) => {
+            if (err) {
+                if (err.code === 'ENTITY_TOO_LARGE') {
+                    this.log.warn(
+                        { url: req.url, maxBytes, inboxType },
+                        'Inbox body exceeds size limit — rejected'
+                    );
+                    return this.webServer.requestEntityTooLarge(resp);
+                }
+                return this.webServer.internalServerError(resp, err);
+            }
+
+            //  Independently verify the Digest header body hash when present.
+            //  The HTTP signature covers the Digest header, so a valid signature
+            //  proves the body hasn't been tampered with since signing — but only
+            //  if we also check that the Digest header matches the actual body.
+            if (!verifyDigestHeader(req.headers['digest'], rawBody)) {
+                this.log.warn(
+                    { url: req.url, inboxType },
+                    'Digest body hash mismatch — request body may have been tampered with'
+                );
+                return this.webServer.badRequest(resp);
+            }
+
             //  Collect and validate the posted Activity
-            const activity = Activity.fromJsonString(Buffer.concat(body).toString());
+            const activity = Activity.fromJsonString(rawBody.toString());
             if (!activity || !activity.isValid()) {
                 this.log.error(
                     { url: req.url, method: req.method, inboxType },
@@ -267,20 +378,75 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     : this.webServer.notImplemented(resp);
             }
 
+            //  Verify activity.id belongs to the same domain as activity.actor.
+            //  The id is used for deduplication and logging; a mismatch is a
+            //  sign of a forged or misrouted activity.
+            if (
+                activity.id &&
+                activity.actor &&
+                !hostsMatch(activity.id, activity.actor)
+            ) {
+                this.log.warn(
+                    { activityId: activity.id, actor: activity.actor, inboxType },
+                    'activity.id domain does not match actor domain — rejected'
+                );
+                return this.webServer.badRequest(resp);
+            }
+
+            const sigActorId = actorIdFromKeyId(signature.keyId);
+
             //  Fetch and validate the signature of the remote Actor
             this._getAssociatedActors(
                 getActorId(activity),
-                signature.keyId.split('#', 1)[0], // trim #main-key
+                sigActorId,
                 (err, remoteActor, signatureActor) => {
                     if (err) {
+                        //  For Delete activities the remote actor may have already been
+                        //  removed from the origin server before the Delete reaches us.
+                        //  If the objectId and keyId share the same hostname we accept
+                        //  the delete for Actor-type objects only (domain binding).
+                        //  Note deletes and all other activity types still require a
+                        //  verifiable signature.
+                        if (activity.type === WellKnownActivity.Delete) {
+                            const objectId = _.get(
+                                activity,
+                                'object.id',
+                                activity.object
+                            );
+                            if (
+                                objectId &&
+                                sigActorId &&
+                                hostsMatch(objectId, sigActorId)
+                            ) {
+                                this.log.info(
+                                    { objectId, sigActorId, inboxType },
+                                    'Delete: actor fetch failed; accepting via domain binding'
+                                );
+                                return this._inboxDeleteActivity(
+                                    inboxType,
+                                    resp,
+                                    activity,
+                                    false, // httpSigValidated
+                                    true // domainVerifiedOnly
+                                );
+                            }
+                        }
+                        this.log.warn(
+                            { err: err.message, sigActorId, inboxType },
+                            'Failed to fetch remote actor — access denied'
+                        );
                         return this.webServer.accessDenied(resp);
                     }
 
-                    // validate sig up front
+                    // validate sig up front — all activity types require a valid signature
                     const httpSigValidated =
                         remoteActor &&
                         this._validateActorSignature(signatureActor, signature);
-                    if (activity.type !== WellKnownActivity.Delete && !httpSigValidated) {
+                    if (!httpSigValidated) {
+                        this.log.warn(
+                            { sigActorId, activityType: activity.type, inboxType },
+                            'HTTP signature validation failed — access denied'
+                        );
                         return this.webServer.accessDenied(resp);
                     }
 
@@ -290,6 +456,9 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                         case WellKnownActivity.Add:
                             break;
+
+                        case WellKnownActivity.Announce:
+                            return this._inboxAnnounceActivity(resp, activity);
 
                         case WellKnownActivity.Create:
                             return this._inboxCreateActivity(resp, activity);
@@ -304,9 +473,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                         case WellKnownActivity.Update:
                             {
-                                //  Only Notes currently supported
                                 const type = _.get(activity, 'object.type');
-                                if ('Note' === type) {
+                                if ('Note' === type || 'Article' === type) {
                                     //  :TODO: get rid of this extra indirection
                                     return this._inboxUpdateExistingObject(
                                         inboxType,
@@ -314,8 +482,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                         activity,
                                         httpSigValidated
                                     );
+                                } else if ('Person' === type || 'Service' === type) {
+                                    //  Remote actor profile updates — silently accept;
+                                    //  actor cache will refresh on next access
+                                    return this.webServer.accepted(resp);
                                 } else {
                                     this.log.warn(
+                                        { type },
                                         `Unsupported Inbox Update for type "${type}"`
                                     );
                                 }
@@ -323,35 +496,32 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                             break;
 
                         case WellKnownActivity.Follow:
-                            // Follow requests are only allowed directly
-                            if (Collections.Inbox === inboxType) {
-                                return this._inboxFollowActivity(
-                                    resp,
-                                    remoteActor,
-                                    activity
-                                );
-                            }
-                            break;
+                            return this._inboxFollowActivity(resp, remoteActor, activity);
+
+                        case WellKnownActivity.Like:
+                            return this._inboxLikeActivity(resp, activity);
 
                         case WellKnownActivity.Reject:
                             return this._inboxRejectActivity(resp, activity);
 
-                        case WellKnownActivity.Undo:
-                            //  We only Undo from private inboxes
-                            if (Collections.Inbox === inboxType) {
-                                //  Only Follow Undo's currently supported
-                                const type = _.get(activity, 'object.type');
-                                if (WellKnownActivity.Follow === type) {
-                                    return this._inboxUndoActivity(
-                                        resp,
-                                        remoteActor,
-                                        activity
-                                    );
-                                } else {
-                                    this.log.warn(`Unsupported Undo for type "${type}"`);
-                                }
+                        case WellKnownActivity.Undo: {
+                            const undoType = _.get(activity, 'object.type');
+                            if (WellKnownActivity.Follow === undoType) {
+                                return this._inboxUndoActivity(
+                                    resp,
+                                    remoteActor,
+                                    activity
+                                );
+                            } else if (WellKnownActivity.Like === undoType) {
+                                return this._inboxUndoLikeActivity(resp, activity);
+                            } else {
+                                this.log.warn(
+                                    { undoType, inboxType },
+                                    'Unsupported Undo activity type'
+                                );
                             }
                             break;
+                        }
 
                         default:
                             this.log.warn(
@@ -386,6 +556,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const createWhat = _.get(activity, 'object.type');
         switch (createWhat) {
             case 'Note':
+            case 'Article':
                 return this._inboxCreateNoteActivity(resp, activity);
 
             default:
@@ -414,7 +585,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         const note = new Note(activity.object);
         if (!note.isValid()) {
             this.log.warn({ note }, 'Invalid Note');
-            return this.webServer.notImplemented();
+            return this.webServer.notImplemented(resp);
         }
 
         const recipientActorIds = note.recipientIds();
@@ -440,9 +611,120 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                     return this.webServer.internalServerError(resp, err);
                 }
 
-                return this.webServer.created(resp);
+                return this.webServer.accepted(resp);
             }
         );
+    }
+
+    _inboxAnnounceActivity(resp, activity) {
+        //  Announce.object may be a URL string or an embedded object.
+        const announceActorId =
+            typeof activity.actor === 'string'
+                ? activity.actor
+                : activity.actor && activity.actor.id;
+        fetchAnnouncedNote(activity.object, announceActorId, (err, note) => {
+            if (err) {
+                this.log.warn(
+                    {
+                        activityId: activity.id,
+                        object: activity.object,
+                        error: err.message,
+                    },
+                    'Failed to resolve Announce object — ignoring'
+                );
+                //  Return accepted so the remote server does not keep retrying;
+                //  the content just won't appear locally.
+                return this.webServer.accepted(resp);
+            }
+
+            if (!note.isValid()) {
+                this.log.warn(
+                    { activityId: activity.id, noteId: note.id },
+                    'Announced Note failed validation'
+                );
+                return this.webServer.accepted(resp);
+            }
+
+            //  Store the Announce activity + metadata in the shared inbox collection.
+            recordInboundBoost(activity, note, err => {
+                if (err) {
+                    this.log.error(
+                        { activityId: activity.id, noteId: note.id, error: err.message },
+                        'Failed to record inbound boost'
+                    );
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                //  Ensure the Note itself exists as a local BBS message.
+                //  toMessage() generates a deterministic UUID so persist() is idempotent:
+                //  if a Create/Note already delivered this content, the SQLITE_CONSTRAINT
+                //  on message_uuid is silently swallowed.
+                this._storeNoteAsMessage(
+                    activity.id,
+                    'All',
+                    Message.WellKnownAreaTags.ActivityPubShared,
+                    note,
+                    err => {
+                        if (err && err.code !== 'SQLITE_CONSTRAINT') {
+                            this.log.error(
+                                {
+                                    activityId: activity.id,
+                                    noteId: note.id,
+                                    error: err.message,
+                                },
+                                'Failed to store announced Note as message'
+                            );
+                        }
+                        return this.webServer.accepted(resp);
+                    }
+                );
+            });
+        });
+    }
+
+    _inboxLikeActivity(resp, activity) {
+        const objectId = _.isString(activity.object)
+            ? activity.object
+            : _.get(activity, 'object.id');
+
+        this.log.info({ actorId: activity.actor, objectId }, 'Incoming Like activity');
+
+        recordInboundLike(activity, err => {
+            if (err) {
+                this.log.warn(
+                    { activityId: activity.id, objectId, error: err.message },
+                    'Failed to record inbound Like'
+                );
+                //  Non-fatal: always accept so the remote doesn't keep retrying
+            }
+            return this.webServer.accepted(resp);
+        });
+    }
+
+    _inboxUndoLikeActivity(resp, activity) {
+        //  activity.object is the original Like activity; its .id is the activity_id
+        //  we stored in note_reactions when the Like arrived.
+        const likeActivityId = _.get(activity, 'object.id');
+
+        this.log.info(
+            { actorId: activity.actor, likeActivityId },
+            'Incoming Undo{Like} activity'
+        );
+
+        if (!likeActivityId) {
+            return this.webServer.badRequest(resp);
+        }
+
+        Collection.removeReactionByActivityId(likeActivityId, err => {
+            if (err) {
+                this.log.warn(
+                    { likeActivityId, error: err.message },
+                    'Failed to remove Like reaction'
+                );
+                //  Non-fatal: always accept so the remote doesn't keep retrying
+            }
+            return this.webServer.accepted(resp);
+        });
     }
 
     _inboxRejectFollowActivity(resp, activity) {
@@ -503,7 +785,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         );
     }
 
-    _inboxDeleteActivity(inboxType, resp, activity, httpSigValidated) {
+    _inboxDeleteActivity(
+        inboxType,
+        resp,
+        activity,
+        httpSigValidated,
+        domainVerifiedOnly = false
+    ) {
         const objectId = _.get(activity, 'object.id', activity.object);
 
         this.log.info({ inboxType, objectId }, 'Incoming Delete request');
@@ -552,8 +840,8 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
 
                                 return this._verifyObjectOwner(
                                     httpSigValidated,
+                                    false, // Notes always require a proper sig
                                     objInfo.object,
-                                    activity,
                                     err => {
                                         if (err) {
                                             this.log.warn(
@@ -604,10 +892,75 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                                 );
 
                             case Collections.Actors:
-                                // Validate signature; Delete Actor and Following entries if any
-                                break;
+                                return this._verifyObjectOwner(
+                                    httpSigValidated,
+                                    domainVerifiedOnly,
+                                    objInfo.object,
+                                    err => {
+                                        if (err) {
+                                            this.log.warn(
+                                                {
+                                                    error: err.message,
+                                                    objectId,
+                                                },
+                                                'Will not Delete Actor: signature mismatch'
+                                            );
+                                            return nextObjInfo(null);
+                                        }
 
-                            case Collection.Following:
+                                        async.series(
+                                            [
+                                                //  Evict from actor cache
+                                                next =>
+                                                    this._deleteObjectWithStats(
+                                                        Collections.Actors,
+                                                        objInfo.object,
+                                                        stats,
+                                                        next
+                                                    ),
+                                                //  Unfollow: remove from all local Following lists
+                                                next =>
+                                                    Collection.removeById(
+                                                        Collections.Following,
+                                                        objectId,
+                                                        removeErr => {
+                                                            if (removeErr) {
+                                                                this.log.warn(
+                                                                    {
+                                                                        objectId,
+                                                                        error: removeErr.message,
+                                                                    },
+                                                                    'Failed removing Following entries for deleted Actor'
+                                                                );
+                                                            }
+                                                            return next(null);
+                                                        }
+                                                    ),
+                                                //  Remove from all local Followers lists
+                                                next =>
+                                                    Collection.removeById(
+                                                        Collections.Followers,
+                                                        objectId,
+                                                        removeErr => {
+                                                            if (removeErr) {
+                                                                this.log.warn(
+                                                                    {
+                                                                        objectId,
+                                                                        error: removeErr.message,
+                                                                    },
+                                                                    'Failed removing Followers entries for deleted Actor'
+                                                                );
+                                                            }
+                                                            return next(null);
+                                                        }
+                                                    ),
+                                            ],
+                                            () => nextObjInfo(null)
+                                        );
+                                    }
+                                );
+
+                            case Collections.Following:
                                 break;
 
                             default:
@@ -627,7 +980,10 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 },
                 err => {
                     if (err) {
-                        //  :TODO: log me
+                        this.log.error(
+                            { error: err.message, inboxType },
+                            'Error during Delete processing'
+                        );
                     }
 
                     this.sysLog.info(
@@ -640,8 +996,6 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 }
             );
         });
-
-        return this.webServer.accepted(resp);
     }
 
     _updateMessageAssocWithNote(objectId, activity) {
@@ -714,30 +1068,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         });
     }
 
-    _verifyObjectOwner(httpSigValidated, object, activity, cb) {
-        if (httpSigValidated) {
-            //  owner signed
-            return cb(null);
-        }
-
-        const creator = activity.signature?.creator;
-        if (creator !== `${object.actor}#main-key`) {
-            return cb(Errors.ValidationFailed('Creator mismatch'));
-        }
-
-        //
-        //  We can't fetch an Actor for deleted Actors, so
-        //  we're left with a basic comparison (above)
-        //
-        if (object.type === 'Actor') {
-            return cb(null);
-        }
-
-        return cb(
-            Errors.ValidationFailed(
-                'Object does not appear to be owned by calling Activity'
-            )
+    _verifyObjectOwner(httpSigValidated, domainVerifiedOnly, object, cb) {
+        const reason = verifyObjectOwner(
+            httpSigValidated,
+            domainVerifiedOnly,
+            object && object.type
         );
+        return reason ? cb(Errors.ValidationFailed(reason)) : cb(null);
     }
 
     _inboxFollowActivity(resp, remoteActor, activity) {
@@ -785,7 +1122,13 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _inboxRejectActivity(resp, activity) {
-        const rejectWhat = _.get(activity, 'object.type');
+        //  The spec allows activity.object to be a full object or just an ID string.
+        //  When it's a string, we cannot inspect .type, but Follow is the only Reject
+        //  we handle, so treat a bare string as an implicit Follow rejection.
+        const rejectWhat = _.isString(activity.object)
+            ? WellKnownActivity.Follow
+            : _.get(activity, 'object.type');
+
         switch (rejectWhat) {
             case WellKnownActivity.Follow:
                 return this._inboxRejectFollowActivity(resp, activity);
@@ -902,7 +1245,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            this._verifyObjectOwner(httpSigValidated, obj, activity, err => {
+            this._verifyObjectOwner(httpSigValidated, false, obj, err => {
                 if (err) {
                     this.log.warn(
                         {
@@ -1110,9 +1453,124 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            //  :TODO: support a template here
+            //  AP clients (Mastodon, etc.) send Accept: application/activity+json.
+            //  Return the full Note object as JSON so they get likes/shares/context fields.
+            //  Web browsers get the raw HTML content.
+            const accept = req.headers.accept || '';
+            if (
+                accept.includes(ActivityStreamMediaType) ||
+                accept.includes('application/ld+json')
+            ) {
+                //  Notes are stored without @context (they're normally embedded in
+                //  a Create wrapper).  When served standalone, add it so remote
+                //  servers can parse the document as valid JSON-LD.
+                const noteWithContext = Object.assign(
+                    {
+                        '@context': ActivityPubObject.makeContext([], {
+                            sensitive: 'as:sensitive',
+                        }),
+                    },
+                    note
+                );
+                const body = JSON.stringify(noteWithContext);
+                return this.webServer.ok(resp, body, {
+                    'Content-Type': ActivityStreamMediaType,
+                });
+            }
 
             return this.webServer.ok(resp, note.content);
+        });
+    }
+
+    _noteLikesGetHandler(req, resp) {
+        return this._noteReactionCollectionHandler(req, resp, 'Like');
+    }
+
+    _noteSharesGetHandler(req, resp) {
+        return this._noteReactionCollectionHandler(req, resp, 'Announce');
+    }
+
+    _noteContextGetHandler(req, resp) {
+        this.log.debug({ url: req.url }, 'Request for "Note" context collection');
+
+        //  Reconstruct the Note ID by stripping the /context suffix.
+        const fullUrl = getFullUrl(req).toString();
+        const noteId = fullUrl.replace(/\/context$/, '');
+
+        //  The context ID for a root note equals the noteId itself; for replies it
+        //  equals the root's noteId.  Use noteId as the context to query, which
+        //  returns all notes in the thread whose context field points to this note.
+        Collection.getCollectionByContext(
+            Collections.SharedInbox,
+            noteId,
+            (err, result) => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                const notes = [];
+                (result.rows || []).forEach(row => {
+                    try {
+                        const activity = JSON.parse(row.object_json);
+                        if (
+                            activity &&
+                            typeof activity.object === 'object' &&
+                            activity.object.type === 'Note'
+                        ) {
+                            notes.push(activity.object);
+                        }
+                    } catch (_) {
+                        // skip malformed rows
+                    }
+                });
+
+                const collection = {
+                    '@context': 'https://www.w3.org/ns/activitystreams',
+                    id: fullUrl,
+                    type: 'OrderedCollection',
+                    totalItems: notes.length,
+                    orderedItems: notes,
+                };
+
+                const body = JSON.stringify(collection);
+                return this.webServer.ok(resp, body, {
+                    'Content-Type': ActivityStreamMediaType,
+                });
+            }
+        );
+    }
+
+    _noteReactionCollectionHandler(req, resp, reactionType) {
+        //  Reconstruct the Note ID by stripping the /likes or /shares suffix
+        const fullUrl = getFullUrl(req).toString();
+        const noteId = fullUrl.replace(/\/(likes|shares)$/, '');
+
+        Note.fromPublicNoteId(noteId, (err, note) => {
+            if (err) {
+                return this.webServer.internalServerError(resp, err);
+            }
+            if (!note) {
+                return this.webServer.resourceNotFound(resp);
+            }
+
+            Collection.getReactionActors(noteId, reactionType, (err, actors) => {
+                if (err) {
+                    return this.webServer.internalServerError(resp, err);
+                }
+
+                const collection = {
+                    '@context': 'https://www.w3.org/ns/activitystreams',
+                    id: fullUrl,
+                    type: 'OrderedCollection',
+                    totalItems: actors.length,
+                    orderedItems: actors,
+                };
+
+                const body = JSON.stringify(collection);
+                return this.webServer.ok(resp, body, {
+                    'Content-Type': ActivityStreamMediaType,
+                });
+            });
         });
     }
 
@@ -1142,7 +1600,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
             localUser,
             localActor,
             DefaultProfileTemplate,
-            'text/plain',
+            'text/html',
             (err, body, contentType) => {
                 if (err) {
                     return this.webServer.resourceNotFound(resp);

@@ -17,6 +17,7 @@ ENiGMA½ supports running local BBS door games through several approaches. In ad
 | **[Native v86 Emulation](local-doors-v86.md)** | `v86_door` | DOS doors, no emulator on server | FreeDOS disk image |
 | **[External DOS Emulators](local-doors-dos-emulation.md)** | `abracadabra` | DOS doors, full graphical setup | QEMU or DOSEMU installed |
 | **[Scripts & Native Binaries](local-doors-abracadabra.md)** | `abracadabra` | Native terminal apps, shell/Python scripts | None |
+| **[Z-Machine Interactive Fiction](local-doors-zmachine.md)** | `zmachine_door` | Zork, Adventure, Photopia, and hundreds of free IF games | None (pure JavaScript) |
 
 ### Quick Guide
 
@@ -25,6 +26,8 @@ ENiGMA½ supports running local BBS door games through several approaches. In ad
 - **Already have a QEMU or DOSEMU setup, or need a full graphical DOS environment for image configuration?** → [External DOS Emulators](local-doors-dos-emulation.md). Raw disk images are compatible with both approaches, so you can configure with QEMU and run with v86.
 
 - **Running a native terminal application, a shell script, or a Python-based door?** → [Scripts & Native Binaries](local-doors-abracadabra.md). The `abracadabra` module launches any local process that speaks stdio and bridges I/O over stdin/stdout or a TCP socket.
+
+- **Running a Z-Machine interactive fiction game (`.z3`/`.z5`/`.z8`)?** → [Z-Machine Interactive Fiction](local-doors-zmachine.md). Classic Infocom-era text adventures and modern IF competition winners — Zork, Adventure, Photopia, Anchorhead, Lost Pig, etc. — run natively in Node.js with no emulator, no drop file, and cross-platform support.
 
 ---
 

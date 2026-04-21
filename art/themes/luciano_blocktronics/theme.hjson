@@ -1372,60 +1372,63 @@
 							width: 34
 						}
 						HM3: {
-							focusTextStyle: first lower
-							styleSGR1: "|00|08"
+							itemFormat: "|08[|03{text}|08]"
+							focusItemFormat: "|08[|11{text!styleFirstLower}|08]"
 						}
 						MT10: {
 							width: 22
 							height: 2
+							mode: preview
+							acceptsFocus: false
+							acceptsInput: false
 						}
 					}
 				}
 			}
 
-			activityPubActorSearch: {
+			activityPubSearch: {
 				config: {
-					followingIndicator: "|00|14FOLLOWING"
-					notFollowingIndicator: "|00|12not following"
-					viewInfoFormat10: "{actorFollowingIndicator}"
+					followingIndicator:    "|00|14YES"
+					notFollowingIndicator: "|00|12NO"
+					//  Form 0 (main): TL10+ custom fields
+					mainInfoFormat10: "|11{statusText}"
+					//  Form 1 (actor view): TL10+ custom fields — all optional
+					actorViewInfoFormat10: "{handle}"
+					actorViewInfoFormat11: "{followIndicator}"
+					actorViewInfoFormat12: "{preferredUsername}"
+					actorViewInfoFormat13: "{displayName}"
+					actorViewInfoFormat14: "{published}"
+					actorViewInfoFormat15: "{manuallyApprovesFollowers}"
+					actorViewInfoFormat16: "{followersCount}"
+					actorViewInfoFormat17: "{followingCount}"
 				}
 				0: {
 					mci: {
-						TL1: {
-							width: 70
-							submit: true
+						HM1: {
+							width: 30
+							itemFormat: "|08[|03{text}|08]"
+							focusItemFormat: "|08[|11{text!styleFirstLower}|08]"
+						}
+						ET2: {
+							width: 50
+						}
+						VM3: {
+							width: 79
+							height: 14
+						}
+						TL10: {
+							width: 65
 						}
 					}
 				}
 				1: {
 					mci: {
-						TL1: {
-							width: 70
-						}
-						TL2: {
-							width: 70
-						}
-						TL3: {
-							width: 70
-						}
-						TL4: {
-							width: 10
-						}
-						TL5: {
-							width: 4
-						}
-						TL6: {
-							width: 4
-						}
-						MT7: {
-							focus: true
+						MT1: {
 							width: 69
 							height: 3
-							mode: preview
 						}
-						TL10: {
-							width: 24
-
+						TL11: {
+							width: 10
 						}
 					}
 				}
@@ -1459,6 +1462,174 @@
 						width: 70
 						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts:<15.16} |15{newIndicator}"
 						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts:<15.16} {newIndicator}"
+					}
+				}
+			}
+
+			activityPubMsgBrowser: {
+				config: {
+					mainInfoFormat10: "{modeLabel}"
+				}
+				0: {
+					mci: {
+						VM1: {
+							itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							height: 14
+							width: 72
+						}
+						TL10: {
+							width: 12
+						}
+						TL11: {
+							width: 5
+						}
+					}
+				}
+			}
+
+			activityPubThread: {
+				config: {
+					mainInfoFormat10: "{modeLabel}"
+				}
+				0: {
+					mci: {
+						VM1: {
+							itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+							height: 14
+							width: 72
+						}
+						TL10: {
+							width: 12
+						}
+						TL11: {
+							width: 5
+						}
+					}
+				}
+			}
+
+			activityPubBrowseLocal: {
+			config: {
+				mainInfoFormat10: "{modeLabel}"
+			}
+			0: {
+				mci: {
+					VM1: {
+						itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						height: 14
+						width: 72
+					}
+					TL10: {
+						width: 12
+					}
+					TL11: {
+						width: 5
+					}
+				}
+			}
+		}
+
+		activityPubBrowseFavorites: {
+			config: {
+				mainInfoFormat10: "{modeLabel}"
+			}
+			0: {
+				mci: {
+					VM1: {
+						itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						height: 14
+						width: 72
+					}
+					TL10: {
+						width: 12
+					}
+					TL11: {
+						width: 5
+					}
+				}
+			}
+		}
+
+		activityPubBrowseMentions: {
+			config: {
+				mainInfoFormat10: "{modeLabel}"
+			}
+			0: {
+				mci: {
+					VM1: {
+						itemFormat:      "|00|03{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						focusItemFormat: "|00|19|15{from:<20.20} {subject:<29.29} {date:<12.12} |12{likes:>2} |10{boosts:>2} |13{att}"
+						height: 14
+						width: 72
+					}
+					TL10: {
+						width: 12
+					}
+					TL11: {
+						width: 5
+					}
+				}
+			}
+		}
+
+		activityPubCompose: {
+					0: {
+						mci: {
+							TL1: { width: 19, textOverflow: "..." }
+							ET2: { width: 19, textOverflow: "..." }
+							ET3: { width: 19, textOverflow: "..." }
+							ET4: { width: 21, textOverflow: "..." }
+						}
+					}
+					1: {
+						mci: {
+							MT1: { height: 14 }
+						}
+					}
+				}
+
+			activityPubMsgViewer: {
+				config: {
+					bodyInfoFormat10: "{modeLabel}"
+					bodyInfoFormat11: "{from:<40.40}"
+					bodyInfoFormat12: "{subject:<40.40}"
+					bodyInfoFormat13: "{date:<14.14}"
+					bodyInfoFormat14: "|12{likeIndicator} {likes} |10{boostIndicator} {boosts} |13{att}"
+				}
+				//  Form 1 — body art (activitypub_msg_viewer.ans)
+				1: {
+					mci: {
+						MT1: {
+							mode: preview
+							width: 78
+							height: 17
+						}
+						ET10: {
+							width: 20
+						}
+						ET11: {
+							width: 40
+						}
+						ET12: {
+							width: 40
+						}
+						ET13: {
+							width: 13
+						}
+					}
+				}
+				//  Form 4 — footer art (activitypub_msg_viewer_footer.ans)
+				4: {
+					mci: {
+						HM1: {
+							focusTextStyle: first lower
+							styleSGR1: "|03"
+							styleSGR2: "|11"
+						}
 					}
 				}
 			}

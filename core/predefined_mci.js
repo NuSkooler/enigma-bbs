@@ -140,7 +140,7 @@ const PREDEFINED_MCI_GENERATORS = {
         return client.user.userId.toString();
     },
     UG: function groups(client) {
-        return _.values(client.user.groups).join(', ');
+        return Object.values(client.user.groups).join(', ');
     },
     UR: function realName(client) {
         return userStatAsString(client, UserProps.RealName, '');

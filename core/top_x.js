@@ -42,8 +42,8 @@ exports.getModule = class TopXModule extends MenuModule {
             async.series(
                 [
                     callback => {
-                        const userPropValues = _.values(UserProps);
-                        const userLogValues = _.values(UserLogNames);
+                        const userPropValues = Object.values(UserProps);
+                        const userLogValues = Object.values(UserLogNames);
 
                         const hasMci = (c, t) => {
                             if (!Array.isArray(t)) {
@@ -186,55 +186,51 @@ exports.getModule = class TopXModule extends MenuModule {
             ? `AND DATETIME(timestamp) >= DATETIME('now', '-${daysBack} days')`
             : '';
 
-        SysDb.all(
-            `SELECT user_id, ${valueSql} AS value
-            FROM user_event_log
-            WHERE log_name = ? ${dateSql}
-            GROUP BY user_id
-            ORDER BY value DESC
-            LIMIT ${count};`,
-            [mciMap.value],
-            (err, rows) => {
+        try {
+            const rows = SysDb.prepare(
+                `SELECT user_id, ${valueSql} AS value
+                FROM user_event_log
+                WHERE log_name = ? ${dateSql}
+                GROUP BY user_id
+                ORDER BY value DESC
+                LIMIT ${count};`
+            ).all(mciMap.value);
+
+            this.rowsToItems(rows, (err, items) => {
                 if (err) {
                     return cb(err);
                 }
-
-                this.rowsToItems(rows, (err, items) => {
-                    if (err) {
-                        return cb(err);
-                    }
-                    listView.setItems(items);
-                    listView.redraw();
-                    return cb(null);
-                });
-            }
-        );
+                listView.setItems(items);
+                listView.redraw();
+                return cb(null);
+            });
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     populateTopXUserProp(listView, mciCode, cb) {
         const count = listView.dimens.height || 1;
-        UserDb.all(
-            `SELECT user_id, CAST(prop_value AS INTEGER) AS value
-            FROM user_property
-            WHERE prop_name = ?
-            ORDER BY value DESC
-            LIMIT ${count};`,
-            [this.config.mciMap[mciCode].value],
-            (err, rows) => {
+        try {
+            const rows = UserDb.prepare(
+                `SELECT user_id, CAST(prop_value AS INTEGER) AS value
+                FROM user_property
+                WHERE prop_name = ?
+                ORDER BY value DESC
+                LIMIT ${count};`
+            ).all(this.config.mciMap[mciCode].value);
+
+            this.rowsToItems(rows, (err, items) => {
                 if (err) {
                     return cb(err);
                 }
-
-                this.rowsToItems(rows, (err, items) => {
-                    if (err) {
-                        return cb(err);
-                    }
-                    listView.setItems(items);
-                    listView.redraw();
-                    return cb(null);
-                });
-            }
-        );
+                listView.setItems(items);
+                listView.redraw();
+                return cb(null);
+            });
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     loadUserInfo(userId, cb) {

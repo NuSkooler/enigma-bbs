@@ -13,7 +13,7 @@ const { TextView } = require('./text_view.js');
 const _ = require('lodash');
 const async = require('async');
 const moment = require('moment');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 exports.moduleInfo = {
     name: 'Sysop Chat',
@@ -42,7 +42,7 @@ const sessions = new Map();
 exports.getSessions = () => sessions;
 
 exports.createSession = (userClient, message) => {
-    const id = uuidv4();
+    const id = randomUUID();
     sessions.set(id, {
         id,
         state: 'pending',

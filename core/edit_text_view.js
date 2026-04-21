@@ -222,7 +222,10 @@ class EditTextView extends TextView {
         const fill = fillCount > 0 ? this.getFocusSGR() + ' '.repeat(fillCount) : '';
 
         this.client.term.write(
-            `${ansi.hideCursor()}${ansi.goto(this.position.row, this.position.col)}${fullLine}${fill}`,
+            `${ansi.hideCursor()}${ansi.goto(
+                this.position.row,
+                this.position.col
+            )}${fullLine}${fill}`,
             false
         );
         this._repositionCursor();

@@ -512,21 +512,29 @@ module.exports = class User {
 
         async.waterfall(
             [
-                function beginTransaction(callback) {
-                    return userDb.beginTransaction(callback);
-                },
-                function createUserRec(trans, callback) {
-                    trans.run(
-                        `INSERT INTO user (user_name)
-                        VALUES (?);`,
-                        [self.username],
-                        function inserted(err) {
-                            //  use classic function for |this|
+                //  1. Async: generate password credentials
+                function genAuthCredentials(callback) {
+                    User.generatePasswordDerivedKeyAndSalt(
+                        createUserInfo.password,
+                        (err, info) => {
                             if (err) {
                                 return callback(err);
                             }
+                            self.properties[UserProps.PassPbkdf2Salt] = info.salt;
+                            self.properties[UserProps.PassPbkdf2Dk] = info.dk;
+                            return callback(null);
+                        }
+                    );
+                },
 
-                            self.userId = this.lastID;
+                //  2. DB transaction: insert user record + all properties + groups
+                function persistUser(callback) {
+                    try {
+                        userDb.transaction(() => {
+                            const info = userDb
+                                .prepare(`INSERT INTO user (user_name) VALUES (?);`)
+                                .run(self.username);
+                            self.userId = info.lastInsertRowid;
 
                             //  Do not require activation for userId 1 (root/admin)
                             if (User.RootUserID === self.userId) {
@@ -534,47 +542,49 @@ module.exports = class User {
                                     User.AccountStatus.active;
                             }
 
-                            return callback(null, trans);
-                        }
-                    );
-                },
-                function genAuthCredentials(trans, callback) {
-                    User.generatePasswordDerivedKeyAndSalt(
-                        createUserInfo.password,
-                        (err, info) => {
-                            if (err) {
-                                return callback(err);
+                            //  Assign initial groups. Clone to avoid #235 (all users becoming sysops).
+                            self.groups = [...config.users.defaultGroups];
+                            if (User.RootUserID === self.userId) {
+                                self.groups.push('sysops');
                             }
 
-                            self.properties[UserProps.PassPbkdf2Salt] = info.salt;
-                            self.properties[UserProps.PassPbkdf2Dk] = info.dk;
-                            return callback(null, trans);
-                        }
-                    );
-                },
-                function setInitialGroupMembership(trans, callback) {
-                    //  Assign initial groups. Must perform a clone: #235 - All users are sysops (and I can't un-sysop them)
-                    self.groups = [...config.users.defaultGroups];
+                            const propStmt = userDb.prepare(
+                                `REPLACE INTO user_property (user_id, prop_name, prop_value)
+                                VALUES (?, ?, ?);`
+                            );
+                            _.merge(self.properties, self.properties);
+                            for (const [k, v] of Object.entries(self.properties)) {
+                                propStmt.run(self.userId, k, v);
+                            }
 
-                    if (User.RootUserID === self.userId) {
-                        //  root/SysOp?
-                        self.groups.push('sysops');
+                            const groupStmt = userDb.prepare(
+                                `REPLACE INTO user_group_member (group_name, user_id)
+                                VALUES (?, ?);`
+                            );
+                            for (const group of self.groups) {
+                                groupStmt.run(group, self.userId);
+                            }
+                        })();
+                        return callback(null);
+                    } catch (err) {
+                        return callback(err);
                     }
-
-                    return callback(null, trans);
                 },
-                function newUserPreEvent(trans, callback) {
+
+                //  3. Async: NewUserPrePersist event — fires after DB commit so userId is set.
+                //     Listeners (e.g. ActivityPub) may write to other databases here.
+                function newUserPreEvent(callback) {
                     const eventName = Events.getSystemEvents().NewUserPrePersist;
                     const subCount = Events.listenerCount(eventName);
                     if (subCount < 1) {
-                        return callback(null, trans);
+                        return callback(null);
                     }
 
                     let returned = 0;
                     const cbWrapper = e => {
                         ++returned;
                         if (returned >= subCount) {
-                            return callback(e, trans);
+                            return callback(e);
                         }
                     };
 
@@ -584,48 +594,15 @@ module.exports = class User {
                         callback: cbWrapper,
                     });
                 },
-                function saveAll(trans, callback) {
-                    self.persistWithTransaction(trans, err => {
-                        return callback(err, trans);
-                    });
-                },
-                function newUserEvent(trans, callback) {
+
+                //  4. NewUser event (fire-and-forget)
+                function newUserEvent(callback) {
                     Events.emit(Events.getSystemEvents().NewUser, {
                         user: Object.assign({}, self, {
                             sessionId: createUserInfo.sessionId,
                         }),
                     });
-                    return callback(null, trans);
-                },
-            ],
-            (err, trans) => {
-                if (trans) {
-                    trans[err ? 'rollback' : 'commit'](transErr => {
-                        return cb(err ? err : transErr);
-                    });
-                } else {
-                    return cb(err);
-                }
-            }
-        );
-    }
-
-    persistWithTransaction(trans, cb) {
-        assert(this.userId > 0);
-
-        const self = this;
-
-        async.series(
-            [
-                function saveProps(callback) {
-                    self.persistProperties(self.properties, trans, err => {
-                        return callback(err);
-                    });
-                },
-                function saveGroups(callback) {
-                    userGroup.addUserToGroups(self.userId, self.groups, trans, err => {
-                        return callback(err);
-                    });
+                    return callback(null);
                 },
             ],
             err => {
@@ -635,16 +612,21 @@ module.exports = class User {
     }
 
     static persistPropertyByUserId(userId, propName, propValue, cb) {
-        userDb.run(
-            `REPLACE INTO user_property (user_id, prop_name, prop_value)
-            VALUES (?, ?, ?);`,
-            [userId, propName, propValue],
-            err => {
-                if (cb) {
-                    return cb(err, propValue);
-                }
+        try {
+            userDb
+                .prepare(
+                    `REPLACE INTO user_property (user_id, prop_name, prop_value)
+                    VALUES (?, ?, ?);`
+                )
+                .run(userId, propName, propValue);
+            if (cb) {
+                return cb(null, propValue);
             }
-        );
+        } catch (err) {
+            if (cb) {
+                return cb(err);
+            }
+        }
     }
 
     setProperty(propName, propValue) {
@@ -682,30 +664,40 @@ module.exports = class User {
         //  update live
         delete this.properties[propName];
 
-        userDb.run(
-            `DELETE FROM user_property
-            WHERE user_id = ? AND prop_name = ?;`,
-            [this.userId, propName],
-            err => {
-                if (cb) {
-                    return cb(err);
-                }
+        try {
+            userDb
+                .prepare(
+                    `DELETE FROM user_property
+                    WHERE user_id = ? AND prop_name = ?;`
+                )
+                .run(this.userId, propName);
+            if (cb) {
+                return cb(null);
             }
-        );
+        } catch (err) {
+            if (cb) {
+                return cb(err);
+            }
+        }
     }
 
     removeProperties(propNames, cb) {
-        async.each(
-            propNames,
-            (name, next) => {
-                return this.removeProperty(name, next);
-            },
-            err => {
-                if (cb) {
-                    return cb(err);
-                }
+        try {
+            const stmt = userDb.prepare(
+                `DELETE FROM user_property WHERE user_id = ? AND prop_name = ?;`
+            );
+            for (const name of propNames) {
+                delete this.properties[name];
+                stmt.run(this.userId, name);
             }
-        );
+            if (cb) {
+                return cb(null);
+            }
+        } catch (err) {
+            if (cb) {
+                return cb(err);
+            }
+        }
     }
 
     updateActivityPubKeyPairProperties(cb) {
@@ -804,39 +796,22 @@ module.exports = class User {
         );
     }
 
-    persistProperties(properties, transOrDb, cb) {
-        if (!_.isFunction(cb) && _.isFunction(transOrDb)) {
-            cb = transOrDb;
-            transOrDb = userDb;
-        }
-
-        const self = this;
-
+    persistProperties(properties, cb) {
         //  update live props
         _.merge(this.properties, properties);
 
-        const stmt = transOrDb.prepare(
-            `REPLACE INTO user_property (user_id, prop_name, prop_value)
-            VALUES (?, ?, ?);`
-        );
-
-        async.each(
-            Object.keys(properties),
-            (propName, nextProp) => {
-                stmt.run(self.userId, propName, properties[propName], err => {
-                    return nextProp(err);
-                });
-            },
-            err => {
-                if (err) {
-                    return cb(err);
-                }
-
-                stmt.finalize(() => {
-                    return cb(null);
-                });
+        try {
+            const stmt = userDb.prepare(
+                `REPLACE INTO user_property (user_id, prop_name, prop_value)
+                VALUES (?, ?, ?);`
+            );
+            for (const [propName, propValue] of Object.entries(properties)) {
+                stmt.run(this.userId, propName, propValue);
             }
-        );
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     setNewAuthCredentials(password, cb) {
@@ -977,23 +952,17 @@ module.exports = class User {
     }
 
     static getUserIdAndName(username, cb) {
-        userDb.get(
-            `SELECT id, user_name
-            FROM user
-            WHERE user_name LIKE ?;`,
-            [username],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
-
-                if (row) {
-                    return cb(null, row.id, row.user_name);
-                }
-
-                return cb(Errors.DoesNotExist('No matching username'));
+        try {
+            const row = userDb
+                .prepare(`SELECT id, user_name FROM user WHERE user_name LIKE ?;`)
+                .get(username);
+            if (row) {
+                return cb(null, row.id, row.user_name);
             }
-        );
+            return cb(Errors.DoesNotExist('No matching username'));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static getUserByUsername(username, cb) {
@@ -1006,27 +975,25 @@ module.exports = class User {
     }
 
     static getUserIdAndNameByRealName(realName, cb) {
-        userDb.get(
-            `SELECT id, user_name
-            FROM user
-            WHERE id = (
-                SELECT user_id
-                FROM user_property
-                WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
-            );`,
-            [realName],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
-
-                if (row) {
-                    return cb(null, row.id, row.user_name);
-                }
-
-                return cb(Errors.DoesNotExist('No matching real name'));
+        try {
+            const row = userDb
+                .prepare(
+                    `SELECT id, user_name
+                    FROM user
+                    WHERE id = (
+                        SELECT user_id
+                        FROM user_property
+                        WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
+                    );`
+                )
+                .get(realName);
+            if (row) {
+                return cb(null, row.id, row.user_name);
             }
-        );
+            return cb(Errors.DoesNotExist('No matching real name'));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static getUserIdAndNameByLookup(lookup, cb) {
@@ -1042,23 +1009,17 @@ module.exports = class User {
     }
 
     static getUserName(userId, cb) {
-        userDb.get(
-            `SELECT user_name
-            FROM user
-            WHERE id = ?;`,
-            [userId],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
-
-                if (row) {
-                    return cb(null, row.user_name);
-                }
-
-                return cb(Errors.DoesNotExist('No matching user ID'));
+        try {
+            const row = userDb
+                .prepare(`SELECT user_name FROM user WHERE id = ?;`)
+                .get(userId);
+            if (row) {
+                return cb(null, row.user_name);
             }
-        );
+            return cb(Errors.DoesNotExist('No matching user ID'));
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static loadProperties(userId, options, cb) {
@@ -1072,63 +1033,49 @@ module.exports = class User {
             WHERE user_id = ?`;
 
         if (options.names) {
-            sql += ` AND prop_name IN("${options.names.join('","')}");`;
+            sql += ` AND prop_name IN('${options.names.join("','")}');`;
         } else {
             sql += ';';
         }
 
-        let properties = {};
-        userDb.each(
-            sql,
-            [userId],
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
+        try {
+            const properties = {};
+            for (const row of userDb.prepare(sql).iterate(userId)) {
                 properties[row.prop_name] = row.prop_value;
-            },
-            err => {
-                return cb(err, err ? null : properties);
             }
-        );
+            return cb(null, properties);
+        } catch (err) {
+            return cb(err, null);
+        }
     }
 
     //  :TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
     static getUserIdsWithProperty(propName, propValue, cb) {
-        let userIds = [];
-
-        userDb.each(
-            `SELECT user_id
-            FROM user_property
-            WHERE prop_name = ? AND prop_value = ?;`,
-            [propName, propValue],
-            (err, row) => {
-                if (row) {
-                    userIds.push(row.user_id);
-                }
-            },
-            err => {
-                return cb(err, userIds);
-            }
-        );
+        try {
+            const userIds = userDb
+                .prepare(
+                    `SELECT user_id
+                    FROM user_property
+                    WHERE prop_name = ? AND prop_value = ?;`
+                )
+                .all(propName, propValue)
+                .map(r => r.user_id);
+            return cb(null, userIds);
+        } catch (err) {
+            return cb(err, []);
+        }
     }
 
     static getUserCount(cb) {
-        userDb.get(
-            `SELECT count() AS user_count
-            FROM user;`,
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
-                return cb(null, row.user_count);
-            }
-        );
+        try {
+            const row = userDb.prepare(`SELECT count() AS user_count FROM user;`).get();
+            return cb(null, row.user_count);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static getUserList(options, cb) {
-        const userList = [];
-
         options.properties = options.properties || [UserProps.RealName];
 
         const asList = [];
@@ -1142,20 +1089,18 @@ module.exports = class User {
             );
         }
 
-        userDb.each(
-            `SELECT u.id as userId, u.user_name as userName, ${asList.join(', ')}
-            FROM user u ${joinList.join(' ')}
-            ORDER BY u.user_name;`,
-            (err, row) => {
-                if (err) {
-                    return cb(err);
-                }
-                userList.push(row);
-            },
-            err => {
-                return cb(err, userList);
-            }
-        );
+        try {
+            const userList = userDb
+                .prepare(
+                    `SELECT u.id as userId, u.user_name as userName, ${asList.join(', ')}
+                    FROM user u ${joinList.join(' ')}
+                    ORDER BY u.user_name;`
+                )
+                .all();
+            return cb(null, userList);
+        } catch (err) {
+            return cb(err);
+        }
     }
 
     static generatePasswordDerivedKeyAndSalt(password, cb) {

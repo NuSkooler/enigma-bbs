@@ -168,7 +168,7 @@ exports.getModule = class UploadModule extends MenuModule {
         return 'blind' === this.uploadType;
     }
     isFileTransferComplete() {
-        return !_.isUndefined(this.recvFilePaths);
+        return this.recvFilePaths !== undefined;
     }
 
     initSequence() {
@@ -551,7 +551,7 @@ exports.getModule = class UploadModule extends MenuModule {
                     }
 
                     if (!newEntry.descIsAnsi) {
-                        newEntry.desc = _.trimEnd(newValues.shortDesc);
+                        newEntry.desc = newValues.shortDesc.trimEnd();
                     }
 
                     if (newValues.estYear.length > 0) {

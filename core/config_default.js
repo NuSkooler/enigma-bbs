@@ -330,11 +330,14 @@ module.exports = () => {
                     },
                     webFinger: {
                         enabled: false,
-                        profileTemplate: './wf/profile.template.html',
+                        profileTemplate: '',
                     },
                     activityPub: {
                         enabled: false,
-                        selfTemplate: './wf/profile.template.html',
+                        selfTemplate: '',
+                        allowInsecureHttp: false, // set true only for local dev/test (no TLS)
+                        maxInboxBodyBytes: 1048576, // 1 MiB; ActivityPub activities are JSON
+                        maxResponseBodyBytes: 524288, // 512 KiB; remote actor/note fetch responses
                     },
                 },
 
@@ -457,6 +460,13 @@ module.exports = () => {
             // Implementations including Mastodon should still display
             // longer messages, but this keeps us as a "good citizen"
             maxMessageLength: 500,
+
+            // Maintenance limits for the sharedInbox collection.
+            // Both limits are applied on each scheduled run (every 24 hours).
+            sharedInbox: {
+                maxAgeDays: 90, // remove entries older than this
+                maxCount: 10000, // keep only the N most-recent entries
+            },
         },
 
         infoExtractUtils: {
@@ -981,7 +991,7 @@ module.exports = () => {
                 //
                 packetTargetByteSize: 512000, //  512k, before placing messages in a new pkt
                 bundleTargetByteSize: 2048000, //  2M, before creating another archive
-                packetMsgEncoding: 'utf8', //  default packet encoding. Override per node if desired.
+                packetMsgEncoding: 'cp437', //  default packet encoding. Override per node if desired.
                 packetAnsiMsgEncoding: 'cp437', //  packet encoding for *ANSI ART* messages
 
                 tic: {
@@ -1126,6 +1136,12 @@ module.exports = () => {
                 activityPubActorCacheMaintenance: {
                     schedule: 'every 24 hours',
                     action: '@method:/core/activitypub/actor.js:actorCacheMaintenanceTask',
+                },
+
+                //  Trims sharedInbox by age (default 90 days) and count (default 10000)
+                activityPubSharedInboxMaintenance: {
+                    schedule: 'every 24 hours',
+                    action: '@method:/core/activitypub/collection.js:sharedInboxMaintenanceTask',
                 },
 
                 //

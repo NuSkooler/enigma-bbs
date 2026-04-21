@@ -5,6 +5,7 @@ const { FullScreenEditorModule, MciViewIds } = require('./fse.js');
 const persistMessage = require('./message_area.js').persistMessage;
 const UserProps = require('./user_property.js');
 const { hasMessageConfAndAreaWrite } = require('./message_area.js');
+const { AddressFlavor } = require('./message_const.js');
 
 const async = require('async');
 
@@ -65,6 +66,26 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
                 }
             );
         };
+    }
+
+    _isApReply() {
+        return (
+            this.replyToMessage &&
+            this.replyToMessage.isFromRemoteUser() &&
+            this.replyToMessage.getAddressFlavor() === AddressFlavor.ActivityPub
+        );
+    }
+
+    //  For ActivityPub replies, use Markdown-style `> ` quote prefix
+    //  instead of the FidoNet initials-based `Nu> ` style.
+    _getQuoteLineOptions() {
+        return this._isApReply() ? { quotePrefix: '> ' } : {};
+    }
+
+    //  AP clients don't use "On {date} {user} said..." attribution headers;
+    //  suppress the header line entirely for AP replies.
+    getQuoteByHeader() {
+        return this._isApReply() ? '' : super.getQuoteByHeader();
     }
 
     enter() {

@@ -1250,7 +1250,7 @@ class QWKPacketWriter extends EventEmitter {
     }
 
     _messageAddressedToUser(message) {
-        if (_.isUndefined(this.cachedCompareNames)) {
+        if (this.cachedCompareNames === undefined) {
             if (this.options.user) {
                 this.cachedCompareNames = [this.options.user.username.toLowerCase()];
                 const realName = this.options.user.getProperty(UserProps.RealName);

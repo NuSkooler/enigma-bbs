@@ -2,7 +2,8 @@
 *.pem
 
 #	Exclude User-Customized Directories
-config/
+config/*
+!config/achievements.hjson
 db/
 drop/
 file_base/
@@ -21,3 +22,9 @@ www/assets/*
 
 #   Runtime Environment
 .venv
+
+#   Dev/test tooling — binaries and runtime data, not configs/scripts
+dev_util/gotosocial/bin/
+dev_util/gotosocial/data/
+dev_util/gotosocial/web/
+dev_util/ngrok/bin/
