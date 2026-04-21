@@ -59,13 +59,20 @@ function stringToNullPaddedBuffer(s, bufLen) {
 //  :TODO: Name the next couple methods better - for FTN *packets* e.g. parsePacketDateTime()
 function getDateFromFtnDateTime(dateTime) {
     //
-    //  Examples seen in the wild (Working):
+    //  Examples seen in the wild:
     //      "12 Sep 88 18:17:59"
     //      "Tue 01 Jan 80 00:00"
-    //      "27 Feb 15  00:00:03"
+    //      "27 Feb 15  00:00:03"   (double space before time)
     //
-    //  :TODO: Use moment.js here
-    return moment(Date.parse(dateTime)); //  Date.parse() allows funky formats
+    const FTN_DATE_FORMATS = [
+        'DD MMM YY HH:mm:ss',
+        'DD MMM YY  HH:mm:ss', //  double-space variant
+        'DD MMM YY HH:mm',
+        'ddd DD MMM YY HH:mm:ss',
+        'ddd DD MMM YY HH:mm',
+    ];
+    const m = moment(dateTime, FTN_DATE_FORMATS, true);
+    return m.isValid() ? m : moment(Date.parse(dateTime)); //  fallback for unexpected formats
 }
 
 function getDateTimeString(m) {
@@ -289,6 +296,52 @@ function parseAbbreviatedNetNodeList(netNodes) {
 }
 
 //
+//  Per FTS-0004, SEEN-BY and PATH content lines should not exceed 80 chars
+//  total including the "SEEN-BY: " or "\x01PATH: " prefix (9 chars).
+//
+const FTN_SEEN_BY_PATH_LINE_MAX = 71;
+
+//
+//  Serialize a sorted array of Address objects into an array of abbreviated
+//  net/node strings, each ≤ FTN_SEEN_BY_PATH_LINE_MAX chars.
+//
+function serializeNetNodeLines(addresses) {
+    const lines = [];
+    let line = '';
+    let lineNet = -1;
+
+    for (const addr of addresses) {
+        let token;
+        if (addr.net !== lineNet) {
+            token = `${addr.net}/${addr.node}`;
+            lineNet = addr.net;
+        } else {
+            token = `${addr.node}`;
+        }
+
+        if (line.length === 0) {
+            line = token;
+        } else {
+            const candidate = `${line} ${token}`;
+            if (candidate.length > FTN_SEEN_BY_PATH_LINE_MAX) {
+                lines.push(line);
+                //  new line must always start with net/node form
+                lineNet = addr.net;
+                line = `${addr.net}/${addr.node}`;
+            } else {
+                line = candidate;
+            }
+        }
+    }
+
+    if (line.length > 0) {
+        lines.push(line);
+    }
+
+    return lines;
+}
+
+//
 //  Return a FTS-0004.001 SEEN-BY entry(s) that include
 //  all pre-existing SEEN-BY entries with the addition
 //  of |additions|.
@@ -299,61 +352,69 @@ function parseAbbreviatedNetNodeList(netNodes) {
 //  For a great write up, see http://www.skepticfiles.org/aj/basics03.htm
 //
 //  This method returns an sorted array of values, but
-//  not the "SEEN-BY" prefix itself
+//  not the "SEEN-BY" prefix itself.
 //
 function getUpdatedSeenByEntries(existingEntries, additions) {
-    /*
-        From FTS-0004:
-
-        "There can  be many  seen-by lines  at the  end of Conference
-        Mail messages,  and they  are the real "meat" of the control
-        information. They  are used  to  determine  the  systems  to
-        receive the exported messages. The format of the line is:
-
-                   SEEN-BY: 132/101 113 136/601 1014/1
-
-        The net/node  numbers correspond  to the net/node numbers of
-        the systems having already received the message. In this way
-        a message  is never  sent to a system twice. In a conference
-        with many  participants the  number of  seen-by lines can be
-        very large.   This line is added if it is not already a part
-        of the  message, or added to if it already exists, each time
-        a message  is exported  to other systems. This is a REQUIRED
-        field, and  Conference Mail  will not  function correctly if
-        this field  is not put in place by other Echomail compatible
-        programs."
-    */
     existingEntries = existingEntries || [];
     if (!Array.isArray(existingEntries)) {
         existingEntries = [existingEntries];
     }
 
-    if (!_.isString(additions)) {
-        additions = parseAbbreviatedNetNodeList(getAbbreviatedNetNodeList(additions));
+    //  Normalize additions to an Address array
+    if (!Array.isArray(additions)) {
+        additions = [additions];
     }
+    const additionAddrs = additions.flatMap(a =>
+        _.isString(a) ? parseAbbreviatedNetNodeList(a) : [a]
+    );
 
-    additions = additions.sort(Address.getComparator());
+    //  Parse all existing entries into a flat Address array
+    const existingAddrs = existingEntries.flatMap(e => parseAbbreviatedNetNodeList(e));
 
-    //
-    //  For now, we'll just append a new SEEN-BY entry
-    //
-    //  :TODO: we should at least try and update what is already there in a smart way
-    existingEntries.push(getAbbreviatedNetNodeList(additions));
-    return existingEntries;
+    //  Merge, deduplicate by net/node, sort ascending
+    const seen = new Set();
+    const merged = existingAddrs
+        .concat(additionAddrs)
+        .filter(addr => {
+            const key = `${addr.net}/${addr.node}`;
+            if (seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        })
+        .sort(Address.getComparator());
+
+    return serializeNetNodeLines(merged);
 }
 
 function getUpdatedPathEntries(existingEntries, localAddress) {
-    //  :TODO: append to PATH in a smart way! We shoudl try to fit at least the last existing line
-
     existingEntries = existingEntries || [];
     if (!Array.isArray(existingEntries)) {
         existingEntries = [existingEntries];
     }
 
-    existingEntries.push(
-        getAbbreviatedNetNodeList(parseAbbreviatedNetNodeList(localAddress))
+    //  Normalize to net/node Address (zone/point not used in PATH)
+    const addrList = parseAbbreviatedNetNodeList(
+        _.isString(localAddress) ? localAddress : localAddress.toString()
     );
+    if (addrList.length === 0) {
+        return existingEntries;
+    }
 
+    //  Try to append to the last existing line; start a new line if it won't fit.
+    //  PATH preserves insertion order — no sorting.
+    const token = `${addrList[0].net}/${addrList[0].node}`;
+    if (existingEntries.length > 0) {
+        const last = existingEntries[existingEntries.length - 1];
+        const candidate = `${last} ${token}`;
+        if (candidate.length <= FTN_SEEN_BY_PATH_LINE_MAX) {
+            existingEntries[existingEntries.length - 1] = candidate;
+            return existingEntries;
+        }
+    }
+
+    existingEntries.push(token);
     return existingEntries;
 }
 
