@@ -21,7 +21,7 @@ const lineDelimiter = new RegExp('\r\n|\r|\n|\n\r');
 const ModuleInfo = (exports.moduleInfo = {
     name: 'MRC',
     desc: 'An MRC Chat Multiplexer',
-    author: 'RiPuk',
+    author: 'RiPuk and MeaTLoTioN',
     packageName: 'codes.l33t.enigma.mrc.server',
     notes: 'https://bbswiki.bottomlessabyss.net/index.php?title=MRC_Chat_platform',
 });
@@ -66,6 +66,26 @@ exports.getModule = class MrcModule extends ServerModule {
 
         this.sendRaw(handshake);
         this.log.info(this.mrcConnectOpts, 'Connected to MRC server');
+
+        this._sendBbsInfo();
+    }
+
+    _sendBbsInfo() {
+        const config = Config();
+        const mrcCfg = config.chatServers.mrc;
+        const infoFields = [
+            [
+                'INFOSYS',
+                mrcCfg.infoSysop || StatLog.getSystemStat(SysProps.SysOpUsername),
+            ],
+            ['INFOWEB', mrcCfg.infoWeb || config.general.website],
+            ['INFOTEL', mrcCfg.infoTelnet || config.general.telnetHostname],
+            ['INFOSSH', mrcCfg.infoSsh || config.general.sshHostname],
+            ['INFODSC', mrcCfg.infoDesc || config.general.description],
+        ];
+        for (const [key, val] of infoFields) {
+            this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `${key}:${val}`);
+        }
     }
 
     createServer(cb) {
@@ -248,10 +268,10 @@ exports.getModule = class MrcModule extends ServerModule {
         connectedSockets.forEach(client => {
             if (
                 message.to_user == '' ||
-                message.to_user == client.username.toUpperCase() ||
-                message.to_user == 'CLIENT' ||
-                message.from_user == client.username ||
-                message.to_user == 'NOTME'
+                message.to_user.toUpperCase() == client.username.toUpperCase() ||
+                message.to_user.toUpperCase() == 'CLIENT' ||
+                message.from_user.toUpperCase() == client.username.toUpperCase() ||
+                message.to_user.toUpperCase() == 'NOTME'
             ) {
                 // this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Forwarding message to connected user');
                 client.write(JSON.stringify(message) + '\n');
@@ -263,50 +283,8 @@ exports.getModule = class MrcModule extends ServerModule {
      * Processes messages received from the central MRC server
      */
     receiveFromMRC(message) {
-        const config = Config();
-
         if (message.from_user == 'SERVER' && message.body == 'HELLO') {
-            // reply with extra bbs info
-            this.sendToMrcServer(
-                'CLIENT',
-                '',
-                'SERVER',
-                'ALL',
-                '',
-                `INFOSYS:${StatLog.getSystemStat(SysProps.SysOpUsername)}`
-            );
-            this.sendToMrcServer(
-                'CLIENT',
-                '',
-                'SERVER',
-                'ALL',
-                '',
-                `INFOWEB:${config.general.website}`
-            );
-            this.sendToMrcServer(
-                'CLIENT',
-                '',
-                'SERVER',
-                'ALL',
-                '',
-                `INFOTEL:${config.general.telnetHostname}`
-            );
-            this.sendToMrcServer(
-                'CLIENT',
-                '',
-                'SERVER',
-                'ALL',
-                '',
-                `INFOSSH:${config.general.sshHostname}`
-            );
-            this.sendToMrcServer(
-                'CLIENT',
-                '',
-                'SERVER',
-                'ALL',
-                '',
-                `INFODSC:${config.general.description}`
-            );
+            this._sendBbsInfo();
         } else if (
             message.from_user == 'SERVER' &&
             message.body.toUpperCase() == 'PING'
@@ -338,9 +316,9 @@ exports.getModule = class MrcModule extends ServerModule {
         //     return;
         // }
 
-        // Make sure to_user and from_user are always uppercase
-        to_user = (to_user || '').toUpperCase();
-        from_user = (from_user || '').toUpperCase();
+        // Preserve original case from the wire format; use case-insensitive comparisons elsewhere
+        to_user = to_user || '';
+        from_user = from_user || '';
 
         return { from_user, from_site, from_room, to_user, to_site, to_room, body };
     }

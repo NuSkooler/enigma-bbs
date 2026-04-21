@@ -300,7 +300,13 @@ class StatLog {
                     `INSERT INTO user_event_log (timestamp, user_id, session_id, log_name, log_value)
                     VALUES (?, ?, ?, ?, ?);`
                 )
-                .run(this.now, user.userId, user.sessionId, logName, coerceToText(logValue));
+                .run(
+                    this.now,
+                    user.userId,
+                    user.sessionId,
+                    logName,
+                    coerceToText(logValue)
+                );
 
             //
             //  Handle keepDays

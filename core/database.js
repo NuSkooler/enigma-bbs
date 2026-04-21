@@ -152,20 +152,48 @@ const NUMBER_TEXT_REPAIR_FLAG = 'db_number_text_repair_v1';
 //  used to drop duplicate '<int>.0' rows that would otherwise clash with their
 //  canonical '<int>' sibling on UPDATE.
 const NUMBER_TEXT_REPAIR_TARGETS = [
-    { db: 'message', table: 'message_meta', column: 'meta_value',
-        keyColumns: ['message_id', 'meta_category', 'meta_name'] },
-    { db: 'user', table: 'user_property', column: 'prop_value',
-        keyColumns: ['user_id', 'prop_name'] },
-    { db: 'user', table: 'user_achievement', column: 'match',
-        keyColumns: ['user_id', 'achievement_tag'] },
-    { db: 'system', table: 'user_event_log', column: 'log_value',
-        keyColumns: ['timestamp', 'user_id', 'session_id', 'log_name'] },
-    { db: 'system', table: 'system_event_log', column: 'log_value',
-        keyColumns: ['timestamp', 'log_name'] },
-    { db: 'system', table: 'system_stat', column: 'stat_value',
-        keyColumns: ['stat_name'] },
-    { db: 'file', table: 'file_meta', column: 'meta_value',
-        keyColumns: ['file_id', 'meta_name'] },
+    {
+        db: 'message',
+        table: 'message_meta',
+        column: 'meta_value',
+        keyColumns: ['message_id', 'meta_category', 'meta_name'],
+    },
+    {
+        db: 'user',
+        table: 'user_property',
+        column: 'prop_value',
+        keyColumns: ['user_id', 'prop_name'],
+    },
+    {
+        db: 'user',
+        table: 'user_achievement',
+        column: 'match',
+        keyColumns: ['user_id', 'achievement_tag'],
+    },
+    {
+        db: 'system',
+        table: 'user_event_log',
+        column: 'log_value',
+        keyColumns: ['timestamp', 'user_id', 'session_id', 'log_name'],
+    },
+    {
+        db: 'system',
+        table: 'system_event_log',
+        column: 'log_value',
+        keyColumns: ['timestamp', 'log_name'],
+    },
+    {
+        db: 'system',
+        table: 'system_stat',
+        column: 'stat_value',
+        keyColumns: ['stat_name'],
+    },
+    {
+        db: 'file',
+        table: 'file_meta',
+        column: 'meta_value',
+        keyColumns: ['file_id', 'meta_name'],
+    },
 ];
 
 function repairNumberTextValuesV1() {
