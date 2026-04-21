@@ -9,6 +9,7 @@ const stringFormat = require('./string_format.js');
 const StringUtil = require('./string_util.js');
 const Config = require('./config.js').get;
 const { loadDatabaseForMod } = require('./database.js');
+const { wordWrapText } = require('./word_wrap.js');
 
 //  deps
 const _ = require('lodash');
@@ -19,7 +20,7 @@ const moment = require('moment');
 exports.moduleInfo = {
     name: 'MRC Client',
     desc: 'Connects to an MRC chat server',
-    author: 'RiPuk',
+    author: 'RiPuk and MeaTLoTioN',
     packageName: 'codes.l33t.enigma.mrc.client',
 
     // Whilst this module was put together by me (RiPuk), it should be noted that a lot of the ideas (and even some code snippets) were
@@ -486,19 +487,26 @@ exports.getModule = class mrcModule extends MenuModule {
         const chatLogView = this.viewControllers.mrcChat.getView(
             MciViewIds.mrcChat.chatLog
         );
+        const viewWidth = (chatLogView.dimens && chatLogView.dimens.width) || 79;
         lines.forEach(line => {
-            const converted =
-                this.userPrefs && this.userPrefs.showSmilies
-                    ? line
-                          .replace(/:D/g, '\x02')
-                          .replace(/=\)/g, '\x02')
-                          .replace(/:\)/g, '\x01')
-                    : line;
-            chatLogView.addText(pipeToAnsi(converted), { scrollMode: 'end' });
+            const { wrapped } = wordWrapText(line, {
+                width: viewWidth,
+                pipeCodeSupport: true,
+            });
+            wrapped.forEach(wline => {
+                const converted =
+                    this.userPrefs && this.userPrefs.showSmilies
+                        ? wline
+                              .replace(/:D/g, '\x02')
+                              .replace(/=\)/g, '\x02')
+                              .replace(/:\)/g, '\x01')
+                        : wline;
+                chatLogView.addText(pipeToAnsi(converted), { scrollMode: 'end' });
 
-            if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
-                chatLogView.deleteLine(0);
-            }
+                if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
+                    chatLogView.deleteLine(0);
+                }
+            });
         });
     }
 
@@ -633,7 +641,9 @@ exports.getModule = class mrcModule extends MenuModule {
                         // Track sender for tab completion
                         if (
                             message.from_user &&
-                            !this.state.nicks.includes(message.from_user)
+                            !this.state.nicks.some(
+                                n => n.toLowerCase() === message.from_user.toLowerCase()
+                            )
                         ) {
                             this.state.nicks.push(message.from_user);
                         }
@@ -737,7 +747,7 @@ exports.getModule = class mrcModule extends MenuModule {
 
             const privateMessageFormat =
                 this.config.outgoingPrivateMessageFormat ||
-                `|15* |08(|14DirectMsg|08->|15{toUserName}|00 ${mc}{message}`;
+                `|15* |08(|15{fromUserName}|08->|14DirectMsg|00 ${mc}{message}`;
 
             let formattedMessage = '';
             if (to_user == undefined) {
@@ -748,11 +758,9 @@ exports.getModule = class mrcModule extends MenuModule {
                 formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
 
                 // Echo PrivMSG to chat log (the server does not echo it back)
-                const currentTime = moment().format(
-                    this.client.currentTheme.helpers.getTimeFormat()
-                );
+                const timeStr = this._formatTimestamp();
                 this.addMessageToChatLog(
-                    '|08' + currentTime + '|00 ' + formattedMessage + '|00'
+                    (timeStr ? '|08' + timeStr + '|00 ' : '') + formattedMessage + '|00'
                 );
             }
 
@@ -1308,8 +1316,8 @@ exports.getModule = class mrcModule extends MenuModule {
         const p = this.userPrefs;
         this.addMessageToChatLog([
             '|15Current /set values|08:',
-            `|14NICKCOLOR         |07${p.nickColor}|16|07`,
-            `|14MESSAGECOLOR      |07${p.messageColor}|16|07`,
+            `|14NICKCOLOR         ${p.nickColor}${this.state.alias}|00`,
+            `|14MESSAGECOLOR      ${p.messageColor}example text|00`,
             `|14LTBRACKET         |07${p.ltBracket}|16|07`,
             `|14RTBRACKET         |07${p.rtBracket}|16|07`,
             `|14DEFAULTROOM       |07${p.defaultRoom}|16|07`,

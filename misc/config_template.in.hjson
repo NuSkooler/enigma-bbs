@@ -353,6 +353,13 @@
             useSsl          : true
             retryDelay      : 10000
             multiplexerPort : 5000
+
+            # MRC /info display overrides - pipe codes supported
+            infoWeb:    "https://some.website.com"
+            infoTelnet: "mydomain.com:8888"
+            infoSsh:    "mydomain.com:9999"
+            infoSysop:  "SysOp"
+            infoDesc:   "A very kewl ENiGMA BBS"
         }
     }
 

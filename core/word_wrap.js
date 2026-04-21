@@ -68,6 +68,7 @@ function wordWrapText(text, options) {
     let renderLen;
     let i = 0;
     let wordStart = 0;
+    let lastColorCode = '';
     let result = { wrapped: [''], renderLen: [0] };
 
     function expandTab(column) {
@@ -87,11 +88,22 @@ function wordWrapText(text, options) {
                     };
                 }
 
-                result.wrapped[++i] = w;
+                const prefix =
+                    options.pipeCodeSupport && lastColorCode ? lastColorCode : '';
+                result.wrapped[++i] = prefix + w;
                 result.renderLen[i] = renderLen;
             } else {
                 result.wrapped[i] += w;
                 result.renderLen[i] = (result.renderLen[i] || 0) + renderLen;
+            }
+
+            //  Track last active numeric pipe colour code so continuation lines
+            //  inherit the correct colour when pipeCodeSupport is enabled.
+            if (options.pipeCodeSupport) {
+                const codes = w.match(/\|[0-9]{2}/g);
+                if (codes) {
+                    lastColorCode = codes[codes.length - 1];
+                }
             }
         });
     }

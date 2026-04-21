@@ -846,7 +846,12 @@ module.exports = class Message {
                         for (const name of Object.keys(self.meta[category])) {
                             const val = self.meta[category][name];
                             for (const v of Array.isArray(val) ? val : [val]) {
-                                metaStmt.run(self.messageId, category, name, coerceToText(v));
+                                metaStmt.run(
+                                    self.messageId,
+                                    category,
+                                    name,
+                                    coerceToText(v)
+                                );
                             }
                         }
                     }
@@ -900,7 +905,12 @@ module.exports = class Message {
                         for (const name of Object.keys(this.meta[category])) {
                             const val = this.meta[category][name];
                             for (const v of Array.isArray(val) ? val : [val]) {
-                                metaStmt.run(self.messageId, category, name, coerceToText(v));
+                                metaStmt.run(
+                                    self.messageId,
+                                    category,
+                                    name,
+                                    coerceToText(v)
+                                );
                             }
                         }
                     }
