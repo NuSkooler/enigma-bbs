@@ -66,6 +66,7 @@
         "node-pty": "1.1.0",
         "nodemailer": "^8.0.5",
         "otplib": "11.0.1",
+        "proper-lockfile": "^4.1.2",
         "qrcode-generator": "2.0.4",
         "rlogin": "^1.0.0",
         "sane": "5.0.1",

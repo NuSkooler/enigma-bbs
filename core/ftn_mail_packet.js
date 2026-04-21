@@ -83,18 +83,15 @@ class PacketHeader {
 
         this.origNode = address.node;
 
-        //  See FSC-48
-        //  :TODO: disabled for now until we have separate packet writers for 2, 2+, 2+48, and 2.2
-        /*if(address.point) {
-            this.auxNet     = address.origNet;
-            this.origNet    = -1;
+        //  FSC-0048: when originating from a point, auxNet carries the real net
+        //  and origNet is set to 0xFFFF (-1). The reader side already handles this.
+        if (address.point) {
+            this.auxNet = address.net;
+            this.origNet = 0xffff;
         } else {
-            this.origNet    = address.net;
-            this.auxNet     = 0;
+            this.origNet = address.net;
+            this.auxNet = 0;
         }
-        */
-        this.origNet = address.net;
-        this.auxNet = 0;
 
         this.origZone = address.zone;
         this.origZone2 = address.zone;
@@ -130,7 +127,7 @@ class PacketHeader {
     get created() {
         return moment({
             year: this.year,
-            month: this.month - 1, //  moment uses 0 indexed months
+            month: this.month, //  FTS-0001.016: month is 0-11 on wire, same as moment
             date: this.day,
             hour: this.hour,
             minute: this.minute,
@@ -144,7 +141,7 @@ class PacketHeader {
         }
 
         this.year = momentCreated.year();
-        this.month = momentCreated.month() + 1; //  moment uses 0 indexed months
+        this.month = momentCreated.month(); //  FTS-0001.016: month is 0-11 on wire, same as moment
         this.day = momentCreated.date(); //  day of month
         this.hour = momentCreated.hour();
         this.minute = momentCreated.minute();
@@ -304,7 +301,7 @@ function Packet(options) {
 
         packetHeader.created = moment({
             year: packetHeader.year,
-            month: packetHeader.month - 1, //  moment uses 0 indexed months
+            month: packetHeader.month, //  FTS-0001.016: month is 0-11 on wire, same as moment
             date: packetHeader.day,
             hour: packetHeader.hour,
             minute: packetHeader.minute,
@@ -337,7 +334,7 @@ function Packet(options) {
         );
         buffer.writeUInt16LE(packetHeader.destNet, 22);
         buffer.writeUInt8(packetHeader.prodCodeLo, 24);
-        buffer.writeUInt8(packetHeader.prodRevHi, 25);
+        buffer.writeUInt8(packetHeader.prodRevLo, 25); //  FSC-0048: offset 25 = prodRevLo (revision major)
 
         const pass = ftn.stringToNullPaddedBuffer(packetHeader.password, 8);
         pass.copy(buffer, 26);
@@ -347,7 +344,7 @@ function Packet(options) {
         buffer.writeUInt16LE(packetHeader.auxNet, 38);
         buffer.writeUInt16LE(packetHeader.capWordValidate, 40);
         buffer.writeUInt8(packetHeader.prodCodeHi, 42);
-        buffer.writeUInt8(packetHeader.prodRevLo, 43);
+        buffer.writeUInt8(packetHeader.prodRevHi, 43); //  FSC-0048: offset 43 = prodRevHi (revision minor)
         buffer.writeUInt16LE(packetHeader.capWord, 44);
         buffer.writeUInt16LE(packetHeader.origZone2, 46);
         buffer.writeUInt16LE(packetHeader.destZone2, 48);
@@ -359,45 +356,8 @@ function Packet(options) {
     };
 
     this.writePacketHeader = function (packetHeader, ws) {
-        let buffer = Buffer.alloc(FTN_PACKET_HEADER_SIZE);
-
-        buffer.writeUInt16LE(packetHeader.origNode, 0);
-        buffer.writeUInt16LE(packetHeader.destNode, 2);
-        buffer.writeUInt16LE(packetHeader.year, 4);
-        buffer.writeUInt16LE(packetHeader.month, 6);
-        buffer.writeUInt16LE(packetHeader.day, 8);
-        buffer.writeUInt16LE(packetHeader.hour, 10);
-        buffer.writeUInt16LE(packetHeader.minute, 12);
-        buffer.writeUInt16LE(packetHeader.second, 14);
-
-        buffer.writeUInt16LE(packetHeader.baud, 16);
-        buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
-        buffer.writeUInt16LE(
-            -1 === packetHeader.origNet ? 0xffff : packetHeader.origNet,
-            20
-        );
-        buffer.writeUInt16LE(packetHeader.destNet, 22);
-        buffer.writeUInt8(packetHeader.prodCodeLo, 24);
-        buffer.writeUInt8(packetHeader.prodRevHi, 25);
-
-        const pass = ftn.stringToNullPaddedBuffer(packetHeader.password, 8);
-        pass.copy(buffer, 26);
-
-        buffer.writeUInt16LE(packetHeader.origZone, 34);
-        buffer.writeUInt16LE(packetHeader.destZone, 36);
-        buffer.writeUInt16LE(packetHeader.auxNet, 38);
-        buffer.writeUInt16LE(packetHeader.capWordValidate, 40);
-        buffer.writeUInt8(packetHeader.prodCodeHi, 42);
-        buffer.writeUInt8(packetHeader.prodRevLo, 43);
-        buffer.writeUInt16LE(packetHeader.capWord, 44);
-        buffer.writeUInt16LE(packetHeader.origZone2, 46);
-        buffer.writeUInt16LE(packetHeader.destZone2, 48);
-        buffer.writeUInt16LE(packetHeader.origPoint, 50);
-        buffer.writeUInt16LE(packetHeader.destPoint, 52);
-        buffer.writeUInt32LE(packetHeader.prodData, 54);
-
+        const buffer = this.getPacketHeaderBuffer(packetHeader);
         ws.write(buffer);
-
         return buffer.length;
     };
 
@@ -436,8 +396,17 @@ function Packet(options) {
             //
             let key = line.substr(0, 4).trim();
             let value;
-            if (['INTL', 'TOPT', 'FMPT', 'Via'].includes(key)) {
-                value = line.substr(key.length).trim();
+            //  Canonical forms: INTL, TOPT, FMPT (uppercase), Via (mixed case per FTS-4009)
+            const NO_COLON_KLUDGES = {
+                INTL: 'INTL',
+                TOPT: 'TOPT',
+                FMPT: 'FMPT',
+                VIA: 'Via',
+            };
+            const noColonCanon = NO_COLON_KLUDGES[key.toUpperCase()];
+            if (noColonCanon) {
+                key = noColonCanon;
+                value = line.substr(line.substr(0, 4).trim().length).trim();
             } else {
                 const sepIndex = line.indexOf(':');
                 key = line.substr(0, sepIndex).toUpperCase();
@@ -478,12 +447,12 @@ function Packet(options) {
                             (err, theSauce) => {
                                 if (!err) {
                                     //  we read some SAUCE - don't re-process that portion into the body
-                                    messageBodyBuffer =
-                                        messageBodyBuffer.slice(0, sauceHeaderPosition) +
+                                    messageBodyBuffer = Buffer.concat([
+                                        messageBodyBuffer.slice(0, sauceHeaderPosition),
                                         messageBodyBuffer.slice(
                                             sauceHeaderPosition + sauce.SAUCE_SIZE
-                                        );
-                                    //                              messageBodyBuffer       = messageBodyBuffer.slice(0, sauceHeaderPosition);
+                                        ),
+                                    ]);
                                     messageBodyData.sauce = theSauce;
                                 } else {
                                     Log.warn(
@@ -593,10 +562,18 @@ function Packet(options) {
                                 line.substring(line.indexOf(':') + 1).trim()
                             );
                         } else if (FTN_MESSAGE_KLUDGE_PREFIX === line.charAt(0)) {
-                            if ('PATH:' === line.slice(1, 6)) {
-                                endOfMessage = true; //  Anything pats the first PATH is not part of the message body
+                            const kludgeContent = line.slice(1);
+                            if (kludgeContent.startsWith('AREA:')) {
+                                //  Some implementations prefix AREA with ^A; treat it the same as bare AREA:
+                                messageBodyData.area = kludgeContent
+                                    .substring(kludgeContent.indexOf(':') + 1)
+                                    .trim();
+                            } else {
+                                if ('PATH:' === kludgeContent.slice(0, 5)) {
+                                    endOfMessage = true;
+                                }
+                                addKludgeLine(kludgeContent);
                             }
-                            addKludgeLine(line.slice(1));
                         } else if (!endOfMessage) {
                             //  regular ol' message line
                             messageBodyData.message.push(line);
