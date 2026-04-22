@@ -52,7 +52,7 @@ module.exports = class Address {
             if (m[1]) {
                 addr.zone = m[1].slice(0, -1);
                 if ('*' !== addr.zone) {
-                    addr.zone = parseInt(addr.zone);
+                    addr.zone = parseInt(addr.zone, 10);
                 }
             } else {
                 addr.zone = '*';
@@ -61,7 +61,7 @@ module.exports = class Address {
             if (m[2]) {
                 addr.net = m[2];
                 if ('*' !== addr.net) {
-                    addr.net = parseInt(addr.net);
+                    addr.net = parseInt(addr.net, 10);
                 }
             } else {
                 addr.net = '*';
@@ -70,7 +70,7 @@ module.exports = class Address {
             if (m[3]) {
                 addr.node = m[3].substr(1);
                 if ('*' !== addr.node) {
-                    addr.node = parseInt(addr.node);
+                    addr.node = parseInt(addr.node, 10);
                 }
             } else {
                 addr.node = '*';
@@ -79,7 +79,7 @@ module.exports = class Address {
             if (m[4]) {
                 addr.point = m[4].substr(1);
                 if ('*' !== addr.point) {
-                    addr.point = parseInt(addr.point);
+                    addr.point = parseInt(addr.point, 10);
                 }
             } else {
                 addr.point = '*';
@@ -138,18 +138,18 @@ module.exports = class Address {
         if (m && m[2] && m[3]) {
             //  start with a 2D
             let addr = {
-                net: parseInt(m[2]),
-                node: parseInt(m[3].substr(1)),
+                net: parseInt(m[2], 10),
+                node: parseInt(m[3].substr(1), 10),
             };
 
             //  3D: Addition of zone if present
             if (m[1]) {
-                addr.zone = parseInt(m[1].slice(0, -1));
+                addr.zone = parseInt(m[1].slice(0, -1), 10);
             }
 
             //  4D if optional point is present
             if (m[4]) {
-                addr.point = parseInt(m[4].substr(1));
+                addr.point = parseInt(m[4].substr(1), 10);
             }
 
             //  5D with @domain
