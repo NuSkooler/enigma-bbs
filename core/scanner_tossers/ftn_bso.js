@@ -4,6 +4,7 @@
 //  ENiGMA½
 const MessageScanTossModule = require('../msg_scan_toss_module.js').MessageScanTossModule;
 const Config = require('../config.js').get;
+const Events = require('../events.js');
 const ftnMailPacket = require('../ftn_mail_packet.js');
 const ftnUtil = require('../ftn_util.js');
 const Address = require('../ftn_address.js');
@@ -2833,6 +2834,15 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 
     this.hasValidConfiguration({ shouldLog: true }); //  just check and log
 
+    //  Refresh cached top-level module config when config.hjson is hot-reloaded
+    this._onConfigChanged = () => {
+        const config = Config();
+        if (_.has(config, 'scannerTossers.ftn_bso')) {
+            this.moduleConfig = config.scannerTossers.ftn_bso;
+        }
+    };
+    Events.on(Events.getSystemEvents().ConfigChanged, this._onConfigChanged);
+
     let importing = false;
 
     let self = this;
@@ -2974,6 +2984,13 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 FTNMessageScanTossModule.prototype.shutdown = function (cb) {
     Log.info('FidoNet Scanner/Tosser shutting down');
 
+    if (this._onConfigChanged) {
+        Events.removeListener(
+            Events.getSystemEvents().ConfigChanged,
+            this._onConfigChanged
+        );
+    }
+
     if (this.exportTimer) {
         this.exportTimer.clear();
     }
@@ -2997,8 +3014,6 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
 
         FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
     });
-
-    FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 };
 
 //

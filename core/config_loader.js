@@ -23,12 +23,24 @@ module.exports = class ConfigLoader {
         }
     ) {
         this.current = {};
+        this.rawConfig = undefined;
 
         this.hotReload = hotReload;
         this.defaultConfig = defaultConfig;
         this.defaultsCustomizer = defaultsCustomizer;
         this.onReload = onReload;
         this.keepWsc = keepWsc;
+
+        //  Coalesce rapid/burst file-change events into a single reload.
+        //  300 ms absorbs editor atomic-save patterns (write-tmp + rename = 2 events)
+        //  without feeling sluggish to operators.
+        this._scheduleReload = _.debounce(() => {
+            this._reload(this.baseConfigPath, err => {
+                if (_.isFunction(this.onReload)) {
+                    this.onReload(err);
+                }
+            });
+        }, 300);
     }
 
     init(baseConfigPath, cb) {
@@ -36,8 +48,16 @@ module.exports = class ConfigLoader {
         return this._reload(baseConfigPath, cb);
     }
 
+    //  Returns the current effective config.  When theme.js finalises a merged
+    //  theme it writes back to this.current directly; get() surfaces that value.
     get() {
         return this.current;
+    }
+
+    //  Returns the raw parsed config from disk, unaffected by any external
+    //  overlay (e.g. the theme/menu merge written to this.current by ThemeManager).
+    getRaw() {
+        return this.rawConfig !== undefined ? this.rawConfig : this.current;
     }
 
     _reload(baseConfigPath, cb) {
@@ -113,6 +133,7 @@ module.exports = class ConfigLoader {
             ],
             (err, config) => {
                 if (!err) {
+                    this.rawConfig = config;
                     this.current = config;
                 }
                 return cb(err);
@@ -200,12 +221,10 @@ module.exports = class ConfigLoader {
 
     _configFileChanged({ fileName, fileRoot }) {
         const reCachedPath = paths.join(fileRoot, fileName);
-        if (this.configPaths.includes(reCachedPath)) {
-            this._reload(this.baseConfigPath, err => {
-                if (_.isFunction(this.onReload)) {
-                    this.onReload(err, reCachedPath);
-                }
-            });
+        //  configPaths is set only after the first _resolveIncludes completes;
+        //  guard against a watcher firing during the initial async load.
+        if (this.configPaths && this.configPaths.includes(reCachedPath)) {
+            this._scheduleReload();
         }
     }
 

@@ -88,7 +88,11 @@ function Client(/*input, output*/) {
     const self = this;
 
     this.user = new User();
-    this.currentThemeConfig = { info: { name: 'N/A', description: 'None' } };
+    //  Sentinel value before a real theme is loaded.  Exposes get() so the
+    //  currentTheme getter below can always call .get() unconditionally.
+    this.currentThemeConfig = {
+        get: () => ({ info: { name: 'N/A', description: 'None' } }),
+    };
     this.lastActivityTime = Date.now();
     this.menuStack = new MenuStack(this);
     this.acs = new ACS({ client: this, user: this.user });
@@ -96,23 +100,7 @@ function Client(/*input, output*/) {
 
     Object.defineProperty(this, 'currentTheme', {
         get: () => {
-            if (this.currentThemeConfig) {
-                // :TODO: clean this up: We have a ugly transition state in which we have a pure raw config vs a ConfigLoader in which get() must be called
-                try {
-                    return this.currentThemeConfig.get();
-                } catch (e) {
-                    return this.currentThemeConfig;
-                }
-            } else {
-                return {
-                    info: {
-                        name: 'N/A',
-                        author: 'N/A',
-                        description: 'N/A',
-                        group: 'N/A',
-                    },
-                };
-            }
+            return this.currentThemeConfig.get();
         },
         set: theme => {
             this.currentThemeConfig = theme;
