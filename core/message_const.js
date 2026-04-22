@@ -55,6 +55,7 @@ const StateFlags0 = {
     None: 0x00000000,
     Imported: 0x00000001, //  imported from foreign system
     Exported: 0x00000002, //  exported to foreign system
+    ExportFailed: 0x00000004, //  export permanently failed (e.g. unroutable); will not be retried
 };
 exports.StateFlags0 = StateFlags0;
 

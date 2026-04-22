@@ -231,6 +231,78 @@ const MessageHeaderParser = new Parser()
         readUntil: b => 0x00 === b,
     });
 
+//
+//  Appends FTN kludge/meta lines (e.g. "SEEN-BY: 1/1\r", "\x01MSGID: ...\r").
+//  sepChar is placed between the key and value; defaults to ':'.
+//
+function appendMetaLines(k, m, sepChar) {
+    if (sepChar === undefined) {
+        sepChar = ':';
+    }
+    if (!m) {
+        return '';
+    }
+    const arr = Array.isArray(m) ? m : [m];
+    return arr.map(v => `${k}${sepChar} ${v}\r`).join('');
+}
+
+//
+//  Builds the complete FTN message body text: AREA line, kludges, message body
+//  (with optional ANSI pre-processing), tear/origin lines, SEEN-BY, and PATH.
+//
+function buildMessageBodyText(message, options, cb) {
+    let msgBody = '';
+
+    //  FTN-0004.001: AREA:CONFERENCE should be the first line (no ^A prefix)
+    if (message.meta.FtnProperty.ftn_area) {
+        msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\r`;
+    }
+
+    Object.keys(message.meta.FtnKludge).forEach(k => {
+        switch (k) {
+            case 'PATH':
+                break; //  save for last
+
+            case 'Via':
+            case 'FMPT':
+            case 'TOPT':
+            case 'INTL':
+                msgBody += appendMetaLines(`\x01${k}`, message.meta.FtnKludge[k], '');
+                break;
+
+            default:
+                msgBody += appendMetaLines(`\x01${k}`, message.meta.FtnKludge[k]);
+                break;
+        }
+    });
+
+    function finishBody(msgText) {
+        msgBody += msgText + '\r';
+
+        //  FTN-0004.001: tear line, origin, SEEN-BY, PATH near bottom
+        if (message.meta.FtnProperty.ftn_tear_line) {
+            msgBody += `${message.meta.FtnProperty.ftn_tear_line}\r`;
+        }
+        if (message.meta.FtnProperty.ftn_origin) {
+            msgBody += `${message.meta.FtnProperty.ftn_origin}\r`;
+        }
+        msgBody += appendMetaLines('SEEN-BY', message.meta.FtnProperty.ftn_seen_by);
+        msgBody += appendMetaLines('\x01PATH', message.meta.FtnKludge['PATH']);
+
+        return cb(null, msgBody);
+    }
+
+    if (strUtil.isAnsi(message.message)) {
+        ansiPrep(
+            message.message,
+            { cols: 80, rows: 'auto', forceLineTerm: true, exportMode: true },
+            (err, preppedMsg) => finishBody(preppedMsg || message.message)
+        );
+    } else {
+        return finishBody(message.message);
+    }
+}
+
 function Packet(options) {
     var self = this;
 
@@ -830,293 +902,88 @@ function Packet(options) {
     };
 
     this.getMessageEntryBuffer = function (message, options, cb) {
-        function getAppendMeta(k, m, sepChar = ':') {
-            let append = '';
-            if (m) {
-                let a = m;
-                if (!Array.isArray(a)) {
-                    a = [a];
-                }
-                a.forEach(v => {
-                    append += `${k}${sepChar} ${v}\r`;
-                });
-            }
-            return append;
-        }
-
-        async.waterfall(
-            [
-                function prepareHeaderAndKludges(callback) {
-                    const basicHeader = Buffer.alloc(34);
-                    self.writeMessageHeader(message, basicHeader);
-
-                    //
-                    //  To, from, and subject must be NULL term'd and have max lengths as per spec.
-                    //
-                    const toUserNameBuf = strUtil.stringToNullTermBuffer(
-                        message.toUserName,
-                        { encoding: 'cp437', maxBufLen: 36 }
-                    );
-                    const fromUserNameBuf = strUtil.stringToNullTermBuffer(
-                        message.fromUserName,
-                        { encoding: 'cp437', maxBufLen: 36 }
-                    );
-                    const subjectBuf = strUtil.stringToNullTermBuffer(message.subject, {
-                        encoding: 'cp437',
-                        maxBufLen: 72,
-                    });
-
-                    //
-                    //  message: unbound length, NULL term'd
-                    //
-                    //  We need to build in various special lines - kludges, area,
-                    //  seen-by, etc.
-                    //
-                    let msgBody = '';
-
-                    //
-                    //  FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
-                    //  AREA:CONFERENCE
-                    //  Should be first line in a message
-                    //
-                    if (message.meta.FtnProperty.ftn_area) {
-                        msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\r`; //  note: no ^A (0x01)
-                    }
-
-                    //  :TODO: DRY with similar function in this file!
-                    Object.keys(message.meta.FtnKludge).forEach(k => {
-                        switch (k) {
-                            case 'PATH':
-                                break; //  skip & save for last
-
-                            case 'Via':
-                            case 'FMPT':
-                            case 'TOPT':
-                            case 'INTL':
-                                msgBody += getAppendMeta(
-                                    `\x01${k}`,
-                                    message.meta.FtnKludge[k],
-                                    ''
-                                ); // no sepChar
-                                break;
-
-                            default:
-                                msgBody += getAppendMeta(
-                                    `\x01${k}`,
-                                    message.meta.FtnKludge[k]
-                                );
-                                break;
-                        }
-                    });
-
-                    return callback(
-                        null,
-                        basicHeader,
-                        toUserNameBuf,
-                        fromUserNameBuf,
-                        subjectBuf,
-                        msgBody
-                    );
-                },
-                function prepareAnsiMessageBody(
-                    basicHeader,
-                    toUserNameBuf,
-                    fromUserNameBuf,
-                    subjectBuf,
-                    msgBody,
-                    callback
-                ) {
-                    if (!strUtil.isAnsi(message.message)) {
-                        return callback(
-                            null,
-                            basicHeader,
-                            toUserNameBuf,
-                            fromUserNameBuf,
-                            subjectBuf,
-                            msgBody,
-                            message.message
-                        );
-                    }
-
-                    ansiPrep(
-                        message.message,
-                        {
-                            cols: 80,
-                            rows: 'auto',
-                            forceLineTerm: true,
-                            exportMode: true,
-                        },
-                        (err, preppedMsg) => {
-                            return callback(
-                                null,
-                                basicHeader,
-                                toUserNameBuf,
-                                fromUserNameBuf,
-                                subjectBuf,
-                                msgBody,
-                                preppedMsg || message.message
-                            );
-                        }
-                    );
-                },
-                function addMessageBody(
-                    basicHeader,
-                    toUserNameBuf,
-                    fromUserNameBuf,
-                    subjectBuf,
-                    msgBody,
-                    preppedMsg,
-                    callback
-                ) {
-                    msgBody += preppedMsg + '\r';
-
-                    //
-                    //  FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
-                    //  Tear line should be near the bottom of a message
-                    //
-                    if (message.meta.FtnProperty.ftn_tear_line) {
-                        msgBody += `${message.meta.FtnProperty.ftn_tear_line}\r`;
-                    }
-
-                    //
-                    //  Origin line should be near the bottom of a message
-                    //
-                    if (message.meta.FtnProperty.ftn_origin) {
-                        msgBody += `${message.meta.FtnProperty.ftn_origin}\r`;
-                    }
-
-                    //
-                    //  FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
-                    //  SEEN-BY and PATH should be the last lines of a message
-                    //
-                    msgBody += getAppendMeta(
-                        'SEEN-BY',
-                        message.meta.FtnProperty.ftn_seen_by
-                    ); //  note: no ^A (0x01)
-                    msgBody += getAppendMeta('\x01PATH', message.meta.FtnKludge['PATH']);
-
-                    let msgBodyEncoded;
-                    try {
-                        msgBodyEncoded = iconv.encode(msgBody + '\0', options.encoding);
-                    } catch (e) {
-                        msgBodyEncoded = iconv.encode(msgBody + '\0', 'ascii');
-                    }
-
-                    return callback(
-                        null,
-                        Buffer.concat([
-                            basicHeader,
-                            toUserNameBuf,
-                            fromUserNameBuf,
-                            subjectBuf,
-                            msgBodyEncoded,
-                        ])
-                    );
-                },
-            ],
-            (err, msgEntryBuffer) => {
-                return cb(err, msgEntryBuffer);
-            }
-        );
-    };
-
-    this.writeMessage = function (message, ws, options) {
+        //
+        //  To, from, and subject must be NULL term'd and have max lengths as per spec.
+        //
         const basicHeader = Buffer.alloc(34);
         self.writeMessageHeader(message, basicHeader);
 
-        ws.write(basicHeader);
-
-        //  toUserName & fromUserName: up to 36 bytes in length, NULL term'd
-        //  :TODO: DRY...
-        let encBuf = iconv.encode(message.toUserName + '\0', 'CP437').slice(0, 36);
-        encBuf[encBuf.length - 1] = '\0'; //  ensure it's null term'd
-        ws.write(encBuf);
-
-        encBuf = iconv.encode(message.fromUserName + '\0', 'CP437').slice(0, 36);
-        encBuf[encBuf.length - 1] = '\0'; //  ensure it's null term'd
-        ws.write(encBuf);
-
-        //  subject: up to 72 bytes in length, NULL term'd
-        encBuf = iconv.encode(message.subject + '\0', 'CP437').slice(0, 72);
-        encBuf[encBuf.length - 1] = '\0'; //  ensure it's null term'd
-        ws.write(encBuf);
-
-        //
-        //  message: unbound length, NULL term'd
-        //
-        //  We need to build in various special lines - kludges, area,
-        //  seen-by, etc.
-        //
-        //  :TODO: Put this in it's own method
-        let msgBody = '';
-
-        function appendMeta(k, m, sepChar = ':') {
-            if (m) {
-                let a = m;
-                if (!Array.isArray(a)) {
-                    a = [a];
-                }
-                a.forEach(v => {
-                    msgBody += `${k}${sepChar} ${v}\r`;
-                });
-            }
-        }
-
-        //
-        //  FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
-        //  AREA:CONFERENCE
-        //  Should be first line in a message
-        //
-        if (message.meta.FtnProperty.ftn_area) {
-            msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\r`; //  note: no ^A (0x01)
-        }
-
-        Object.keys(message.meta.FtnKludge).forEach(k => {
-            switch (k) {
-                case 'PATH':
-                    break; //  skip & save for last
-
-                case 'Via':
-                case 'FMPT':
-                case 'TOPT':
-                case 'INTL':
-                    appendMeta(`\x01${k}`, message.meta.FtnKludge[k], '');
-                    break; //  no sepChar
-
-                default:
-                    appendMeta(`\x01${k}`, message.meta.FtnKludge[k]);
-                    break;
-            }
+        const toUserNameBuf = strUtil.stringToNullTermBuffer(message.toUserName, {
+            encoding: 'cp437',
+            maxBufLen: 36,
+        });
+        const fromUserNameBuf = strUtil.stringToNullTermBuffer(message.fromUserName, {
+            encoding: 'cp437',
+            maxBufLen: 36,
+        });
+        const subjectBuf = strUtil.stringToNullTermBuffer(message.subject, {
+            encoding: 'cp437',
+            maxBufLen: 72,
         });
 
-        msgBody += message.message + '\r';
+        buildMessageBodyText(message, options, (err, msgBody) => {
+            if (err) {
+                return cb(err);
+            }
 
-        //
-        //  FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
-        //  Tear line should be near the bottom of a message
-        //
-        if (message.meta.FtnProperty.ftn_tear_line) {
-            msgBody += `${message.meta.FtnProperty.ftn_tear_line}\r`;
-        }
+            let msgBodyEncoded;
+            try {
+                msgBodyEncoded = iconv.encode(msgBody + '\0', options.encoding);
+            } catch (e) {
+                msgBodyEncoded = iconv.encode(msgBody + '\0', 'ascii');
+            }
 
-        //
-        //  Origin line should be near the bottom of a message
-        //
-        if (message.meta.FtnProperty.ftn_origin) {
-            msgBody += `${message.meta.FtnProperty.ftn_origin}\r`;
-        }
+            return cb(
+                null,
+                Buffer.concat([
+                    basicHeader,
+                    toUserNameBuf,
+                    fromUserNameBuf,
+                    subjectBuf,
+                    msgBodyEncoded,
+                ])
+            );
+        });
+    };
 
-        //
-        //  FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
-        //  SEEN-BY and PATH should be the last lines of a message
-        //
-        appendMeta('SEEN-BY', message.meta.FtnProperty.ftn_seen_by); //  note: no ^A (0x01)
+    this.writeMessage = function (message, ws, options, cb) {
+        const basicHeader = Buffer.alloc(34);
+        self.writeMessageHeader(message, basicHeader);
+        ws.write(basicHeader);
 
-        appendMeta('\x01PATH', message.meta.FtnKludge['PATH']);
+        //  toUserName, fromUserName: up to 36 bytes, NULL term'd
+        //  subject: up to 72 bytes, NULL term'd
+        ws.write(
+            strUtil.stringToNullTermBuffer(message.toUserName, {
+                encoding: 'CP437',
+                maxBufLen: 36,
+            })
+        );
+        ws.write(
+            strUtil.stringToNullTermBuffer(message.fromUserName, {
+                encoding: 'CP437',
+                maxBufLen: 36,
+            })
+        );
+        ws.write(
+            strUtil.stringToNullTermBuffer(message.subject, {
+                encoding: 'CP437',
+                maxBufLen: 72,
+            })
+        );
 
-        //
-        //  :TODO: We should encode based on config and add the proper kludge here!
-        ws.write(iconv.encode(msgBody + '\0', options.encoding));
+        buildMessageBodyText(message, options, (err, msgBody) => {
+            if (!err) {
+                try {
+                    ws.write(iconv.encode(msgBody + '\0', options.encoding));
+                } catch (e) {
+                    ws.write(iconv.encode(msgBody + '\0', 'ascii'));
+                }
+            }
+            if (cb) {
+                return cb(err);
+            }
+        });
     };
 
     this.parsePacketBuffer = function (packetBuffer, iterator, cb) {
@@ -1221,7 +1088,7 @@ Packet.prototype.writeTerminator = function (ws) {
     return 2;
 };
 
-Packet.prototype.writeStream = function (ws, messages, options) {
+Packet.prototype.writeStream = function (ws, messages, options, cb) {
     if (!_.isBoolean(options.terminatePacket)) {
         options.terminatePacket = true;
     }
@@ -1232,16 +1099,24 @@ Packet.prototype.writeStream = function (ws, messages, options) {
 
     options.encoding = options.encoding || 'utf8';
 
-    messages.forEach(msg => {
-        this.writeMessage(msg, ws, options);
-    });
-
-    if (true === options.terminatePacket) {
-        ws.write(Buffer.from([0])); //  final extra null term
-    }
+    const self = this;
+    async.eachSeries(
+        messages,
+        (msg, nextMsg) => {
+            self.writeMessage(msg, ws, options, nextMsg);
+        },
+        err => {
+            if (!err && true === options.terminatePacket) {
+                ws.write(Buffer.from([0])); //  final extra null term
+            }
+            if (cb) {
+                return cb(err);
+            }
+        }
+    );
 };
 
-Packet.prototype.write = function (path, packetHeader, messages, options) {
+Packet.prototype.write = function (path, packetHeader, messages, options, cb) {
     if (!Array.isArray(messages)) {
         messages = [messages];
     }
@@ -1249,8 +1124,9 @@ Packet.prototype.write = function (path, packetHeader, messages, options) {
     options = options || { encoding: 'utf8' }; //  utf-8 = 'CHRS UTF-8 4'
 
     this.writeStream(
-        fs.createWriteStream(path), //  :TODO: specify mode/etc.
+        fs.createWriteStream(path),
         messages,
-        Object.assign({ packetHeader: packetHeader, terminatePacket: true }, options)
+        Object.assign({ packetHeader: packetHeader, terminatePacket: true }, options),
+        cb
     );
 };
