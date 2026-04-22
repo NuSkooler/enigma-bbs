@@ -71,7 +71,14 @@ exports.ThemeManager = class ThemeManager {
                     //  all themes, so they must be reloaded
                     Events.emit(Events.getSystemEvents().MenusChanged);
 
-                    this._reloadAllThemes();
+                    this._reloadAllThemes(reloadErr => {
+                        if (reloadErr) {
+                            Log.warn(
+                                { error: reloadErr.message },
+                                'Error reloading themes after menu change'
+                            );
+                        }
+                    });
                 }
             },
         });
@@ -128,14 +135,8 @@ exports.ThemeManager = class ThemeManager {
         const themeConfig = new ConfigLoader({
             onReload: err => {
                 if (!err) {
-                    //  this particular theme has changed
-                    this._themeLoaded(themeId, themeConfig, err => {
-                        if (!err) {
-                            Events.emit(Events.getSystemEvents().ThemeChanged, {
-                                themeId,
-                            });
-                        }
-                    });
+                    //  this particular theme.hjson has changed; re-finalize and notify clients
+                    this._themeLoaded(themeId, themeConfig);
                 }
             },
         });
@@ -153,7 +154,8 @@ exports.ThemeManager = class ThemeManager {
     }
 
     _themeLoaded(themeId, themeConfig) {
-        const theme = themeConfig.get();
+        //  Validate against raw theme.hjson content, not the merged overlay
+        const theme = themeConfig.getRaw();
 
         //  do some basic validation
         //  :TODO: schema validation here
@@ -190,7 +192,9 @@ exports.ThemeManager = class ThemeManager {
         //  start out with menu.hjson
         const mergedTheme = structuredClone(this.menuConfig.get());
 
-        const theme = themeConfig.get();
+        //  Use raw theme.hjson data so re-finalizations don't read back a previously
+        //  merged overlay and double-apply theme customizations
+        const theme = themeConfig.getRaw();
 
         //  some data brought directly over
         mergedTheme.info = Object.assign({}, theme.info, { themeId });
@@ -285,8 +289,9 @@ exports.ThemeManager = class ThemeManager {
                 const menuTheme = _.get(theme, ['customization', sectionName, entryName]);
                 if (menuTheme) {
                     if (menuTheme.config) {
-                        //  :TODO: should this be _.merge() ?
-                        mergedThemeMenu.config = Object.assign(
+                        //  Deep merge so nested config objects in theme.hjson can partially
+                        //  override menu.hjson values without wiping sibling keys
+                        mergedThemeMenu.config = _.merge(
                             mergedThemeMenu.config || {},
                             menuTheme.config
                         );
@@ -392,15 +397,22 @@ exports.ThemeManager = class ThemeManager {
         };
     }
 
-    _reloadAllThemes() {
-        async.each([...this.availableThemes.keys()], (themeId, nextThemeId) => {
-            this._loadTheme(themeId, err => {
-                if (!err) {
+    _reloadAllThemes(cb) {
+        //  Re-finalize each existing theme against the updated menu config.
+        //  Reusing the existing ConfigLoader avoids spawning extra file watchers on
+        //  every menu.hjson change and keeps theme.hjson raw data intact.
+        async.each(
+            [...this.availableThemes.keys()],
+            (themeId, nextThemeId) => {
+                const themeConfig = this.availableThemes.get(themeId);
+                if (themeConfig) {
+                    this._themeLoaded(themeId, themeConfig);
                     Log.info({ themeId }, `Theme "${themeId}" reloaded`);
                 }
-                return nextThemeId(null); //  always proceed
-            });
-        });
+                return nextThemeId(null); //  always proceed; errors logged per theme
+            },
+            cb
+        );
     }
 };
 
