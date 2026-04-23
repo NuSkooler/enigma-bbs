@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Web Server | ENiGMA½ BBS Software</title>
+<title>Configure Newscan Module | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Web Server" />
+<meta property="og:title" content="Configure Newscan Module" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="ENiGMA½ comes with a built in content server for supporting both HTTP and HTTPS. Currently the File Bases registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!" />
-<meta property="og:description" content="ENiGMA½ comes with a built in content server for supporting both HTTP and HTTPS. Currently the File Bases registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!" />
+<meta name="description" content="Configure Newscan Module" />
+<meta property="og:description" content="Configure Newscan Module" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-23T00:25:22+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Web Server" />
+<meta property="twitter:title" content="Configure Newscan Module" />
 <script type="application/ld+json">
-{"description":"ENiGMA½ comes with a built in content server for supporting both HTTP and HTTPS. Currently the File Bases registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!","headline":"Web Server","dateModified":"2026-04-23T00:25:22+00:00","datePublished":"2026-04-23T00:25:22+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/contentservers/web-server.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/contentservers/web-server.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Configure Newscan Module","headline":"Configure Newscan Module","dateModified":"2026-04-23T00:25:22+00:00","datePublished":"2026-04-23T00:25:22+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/configure-newscan.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/configure-newscan.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -30,9 +30,9 @@
     
     <div id="container">
         <div class="sidebar" id="sidebar">
-        <hr class="mobile-divide">
+        <hr class="mobile-divide" />
             <div class="container">
-          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
             </div>
             
             <ul>
@@ -1620,7 +1620,7 @@
 
 
     
-      <li class="active-nav">Web Server</li>
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
     
 
 
@@ -2304,7 +2304,7 @@
 
 
     
-    <li><a href="/enigma-bbs/modding/configure-newscan.html">Configure Newscan Module</a></li>
+      <li class="active-nav">Configure Newscan Module</li>
     
 
 
@@ -2750,163 +2750,320 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/loginservers/websocket.html">« WebSocket / Web Interface Server</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/set-newscan-date.html">&laquo; Set Newscan Date Module</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging &raquo;</a>
               
-              <br clear="both">
+              <br clear="both" />
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Web Server</h1>
-    <p>ENiGMA½ comes with a built in <em>content server</em> for supporting both HTTP and HTTPS. Currently the <a href="../modding/file-base-web-download-manager.md">File Bases</a> registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!</p>
+    <h1 class="page-title">Configure Newscan Module</h1>
+    <h2 id="configure-newscan-module">Configure Newscan Module</h2>
 
-<h1 id="configuration">Configuration</h1>
+<p>The <code class="language-plaintext highlighter-rouge">configure_newscan</code> module gives users direct control over their newscan experience. From a single screen they can:</p>
 
-<p>By default the web server is not enabled. To enable it, you will need to at a minimum configure two keys in the <code class="language-plaintext highlighter-rouge">contentServers.web</code> section of <code class="language-plaintext highlighter-rouge">config.hjson</code>:</p>
+<ul>
+  <li>Select exactly which message areas are included in their newscan (or scan all).</li>
+  <li>Set or clear a <strong>newscan floor date</strong> — a persistent minimum timestamp that prevents old messages from appearing as new in any area the user hasn’t yet read.</li>
+</ul>
 
-<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">contentServers</span><span class="p">:</span> <span class="p">{</span>
-    <span class="nl">web</span><span class="p">:</span> <span class="p">{</span>
-        <span class="na">domain</span><span class="p">:</span> <span class="nx">bbs</span><span class="p">.</span><span class="nx">yourdomain</span><span class="p">.</span><span class="nx">com</span>
+<p>Changes take effect immediately; there is no save/cancel step.</p>
 
-        <span class="na">http</span><span class="p">:</span> <span class="p">{</span>
-            <span class="na">enabled</span><span class="p">:</span> <span class="kc">true</span>
-            <span class="na">port</span><span class="p">:</span> <span class="mi">8080</span>
-        <span class="p">}</span>
-    <span class="p">}</span>
-<span class="p">}</span>
+<hr />
+
+<h2 id="newscan-area-selection">Newscan Area Selection</h2>
+
+<p>Users can toggle individual areas on or off, or flip the entire list at once. The selection is stored as a JSON array of area tags in the <code class="language-plaintext highlighter-rouge">newscan_area_tags</code> user property.</p>
+
+<ul>
+  <li>When the property is <strong>absent or empty</strong>, all available areas are scanned — identical to the pre-existing behaviour.</li>
+  <li>When specific areas are selected, only those areas appear during the newscan. Areas without access (ACS) are never shown regardless of selection state.</li>
+</ul>
+
+<hr />
+
+<h2 id="newscan-floor-date">Newscan Floor Date</h2>
+
+<p>The floor date is a non-destructive lower bound applied during newscan. For each area the effective scan start is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>MAX(per-area last-read pointer, first message ID at or after floor date)
 </code></pre></div></div>
 
-<p>The following is a table of all configuration keys available under <code class="language-plaintext highlighter-rouge">contentServers.web</code>:</p>
+<p>This means:</p>
+<ul>
+  <li><strong>Areas already read past the floor</strong> are unaffected — the actual pointer wins.</li>
+  <li><strong>Areas never visited</strong> (pointer = 0) or whose pointer falls before the floor start from the floor date instead of the beginning of time.</li>
+  <li>Marking an area as read advances its pointer past the floor naturally, after which the floor no longer has any effect on that area.</li>
+</ul>
 
-<table>
-  <thead>
-    <tr>
-      <th>Key</th>
-      <th>Required</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">domain</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Sets the domain, e.g. <code class="language-plaintext highlighter-rouge">bbs.yourdomain.com</code>.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">http</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Sub configuration for HTTP (non-secure) connections. See <strong>HTTP Configuration</strong> below.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">overrideUrlPrefix</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Instructs the system to be explicit when handing out URLs. Useful if your server is behind a transparent proxy.</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="http-configuration">HTTP Configuration</h3>
-
-<p>Entries available under <code class="language-plaintext highlighter-rouge">contentServers.web.http</code>:</p>
-
-<table>
-  <thead>
-    <tr>
-      <th>Key</th>
-      <th>Required</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">enable</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to enable this server.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">port</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the default port of <code class="language-plaintext highlighter-rouge">8080</code>.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">address</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Sets an explicit bind address.</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="https-configuration">HTTPS Configuration</h3>
-
-<p>Entries available under <code class="language-plaintext highlighter-rouge">contentServers.web.https</code>:</p>
-
-<table>
-  <thead>
-    <tr>
-      <th>Key</th>
-      <th>Required</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">enable</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to enable this server.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">port</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the default port of <code class="language-plaintext highlighter-rouge">8080</code>.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">address</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Sets an explicit bind address.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">certPem</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Overrides the default certificate path of <code class="language-plaintext highlighter-rouge">/config/https_cert.pem</code>. Certificate must be in PEM format. See <strong>Certificates</strong> below.</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">keyPem</code></td>
-      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Overrides the default certificate key path of <code class="language-plaintext highlighter-rouge">/config/https_cert_key.pem</code>. Key must be in PEM format. See <strong>Certificates</strong> below.</td>
-    </tr>
-  </tbody>
-</table>
-
-<h4 id="certificates">Certificates</h4>
-
-<p>If you don’t have a TLS certificate for your domain, a good source for a certificate can be <a href="https://letsencrypt.org/">Let’s Encrypt</a> who supplies free and trusted TLS certificates. A common strategy is to place another web server such as <a href="https://caddyserver.com/">Caddy</a> in front of ENiGMA½ acting as a transparent proxy and TLS termination point.</p>
+<p>The floor is stored as an ISO 8601 timestamp in the <code class="language-plaintext highlighter-rouge">newscan_min_timestamp</code> user property.</p>
 
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Keep in mind that the SSL certificate provided by Let’s Encrypt’s Certbot is by default stored in a privileged location; if your ENIGMA instance is not running as root (which it should not be!), you’ll need to copy the SSL certificate somewhere else in order for ENIGMA to use it.</p>
+  <p><strong>New accounts</strong> have <code class="language-plaintext highlighter-rouge">newscan_min_timestamp</code> automatically set to their account creation timestamp. Users joining a BBS with years of message history will only see posts from their join date onward — no configuration required.</p>
 </blockquote>
 
-<h2 id="static-root">Static Root</h2>
-<p>Static files live relative to the <code class="language-plaintext highlighter-rouge">contentServers.web.staticRoot</code> path which defaults to <code class="language-plaintext highlighter-rouge">enigma-bbs/www</code>. This is also commonly known as your “public root” directory.</p>
+<p>To change or clear the floor, press <code class="language-plaintext highlighter-rouge">G</code> from the configure newscan screen. This navigates to the floor-date entry form (see <a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date — <code class="language-plaintext highlighter-rouge">target: floor</code></a>).</p>
 
-<h2 id="custom-error-pages">Custom Error Pages</h2>
-<p>Customized error pages can be created for <a href="https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#4xx_Client_Error">HTTP error codes</a> by providing a <code class="language-plaintext highlighter-rouge">&lt;error_code&gt;.html</code> file in the <em>static routes</em> area. For example: <code class="language-plaintext highlighter-rouge">404.html</code>.</p>
+<hr />
 
-<h2 id="web-handlers">Web Handlers</h2>
-<p><a href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers</a> are loaded by the web content server and provide a easy way for adding additional routes &amp; functionality to ENiGMA.</p>
+<h2 id="art">Art</h2>
+
+<p>Art file: <code class="language-plaintext highlighter-rouge">CFGNEWSC</code></p>
+
+<hr />
+
+<h2 id="mci-codes">MCI Codes</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>MCI</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%VM1</code></td>
+      <td>Scrollable area list. Each item represents one message area across all available conferences.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%TL2</code></td>
+      <td>Selection status — e.g. <code class="language-plaintext highlighter-rouge">4 of 12 areas selected</code> or <code class="language-plaintext highlighter-rouge">All 12 areas selected</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%TL3</code></td>
+      <td>Current floor date — e.g. <code class="language-plaintext highlighter-rouge">Floor: 2026-01-15</code> or <code class="language-plaintext highlighter-rouge">Floor: not set</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">%TL10</code>+</td>
+      <td>Custom range updated on focus change — see item fields below.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="vm1-item-fields">VM1 Item Fields</h3>
+
+<p>The following fields are available in <code class="language-plaintext highlighter-rouge">itemFormat</code> / <code class="language-plaintext highlighter-rouge">focusItemFormat</code> for <code class="language-plaintext highlighter-rouge">%VM1</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{selectedIndicator}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">*</code> when the area is selected for newscan, ` ` (space) when not.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{confName}</code></td>
+      <td>Name of the conference the area belongs to.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{areaName}</code></td>
+      <td>Name of the message area.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{desc}</code></td>
+      <td>Description of the message area. Also available in <code class="language-plaintext highlighter-rouge">%TL10</code>+ via the custom range.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{areaTag}</code></td>
+      <td>Area tag string.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{confTag}</code></td>
+      <td>Conference tag string.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{text}</code></td>
+      <td>Same as <code class="language-plaintext highlighter-rouge">{areaName}</code> — standard list item text field.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Example <code class="language-plaintext highlighter-rouge">itemFormat</code>:</p>
+<pre><code class="language-hjson">itemFormat: "|00|15{selectedIndicator} |03{confName:&lt;14.14} |11{areaName}"
+focusItemFormat: "|00|19|15{selectedIndicator} {confName:&lt;14.14} {areaName}"
+</code></pre>
+
+<hr />
+
+<h2 id="key-bindings">Key Bindings</h2>
+
+<p>Key bindings are configured in the menu HJSON <code class="language-plaintext highlighter-rouge">actionKeys</code> block. The following <code class="language-plaintext highlighter-rouge">@method</code> actions are available:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Default key(s)</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">toggleArea</code></td>
+      <td><code class="language-plaintext highlighter-rouge">space</code>, <code class="language-plaintext highlighter-rouge">enter</code></td>
+      <td>Toggle the focused area on or off.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">toggleAllAreas</code></td>
+      <td><code class="language-plaintext highlighter-rouge">a</code></td>
+      <td>If all areas are selected, deselect all. Otherwise, select all.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">setFloorDate</code></td>
+      <td><code class="language-plaintext highlighter-rouge">g</code></td>
+      <td>Navigate to the floor-date entry menu (configurable via <code class="language-plaintext highlighter-rouge">setFloorDateMenu</code>).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">done</code></td>
+      <td><code class="language-plaintext highlighter-rouge">q</code>, <code class="language-plaintext highlighter-rouge">escape</code></td>
+      <td>Return to the previous menu.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="configuration-block">Configuration Block</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">setFloorDateMenu</code></td>
+      <td><code class="language-plaintext highlighter-rouge">configureNewscanFloor</code></td>
+      <td>Name of the menu entry to navigate to when the user presses the floor-date key. Typically points to a <code class="language-plaintext highlighter-rouge">set_newscan_date</code> entry with <code class="language-plaintext highlighter-rouge">target: floor</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="menu-hjson-example">Menu HJSON Example</h2>
+
+<pre><code class="language-hjson">messageBaseConfigureNewscan: {
+    desc: Configure Newscan
+    module: configure_newscan
+    art: CFGNEWSC
+    config: {
+        setFloorDateMenu: messageBaseSetNewscanFloor
+    }
+    form: {
+        0: {
+            mci: {
+                VM1: {
+                    focus: true
+                    argName: areaIndex
+                    height: 10
+                }
+                TL2: { }
+                TL3: { }
+            }
+            actionKeys: [
+                {
+                    keys: [ "space", "enter" ]
+                    action: @method:toggleArea
+                }
+                {
+                    keys: [ "a", "shift + a" ]
+                    action: @method:toggleAllAreas
+                }
+                {
+                    keys: [ "g", "shift + g" ]
+                    action: @method:setFloorDate
+                }
+                {
+                    keys: [ "q", "shift + q", "escape" ]
+                    action: @method:done
+                }
+            ]
+        }
+    }
+}
+
+messageBaseSetNewscanFloor: {
+    desc: Set Newscan Floor
+    module: set_newscan_date
+    art: SETMNSDATE
+    config: {
+        target: floor
+        scanDateFormat: YYYYMMDD
+    }
+    form: {
+        0: {
+            mci: {
+                ME1: {
+                    focus: true
+                    submit: true
+                    argName: scanDate
+                    maskPattern: "####/##/##"
+                }
+            }
+            submit: {
+                *: [
+                    {
+                        value: { scanDate: null }
+                        action: @method:scanDateSubmit
+                    }
+                ]
+            }
+            actionKeys: @reference:common.quitToPrev
+        }
+    }
+}
+</code></pre>
+
+<hr />
+
+<h2 id="relationship-with-set_newscan_date">Relationship with <code class="language-plaintext highlighter-rouge">set_newscan_date</code></h2>
+
+<p>The two modules serve different purposes and coexist:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">configure_newscan</code></td>
+      <td>Select which areas to scan; set/clear the floor date filter.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">set_newscan_date</code> (<code class="language-plaintext highlighter-rouge">target: message</code>)</td>
+      <td>Explicitly reposition per-area read pointers to a specific date — can move them forwards <strong>or backwards</strong>. Use this when you want to re-read past messages or catch up after a long absence.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The floor date cannot replace <code class="language-plaintext highlighter-rouge">set_newscan_date</code> for the “go backwards / re-read” case: the floor is a lower bound (<code class="language-plaintext highlighter-rouge">MAX</code>), so setting it to a past date has no effect on areas whose pointer is already ahead of it.</p>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/loginservers/websocket.html">« WebSocket / Web Interface Server</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/set-newscan-date.html">&laquo; Set Newscan Date Module</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/contentservers/web-handlers.html">Web Handlers »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging &raquo;</a>
               
-              <br clear="both">
+              <br clear="both" />
               </div>
             </section>
           </div>

@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="Set Newscan Date Module" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Set Newscan Date Module The set_newscan_date module allows setting newscan dates (aka pointers) for message conferences and areas as well as within the file base. Users can select specific conferences/areas or all (where applicable)." />
-<meta property="og:description" content="Set Newscan Date Module The set_newscan_date module allows setting newscan dates (aka pointers) for message conferences and areas as well as within the file base. Users can select specific conferences/areas or all (where applicable)." />
+<meta name="description" content="Set Newscan Date Module The set_newscan_date module allows setting newscan dates for message conferences and areas, the file base, or a global newscan floor. The behaviour depends on the target configured for the menu entry." />
+<meta property="og:description" content="Set Newscan Date Module The set_newscan_date module allows setting newscan dates for message conferences and areas, the file base, or a global newscan floor. The behaviour depends on the target configured for the menu entry." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-23T00:25:05+00:00" />
+<meta property="article:published_time" content="2026-04-23T00:25:22+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Set Newscan Date Module" />
 <script type="application/ld+json">
-{"description":"Set Newscan Date Module The set_newscan_date module allows setting newscan dates (aka pointers) for message conferences and areas as well as within the file base. Users can select specific conferences/areas or all (where applicable).","headline":"Set Newscan Date Module","dateModified":"2026-04-23T00:25:05+00:00","datePublished":"2026-04-23T00:25:05+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/set-newscan-date.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/set-newscan-date.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Set Newscan Date Module The set_newscan_date module allows setting newscan dates for message conferences and areas, the file base, or a global newscan floor. The behaviour depends on the target configured for the menu entry.","headline":"Set Newscan Date Module","dateModified":"2026-04-23T00:25:22+00:00","datePublished":"2026-04-23T00:25:22+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/set-newscan-date.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/set-newscan-date.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2304,6 +2304,31 @@
 
 
     
+    <li><a href="/enigma-bbs/modding/configure-newscan.html">Configure Newscan Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
     <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
     
 
@@ -2729,7 +2754,7 @@
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/configure-newscan.html">Configure Newscan Module &raquo;</a>
               
               <br clear="both" />
               </div>
@@ -2737,40 +2762,66 @@
                 <div class="page">
     <h1 class="page-title">Set Newscan Date Module</h1>
     <h2 id="set-newscan-date-module">Set Newscan Date Module</h2>
-<p>The <code class="language-plaintext highlighter-rouge">set_newscan_date</code> module allows setting newscan dates (aka pointers) for message conferences and areas as well as within the file base. Users can select specific conferences/areas or all (where applicable).</p>
+<p>The <code class="language-plaintext highlighter-rouge">set_newscan_date</code> module allows setting newscan dates for message conferences and areas, the file base, or a global newscan floor. The behaviour depends on the <code class="language-plaintext highlighter-rouge">target</code> configured for the menu entry.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Target</th>
+      <th>What it does</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">message</code></td>
+      <td>Finds the message ID at the given date and <strong>writes it</strong> to <code class="language-plaintext highlighter-rouge">user_message_area_last_read</code> for the selected area(s). This is a direct pointer move — it can go backwards or forwards.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">file</code></td>
+      <td>Moves the file base last-viewed pointer to the file ID at the given date.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">floor</code></td>
+      <td>Stores the date as the user’s <code class="language-plaintext highlighter-rouge">newscan_min_timestamp</code> property — a non-destructive floor. Per-area read pointers are untouched; the newscan engine uses <code class="language-plaintext highlighter-rouge">MAX(per-area pointer, id@floor)</code> as the effective starting point for each area. See <a href="/enigma-bbs/modding/configure-newscan.html">Configure Newscan</a> for the full floor date concept.</td>
+    </tr>
+  </tbody>
+</table>
 
 <h2 id="configuration">Configuration</h2>
 <h3 id="configuration-block">Configuration Block</h3>
-<p>Available <code class="language-plaintext highlighter-rouge">config</code> block entries are as follows:</p>
+<p>Available <code class="language-plaintext highlighter-rouge">config</code> block entries:</p>
 <ul>
-  <li><code class="language-plaintext highlighter-rouge">target</code>: Choose from <code class="language-plaintext highlighter-rouge">message</code> for message conferences &amp; areas, or <code class="language-plaintext highlighter-rouge">file</code> for file base areas.</li>
-  <li><code class="language-plaintext highlighter-rouge">scanDateFormat</code>: Format for scan date. This format must align with the <strong>output</strong> of the MaskEditView (<code class="language-plaintext highlighter-rouge">%ME1</code>) MCI utilized for input. Defaults to <code class="language-plaintext highlighter-rouge">YYYYMMDD</code> (which matches mask of <code class="language-plaintext highlighter-rouge">####/##/##</code>).</li>
+  <li><code class="language-plaintext highlighter-rouge">target</code>: <code class="language-plaintext highlighter-rouge">message</code>, <code class="language-plaintext highlighter-rouge">file</code>, or <code class="language-plaintext highlighter-rouge">floor</code>. Defaults to <code class="language-plaintext highlighter-rouge">message</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">scanDateFormat</code>: Format for the date entered by the user. Must match the <strong>output</strong> of the <code class="language-plaintext highlighter-rouge">%ME1</code> MaskEditView. Defaults to <code class="language-plaintext highlighter-rouge">YYYYMMDD</code> (matches mask <code class="language-plaintext highlighter-rouge">####/##/##</code>).</li>
 </ul>
 
 <h3 id="theming">Theming</h3>
-<h4 id="message-conference--areas">Message Conference &amp; Areas</h4>
-<p>When <code class="language-plaintext highlighter-rouge">target</code> is <code class="language-plaintext highlighter-rouge">message</code>, the following <code class="language-plaintext highlighter-rouge">itemFormat</code> object is provided to MCI 2 (ie: <code class="language-plaintext highlighter-rouge">%SM2</code>):</p>
+<h4 id="message-conference--areas-target-message">Message Conference &amp; Areas (<code class="language-plaintext highlighter-rouge">target: message</code>)</h4>
+<p>The following <code class="language-plaintext highlighter-rouge">itemFormat</code> fields are available on MCI 2 (<code class="language-plaintext highlighter-rouge">%SM2</code>) for selecting the target conf/area:</p>
 <ul>
   <li><code class="language-plaintext highlighter-rouge">conf</code>: An object containing:
     <ul>
       <li><code class="language-plaintext highlighter-rouge">confTag</code>: Conference tag.</li>
-      <li><code class="language-plaintext highlighter-rouge">name</code>: Conference name. Also available in <code class="language-plaintext highlighter-rouge">{text}</code>.</li>
+      <li><code class="language-plaintext highlighter-rouge">name</code>: Conference name. Also available as <code class="language-plaintext highlighter-rouge">{text}</code>.</li>
       <li><code class="language-plaintext highlighter-rouge">desc</code>: Conference description.</li>
     </ul>
   </li>
   <li><code class="language-plaintext highlighter-rouge">area</code>: An object containing:
     <ul>
       <li><code class="language-plaintext highlighter-rouge">areaTag</code>: Area tag.</li>
-      <li><code class="language-plaintext highlighter-rouge">name</code>: Area name. Also available in <code class="language-plaintext highlighter-rouge">{text}</code>.</li>
+      <li><code class="language-plaintext highlighter-rouge">name</code>: Area name. Also available as <code class="language-plaintext highlighter-rouge">{text}</code>.</li>
       <li><code class="language-plaintext highlighter-rouge">desc</code>: Area description.</li>
     </ul>
   </li>
 </ul>
 
-<p>When dealing with the file base, ENiGMA½ does not currently have the ability to set newscan dates for specific areas. No <code class="language-plaintext highlighter-rouge">%SM2</code> is used in this case.</p>
+<h4 id="file-base-target-file-and-floor-target-floor">File Base (<code class="language-plaintext highlighter-rouge">target: file</code>) and Floor (<code class="language-plaintext highlighter-rouge">target: floor</code>)</h4>
+<p>No <code class="language-plaintext highlighter-rouge">%SM2</code> is used — only the <code class="language-plaintext highlighter-rouge">%ME1</code> date input field is required.</p>
+
+<p>When <code class="language-plaintext highlighter-rouge">target</code> is <code class="language-plaintext highlighter-rouge">floor</code>, the date field is pre-populated with the user’s current floor date (if one is set), making it easy to review and adjust.</p>
 
 <h3 id="submit-actions">Submit Actions</h3>
-<p>Submit action should map to <code class="language-plaintext highlighter-rouge">@method:scanDateSubmit</code> and provide <code class="language-plaintext highlighter-rouge">scanDate</code> in form data. For message conf/areas (<code class="language-plaintext highlighter-rouge">target</code> of <code class="language-plaintext highlighter-rouge">message</code>), <code class="language-plaintext highlighter-rouge">targetSelection</code> should be also be provided in form data: An index to the selected conf/area.</p>
+<p>The submit action must map to <code class="language-plaintext highlighter-rouge">@method:scanDateSubmit</code> and include <code class="language-plaintext highlighter-rouge">scanDate</code> in the form data. For <code class="language-plaintext highlighter-rouge">target: message</code>, <code class="language-plaintext highlighter-rouge">targetSelection</code> (an index into the conf/area list) must also be provided.</p>
 
 </div>
 
@@ -2779,7 +2830,7 @@
               <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/file-base-web-download-manager.html">&laquo; File Base Web Download Manager</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/configure-newscan.html">Configure Newscan Module &raquo;</a>
               
               <br clear="both" />
               </div>
