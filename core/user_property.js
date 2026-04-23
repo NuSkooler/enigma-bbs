@@ -89,4 +89,10 @@ module.exports = {
 
     ActivityPubSettings: 'activitypub_settings', //   JSON object (above); see ActivityPubSettings in activitypub/settings.js
     ActivityPubActorId: 'activitypub_actor_id', //  Actor ID representing this users
+
+    //  Newscan user configuration
+    //  NOTE: Use newscan_area_tags / newscan_min_timestamp to avoid conflict with
+    //  the community mod that uses NewScanMessageAreaTags (comma-separated string)
+    NewScanAreaTags: 'newscan_area_tags', //  JSON array of areaTag strings; empty/absent = scan all
+    NewScanMinTimestamp: 'newscan_min_timestamp', //  ISO timestamp floor; effective last-read = MAX(per-area pointer, id@floor)
 };

@@ -132,6 +132,7 @@ collections:
       - modding/file-base-download-manager.md
       - modding/file-base-web-download-manager.md
       - modding/set-newscan-date.md
+      - modding/configure-newscan.md
       - modding/node-msg.md
       - modding/top-x.md
       - modding/user-2fa-otp-config.md

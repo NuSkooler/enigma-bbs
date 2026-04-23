@@ -313,6 +313,14 @@ exports.getModule = class MessageListModule extends (
                             return callback(null);
                         }
 
+                        //  Caller (e.g. new_scan) may supply a floor-adjusted effective
+                        //  last-read ID so that the new-message indicator and initial
+                        //  focus respect the newscan floor.
+                        if (self.config.lastReadId !== undefined) {
+                            self.lastReadId = self.config.lastReadId;
+                            return callback(null);
+                        }
+
                         messageArea.getMessageAreaLastReadId(
                             self.client.user.userId,
                             self.config.messageAreaTag,

@@ -45,6 +45,10 @@
                     action: @menu:messageBaseSetNewScanDate
                 }
                 {
+                    value: { command: "N" }
+                    action: @menu:messageBaseConfigureNewscan
+                }
+                {
                     value: { command: "S" }
                     action: @menu:messageBaseSearch
                 }
@@ -329,6 +333,79 @@
                         SM2: {
                             argName: targetSelection
                             submit: false
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { scanDate: null }
+                                action: @method:scanDateSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: @reference:common.quitToPrev
+                }
+            }
+        }
+
+        messageBaseConfigureNewscan: {
+            desc: Configure Newscan
+            module: configure_newscan
+            art: CFGNEWSC
+            config: {
+                //  Menu to navigate to when user presses G to set floor date.
+                //  Uses set_newscan_date with target:floor.
+                setFloorDateMenu: messageBaseSetNewscanFloor
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            argName: areaIndex
+                            height: 10
+                        }
+                        TL2: { }
+                        TL3: { }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "space", "enter" ]
+                            action: @method:toggleArea
+                        }
+                        {
+                            keys: [ "a", "shift + a" ]
+                            action: @method:toggleAllAreas
+                        }
+                        {
+                            keys: [ "g", "shift + g" ]
+                            action: @method:setFloorDate
+                        }
+                        {
+                            keys: [ "q", "shift + q", "escape" ]
+                            action: @method:done
+                        }
+                    ]
+                }
+            }
+        }
+
+        messageBaseSetNewscanFloor: {
+            desc: Set Newscan Floor
+            module: set_newscan_date
+            art: SETMNSDATE
+            config: {
+                target: floor
+                scanDateFormat: YYYYMMDD
+            }
+            form: {
+                0: {
+                    mci: {
+                        ME1: {
+                            focus: true
+                            submit: true
+                            argName: scanDate
+                            maskPattern: "####/##/##"
                         }
                     }
                     submit: {

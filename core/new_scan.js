@@ -12,6 +12,7 @@ const Errors = require('./enig_error.js').Errors;
 const { getAvailableFileAreaTags } = require('./file_base_area.js');
 const { valueAsArray } = require('./misc_util.js');
 const { SystemInternalConfTags } = require('./message_const');
+const UserProps = require('./user_property.js');
 
 //  deps
 const _ = require('lodash');
@@ -115,15 +116,44 @@ exports.getModule = class NewScanModule extends MenuModule {
         });
     }
 
+    //  Returns null (scan all) or an array of area tag strings the user has selected.
+    _getSelectedScanAreaTags() {
+        const raw = this.client.user.getProperty(UserProps.NewScanAreaTags);
+        if (!raw) {
+            return null;
+        }
+        try {
+            const tags = JSON.parse(raw);
+            return Array.isArray(tags) && tags.length > 0 ? tags : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
     newScanMessageArea(conf, cb) {
         //  :TODO: it would be nice to cache this - must be done by conf!
         const omitMessageAreaTags = valueAsArray(
             _.get(this, 'menuConfig.config.omitMessageAreaTags', [])
         );
+
+        //  Lazy-init the user's selected area tags once per scan session
+        if (this._selectedAreaTags === undefined) {
+            this._selectedAreaTags = this._getSelectedScanAreaTags();
+        }
+
         const sortedAreas = msgArea
             .getSortedAvailMessageAreasByConfTag(conf.confTag, { client: this.client })
             .filter(area => {
-                return !omitMessageAreaTags.includes(area.areaTag);
+                if (omitMessageAreaTags.includes(area.areaTag)) {
+                    return false;
+                }
+                if (
+                    this._selectedAreaTags !== null &&
+                    !this._selectedAreaTags.includes(area.areaTag)
+                ) {
+                    return false;
+                }
+                return true;
             });
         const currentArea = sortedAreas[this.currentScanAux.area];
 
@@ -156,16 +186,32 @@ exports.getModule = class NewScanModule extends MenuModule {
                     return callback(null);
                 },
                 function getNewMessagesCountInArea(callback) {
-                    msgArea.getNewMessageCountInAreaForUser(
+                    //  Use the effective last-read ID which incorporates the
+                    //  NewScanMinTimestamp floor, ensuring count and list queries
+                    //  use the same baseline (avoids empty-list false-positives).
+                    msgArea.getEffectiveNewScanLastReadId(
                         self.client.user,
                         currentArea.areaTag,
-                        { addrToOnly: false },
-                        (err, newMessageCount) => {
-                            callback(err, newMessageCount);
+                        (err, effectiveLastReadId) => {
+                            if (err) {
+                                return callback(null, 0, 0);
+                            }
+                            const Message = require('./message.js');
+                            const filter = {
+                                areaTag: currentArea.areaTag,
+                                newerThanMessageId: effectiveLastReadId,
+                                resultType: 'count',
+                            };
+                            if (Message.isPrivateAreaTag(currentArea.areaTag)) {
+                                filter.privateTagUserId = self.client.user.userId;
+                            }
+                            Message.findMessages(filter, (err, count) => {
+                                callback(err, count, effectiveLastReadId);
+                            });
                         }
                     );
                 },
-                function displayMessageList(newMessageCount) {
+                function displayMessageList(newMessageCount, effectiveLastReadId) {
                     if (newMessageCount <= 0) {
                         return self.newScanMessageArea(conf, cb); //  next area, if any
                     }
@@ -173,6 +219,10 @@ exports.getModule = class NewScanModule extends MenuModule {
                     const nextModuleOpts = {
                         extraArgs: {
                             messageAreaTag: currentArea.areaTag,
+                            //  Pass effective last-read so msg_list uses the same
+                            //  floor-adjusted baseline, preventing pre-floor messages
+                            //  from appearing as new.
+                            lastReadId: effectiveLastReadId,
                         },
                     };
 
