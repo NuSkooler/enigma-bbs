@@ -2,6 +2,8 @@
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
 ## 0.4.0-beta
+* Full log viewer from WFC. Defaults to `l` key.
+
 * Major FTN compatibility fixes, especially for those wanting to run a point.
 
 * **Newscan enhancements** — users now have direct control over their newscan experience:
