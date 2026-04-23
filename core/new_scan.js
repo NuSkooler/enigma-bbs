@@ -206,12 +206,12 @@ exports.getModule = class NewScanModule extends MenuModule {
                                 filter.privateTagUserId = self.client.user.userId;
                             }
                             Message.findMessages(filter, (err, count) => {
-                                callback(err, count, effectiveLastReadId);
+                                callback(err, count);
                             });
                         }
                     );
                 },
-                function displayMessageList(newMessageCount, effectiveLastReadId) {
+                function displayMessageList(newMessageCount) {
                     if (newMessageCount <= 0) {
                         return self.newScanMessageArea(conf, cb); //  next area, if any
                     }
@@ -219,10 +219,6 @@ exports.getModule = class NewScanModule extends MenuModule {
                     const nextModuleOpts = {
                         extraArgs: {
                             messageAreaTag: currentArea.areaTag,
-                            //  Pass effective last-read so msg_list uses the same
-                            //  floor-adjusted baseline, preventing pre-floor messages
-                            //  from appearing as new.
-                            lastReadId: effectiveLastReadId,
                         },
                     };
 
