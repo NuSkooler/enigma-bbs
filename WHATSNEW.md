@@ -4,6 +4,18 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 ## 0.4.0-beta
 * Major FTN compatibility fixes, especially for those wanting to run a point.
 
+* **Newscan enhancements** — users now have direct control over their newscan experience:
+
+  * **User-configurable scan areas** — new `configure_newscan` module (key `N` from the message base menu) lets users toggle individual message areas on or off for newscan, or toggle all at once. Selection is persisted immediately as a JSON array in the `newscan_area_tags` user property. Areas not selected are skipped entirely during the scan.
+
+  * **Newscan floor date** — a new `newscan_min_timestamp` user property acts as a non-destructive lower bound on the scan. For each area, the effective scan start is `MAX(per-area last-read pointer, first message at floor date)`. Unlike the existing *Set Newscan Date* feature (which rewrites per-area pointers), the floor is a persistent filter that never touches read state. Set or clear it via the `G` key in the configure screen, which navigates to a floor-date entry form. The existing `set_newscan_date` module is unchanged and kept for explicit pointer repositioning.
+
+  * **New-user backlog protection** — `newscan_min_timestamp` is automatically set to the account creation timestamp for all new accounts, so users joining a busy BBS with years of message history only see posts from their join date onward.
+
+  * **`set_newscan_date` gains `target: floor`** — sysops can wire a menu entry that writes `newscan_min_timestamp` instead of moving per-area pointers, using the same date-input UI.
+
+  * **Count/list consistency fix** — the new message count check and the message list passed to `msg_list` now both use the same floor-adjusted effective last-read ID, eliminating the possibility of navigating to an area that shows zero qualifying messages.
+
 
 ## 0.3.0-beta
 

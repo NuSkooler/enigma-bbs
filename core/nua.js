@@ -107,6 +107,10 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                     [UserProps.WebAddress]: formData.value.web || '',
                     [UserProps.AccountCreated]: getISOTimestampString(),
 
+                    //  New users get a newscan floor at their join date so they
+                    //  don't see years of backlog on a busy BBS.
+                    [UserProps.NewScanMinTimestamp]: getISOTimestampString(),
+
                     [UserProps.MessageConfTag]: confTag,
                     [UserProps.MessageAreaTag]: areaTag,
 

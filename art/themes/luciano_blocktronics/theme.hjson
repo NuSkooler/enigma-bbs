@@ -387,6 +387,23 @@
 				}
 			}
 
+			messageBaseConfigureNewscan: {
+				mci: {
+					VM1: {
+						width: 70
+						height: 8
+						itemFormat: "|00|15{selectedIndicator:<5.5}|03{confName:<25.25} |11{areaName}"
+						focusItemFormat: "|00|19{selectedIndicator:<5.5}{confName:<25.25} {areaName}"
+					}
+					TL2: {
+						width: 40
+					}
+					TL3: {
+						width: 35
+					}
+				}
+			}
+
 			qwkExportPacketCurrentConfig: {
 				mci: {
 					TL1: {

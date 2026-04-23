@@ -51,6 +51,7 @@ exports.getNewMessageCountAddressedToUser = getNewMessageCountAddressedToUser;
 exports.getNewMessagesInAreaForUser = getNewMessagesInAreaForUser;
 exports.getMessageIdNewerThanTimestampByArea = getMessageIdNewerThanTimestampByArea;
 exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
+exports.getEffectiveNewScanLastReadId = getEffectiveNewScanLastReadId;
 exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
 exports.persistMessage = persistMessage;
 exports.trimMessageAreasScheduledEvent = trimMessageAreasScheduledEvent;
@@ -654,6 +655,29 @@ function getMessageAreaLastReadId(userId, areaTag, cb) {
     } catch (err) {
         return cb(err);
     }
+}
+
+function getEffectiveNewScanLastReadId(user, areaTag, cb) {
+    getMessageAreaLastReadId(user.userId, areaTag, (err, rawLastRead) => {
+        if (err) {
+            return cb(null, 0); //  don't let a read error break the scan
+        }
+
+        const floor = user.getProperty(UserProps.NewScanMinTimestamp);
+        if (!floor) {
+            return cb(null, rawLastRead || 0);
+        }
+
+        getMessageIdNewerThanTimestampByArea(areaTag, floor, (err, floorMsgId) => {
+            if (err || !floorMsgId) {
+                return cb(null, rawLastRead || 0);
+            }
+            //  floorMsgId is the first message AT-OR-AFTER the floor timestamp;
+            //  step back one so messages exactly at the floor are included
+            const effectiveFloorId = Math.max(floorMsgId - 1, 0);
+            return cb(null, Math.max(rawLastRead || 0, effectiveFloorId));
+        });
+    });
 }
 
 function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb) {
