@@ -40,7 +40,6 @@ const sane = require('sane');
 const fse = require('fs-extra');
 const iconv = require('iconv-lite');
 const { randomUUID } = require('crypto');
-const properLockfile = require('proper-lockfile');
 
 exports.moduleInfo = {
     name: 'FTN BSO',
@@ -2868,6 +2867,20 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
             return cb(err);
         }
 
+        //  Remove stale .bsy flag files (and legacy .bsy.lock dirs left by
+        //  the previous proper-lockfile implementation) so external mailers
+        //  and our own startup begin from a known-clean state.
+        sweepOrphanBsyFiles([
+            this.moduleConfig.paths.inbound,
+            this.moduleConfig.paths.outbound,
+        ]);
+        [this.moduleConfig.paths.inbound, this.moduleConfig.paths.outbound].forEach(
+            dir => {
+                if (!_.isString(dir)) return;
+                fse.remove(paths.join(dir, 'enigma.bsy.lock'), () => {});
+            }
+        );
+
         if (_.isObject(this.moduleConfig.schedule)) {
             const exportSchedule = this.parseScheduleString(
                 this.moduleConfig.schedule.export
@@ -3017,54 +3030,86 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
 };
 
 //
-//  Acquire a .bsy lock on |dir| for the duration of |fn|, then release it.
-//  Uses proper-lockfile for cross-platform stale-safe locking:
-//    - O_EXCL atomic creation prevents races
-//    - mtime refresh detects crashes (lock becomes stale after BSY_LOCK_STALE_MS)
-//  The enigma.bsy file is also created in |dir| for external mailer visibility (FTS-5005).
+//  FTN .bsy flag (FTS-5005).  A zero-content file whose *presence* in an
+//  outbound directory signals external mailers (binkd, et al) that we are
+//  currently writing packets and they should not grab them until it is gone.
+//  It is NOT a lock; we are the only writer by design (one BBS instance per
+//  mail tree).  Crash-leaked files are unlinked on startup.
 //
-const BSY_LOCK_STALE_MS = 30000;
-
-function withBsyLock(dir, fn, cb) {
+function withFtnBsyFlag(dir, fn, cb) {
     const bsyPath = paths.join(dir, 'enigma.bsy');
 
-    fse.ensureFile(bsyPath, ensureErr => {
-        if (ensureErr) {
+    fs.writeFile(bsyPath, String(process.pid), writeErr => {
+        if (writeErr) {
             Log.warn(
-                { path: bsyPath, error: ensureErr.message },
-                'Could not create .bsy file; proceeding without lock'
+                { path: bsyPath, error: writeErr.message },
+                'Could not create FTN .bsy flag; proceeding without it'
             );
-            return fn(cb);
         }
 
-        properLockfile.lock(
-            bsyPath,
-            { realpath: false, stale: BSY_LOCK_STALE_MS, retries: 0 },
-            lockErr => {
-                if (lockErr) {
+        fn(fnErr => {
+            fs.unlink(bsyPath, unlinkErr => {
+                if (unlinkErr && 'ENOENT' !== unlinkErr.code) {
                     Log.warn(
-                        { path: bsyPath, error: lockErr.message },
-                        'BSO directory is locked by another process; skipping'
+                        { path: bsyPath, error: unlinkErr.message },
+                        'Failed to remove FTN .bsy flag'
                     );
-                    return cb(null); //  non-fatal: skip this cycle
                 }
-
-                fn(fnErr => {
-                    properLockfile.unlock(bsyPath, { realpath: false }, unlockErr => {
-                        if (unlockErr) {
-                            Log.warn(
-                                { path: bsyPath, error: unlockErr.message },
-                                'Failed to release .bsy lock'
-                            );
-                        }
-                        fse.remove(bsyPath, () => {}); //  best effort cleanup
-                        return cb(fnErr);
-                    });
-                });
-            }
-        );
+                return cb(fnErr);
+            });
+        });
     });
 }
+
+//
+//  Watchdog wrapper: runs |fn(done)| and guarantees |cb| fires exactly once —
+//  either when |done| is invoked, or after |watchdogMs| if not.  Exists so a
+//  missed callback inside |fn| cannot wedge the caller forever.
+//
+function guardedCall(watchdogMs, label, fn, cb) {
+    let called = false;
+    const timer = setTimeout(() => {
+        if (called) return;
+        Log.error(
+            { label, watchdogMs },
+            'FTN watchdog timeout; forcing completion'
+        );
+        called = true;
+        cb(Errors.General(`Watchdog timeout: ${label}`));
+    }, watchdogMs);
+
+    try {
+        fn(err => {
+            if (called) return;
+            called = true;
+            clearTimeout(timer);
+            cb(err);
+        });
+    } catch (e) {
+        if (called) return;
+        called = true;
+        clearTimeout(timer);
+        cb(e);
+    }
+}
+
+//  Unlink any orphan enigma.bsy files left by a crashed prior run.  Safe because
+//  only one BBS instance writes to these directories; anything we find is stale.
+function sweepOrphanBsyFiles(dirs) {
+    for (const dir of dirs) {
+        if (!_.isString(dir)) continue;
+        const bsyPath = paths.join(dir, 'enigma.bsy');
+        fs.unlink(bsyPath, err => {
+            if (!err) {
+                Log.info({ path: bsyPath }, 'Removed orphan FTN .bsy flag');
+            }
+            //  ENOENT is the common case (no stale file); ignore.
+        });
+    }
+}
+
+const IMPORT_WATCHDOG_MS = 5 * 60 * 1000;
+const EXPORT_WATCHDOG_MS = 10 * 60 * 1000;
 
 FTNMessageScanTossModule.prototype.performImport = function (cb) {
     if (!this.hasValidConfiguration()) {
@@ -3072,11 +3117,11 @@ FTNMessageScanTossModule.prototype.performImport = function (cb) {
     }
 
     const self = this;
-    const inboundDir = self.moduleConfig.paths.inbound;
 
-    withBsyLock(
-        inboundDir,
-        doneFn => {
+    guardedCall(
+        IMPORT_WATCHDOG_MS,
+        'FTN import',
+        done => {
             async.each(
                 ['inbound', 'secInbound'],
                 (inboundType, nextDir) => {
@@ -3092,7 +3137,7 @@ FTNMessageScanTossModule.prototype.performImport = function (cb) {
                         return nextDir(null);
                     });
                 },
-                doneFn
+                done
             );
         },
         cb
@@ -3111,25 +3156,32 @@ FTNMessageScanTossModule.prototype.performExport = function (cb) {
     const self = this;
     const outboundDir = self.moduleConfig.paths.outbound;
 
-    withBsyLock(
+    withFtnBsyFlag(
         outboundDir,
-        doneFn => {
-            async.eachSeries(
-                ['EchoMail', 'NetMail'],
-                (type, nextType) => {
-                    self[`perform${type}Export`](err => {
-                        if (err) {
-                            Log.warn(
-                                { type, error: err.message },
-                                'Error(s) during export'
-                            );
+        done => {
+            guardedCall(
+                EXPORT_WATCHDOG_MS,
+                'FTN export',
+                innerDone => {
+                    async.eachSeries(
+                        ['EchoMail', 'NetMail'],
+                        (type, nextType) => {
+                            self[`perform${type}Export`](err => {
+                                if (err) {
+                                    Log.warn(
+                                        { type, error: err.message },
+                                        'Error(s) during export'
+                                    );
+                                }
+                                return nextType(null); //  try next, always
+                            });
+                        },
+                        () => {
+                            return innerDone(null);
                         }
-                        return nextType(null); //  try next, always
-                    });
+                    );
                 },
-                () => {
-                    return doneFn(null);
-                }
+                done
             );
         },
         cb
