@@ -189,6 +189,7 @@ module.exports = () => {
             modsDb: paths.join(__dirname, './../db/mods/'),
             dropFiles: paths.join(__dirname, './../drop/'), //  + "/node<x>/
             misc: paths.join(__dirname, './../misc/'),
+            emailInbound: paths.join(__dirname, './../mail/email/'),
         },
 
         loginServers: {
@@ -955,6 +956,18 @@ module.exports = () => {
                         maxAgeDays: 365,
                         maxMessages: 10000,
                     },
+                },
+            },
+        },
+
+        email: {
+            inbound: {
+                enabled: false,
+                imap: {
+                    port: 993,
+                    secure: true,
+                    pollIntervalMs: 5 * 60 * 1000, //  5 minutes; 0 = use IMAP IDLE
+                    maxMessagesPerRun: 50,
                 },
             },
         },
