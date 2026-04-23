@@ -1,4 +1,6 @@
 //  ENiGMA½
+const fs = require('graceful-fs');
+
 const { MenuModule } = require('./menu_module');
 const stringFormat = require('./string_format');
 const Events = require('./events');
@@ -46,6 +48,12 @@ const MciViewIds = {
         quickLogView: 2,
         selectedNodeStatusInfo: 3,
         confirmXy: 4,
+
+        customRangeStart: 10,
+    },
+    fullLog: {
+        logList: 1,
+        entryDetail: 2,
 
         customRangeStart: 10,
     },
@@ -141,6 +149,45 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             },
             chatWithSelectedNode: (formData, extraArgs, cb) => {
                 return this._chatWithSelectedNode(cb);
+            },
+            displayFullLog: (formData, extraArgs, cb) => {
+                return this._displayFullLogPage(cb);
+            },
+            scrollFullLogDetailPageUp: (formData, extraArgs, cb) => {
+                const detailView = this.getView(
+                    'fullLog',
+                    MciViewIds.fullLog.entryDetail
+                );
+                if (detailView) {
+                    detailView.topVisibleIndex = Math.max(
+                        0,
+                        detailView.topVisibleIndex - detailView.dimens.height
+                    );
+                    detailView.redraw();
+                }
+                return cb(null);
+            },
+            scrollFullLogDetailPageDown: (formData, extraArgs, cb) => {
+                const detailView = this.getView(
+                    'fullLog',
+                    MciViewIds.fullLog.entryDetail
+                );
+                if (detailView) {
+                    const maxTop = Math.max(
+                        0,
+                        detailView.buffer.lines.length - detailView.dimens.height
+                    );
+                    detailView.topVisibleIndex = Math.min(
+                        maxTop,
+                        detailView.topVisibleIndex + detailView.dimens.height
+                    );
+                    detailView.redraw();
+                }
+                return cb(null);
+            },
+            exitFullLog: (formData, extraArgs, cb) => {
+                this.removeViewController('fullLog');
+                return this._displayMainPage(true, cb);
             },
         };
     }
@@ -493,6 +540,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _refreshAll(cb) {
+        //  Don't touch form 0 views while the fullLog viewer is active
+        if (this.viewControllers.fullLog) {
+            if (cb) {
+                return cb(null);
+            }
+            return;
+        }
+
         if (this.refreshing) {
             if (cb) {
                 return cb(null);
@@ -763,5 +818,217 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _dateTimeFormat(element) {
         const format = this.config[`${element}DateTimeFormat`];
         return format || this.getDateFormat();
+    }
+
+    _readLogSnapshot(cb) {
+        const config = Config();
+        const logFilePath = _.get(config, 'logging.rotatingFile.path');
+        if (!logFilePath) {
+            return cb(null, []);
+        }
+
+        const limit = this.config.fullLogLimit || 500;
+
+        fs.readFile(logFilePath, 'utf8', (err, data) => {
+            if (err) {
+                return cb(null, []); //  graceful fallback — show empty viewer
+            }
+
+            const records = data
+                .split('\n')
+                .filter(line => line.trim().length > 0)
+                .slice(-limit)
+                .reduce((acc, line) => {
+                    try {
+                        acc.push(JSON.parse(line));
+                    } catch (_) {
+                        //  skip malformed lines
+                    }
+                    return acc;
+                }, []);
+
+            return cb(null, records);
+        });
+    }
+
+    _formatLogListItem(rec) {
+        const levelName = bunyan.nameFromLevel[rec.level] || 'unknown';
+        const ts = moment(rec.time).format(
+            this.config.quickLogTimestampFormat || this.getDateTimeFormat('short')
+        );
+        const levelIndicators = this.config.quickLogLevelIndicators || {
+            trace: 'T',
+            debug: 'D',
+            info: 'I',
+            warn: 'W',
+            error: 'E',
+            fatal: 'F',
+        };
+        const prefixes = this.config.quickLogLevelMessagePrefixes || {};
+        return {
+            timestamp: ts,
+            level: rec.level,
+            levelIndicator: levelIndicators[levelName] || '?',
+            nodeId: rec.nodeId || '*',
+            sessionId: rec.sessionId || '',
+            message: `${prefixes[levelName] || ''}${rec.msg || ''}`,
+        };
+    }
+
+    _formatLogDetailText(rec) {
+        const levelName = bunyan.nameFromLevel[rec.level] || 'unknown';
+        const ts = moment(rec.time).format(
+            this.config.quickLogTimestampFormat || this.getDateTimeFormat('short')
+        );
+        const levelIndicators = this.config.quickLogLevelIndicators || {
+            trace: 'T',
+            debug: 'D',
+            info: 'I',
+            warn: 'W',
+            error: 'E',
+            fatal: 'F',
+        };
+        const levelPrefixes = this.config.quickLogLevelMessagePrefixes || {};
+        const levelPrefix = levelPrefixes[levelName] || '|07';
+        const levelIndicator = levelIndicators[levelName] || '?';
+
+        //  Header: [timestamp] INDICATOR LEVEL  node:N  session:S
+        let header = `|08[|07${ts}|08] ${levelIndicator} ${levelName.toUpperCase()}|08`;
+        if (rec.nodeId) {
+            header += `  node:|07${rec.nodeId}|08`;
+        }
+        if (rec.sessionId) {
+            header += `  session:|07${rec.sessionId}|08`;
+        }
+
+        //  Message line in level color
+        const msgLine = `${levelPrefix}${rec.msg || '(no message)'}|00`;
+
+        //  Per-field format — tokens: {name}, {sep}, {value}
+        const fieldFmt =
+            this.config.logDetailFieldFormat || '|08{name}|07{sep}|07{value}';
+        const fmtField = (name, value) =>
+            stringFormat(fieldFmt, { name, sep: ': ', value: String(value) });
+
+        const parts = [header, msgLine];
+
+        if (rec.err) {
+            if (rec.err.message) {
+                parts.push(fmtField('Error', rec.err.message));
+            }
+            if (rec.err.stack) {
+                parts.push(`|08${rec.err.stack}|00`);
+            }
+        }
+
+        const STANDARD_FIELDS = new Set([
+            'v',
+            'name',
+            'hostname',
+            'pid',
+            'level',
+            'time',
+            'msg',
+            'nodeId',
+            'sessionId',
+            'err',
+        ]);
+        const extra = Object.entries(rec).filter(([k]) => !STANDARD_FIELDS.has(k));
+        if (extra.length > 0) {
+            parts.push('');
+            for (const [k, v] of extra) {
+                const val =
+                    typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v);
+                parts.push(fmtField(k, val));
+            }
+        }
+
+        return parts.join('\n');
+    }
+
+    _updateFullLogDetail(detailView, rec) {
+        detailView.setAnsi(pipeToAnsi(this._formatLogDetailText(rec), this.client));
+    }
+
+    _displayFullLogPage(cb) {
+        this._stopRefreshing();
+
+        //  Detach the main VC so its key handler doesn't compete with fullLog's
+        if (this.viewControllers.main) {
+            this.viewControllers.main.detachClientEvents();
+        }
+
+        //  Remove any stale fullLog VC from a previous visit
+        this.removeViewController('fullLog');
+
+        let records = [];
+
+        async.series(
+            [
+                callback => {
+                    this._readLogSnapshot((err, recs) => {
+                        if (!err) {
+                            records = recs;
+                        }
+                        return callback(null); //  non-fatal: empty viewer on error
+                    });
+                },
+                callback => {
+                    return this.displayArtAndPrepViewController(
+                        'fullLog',
+                        FormIds.fullLog,
+                        { clearScreen: true },
+                        callback
+                    );
+                },
+                callback => {
+                    const logListView = this.getView(
+                        'fullLog',
+                        MciViewIds.fullLog.logList
+                    );
+                    if (!logListView) {
+                        return callback(null);
+                    }
+
+                    this._fullLogRecords = records;
+
+                    logListView.setItems(
+                        records.map(rec => this._formatLogListItem(rec))
+                    );
+
+                    const detailView = this.getView(
+                        'fullLog',
+                        MciViewIds.fullLog.entryDetail
+                    );
+                    if (detailView) {
+                        detailView.acceptsFocus = false;
+                        detailView.acceptsInput = false;
+
+                        logListView.on('index update', index => {
+                            const rec =
+                                this._fullLogRecords && this._fullLogRecords[index];
+                            if (rec) {
+                                this._updateFullLogDetail(detailView, rec);
+                            }
+                        });
+                    }
+
+                    if (records.length > 0) {
+                        //  Start at newest (last) entry
+                        logListView.setFocusItemIndex(records.length - 1);
+                        if (detailView) {
+                            this._updateFullLogDetail(
+                                detailView,
+                                records[records.length - 1]
+                            );
+                        }
+                    }
+
+                    logListView.redraw();
+                    return callback(null);
+                },
+            ],
+            err => cb(err)
+        );
     }
 };

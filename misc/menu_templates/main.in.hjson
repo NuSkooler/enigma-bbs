@@ -222,7 +222,18 @@
                 art: {
                     main: wfc
                     help: wfchelp
+                    fullLog: wfcfulllog
                 }
+
+                //  Log level for the quick-log mini-view (defaults to system level)
+                //  quickLogLevel: info
+
+                //  Max entries loaded into the full-log snapshot (default: 500)
+                //  fullLogLimit: 500
+
+                //  Per-field format for the full-log detail pane.
+                //  Tokens: {name}, {sep}, {value}. Pipe color codes supported.
+                //  logDetailFieldFormat: "|08{name}|07{sep}|07{value}"
 			}
 
 			form: {
@@ -263,12 +274,44 @@
                             keys: [ "b", "shift + b" ]
                             action: @method:chatWithSelectedNode
                         }
+                        {
+                            keys: [ "l", "shift + l" ]
+                            action: @method:displayFullLog
+                        }
 						{
 							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:prevMenu
 						}
 					]
 				}
+
+                //  Full log viewer — VM1: entry list (↑/↓); MT2: detail (PgUp/PgDn)
+                2: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                        }
+                        MT2: {
+                            acceptsFocus: false
+                            acceptsInput: false
+                        }
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "page up" ]
+                            action: @method:scrollFullLogDetailPageUp
+                        }
+                        {
+                            keys: [ "page down" ]
+                            action: @method:scrollFullLogDetailPageDown
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @method:exitFullLog
+                        }
+                    ]
+                }
 
                 // confirmKickNodePrompt
                 3: {

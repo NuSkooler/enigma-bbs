@@ -3070,10 +3070,7 @@ function guardedCall(watchdogMs, label, fn, cb) {
     let called = false;
     const timer = setTimeout(() => {
         if (called) return;
-        Log.error(
-            { label, watchdogMs },
-            'FTN watchdog timeout; forcing completion'
-        );
+        Log.error({ label, watchdogMs }, 'FTN watchdog timeout; forcing completion');
         called = true;
         cb(Errors.General(`Watchdog timeout: ${label}`));
     }, watchdogMs);
