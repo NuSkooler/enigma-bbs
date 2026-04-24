@@ -740,6 +740,29 @@ describe('MultiLineEditTextView — wide character cursor math', () => {
             assert.strictEqual(v._bufferToDisplayCol(0, 2), 4);
             assert.strictEqual(v._bufferToDisplayCol(0, 3), 6);
         });
+
+        it('tab chars each count as 1 display col (wcwidth returns -1 but we render as space)', () => {
+            //  Buffer: \t\t\t\t — four tab chars, each rendered as one space.
+            const v = makeMltev();
+            v.buffer.lines[0].chars = '\t\t\t\t';
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0);
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 2);
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 4);
+        });
+
+        it('mix of tab and wide chars accumulates correctly', () => {
+            //  Buffer: \t\t日本 — two tabs (display 0-1) then two wide CJK (display 2-5).
+            //  buffer col 0 → disp 0
+            //  buffer col 2 → disp 2  (after two tabs)
+            //  buffer col 3 → disp 4  (after first CJK)
+            //  buffer col 4 → disp 6  (after second CJK)
+            const v = makeMltev();
+            v.buffer.lines[0].chars = '\t\t日本';
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0, 'before first tab');
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 2, 'after two tabs');
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 4, 'after first CJK');
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 6, 'after second CJK');
+        });
     });
 
     describe('_displayToBufferCol — wide chars', () => {
@@ -827,6 +850,48 @@ describe('MultiLineEditTextView — wide character cursor math', () => {
             load(v, '日本語'); // 6 cols exactly — fits on one line
             assert.strictEqual(v.buffer.lines.length, 1);
             assert.strictEqual(v.buffer.lines[0].chars, '日本語');
+        });
+    });
+
+    describe('tab insertion with preceding wide chars', () => {
+        it('keyPressTab after a wide char inserts the correct number of tab chars to reach next stop', () => {
+            //  Buffer starts as '日' (buffer col 1 = display col 2).
+            //  Tab stop at display col 4 (tabWidth=4).
+            //  Needed fill: 4 - 2 = 2 display cols → 2 \t chars.
+            const v = makeMltev({ width: 20, height: 5 });
+            load(v, '日', 0, 1); // cursor after '日'
+            v.keyPressTab();
+            //  Buffer should now be '日\t\t' — 3 chars.
+            assert.strictEqual(v.buffer.lines[0].chars, '日\t\t');
+            //  Cursor at buffer col 3, display col 4.
+            assert.strictEqual(v.cursorPos.col, 3);
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 4);
+        });
+
+        it('keyPressTab at col 0 (no preceding wide char) inserts tabWidth tab chars', () => {
+            //  Baseline ASCII case: from display col 0, 4 \t chars reach display col 4.
+            const v = makeMltev({ width: 20, height: 5 });
+            load(v, '', 0, 0);
+            v.keyPressTab();
+            assert.strictEqual(v.buffer.lines[0].chars, '\t\t\t\t');
+            assert.strictEqual(v.cursorPos.col, 4);
+        });
+    });
+
+    describe('wrap trigger with tabs and wide chars', () => {
+        it('typing a char that pushes a line with tabs over the display width triggers rewrap', () => {
+            //  View width 10. Pre-load '\t\t日本' (2 tabs + 2 CJK = 6 display cols).
+            //  Typing 5 more ASCII chars → display = 11 > 10 → rewrap.
+            //  (The condition is strictly >, so exactly 10 does not trigger.)
+            const v = makeMltev({ width: 10, height: 5 });
+            load(v, '\t\t日本', 0, 4); // cursor at end of 4-char buffer
+            v.keyPressCharacter('A');
+            v.keyPressCharacter('B');
+            v.keyPressCharacter('C');
+            v.keyPressCharacter('D');
+            v.keyPressCharacter('E');
+            //  After 5 extra chars display width = 11 > 10 → rewrap fires.
+            assert.ok(v.buffer.lines.length >= 2, 'line should have been wrapped');
         });
     });
 });
