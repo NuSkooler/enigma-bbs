@@ -33,6 +33,19 @@ Messages that cannot be matched to a local user are saved as `.eml` files in `ma
 
 All email configuration lives under the `email` block in `config.hjson`.
 
+### Outbound Configuration Reference
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `outbound.fromDomain` | *(unset)* | When set, outbound mail is sent as `"UserName" <sanitized@fromDomain>` where the local-part is derived from the BBS user's name. When unset, all outbound mail uses `defaultFrom`. |
+| `outbound.usernameReplaceChar` | `_` | Character used to replace invalid characters when deriving the local-part from a BBS username (e.g. spaces → `_`). |
+
+When `outbound.fromDomain` is set, the `From:` header reflects the sending BBS user while the SMTP `Sender:` header and envelope MAIL FROM are set to `defaultFrom`. This matches the standard "on behalf of" pattern used by mailing lists and keeps bounces deliverable to the authenticated mailbox.
+
+> :warning: Your SMTP provider must allow the authenticated account to send as other local-parts within the configured domain. Verify this in your provider's settings (most providers allow this for any address in a verified domain).
+
+> :information_source: The sanitized local-part is checked against `users.badUserNames` before use. If a user's sanitized name collides with a reserved name, that message falls back to `defaultFrom`.
+
 ### Inbound Configuration Reference
 
 | Key | Default | Description |
@@ -44,8 +57,11 @@ All email configuration lives under the `email` block in `config.hjson`.
 | `inbound.imap.user` | — | IMAP login username |
 | `inbound.imap.password` | — | IMAP login password |
 | `inbound.imap.pollIntervalMs` | `300000` | How often to check for new messages (ms). Set to `0` to use IMAP IDLE (push-like, persistent connection) |
-| `inbound.imap.processedFolder` | *(none)* | IMAP folder to move processed messages into. If omitted, messages are only marked `\Seen` |
+| `inbound.imap.processedFolder` | *(none)* | IMAP folder to move successfully imported messages into. If omitted, messages stay in INBOX marked `\Seen` |
+| `inbound.imap.failedFolder` | *(none)* | IMAP folder to move messages that could not be imported (unknown local recipient, parse error). If omitted, failed messages stay in INBOX marked `\Seen`. Either way, a copy is saved locally as `.eml` in `mail/email/failed/` for sysop review |
 | `inbound.imap.maxMessagesPerRun` | `50` | Maximum messages to import per poll cycle |
+
+> :information_source: **Server-side message lifecycle:** the inbound poller **marks every processed message `\Seen`** — both imports that succeeded and imports that failed. This is intentional: a message that cannot be matched (e.g. addressed to a deleted local user) would otherwise be re-fetched on every poll and duplicated into `mail/email/failed/` indefinitely. Marking seen breaks that loop. Messages are **never deleted** by ENiGMA½ — retention of `processedFolder` / `failedFolder` / INBOX is entirely up to you or your provider.
 
 ### Polling vs. IMAP IDLE
 
@@ -86,6 +102,13 @@ email: {
 email: {
     defaultFrom: "Sysop <sysop@yourbbs.net>"
 
+    //  Optional: send as "<UserName>" <username@yourbbs.net> instead of
+    //  always using defaultFrom. Requires your SMTP provider to allow
+    //  the authenticated account to send as other local-parts.
+    outbound: {
+        fromDomain: yourbbs.net
+    }
+
     transport: {
         host: smtp.yourdomain.com
         port: 587
@@ -109,8 +132,12 @@ email: {
             //  Check every 5 minutes (default)
             pollIntervalMs: 300000
 
-            //  Move imported messages here on the IMAP server
+            //  Move successfully imported messages here on the IMAP server
             processedFolder: "BBS-Processed"
+
+            //  Move messages that couldn't be matched to a local user here
+            //  (optional — defaults to leaving them in INBOX marked \Seen)
+            failedFolder: "BBS-Failed"
         }
     }
 }
@@ -175,9 +202,13 @@ email: {
 
 ## Failed Message Handling
 
-Messages that cannot be delivered to a local user (unknown username, parse error) are saved as raw `.eml` files in `mail/email/failed/`. The filename includes a timestamp and a short reason code (e.g. `1712345678901_no_user.eml`).
+Messages that cannot be delivered to a local user (unknown username, parse error) are:
 
-Sysops can inspect these files with any email client or text editor to diagnose routing issues.
+- Saved locally as raw `.eml` files in `mail/email/failed/`. The filename includes a timestamp and a short reason code (e.g. `1712345678901_no_user.eml`).
+- Marked `\Seen` on the IMAP server so they are not re-fetched on the next poll.
+- Moved to `inbound.imap.failedFolder` if configured, otherwise left in INBOX (read).
+
+Sysops can inspect the local `.eml` files with any email client or text editor to diagnose routing issues. Using `failedFolder` keeps the server-side INBOX tidy and makes it easy to re-run a message (e.g. after creating the missing local user) by moving it back into INBOX and clearing its `\Seen` flag.
 
 ## See Also
 

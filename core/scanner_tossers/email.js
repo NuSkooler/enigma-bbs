@@ -14,6 +14,8 @@ const { sendMail } = require('../email');
 const User = require('../user');
 const Config = require('../config').get;
 const Log = require('../logger').log;
+const { stripAnsiControlCodes } = require('../string_util');
+const { stripMciColorCodes } = require('../color_codes');
 
 //  deps
 const { ImapFlow } = require('imapflow');
@@ -125,11 +127,25 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
             return;
         }
 
+        const bodyText = stripMciColorCodes(
+            stripAnsiControlCodes(message.message || '', { all: true })
+        );
+
         const mailOptions = {
             to: toAddress,
             subject: message.subject || '(no subject)',
-            text: message.message,
+            text: bodyText,
         };
+
+        const fromAddress = this._buildFromAddress(config, message.fromUserName);
+        if (fromAddress) {
+            mailOptions.from = fromAddress;
+            //  Honest third-party submission: receivers show "X on behalf of Y"
+            //  and bounces go to the authenticated mailbox rather than the user.
+            if (config.defaultFrom) {
+                mailOptions.sender = config.defaultFrom;
+            }
+        }
 
         sendMail(mailOptions, err => {
             if (err) {
@@ -150,6 +166,47 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
                 () => {}
             );
         });
+    }
+
+    _buildFromAddress(emailConfig, fromUserName) {
+        const fromDomain = _.get(emailConfig, 'outbound.fromDomain');
+        if (!fromDomain || !fromUserName) {
+            return null;
+        }
+
+        const replaceChar = _.get(emailConfig, 'outbound.usernameReplaceChar', '_');
+        const localPart = this._sanitizeLocalPart(fromUserName, replaceChar);
+        if (!localPart) {
+            return null;
+        }
+
+        const bannedNames = _.get(Config(), 'users.badUserNames', []);
+        if (bannedNames.includes(localPart.toLowerCase())) {
+            this.log.warn(
+                { fromUserName, localPart },
+                'Sanitized local-part is a reserved/banned name; falling back to defaultFrom'
+            );
+            return null;
+        }
+
+        return {
+            name: fromUserName,
+            address: `${localPart}@${fromDomain}`,
+        };
+    }
+
+    _sanitizeLocalPart(name, replaceChar) {
+        //  RFC 5321 local-parts allow a broader set, but restrict to the
+        //  conservative subset (letters, digits, dot, hyphen, underscore)
+        //  that virtually every receiver handles without surprise.
+        let local = String(name).replace(/[^a-zA-Z0-9._-]+/g, replaceChar);
+        //  Trim leading/trailing separators and collapse repeats
+        local = local.replace(/^[._-]+|[._-]+$/g, '');
+        if (replaceChar) {
+            const esc = replaceChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            local = local.replace(new RegExp(`${esc}{2,}`, 'g'), replaceChar);
+        }
+        return local;
     }
 
     _startInbound() {
@@ -234,22 +291,26 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
 
                 for (const rawMsg of messages) {
                     const imported = await this._importMessage(rawMsg.source);
-                    if (imported) {
-                        await client.messageFlagsAdd(rawMsg.uid, ['\\Seen'], {
-                            uid: true,
-                        });
 
-                        const processedFolder = _.get(imapConfig, 'processedFolder');
-                        if (processedFolder) {
-                            await client
-                                .messageMove([rawMsg.uid], processedFolder, { uid: true })
-                                .catch(err =>
-                                    this.log.warn(
-                                        { err, processedFolder },
-                                        'Could not move message to processed folder'
-                                    )
-                                );
-                        }
+                    //  Mark seen on both success and failure so a repeatedly-
+                    //  failing message (unknown recipient, parse error) does not
+                    //  get re-fetched on every poll and duplicated into failed/.
+                    await client.messageFlagsAdd(rawMsg.uid, ['\\Seen'], {
+                        uid: true,
+                    });
+
+                    const destFolder = imported
+                        ? _.get(imapConfig, 'processedFolder')
+                        : _.get(imapConfig, 'failedFolder');
+                    if (destFolder) {
+                        await client
+                            .messageMove([rawMsg.uid], destFolder, { uid: true })
+                            .catch(err =>
+                                this.log.warn(
+                                    { err, destFolder, imported },
+                                    'Could not move message to destination folder'
+                                )
+                            );
                     }
                 }
             } finally {
