@@ -17,11 +17,11 @@
 <meta property="og:description" content="Internet Mail" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-24T00:42:58+00:00" />
+<meta property="article:published_time" content="2026-04-24T01:44:14+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Internet Mail (Email)" />
 <script type="application/ld+json">
-{"description":"Internet Mail","headline":"Internet Mail (Email)","dateModified":"2026-04-24T00:42:58+00:00","datePublished":"2026-04-24T00:42:58+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/internet-mail.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/internet-mail.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Internet Mail","headline":"Internet Mail (Email)","dateModified":"2026-04-24T01:44:14+00:00","datePublished":"2026-04-24T01:44:14+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/internet-mail.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/internet-mail.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2823,6 +2823,40 @@
 
 <p>All email configuration lives under the <code class="language-plaintext highlighter-rouge">email</code> block in <code class="language-plaintext highlighter-rouge">config.hjson</code>.</p>
 
+<h3 id="outbound-configuration-reference">Outbound Configuration Reference</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">outbound.fromDomain</code></td>
+      <td><em>(unset)</em></td>
+      <td>When set, outbound mail is sent as <code class="language-plaintext highlighter-rouge">"UserName" &lt;sanitized@fromDomain&gt;</code> where the local-part is derived from the BBS user’s name. When unset, all outbound mail uses <code class="language-plaintext highlighter-rouge">defaultFrom</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">outbound.usernameReplaceChar</code></td>
+      <td><code class="language-plaintext highlighter-rouge">_</code></td>
+      <td>Character used to replace invalid characters when deriving the local-part from a BBS username (e.g. spaces → <code class="language-plaintext highlighter-rouge">_</code>).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>When <code class="language-plaintext highlighter-rouge">outbound.fromDomain</code> is set, the <code class="language-plaintext highlighter-rouge">From:</code> header reflects the sending BBS user while the SMTP <code class="language-plaintext highlighter-rouge">Sender:</code> header and envelope MAIL FROM are set to <code class="language-plaintext highlighter-rouge">defaultFrom</code>. This matches the standard “on behalf of” pattern used by mailing lists and keeps bounces deliverable to the authenticated mailbox.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Your SMTP provider must allow the authenticated account to send as other local-parts within the configured domain. Verify this in your provider’s settings (most providers allow this for any address in a verified domain).</p>
+</blockquote>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> The sanitized local-part is checked against <code class="language-plaintext highlighter-rouge">users.badUserNames</code> before use. If a user’s sanitized name collides with a reserved name, that message falls back to <code class="language-plaintext highlighter-rouge">defaultFrom</code>.</p>
+</blockquote>
+
 <h3 id="inbound-configuration-reference">Inbound Configuration Reference</h3>
 
 <table>
@@ -2872,8 +2906,13 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">inbound.imap.processedFolder</code></td>
       <td><em>(none)</em></td>
-      <td>IMAP folder to move processed messages into. If omitted, messages are only marked <code class="language-plaintext highlighter-rouge">\Seen</code>
+      <td>IMAP folder to move successfully imported messages into. If omitted, messages stay in INBOX marked <code class="language-plaintext highlighter-rouge">\Seen</code>
 </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.failedFolder</code></td>
+      <td><em>(none)</em></td>
+      <td>IMAP folder to move messages that could not be imported (unknown local recipient, parse error). If omitted, failed messages stay in INBOX marked <code class="language-plaintext highlighter-rouge">\Seen</code>. Either way, a copy is saved locally as <code class="language-plaintext highlighter-rouge">.eml</code> in <code class="language-plaintext highlighter-rouge">mail/email/failed/</code> for sysop review</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">inbound.imap.maxMessagesPerRun</code></td>
@@ -2882,6 +2921,10 @@
     </tr>
   </tbody>
 </table>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> <strong>Server-side message lifecycle:</strong> the inbound poller <strong>marks every processed message <code class="language-plaintext highlighter-rouge">\Seen</code></strong> — both imports that succeeded and imports that failed. This is intentional: a message that cannot be matched (e.g. addressed to a deleted local user) would otherwise be re-fetched on every poll and duplicated into <code class="language-plaintext highlighter-rouge">mail/email/failed/</code> indefinitely. Marking seen breaks that loop. Messages are <strong>never deleted</strong> by ENiGMA½ — retention of <code class="language-plaintext highlighter-rouge">processedFolder</code> / <code class="language-plaintext highlighter-rouge">failedFolder</code> / INBOX is entirely up to you or your provider.</p>
+</blockquote>
 
 <h3 id="polling-vs-imap-idle">Polling vs. IMAP IDLE</h3>
 
@@ -2946,6 +2989,13 @@
 <pre><code class="language-hjson">email: {
     defaultFrom: "Sysop &lt;sysop@yourbbs.net&gt;"
 
+    //  Optional: send as "&lt;UserName&gt;" &lt;username@yourbbs.net&gt; instead of
+    //  always using defaultFrom. Requires your SMTP provider to allow
+    //  the authenticated account to send as other local-parts.
+    outbound: {
+        fromDomain: yourbbs.net
+    }
+
     transport: {
         host: smtp.yourdomain.com
         port: 587
@@ -2969,8 +3019,12 @@
             //  Check every 5 minutes (default)
             pollIntervalMs: 300000
 
-            //  Move imported messages here on the IMAP server
+            //  Move successfully imported messages here on the IMAP server
             processedFolder: "BBS-Processed"
+
+            //  Move messages that couldn't be matched to a local user here
+            //  (optional — defaults to leaving them in INBOX marked \Seen)
+            failedFolder: "BBS-Failed"
         }
     }
 }
@@ -3035,9 +3089,15 @@
 
 <h2 id="failed-message-handling">Failed Message Handling</h2>
 
-<p>Messages that cannot be delivered to a local user (unknown username, parse error) are saved as raw <code class="language-plaintext highlighter-rouge">.eml</code> files in <code class="language-plaintext highlighter-rouge">mail/email/failed/</code>. The filename includes a timestamp and a short reason code (e.g. <code class="language-plaintext highlighter-rouge">1712345678901_no_user.eml</code>).</p>
+<p>Messages that cannot be delivered to a local user (unknown username, parse error) are:</p>
 
-<p>Sysops can inspect these files with any email client or text editor to diagnose routing issues.</p>
+<ul>
+  <li>Saved locally as raw <code class="language-plaintext highlighter-rouge">.eml</code> files in <code class="language-plaintext highlighter-rouge">mail/email/failed/</code>. The filename includes a timestamp and a short reason code (e.g. <code class="language-plaintext highlighter-rouge">1712345678901_no_user.eml</code>).</li>
+  <li>Marked <code class="language-plaintext highlighter-rouge">\Seen</code> on the IMAP server so they are not re-fetched on the next poll.</li>
+  <li>Moved to <code class="language-plaintext highlighter-rouge">inbound.imap.failedFolder</code> if configured, otherwise left in INBOX (read).</li>
+</ul>
+
+<p>Sysops can inspect the local <code class="language-plaintext highlighter-rouge">.eml</code> files with any email client or text editor to diagnose routing issues. Using <code class="language-plaintext highlighter-rouge">failedFolder</code> keeps the server-side INBOX tidy and makes it easy to re-run a message (e.g. after creating the missing local user) by moving it back into INBOX and clearing its <code class="language-plaintext highlighter-rouge">\Seen</code> flag.</p>
 
 <h2 id="see-also">See Also</h2>
 
