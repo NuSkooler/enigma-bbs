@@ -145,6 +145,30 @@ describe('u32Insert / u32Delete / u32Concat', () => {
         assert.deepEqual([...out], [10, 30]);
     });
 
+    it('u32Delete on empty array is a no-op (regression: would throw RangeError)', () => {
+        const arr = new Uint32Array(0);
+        const out = u32Delete(arr, 0);
+        assert.equal(out.length, 0);
+    });
+
+    it('u32Delete at index === length is a no-op', () => {
+        const arr = new Uint32Array([1, 2, 3]);
+        const out = u32Delete(arr, 3);
+        assert.deepEqual([...out], [1, 2, 3]);
+    });
+
+    it('u32Delete at index past length is a no-op', () => {
+        const arr = new Uint32Array([1, 2, 3]);
+        const out = u32Delete(arr, 99);
+        assert.deepEqual([...out], [1, 2, 3]);
+    });
+
+    it('u32Delete at negative index is a no-op', () => {
+        const arr = new Uint32Array([1, 2, 3]);
+        const out = u32Delete(arr, -1);
+        assert.deepEqual([...out], [1, 2, 3]);
+    });
+
     it('u32Concat two non-empty arrays', () => {
         const a = new Uint32Array([1, 2]);
         const b = new Uint32Array([3, 4]);
@@ -250,6 +274,41 @@ describe('LineBuffer', () => {
             buf.deleteChar(0, 1);
             assert.equal(buf.lines[0].chars, 'a');
             assert.deepEqual([...buf.lines[0].attrs], [1]);
+        });
+
+        it('deleteChar on empty line is a no-op (regression: crashed the BBS via backspace on empty line)', () => {
+            const buf = new LineBuffer({ width: 40 });
+            //  Line starts empty (chars='', attrs length 0); prior behavior:
+            //  u32Delete(empty, 0) → new Uint32Array(-1) → RangeError, uncaught.
+            assert.doesNotThrow(() => buf.deleteChar(0, 0));
+            assert.equal(buf.lines[0].chars, '');
+            assert.equal(buf.lines[0].attrs.length, 0);
+        });
+
+        it('deleteChar at col past end of line is a no-op', () => {
+            const buf = new LineBuffer({ width: 40 });
+            buf.lines[0].chars = 'abc';
+            buf.lines[0].attrs = new Uint32Array([1, 2, 3]);
+            buf.deleteChar(0, 99);
+            assert.equal(buf.lines[0].chars, 'abc');
+            assert.deepEqual([...buf.lines[0].attrs], [1, 2, 3]);
+        });
+
+        it('deleteChar at negative col is a no-op', () => {
+            const buf = new LineBuffer({ width: 40 });
+            buf.lines[0].chars = 'abc';
+            buf.lines[0].attrs = new Uint32Array([1, 2, 3]);
+            buf.deleteChar(0, -1);
+            assert.equal(buf.lines[0].chars, 'abc');
+            assert.deepEqual([...buf.lines[0].attrs], [1, 2, 3]);
+        });
+
+        it('deleteChar on out-of-range lineIndex is a no-op', () => {
+            const buf = new LineBuffer({ width: 40 });
+            buf.lines[0].chars = 'abc';
+            buf.lines[0].attrs = new Uint32Array([1, 2, 3]);
+            assert.doesNotThrow(() => buf.deleteChar(99, 0));
+            assert.equal(buf.lines[0].chars, 'abc'); //  untouched
         });
     });
 
