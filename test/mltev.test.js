@@ -685,3 +685,108 @@ describe('MultiLineEditTextView — _scrollToMatch positioning', () => {
         assert.strictEqual(v.cursorPos.row, 4);
     });
 });
+
+// ─── Cursor-stable structural mutations ───────────────────────────────────────
+//
+// Regression guards for the empty-line backspace crash
+// (RangeError: Invalid typed array length: -1).  The process died because a
+// mutation path rewrapped the paragraph without remapping the cursor, and a
+// later keystroke hit deleteChar on a line shorter than cursorPos.col
+// believed.  These tests pin the paragraph-stable remap and the entry-time
+// clamp in place so the class of bug can't regress silently.
+
+describe('MultiLineEditTextView — cursor stability after forward Delete', () => {
+    it('Delete at end-of-line joins + rewraps and leaves the cursor on a valid line', () => {
+        const v = makeMltev({ width: 10, height: 5 });
+        //  Two hard-break lines; cursor at end of the first.  Delete joins
+        //  them, rewrap reflows, cursor must land on an existing line with
+        //  col <= that line's chars.length.
+        load(v, 'HelloWorld\ntest', 0, 10);
+        v.keyPressDelete();
+
+        const idx = v.topVisibleIndex + v.cursorPos.row;
+        assert.ok(idx >= 0 && idx < v.buffer.lines.length, 'row in range');
+        assert.ok(
+            v.cursorPos.col <= v.buffer.lines[idx].chars.length,
+            'col within line length'
+        );
+    });
+
+    it('Delete at end-of-line followed by Backspace does not crash', () => {
+        //  Direct reproducer for the production stack: forward-delete reflows
+        //  the paragraph shorter, then Backspace is pressed on what may be a
+        //  stranded cursor.  Must not throw.
+        const v = makeMltev({ width: 10, height: 5 });
+        load(v, 'HelloWorld\ntest', 0, 10);
+        v.keyPressDelete();
+        assert.doesNotThrow(() => v.keyPressBackspace());
+    });
+
+    it('forward Delete mid-paragraph keeps cursor valid after rewrap', () => {
+        const v = makeMltev({ width: 10, height: 5 });
+        load(v, 'one two three four', 0, 3); //  cursor just past "one"
+        v.removeCharactersFromText(0, 3, 'delete', 1);
+
+        const idx = v.topVisibleIndex + v.cursorPos.row;
+        assert.ok(idx < v.buffer.lines.length);
+        assert.ok(v.cursorPos.col <= v.buffer.lines[idx].chars.length);
+    });
+});
+
+describe('MultiLineEditTextView — _clampCursorToBuffer', () => {
+    it('clamps cursorPos.col to current line length', () => {
+        const v = makeMltev();
+        load(v, 'hello');
+        v.cursorPos.col = 999;
+        v._clampCursorToBuffer();
+        assert.strictEqual(v.cursorPos.col, 5);
+    });
+
+    it('clamps cursorPos.row to the last buffer line', () => {
+        const v = makeMltev();
+        load(v, 'a\nb\nc');
+        v.cursorPos.row = 99;
+        v._clampCursorToBuffer();
+        assert.strictEqual(v.cursorPos.row, 2);
+    });
+
+    it('clamps topVisibleIndex when it points past the buffer end', () => {
+        const v = makeMltev();
+        load(v, 'only-one-line');
+        v.topVisibleIndex = 99;
+        v._clampCursorToBuffer();
+        assert.strictEqual(v.topVisibleIndex, 0);
+    });
+
+    it('clamps negative cursorPos/topVisibleIndex to 0', () => {
+        const v = makeMltev();
+        load(v, 'hello');
+        v.cursorPos.col = -5;
+        v.cursorPos.row = -3;
+        v.topVisibleIndex = -1;
+        v._clampCursorToBuffer();
+        assert.strictEqual(v.cursorPos.col, 0);
+        assert.strictEqual(v.cursorPos.row, 0);
+        assert.strictEqual(v.topVisibleIndex, 0);
+    });
+
+    it('lands cursorPos.col at 0 when the target line is empty', () => {
+        //  The precise state that previously crashed: cursor col > 0 on an
+        //  empty line.  After clamp it should be col = 0, backspace a no-op.
+        const v = makeMltev();
+        load(v, 'hello\n\nworld', 1, 5); //  row 1 is the empty line, col forced to 5
+        v._clampCursorToBuffer();
+        assert.strictEqual(v.cursorPos.col, 0);
+        assert.doesNotThrow(() => v.keyPressBackspace());
+    });
+
+    it('onKeyPress clamps before dispatch — Backspace with stranded col does not crash', () => {
+        //  End-to-end: stranded cursor + real keystroke.  Prior to the fix this
+        //  would have thrown RangeError out of u32Delete and killed the process.
+        const v = makeMltev();
+        load(v, 'hello\n\nworld', 1, 99); //  row 1 empty, col way out of range
+        assert.doesNotThrow(() =>
+            v.onKeyPress(undefined, { name: 'backspace' })
+        );
+    });
+});
