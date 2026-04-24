@@ -21,7 +21,7 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 > :warning: Be sure to inspect these notes during any upgrades!
 
 ## 0.3.0-beta to 0.4.0-beta
-
+N/A
 
 ## 0.2.0-beta to 0.3.0-beta
 ActivityPub data may need purged if you have utlized it. Easiest to just delete your activitypub.db file and start anew.
