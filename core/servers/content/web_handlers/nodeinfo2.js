@@ -7,7 +7,7 @@ const StatLog = require('../../../stat_log');
 const SysProps = require('../../../system_property');
 const SysLogKeys = require('../../../system_log');
 const { getBaseUrl, getWebDomain } = require('../../../web_util');
-const Collection = require('../../activitypub/collection');
+const Collection = require('../../../activitypub/collection');
 
 // deps
 const { get: _get } = require('lodash');
