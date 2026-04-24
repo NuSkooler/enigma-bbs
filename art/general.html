@@ -17,11 +17,11 @@
 <meta property="og:description" content="General Art Information One of the most basic elements of BBS customization is through its artwork. ENiGMA½ supports a variety of ways to select, display, and manage art." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-24T01:44:14+00:00" />
+<meta property="article:published_time" content="2026-04-24T02:36:32+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="General Art Information" />
 <script type="application/ld+json">
-{"description":"General Art Information One of the most basic elements of BBS customization is through its artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.","headline":"General Art Information","dateModified":"2026-04-24T01:44:14+00:00","datePublished":"2026-04-24T01:44:14+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/general.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/general.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"General Art Information One of the most basic elements of BBS customization is through its artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.","headline":"General Art Information","dateModified":"2026-04-24T02:36:32+00:00","datePublished":"2026-04-24T02:36:32+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/general.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/general.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2890,6 +2890,22 @@
   <li>In the system default theme directory.</li>
   <li>In the <code class="language-plaintext highlighter-rouge">art/general</code> directory.</li>
 </ol>
+
+<h4 id="utf-8-art-variants">UTF-8 Art Variants</h4>
+
+<p>For UTF-8 capable terminals ENiGMA½ will automatically prefer a <code class="language-plaintext highlighter-rouge">.utf8ans</code> file over a <code class="language-plaintext highlighter-rouge">.ans</code> file when both share the same base name. This lets you ship two versions of any art piece side-by-side:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>art/general/MATRIX.ANS       ← served to CP437 / legacy terminals
+art/general/MATRIX.UTF8ANS   ← served to UTF-8 terminals (xterm, iTerm2, etc.)
+</code></pre></div></div>
+
+<p>No configuration change is required in <code class="language-plaintext highlighter-rouge">menu.hjson</code> — simply place the <code class="language-plaintext highlighter-rouge">.utf8ans</code> file alongside the <code class="language-plaintext highlighter-rouge">.ans</code> file using the same base name and the correct version is selected automatically. If no <code class="language-plaintext highlighter-rouge">.utf8ans</code> file exists the system falls back to <code class="language-plaintext highlighter-rouge">.ans</code> (or any other supported type) transparently.</p>
+
+<p><code class="language-plaintext highlighter-rouge">.utf8ans</code> files are decoded as UTF-8 and may contain any Unicode content: CJK characters, emoji, Unicode box-drawing, etc. They otherwise follow the same rules as standard ANSI art files including SAUCE metadata, MCI codes, and <code class="language-plaintext highlighter-rouge">pause</code> / <code class="language-plaintext highlighter-rouge">baudRate</code> config options.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> The terminal encoding is negotiated during connect via the ANSI CPR-based probe. To additionally enable UTF-8 detection for terminals that self-identify as CP437 types, set <code class="language-plaintext highlighter-rouge">term.probeUtf8Encoding: true</code> in <code class="language-plaintext highlighter-rouge">config.hjson</code>.</p>
+</blockquote>
 
 <h4 id="acs-driven-conditionals">ACS-Driven Conditionals</h4>
 <p>The <a href="/enigma-bbs/configuration/acs.html">ACS</a> system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:</p>
