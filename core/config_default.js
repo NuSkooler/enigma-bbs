@@ -53,6 +53,20 @@ module.exports = () => {
                 'gnome',
                 'x11 terminal emulator',
             ],
+
+            // Force all connections to a specific output encoding regardless of terminal
+            // type detection.  Useful for UTF-8-only BBS environments where all users
+            // connect with modern terminals (e.g. a Japanese/CJK BBS).
+            // Valid values: 'utf8' | 'cp437' | null (default: null — auto-detect)
+            forceOutputEncoding: null,
+
+            // Opt-in: attempt to detect UTF-8 capability for terminals that
+            // self-identify as CP437 types (e.g. ansi, syncterm, pcansi).
+            // Uses the same CPR-based cursor-advance technique as checkUtf8Encoding
+            // but upgrades rather than downgrades.  A 2s timeout per stage applies.
+            // Requires the terminal to respond to ANSI cursor position reports.
+            // Default: false (opt-in — enable only if your user base warrants it)
+            probeUtf8Encoding: false,
         },
 
         users: {

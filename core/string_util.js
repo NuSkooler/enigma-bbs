@@ -7,6 +7,7 @@ const ANSI = require('./ansi_term.js');
 //  deps
 const iconv = require('iconv-lite');
 const _ = require('lodash');
+const wcwidth = require('wcwidth');
 
 exports.stylizeString = stylizeString;
 exports.pad = pad;
@@ -18,10 +19,13 @@ exports.stripAllLineFeeds = stripAllLineFeeds;
 exports.debugEscapedString = debugEscapedString;
 exports.stringFromNullTermBuffer = stringFromNullTermBuffer;
 exports.stringToNullTermBuffer = stringToNullTermBuffer;
+exports.charDisplayWidth = charDisplayWidth;
+exports.strDisplayWidth = strDisplayWidth;
 exports.renderSubstr = renderSubstr;
 exports.renderTruncate = renderTruncate;
 exports.renderStringLength = renderStringLength;
 exports.ansiRenderStringLength = ansiRenderStringLength;
+exports.renderSplitPos = renderSplitPos;
 exports.formatByteSizeAbbr = formatByteSizeAbbr;
 exports.formatByteSize = formatByteSize;
 exports.formatCountAbbr = formatCountAbbr;
@@ -236,6 +240,30 @@ function stringToNullTermBuffer(s, options = { encoding: 'utf8', maxBufLen: -1 }
     return buf;
 }
 
+//
+//  Returns the terminal display width (columns) of a single character: 0 for
+//  combining/NUL, 1 for narrow, 2 for wide (CJK ideographs, Hangul, fullwidth
+//  forms, etc.).  Uses wcwidth(3) semantics — the same algorithm used by
+//  terminal emulators and ncurses.
+//
+function charDisplayWidth(ch) {
+    const w = wcwidth(ch);
+    return w < 0 ? 0 : w; //  wcwidth returns -1 for non-printable; treat as 0
+}
+
+//
+//  Returns the total terminal display width of a plain string (no ANSI/pipe
+//  codes — for already-stripped or literal text only).  Iterates by Unicode
+//  codepoint so surrogate pairs (supplementary CJK, emoji) are handled correctly.
+//
+function strDisplayWidth(s) {
+    let w = 0;
+    for (const ch of s) {
+        w += charDisplayWidth(ch);
+    }
+    return w;
+}
+
 const PIPE_REGEXP = /(\|[A-Z\d]{2})/g;
 const ANSI_OR_PIPE_REGEXP = new RegExp(
     PIPE_REGEXP.source + '|' + ANSI.getFullMatchRegExp().source,
@@ -338,7 +366,7 @@ function renderStringLength(s) {
 
         if (m) {
             if (m.index > pos) {
-                len += m.index - pos;
+                len += strDisplayWidth(s.slice(pos, m.index));
             }
 
             if ('C' === m[3]) {
@@ -349,7 +377,7 @@ function renderStringLength(s) {
     } while (0 !== re.lastIndex);
 
     if (pos < s.length) {
-        len += s.length - pos;
+        len += strDisplayWidth(s.slice(pos));
     }
 
     return len;
@@ -370,27 +398,80 @@ function ansiRenderStringLength(s) {
     //  Loop counting only literal (non-control) sequences
     //  paying special attention to ESC[<N>C which means forward <N>
     //
+    //  ANSI_FULL_MATCH_REGEXP groups: m[1]=args, m[2]=letter
+    //
     do {
         pos = re.lastIndex;
         m = re.exec(s);
 
         if (m) {
             if (m.index > pos) {
-                len += m.index - pos;
+                len += strDisplayWidth(s.slice(pos, m.index));
             }
 
-            if ('C' === m[3]) {
+            if ('C' === m[2]) {
                 //  ESC[<N>C is forward/right
-                len += parseInt(m[2], 10) || 0;
+                len += parseInt(m[1], 10) || 0;
             }
         }
     } while (0 !== re.lastIndex);
 
     if (pos < s.length) {
-        len += s.length - pos;
+        len += strDisplayWidth(s.slice(pos));
     }
 
     return len;
+}
+
+//
+//  Returns the string index at which |width| display columns have been consumed,
+//  skipping ANSI escape sequences and (when pipeCodeSupport is true) |XX pipe
+//  color codes transparently.
+//
+//  Wide characters (display width 2) that would straddle the boundary snap the
+//  split point to just before that character — a wide char is never split.
+//
+//  This is the counterpart to renderStringLength and replaces the private
+//  _splitPos in line_buffer.js.
+//
+function renderSplitPos(str, width, pipeCodeSupport = true) {
+    const re = pipeCodeSupport ? ANSI_OR_PIPE_REGEXP : ANSI_FULL_MATCH_REGEXP;
+    //  Group indices differ by regex:
+    //    ANSI_OR_PIPE_REGEXP:   m[1]=pipe, m[2]=ANSI-args, m[3]=ANSI-letter
+    //    ANSI_FULL_MATCH_REGEXP:           m[1]=ANSI-args, m[2]=ANSI-letter
+    const cmdIdx = pipeCodeSupport ? 3 : 2;
+    const argIdx = pipeCodeSupport ? 2 : 1;
+    re.lastIndex = 0;
+    let vis = 0;
+    let i = 0;
+    let m = re.exec(str);
+
+    while (i < str.length && vis < width) {
+        if (m && m.index === i) {
+            //  It's a code sequence — skip it (0 display width), but handle ESC[NC
+            if (m[cmdIdx] === 'C') {
+                const fwd = parseInt(m[argIdx], 10) || 0;
+                if (vis + fwd > width) {
+                    break; //  cursor-forward would overshoot
+                }
+                vis += fwd;
+            }
+            i += m[0].length;
+            m = re.exec(str);
+        } else {
+            //  Literal character — measure display width by codepoint
+            const cp = str.codePointAt(i);
+            const ch = String.fromCodePoint(cp);
+            const w = charDisplayWidth(ch);
+            if (vis + w > width) {
+                break; //  wide char straddles boundary — snap before it
+            }
+            vis += w;
+            i += ch.length; //  advance by codepoint length (handles surrogate pairs)
+        }
+    }
+
+    return i;
 }
 
 const BYTE_SIZE_ABBRS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']; //  :)

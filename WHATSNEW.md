@@ -10,6 +10,18 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * **Per-user `From:` header** — when `email.outbound.fromDomain` is set, outbound mail is sent as `"UserName" <sanitized@fromDomain>` instead of the static `defaultFrom`. The SMTP `Sender:` header and envelope `MAIL FROM` are kept as the authenticated mailbox so bounces stay deliverable and receivers display the standard "on behalf of" attribution. Local-part derivation respects `users.badUserNames` — reserved names fall back to `defaultFrom`. Replacement char for invalid username characters is configurable via `email.outbound.usernameReplaceChar` (default `_`).
   * **Signature / pipe-code stripping on export** — outbound message bodies are run through the same ANSI + MCI pipe-code stripping pipeline used by the NNTP export, so signatures render cleanly in external mail clients.
 
+* **Wide Character (CJK/UTF-8) Support** — full-width Unicode characters (CJK ideographs, Hangul, Hiragana, Katakana, fullwidth forms) are now handled correctly throughout the view and word-wrap layers
+
+  * All display-width measurements use `wcwidth(3)` semantics — wide characters count as 2 terminal columns, combining marks as 0
+  * `EditTextView` and `MultiLineEditTextView` cursor navigation, scrolling, and line-wrap all operate on display columns rather than string indices; the cursor cannot land inside the phantom second column of a wide character
+  * Word-wrap (`word_wrap.js`) and `LineBuffer` wrap at display-column boundaries — a wide character is never split across lines
+  * `renderStringLength`, `ansiRenderStringLength`, and the new exported `renderSplitPos` in `string_util.js` all account for wide characters; pipe codes and ANSI cursor-forward sequences are handled correctly in both
+  * `getText()` on `LineBuffer` correctly round-trips CJK text — no spurious space is inserted at character-boundary soft-wrap points
+
+* **UTF-8 Art Variants (`.utf8ans`)** — place a `FOO.UTF8ANS` alongside `FOO.ANS` in any art or theme directory; UTF-8-capable users automatically receive the UTF-8 variant while CP437 users see the standard file. No menu or theme configuration is required — selection is automatic based on the negotiated terminal encoding. See [General Art Information](./docs/_docs/art/general.md).
+
+  * Opt-in upward UTF-8 probe — set `term.probeUtf8Encoding: true` in `config.hjson` to enable a CPR-based check that upgrades CP437-identified terminals (e.g. `ansi`, `syncterm`) to UTF-8 output when the terminal actually supports it. Uses the same cursor-advance technique as `checkUtf8Encoding`. Default: `false`.
+
 * Full log viewer from WFC. Defaults to `l` key.
 
 * Major FTN compatibility fixes, especially for those wanting to run a point.
@@ -26,11 +38,10 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   * **Count/list consistency fix** — the new message count check and the message list passed to `msg_list` now both use the same floor-adjusted effective last-read ID, eliminating the possibility of navigating to an area that shows zero qualifying messages.
 
-
 ## 0.3.0-beta
 Various fixes
 
-## 0.2.0-beta
+* ActivityPub MAJOR updates have landed.
 
 * **Server-side baud rate emulation** — `baudRate` in a menu's `config` block now throttles art display on the server rather than delegating to a SyncTERM-specific terminal escape sequence. Emulation now works with every terminal client. The previous approach was sticky (rate persisted across menus until explicitly cleared); the new approach is scoped precisely to each art display and resets automatically. Existing `baudRate` config values require no changes.
 
@@ -62,6 +73,8 @@ Various fixes
   * WFC node list gains a `{pageIndicator}` token per row — non-empty when that node has a pending page; configurable via `pageIndicator` in the WFC `config` block
   * WFC custom tokens `{pendingPageCount}`, `{pendingPageUser}`, `{pendingPageNode}`, `{pendingPageMessage}` for surfacing page queue state in art
   * **`prefixFormat`** property on `EditTextView` — set per-view in `theme.hjson` to display a role-specific prefix before the input (e.g. `"|15{userName}|07> "`); pipe codes render live as the user types; cursor and scroll account for the prefix width automatically
+
+## 0.1.0-beta
 
 * **Pause Prompt Improvements** — see [Pause Prompts](./docs/_docs/art/pause-prompts.md) for the full reference
 

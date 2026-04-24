@@ -686,6 +686,326 @@ describe('MultiLineEditTextView — _scrollToMatch positioning', () => {
     });
 });
 
+// ─── Wide character cursor math ───────────────────────────────────────────────
+
+describe('MultiLineEditTextView — wide character cursor math', () => {
+    //  Line layout reference for tests below:
+    //
+    //   'AB日CD'  — buffer indices: A=0  B=1  日=2  C=3  D=4
+    //              display columns:  A=0  B=1  日=2–3  C=4  D=5
+    //
+    //   'X日Y日Z' — buffer indices: X=0  日=1  Y=2  日=3  Z=4
+    //              display columns:  X=0  日=1–2  Y=3  日=4–5  Z=6
+
+    describe('_bufferToDisplayCol — wide chars', () => {
+        it('pure ASCII: buffer col equals display col', () => {
+            const v = makeMltev();
+            load(v, 'ABCDE');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0);
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 3);
+            assert.strictEqual(v._bufferToDisplayCol(0, 5), 5);
+        });
+
+        it('wide char contributes 2 display cols for 1 buffer pos', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0, 'before A');
+            assert.strictEqual(v._bufferToDisplayCol(0, 1), 1, 'before B');
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 2, 'before 日');
+            assert.strictEqual(
+                v._bufferToDisplayCol(0, 3),
+                4,
+                'after 日 (skipped 2 cols)'
+            );
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 5, 'before D');
+            assert.strictEqual(v._bufferToDisplayCol(0, 5), 6, 'end of line');
+        });
+
+        it('multiple wide chars accumulate correctly', () => {
+            const v = makeMltev();
+            load(v, 'X日Y日Z');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0, 'before X');
+            assert.strictEqual(v._bufferToDisplayCol(0, 1), 1, 'before first 日');
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 3, 'before Y');
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 4, 'before second 日');
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 6, 'before Z');
+            assert.strictEqual(v._bufferToDisplayCol(0, 5), 7, 'end of line');
+        });
+
+        it('pure CJK line: every buffer pos maps to even display col', () => {
+            const v = makeMltev();
+            load(v, '日本語');
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0);
+            assert.strictEqual(v._bufferToDisplayCol(0, 1), 2);
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 4);
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 6);
+        });
+
+        it('tab chars each count as 1 display col (wcwidth returns -1 but we render as space)', () => {
+            //  Buffer: \t\t\t\t — four tab chars, each rendered as one space.
+            const v = makeMltev();
+            v.buffer.lines[0].chars = '\t\t\t\t';
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0);
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 2);
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 4);
+        });
+
+        it('mix of tab and wide chars accumulates correctly', () => {
+            //  Buffer: \t\t日本 — two tabs (display 0-1) then two wide CJK (display 2-5).
+            //  buffer col 0 → disp 0
+            //  buffer col 2 → disp 2  (after two tabs)
+            //  buffer col 3 → disp 4  (after first CJK)
+            //  buffer col 4 → disp 6  (after second CJK)
+            const v = makeMltev();
+            v.buffer.lines[0].chars = '\t\t日本';
+            assert.strictEqual(v._bufferToDisplayCol(0, 0), 0, 'before first tab');
+            assert.strictEqual(v._bufferToDisplayCol(0, 2), 2, 'after two tabs');
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 4, 'after first CJK');
+            assert.strictEqual(v._bufferToDisplayCol(0, 4), 6, 'after second CJK');
+        });
+    });
+
+    describe('_displayToBufferCol — wide chars', () => {
+        it('pure ASCII: display col equals buffer col', () => {
+            const v = makeMltev();
+            load(v, 'ABCDE');
+            assert.strictEqual(v._displayToBufferCol(0, 0), 0);
+            assert.strictEqual(v._displayToBufferCol(0, 3), 3);
+        });
+
+        it('display col before wide char maps to that buffer position', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            assert.strictEqual(
+                v._displayToBufferCol(0, 2),
+                2,
+                'first col of 日 → buffer 2'
+            );
+        });
+
+        it('display col inside wide char snaps to before the char', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            //  Display col 3 is the phantom second column of 日 — snap to buffer 2
+            assert.strictEqual(v._displayToBufferCol(0, 3), 2, 'snap before 日');
+        });
+
+        it('display col after wide char maps to next buffer position', () => {
+            const v = makeMltev();
+            load(v, 'AB日CD');
+            assert.strictEqual(
+                v._displayToBufferCol(0, 4),
+                3,
+                'C starts at display 4 → buffer 3'
+            );
+            assert.strictEqual(
+                v._displayToBufferCol(0, 5),
+                4,
+                'D at display 5 → buffer 4'
+            );
+        });
+
+        it('round-trips: bufferToDisplay then displayToBuffer returns original buffer col', () => {
+            const v = makeMltev();
+            load(v, 'X日Y日Z');
+            for (let bufCol = 0; bufCol <= 5; bufCol++) {
+                const dispCol = v._bufferToDisplayCol(0, bufCol);
+                const back = v._displayToBufferCol(0, dispCol);
+                assert.strictEqual(
+                    back,
+                    bufCol,
+                    `round-trip failed at bufCol=${bufCol} (dispCol=${dispCol})`
+                );
+            }
+        });
+
+        it('wide char in slow path (line with pipe codes) also snaps correctly', () => {
+            const v = makeMltev();
+            load(v, '|07AB日');
+            //  Buffer: |=0  0=1  7=2  A=3  B=4  日=5
+            //  Display: |07 → 0 vis, A=0, B=1, 日=2–3
+            //  Display col 3 → phantom col of 日 → snap to buffer 5
+            assert.strictEqual(
+                v._displayToBufferCol(0, 3),
+                5,
+                'snap before 日 past pipe code'
+            );
+        });
+    });
+
+    describe('wide char wrapping in view', () => {
+        it('CJK text wraps at display-column boundary in the view buffer', () => {
+            //  Width-4 view: 日本(4) fits on line 0; 語 wraps to line 1
+            const v = makeMltev({ width: 4 });
+            load(v, '日本語');
+
+            assert.strictEqual(v.buffer.lines[0].chars, '日本');
+            assert.strictEqual(v.buffer.lines[1].chars, '語');
+        });
+
+        it('cursor ends at correct buffer col after setText on CJK text', () => {
+            //  After setText the cursor is placed at (0,0); no assertion about col here,
+            //  but the line structure must be correct for subsequent navigation.
+            const v = makeMltev({ width: 6 });
+            load(v, '日本語'); // 6 cols exactly — fits on one line
+            assert.strictEqual(v.buffer.lines.length, 1);
+            assert.strictEqual(v.buffer.lines[0].chars, '日本語');
+        });
+    });
+
+    describe('tab insertion with preceding wide chars', () => {
+        it('keyPressTab after a wide char inserts the correct number of tab chars to reach next stop', () => {
+            //  Buffer starts as '日' (buffer col 1 = display col 2).
+            //  Tab stop at display col 4 (tabWidth=4).
+            //  Needed fill: 4 - 2 = 2 display cols → 2 \t chars.
+            const v = makeMltev({ width: 20, height: 5 });
+            load(v, '日', 0, 1); // cursor after '日'
+            v.keyPressTab();
+            //  Buffer should now be '日\t\t' — 3 chars.
+            assert.strictEqual(v.buffer.lines[0].chars, '日\t\t');
+            //  Cursor at buffer col 3, display col 4.
+            assert.strictEqual(v.cursorPos.col, 3);
+            assert.strictEqual(v._bufferToDisplayCol(0, 3), 4);
+        });
+
+        it('keyPressTab at col 0 (no preceding wide char) inserts tabWidth tab chars', () => {
+            //  Baseline ASCII case: from display col 0, 4 \t chars reach display col 4.
+            const v = makeMltev({ width: 20, height: 5 });
+            load(v, '', 0, 0);
+            v.keyPressTab();
+            assert.strictEqual(v.buffer.lines[0].chars, '\t\t\t\t');
+            assert.strictEqual(v.cursorPos.col, 4);
+        });
+    });
+
+    describe('wrap trigger with tabs and wide chars', () => {
+        it('typing a char that pushes a line with tabs over the display width triggers rewrap', () => {
+            //  View width 10. Pre-load '\t\t日本' (2 tabs + 2 CJK = 6 display cols).
+            //  Typing 5 more ASCII chars → display = 11 > 10 → rewrap.
+            //  (The condition is strictly >, so exactly 10 does not trigger.)
+            const v = makeMltev({ width: 10, height: 5 });
+            load(v, '\t\t日本', 0, 4); // cursor at end of 4-char buffer
+            v.keyPressCharacter('A');
+            v.keyPressCharacter('B');
+            v.keyPressCharacter('C');
+            v.keyPressCharacter('D');
+            v.keyPressCharacter('E');
+            //  After 5 extra chars display width = 11 > 10 → rewrap fires.
+            assert.ok(v.buffer.lines.length >= 2, 'line should have been wrapped');
+        });
+    });
+});
+
+// ─── insertCharactersInText — wide-char fast-path positions ───────────────────
+
+describe('MultiLineEditTextView — insertCharactersInText wide-char positioning', () => {
+    //  Regression: the no-wrap / no-pipe-code fast path used raw buffer indices
+    //  as screen columns when building the ansi.goto() sequences.  For lines
+    //  containing wide characters the write-start and cursor-end positions were
+    //  off by the total extra width contributed by those characters.
+
+    function makeCapture(v) {
+        const writes = [];
+        v.client.term.write = (s, _lf) => {
+            if (s) writes.push(s);
+        };
+        return writes;
+    }
+
+    function gotosFrom(writes) {
+        const all = writes.join('');
+        const re = /\x1b\[(\d+);(\d+)H/g;
+        const result = [];
+        let m;
+        while ((m = re.exec(all)) !== null) {
+            result.push({ row: parseInt(m[1]), col: parseInt(m[2]) });
+        }
+        return result;
+    }
+
+    it('uses display column (not buffer index) for write-start goto after a wide char', () => {
+        const v = makeMltev({ width: 20, height: 5 });
+        v.position = { row: 1, col: 1 };
+        const writes = makeCapture(v);
+
+        //  Load '中' (1 buffer char, 2 display cols), cursor at buffer col 1.
+        load(v, '中', 0, 1);
+        writes.length = 0;
+
+        //  Insert 'A' — triggers the no-wrap fast path.
+        v.keyPressCharacter('A');
+
+        const gotos = gotosFrom(writes);
+        assert.ok(gotos.length >= 2, 'fast path should emit two goto sequences');
+
+        //  writeCol = 1 (buffer), writeDispCol = 2 (中 = 2 cols).
+        //  startPos.col = position.col(1) + writeDispCol(2) = 3.
+        //  With the bug: position.col(1) + writeCol(1) = 2.
+        assert.strictEqual(
+            gotos[0].col,
+            3,
+            'write-start col should be position.col + writeDispCol(2), not + writeCol(1)'
+        );
+
+        //  cursorPos.col = 2, cursorDispCol = 3 (中+A = 2+1).
+        //  absPos.col = position.col(1) + cursorDispCol(3) = 4.
+        assert.strictEqual(
+            gotos[gotos.length - 1].col,
+            4,
+            'cursor-end col should be position.col + cursorDispCol(3)'
+        );
+    });
+
+    it('uses display column for write-start when multiple wide chars precede the insert', () => {
+        const v = makeMltev({ width: 20, height: 5 });
+        v.position = { row: 1, col: 1 };
+        const writes = makeCapture(v);
+
+        //  Load '日日' (2 wide chars = 4 display cols), cursor at buffer col 2.
+        load(v, '日日', 0, 2);
+        writes.length = 0;
+
+        //  Insert 'X' at end — no wrap, no pipe codes.
+        v.keyPressCharacter('X');
+
+        const gotos = gotosFrom(writes);
+        assert.ok(gotos.length >= 2, 'fast path should emit two goto sequences');
+
+        //  writeCol = 2, writeDispCol = 4.  startPos.col = 1 + 4 = 5.
+        assert.strictEqual(
+            gotos[0].col,
+            5,
+            'write-start col = position.col(1) + writeDispCol(4) = 5'
+        );
+
+        //  cursorPos.col = 3, cursorDispCol = 5.  absPos.col = 1 + 5 = 6.
+        assert.strictEqual(
+            gotos[gotos.length - 1].col,
+            6,
+            'cursor-end col = position.col(1) + cursorDispCol(5) = 6'
+        );
+    });
+
+    it('pure ASCII line is unaffected — buffer col equals display col', () => {
+        const v = makeMltev({ width: 20, height: 5 });
+        v.position = { row: 1, col: 1 };
+        const writes = makeCapture(v);
+
+        load(v, 'AB', 0, 2);
+        writes.length = 0;
+
+        v.keyPressCharacter('C');
+
+        const gotos = gotosFrom(writes);
+        assert.ok(gotos.length >= 2, 'fast path should emit two goto sequences');
+
+        //  writeCol = 2, writeDispCol = 2 (all ASCII).  startPos.col = 1 + 2 = 3.
+        assert.strictEqual(gotos[0].col, 3);
+        //  cursorPos.col = 3, cursorDispCol = 3.  absPos.col = 1 + 3 = 4.
+        assert.strictEqual(gotos[gotos.length - 1].col, 4);
+    });
+});
+
 // ─── Cursor-stable structural mutations ───────────────────────────────────────
 //
 // Regression guards for the empty-line backspace crash
@@ -785,8 +1105,6 @@ describe('MultiLineEditTextView — _clampCursorToBuffer', () => {
         //  would have thrown RangeError out of u32Delete and killed the process.
         const v = makeMltev();
         load(v, 'hello\n\nworld', 1, 99); //  row 1 empty, col way out of range
-        assert.doesNotThrow(() =>
-            v.onKeyPress(undefined, { name: 'backspace' })
-        );
+        assert.doesNotThrow(() => v.onKeyPress(undefined, { name: 'backspace' }));
     });
 });

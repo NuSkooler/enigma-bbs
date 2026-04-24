@@ -5,6 +5,8 @@ const { strict: assert } = require('assert');
 const { TickerView } = require('../core/ticker_view.js');
 const { StatusBarView } = require('../core/status_bar_view.js');
 const { MaskEditTextView } = require('../core/mask_edit_text_view.js');
+const { EditTextView } = require('../core/edit_text_view.js');
+const strUtil = require('../core/string_util.js');
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
@@ -1021,6 +1023,109 @@ describe('VerticalMenuView', () => {
                 rows.size > 2,
                 `wrap-around should trigger full redraw; got ${rows.size} rows`
             );
+        });
+    });
+});
+
+// ─── EditTextView — wide-character scroll and display fixes ───────────────────
+
+describe('EditTextView — wide-character scroll and display', () => {
+    function makeEtv({ width = 20 } = {}) {
+        return new EditTextView({
+            client: {
+                term: {
+                    termWidth: 80,
+                    termHeight: 25,
+                    write: () => {},
+                    rawWrite: () => {},
+                },
+            },
+            id: 1,
+            position: { row: 1, col: 1 },
+            dimens: { width, height: 1 },
+        });
+    }
+
+    // ── Bug fix: drawText must use display width, not buffer length ───────────
+
+    describe('drawText — wide-char overflow detection', () => {
+        it('applies scroll when wide chars exceed display width even if buffer length does not', () => {
+            //  dimens.width=4, text='日日日' (3 buffer chars, 6 display cols).
+            //  Old condition:  s.length(3) > 4  → false → scroll not applied.
+            //  Fixed condition: renderStringLength(6) > 4 → true → scroll applied.
+            const v = makeEtv({ width: 4 });
+            v.hasFocus = true;
+            v.lineBuffer.lines[0].chars = '日日日';
+            v.text = '日日日';
+            v.cursorPos.col = 3;
+            v._scrollOffset = 0;
+
+            v.drawText('日日日');
+
+            assert.ok(
+                v._scrollOffset > 0,
+                'scroll offset should be non-zero when wide chars overflow the display'
+            );
+        });
+
+        it('does not apply scroll when wide chars fit exactly within display width', () => {
+            //  dimens.width=4: '日日' = 4 display cols, exactly fits.
+            const v = makeEtv({ width: 4 });
+            v.hasFocus = true;
+            v.lineBuffer.lines[0].chars = '日日';
+            v.text = '日日';
+            v.cursorPos.col = 0;
+            v._scrollOffset = 0;
+
+            v.drawText('日日');
+
+            assert.strictEqual(
+                v._scrollOffset,
+                0,
+                'no scroll needed when wide chars exactly fill display width'
+            );
+        });
+
+        it('slices to display-column boundary, not buffer-char count', () => {
+            //  Verify renderSplitPos correctly bounds the visible window.
+            //  tail='日日' with width=4: both chars fit (4 display cols exactly).
+            const tail = '日日';
+            const splitPos = strUtil.renderSplitPos(tail, 4);
+            assert.strictEqual(
+                splitPos,
+                2,
+                'renderSplitPos should include both wide chars that exactly fill the window'
+            );
+            assert.strictEqual(tail.slice(0, splitPos), '日日');
+        });
+    });
+
+    // ── Bug fix: fast-path notScrolled must use display width ─────────────────
+
+    describe('onKeyPress fast path — notScrolled uses display width', () => {
+        it('correctly detects overflow for wide chars: buffer length ≤ width but display > width', () => {
+            //  The old fast-path guard was:  newLen <= dimens.width
+            //  The fix uses:                 _bufferToDisplayCol(newLen) <= dimens.width
+            const v = makeEtv({ width: 4 });
+            //  3 CJK chars in buffer: buffer length 3 ≤ 4, but display width 6 > 4.
+            v.lineBuffer.lines[0].chars = '日日日';
+
+            const newLen = 3;
+            const oldGuard = newLen <= v.dimens.width; //  3 <= 4 → true  (bug)
+            const newGuard = v._bufferToDisplayCol(newLen) <= v.dimens.width; //  6 <= 4 → false (fix)
+
+            assert.strictEqual(oldGuard, true, 'old guard incorrectly allowed fast path');
+            assert.strictEqual(newGuard, false, 'new guard correctly blocks fast path');
+        });
+
+        it('pure ASCII: notScrolled remains true when buffer and display agree', () => {
+            const v = makeEtv({ width: 10 });
+            v.lineBuffer.lines[0].chars = 'ABCDE';
+
+            const newLen = 5;
+            const guard = v._bufferToDisplayCol(newLen) <= v.dimens.width; //  5 <= 10 → true
+
+            assert.strictEqual(guard, true, 'ASCII fast path should not be blocked');
         });
     });
 });

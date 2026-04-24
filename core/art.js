@@ -12,7 +12,6 @@ const { Errors } = require('./enig_error.js');
 //  deps
 const fs = require('graceful-fs');
 const paths = require('path');
-const assert = require('assert');
 const iconv = require('iconv-lite');
 const _ = require('lodash');
 
@@ -30,6 +29,7 @@ const SUPPORTED_ART_TYPES = {
     //  :TODO: the defualt encoding are really useless if they are all the same ...
     //  perhaps .ansamiga and .ascamiga could be supported as well as overrides via conf
     '.ans': { name: 'ANSI', defaultEncoding: 'cp437', eof: 0x1a },
+    '.utf8ans': { name: 'ANSI/UTF-8', defaultEncoding: 'utf8', eof: 0x1a }, //  UTF-8 variant; preferred over .ans for UTF-8 terminals
     '.asc': { name: 'ASCII', defaultEncoding: 'cp437', eof: 0x1a },
     '.pcb': { name: 'PCBoard', defaultEncoding: 'cp437', eof: 0x1a },
     '.bbs': { name: 'Wildcat', defaultEncoding: 'cp437', eof: 0x1a },
@@ -178,18 +178,38 @@ function getArt(name, options, cb) {
             return cb(err);
         }
 
+        //
+        //  For UTF-8 capable terminals, move '.utf8ans' to the front of the
+        //  candidate type list so it is preferred over '.ans' when both exist.
+        //  Falls back to '.ans' (etc.) transparently when no '.utf8ans' file is found.
+        //
+        const clientIsUtf8 = _.get(options, 'client.term.outputEncoding') === 'utf8';
+        if (clientIsUtf8 && options.types.includes('.utf8ans')) {
+            options.types = ['.utf8ans', ...options.types.filter(t => t !== '.utf8ans')];
+        }
+
         const filtered = files.filter(file => {
             //
             //  Ignore anything not allowed in |options.types|
             //
-            const fext = paths.extname(file);
-            if (!options.types.includes(fext.toLowerCase())) {
+            //  Keep the original-case ext for paths.basename() (which is case-sensitive
+            //  when stripping the suffix), and use the lowercase form only for the
+            //  types membership check.
+            //
+            const fextOrig = paths.extname(file);
+            const fext = fextOrig.toLowerCase();
+            if (!options.types.includes(fext)) {
                 return false;
             }
 
-            const bn = paths.basename(file, fext).toLowerCase();
+            const bn = paths.basename(file, fextOrig).toLowerCase();
             if (options.random) {
-                const suppliedBn = paths.basename(name, fext).toLowerCase();
+                //
+                //  For random mode we need to strip any known extension from the
+                //  supplied name before comparing, since the file on disk may have
+                //  a different extension than the bare name requested.
+                //
+                const suppliedBn = paths.basename(name).toLowerCase();
 
                 //
                 //  Random selection enabled. We'll allow for
@@ -210,7 +230,7 @@ function getArt(name, options, cb) {
                 //  We've already validated the extension (above). Must be an exact
                 //  match to basename here
                 //
-                if (bn != paths.basename(name, fext).toLowerCase()) {
+                if (bn !== paths.basename(name).toLowerCase()) {
                     return false;
                 }
             }
@@ -220,19 +240,31 @@ function getArt(name, options, cb) {
 
         if (filtered.length > 0) {
             //
-            //  We should now have:
-            //  - Exactly (1) item in |filtered| if non-random
-            //  - 1:n items in |filtered| to choose from if random
+            //  For UTF-8 clients prefer the .utf8ans subset of candidates when
+            //  available; for all others (or when no .utf8ans exists) use the
+            //  full filtered set.
             //
+            const utf8Pool = clientIsUtf8
+                ? filtered.filter(f => paths.extname(f).toLowerCase() === '.utf8ans')
+                : [];
+            const pool = utf8Pool.length > 0 ? utf8Pool : filtered;
+
             let readPath;
             if (options.random) {
                 readPath = paths.join(
                     options.basePath,
-                    filtered[Math.floor(Math.random() * filtered.length)]
+                    pool[Math.floor(Math.random() * pool.length)]
                 );
             } else {
-                assert(1 === filtered.length);
-                readPath = paths.join(options.basePath, filtered[0]);
+                //
+                //  Non-random: pick by type priority (earlier index in options.types wins).
+                //
+                const best = pool.reduce((winner, file) => {
+                    const wi = options.types.indexOf(paths.extname(winner).toLowerCase());
+                    const fi = options.types.indexOf(paths.extname(file).toLowerCase());
+                    return fi < wi ? file : winner;
+                });
+                readPath = paths.join(options.basePath, best);
             }
 
             return getArtFromPath(readPath, options, cb);

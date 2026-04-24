@@ -69,6 +69,21 @@ ENiGMA½ uses a fallback system for art selection. When a menu entry calls for a
 3. In the system default theme directory.
 4. In the `art/general` directory.
 
+#### UTF-8 Art Variants
+
+For UTF-8 capable terminals ENiGMA½ will automatically prefer a `.utf8ans` file over a `.ans` file when both share the same base name. This lets you ship two versions of any art piece side-by-side:
+
+```
+art/general/MATRIX.ANS       ← served to CP437 / legacy terminals
+art/general/MATRIX.UTF8ANS   ← served to UTF-8 terminals (xterm, iTerm2, etc.)
+```
+
+No configuration change is required in `menu.hjson` — simply place the `.utf8ans` file alongside the `.ans` file using the same base name and the correct version is selected automatically. If no `.utf8ans` file exists the system falls back to `.ans` (or any other supported type) transparently.
+
+`.utf8ans` files are decoded as UTF-8 and may contain any Unicode content: CJK characters, emoji, Unicode box-drawing, etc. They otherwise follow the same rules as standard ANSI art files including SAUCE metadata, MCI codes, and `pause` / `baudRate` config options.
+
+> :information_source: The terminal encoding is negotiated during connect via the ANSI CPR-based probe. To additionally enable UTF-8 detection for terminals that self-identify as CP437 types, set `term.probeUtf8Encoding: true` in `config.hjson`.
+
 #### ACS-Driven Conditionals
 The [ACS](../configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
 ```hjson

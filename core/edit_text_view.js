@@ -315,33 +315,63 @@ class EditTextView extends TextView {
         this.text = this.lineBuffer.lines[0].chars;
     }
 
-    //  Compute the scroll offset that keeps cursorPos.col visible in the
-    //  dimens.width window, adjusting incrementally from the current offset.
+    //  Maps a buffer column (string index into the text) to the terminal display
+    //  column, skipping collapsed pipe codes (0 display width) and accumulating
+    //  display widths for wide Unicode characters (CJK, Hangul, fullwidth forms).
+    _bufferToDisplayCol(bufferCol) {
+        const chars = this.lineBuffer.lines[0]?.chars ?? '';
+        let dispCol = 0;
+        let i = 0;
+        while (i < bufferCol && i < chars.length) {
+            if (isPipeCode(chars, i)) {
+                i += 3; //  pipe codes: 0 display width in collapsed mode
+            } else {
+                const cp = chars.codePointAt(i);
+                const ch = String.fromCodePoint(cp);
+                dispCol += strUtil.charDisplayWidth(ch);
+                i += ch.length;
+            }
+        }
+        return dispCol;
+    }
+
+    //  Compute the scroll offset (buffer index of first visible character) that
+    //  keeps the cursor visible within the dimens.width display column window.
+    //  All boundary comparisons are in display columns; the return value is a
+    //  buffer index so buffer operations (insertChar, deleteChar) remain correct.
     _computeScrollOffset() {
-        const textLen = this.lineBuffer.lines[0].chars.length;
-        if (textLen <= this.dimens.width) return 0;
+        const chars = this.lineBuffer.lines[0].chars;
+        const textDisplayLen = strUtil.renderStringLength(chars);
+        if (textDisplayLen <= this.dimens.width) return 0;
 
         const cur = this._scrollOffset;
-        const maxOff = textLen - this.dimens.width;
+        const cursorDisplayCol = this._bufferToDisplayCol(this.cursorPos.col);
+        const scrollDisplayCol = this._bufferToDisplayCol(cur);
 
-        if (this.cursorPos.col < cur) {
+        if (cursorDisplayCol < scrollDisplayCol) {
             //  Cursor moved past left edge — scroll to cursor
             return this.cursorPos.col;
         }
-        if (this.cursorPos.col >= cur + this.dimens.width) {
-            //  Cursor moved past right edge — scroll to keep cursor at right edge
-            return Math.min(this.cursorPos.col - this.dimens.width + 1, maxOff);
+        if (cursorDisplayCol >= scrollDisplayCol + this.dimens.width) {
+            //  Cursor moved past right edge — find buffer index at left-edge display col
+            return strUtil.renderSplitPos(
+                chars,
+                cursorDisplayCol - this.dimens.width + 1
+            );
         }
-        //  Cursor still visible — clamp offset to valid range
-        return Math.min(cur, maxOff);
+        //  Cursor still visible — clamp offset to valid buffer index
+        const maxOffDisplay = textDisplayLen - this.dimens.width;
+        const maxOffBuffer = strUtil.renderSplitPos(chars, maxOffDisplay);
+        return Math.min(cur, maxOffBuffer);
     }
 
-    //  Move the terminal cursor to match cursorPos.col within the scroll window and
-    //  re-establish the focus SGR.  redraw() ends with the fill-char SGR (potentially
-    //  dim); restoring getFocusSGR() here prevents the next typed character from
-    //  inheriting the wrong colour.
+    //  Move the terminal cursor to match cursorPos.col within the scroll window
+    //  and re-establish the focus SGR.  Both cursor and scroll positions are
+    //  converted to display columns before computing the screen column.
     _repositionCursor() {
-        const screenCol = this.position.col + (this.cursorPos.col - this._scrollOffset);
+        const cursorDisplayCol = this._bufferToDisplayCol(this.cursorPos.col);
+        const scrollDisplayCol = this._bufferToDisplayCol(this._scrollOffset);
+        const screenCol = this.position.col + (cursorDisplayCol - scrollDisplayCol);
         this.client.term.write(
             ansi.goto(this.position.row, screenCol) + this.getFocusSGR()
         );
@@ -352,9 +382,14 @@ class EditTextView extends TextView {
     //  Override drawText to apply our managed scroll offset instead of
     //  TextView's default "always show last N chars" horizScroll behaviour.
     drawText(s) {
-        if (this.hasFocus && this.lineBuffer && s.length > this.dimens.width) {
+        if (
+            this.hasFocus &&
+            this.lineBuffer &&
+            strUtil.renderStringLength(s) > this.dimens.width
+        ) {
             this._scrollOffset = this._computeScrollOffset();
-            s = s.slice(this._scrollOffset, this._scrollOffset + this.dimens.width);
+            const tail = s.slice(this._scrollOffset);
+            s = tail.slice(0, strUtil.renderSplitPos(tail, this.dimens.width));
         }
         super.drawText(s);
     }
@@ -534,7 +569,8 @@ class EditTextView extends TextView {
                 } else {
                     const newLen = len + 1;
                     const atEnd = this.cursorPos.col === newLen;
-                    const notScrolled = newLen <= this.dimens.width;
+                    const notScrolled =
+                        this._bufferToDisplayCol(newLen) <= this.dimens.width;
 
                     if (atEnd && notScrolled) {
                         //  Fast path: appended at end with no scroll — write char directly

@@ -9,26 +9,30 @@ Below are just some of the features ENiGMA½ supports out of the box:
  * **Multi platform** — Anywhere modern [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, macOS and Windows)
  * Unlimited multi node support
  * **Highly customizable** via [HJSON](https://hjson.github.io/) based configuration, menus, and themes in addition to JavaScript based [mods](./docs/_docs/modding/existing-mods.md)
- * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other bells and whistles
- * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
- * [CP437](http://www.ascii-codes.com/) and UTF-8 output
- * [SyncTERM](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
- * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support.
- * Renegade style [pipe color codes](./docs/_docs/configuration/colour-codes.md).
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
  * Support for **2-Factor Authentication** with One-Time-Passwords
- * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
- * **Native x86/DOS door emulation** via [v86](https://github.com/copy/v86) — run classic DOS BBS doors (LORD, PimpWars, TradeWars, etc.) directly inside ENiGMA½ with zero external dependencies. No QEMU, DOSBox, or DOSEMU required. Includes `oputil fat` for managing FreeDOS disk images and `oputil v86` for an interactive browser-based DOS desktop. See [Local Doors — v86](./docs/_docs/modding/local-doors-v86.md).
  * Structured [Bunyan](https://github.com/trentm/node-bunyan) logging!
- * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export
- * Message bases exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md) and [NNTP](./docs/_docs/servers/contentservers/nntp.md) content servers
+ * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * Built-in [web server](./docs/_docs/servers/contentservers/web-server.md) with HTTP(S) support — powers temporary download URLs, file browsing, and more
+ * [CP437](http://www.ascii-codes.com/) and UTF-8 output with **wide character support** — CJK, Hangul, fullwidth forms, and similar scripts display and edit correctly
+ * [SyncTERM](http://syncterm.bbsdev.net/) style font support. Display PC/DOS and Amiga style artwork as it should be! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
+ * Baud emulation. View ANSI like the block gods intended.
+ * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support.
+ * Renegade style [pipe color codes](./docs/_docs/configuration/colour-codes.md).
+ * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other bells and whistles
+ * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export, and **MRC** (Multi-Relay Chat)
+ * **Internet mail** — send and receive email directly from the BBS private message system via IMAP/SMTP. See [Internet Mail](./docs/_docs/messageareas/internet-mail.md)
+ * **ActivityPub / Fediverse** *(experimental)* — federated messaging with WebFinger, NodeInfo2, actor profiles, and common ActivityPub object types; PNG avatars with auto-generated defaults
+ * Message bases exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md) and [NNTP](./docs/_docs/servers/contentservers/nntp.md) content servers
  * [Gazelle](https://github.com/WhatCD/Gazelle) (🪦) inspired File Bases including fast fully indexed full text search (FTS), #tags, and legacy X/Y/Z modem support
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
+ * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
+ * **Native x86/DOS door emulation** via [v86](https://github.com/copy/v86) — run classic DOS BBS doors (LORD, PimpWars, TradeWars, etc.) directly inside ENiGMA½ with zero external dependencies. No QEMU, DOSBox, or DOSEMU required. Includes `oputil fat` for managing FreeDOS disk images and `oputil v86` for an interactive browser-based DOS desktop. See [Local Doors — v86](./docs/_docs/modding/local-doors-v86.md).
+ * **Z-Machine interactive fiction** — run Infocom classics (Zork, Colossal Cave, and hundreds more from the [IF Archive](https://www.ifarchive.org/)) natively in Node.js. No external emulator required. Supports Z-Machine versions 3, 4, 5, and 8. See [Z-Machine Door](./docs/_docs/modding/local-doors-zmachine.md).
  * **Full Screen Editor (FSE)** with ANSI art support, real-time cursor/mode indicators, inline find/search (`Ctrl-F`), file upload to body, and a fully modernized view engine
- * Expandable **achievement system** — BBSing gamified!
  * A remote accessible [Waiting For Caller (WFC)](./docs/_docs/modding/wfc.md)!
+ * Expandable **achievement system** — BBSing gamified!
 
  ...and much much more. Please check out [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features!
 

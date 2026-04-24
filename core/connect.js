@@ -134,6 +134,72 @@ function ansiAttemptDetectUTF8(client, cb) {
     client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`);
 }
 
+function ansiProbeUTF8Upward(client, cb) {
+    //
+    //  Opt-in upward UTF-8 probe for terminals that self-identify as CP437
+    //  (e.g. ansi, syncterm) but may actually support UTF-8 output.
+    //
+    //  Uses the same CPR technique as ansiAttemptDetectUTF8 but in the
+    //  opposite direction: if the cursor advance matches the expected UTF-8
+    //  display width we upgrade outputEncoding to utf8.
+    //
+    //  Gated by term.probeUtf8Encoding (default: false) to keep the default
+    //  connect experience stable.  forceOutputEncoding takes priority.
+    //
+    if (
+        !Config().term.probeUtf8Encoding ||
+        client.term.isNixTerm() ||
+        Config().term.forceOutputEncoding
+    ) {
+        return cb(null);
+    }
+
+    let initialPosition;
+    const ASCIIPortion = ' Character encoding detection ';
+
+    withCursorPositionReport(
+        client,
+        pos => {
+            initialPosition = pos;
+
+            withCursorPositionReport(
+                client,
+                pos => {
+                    const [, w] = pos;
+                    const len = w - initialPosition[1];
+                    //
+                    //  UTF-8: each U+9760 skull occupies 1 or 2 display columns
+                    //  (narrow or wide), giving len < ASCIIPortion.length + 6.
+                    //  CP437: each skull is 3 separate bytes = 3 columns each,
+                    //  giving len >= ASCIIPortion.length + 6 (mirrors the
+                    //  downgrade check in ansiAttemptDetectUTF8).
+                    //
+                    if (!isNaN(len) && len > 0 && len < ASCIIPortion.length + 6) {
+                        client.log.info(
+                            { len },
+                            'CP437-identified terminal passed UTF-8 probe; upgrading output encoding to utf8'
+                        );
+                        client.term.outputEncoding = 'utf8';
+                    }
+                },
+                'UTF-8 upward probe stage 2 timed out',
+                cb
+            );
+
+            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`);
+            client.term.rawWrite(ansi.queryPos());
+        },
+        'UTF-8 upward probe stage 1 timed out',
+        err => {
+            if (err) {
+                return cb(err);
+            }
+        }
+    );
+
+    client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`);
+}
+
 const ansiQuerySyncTermFontSupport = (client, cb) => {
     // If we know it's SyncTERM, then good to go
     if (client.term.termClient === 'cterm') {
@@ -279,6 +345,9 @@ function connectEntry(client, nextMenu) {
             },
             function checkUtf8IfNeeded(callback) {
                 return ansiAttemptDetectUTF8(client, callback);
+            },
+            function probeUtf8IfOptedIn(callback) {
+                return ansiProbeUTF8Upward(client, callback);
             },
             function querySyncTERMFontSupport(callback) {
                 return ansiQuerySyncTermFontSupport(client, callback);

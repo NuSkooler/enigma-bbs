@@ -130,7 +130,8 @@ function wordWrapText(text, options) {
             if ('expand' === options.tabHandling) {
                 //  Good info here: http://c-for-dummies.com/blog/?p=424
                 word +=
-                    expandTab(result.wrapped[i].length + word.length) + options.tabChar;
+                    expandTab(lenFunc(result.wrapped[i]) + lenFunc(word)) +
+                    options.tabChar;
             } else {
                 word += m[0];
             }

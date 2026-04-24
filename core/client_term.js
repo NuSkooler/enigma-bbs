@@ -71,6 +71,14 @@ function ClientTerminal(output) {
                 this.outputEncoding = 'cp437';
             }
 
+            //  Allow sysop to override auto-detection with a forced encoding for all
+            //  connections (e.g. forceOutputEncoding: utf8 in system config for a
+            //  UTF-8-only BBS environment).
+            const forced = Config().term.forceOutputEncoding;
+            if (forced) {
+                this.outputEncoding = forced;
+            }
+
             //  :TODO: according to this: http://mud-dev.wikidot.com/article:telnet-client-identification
             //  Windows telnet will send "VTNT". If so, set termClient='windows'
             //  there are some others on the page as well

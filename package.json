@@ -1,6 +1,6 @@
 {
     "name": "enigma-bbs",
-    "version": "0.3.0-beta",
+    "version": "0.4.0-beta",
     "description": "ENiGMA½ Bulletin Board System",
     "author": "Bryan Ashby <bryan@l33t.codes>",
     "license": "BSD-2-Clause",
@@ -78,6 +78,7 @@
         "telnet-socket": "0.2.4",
         "temptmp": "^1.1.0",
         "v86": "^0.5.319",
+        "wcwidth": "^1.0.1",
         "ws": "8.20.0",
         "yazl": "3.3.1"
     },
