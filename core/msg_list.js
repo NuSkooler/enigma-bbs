@@ -313,12 +313,15 @@ exports.getModule = class MessageListModule extends (
                             return callback(null);
                         }
 
-                        messageArea.getMessageAreaLastReadId(
-                            self.client.user.userId,
+                        //  Use the effective last-read ID (MAX of per-area pointer and the
+                        //  user's newscan floor date) so new-message indicators and initial
+                        //  focus respect the floor without going stale across re-entries.
+                        messageArea.getEffectiveNewScanLastReadId(
+                            self.client.user,
                             self.config.messageAreaTag,
-                            function lastRead(err, lastReadId) {
-                                self.lastReadId = lastReadId || 0;
-                                return callback(null); //  ignore any errors, e.g. missing value
+                            function lastRead(err, effectiveLastReadId) {
+                                self.lastReadId = effectiveLastReadId || 0;
+                                return callback(null);
                             }
                         );
                     },

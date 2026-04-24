@@ -4,6 +4,7 @@
 //  ENiGMA½
 const MessageScanTossModule = require('../msg_scan_toss_module.js').MessageScanTossModule;
 const Config = require('../config.js').get;
+const Events = require('../events.js');
 const ftnMailPacket = require('../ftn_mail_packet.js');
 const ftnUtil = require('../ftn_util.js');
 const Address = require('../ftn_address.js');
@@ -646,7 +647,7 @@ function FTNMessageScanTossModule() {
     };
 
     this.getAreaLastScanId = function (areaTag, cb) {
-        const sql = `SELECT area_tag, message_id
+        const sql = `SELECT message_id
             FROM message_area_last_scan
             WHERE scan_toss = 'ftn_bso' AND area_tag = ?
             LIMIT 1;`;
@@ -711,6 +712,7 @@ function FTNMessageScanTossModule() {
                     );
 
                     const ws = fs.createWriteStream(exportOpts.pktFileName);
+                    ws.once('error', callback);
 
                     packet.writeHeader(ws, packetHeader);
 
@@ -761,7 +763,7 @@ function FTNMessageScanTossModule() {
             });
         }
 
-        async.each(
+        async.eachSeries(
             messageUuids,
             (msgUuid, nextUuid) => {
                 let message = new Message();
@@ -818,6 +820,12 @@ function FTNMessageScanTossModule() {
                                 exportedFiles.push(pktFileName);
 
                                 ws = fs.createWriteStream(pktFileName);
+                                ws.once('error', err =>
+                                    Log.error(
+                                        { pktFileName, error: err.message },
+                                        'FTN packet write error'
+                                    )
+                                );
 
                                 currPacketSize = packet.writeHeader(ws, packetHeader);
 
@@ -923,12 +931,18 @@ function FTNMessageScanTossModule() {
                                         self.exportTempDir,
                                         remainMessageId,
                                         createTempPacket,
-                                        exportOpts.filleCase
+                                        exportOpts.fileCase
                                     );
 
                                     exportedFiles.push(pktFileName);
 
                                     ws = fs.createWriteStream(pktFileName);
+                                    ws.once('error', err =>
+                                        Log.error(
+                                            { pktFileName, error: err.message },
+                                            'FTN packet write error'
+                                        )
+                                    );
 
                                     packet.writeHeader(ws, packetHeader);
                                     ws.write(remainMessageBuf);
@@ -1007,20 +1021,26 @@ function FTNMessageScanTossModule() {
 
     this.exportNetMailMessagesToUplinks = function (messagesOrMessageUuids, cb) {
         //  for each message/UUID, find where to send the thing
-        async.each(
+        //  eachSeries avoids concurrent appends to the same .flo file for the same node
+        async.eachSeries(
             messagesOrMessageUuids,
             (msgOrUuid, nextMessageOrUuid) => {
                 const exportOpts = {};
                 const message = new Message();
+                let messageLoaded = false;
 
                 async.series(
                     [
                         function loadMessage(callback) {
                             if (_.isString(msgOrUuid)) {
                                 message.load({ uuid: msgOrUuid }, err => {
+                                    if (!err) {
+                                        messageLoaded = true;
+                                    }
                                     return callback(err, message);
                                 });
                             } else {
+                                messageLoaded = true;
                                 return callback(null, msgOrUuid);
                             }
                         },
@@ -1135,10 +1155,83 @@ function FTNMessageScanTossModule() {
                     ],
                     err => {
                         if (err) {
+                            const msgUuid = _.isString(msgOrUuid)
+                                ? msgOrUuid
+                                : msgOrUuid.messageUuid;
+                            const dest = _.get(message, [
+                                'meta',
+                                'System',
+                                Message.SystemMetaNames.RemoteToUser,
+                            ]);
                             Log.warn(
-                                { error: err.message },
-                                `Error exporting message: ${err.message}`
+                                {
+                                    error: err.message,
+                                    msgUuid,
+                                    subject: message.subject,
+                                    dest,
+                                },
+                                'Failed to export NetMail'
                             );
+
+                            //  Permanent routing failure — mark as failed and notify sender
+                            if (
+                                messageLoaded &&
+                                message.messageId &&
+                                Errors.ErrorCodes.DoesNotExist === err.code
+                            ) {
+                                const localFromUserId = parseInt(
+                                    _.get(message, [
+                                        'meta',
+                                        'System',
+                                        Message.SystemMetaNames.LocalFromUserID,
+                                    ])
+                                );
+
+                                async.series(
+                                    [
+                                        function markExportFailed(callback) {
+                                            return message.persistMetaValue(
+                                                'System',
+                                                Message.SystemMetaNames.StateFlags0,
+                                                Message.StateFlags0.ExportFailed.toString(),
+                                                callback
+                                            );
+                                        },
+                                        function notifySender(callback) {
+                                            if (
+                                                !localFromUserId ||
+                                                isNaN(localFromUserId)
+                                            ) {
+                                                return callback(null);
+                                            }
+
+                                            const failNotice = new Message({
+                                                areaTag:
+                                                    Message.WellKnownAreaTags.Private,
+                                                toUserName: message.fromUserName,
+                                                fromUserName: 'ENiGMA½ BBS',
+                                                subject: `Failed: ${message.subject}`,
+                                                message:
+                                                    `Your message to ${message.toUserName} could not be delivered.\r\n\r\n` +
+                                                    `Reason: ${err.reason || err.message}\r\n\r\n` +
+                                                    `The original message has been retained for your reference.` +
+                                                    ` Please contact your sysop if you believe this is in error.`,
+                                            });
+                                            failNotice.setLocalToUserId(localFromUserId);
+
+                                            return failNotice.persist(callback);
+                                        },
+                                    ],
+                                    notifErr => {
+                                        if (notifErr) {
+                                            Log.warn(
+                                                { error: notifErr.message, msgUuid },
+                                                'Failed to record NetMail delivery failure'
+                                            );
+                                        }
+                                    }
+                                );
+                            }
                         }
                         return nextMessageOrUuid(null);
                     }
@@ -1611,8 +1704,9 @@ function FTNMessageScanTossModule() {
         let importStats = {
             packetPath,
             areaSuccess: {}, //  areaTag->count
+            areaDuplicates: {}, //  areaTag->count
             areaFail: {}, //  areaTag->count
-            otherFail: 0,
+            skipCount: 0, //  messages skipped (unknown area, non-private sans area tag)
         };
 
         new ftnMailPacket.Packet(packetOpts).read(
@@ -1629,15 +1723,36 @@ function FTNMessageScanTossModule() {
                             packetHeader.destAddress
                         ).toString();
 
-                        importStats.otherFail += 1;
-
+                        //  hard abort — error propagates to final callback, no skipCount needed
                         return next(
                             new Error(
                                 `No local configuration for packet addressed to ${addrString}`
                             )
                         );
                     } else {
-                        //  :TODO: password needs validated - need to determine if it will use the same node config (which can have wildcards) or something else?!
+                        //  Validate packet password against node config (if configured)
+                        const originAddr = new Address(packetHeader.origAddress);
+                        const nodeConfig = _.find(
+                            self.moduleConfig.nodes,
+                            (node, addrWildcard) =>
+                                originAddr.isPatternMatch(addrWildcard)
+                        );
+                        if (nodeConfig && nodeConfig.packetPassword) {
+                            const expected = nodeConfig.packetPassword.toUpperCase();
+                            const actual = (packetHeader.password || '').toUpperCase();
+                            if (expected !== actual) {
+                                //  hard abort — error propagates to final callback
+                                Log.warn(
+                                    { origin: originAddr.toString() },
+                                    'Packet rejected: password mismatch'
+                                );
+                                return next(
+                                    new Error(
+                                        `Packet password mismatch from ${originAddr.toString()}`
+                                    )
+                                );
+                            }
+                        }
                         return next(null);
                     }
                 } else if ('message' === entryType) {
@@ -1658,9 +1773,7 @@ function FTNMessageScanTossModule() {
                                 `No local message area for "${areaTag}"`
                             );
 
-                            //  bump generic failure
-                            importStats.otherFail += 1;
-
+                            importStats.skipCount += 1;
                             return next(null);
                         }
                     } else {
@@ -1674,7 +1787,7 @@ function FTNMessageScanTossModule() {
                             localAreaTag = Message.WellKnownAreaTags.Private;
                         } else {
                             Log.warn('Non-private message without area tag');
-                            importStats.otherFail += 1;
+                            importStats.skipCount += 1;
                             return next(null);
                         }
                     }
@@ -1692,14 +1805,13 @@ function FTNMessageScanTossModule() {
 
                     self.importMailToArea(importConfig, packetHeader, message, err => {
                         if (err) {
-                            //  bump area fail stats
-                            importStats.areaFail[localAreaTag] =
-                                (importStats.areaFail[localAreaTag] || 0) + 1;
-
                             if (
                                 'SQLITE_CONSTRAINT' === err.code ||
                                 'DUPE_MSGID' === err.code
                             ) {
+                                importStats.areaDuplicates[localAreaTag] =
+                                    (importStats.areaDuplicates[localAreaTag] || 0) + 1;
+
                                 const msgId = _.has(message.meta, 'FtnKludge.MSGID')
                                     ? message.meta.FtnKludge.MSGID
                                     : 'N/A';
@@ -1710,11 +1822,15 @@ function FTNMessageScanTossModule() {
                                         uuid: message.messageUuid,
                                         MSGID: msgId,
                                     },
-                                    `Not importing non-unique message "${message.subject}" to ${localAreaTag}`
+                                    `Skipping duplicate message "${message.subject}" in ${localAreaTag}`
                                 );
 
                                 return next(null);
                             }
+
+                            //  bump area fail stats for genuine errors
+                            importStats.areaFail[localAreaTag] =
+                                (importStats.areaFail[localAreaTag] || 0) + 1;
                         } else {
                             //  bump area success
                             importStats.areaSuccess[localAreaTag] =
@@ -1741,7 +1857,7 @@ function FTNMessageScanTossModule() {
                         : 0;
                 };
 
-                const totalFail = makeCount(importStats.areaFail) + importStats.otherFail;
+                const totalFail = makeCount(importStats.areaFail);
                 const packetFileName = paths.basename(packetPath);
                 if (err || totalFail > 0) {
                     if (err) {
@@ -1753,9 +1869,16 @@ function FTNMessageScanTossModule() {
                     );
                 } else {
                     const totalSuccess = makeCount(importStats.areaSuccess);
+                    const totalDupes = makeCount(importStats.areaDuplicates);
                     Log.info(
                         importStats,
-                        `Packet ${packetFileName} imported with ${totalSuccess} new message(s)`
+                        `Packet ${packetFileName} imported with ${totalSuccess} new message(s)` +
+                            (totalDupes > 0
+                                ? `, ${totalDupes} duplicate(s) skipped`
+                                : '') +
+                            (importStats.skipCount > 0
+                                ? `, ${importStats.skipCount} message(s) skipped (unknown area)`
+                                : '')
                     );
                 }
 
@@ -1975,8 +2098,16 @@ function FTNMessageScanTossModule() {
                             self.importPacketFilesFromDirectory(
                                 self.importTempDir,
                                 '',
-                                () => {
-                                    //  :TODO: handle |err|
+                                err => {
+                                    if (err) {
+                                        Log.warn(
+                                            {
+                                                importDir: self.importTempDir,
+                                                error: err.message,
+                                            },
+                                            'Error importing packets from extracted bundle'
+                                        );
+                                    }
                                     callback(null, bundleFiles, rejects);
                                 }
                             );
@@ -2536,27 +2667,26 @@ function FTNMessageScanTossModule() {
         //  which will be present for imported or already exported messages
         //
         //
-        //  :TODO: fill out the rest of the consts here
-        //  :TODO: this statement is crazy ugly -- use JOIN / NOT EXISTS for state_flags & 0x02
-        const getNewUuidsSql = `SELECT message_id, message_uuid
+        //  Select outbound FTN NetMail that hasn't been exported, failed, or delivered locally.
+        const getNewUuidsSql = `
+            SELECT m.message_id, m.message_uuid
             FROM message m
-            WHERE area_tag = '${Message.WellKnownAreaTags.Private}' AND message_id > ? AND
-                (SELECT COUNT(message_id)
-                FROM message_meta
+            WHERE m.area_tag = '${Message.WellKnownAreaTags.Private}'
+              AND m.message_id > ?
+              AND NOT EXISTS (
+                SELECT 1 FROM message_meta
                 WHERE message_id = m.message_id
-                    AND meta_category = 'System'
-                    AND (meta_name = 'state_flags0' OR meta_name = 'local_to_user_id')
-                ) = 0
-            AND
-                (SELECT COUNT(message_id)
-                FROM message_meta
+                  AND meta_category = 'System'
+                  AND meta_name IN ('state_flags0', 'local_to_user_id')
+              )
+              AND EXISTS (
+                SELECT 1 FROM message_meta
                 WHERE message_id = m.message_id
-                    AND meta_category = 'System'
-                    AND meta_name = '${Message.SystemMetaNames.ExternalFlavor}'
-                    AND meta_value = '${Message.AddressFlavor.FTN}'
-                ) = 1
-            ORDER BY message_id;
-            `;
+                  AND meta_category = 'System'
+                  AND meta_name = '${Message.SystemMetaNames.ExternalFlavor}'
+                  AND meta_value = '${Message.AddressFlavor.FTN}'
+              )
+            ORDER BY m.message_id;`;
 
         async.waterfall(
             [
@@ -2703,6 +2833,15 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 
     this.hasValidConfiguration({ shouldLog: true }); //  just check and log
 
+    //  Refresh cached top-level module config when config.hjson is hot-reloaded
+    this._onConfigChanged = () => {
+        const config = Config();
+        if (_.has(config, 'scannerTossers.ftn_bso')) {
+            this.moduleConfig = config.scannerTossers.ftn_bso;
+        }
+    };
+    Events.on(Events.getSystemEvents().ConfigChanged, this._onConfigChanged);
+
     let importing = false;
 
     let self = this;
@@ -2727,6 +2866,20 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
             Log.warn({ error: err.toStrong() }, 'Failed creating temporary directories!');
             return cb(err);
         }
+
+        //  Remove stale .bsy flag files (and legacy .bsy.lock dirs left by
+        //  the previous proper-lockfile implementation) so external mailers
+        //  and our own startup begin from a known-clean state.
+        sweepOrphanBsyFiles([
+            this.moduleConfig.paths.inbound,
+            this.moduleConfig.paths.outbound,
+        ]);
+        [this.moduleConfig.paths.inbound, this.moduleConfig.paths.outbound].forEach(
+            dir => {
+                if (!_.isString(dir)) return;
+                fse.remove(paths.join(dir, 'enigma.bsy.lock'), () => {});
+            }
+        );
 
         if (_.isObject(this.moduleConfig.schedule)) {
             const exportSchedule = this.parseScheduleString(
@@ -2844,6 +2997,13 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 FTNMessageScanTossModule.prototype.shutdown = function (cb) {
     Log.info('FidoNet Scanner/Tosser shutting down');
 
+    if (this._onConfigChanged) {
+        Events.removeListener(
+            Events.getSystemEvents().ConfigChanged,
+            this._onConfigChanged
+        );
+    }
+
     if (this.exportTimer) {
         this.exportTimer.clear();
     }
@@ -2867,9 +3027,86 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
 
         FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
     });
-
-    FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 };
+
+//
+//  FTN .bsy flag (FTS-5005).  A zero-content file whose *presence* in an
+//  outbound directory signals external mailers (binkd, et al) that we are
+//  currently writing packets and they should not grab them until it is gone.
+//  It is NOT a lock; we are the only writer by design (one BBS instance per
+//  mail tree).  Crash-leaked files are unlinked on startup.
+//
+function withFtnBsyFlag(dir, fn, cb) {
+    const bsyPath = paths.join(dir, 'enigma.bsy');
+
+    fs.writeFile(bsyPath, String(process.pid), writeErr => {
+        if (writeErr) {
+            Log.warn(
+                { path: bsyPath, error: writeErr.message },
+                'Could not create FTN .bsy flag; proceeding without it'
+            );
+        }
+
+        fn(fnErr => {
+            fs.unlink(bsyPath, unlinkErr => {
+                if (unlinkErr && 'ENOENT' !== unlinkErr.code) {
+                    Log.warn(
+                        { path: bsyPath, error: unlinkErr.message },
+                        'Failed to remove FTN .bsy flag'
+                    );
+                }
+                return cb(fnErr);
+            });
+        });
+    });
+}
+
+//
+//  Watchdog wrapper: runs |fn(done)| and guarantees |cb| fires exactly once —
+//  either when |done| is invoked, or after |watchdogMs| if not.  Exists so a
+//  missed callback inside |fn| cannot wedge the caller forever.
+//
+function guardedCall(watchdogMs, label, fn, cb) {
+    let called = false;
+    const timer = setTimeout(() => {
+        if (called) return;
+        Log.error({ label, watchdogMs }, 'FTN watchdog timeout; forcing completion');
+        called = true;
+        cb(Errors.General(`Watchdog timeout: ${label}`));
+    }, watchdogMs);
+
+    try {
+        fn(err => {
+            if (called) return;
+            called = true;
+            clearTimeout(timer);
+            cb(err);
+        });
+    } catch (e) {
+        if (called) return;
+        called = true;
+        clearTimeout(timer);
+        cb(e);
+    }
+}
+
+//  Unlink any orphan enigma.bsy files left by a crashed prior run.  Safe because
+//  only one BBS instance writes to these directories; anything we find is stale.
+function sweepOrphanBsyFiles(dirs) {
+    for (const dir of dirs) {
+        if (!_.isString(dir)) continue;
+        const bsyPath = paths.join(dir, 'enigma.bsy');
+        fs.unlink(bsyPath, err => {
+            if (!err) {
+                Log.info({ path: bsyPath }, 'Removed orphan FTN .bsy flag');
+            }
+            //  ENOENT is the common case (no stale file); ignore.
+        });
+    }
+}
+
+const IMPORT_WATCHDOG_MS = 5 * 60 * 1000;
+const EXPORT_WATCHDOG_MS = 10 * 60 * 1000;
 
 FTNMessageScanTossModule.prototype.performImport = function (cb) {
     if (!this.hasValidConfiguration()) {
@@ -2878,20 +3115,27 @@ FTNMessageScanTossModule.prototype.performImport = function (cb) {
 
     const self = this;
 
-    async.each(
-        ['inbound', 'secInbound'],
-        (inboundType, nextDir) => {
-            const importDir = self.moduleConfig.paths[inboundType];
-            self.importFromDirectory(inboundType, importDir, err => {
-                if (err) {
-                    Log.trace(
-                        { importDir, error: err.message },
-                        'Cannot perform FTN import for directory'
-                    );
-                }
+    guardedCall(
+        IMPORT_WATCHDOG_MS,
+        'FTN import',
+        done => {
+            async.each(
+                ['inbound', 'secInbound'],
+                (inboundType, nextDir) => {
+                    const importDir = self.moduleConfig.paths[inboundType];
+                    self.importFromDirectory(inboundType, importDir, err => {
+                        if (err) {
+                            Log.trace(
+                                { importDir, error: err.message },
+                                'Cannot perform FTN import for directory'
+                            );
+                        }
 
-                return nextDir(null);
-            });
+                        return nextDir(null);
+                    });
+                },
+                done
+            );
         },
         cb
     );
@@ -2907,20 +3151,37 @@ FTNMessageScanTossModule.prototype.performExport = function (cb) {
     }
 
     const self = this;
+    const outboundDir = self.moduleConfig.paths.outbound;
 
-    async.eachSeries(
-        ['EchoMail', 'NetMail'],
-        (type, nextType) => {
-            self[`perform${type}Export`](err => {
-                if (err) {
-                    Log.warn({ type, error: err.message }, 'Error(s) during export');
-                }
-                return nextType(null); //  try next, always
-            });
+    withFtnBsyFlag(
+        outboundDir,
+        done => {
+            guardedCall(
+                EXPORT_WATCHDOG_MS,
+                'FTN export',
+                innerDone => {
+                    async.eachSeries(
+                        ['EchoMail', 'NetMail'],
+                        (type, nextType) => {
+                            self[`perform${type}Export`](err => {
+                                if (err) {
+                                    Log.warn(
+                                        { type, error: err.message },
+                                        'Error(s) during export'
+                                    );
+                                }
+                                return nextType(null); //  try next, always
+                            });
+                        },
+                        () => {
+                            return innerDone(null);
+                        }
+                    );
+                },
+                done
+            );
         },
-        () => {
-            return cb(null);
-        }
+        cb
     );
 };
 

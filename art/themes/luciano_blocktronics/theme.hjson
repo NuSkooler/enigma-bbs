@@ -299,12 +299,18 @@
 						fatal: |00|28
 					}
 
+					// Full log viewer: per-field format in the detail pane.
+					// Tokens: {name} field name, {sep} separator, {value} field value
+					logDetailFieldFormat: "|03{name}|08{sep} |11{value}"
+
 					statusAvailableIndicators: [ "N", "Y" ]
 					statusVisibleIndicators: [ "N", "Y" ]
 
 					nodeStatusSelectionFormat: "|00|07{realName:<12}\n|08- |07{serverName:<10}\n|08- |07{remoteAddress:<10}\n{pageIndicator}"
 
 					pageIndicator: "|13!"
+
+
 				}
 				0: {
 					mci: {
@@ -335,6 +341,24 @@
 							autoScroll: false
 							height: 5
 							width: 12
+						}
+					}
+				}
+				2: {
+					mci: {
+						// log entry list (up/down arrow scrolls)
+						VM1: {
+							height: 9
+							width: 73
+							itemFormat:      "|00|07  {nodeId} {levelIndicator} |02{timestamp} {message}"
+							focusItemFormat: "|00|10> |07{nodeId} {levelIndicator} |15{timestamp} |15{message}"
+						}
+						// full entry detail (page up/down scrolls)
+						MT2: {
+							mode: preview
+							autoScroll: false
+							height: 12
+							width: 73
 						}
 					}
 				}
@@ -383,6 +407,23 @@
 						width: 54
 						itemFormat: "|00|07{conf.name} |08- |07{area.name}"
 						focusItemFormat: "|00|15{conf.name} |07- |15{area.name}"
+					}
+				}
+			}
+
+			messageBaseConfigureNewscan: {
+				mci: {
+					VM1: {
+						width: 70
+						height: 8
+						itemFormat: "|00|15{selectedIndicator:<5.5}|03{confName:<25.25} |11{areaName}"
+						focusItemFormat: "|00|19{selectedIndicator:<5.5}{confName:<25.25} {areaName}"
+					}
+					TL2: {
+						width: 40
+					}
+					TL3: {
+						width: 35
 					}
 				}
 			}

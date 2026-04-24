@@ -1,7 +1,7 @@
 *.asc	eol=crlf
 *.ASC	eol=crlf
-*.ans	eol=crlf
-*.ANS	eol=crlf
+*.ans	binary
+*.ANS	binary
 *.txt	eol=crlf
 *.TXT	eol=crlf
 *.diz	eol=crlf

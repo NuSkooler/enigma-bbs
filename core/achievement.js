@@ -7,7 +7,7 @@ const Config = require('./config.js').get;
 const ConfigLoader = require('./config_loader');
 const { getConfigPath } = require('./config_util');
 const UserDb = require('./database.js').dbs.user;
-const { getISOTimestampString } = require('./database.js');
+const { getISOTimestampString, coerceToText } = require('./database.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
 const { getConnectionByUserId } = require('./client_connections.js');
 const UserProps = require('./user_property.js');
@@ -270,7 +270,7 @@ class Achievements {
             info.client.user.userId,
             info.achievementTag,
             getISOTimestampString(info.timestamp),
-            info.matchField,
+            coerceToText(info.matchField),
             cleanTitle,
             cleanText,
             info.details.points,

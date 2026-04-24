@@ -759,6 +759,76 @@ class MultiLineEditTextView extends View {
         return { lineIndex: last, col: this.buffer.lines[last]?.chars.length ?? 0 };
     }
 
+    //  Remap cursorPos (row/col/topVisibleIndex) to the location equivalent to
+    //  |paragraphOffset| within the paragraph that now begins at |start|.
+    //  Returns { newLineIndex, newCol, scrolled } — scrolled=true when the
+    //  target row moved above the visible window (caller should `redraw()`).
+    _remapCursorAfterParagraphRewrap(start, paragraphOffset) {
+        const { lineIndex: newLineIndex, col: newCol } = this._offsetToLineCol(
+            start,
+            paragraphOffset
+        );
+        this.cursorPos.col = newCol;
+
+        const newVisibleRow = newLineIndex - this.topVisibleIndex;
+        if (newVisibleRow < 0) {
+            this.topVisibleIndex = newLineIndex;
+            this.cursorPos.row = 0;
+            return { newLineIndex, newCol, scrolled: true };
+        }
+        this.cursorPos.row = newVisibleRow;
+        return { newLineIndex, newCol, scrolled: false };
+    }
+
+    //  Runs |mutateFn| — a structural buffer mutation on the paragraph that
+    //  contains |index| — then rewraps the paragraph and remaps the cursor to
+    //  the paragraph-offset it held before the mutation.  Returns the remap
+    //  result plus the delta in buffer line count.  This is the ONE place the
+    //  "paragraph-stable cursor" invariant is enforced; every structural MLE
+    //  mutation path should route through here so the cursor can never end up
+    //  pointing past the end of a shortened line (the class of bug that caused
+    //  the empty-line backspace crash).
+    _mutateParagraphAndRemap(index, mutateFn) {
+        const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
+        const linesBefore = this.buffer.lines.length;
+
+        mutateFn();
+        const { start } = this.buffer.rewrapParagraph(index);
+
+        const linesAfter = this.buffer.lines.length;
+        const remap = this._remapCursorAfterParagraphRewrap(start, paragraphOffset);
+        return { ...remap, linesDelta: linesAfter - linesBefore };
+    }
+
+    //  Defence in depth: clamp cursorPos/topVisibleIndex to the current buffer
+    //  shape.  Runs at the top of every key dispatch so a mutation that forgot
+    //  to remap the cursor cannot strand it past the end of a line (which was
+    //  crashing the process via u32Delete before the line_buffer hardening).
+    _clampCursorToBuffer() {
+        const lineCount = this.buffer.lines.length;
+        const maxTop = Math.max(0, lineCount - 1);
+        if (this.topVisibleIndex > maxTop) {
+            this.topVisibleIndex = maxTop;
+        } else if (this.topVisibleIndex < 0) {
+            this.topVisibleIndex = 0;
+        }
+
+        const maxRow = Math.max(0, lineCount - this.topVisibleIndex - 1);
+        if (this.cursorPos.row > maxRow) {
+            this.cursorPos.row = maxRow;
+        } else if (this.cursorPos.row < 0) {
+            this.cursorPos.row = 0;
+        }
+
+        const line = this.buffer.lines[this.topVisibleIndex + this.cursorPos.row];
+        const maxCol = line ? line.chars.length : 0;
+        if (this.cursorPos.col > maxCol) {
+            this.cursorPos.col = maxCol;
+        } else if (this.cursorPos.col < 0) {
+            this.cursorPos.col = 0;
+        }
+    }
+
     insertCharactersInText(c, index, col) {
         const prevTextLength = this.getTextLength(index);
         let editingEol = this.cursorPos.col === prevTextLength;
@@ -876,49 +946,43 @@ class MultiLineEditTextView extends View {
             if (col >= this.buffer.lines[index].chars.length) {
                 return; //  nothing to delete at or past end of line
             }
-            this.buffer.deleteChar(index, col);
-            this.buffer.rewrapParagraph(index);
-            this.redrawRows(this.cursorPos.row, this.dimens.height);
+            const { scrolled } = this._mutateParagraphAndRemap(index, () => {
+                this.buffer.deleteChar(index, col);
+            });
+            if (scrolled) {
+                this.redraw();
+            } else {
+                this.redrawRows(this.cursorPos.row, this.dimens.height);
+            }
             this.moveClientCursorToCursorPos();
         } else if ('backspace' === operation) {
             //  Remove `count` chars starting at col - (count - 1).
             //  cursorPos.col was already decremented by 1 in keyPressBackspace,
             //  so `col` here is the position of the first char to delete.
             const startCol = col - (count - 1);
-            for (let i = 0; i < count; i++) {
-                this.buffer.deleteChar(index, startCol);
-            }
             this.cursorPos.col -= count - 1;
 
-            //  Capture paragraph offset before rewrap so we can remap the cursor
-            //  correctly if rewrap merges lines (reduces line count).  Without this,
-            //  topVisibleIndex + cursorPos.row can point past the end of the buffer
-            //  on the very next keypress, causing a crash in deleteChar.
-            const paragraphOffset = this._paragraphOffset(index, this.cursorPos.col);
-            const linesBefore = this.buffer.lines.length;
-            const { start } = this.buffer.rewrapParagraph(index);
-            const linesAfter = this.buffer.lines.length;
-
-            const { lineIndex: newLineIndex, col: newCol } = this._offsetToLineCol(
-                start,
-                paragraphOffset
+            //  Paragraph-stable cursor remap around the delete + rewrap.
+            //  Without this, topVisibleIndex + cursorPos.row can point past the
+            //  end of the buffer on the very next keypress, stranding the cursor.
+            const { newLineIndex, scrolled, linesDelta } = this._mutateParagraphAndRemap(
+                index,
+                () => {
+                    for (let i = 0; i < count; i++) {
+                        this.buffer.deleteChar(index, startCol);
+                    }
+                }
             );
-            this.cursorPos.col = newCol;
 
-            const newVisibleRow = newLineIndex - this.topVisibleIndex;
-            if (newVisibleRow < 0) {
-                //  Merged line scrolled above the visible window — scroll to it.
-                this.topVisibleIndex = newLineIndex;
-                this.cursorPos.row = 0;
+            if (scrolled) {
                 this.redraw();
                 this.moveClientCursorToCursorPos();
             } else {
-                this.cursorPos.row = newVisibleRow;
                 const chars = this.buffer.lines[newLineIndex]?.chars ?? '';
                 if (
                     this.isEditMode() &&
                     this._hasPipeCodesOrPartial(chars) &&
-                    linesAfter === linesBefore
+                    linesDelta === 0
                 ) {
                     if (this._cursorNearPipeCode(chars, this.cursorPos.col)) {
                         //  Cursor adjacent to a code (complete or partial) — expand and
@@ -1280,37 +1344,26 @@ class MultiLineEditTextView extends View {
                 return; //  Already at the very first line; nothing to join onto
             }
 
-            //  Remember where the cursor should land: end of the previous line in
-            //  paragraph-coordinate space (stable across the upcoming rewrap).
+            //  The cursor should land where the end of the previous line is
+            //  (in paragraph-coordinate space, which is stable across rewrap).
             const prevLineLen = this.buffer.lines[lineIndex - 1].chars.length;
             const paragraphOffset = this._paragraphOffset(lineIndex - 1, prevLineLen);
 
-            //  Merge this line into the previous line, then rewrap the paragraph.
+            //  Merge this line into the previous line, then rewrap.
             this.buffer.joinLines(lineIndex - 1);
             const { start } = this.buffer.rewrapParagraph(lineIndex - 1);
-
-            //  Map paragraph offset → new (lineIndex, col) after rewrap.
-            const { lineIndex: newLineIndex, col: newCol } = this._offsetToLineCol(
+            const { scrolled } = this._remapCursorAfterParagraphRewrap(
                 start,
                 paragraphOffset
             );
 
-            const newVisibleRow = newLineIndex - this.topVisibleIndex;
-
-            if (newVisibleRow < 0) {
-                //  Target line scrolled above the visible window — scroll to it.
-                this.topVisibleIndex = newLineIndex;
-                this.cursorPos.row = 0;
-                this.cursorPos.col = newCol;
+            if (scrolled) {
                 this.redraw();
-                this.moveClientCursorToCursorPos();
             } else {
-                this.cursorPos.row = newVisibleRow;
-                this.cursorPos.col = newCol;
                 const lastRow = this.redrawRows(this.cursorPos.row, this.dimens.height);
                 this.eraseRows(lastRow, this.dimens.height);
-                this.moveClientCursorToCursorPos();
             }
+            this.moveClientCursorToCursorPos();
         }
 
         this.emitEditPosition();
@@ -1336,10 +1389,18 @@ class MultiLineEditTextView extends View {
                 lineIndex < this.buffer.lines.length - 1 &&
                 this.buffer.lines[lineIndex].eol
             ) {
-                this.buffer.joinLines(lineIndex);
-                this.buffer.rewrapParagraph(lineIndex);
-                const lastRow = this.redrawRows(this.cursorPos.row, this.dimens.height);
-                this.eraseRows(lastRow, this.dimens.height);
+                const { scrolled } = this._mutateParagraphAndRemap(lineIndex, () => {
+                    this.buffer.joinLines(lineIndex);
+                });
+                if (scrolled) {
+                    this.redraw();
+                } else {
+                    const lastRow = this.redrawRows(
+                        this.cursorPos.row,
+                        this.dimens.height
+                    );
+                    this.eraseRows(lastRow, this.dimens.height);
+                }
                 this.moveClientCursorToCursorPos();
             }
             //  else: at end of last line — nothing to delete
@@ -1918,6 +1979,26 @@ class MultiLineEditTextView extends View {
     }
 
     onKeyPress(ch, key) {
+        //  User-input handling should never crash the process.  Any exception
+        //  bubbling out of a keystroke handler gets logged and swallowed so the
+        //  session continues (or at worst disconnects) instead of taking the
+        //  whole BBS down via an uncaught exception on stderr.
+        try {
+            this._handleKeyPress(ch, key);
+        } catch (e) {
+            require('./logger.js').log.error(
+                { error: e.message, stack: e.stack, ch, keyName: key && key.name },
+                'Exception in multi-line edit onKeyPress'
+            );
+        }
+    }
+
+    _handleKeyPress(ch, key) {
+        //  Normalize cursor state against the current buffer shape before any
+        //  mutation runs.  Prevents drift from one handler becoming a crash in
+        //  the next.
+        this._clampCursorToBuffer();
+
         let handled;
         let isCutLine = false;
 

@@ -105,6 +105,12 @@ function u32Insert(arr, index, value) {
 }
 
 function u32Delete(arr, index) {
+    //  Empty array or out-of-range index is a no-op — mirrors String.slice's
+    //  forgiving semantics and prevents `new Uint32Array(-1)` RangeError when
+    //  upstream cursor state drifts past the line content.
+    if (arr.length === 0 || index < 0 || index >= arr.length) {
+        return arr;
+    }
     const out = new Uint32Array(arr.length - 1);
     out.set(arr.subarray(0, index), 0);
     out.set(arr.subarray(index + 1), index);
@@ -199,8 +205,12 @@ class LineBuffer {
 
     //  deleteChar(lineIndex, col)
     //  Removes the character at col from the given line.  Does NOT reflow.
+    //  Out-of-range lineIndex or col is a no-op, keeping chars/attrs in sync.
     deleteChar(lineIndex, col) {
         const line = this.lines[lineIndex];
+        if (!line || col < 0 || col >= line.chars.length) {
+            return;
+        }
         line.chars = line.chars.slice(0, col) + line.chars.slice(col + 1);
         line.attrs = u32Delete(line.attrs, col);
     }

@@ -3,7 +3,7 @@
 
 const fileDb = require('./database.js').dbs.file;
 const Errors = require('./enig_error.js').Errors;
-const { getISOTimestampString, sanitizeString } = require('./database.js');
+const { getISOTimestampString, sanitizeString, coerceToText } = require('./database.js');
 const Config = require('./config.js').get;
 
 //  deps
@@ -178,7 +178,7 @@ module.exports = class FileEntry {
                         VALUES (?, ?, ?);`
                     );
                     for (const [n, v] of Object.entries(self.meta)) {
-                        metaStmt.run(self.fileId, n, v);
+                        metaStmt.run(self.fileId, n, coerceToText(v));
                     }
 
                     const insertTagStmt = fileDb.prepare(
@@ -307,7 +307,7 @@ module.exports = class FileEntry {
                     `REPLACE INTO file_meta (file_id, meta_name, meta_value)
                     VALUES (?, ?, ?);`
                 )
-                .run(fileId, name, value);
+                .run(fileId, name, coerceToText(value));
             return cb(null);
         } catch (err) {
             return cb(err);

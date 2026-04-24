@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const userDb = require('./database.js').dbs.user;
+const { coerceToText } = require('./database.js');
 const Config = require('./config.js').get;
 const userGroup = require('./user_group.js');
 const { Errors, ErrorReasons } = require('./enig_error.js');
@@ -554,7 +555,7 @@ module.exports = class User {
                             );
                             _.merge(self.properties, self.properties);
                             for (const [k, v] of Object.entries(self.properties)) {
-                                propStmt.run(self.userId, k, v);
+                                propStmt.run(self.userId, k, coerceToText(v));
                             }
 
                             const groupStmt = userDb.prepare(
@@ -618,7 +619,7 @@ module.exports = class User {
                     `REPLACE INTO user_property (user_id, prop_name, prop_value)
                     VALUES (?, ?, ?);`
                 )
-                .run(userId, propName, propValue);
+                .run(userId, propName, coerceToText(propValue));
             if (cb) {
                 return cb(null, propValue);
             }
@@ -806,7 +807,7 @@ module.exports = class User {
                 VALUES (?, ?, ?);`
             );
             for (const [propName, propValue] of Object.entries(properties)) {
-                stmt.run(this.userId, propName, propValue);
+                stmt.run(this.userId, propName, coerceToText(propValue));
             }
             return cb(null);
         } catch (err) {

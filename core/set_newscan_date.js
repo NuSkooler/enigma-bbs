@@ -44,6 +44,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 
         this.target = config.target || 'message';
         this.scanDateFormat = config.scanDateFormat || 'YYYYMMDD';
+        this.allowClear = config.allowClear !== false; //  default true for floor target
 
         this.menuMethods = {
             scanDateSubmit: (formData, extraArgs, cb) => {
@@ -66,9 +67,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                 this[`setNewScanDateFor${_.capitalize(this.target)}Base`](
                     targetSelection,
                     scanDate,
-                    () => {
-                        return this.prevMenu(cb);
-                    }
+                    () => this.prevMenu(cb)
                 );
             },
         };
@@ -160,6 +159,15 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         });
     }
 
+    //  target: floor — stores the date as NewScanMinTimestamp user property.
+    //  This is a non-destructive filter: it does not move per-area last-read
+    //  pointers. The effective scan start for each area becomes
+    //  MAX(per-area pointer, message_id_at_floor).
+    setNewScanDateForFloorBase(targetSelection, scanDate, cb) {
+        const value = scanDate.toISOString();
+        return this.client.user.persistProperty(UserProps.NewScanMinTimestamp, value, cb);
+    }
+
     loadAvailMessageBaseSelections(cb) {
         //
         //  Create an array of objects with conf/area information per entry,
@@ -238,7 +246,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
             async.series(
                 [
                     function validateConfig(callback) {
-                        if (!['message', 'file'].includes(self.target)) {
+                        if (!['message', 'file', 'floor'].includes(self.target)) {
                             return callback(
                                 Errors.Invalid(
                                     `Invalid "target" in config: ${self.target}`
@@ -271,8 +279,6 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                         }
                     },
                     function populateForm(callback) {
-                        const today = moment();
-
                         const scanDateView = vc.getView(MciViewIds.main.scanDate);
 
                         //  :TODO: MaskTextEditView needs some love: If setText() with input that matches the mask, we should ignore the non-mask chars! Hack in place for now
@@ -280,7 +286,22 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                             /[/\-. ]/g,
                             ''
                         );
-                        scanDateView.setText(today.format(scanDateFormat));
+
+                        //  For floor target, pre-populate with current floor if set
+                        let initialDate = moment();
+                        if ('floor' === self.target) {
+                            const existing = self.client.user.getProperty(
+                                UserProps.NewScanMinTimestamp
+                            );
+                            if (existing) {
+                                const existingMoment = moment(existing);
+                                if (existingMoment.isValid()) {
+                                    initialDate = existingMoment;
+                                }
+                            }
+                        }
+
+                        scanDateView.setText(initialDate.format(scanDateFormat));
 
                         if ('message' === self.target) {
                             const targetSelectionView = vc.getView(
@@ -292,7 +313,6 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                         }
 
                         self.viewControllers.main.resetInitialFocus();
-                        //vc.switchFocus(MciViewIds.main.scanDate);
                         return callback(null);
                     },
                 ],

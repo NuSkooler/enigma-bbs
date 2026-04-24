@@ -2,7 +2,7 @@
 'use strict';
 
 const sysDb = require('./database.js').dbs.system;
-const { getISOTimestampString } = require('./database.js');
+const { getISOTimestampString, coerceToText } = require('./database.js');
 const Errors = require('./enig_error.js');
 const SysProps = require('./system_property.js');
 const UserProps = require('./user_property');
@@ -100,7 +100,7 @@ class StatLog {
                 .prepare(
                     `REPLACE INTO system_stat (stat_name, stat_value) VALUES (?, ?);`
                 )
-                .run(statName, statValue);
+                .run(statName, coerceToText(statValue));
             if (cb) {
                 return cb(null);
             }
@@ -212,7 +212,7 @@ class StatLog {
                     `INSERT INTO system_event_log (timestamp, log_name, log_value)
                     VALUES (?, ?, ?);`
                 )
-                .run(this.now, logName, logValue);
+                .run(this.now, logName, coerceToText(logValue));
 
             //
             //  Handle keep
@@ -300,7 +300,13 @@ class StatLog {
                     `INSERT INTO user_event_log (timestamp, user_id, session_id, log_name, log_value)
                     VALUES (?, ?, ?, ?, ?);`
                 )
-                .run(this.now, user.userId, user.sessionId, logName, logValue);
+                .run(
+                    this.now,
+                    user.userId,
+                    user.sessionId,
+                    logName,
+                    coerceToText(logValue)
+                );
 
             //
             //  Handle keepDays

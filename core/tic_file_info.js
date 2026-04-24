@@ -91,6 +91,19 @@ module.exports = class TicFileInfo {
                         );
                     }
 
+                    //  Reject path traversal attempts in the File field
+                    const fileName = self.getAsString('File') || '';
+                    if (
+                        fileName.includes('/') ||
+                        fileName.includes('\\') ||
+                        fileName.includes('..') ||
+                        paths.isAbsolute(fileName)
+                    ) {
+                        return callback(
+                            Errors.Invalid('Invalid or unsafe File field in TIC')
+                        );
+                    }
+
                     const area = self.getAsString('Area').toUpperCase();
 
                     const localInfo = {

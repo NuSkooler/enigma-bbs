@@ -353,27 +353,76 @@
             useSsl          : true
             retryDelay      : 10000
             multiplexerPort : 5000
+
+            # MRC /info display overrides - pipe codes supported
+            infoWeb:    "https://some.website.com"
+            infoTelnet: "mydomain.com:8888"
+            infoSsh:    "mydomain.com:9999"
+            infoSysop:  "SysOp"
+            infoDesc:   "A very kewl ENiGMA BBS"
         }
     }
 
     //
-    //  Currently, ENiGMA½ can use external email to mail
-    //  users for password resets. Additional functionality will
-    //  be added in the future.
+    //  Email configuration. Used for outbound system emails (password reset,
+    //  2FA registration) as well as user-to-internet email send/receive.
+    //
+    //  See https://nodemailer.com/ for transport options.
     //
     email: {
+        //  Reply address for system-generated emails
+        //  defaultFrom: "Sysop <sysop@yourdomain.com>"
+
+        //  Nodemailer-compatible outbound transport. Examples:
         //
-        //  Set the following keys to configure:
-        //  * "defaultFrom" to the reply address
-        //  * "transport" to a configuration block that meets the
-        //    requirements of Nodemailer (https://nodemailer.com/)
+        //  SMTP:
+        //  transport: {
+        //      host: mail.yourdomain.com
+        //      port: 587
+        //      secure: false
+        //      auth: {
+        //          user: myuser@yourdomain.com
+        //          pass: supersecretpassword
+        //      }
+        //  }
         //
-        //  Example:
+        //  Service shorthand (Zoho, SendGrid, etc.):
         //  transport: {
         //      service: Zoho
         //      auth: {
         //          user: myuser@myhost.com
         //          pass: supersecretpassword
+        //      }
+        //  }
+        //
+
+        //
+        //  Inbound email: poll an IMAP mailbox and deliver messages to local users.
+        //  Emails addressed to username@yourdomain.com are routed to the matching
+        //  BBS user. Messages that cannot be delivered are saved to mail/email/failed/.
+        //
+        //  inbound: {
+        //      enabled: false
+        //
+        //      imap: {
+        //          host: imap.yourdomain.com
+        //          port: 993
+        //          secure: true
+        //
+        //          //  Credentials
+        //          user: bbs@yourdomain.com
+        //          password: supersecretpassword
+        //
+        //          //  How often to check for new messages (ms). Set to 0 to use IMAP IDLE
+        //          //  (push-like, lower latency, persistent connection).
+        //          pollIntervalMs: 300000
+        //
+        //          //  Move processed messages to this IMAP folder (created if absent).
+        //          //  Omit or set to null to only mark messages as \Seen instead.
+        //          processedFolder: "BBS-Processed"
+        //
+        //          //  Maximum messages to import per poll run (safety limit)
+        //          maxMessagesPerRun: 50
         //      }
         //  }
         //

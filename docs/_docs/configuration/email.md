@@ -3,37 +3,38 @@ layout: page
 title: Email
 ---
 ## Email Support
-ENiGMA½ uses email to send password reset information to users. For it to work, you need to provide valid [Nodemailer](https://nodemailer.com/about/) compatible `email` block in your [config.hjson](config-hjson.md). Nodemailer supports SMTP in addition to many pre-defined services for ease of use. The `transport` block within `email` must be Nodemailer compatible.
 
-Additional email support will come in the near future.
+ENiGMA½ uses email for system notifications (password resets, 2FA registration) as well as user-to-internet email send/receive via the [Internet Mail](../messageareas/internet-mail.md) scanner/tosser.
+
+Email is powered by [Nodemailer](https://nodemailer.com/about/), which supports SMTP directly as well as many pre-defined service shortcuts. The `transport` block within `email` must be Nodemailer-compatible.
 
 ## Services
 
-If you don't have an SMTP server to send from, [Sendgrid](https://sendgrid.com/) and [Zoho](https://www.zoho.com/mail/) both provide reliable and free services.
+If you don't have an SMTP server to send from, [Sendgrid](https://sendgrid.com/) and [Zoho](https://www.zoho.com/mail/) both provide reliable and free (or low-cost) services.
 
 ## Example Configurations
 
-Example 1 - SMTP:
+Example 1 — SMTP:
 ```hjson
 email: {
-    defaultFrom: sysop@bbs.awesome.com
-    
+    defaultFrom: "Sysop <sysop@bbs.awesome.com>"
+
     transport: {
         host: smtp.awesomeserver.com
-            port: 587
-            secure: false
-            auth: {
-                user: leisuresuitlarry
-                pass: sierra123
-            }
+        port: 587
+        secure: false
+        auth: {
+            user: leisuresuitlarry
+            pass: sierra123
         }
     }
+}
 ```
 
-Example 2 - Zoho
+Example 2 — Zoho:
 ```hjson
 email: {
-    defaultFrom: sysop@bbs.awesome.com
+    defaultFrom: "Sysop <sysop@bbs.awesome.com>"
 
     transport: {
         service: Zoho
@@ -45,5 +46,10 @@ email: {
 }
 ```
 
-## Lockout Reset
-If email is available on your system and you allow email-driven password resets, you may elect to allow unlocking accounts at the time of a password reset. This is controlled by the `users.unlockAtEmailPwReset` configuration option. If an account is locked due to too many failed login attempts, a user may reset their password to remedy the situation themselves.
+## Password Reset / Account Unlock
+
+If email is configured and you allow email-driven password resets, you may also allow locked accounts to be unlocked at reset time. This is controlled by `users.unlockAtEmailPwReset`. If an account is locked due to too many failed login attempts, the user can reset their password to remedy the situation themselves.
+
+## Internet Mail (Send & Receive)
+
+To enable users to send and receive internet email from within ENiGMA½, see [Internet Mail](../messageareas/internet-mail.md).

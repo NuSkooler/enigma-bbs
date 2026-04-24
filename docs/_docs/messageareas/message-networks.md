@@ -22,3 +22,8 @@ See [FidoNet-Style Networks](ftn.md) for more information.
 
 #### QWK
 See [QWK and QWK-Net Style Networks](qwk.md) for more information.
+
+#### Internet Mail (Email)
+Users can send and receive internet email directly from the private mail system. Outbound messages addressed to `user@domain.com` are delivered via SMTP; inbound email is polled from an IMAP mailbox and routed to matching local users.
+
+See [Internet Mail](internet-mail.md) for configuration and setup.
