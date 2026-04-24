@@ -3,6 +3,13 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.4.0-beta
 
+* **Internet Mail (send & receive)** — users can now send and receive internet email directly from the BBS private message system, via a new `email` scanner/tosser module. See [Email Configuration](./docs/_docs/configuration/email.md) and [Internet Mail](./docs/_docs/messageareas/internet-mail.md).
+
+  * **Send**: private messages addressed to `user@domain.com` are delivered through your configured SMTP transport (Nodemailer-compatible — any provider, or service shortcut like Zoho/Fastmail).
+  * **Receive**: inbound email is pulled from a single IMAP mailbox (polling or `IMAP IDLE`) and routed to the local user whose name matches the To: local-part. Successfully imported messages are marked `\Seen` and optionally moved to `inbound.imap.processedFolder`. Unmatched / unparseable mail is preserved as `.eml` in `mail/email/failed/`, marked `\Seen` to prevent re-fetch loops, and optionally moved to `inbound.imap.failedFolder`. ENiGMA½ never deletes mail from your IMAP server — retention is up to you or your provider.
+  * **Per-user `From:` header** — when `email.outbound.fromDomain` is set, outbound mail is sent as `"UserName" <sanitized@fromDomain>` instead of the static `defaultFrom`. The SMTP `Sender:` header and envelope `MAIL FROM` are kept as the authenticated mailbox so bounces stay deliverable and receivers display the standard "on behalf of" attribution. Local-part derivation respects `users.badUserNames` — reserved names fall back to `defaultFrom`. Replacement char for invalid username characters is configurable via `email.outbound.usernameReplaceChar` (default `_`).
+  * **Signature / pipe-code stripping on export** — outbound message bodies are run through the same ANSI + MCI pipe-code stripping pipeline used by the NNTP export, so signatures render cleanly in external mail clients.
+
 * **Wide Character (CJK/UTF-8) Support** — full-width Unicode characters (CJK ideographs, Hangul, Hiragana, Katakana, fullwidth forms) are now handled correctly throughout the view and word-wrap layers
 
   * All display-width measurements use `wcwidth(3)` semantics — wide characters count as 2 terminal columns, combining marks as 0
@@ -32,6 +39,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * **Count/list consistency fix** — the new message count check and the message list passed to `msg_list` now both use the same floor-adjusted effective last-read ID, eliminating the possibility of navigating to an area that shows zero qualifying messages.
 
 ## 0.3.0-beta
+Various fixes
 
 * ActivityPub MAJOR updates have landed.
 

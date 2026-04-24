@@ -975,6 +975,14 @@ module.exports = () => {
         },
 
         email: {
+            outbound: {
+                //  When set, outbound mail From is built per-user as
+                //  "UserName" <sanitized@fromDomain>. Unset falls back to defaultFrom.
+                fromDomain: null,
+                //  Character used to replace invalid local-part characters
+                //  when deriving the local-part from a BBS username.
+                usernameReplaceChar: '_',
+            },
             inbound: {
                 enabled: false,
                 imap: {

@@ -1040,8 +1040,6 @@ describe('MultiLineEditTextView — _clampCursorToBuffer', () => {
         //  would have thrown RangeError out of u32Delete and killed the process.
         const v = makeMltev();
         load(v, 'hello\n\nworld', 1, 99); //  row 1 empty, col way out of range
-        assert.doesNotThrow(() =>
-            v.onKeyPress(undefined, { name: 'backspace' })
-        );
+        assert.doesNotThrow(() => v.onKeyPress(undefined, { name: 'backspace' }));
     });
 });
