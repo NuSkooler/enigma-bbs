@@ -267,6 +267,11 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
             logger: false,
         });
 
+        //  ImapFlow emits 'error' on unexpected socket drops in addition to
+        //  rejecting the in-flight Promise. Without a listener, Node treats
+        //  it as uncaught and kills the process.
+        client.on('error', err => this.log.warn({ err }, 'IMAP client error'));
+
         try {
             await client.connect();
 
@@ -424,6 +429,8 @@ exports.getModule = class EmailScannerTosser extends MessageScanTossModule {
                 },
                 logger: false,
             });
+
+            client.on('error', err => this.log.warn({ err }, 'IMAP IDLE client error'));
 
             this._idleClient = client;
 
