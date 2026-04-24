@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Telnet Server | ENiGMA½ BBS Software</title>
+<title>Internet Mail (Email) | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Telnet Server" />
+<meta property="og:title" content="Internet Mail (Email)" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Telnet Login Server The Telnet login server provides a standard non-secure Telnet login experience." />
-<meta property="og:description" content="Telnet Login Server The Telnet login server provides a standard non-secure Telnet login experience." />
+<meta name="description" content="Internet Mail" />
+<meta property="og:description" content="Internet Mail" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-04-24T00:00:30+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Telnet Server" />
+<meta property="twitter:title" content="Internet Mail (Email)" />
 <script type="application/ld+json">
-{"description":"Telnet Login Server The Telnet login server provides a standard non-secure Telnet login experience.","headline":"Telnet Server","dateModified":"2026-04-24T00:00:30+00:00","datePublished":"2026-04-24T00:00:30+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/loginservers/telnet.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/loginservers/telnet.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Internet Mail","headline":"Internet Mail (Email)","dateModified":"2026-04-24T00:00:30+00:00","datePublished":"2026-04-24T00:00:30+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/internet-mail.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/internet-mail.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1068,7 +1068,7 @@
 
 
     
-    <li><a href="/enigma-bbs/messageareas/internet-mail.html">Internet Mail (Email)</a></li>
+      <li class="active-nav">Internet Mail (Email)</li>
     
 
 
@@ -1565,7 +1565,7 @@
 
 
     
-      <li class="active-nav">Telnet Server</li>
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
     
 
 
@@ -2775,76 +2775,289 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/vertical_menu_view.html">« Vertical Menu View</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/messageareas/qwk.html">« QWK Support</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN) »</a>
               
               <br clear="both">
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Telnet Server</h1>
-    <h2 id="telnet-login-server">Telnet Login Server</h2>
-<p>The Telnet <em>login server</em> provides a standard <strong>non-secure</strong> Telnet login experience.</p>
+    <h1 class="page-title">Internet Mail (Email)</h1>
+    <h2 id="internet-mail">Internet Mail</h2>
+
+<p>ENiGMA½ can send and receive internet email directly from the message system. Users compose private messages addressed to <code class="language-plaintext highlighter-rouge">user@domain.com</code> and they are delivered via your configured SMTP transport. Inbound email arrives by polling an IMAP mailbox; messages addressed to <code class="language-plaintext highlighter-rouge">username@yourdomain.com</code> are routed to the matching local user.</p>
+
+<p>This feature is implemented as an <code class="language-plaintext highlighter-rouge">email</code> scanner/tosser module, following the same pattern as <a href="/enigma-bbs/messageareas/bso-import-export.html">FTN/BSO</a> and ActivityPub.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Outbound email requires the <code class="language-plaintext highlighter-rouge">email.transport</code> block to be configured. See <a href="/enigma-bbs/configuration/email.html">Email Configuration</a>.</p>
+</blockquote>
+
+<h2 id="sending-email">Sending Email</h2>
+
+<p>Once outbound transport is configured, users can address a private message to any internet email address:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">bob@example.com</code></li>
+  <li><code class="language-plaintext highlighter-rouge">Alice Smith &lt;alice@example.com&gt;</code></li>
+</ul>
+
+<p>The system detects the email flavor automatically using the same address parser that handles FTN and ActivityPub addresses. The message is delivered via Nodemailer and marked exported in the message database.</p>
+
+<p>If delivery fails (e.g. transport not configured, SMTP error), the message is marked <code class="language-plaintext highlighter-rouge">ExportFailed</code> and a warning is logged.</p>
+
+<h2 id="receiving-email-inbound-imap">Receiving Email (Inbound IMAP)</h2>
+
+<p>ENiGMA½ polls an IMAP mailbox at a configurable interval. When a new message arrives addressed to <code class="language-plaintext highlighter-rouge">username@yourdomain.com</code>, the username portion before <code class="language-plaintext highlighter-rouge">@</code> is matched against local BBS users. Matched messages are delivered to the user’s private mail area.</p>
+
+<p>Messages that cannot be matched to a local user are saved as <code class="language-plaintext highlighter-rouge">.eml</code> files in <code class="language-plaintext highlighter-rouge">mail/email/failed/</code> for sysop review.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Set up a dedicated mailbox (e.g. <code class="language-plaintext highlighter-rouge">bbs@yourdomain.com</code>) and configure your mail provider to accept <code class="language-plaintext highlighter-rouge">*@yourdomain.com</code> into it, or use per-user aliases — whatever fits your provider. ENiGMA½ only needs IMAP access to a single inbox.</p>
+</blockquote>
 
 <h2 id="configuration">Configuration</h2>
-<p>The following configuration can be made in <code class="language-plaintext highlighter-rouge">config.hjson</code> under the <code class="language-plaintext highlighter-rouge">loginServers.telnet</code> block:</p>
+
+<p>All email configuration lives under the <code class="language-plaintext highlighter-rouge">email</code> block in <code class="language-plaintext highlighter-rouge">config.hjson</code>.</p>
+
+<h3 id="inbound-configuration-reference">Inbound Configuration Reference</h3>
 
 <table>
   <thead>
     <tr>
       <th>Key</th>
-      <th>Required</th>
+      <th>Default</th>
       <th>Description</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">enabled</code></td>
-      <td>
-<img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"> Defaults to <code class="language-plaintext highlighter-rouge">true</code>. Set to <code class="language-plaintext highlighter-rouge">false</code> to disable Telnet</td>
-      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">inbound.enabled</code></td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to enable IMAP polling</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">port</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Override the default port of <code class="language-plaintext highlighter-rouge">8888</code>.</td>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.host</code></td>
+      <td>—</td>
+      <td>IMAP server hostname</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">address</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>Sets an explicit bind address.</td>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.port</code></td>
+      <td><code class="language-plaintext highlighter-rouge">993</code></td>
+      <td>IMAP port</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">firstMenu</code></td>
-      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>First menu a telnet connected user is presented with. Defaults to <code class="language-plaintext highlighter-rouge">telnetConnected</code>.</td>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.secure</code></td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td>Use implicit TLS (port 993). Set <code class="language-plaintext highlighter-rouge">false</code> for STARTTLS on port 143</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.user</code></td>
+      <td>—</td>
+      <td>IMAP login username</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.password</code></td>
+      <td>—</td>
+      <td>IMAP login password</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.pollIntervalMs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">300000</code></td>
+      <td>How often to check for new messages (ms). Set to <code class="language-plaintext highlighter-rouge">0</code> to use IMAP IDLE (push-like, persistent connection)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.processedFolder</code></td>
+      <td><em>(none)</em></td>
+      <td>IMAP folder to move processed messages into. If omitted, messages are only marked <code class="language-plaintext highlighter-rouge">\Seen</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inbound.imap.maxMessagesPerRun</code></td>
+      <td><code class="language-plaintext highlighter-rouge">50</code></td>
+      <td>Maximum messages to import per poll cycle</td>
     </tr>
   </tbody>
 </table>
 
-<h3 id="example-configuration">Example Configuration</h3>
-<pre><code class="language-hjson">{
-  loginServers: {
-    telnet: {
-      enabled: true
-      port: 8888
+<h3 id="polling-vs-imap-idle">Polling vs. IMAP IDLE</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th> </th>
+      <th>Polling (<code class="language-plaintext highlighter-rouge">pollIntervalMs &gt; 0</code>)</th>
+      <th>IDLE (<code class="language-plaintext highlighter-rouge">pollIntervalMs: 0</code>)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Delivery latency</strong></td>
+      <td>Up to <code class="language-plaintext highlighter-rouge">pollIntervalMs</code>
+</td>
+      <td>Near-instant</td>
+    </tr>
+    <tr>
+      <td><strong>Connection</strong></td>
+      <td>Connect, fetch, disconnect</td>
+      <td>Persistent connection</td>
+    </tr>
+    <tr>
+      <td><strong>Complexity</strong></td>
+      <td>Simple, stateless</td>
+      <td>Requires stable network; auto-reconnects on drop</td>
+    </tr>
+    <tr>
+      <td><strong>Best for</strong></td>
+      <td>Most setups</td>
+      <td>Low-latency installs with stable connectivity</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For most BBS operators, the default 5-minute polling interval is more than sufficient.</p>
+
+<h2 id="example-configurations">Example Configurations</h2>
+
+<h3 id="minimal-outbound-only-setup">Minimal outbound-only setup</h3>
+
+<p>If you only want users to be able to <em>send</em> internet email:</p>
+
+<pre><code class="language-hjson">email: {
+    defaultFrom: "Sysop &lt;sysop@yourbbs.net&gt;"
+
+    transport: {
+        host: smtp.yourdomain.com
+        port: 587
+        secure: false
+        auth: {
+            user: bbs@yourdomain.com
+            pass: yourpassword
+        }
     }
-  }
 }
 </code></pre>
 
+<h3 id="full-send--receive-setup">Full send + receive setup</h3>
+
+<pre><code class="language-hjson">email: {
+    defaultFrom: "Sysop &lt;sysop@yourbbs.net&gt;"
+
+    transport: {
+        host: smtp.yourdomain.com
+        port: 587
+        secure: false
+        auth: {
+            user: bbs@yourdomain.com
+            pass: yourpassword
+        }
+    }
+
+    inbound: {
+        enabled: true
+
+        imap: {
+            host: imap.yourdomain.com
+            port: 993
+            secure: true
+            user: bbs@yourdomain.com
+            password: yourpassword
+
+            //  Check every 5 minutes (default)
+            pollIntervalMs: 300000
+
+            //  Move imported messages here on the IMAP server
+            processedFolder: "BBS-Processed"
+        }
+    }
+}
+</code></pre>
+
+<h3 id="using-imap-idle-push-like">Using IMAP IDLE (push-like)</h3>
+
+<pre><code class="language-hjson">inbound: {
+    enabled: true
+
+    imap: {
+        host: imap.yourdomain.com
+        port: 993
+        secure: true
+        user: bbs@yourdomain.com
+        password: yourpassword
+
+        //  0 = use IMAP IDLE instead of polling
+        pollIntervalMs: 0
+
+        processedFolder: "BBS-Processed"
+    }
+}
+</code></pre>
+
+<h3 id="using-a-service-provider-fastmail-protonmail-bridge-etc">Using a service provider (Fastmail, ProtonMail Bridge, etc.)</h3>
+
+<p>Any provider that exposes standard IMAP/SMTP works. Example using Fastmail:</p>
+
+<pre><code class="language-hjson">email: {
+    defaultFrom: "Sysop &lt;bbs@yourdomain.com&gt;"
+
+    transport: {
+        host: smtp.fastmail.com
+        port: 587
+        secure: false
+        auth: {
+            user: bbs@yourdomain.com
+            pass: yourapppassword
+        }
+    }
+
+    inbound: {
+        enabled: true
+
+        imap: {
+            host: imap.fastmail.com
+            port: 993
+            secure: true
+            user: bbs@yourdomain.com
+            password: yourapppassword
+            pollIntervalMs: 300000
+            processedFolder: "BBS-Processed"
+        }
+    }
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Many providers (Gmail, Outlook) require an <strong>app password</strong> or OAuth2 token rather than your account password for IMAP/SMTP access. Generate one in your provider’s security settings.</p>
+</blockquote>
+
+<h2 id="failed-message-handling">Failed Message Handling</h2>
+
+<p>Messages that cannot be delivered to a local user (unknown username, parse error) are saved as raw <code class="language-plaintext highlighter-rouge">.eml</code> files in <code class="language-plaintext highlighter-rouge">mail/email/failed/</code>. The filename includes a timestamp and a short reason code (e.g. <code class="language-plaintext highlighter-rouge">1712345678901_no_user.eml</code>).</p>
+
+<p>Sysops can inspect these files with any email client or text editor to diagnose routing issues.</p>
+
+<h2 id="see-also">See Also</h2>
+
+<ul>
+  <li>
+<a href="/enigma-bbs/configuration/email.html">Email Configuration</a> — SMTP transport setup</li>
+  <li>
+<a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a> — Overview of all supported networks</li>
+  <li>
+<a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Configuring a Message Area</a> — Private mail area setup</li>
+</ul>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/art/views/vertical_menu_view.html">« Vertical Menu View</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/messageareas/qwk.html">« QWK Support</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server »</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN) »</a>
               
               <br clear="both">
               </div>

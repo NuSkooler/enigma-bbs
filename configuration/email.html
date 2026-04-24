@@ -13,15 +13,15 @@
 <meta name="generator" content="Jekyll v4.2.2" />
 <meta property="og:title" content="Email" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Email Support ENiGMA½ uses email to send password reset information to users. For it to work, you need to provide valid Nodemailer compatible email block in your config.hjson. Nodemailer supports SMTP in addition to many pre-defined services for ease of use. The transport block within email must be Nodemailer compatible." />
-<meta property="og:description" content="Email Support ENiGMA½ uses email to send password reset information to users. For it to work, you need to provide valid Nodemailer compatible email block in your config.hjson. Nodemailer supports SMTP in addition to many pre-defined services for ease of use. The transport block within email must be Nodemailer compatible." />
+<meta name="description" content="Email Support" />
+<meta property="og:description" content="Email Support" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-04-23T00:35:19+00:00" />
+<meta property="article:published_time" content="2026-04-24T00:00:30+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Email" />
 <script type="application/ld+json">
-{"description":"Email Support ENiGMA½ uses email to send password reset information to users. For it to work, you need to provide valid Nodemailer compatible email block in your config.hjson. Nodemailer supports SMTP in addition to many pre-defined services for ease of use. The transport block within email must be Nodemailer compatible.","headline":"Email","dateModified":"2026-04-23T00:35:19+00:00","datePublished":"2026-04-23T00:35:19+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/email.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/email.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Email Support","headline":"Email","dateModified":"2026-04-24T00:00:30+00:00","datePublished":"2026-04-24T00:00:30+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/email.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/email.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -1044,6 +1044,31 @@
 
     
     <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/internet-mail.html">Internet Mail (Email)</a></li>
     
 
 
@@ -2762,35 +2787,36 @@
                 <div class="page">
     <h1 class="page-title">Email</h1>
     <h2 id="email-support">Email Support</h2>
-<p>ENiGMA½ uses email to send password reset information to users. For it to work, you need to provide valid <a href="https://nodemailer.com/about/">Nodemailer</a> compatible <code class="language-plaintext highlighter-rouge">email</code> block in your <a href="/enigma-bbs/configuration/config-hjson.html">config.hjson</a>. Nodemailer supports SMTP in addition to many pre-defined services for ease of use. The <code class="language-plaintext highlighter-rouge">transport</code> block within <code class="language-plaintext highlighter-rouge">email</code> must be Nodemailer compatible.</p>
 
-<p>Additional email support will come in the near future.</p>
+<p>ENiGMA½ uses email for system notifications (password resets, 2FA registration) as well as user-to-internet email send/receive via the <a href="/enigma-bbs/messageareas/internet-mail.html">Internet Mail</a> scanner/tosser.</p>
+
+<p>Email is powered by <a href="https://nodemailer.com/about/">Nodemailer</a>, which supports SMTP directly as well as many pre-defined service shortcuts. The <code class="language-plaintext highlighter-rouge">transport</code> block within <code class="language-plaintext highlighter-rouge">email</code> must be Nodemailer-compatible.</p>
 
 <h2 id="services">Services</h2>
 
-<p>If you don’t have an SMTP server to send from, <a href="https://sendgrid.com/">Sendgrid</a> and <a href="https://www.zoho.com/mail/">Zoho</a> both provide reliable and free services.</p>
+<p>If you don’t have an SMTP server to send from, <a href="https://sendgrid.com/">Sendgrid</a> and <a href="https://www.zoho.com/mail/">Zoho</a> both provide reliable and free (or low-cost) services.</p>
 
 <h2 id="example-configurations">Example Configurations</h2>
 
-<p>Example 1 - SMTP:</p>
+<p>Example 1 — SMTP:</p>
 <pre><code class="language-hjson">email: {
-    defaultFrom: sysop@bbs.awesome.com
-    
+    defaultFrom: "Sysop &lt;sysop@bbs.awesome.com&gt;"
+
     transport: {
         host: smtp.awesomeserver.com
-            port: 587
-            secure: false
-            auth: {
-                user: leisuresuitlarry
-                pass: sierra123
-            }
+        port: 587
+        secure: false
+        auth: {
+            user: leisuresuitlarry
+            pass: sierra123
         }
     }
+}
 </code></pre>
 
-<p>Example 2 - Zoho</p>
+<p>Example 2 — Zoho:</p>
 <pre><code class="language-hjson">email: {
-    defaultFrom: sysop@bbs.awesome.com
+    defaultFrom: "Sysop &lt;sysop@bbs.awesome.com&gt;"
 
     transport: {
         service: Zoho
@@ -2802,8 +2828,13 @@
 }
 </code></pre>
 
-<h2 id="lockout-reset">Lockout Reset</h2>
-<p>If email is available on your system and you allow email-driven password resets, you may elect to allow unlocking accounts at the time of a password reset. This is controlled by the <code class="language-plaintext highlighter-rouge">users.unlockAtEmailPwReset</code> configuration option. If an account is locked due to too many failed login attempts, a user may reset their password to remedy the situation themselves.</p>
+<h2 id="password-reset--account-unlock">Password Reset / Account Unlock</h2>
+
+<p>If email is configured and you allow email-driven password resets, you may also allow locked accounts to be unlocked at reset time. This is controlled by <code class="language-plaintext highlighter-rouge">users.unlockAtEmailPwReset</code>. If an account is locked due to too many failed login attempts, the user can reset their password to remedy the situation themselves.</p>
+
+<h2 id="internet-mail-send--receive">Internet Mail (Send &amp; Receive)</h2>
+
+<p>To enable users to send and receive internet email from within ENiGMA½, see <a href="/enigma-bbs/messageareas/internet-mail.html">Internet Mail</a>.</p>
 
 </div>
 
