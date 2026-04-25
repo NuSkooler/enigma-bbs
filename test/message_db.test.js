@@ -372,3 +372,109 @@ describe('Message.findMessages()', function () {
         });
     });
 });
+
+// ─── findMessages: FTS terms search ───────────────────────────────────────────
+//
+//  Regression guard for the SQLITE_DQS=0 bug: better-sqlite3 v12 ships SQLite
+//  with double-quoted strings parsed as identifiers, so any FTS MATCH operand
+//  built with double quotes ("…") fails with "no such column: …". These tests
+//  exercise the live SQL through findMessages() with a `terms` filter to
+//  catch a re-introduction of double-quoted MATCH operands.
+
+describe('Message.findMessages() — FTS terms search', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM message;');
+        done();
+    });
+
+    it('returns ids matching a term in subject', done => {
+        const msg = makeMessage({
+            areaTag: 'general',
+            subject: 'Doom shareware notes',
+            message: 'unrelated body',
+        });
+        msg.persist(err => {
+            assert.ifError(err);
+            Message.findMessages(
+                { resultType: 'id', areaTag: 'general', terms: 'doom' },
+                (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.ok(Array.isArray(ids));
+                    assert.ok(ids.includes(msg.messageId));
+                    done();
+                }
+            );
+        });
+    });
+
+    it('returns ids matching a term in message body', done => {
+        const msg = makeMessage({
+            areaTag: 'general',
+            subject: 'unrelated subject',
+            message: 'Discussion of zmachine internals.',
+        });
+        msg.persist(err => {
+            assert.ifError(err);
+            Message.findMessages(
+                { resultType: 'id', areaTag: 'general', terms: 'zmachine' },
+                (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.ok(ids.includes(msg.messageId));
+                    done();
+                }
+            );
+        });
+    });
+
+    it('returns empty array when no row matches (not an error)', done => {
+        const msg = makeMessage({
+            areaTag: 'general',
+            subject: 'something',
+            message: 'something',
+        });
+        msg.persist(err => {
+            assert.ifError(err);
+            Message.findMessages(
+                { resultType: 'id', areaTag: 'general', terms: 'unicorn-no-such-term' },
+                (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.deepEqual(ids, []);
+                    done();
+                }
+            );
+        });
+    });
+
+    it('rejects DQS=0 regression: terms search must not raise SqliteError', done => {
+        //  Two records both containing the term in different fields. A DQS=0
+        //  regression in the MATCH clause would surface as "no such column: …"
+        //  rather than returning these rows.
+        const a = makeMessage({
+            areaTag: 'general',
+            subject: 'doom subject',
+            message: 'unrelated',
+        });
+        const b = makeMessage({
+            areaTag: 'general',
+            subject: 'unrelated',
+            message: 'doom in the body',
+        });
+        a.persist(e1 => {
+            assert.ifError(e1);
+            b.persist(e2 => {
+                assert.ifError(e2);
+                Message.findMessages(
+                    { resultType: 'id', areaTag: 'general', terms: 'doom' },
+                    (findErr, ids) => {
+                        assert.ifError(findErr);
+                        assert.ok(ids.includes(a.messageId));
+                        assert.ok(ids.includes(b.messageId));
+                        done();
+                    }
+                );
+            });
+        });
+    });
+});

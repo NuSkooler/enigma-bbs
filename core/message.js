@@ -457,12 +457,13 @@ module.exports = class Message {
         }
 
         if (filter.terms && filter.terms.length > 0) {
-            //  note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
+            //  Single-quoted: SQLITE_DQS=0 (better-sqlite3 v12) treats
+            //  double-quoted tokens as identifiers, breaking the MATCH.
             appendWhereClause(
                 `m.message_id IN (
                     SELECT rowid
                     FROM message_fts
-                    WHERE message_fts MATCH ":${sanitizeString(filter.terms)}"
+                    WHERE message_fts MATCH ':${sanitizeString(filter.terms)}'
                 )`
             );
         }

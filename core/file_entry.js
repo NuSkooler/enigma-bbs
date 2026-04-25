@@ -708,12 +708,13 @@ module.exports = class FileEntry {
             const [terms, queryType] = FileEntry._normalizeFileSearchTerms(filter.terms);
 
             if ('fts_match' === queryType) {
-                //  note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
+                //  Single-quoted: SQLITE_DQS=0 (better-sqlite3 v12) treats
+                //  double-quoted tokens as identifiers, breaking the MATCH.
                 appendWhereClause(
                     `f.file_id IN (
                         SELECT rowid
                         FROM file_fts
-                        WHERE file_fts MATCH ":${terms}"
+                        WHERE file_fts MATCH ':${terms}'
                     )`
                 );
             } else {
