@@ -367,7 +367,11 @@ exports.getModule = class FileAreaList extends MenuModule {
         async.series(
             [
                 function fetchEntryData(callback) {
-                    if (self.fileList) {
+                    //  An empty array is truthy, so a previous load that
+                    //  errored (and left fileList=[]) would silently mask
+                    //  the error here. Only skip when the list is already
+                    //  populated.
+                    if (Array.isArray(self.fileList) && self.fileList.length > 0) {
                         return callback(null);
                     }
                     return self.loadFileIds(false, callback); //  false=do not force

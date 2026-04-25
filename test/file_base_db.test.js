@@ -88,6 +88,26 @@ function applySchema(db, done) {
             UNIQUE(file_id, user_id),
             FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
         );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS file_fts USING fts4 (
+            content="file",
+            file_name,
+            desc,
+            desc_long
+        );
+
+        CREATE TRIGGER IF NOT EXISTS file_before_update BEFORE UPDATE ON file BEGIN
+            DELETE FROM file_fts WHERE docid=old.rowid;
+        END;
+        CREATE TRIGGER IF NOT EXISTS file_before_delete BEFORE DELETE ON file BEGIN
+            DELETE FROM file_fts WHERE docid=old.rowid;
+        END;
+        CREATE TRIGGER IF NOT EXISTS file_after_update AFTER UPDATE ON file BEGIN
+            INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.desc_long);
+        END;
+        CREATE TRIGGER IF NOT EXISTS file_after_insert AFTER INSERT ON file BEGIN
+            INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.desc_long);
+        END;
     `);
     return done(null);
 }
@@ -422,6 +442,148 @@ describe('FileEntry.loadBasicEntry() — relPath aliasing', function () {
                 assert.ifError(loadErr);
                 assert.equal(dest.relPath, null);
                 done();
+            });
+        });
+    });
+});
+
+// ─── findFiles: FTS terms search ──────────────────────────────────────────────
+//
+//  Regression guard for the SQLITE_DQS=0 bug: better-sqlite3 v12 ships SQLite
+//  with double-quoted strings parsed as identifiers, so any FTS MATCH operand
+//  built with double quotes ("…") fails as "no such column: …" rather than
+//  matching. These tests exercise the live SQL through findFiles() so a
+//  re-introduction of double-quoted MATCH operands fails immediately.
+
+describe('FileEntry.findFiles() — FTS terms search', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM file;');
+        done();
+    });
+
+    //  FileEntry's constructor only copies a fixed set of properties from
+    //  options (areaTag, fileName, storageTag, fileSha256, relPath, ...).
+    //  desc/descLong are populated post-construction in production via SAUCE
+    //  parsing — here we just assign them directly so persist() writes them.
+    function persistFile(overrides, cb) {
+        const ctorOpts = Object.assign(
+            { areaTag: 'pc_dos', fileName: 'sample.zip' },
+            overrides
+        );
+        const desc = overrides.desc !== undefined ? overrides.desc : 'short description';
+        const descLong =
+            overrides.descLong !== undefined
+                ? overrides.descLong
+                : 'long description body';
+
+        delete ctorOpts.desc;
+        delete ctorOpts.descLong;
+
+        const entry = makeEntry(ctorOpts);
+        entry.desc = desc;
+        entry.descLong = descLong;
+        entry.persist(err => cb(err, entry));
+    }
+
+    it('returns matching file_ids for a simple term in file_name', done => {
+        persistFile({ fileName: 'doom-shareware.zip', desc: 'a game' }, (err, e) => {
+            assert.ifError(err);
+            FileEntry.findFiles({ terms: 'doom' }, (findErr, ids) => {
+                assert.ifError(findErr);
+                assert.ok(Array.isArray(ids));
+                assert.ok(
+                    ids.includes(e.fileId),
+                    'matching fileId should appear in results'
+                );
+                done();
+            });
+        });
+    });
+
+    it('returns matching file_ids for a term in desc (short description)', done => {
+        persistFile(
+            { fileName: 'misc.zip', desc: 'an interactive fiction adventure' },
+            (err, e) => {
+                assert.ifError(err);
+                FileEntry.findFiles({ terms: 'adventure' }, (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.ok(ids.includes(e.fileId));
+                    done();
+                });
+            }
+        );
+    });
+
+    it('returns matching file_ids for a term in desc_long', done => {
+        persistFile(
+            {
+                fileName: 'pkg.zip',
+                desc: 'short',
+                descLong: 'a sprawling treatise on assembly programming',
+            },
+            (err, e) => {
+                assert.ifError(err);
+                FileEntry.findFiles({ terms: 'treatise' }, (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.ok(ids.includes(e.fileId));
+                    done();
+                });
+            }
+        );
+    });
+
+    it('returns an empty list when no rows match (not an error)', done => {
+        persistFile({ fileName: 'doom.zip' }, err => {
+            assert.ifError(err);
+            FileEntry.findFiles({ terms: 'unicorn-no-such-word' }, (findErr, ids) => {
+                assert.ifError(findErr);
+                assert.deepEqual(ids, []);
+                done();
+            });
+        });
+    });
+
+    it('rejects DQS=0 regression: bare-string MATCH must not error and must return results', done => {
+        //  Two records, both contain the term, in different fields. If the
+        //  underlying SQL quotes the FTS operand with " (DQS=0 regression),
+        //  the SqliteError "no such column" will surface here rather than a
+        //  result list.
+        persistFile({ fileName: 'alpha-doom.zip', desc: 'unrelated' }, (e1, a) => {
+            assert.ifError(e1);
+            persistFile(
+                { fileName: 'unrelated.zip', desc: 'doom inside desc' },
+                (e2, b) => {
+                    assert.ifError(e2);
+                    FileEntry.findFiles({ terms: 'doom' }, (findErr, ids) => {
+                        assert.ifError(findErr);
+                        assert.ok(ids.includes(a.fileId));
+                        assert.ok(ids.includes(b.fileId));
+                        done();
+                    });
+                }
+            );
+        });
+    });
+
+    it('combines FTS terms with an areaTag filter', done => {
+        persistFile({ areaTag: 'pc_dos', fileName: 'doom-pc.zip' }, (e1, pc) => {
+            assert.ifError(e1);
+            persistFile({ areaTag: 'amiga', fileName: 'doom-amiga.zip' }, (e2, am) => {
+                assert.ifError(e2);
+                FileEntry.findFiles(
+                    { terms: 'doom', areaTag: 'pc_dos' },
+                    (findErr, ids) => {
+                        assert.ifError(findErr);
+                        assert.ok(ids.includes(pc.fileId));
+                        assert.ok(
+                            !ids.includes(am.fileId),
+                            'amiga record must be filtered out by areaTag'
+                        );
+                        done();
+                    }
+                );
             });
         });
     });
