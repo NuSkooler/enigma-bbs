@@ -301,47 +301,12 @@ module.exports = class Note extends ActivityPubObject {
 
             message.areaTag = options.areaTag || Message.WellKnownAreaTags.Private;
 
-            //  List all attachments
-            if (Array.isArray(this.attachment) && this.attachment.length > 0) {
-                let attachmentInfoLines = ['--[Attachments]--'];
-                // https://socialhub.activitypub.rocks/t/representing-images/624
-                this.attachment.forEach(att => {
-                    const type = att.mediaType.substring(0, att.mediaType.indexOf('/'));
-                    switch (type) {
-                        case 'image':
-                            {
-                                let imgInfo;
-                                if (att.height && att.width) {
-                                    imgInfo = `Image (${att.width}x${att.height})`;
-                                } else {
-                                    imgInfo = 'Image';
-                                }
-                                attachmentInfoLines.push(imgInfo);
-                            }
-                            break;
-
-                        case 'audio':
-                            attachmentInfoLines.push('Audio');
-                            break;
-
-                        case 'video':
-                            attachmentInfoLines.push('Video');
-                            break;
-
-                        default:
-                            attachmentInfoLines.push(att.mediaType);
-                    }
-
-                    if (att.name) {
-                        attachmentInfoLines.push(att.name);
-                    }
-
-                    attachmentInfoLines.push(att.url);
-                    attachmentInfoLines.push('');
-                    attachmentInfoLines.push('');
-                });
-
-                message.message += '\r\n\r\n' + attachmentInfoLines.join('\r\n');
+            //  Append the human-readable attachment footer shared with the
+            //  AP viewer (see formatAttachmentBlock below).
+            //  https://socialhub.activitypub.rocks/t/representing-images/624
+            const attachmentBlock = formatAttachmentBlock(this.attachment);
+            if (attachmentBlock) {
+                message.message += '\r\n\r\n' + attachmentBlock;
             }
 
             //  If the Note is marked sensitive, prefix the subject
@@ -525,3 +490,55 @@ module.exports = class Note extends ActivityPubObject {
         message.toUserName = message.toUserName || 'All';
     }
 };
+
+//  Render the human-readable attachment footer used by the message-base
+//  importer (Note.toMessage) and the dedicated AP viewer. Both consumers
+//  must produce the same text so a user sees the same attachment block
+//  whether they read a Note via newscan/standard list or via the AP
+//  browser. Returns an empty string when there are no attachments.
+function formatAttachmentBlock(attachments) {
+    if (!Array.isArray(attachments) || attachments.length === 0) {
+        return '';
+    }
+
+    const lines = ['--[Attachments]--'];
+    attachments.forEach(att => {
+        const mediaType = (att && att.mediaType) || '';
+        const slash = mediaType.indexOf('/');
+        const type = slash > 0 ? mediaType.substring(0, slash) : mediaType;
+
+        switch (type) {
+            case 'image':
+                if (att.height && att.width) {
+                    lines.push(`Image (${att.width}x${att.height})`);
+                } else {
+                    lines.push('Image');
+                }
+                break;
+            case 'audio':
+                lines.push('Audio');
+                break;
+            case 'video':
+                lines.push('Video');
+                break;
+            default:
+                //  Fall back to the raw mediaType (e.g. application/pdf).
+                //  Empty/missing mediaType becomes a generic "Attachment"
+                //  label so the URL line still has context.
+                lines.push(mediaType || 'Attachment');
+        }
+
+        if (att && att.name) {
+            lines.push(att.name);
+        }
+        if (att && att.url) {
+            lines.push(att.url);
+        }
+        lines.push('');
+        lines.push('');
+    });
+
+    return lines.join('\r\n');
+}
+
+module.exports.formatAttachmentBlock = formatAttachmentBlock;

@@ -960,6 +960,10 @@ module.exports = () => {
                     read: 'GM[users]SE[activitypub]AE1',
                 },
 
+                //  ActivityPub messages are reached via the dedicated AP UI
+                //  and via newscan, never the regular conf/area browse list.
+                hideFromBrowse: true,
+
                 areas: {
                     activitypub_shared: {
                         name: 'ActivityPub Public',

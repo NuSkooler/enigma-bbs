@@ -503,6 +503,42 @@
       }
     }
 
+    //  Entry point used by core newscan when it encounters a message area
+    //  whose addressFlavor is "activitypub" (e.g. activitypub_shared). Opens
+    //  the federated AP browser so the user sees the dedicated list/viewer
+    //  with thread, attachment, and reaction handling — instead of the
+    //  generic msg_list/FSE viewer that would otherwise be used.
+    newScanActivityPubList: {
+      desc: New ActivityPub Messages
+      module: ./activitypub/activity_pub_msg_list
+      config: {
+        mode: federated
+        threadMenu: activityPubThread
+        art: {
+          main: activitypub_msg_browser
+        }
+      }
+      form: {
+        0: {
+          mci: {
+            VM1: {
+              focus: true
+            }
+          }
+          actionKeys: [
+            {
+              keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
+              action: @method:listKeyPressed
+            }
+            {
+              keys: ["escape", "q", "shift + q"]
+              action: @systemMethod:prevMenu
+            }
+          ]
+        }
+      }
+    }
+
     activityPubMsgViewer: {
       desc: ActivityPub Message Viewer
       module: ./activitypub/activity_pub_msg_viewer
