@@ -5,6 +5,7 @@ const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
 const { loadModulesForCategory, moduleCategories } = require('../../module_util');
 const WebHandlerModule = require('../../web_handler_module');
+const { getSecurityHeaders } = require('../../security_util.js');
 
 //  deps
 const http = require('http');
@@ -249,7 +250,12 @@ exports.getModule = class WebServerModule extends ServerModule {
         );
 
         fs.readFile(customErrorPage, 'utf8', (err, data) => {
-            resp.writeHead(code, { 'Content-Type': 'text/html' });
+            // Security: Add security headers
+            const headers = Object.assign(
+                { 'Content-Type': 'text/html' },
+                getSecurityHeaders()
+            );
+            resp.writeHead(code, headers);
 
             if (err) {
                 return resp.end(`<!doctype html>
@@ -272,6 +278,9 @@ exports.getModule = class WebServerModule extends ServerModule {
     }
 
     ok(resp, body = '', headers = { 'Content-Type': 'text/html' }) {
+        // Security: Add security headers
+        Object.assign(headers, getSecurityHeaders());
+        
         if (body && !headers['Content-Length']) {
             headers['Content-Length'] = Buffer.from(body).length;
         }

@@ -13,6 +13,7 @@ const getISOTimestampString = require('./database.js').getISOTimestampString;
 const Log = require('./logger.js').log;
 const UserProps = require('./user_property.js');
 const { buildUrl } = require('./web_util');
+const { RateLimiter, timingSafeEqual, sanitizeInput } = require('./security_util.js');
 
 //  deps
 const async = require('async');
@@ -28,6 +29,17 @@ A password reset has been requested for your account on %BOARDNAME%.
     * If this was not you, please ignore this email.
     * Otherwise, follow this link: %RESET_URL%
 `;
+
+// Security: Rate limiters to prevent abuse
+const resetRequestLimiter = new RateLimiter({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    maxAttempts: 3, // 3 reset requests per 15 minutes per IP/username
+});
+
+const resetAttemptLimiter = new RateLimiter({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    maxAttempts: 5, // 5 password reset attempts per hour per IP
+});
 
 function getWebServer() {
     return getServer(webServerPackageName);
@@ -45,6 +57,20 @@ class WebPasswordReset {
         if (!webServer || !webServer.instance.isEnabled()) {
             return cb(Errors.General('Web server is not enabled'));
         }
+
+        // Security: Sanitize username input
+        username = sanitizeInput(username);
+
+        // Security: Check rate limit for reset requests
+        if (resetRequestLimiter.isRateLimited(username)) {
+            Log.warn(
+                { username },
+                'Password reset request rate limit exceeded'
+            );
+            return cb(Errors.General('Too many password reset requests. Please try again later.'));
+        }
+
+        resetRequestLimiter.recordAttempt(username);
 
         async.waterfall(
             [
@@ -220,6 +246,9 @@ class WebPasswordReset {
     }
 
     static getUserByToken(token, cb) {
+        // Security: Sanitize token input
+        token = sanitizeInput(token);
+
         async.waterfall(
             [
                 function validateToken(callback) {
@@ -239,6 +268,27 @@ class WebPasswordReset {
                 },
                 function getUser(userId, callback) {
                     User.getUser(userId, (err, user) => {
+                        if (err) {
+                            return callback(err);
+                        }
+
+                        // Security: Use timing-safe comparison for token validation
+                        const storedToken = user.properties[UserProps.EmailPwResetToken];
+                        if (!timingSafeEqual(token, storedToken || '')) {
+                            return callback(Errors.Invalid('Invalid password reset token'));
+                        }
+
+                        // Check if token is expired (24 hours)
+                        const tokenTs = user.properties[UserProps.EmailPwResetTokenTs];
+                        if (tokenTs) {
+                            const moment = require('moment');
+                            const tokenTime = moment(tokenTs);
+                            const now = moment();
+                            if (now.diff(tokenTime, 'hours') > 24) {
+                                return callback(Errors.Invalid('Password reset token expired'));
+                            }
+                        }
+
                         return callback(null, user);
                     });
                 },
@@ -293,12 +343,43 @@ class WebPasswordReset {
     static routeResetPasswordPost(req, resp) {
         const webServer = getWebServer(); //  must be valid, we just got a req!
 
+        // Security: Extract client IP for rate limiting
+        const clientIp = req.headers['x-forwarded-for'] || 
+                        req.headers['x-real-ip'] || 
+                        req.connection.remoteAddress;
+
+        // Security: Check rate limit
+        if (resetAttemptLimiter.isRateLimited(clientIp)) {
+            Log.warn(
+                { clientIp },
+                'Password reset attempt rate limit exceeded'
+            );
+            return webServer.instance.respondWithError(
+                resp,
+                429,
+                'Too many password reset attempts. Please try again later.',
+                'Rate Limited'
+            );
+        }
+
         let bodyData = '';
+        let bodySize = 0;
+        const maxBodySize = 1024 * 10; // 10KB limit
+
         req.on('data', data => {
+            bodySize += data.length;
+            
+            // Security: Prevent DoS via large POST body
+            if (bodySize > maxBodySize) {
+                req.connection.destroy();
+                return;
+            }
+            
             bodyData += data;
         });
 
         function badRequest() {
+            resetAttemptLimiter.recordAttempt(clientIp);
             return webServer.instance.respondWithError(
                 resp,
                 400,
@@ -310,24 +391,29 @@ class WebPasswordReset {
         req.on('end', () => {
             const formData = querystring.parse(bodyData);
 
+            // Security: Sanitize inputs
+            const token = sanitizeInput(formData.token || '');
+            const password = formData.password || '';
+            const confirmPassword = formData.confirm_password || '';
+
             const config = Config();
             if (
-                !formData.token ||
-                !formData.password ||
-                !formData.confirm_password ||
-                formData.password !== formData.confirm_password ||
-                formData.password.length < config.users.passwordMin ||
-                formData.password.length > config.users.passwordMax
+                !token ||
+                !password ||
+                !confirmPassword ||
+                password !== confirmPassword ||
+                password.length < config.users.passwordMin ||
+                password.length > config.users.passwordMax
             ) {
                 return badRequest();
             }
 
-            WebPasswordReset.getUserByToken(formData.token, (err, user) => {
+            WebPasswordReset.getUserByToken(token, (err, user) => {
                 if (err) {
                     return badRequest();
                 }
 
-                user.setNewAuthCredentials(formData.password, err => {
+                user.setNewAuthCredentials(password, err => {
                     if (err) {
                         return badRequest();
                     }
@@ -337,6 +423,9 @@ class WebPasswordReset {
                         UserProps.EmailPwResetToken,
                         UserProps.EmailPwResetTokenTs,
                     ]);
+
+                    // Security: Reset rate limiter on successful password change
+                    resetAttemptLimiter.reset(clientIp);
 
                     if (true === _.get(config, 'users.unlockAtEmailPwReset')) {
                         Log.info(
