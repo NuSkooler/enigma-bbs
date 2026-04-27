@@ -97,13 +97,21 @@ function shutdown(cb) {
 }
 
 function getAvailableMessageConferences(client, options) {
-    options = options || { includeSystemInternal: false };
+    options = options || {};
 
     assert(client || true === options.noClient);
 
     //  perform ACS check per conf & omit "System Internal" if desired
     return _.omitBy(Config().messageConferences, (conf, confTag) => {
         if (!options.includeSystemInternal && SystemInternalConfTags.includes(confTag)) {
+            return true;
+        }
+
+        //  Conferences flagged hideFromBrowse are kept out of the regular
+        //  conference/area UIs but remain available to newscan, search, etc.
+        //  Callers that should still see them (newscan, configure-newscan,
+        //  set-newscan-date) opt in with { includeHidden: true }.
+        if (!options.includeHidden && conf.hideFromBrowse === true) {
             return true;
         }
 
@@ -133,13 +141,21 @@ function getAvailableMessageAreasByConfTag(confTag, options) {
     const config = Config();
     if (_.has(config.messageConferences, [confTag, 'areas'])) {
         const areas = config.messageConferences[confTag].areas;
+        const hideFiltered = !options.includeHidden;
 
         if (!options.client || true === options.noAcsCheck) {
-            //  everything - no ACS checks
-            return areas;
+            //  No ACS checks. Still respect area-level hideFromBrowse unless
+            //  the caller opts in to seeing hidden entries.
+            if (!hideFiltered) {
+                return areas;
+            }
+            return _.omitBy(areas, area => area.hideFromBrowse === true);
         } else {
             //  perform ACS check per area
             return _.omitBy(areas, area => {
+                if (hideFiltered && area.hideFromBrowse === true) {
+                    return true;
+                }
                 return !options.client.acs.hasMessageAreaRead(area);
             });
         }

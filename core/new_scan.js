@@ -69,7 +69,14 @@ exports.getModule = class NewScanModule extends MenuModule {
     newScanMessageConference(cb) {
         //  lazy init
         if (!this.sortedMessageConfs) {
-            const getAvailOpts = { includeSystemInternal: true }; //  find new private messages, bulletins, etc.
+            //  includeSystemInternal: pick up private mail, bulletins, etc.
+            //  includeHidden:         pick up confs flagged hideFromBrowse
+            //                         (e.g. ActivityPub) that are kept out of
+            //                         the regular browse UI but still scanned.
+            const getAvailOpts = {
+                includeSystemInternal: true,
+                includeHidden: true,
+            };
 
             this.sortedMessageConfs = _.map(
                 msgArea.getAvailableMessageConferences(this.client, getAvailOpts),
@@ -142,7 +149,10 @@ exports.getModule = class NewScanModule extends MenuModule {
         }
 
         const sortedAreas = msgArea
-            .getSortedAvailMessageAreasByConfTag(conf.confTag, { client: this.client })
+            .getSortedAvailMessageAreasByConfTag(conf.confTag, {
+                client: this.client,
+                includeHidden: true,
+            })
             .filter(area => {
                 if (omitMessageAreaTags.includes(area.areaTag)) {
                     return false;
@@ -221,6 +231,43 @@ exports.getModule = class NewScanModule extends MenuModule {
                             messageAreaTag: currentArea.areaTag,
                         },
                     };
+
+                    //  ActivityPub-flavored areas (e.g. activitypub_shared)
+                    //  have a dedicated browser/viewer with thread, attachment,
+                    //  and reaction handling that the standard msg_list path
+                    //  cannot replicate. Route to the AP newscan menu instead.
+                    //
+                    //  The AP browser does not maintain message-DB last-read
+                    //  state per note, so advance the area's last-read pointer
+                    //  to the current latest message before handing off; the
+                    //  next newscan cycle will then only re-fire if more notes
+                    //  arrive after this one.
+                    if (currentArea.area.addressFlavor === 'activitypub') {
+                        const targetMenu =
+                            self.menuConfig.config.newScanActivityPubList ||
+                            'newScanActivityPubList';
+                        const Message = require('./message.js');
+                        Message.findMessages(
+                            {
+                                areaTag: currentArea.areaTag,
+                                resultType: 'id',
+                                limit: 1,
+                            },
+                            (err, ids) => {
+                                if (err || !ids || ids.length === 0) {
+                                    return self.gotoMenu(targetMenu, nextModuleOpts);
+                                }
+                                msgArea.updateMessageAreaLastReadId(
+                                    self.client.user.userId,
+                                    currentArea.areaTag,
+                                    ids[0],
+                                    true /* allowOlder: noop, we always advance */,
+                                    () => self.gotoMenu(targetMenu, nextModuleOpts)
+                                );
+                            }
+                        );
+                        return;
+                    }
 
                     return self.gotoMenu(
                         self.menuConfig.config.newScanMessageList || 'newScanMessageList',

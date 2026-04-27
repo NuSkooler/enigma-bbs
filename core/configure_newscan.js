@@ -104,13 +104,16 @@ exports.getModule = class ConfigureNewscanModule extends MenuModule {
 
         this.areaItems = [];
 
+        //  Include hideFromBrowse confs/areas (e.g. ActivityPub) so the
+        //  user can toggle them in their per-user newscan area selection.
         messageArea
-            .getSortedAvailMessageConferences(this.client)
+            .getSortedAvailMessageConferences(this.client, { includeHidden: true })
             .filter(conf => !SystemInternalConfTags.includes(conf.confTag))
             .forEach(conf => {
                 messageArea
                     .getSortedAvailMessageAreasByConfTag(conf.confTag, {
                         client: this.client,
+                        includeHidden: true,
                     })
                     .forEach(area => {
                         const selected =

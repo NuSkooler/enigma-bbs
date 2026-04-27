@@ -173,10 +173,14 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         //  Create an array of objects with conf/area information per entry,
         //  sorted naturally or via the 'sort' member in config
         //
+        //  Include hideFromBrowse confs/areas (e.g. ActivityPub) so users
+        //  can set a newscan floor date for them; they're scanned by newscan
+        //  even though they don't appear in the regular browse UI.
         const selections = [];
-        getSortedAvailMessageConferences(this.client).forEach(conf => {
+        getSortedAvailMessageConferences(this.client, { includeHidden: true }).forEach(conf => {
             getSortedAvailMessageAreasByConfTag(conf.confTag, {
                 client: this.client,
+                includeHidden: true,
             }).forEach(area => {
                 selections.push({
                     conf: {

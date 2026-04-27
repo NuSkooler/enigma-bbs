@@ -380,3 +380,125 @@ describe('Note.toMessage() + Message.persist() — duplicate delivery dedup', fu
         assert.equal(count, 2, 'exactly two rows in message table');
     });
 });
+
+// ─── formatAttachmentBlock — pure function ────────────────────────────────────
+//
+//  Shared formatter used by Note.toMessage() (importer) AND the dedicated AP
+//  viewer (_displayNote). Both must produce the same text so attachments look
+//  identical across the standard message-base view and the AP browser.
+
+const { formatAttachmentBlock } = require('../core/activitypub/note');
+
+describe('formatAttachmentBlock()', function () {
+    it('returns "" for missing/non-array input', () => {
+        assert.equal(formatAttachmentBlock(undefined), '');
+        assert.equal(formatAttachmentBlock(null), '');
+        assert.equal(formatAttachmentBlock([]), '');
+        assert.equal(formatAttachmentBlock('not an array'), '');
+    });
+
+    it('renders an image with width/height', () => {
+        const out = formatAttachmentBlock([
+            {
+                mediaType: 'image/jpeg',
+                width: 800,
+                height: 600,
+                name: 'A picture',
+                url: 'https://example.com/p.jpg',
+            },
+        ]);
+        assert.ok(out.startsWith('--[Attachments]--'));
+        assert.ok(out.includes('Image (800x600)'));
+        assert.ok(out.includes('A picture'));
+        assert.ok(out.includes('https://example.com/p.jpg'));
+    });
+
+    it('renders an image without dimensions as bare "Image"', () => {
+        const out = formatAttachmentBlock([
+            { mediaType: 'image/png', url: 'https://example.com/q.png' },
+        ]);
+        assert.ok(out.includes('Image'));
+        assert.ok(!out.includes('Image ('));
+    });
+
+    it('renders audio and video by type label', () => {
+        const audio = formatAttachmentBlock([
+            { mediaType: 'audio/mpeg', url: 'https://example.com/a.mp3' },
+        ]);
+        const video = formatAttachmentBlock([
+            { mediaType: 'video/mp4', url: 'https://example.com/v.mp4' },
+        ]);
+        assert.ok(audio.includes('Audio'));
+        assert.ok(video.includes('Video'));
+    });
+
+    it('falls back to the raw mediaType for other types', () => {
+        const out = formatAttachmentBlock([
+            { mediaType: 'application/pdf', url: 'https://example.com/d.pdf' },
+        ]);
+        assert.ok(out.includes('application/pdf'));
+    });
+
+    it('uses generic "Attachment" label when mediaType is missing', () => {
+        const out = formatAttachmentBlock([{ url: 'https://example.com/x' }]);
+        assert.ok(out.includes('Attachment'));
+        assert.ok(out.includes('https://example.com/x'));
+    });
+
+    it('omits the url line when url is absent', () => {
+        const out = formatAttachmentBlock([
+            { mediaType: 'image/png', width: 1, height: 1, name: 'just a label' },
+        ]);
+        assert.ok(out.includes('just a label'));
+        assert.ok(!out.includes('http'));
+    });
+
+    it('renders multiple attachments separated by blank lines', () => {
+        const out = formatAttachmentBlock([
+            { mediaType: 'image/png', url: 'https://example.com/1.png' },
+            { mediaType: 'image/jpeg', url: 'https://example.com/2.jpg' },
+        ]);
+        assert.ok(out.includes('https://example.com/1.png'));
+        assert.ok(out.includes('https://example.com/2.jpg'));
+        //  Header appears exactly once
+        assert.equal(out.split('--[Attachments]--').length - 1, 1);
+    });
+
+    it('uses CRLF line endings to match toMessage() output', () => {
+        const out = formatAttachmentBlock([
+            { mediaType: 'image/png', url: 'https://example.com/x.png' },
+        ]);
+        assert.ok(out.includes('\r\n'), 'output must use CRLF');
+    });
+});
+
+// ─── Note.toMessage — attachment footer ──────────────────────────────────────
+
+describe('Note.toMessage() — attachment footer', function () {
+    it('appends the attachment block to the message body', async () => {
+        const msg = await toMessage(
+            makeNote({
+                content: '<p>Hello body</p>',
+                attachment: [
+                    {
+                        mediaType: 'image/png',
+                        width: 320,
+                        height: 200,
+                        name: 'My alt text',
+                        url: 'https://example.com/img.png',
+                    },
+                ],
+            })
+        );
+        assert.ok(msg.message.includes('Hello body'));
+        assert.ok(msg.message.includes('--[Attachments]--'));
+        assert.ok(msg.message.includes('Image (320x200)'));
+        assert.ok(msg.message.includes('My alt text'));
+        assert.ok(msg.message.includes('https://example.com/img.png'));
+    });
+
+    it('does not append the block when attachment is missing/empty', async () => {
+        const msg = await toMessage(makeNote({ content: '<p>just text</p>' }));
+        assert.ok(!msg.message.includes('--[Attachments]--'));
+    });
+});

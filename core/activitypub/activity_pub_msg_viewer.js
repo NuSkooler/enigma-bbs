@@ -13,6 +13,7 @@ const {
     messageForNoteId,
 } = require('./boost_util');
 const { actorUrlToHandle } = require('./ap_search_util');
+const { formatAttachmentBlock } = require('./note');
 const Message = require('../message');
 
 // deps
@@ -335,7 +336,21 @@ exports.getModule = class ActivityPubMsgViewerModule extends MenuModule {
                 const content = note
                     ? note.content || note.name || note.summary || ''
                     : '';
-                bodyView.setText(content ? htmlToMessageBody(content) : '');
+                let body = content ? htmlToMessageBody(content) : '';
+
+                //  Append the same attachment footer the message-base
+                //  importer produces (see Note.formatAttachmentBlock), so
+                //  attachments — type, dimensions, alt text, URL — are
+                //  visible in the dedicated viewer rather than only via
+                //  the list's `*` indicator.
+                const attachmentBlock = note
+                    ? formatAttachmentBlock(note.attachment)
+                    : '';
+                if (attachmentBlock) {
+                    body += (body ? '\r\n\r\n' : '') + attachmentBlock;
+                }
+
+                bodyView.setText(body);
             }
 
             this._updateCustomViews();
