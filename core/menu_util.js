@@ -66,9 +66,14 @@ function loadMenu(options, cb) {
             },
             function loadMenuModule(menuConfig, callback) {
                 menuConfig.config = menuConfig.config || {};
-                menuConfig.config.menuFlags = menuConfig.config.menuFlags || [];
-                if (!Array.isArray(menuConfig.config.menuFlags)) {
+                //  Clone menuFlags so per-instance mutations do not leak back into
+                //  the shared theme config object returned by getMenuConfig().
+                if (Array.isArray(menuConfig.config.menuFlags)) {
+                    menuConfig.config.menuFlags = [...menuConfig.config.menuFlags];
+                } else if (menuConfig.config.menuFlags) {
                     menuConfig.config.menuFlags = [menuConfig.config.menuFlags];
+                } else {
+                    menuConfig.config.menuFlags = [];
                 }
 
                 const modAsset = asset.getModuleAsset(menuConfig.module);

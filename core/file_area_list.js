@@ -213,7 +213,11 @@ exports.getModule = class FileAreaList extends MenuModule {
                             //  Remove fileBaseListEntries from history so that
                             //  dismissing the no-results screen returns to the
                             //  file menu, not back into this (empty) list.
-                            self.menuConfig.config.menuFlags.push(MenuFlags.NoHistory);
+                            //  Copy before mutating: menuConfig is shared theme state.
+                            self.menuConfig.config.menuFlags = [
+                                ...self.menuConfig.config.menuFlags,
+                                MenuFlags.NoHistory,
+                            ];
                             self.gotoMenu(
                                 self.menuConfig.config.noResultsMenu ||
                                     'fileBaseListEntriesNoResults'

@@ -177,27 +177,29 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         //  can set a newscan floor date for them; they're scanned by newscan
         //  even though they don't appear in the regular browse UI.
         const selections = [];
-        getSortedAvailMessageConferences(this.client, { includeHidden: true }).forEach(conf => {
-            getSortedAvailMessageAreasByConfTag(conf.confTag, {
-                client: this.client,
-                includeHidden: true,
-            }).forEach(area => {
-                selections.push({
-                    conf: {
-                        confTag: conf.confTag,
-                        text: conf.conf.name, //  standard
-                        name: conf.conf.name,
-                        desc: conf.conf.desc,
-                    },
-                    area: {
-                        areaTag: area.areaTag,
-                        text: area.area.name, //  standard
-                        name: area.area.name,
-                        desc: area.area.desc,
-                    },
+        getSortedAvailMessageConferences(this.client, { includeHidden: true }).forEach(
+            conf => {
+                getSortedAvailMessageAreasByConfTag(conf.confTag, {
+                    client: this.client,
+                    includeHidden: true,
+                }).forEach(area => {
+                    selections.push({
+                        conf: {
+                            confTag: conf.confTag,
+                            text: conf.conf.name, //  standard
+                            name: conf.conf.name,
+                            desc: conf.conf.desc,
+                        },
+                        area: {
+                            areaTag: area.areaTag,
+                            text: area.area.name, //  standard
+                            name: area.area.name,
+                            desc: area.area.desc,
+                        },
+                    });
                 });
-            });
-        });
+            }
+        );
 
         selections.unshift({
             conf: {
