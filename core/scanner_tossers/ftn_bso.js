@@ -2861,6 +2861,12 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
         }
     }
 
+    //  Immediate import when native BinkP session delivers files
+    this._onNewInboundBSO = () => {
+        tryImportNow('Import/toss triggered by BinkP inbound transfer');
+    };
+    Events.on(Events.getSystemEvents().NewInboundBSO, this._onNewInboundBSO);
+
     this.createTempDirectories(err => {
         if (err) {
             Log.warn({ error: err.toStrong() }, 'Failed creating temporary directories!');
@@ -3001,6 +3007,13 @@ FTNMessageScanTossModule.prototype.shutdown = function (cb) {
         Events.removeListener(
             Events.getSystemEvents().ConfigChanged,
             this._onConfigChanged
+        );
+    }
+
+    if (this._onNewInboundBSO) {
+        Events.removeListener(
+            Events.getSystemEvents().NewInboundBSO,
+            this._onNewInboundBSO
         );
     }
 

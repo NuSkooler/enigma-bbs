@@ -1025,6 +1025,36 @@ module.exports = () => {
                     allowReplace: false, //  use "Replaces" TIC field
                     descPriority: 'diz', //  May be diz=.DIZ/etc., or tic=from TIC Ldesc
                 },
+
+                //
+                //  BinkP mail exchange. Uses the same |paths| block above for the BSO spool.
+                //
+                binkp: {
+                    inbound: {
+                        enabled: false,
+                        port: 24554,
+                        address: '0.0.0.0',
+                    },
+
+                    //  Outbound poll schedule (later.js text, e.g. "every 15 minutes")
+                    //  Leave unset to disable automatic outbound polling.
+                    //  schedule: 'every 15 minutes',
+
+                    //
+                    //  Per-node configuration, keyed by FTN address wildcard.
+                    //
+                    //  host            : Hostname/IP for outbound calls (required to call a node).
+                    //  port            : TCP port for outbound calls (default: 24554).
+                    //  sessionPassword : CRAM-MD5 session password (distinct from FTN packet password).
+                    //
+                    //  nodes: {
+                    //      "1:218/700": {
+                    //          host: "bbs.example.com"
+                    //          port: 24554
+                    //          sessionPassword: "s3cr3t"
+                    //      }
+                    //  }
+                },
             },
         },
 

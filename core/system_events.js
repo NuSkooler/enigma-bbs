@@ -26,4 +26,10 @@ module.exports = {
     UserStatSet: 'codes.l33t.enigma.system.user_stat_set', //  { ..., statName, statValue }
     UserStatIncrement: 'codes.l33t.enigma.system.user_stat_increment', //  { ..., statName, statIncrementBy, statValue }
     UserAchievementEarned: 'codes.l33t.enigma.system.user_achievement_earned', //  { ..., achievementTag, points, title, text }
+
+    //  Emitted when a native BinkP session receives one or more inbound files.
+    //  ftn_bso subscribes to this to trigger an immediate import/toss rather
+    //  than waiting for the next scheduled run.  External mailers (binkd, etc.)
+    //  are unaffected — they rely on the existing @watch / @sched mechanisms.
+    NewInboundBSO: 'codes.l33t.enigma.system.new_inbound_bso',
 };

@@ -162,6 +162,15 @@
                     action: @menu:mainMenuWaitingForCaller
                 }
                 {
+                    value: { command: "!BINKP" }
+                    action: [
+                        {
+                            acs: SU
+                            action: @menu:sysopBinkpPollNow
+                        }
+                    ]
+                }
+                {
                     value: { command: "2FA" }
                     action: [
                         {
@@ -330,6 +339,11 @@
                 }
 			}
 		}
+
+        sysopBinkpPollNow: {
+            desc: "BinkP Poll"
+            module: binkp_poll
+        }
 
         mrc: {
             desc: MRC Chat
