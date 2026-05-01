@@ -78,7 +78,11 @@ class BsoSpool {
                     size: stat.size,
                     timestamp: Math.floor(stat.mtimeMs / 1000),
                     disposition: 'delete',
-                    disposeFn: () => fsp.unlink(filePath).catch(() => {}),
+                    //  Direct-attach has no flow file to annotate, and the
+                    //  session layer (BinkpSession._applyDisposition) already
+                    //  unlinks/truncates per the queued disposition. Nothing
+                    //  for the spool layer to do post-send.
+                    disposeFn: null,
                 });
             } catch (err) {
                 if (err.code !== 'ENOENT') {
@@ -261,61 +265,51 @@ class BsoSpool {
                 timestamp: Math.floor(stat.mtimeMs / 1000),
                 disposition,
                 disposeFn: () =>
-                    this._applyFlowDisposition(
-                        flowPath,
-                        lineIdx,
-                        captured,
-                        filePath,
-                        disposition
-                    ),
+                    this._applyFlowDisposition(flowPath, lineIdx, captured),
             });
         }
 
         return results;
     }
 
-    async _applyFlowDisposition(
-        flowPath,
-        lineIdx,
-        originalTrimmed,
-        filePath,
-        disposition
-    ) {
-        if (disposition === 'delete') {
-            await fsp
-                .unlink(filePath)
-                .catch(err =>
-                    Log.warn(
-                        { path: filePath, error: err.message },
-                        '[BinkP/BSO] Could not delete sent file'
-                    )
-                );
-        } else if (disposition === 'truncate') {
-            await fsp
-                .truncate(filePath, 0)
-                .catch(err =>
-                    Log.warn(
-                        { path: filePath, error: err.message },
-                        '[BinkP/BSO] Could not truncate sent file'
-                    )
-                );
-        }
-
-        // Mark the flow entry as done by prepending ~
+    async _applyFlowDisposition(flowPath, lineIdx, originalTrimmed) {
+        //  The file-side action (unlink for 'delete', truncate for 'truncate')
+        //  is already performed by BinkpSession._applyDisposition before the
+        //  'file-sent' event fires; session.js owns file lifecycle. This
+        //  method's job is purely flow-file bookkeeping:
+        //    1. Mark the entry as done by prepending '~' to the original line.
+        //    2. If no live entries remain, unlink the flow file itself so a
+        //       quiet node doesn't accumulate dead-marker files indefinitely.
+        //       ftn_bso recreates the flow file on the next outbound queue.
         try {
             const content = await fsp.readFile(flowPath, 'utf8');
             const lines = content.split('\n');
 
-            if (lineIdx < lines.length && lines[lineIdx].trim() === originalTrimmed) {
-                const prefix = /^[\^#-]/.test(originalTrimmed) ? originalTrimmed[0] : '';
-                const body = prefix ? originalTrimmed.slice(1) : originalTrimmed;
-                lines[lineIdx] = `~${body}`;
+            if (lineIdx >= lines.length || lines[lineIdx].trim() !== originalTrimmed) {
+                //  Flow file was modified out from under us (concurrent
+                //  ftn_bso append, or another session). Skip both the rewrite
+                //  and the GC — neither is safe without our line in place.
+                return;
+            }
+
+            const prefix = /^[\^#-]/.test(originalTrimmed) ? originalTrimmed[0] : '';
+            const body = prefix ? originalTrimmed.slice(1) : originalTrimmed;
+            lines[lineIdx] = `~${body}`;
+
+            const hasLive = lines.some(l => {
+                const t = l.trim();
+                return t.length > 0 && t[0] !== '~';
+            });
+
+            if (hasLive) {
                 await fsp.writeFile(flowPath, lines.join('\n'), 'utf8');
+            } else {
+                await fsp.unlink(flowPath);
             }
         } catch (err) {
             Log.warn(
                 { path: flowPath, error: err.message },
-                '[BinkP/BSO] Could not update flow file'
+                '[BinkP/BSO] Could not finalize flow file'
             );
         }
     }
@@ -395,13 +389,23 @@ async function flowHasPending(flowPath) {
 async function attachSpoolToSession(session, spool, remoteAddrs) {
     const disposeMap = new Map();
 
+    //  Direct-attach files don't have a flow-file annotation step, so their
+    //  disposeFn is null and we skip the disposeMap entry entirely. Only flow
+    //  entries register a post-send hook (to mark the line with '~' and GC the
+    //  flow file when no live entries remain).
+    const registerDispose = f => {
+        if (f.disposeFn) {
+            disposeMap.set(`${f.name}\0${f.size}\0${f.timestamp}`, f.disposeFn);
+        }
+    };
+
     if (remoteAddrs && remoteAddrs.length > 0) {
         // Originating side: addresses are known up-front
         for (const addr of remoteAddrs) {
             const files = await spool.getOutboundFilesForNode(addr);
             for (const f of files) {
                 session.queueFile(f.path, f.name, f.size, f.timestamp, f.disposition);
-                disposeMap.set(`${f.name}\0${f.size}\0${f.timestamp}`, f.disposeFn);
+                registerDispose(f);
             }
         }
     } else {
@@ -421,10 +425,7 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
                             f.timestamp,
                             f.disposition
                         );
-                        disposeMap.set(
-                            `${f.name}\0${f.size}\0${f.timestamp}`,
-                            f.disposeFn
-                        );
+                        registerDispose(f);
                     }
                 }
             } finally {

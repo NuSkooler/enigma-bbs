@@ -137,19 +137,22 @@ describe('BsoSpool — getOutboundFilesForNode: direct-attach', () => {
         assert.equal(files.length, 0);
     });
 
-    it('disposeFn for a direct-attach file deletes it', async () => {
+    it('direct-attach disposeFn is null (BinkpSession owns the file)', async () => {
+        //  Direct-attach files have no flow-file annotation step, and the
+        //  session layer (BinkpSession._applyDisposition) already unlinks
+        //  the file based on the queued disposition. The spool layer has
+        //  no post-send work to do for direct-attach — disposeFn is null.
         const outPath = path.join(outboundDir(tmpDir), '00680001.out');
         await fsp.writeFile(outPath, 'DATA');
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         assert.equal(files.length, 1);
+        assert.equal(files[0].disposeFn, null, 'direct-attach disposeFn must be null');
+        assert.equal(files[0].disposition, 'delete');
 
-        await files[0].disposeFn();
-        await assert.rejects(
-            fsp.access(outPath),
-            { code: 'ENOENT' },
-            'file should be deleted'
-        );
+        //  And the file is still on disk — disposeFn alone won't remove it.
+        //  (The session's _applyDisposition is what actually unlinks at send time.)
+        await assert.doesNotReject(fsp.access(outPath));
     });
 });
 
@@ -253,51 +256,120 @@ describe('BsoSpool — disposeFn for flow entries', () => {
         await fsp.unlink(referencedFile).catch(() => {});
     });
 
-    it('delete disposition: deletes the file and marks the flow line ~', async () => {
+    //  Note: disposeFn does NOT perform the file action (unlink/truncate) —
+    //  that is BinkpSession._applyDisposition's job, run before 'file-sent'
+    //  fires. disposeFn handles only flow-file bookkeeping: tilde the line,
+    //  and GC the flow file once no live lines remain.
+
+    it('delete disposition: leaves file alone, GCs the (now all-tilded) flow file', async () => {
         await fsp.writeFile(flowPath, `^${referencedFile}\n`);
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         await files[0].disposeFn();
 
-        // Referenced file deleted
-        await assert.rejects(fsp.access(referencedFile), { code: 'ENOENT' });
+        //  File untouched by disposeFn (the session layer is what unlinks)
+        await assert.doesNotReject(fsp.access(referencedFile));
 
-        // Flow line updated to ~ prefix
-        const content = await fsp.readFile(flowPath, 'utf8');
-        assert.ok(
-            content.includes(`~${referencedFile}`),
-            `Expected ~ prefix in flow file, got: ${content}`
+        //  Flow file had a single live entry, now tilded → GC'd
+        await assert.rejects(
+            fsp.access(flowPath),
+            { code: 'ENOENT' },
+            'flow file should be unlinked once no live entries remain'
         );
     });
 
-    it('keep disposition: keeps the file and marks the flow line ~', async () => {
+    it('keep disposition: marks the flow line ~ and GCs the flow file', async () => {
         await fsp.writeFile(flowPath, `${referencedFile}\n`);
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         await files[0].disposeFn();
 
-        // File still present
         await assert.doesNotReject(fsp.access(referencedFile));
-
-        // Flow line updated
-        const content = await fsp.readFile(flowPath, 'utf8');
-        assert.ok(
-            content.includes(`~${referencedFile}`),
-            `Expected ~ prefix in flow file, got: ${content}`
-        );
+        await assert.rejects(fsp.access(flowPath), { code: 'ENOENT' });
     });
 
-    it('truncate disposition: truncates the file to zero and marks the flow line ~', async () => {
+    it('truncate disposition: leaves file alone, GCs the (now all-tilded) flow file', async () => {
         await fsp.writeFile(flowPath, `#${referencedFile}\n`);
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         await files[0].disposeFn();
 
+        //  Disposition belongs to the session; the spool must not truncate.
         const stat = await fsp.stat(referencedFile);
-        assert.equal(stat.size, 0, 'file should be truncated to zero bytes');
+        assert.equal(stat.size, 'CONTENT'.length, 'disposeFn must not truncate');
 
+        await assert.rejects(fsp.access(flowPath), { code: 'ENOENT' });
+    });
+
+    it('preserves the flow file when other live entries remain', async () => {
+        //  Two live entries; only the first is dispatched. The second must
+        //  remain pending and the flow file must NOT be GC'd.
+        const otherFile = path.join(tmpDir, 'dispose_test_other.pkt');
+        await fsp.writeFile(otherFile, 'OTHER');
+        try {
+            await fsp.writeFile(flowPath, `^${referencedFile}\n^${otherFile}\n`);
+
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            assert.equal(files.length, 2);
+            await files[0].disposeFn();
+
+            //  Flow file still present (one live line remains).
+            //  Note: the `^` directive prefix is replaced by `~` (not added
+            //  in front of it) — the line was originally `^path`, so it
+            //  becomes `~path`.
+            const content = await fsp.readFile(flowPath, 'utf8');
+            assert.ok(
+                content.includes(`~${referencedFile}`),
+                `first line should be tilded, got: ${content}`
+            );
+            assert.ok(
+                content.includes(`^${otherFile}`),
+                `second line should still be live, got: ${content}`
+            );
+            //  And it must still resolve as pending (the surviving line)
+            const remaining = await spool.getOutboundFilesForNode(TEST_ADDR);
+            assert.equal(remaining.length, 1);
+            assert.equal(remaining[0].path, otherFile);
+        } finally {
+            await fsp.unlink(otherFile).catch(() => {});
+        }
+    });
+
+    it('GCs the flow file once the LAST live entry is tilded', async () => {
+        //  Same as above but dispatch BOTH entries and assert the file is
+        //  unlinked exactly once the second disposeFn runs.
+        const otherFile = path.join(tmpDir, 'dispose_test_other2.pkt');
+        await fsp.writeFile(otherFile, 'OTHER');
+        try {
+            await fsp.writeFile(flowPath, `^${referencedFile}\n^${otherFile}\n`);
+
+            const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+            await files[0].disposeFn();
+            //  Still present after first
+            await assert.doesNotReject(fsp.access(flowPath));
+            await files[1].disposeFn();
+            //  GC'd after the last live line tilded
+            await assert.rejects(fsp.access(flowPath), { code: 'ENOENT' });
+        } finally {
+            await fsp.unlink(otherFile).catch(() => {});
+        }
+    });
+
+    it('disposeFn is a noop if the flow file changed unexpectedly', async () => {
+        //  Concurrent modification (e.g. ftn_bso appended a fresh entry,
+        //  or a stale callback fired after a manual cleanup): disposeFn
+        //  must skip both the rewrite and the GC.
+        await fsp.writeFile(flowPath, `^${referencedFile}\n`);
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+
+        //  Replace the line entirely before disposeFn runs
+        await fsp.writeFile(flowPath, '/some/other/path.pkt\n');
+
+        await files[0].disposeFn();
+
+        //  No GC, no rewrite — file untouched
         const content = await fsp.readFile(flowPath, 'utf8');
-        assert.ok(content.includes(`~${referencedFile}`));
+        assert.equal(content, '/some/other/path.pkt\n');
     });
 });
 
