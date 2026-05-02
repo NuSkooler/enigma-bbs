@@ -22,6 +22,7 @@ Below are just some of the features ENiGMA½ supports out of the box:
  * Renegade style [pipe color codes](./docs/_docs/configuration/colour-codes.md).
  * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other bells and whistles
  * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export, and **MRC** (Multi-Relay Chat)
+ * **Native BinkP/1.1 mailer** — built-in inbound listener and outbound caller for FTN networks. No external `binkd` required; outbound mail ships immediately on export ("crashmail"), and a configurable pull cycle keeps echo mail flowing in from quiet hubs.
  * **Internet mail** — send and receive email directly from the BBS private message system via IMAP/SMTP. See [Internet Mail](./docs/_docs/messageareas/internet-mail.md)
  * **ActivityPub / Fediverse** *(experimental)* — federated messaging with WebFinger, NodeInfo2, actor profiles, and common ActivityPub object types; PNG avatars with auto-generated defaults
  * Message bases exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md) and [NNTP](./docs/_docs/servers/contentservers/nntp.md) content servers
