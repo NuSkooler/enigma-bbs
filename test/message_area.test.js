@@ -42,116 +42,121 @@ const TEST_CONFIG = {
 //  ACS checks are skipped in that mode, so we test purely the hide-by-flag
 //  behavior here without dragging in a full client/ACS stack.
 //
-//  message_area.js does `const Config = require('./config.js').get` at load
-//  time — capturing whatever get function was bound then. Other test files
-//  re-bind configModule.get for their own fixtures, so we both bind it AND
-//  force a fresh require of message_area.js inside before() so this suite's
-//  config takes effect when the test bodies run.
+//  All tests in this file go inside one wrapping describe so the
+//  configModule.get override is scoped to THIS suite's hooks. Top-level
+//  before()/after() in mocha are *root* hooks that wrap every test in every
+//  file, which would clobber the configs other test files install per-test.
 let messageArea;
 let previousGet;
-before(() => {
-    previousGet = configModule.get;
-    configModule.get = () => TEST_CONFIG;
-    delete require.cache[require.resolve('../core/message_area.js')];
-    messageArea = require('../core/message_area.js');
-});
-after(() => {
-    configModule.get = previousGet;
-});
 
-// ─── getAvailableMessageConferences — hideFromBrowse ─────────────────────────
-
-describe('getAvailableMessageConferences() — hideFromBrowse flag', function () {
-    it('omits hideFromBrowse confs by default', () => {
-        const confs = messageArea.getAvailableMessageConferences(null, {
-            noClient: true,
-        });
-        assert.ok('normal_conf' in confs, 'normal conf must be present');
-        assert.ok(!('hidden_conf' in confs), 'hidden_conf must be omitted');
+describe('message_area — hideFromBrowse', function () {
+    before(() => {
+        previousGet = configModule.get;
+        configModule.get = () => TEST_CONFIG;
+        //  message_area.js looks up configModule.get lazily on each call,
+        //  so a fresh require isn't necessary; the cache state doesn't
+        //  matter. (The earlier capture-at-load-time pattern required a
+        //  cache delete here.)
+        messageArea = require('../core/message_area.js');
+    });
+    after(() => {
+        configModule.get = previousGet;
     });
 
-    it('includes hideFromBrowse confs when includeHidden=true', () => {
-        const confs = messageArea.getAvailableMessageConferences(null, {
-            noClient: true,
-            includeHidden: true,
-        });
-        assert.ok('normal_conf' in confs);
-        assert.ok('hidden_conf' in confs);
-    });
+    // ─── getAvailableMessageConferences — hideFromBrowse ─────────────────────
 
-    it('still omits SystemInternal regardless of includeHidden', () => {
-        //  SystemInternal is filtered by a separate gate; includeHidden must not
-        //  re-enable system_internal.
-        const previousConfig = TEST_CONFIG.messageConferences;
-        TEST_CONFIG.messageConferences = Object.assign({}, previousConfig, {
-            system_internal: { name: 'sys', areas: {} },
+    describe('getAvailableMessageConferences()', function () {
+        it('omits hideFromBrowse confs by default', () => {
+            const confs = messageArea.getAvailableMessageConferences(null, {
+                noClient: true,
+            });
+            assert.ok('normal_conf' in confs, 'normal conf must be present');
+            assert.ok(!('hidden_conf' in confs), 'hidden_conf must be omitted');
         });
-        try {
+
+        it('includes hideFromBrowse confs when includeHidden=true', () => {
             const confs = messageArea.getAvailableMessageConferences(null, {
                 noClient: true,
                 includeHidden: true,
             });
-            assert.ok(!('system_internal' in confs));
-        } finally {
-            TEST_CONFIG.messageConferences = previousConfig;
-        }
-    });
-});
-
-// ─── getAvailableMessageAreasByConfTag — hideFromBrowse ──────────────────────
-
-describe('getAvailableMessageAreasByConfTag() — hideFromBrowse flag', function () {
-    it('omits hideFromBrowse areas by default (no client)', () => {
-        const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf');
-        assert.ok('regular_area' in areas);
-        assert.ok(!('hidden_area' in areas));
-    });
-
-    it('includes hideFromBrowse areas when includeHidden=true (no client)', () => {
-        const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
-            includeHidden: true,
+            assert.ok('normal_conf' in confs);
+            assert.ok('hidden_conf' in confs);
         });
-        assert.ok('regular_area' in areas);
-        assert.ok('hidden_area' in areas);
+
+        it('still omits SystemInternal regardless of includeHidden', () => {
+            //  SystemInternal is filtered by a separate gate; includeHidden
+            //  must not re-enable system_internal.
+            const previousConfig = TEST_CONFIG.messageConferences;
+            TEST_CONFIG.messageConferences = Object.assign({}, previousConfig, {
+                system_internal: { name: 'sys', areas: {} },
+            });
+            try {
+                const confs = messageArea.getAvailableMessageConferences(null, {
+                    noClient: true,
+                    includeHidden: true,
+                });
+                assert.ok(!('system_internal' in confs));
+            } finally {
+                TEST_CONFIG.messageConferences = previousConfig;
+            }
+        });
     });
 
-    it('omits hideFromBrowse areas under noAcsCheck=true by default', () => {
-        const fakeClient = { acs: { hasMessageAreaRead: () => true } };
-        const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
-            client: fakeClient,
-            noAcsCheck: true,
-        });
-        assert.ok('regular_area' in areas);
-        assert.ok(!('hidden_area' in areas));
-    });
+    // ─── getAvailableMessageAreasByConfTag — hideFromBrowse ─────────────────
 
-    it('includes hideFromBrowse areas under noAcsCheck + includeHidden', () => {
-        const fakeClient = { acs: { hasMessageAreaRead: () => true } };
-        const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
-            client: fakeClient,
-            noAcsCheck: true,
-            includeHidden: true,
+    describe('getAvailableMessageAreasByConfTag()', function () {
+        it('omits hideFromBrowse areas by default (no client)', () => {
+            const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf');
+            assert.ok('regular_area' in areas);
+            assert.ok(!('hidden_area' in areas));
         });
-        assert.ok('regular_area' in areas);
-        assert.ok('hidden_area' in areas);
-    });
 
-    it('omits hideFromBrowse areas during ACS check by default', () => {
-        const fakeClient = { acs: { hasMessageAreaRead: () => true } };
-        const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
-            client: fakeClient,
+        it('includes hideFromBrowse areas when includeHidden=true (no client)', () => {
+            const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
+                includeHidden: true,
+            });
+            assert.ok('regular_area' in areas);
+            assert.ok('hidden_area' in areas);
         });
-        assert.ok('regular_area' in areas);
-        assert.ok(!('hidden_area' in areas));
-    });
 
-    it('includes hideFromBrowse areas during ACS check with includeHidden', () => {
-        const fakeClient = { acs: { hasMessageAreaRead: () => true } };
-        const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
-            client: fakeClient,
-            includeHidden: true,
+        it('omits hideFromBrowse areas under noAcsCheck=true by default', () => {
+            const fakeClient = { acs: { hasMessageAreaRead: () => true } };
+            const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
+                client: fakeClient,
+                noAcsCheck: true,
+            });
+            assert.ok('regular_area' in areas);
+            assert.ok(!('hidden_area' in areas));
         });
-        assert.ok('regular_area' in areas);
-        assert.ok('hidden_area' in areas);
+
+        it('includes hideFromBrowse areas under noAcsCheck + includeHidden', () => {
+            const fakeClient = { acs: { hasMessageAreaRead: () => true } };
+            const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
+                client: fakeClient,
+                noAcsCheck: true,
+                includeHidden: true,
+            });
+            assert.ok('regular_area' in areas);
+            assert.ok('hidden_area' in areas);
+        });
+
+        it('omits hideFromBrowse areas during ACS check by default', () => {
+            const fakeClient = { acs: { hasMessageAreaRead: () => true } };
+            const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
+                client: fakeClient,
+            });
+            assert.ok('regular_area' in areas);
+            assert.ok(!('hidden_area' in areas));
+        });
+
+        it('includes hideFromBrowse areas during ACS check with includeHidden', () => {
+            const fakeClient = { acs: { hasMessageAreaRead: () => true } };
+            const areas = messageArea.getAvailableMessageAreasByConfTag('normal_conf', {
+                client: fakeClient,
+                includeHidden: true,
+            });
+            assert.ok('regular_area' in areas);
+            assert.ok('hidden_area' in areas);
+        });
     });
 });

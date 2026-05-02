@@ -3,7 +3,14 @@
 
 //  ENiGMA½
 const msgDb = require('./database.js').dbs.message;
-const Config = require('./config.js').get;
+const configModule = require('./config.js');
+//  Look up the current Config.get function on each call rather than capturing
+//  it at module-load time. configModule.get is replaced at runtime by the
+//  Config bootstrapper (and by tests that swap in fixture configs). A
+//  load-time capture freezes whichever getter happened to be installed when
+//  message_area.js was first required, which leaks across mocha files when
+//  the require cache holds the cached module.
+const Config = (...args) => configModule.get(...args);
 const Message = require('./message.js');
 const Log = require('./logger.js').log;
 const msgNetRecord = require('./msg_network.js').recordMessage;
