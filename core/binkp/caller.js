@@ -70,14 +70,33 @@ async function callNode(addr, nodeConf, spool) {
             filesReceived++;
         });
 
-        await attachSpoolToSession(session, spool, [addr]);
-
-        await new Promise((resolve, reject) => {
+        //  Attach the terminal-state listeners BEFORE any awaits that follow
+        //  session construction. The session's socket events ('error',
+        //  'close') can fire promptly on a remote drop — even before
+        //  start() is called — and BinkpSession turns them into 'error' /
+        //  'disconnect' emits. A listener attached after the await would
+        //  miss them and the promise would hang until SESSION_TIMEOUT_MS.
+        const sessionResult = new Promise((resolve, reject) => {
             session.on('session-end', resolve);
             session.on('error', reject);
             session.on('busy', reason => reject(new Error(`Remote busy: ${reason}`)));
-            session.start();
+            //  Remote dropped mid-flight: BinkpSession emits 'disconnect'
+            //  (not 'error') from _onSocketClose. Treat as a session error
+            //  so the caller advances rather than waiting on the 5-min
+            //  session timeout.
+            session.on('disconnect', () => reject(new Error('Remote disconnected')));
         });
+        //  Acknowledge the rejection up-front: if the remote drops between
+        //  here and `await sessionResult` below (e.g. during the awaited
+        //  attachSpoolToSession), the rejection still settles cleanly into
+        //  our await. Without this, Node logs a noisy "unhandled-rejection
+        //  → handled asynchronously" pair for every aborted-on-connect peer.
+        sessionResult.catch(() => {});
+
+        await attachSpoolToSession(session, spool, [addr]);
+        session.start();
+
+        await sessionResult;
 
         if (filesReceived > 0) {
             Events.emit(Events.getSystemEvents().NewInboundBSO);
@@ -91,9 +110,21 @@ async function callNode(addr, nodeConf, spool) {
 
 // ── pollNodes ─────────────────────────────────────────────────────────────────
 
-// Find all nodes with pending outbound mail and call each in sequence.
-// Called directly by core/scanner_tossers/binkp.js on its own schedule.
-async function pollNodes(args, cb) {
+// Dial each node in |forceAddrs| plus every node the spool reports as having
+// pending outbound mail. The two sets are unioned and de-duplicated by
+// zone:net/node before dialing — so the same hub never gets called twice in a
+// single pass even if it appears in both.
+//
+// |forceAddrs| accepts either Address instances or address strings ("21:1/100",
+// "700:100/0"); strings are parsed via Address.fromString().
+//
+// Callers:
+//   - scanner_tossers/binkp.js periodic pull schedule: passes every configured
+//     node to keep quiet peers' echo mail flowing in.
+//   - scanner_tossers/binkp.js NewOutboundBSO listener (crashmail): passes the
+//     single just-queued destination so we ship within hundreds of milliseconds.
+//   - binkp/binkp_poll_module.js (sysop "poll now" menu): passes [].
+async function pollNodes(forceAddrs, cb) {
     const config = Config();
 
     if (
@@ -106,13 +137,30 @@ async function pollNodes(args, cb) {
 
     const spool = buildSpool();
 
-    let addrs;
+    let pendingAddrs;
     try {
-        addrs = await spool.getNodesWithPendingMail();
+        pendingAddrs = await spool.getNodesWithPendingMail();
     } catch (err) {
         Log.warn({ error: err.message }, '[BinkP/Caller] Error scanning outbound spool');
         return cb(err);
     }
+
+    //  Union pending + caller-supplied force addrs, deduped by zone:net/node.
+    //  Address instances pass through untouched; strings are parsed (and
+    //  dropped if invalid).
+    const addrsByKey = new Map();
+    const seen = addr => {
+        const key = `${addr.zone || 0}:${addr.net}/${addr.node}`;
+        if (!addrsByKey.has(key)) {
+            addrsByKey.set(key, addr);
+        }
+    };
+    for (const a of pendingAddrs) seen(a);
+    for (const a of forceAddrs || []) {
+        const addr = a instanceof Address ? a : Address.fromString(String(a));
+        if (addr && addr.isValid()) seen(addr);
+    }
+    const addrs = Array.from(addrsByKey.values());
 
     for (const addr of addrs) {
         const nodeConf = nodeConfigFor(addr);

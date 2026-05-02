@@ -264,8 +264,7 @@ class BsoSpool {
                 size: stat.size,
                 timestamp: Math.floor(stat.mtimeMs / 1000),
                 disposition,
-                disposeFn: () =>
-                    this._applyFlowDisposition(flowPath, lineIdx, captured),
+                disposeFn: () => this._applyFlowDisposition(flowPath, lineIdx, captured),
             });
         }
 

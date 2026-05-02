@@ -32,4 +32,12 @@ module.exports = {
     //  than waiting for the next scheduled run.  External mailers (binkd, etc.)
     //  are unaffected — they rely on the existing @watch / @sched mechanisms.
     NewInboundBSO: 'codes.l33t.enigma.system.new_inbound_bso',
+
+    //  Emitted by ftn_bso once an outbound flow file is written and ready to
+    //  ship.  Payload: { address }  (Address instance for the destination).
+    //  The native BinkP module subscribes to this and dials |address|
+    //  immediately (debounced, to coalesce back-to-back exports of multiple
+    //  messages to the same node into a single session) rather than waiting
+    //  for the periodic pull cycle.  Crashmail semantics — see scanner_tossers/binkp.js.
+    NewOutboundBSO: 'codes.l33t.enigma.system.new_outbound_bso',
 };

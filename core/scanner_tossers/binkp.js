@@ -17,8 +17,11 @@ const { pollNodes } = require('../binkp/caller.js');
 
 const Config = () => configModule.get();
 
-// Same pattern as ftn_bso's SCHEDULE_REGEXP
-const SCHEDULE_REGEXP = /(?:^|or )?(@immediate|@watch:)([^\0]+)?$/;
+//  Crashmail debounce window: when ftn_bso emits NewOutboundBSO, wait briefly
+//  before dialing so back-to-back exports of multiple messages to the same
+//  node coalesce into a single session. Tunable via
+//  scannerTossers.ftn_bso.binkp.crashmailDebounceMs.
+const DEFAULT_CRASHMAIL_DEBOUNCE_MS = 500;
 
 exports.moduleInfo = {
     name: 'BinkP',
@@ -31,7 +34,10 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
     constructor() {
         super();
         this._server = null;
-        this._pollTimer = null;
+        this._pullTimer = null;
+        this._crashmailTimer = null;
+        this._crashmailPending = new Map(); // zone:net/node -> Address
+        this._crashmailListener = null;
     }
 
     startup(cb) {
@@ -45,16 +51,29 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         async.series(
             [
                 callback => this._startInbound(binkpCfg, ftnBsoCfg, callback),
-                callback => this._startOutboundSchedule(binkpCfg, callback),
+                callback => this._startPullSchedule(binkpCfg, callback),
+                callback => this._startCrashmailListener(binkpCfg, callback),
             ],
             cb
         );
     }
 
     shutdown(cb) {
-        if (this._pollTimer) {
-            this._pollTimer.clear();
-            this._pollTimer = null;
+        if (this._pullTimer) {
+            this._pullTimer.clear();
+            this._pullTimer = null;
+        }
+        if (this._crashmailTimer) {
+            clearTimeout(this._crashmailTimer);
+            this._crashmailTimer = null;
+        }
+        this._crashmailPending.clear();
+        if (this._crashmailListener) {
+            Events.removeListener(
+                Events.getSystemEvents().NewOutboundBSO,
+                this._crashmailListener
+            );
+            this._crashmailListener = null;
         }
         if (this._server) {
             this._server.close(() => {
@@ -100,25 +119,111 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         });
     }
 
-    _startOutboundSchedule(binkpCfg, cb) {
-        const scheduleStr = binkpCfg.schedule;
-        if (!scheduleStr) return cb(null);
+    //
+    //  Periodic pull cycle: dial every configured peer regardless of
+    //  whether we have outbound mail for them, so quiet nodes' echo mail
+    //  flows in. A node opts out by setting `pull: false` in its config
+    //  block (rare; use only for write-only peers).
+    //
+    //  This is intentionally separate from the crashmail listener: that
+    //  one fires within hundreds of milliseconds when ftn_bso queues
+    //  outbound; this one is the heartbeat that keeps incoming mail
+    //  flowing during quiet stretches.
+    //
+    _startPullSchedule(binkpCfg, cb) {
+        const scheduleStr = binkpCfg.pullSchedule;
+        if (!scheduleStr) {
+            Log.debug('[BinkP] No pullSchedule configured; pull cycle disabled');
+            return cb(null);
+        }
 
-        const parsed = this._parseSchedule(scheduleStr);
-        if (!parsed || !parsed.sched) return cb(null);
+        const sched = later.parse.text(scheduleStr);
+        if (sched.error !== -1) {
+            Log.warn(
+                { schedule: scheduleStr, errorIdx: sched.error },
+                '[BinkP] Invalid pullSchedule expression; pull cycle disabled'
+            );
+            return cb(null);
+        }
 
         let polling = false;
-        this._pollTimer = later.setInterval(() => {
+        this._pullTimer = later.setInterval(() => {
             if (polling) return;
             polling = true;
-            Log.info('[BinkP] Scheduled outbound poll starting');
-            pollNodes([], () => {
+            const addrs = this._pullAddresses(binkpCfg);
+            Log.info({ count: addrs.length }, '[BinkP] Scheduled pull cycle starting');
+            pollNodes(addrs, () => {
                 polling = false;
             });
-        }, parsed.sched);
+        }, sched);
 
-        Log.debug({ schedule: scheduleStr }, '[BinkP] Outbound poll schedule set');
+        Log.debug({ schedule: scheduleStr }, '[BinkP] Pull schedule set');
         return cb(null);
+    }
+
+    //
+    //  Crashmail (event-driven, no schedule): when ftn_bso writes a flow
+    //  file via flowFileAppendRefs, it emits NewOutboundBSO with the
+    //  destination address. We coalesce events that fire within
+    //  |crashmailDebounceMs| (default 500 ms) so a multi-message export to
+    //  the same peer turns into one session, not N. After the debounce
+    //  window elapses, dial whatever set of addresses accumulated.
+    //
+    _startCrashmailListener(binkpCfg, cb) {
+        const debounceMs = _.get(
+            binkpCfg,
+            'crashmailDebounceMs',
+            DEFAULT_CRASHMAIL_DEBOUNCE_MS
+        );
+
+        this._crashmailListener = ({ address }) => {
+            if (!address) return;
+            const key = `${address.zone || 0}:${address.net}/${address.node}`;
+            this._crashmailPending.set(key, address);
+
+            if (this._crashmailTimer) return; // window already open
+            this._crashmailTimer = setTimeout(() => {
+                this._crashmailTimer = null;
+                const addrs = Array.from(this._crashmailPending.values());
+                this._crashmailPending.clear();
+                if (addrs.length === 0) return;
+                Log.info(
+                    {
+                        count: addrs.length,
+                        addrs: addrs.map(a => a.toString()),
+                    },
+                    '[BinkP] Crashmail dispatch'
+                );
+                pollNodes(addrs, () => {});
+            }, debounceMs);
+        };
+
+        Events.addListener(
+            Events.getSystemEvents().NewOutboundBSO,
+            this._crashmailListener
+        );
+        return cb(null);
+    }
+
+    //  Build the list of addresses for a pull cycle: every entry in
+    //  binkp.nodes whose pattern parses as a concrete address (not a
+    //  wildcard) and whose config doesn't set `pull: false`.
+    _pullAddresses(binkpCfg) {
+        const nodes = binkpCfg.nodes || {};
+        const out = [];
+        for (const [pattern, conf] of Object.entries(nodes)) {
+            if (conf && conf.pull === false) continue;
+            const addr = Address.fromString(pattern);
+            if (!addr || !addr.isValid()) {
+                Log.debug(
+                    { pattern },
+                    '[BinkP] Skipping non-concrete node pattern in pull cycle'
+                );
+                continue;
+            }
+            out.push(addr);
+        }
+        return out;
     }
 
     async _handleConnection(socket, spool, addresses, binkpCfg, tempDir) {
@@ -207,20 +312,5 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             if (nodeConf && nodeConf.sessionPassword) return nodeConf.sessionPassword;
         }
         return null;
-    }
-
-    _parseSchedule(schedStr) {
-        if (!schedStr) return;
-        let schedule = {};
-        const m = SCHEDULE_REGEXP.exec(schedStr);
-        if (m) {
-            schedStr = schedStr.substr(0, m.index).trim();
-            if ('@immediate' === m[1]) schedule.immediate = true;
-        }
-        if (schedStr.length > 0) {
-            const sched = later.parse.text(schedStr);
-            if (-1 === sched.error) schedule.sched = sched;
-        }
-        return _.isEmpty(schedule) ? undefined : schedule;
     }
 };

@@ -1036,16 +1036,36 @@ module.exports = () => {
                         address: '0.0.0.0',
                     },
 
-                    //  Outbound poll schedule (later.js text, e.g. "every 15 minutes")
-                    //  Leave unset to disable automatic outbound polling.
-                    //  schedule: 'every 15 minutes',
+                    //  Pull cycle: dial every configured peer on this schedule
+                    //  regardless of whether we have outbound mail for them.
+                    //  Keeps echo mail flowing in from quiet hubs that wait for
+                    //  the spoke (us) to call. Any later.js text expression.
+                    //  Set to null/empty to disable the pull cycle entirely
+                    //  (the BBS will then only dial peers when ftn_bso queues
+                    //  outbound — see "Crashmail" below).
+                    pullSchedule: 'every 15 minutes',
 
                     //
-                    //  Per-node configuration, keyed by FTN address wildcard.
+                    //  Crashmail: when ftn_bso writes a flow file via
+                    //  flowFileAppendRefs (i.e. a message has been queued for a
+                    //  remote peer), the BinkP module dials that peer right
+                    //  away via the NewOutboundBSO system event. Back-to-back
+                    //  exports for the same peer are coalesced into a single
+                    //  session by waiting |crashmailDebounceMs| before dialing
+                    //  (default 500 ms). Lower it to ship faster at the cost
+                    //  of more sessions per burst; raise it if you batch a lot.
+                    //
+                    crashmailDebounceMs: 500,
+
+                    //
+                    //  Per-node configuration, keyed by FTN address.
                     //
                     //  host            : Hostname/IP for outbound calls (required to call a node).
                     //  port            : TCP port for outbound calls (default: 24554).
                     //  sessionPassword : CRAM-MD5 session password (distinct from FTN packet password).
+                    //  pull            : Set false to exclude this node from the periodic pull cycle.
+                    //                    Crashmail (event-driven dialing on outbound) still applies.
+                    //                    Default: true.
                     //
                     //  nodes: {
                     //      "1:218/700": {

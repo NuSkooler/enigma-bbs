@@ -301,7 +301,7 @@ function FTNMessageScanTossModule() {
         return paths.join(basePath, pointDir, `${controlFileBaseName}.${ext}`);
     };
 
-    this.flowFileAppendRefs = function (filePath, fileRefs, directive, cb) {
+    this.flowFileAppendRefs = function (filePath, fileRefs, directive, destAddress, cb) {
         //
         //  We have to ensure the *directory* of |filePath| exists here esp.
         //  for cases such as point destinations where a subdir may be
@@ -315,6 +315,16 @@ function FTNMessageScanTossModule() {
             }, '');
 
             fs.appendFile(filePath, appendLines, err => {
+                //  Successful append == new outbound is queued and ready to
+                //  ship. Emit so the native BinkP module can dial |destAddress|
+                //  immediately (crashmail) instead of waiting for the next
+                //  pull cycle. External mailers (binkd) are unaffected — they
+                //  poll the spool directly.
+                if (!err && destAddress) {
+                    Events.emit(Events.getSystemEvents().NewOutboundBSO, {
+                        address: destAddress,
+                    });
+                }
                 return cb(err);
             });
         });
@@ -1128,6 +1138,7 @@ function FTNMessageScanTossModule() {
                                 flowFilePath,
                                 [exportOpts.exportedToPath],
                                 '^',
+                                exportOpts.routeAddress,
                                 callback
                             );
                         },
@@ -1387,6 +1398,7 @@ function FTNMessageScanTossModule() {
                                                 flowFilePath,
                                                 [newPath],
                                                 '^',
+                                                exportOpts.destAddress,
                                                 err => {
                                                     if (err) {
                                                         Log.warn(
