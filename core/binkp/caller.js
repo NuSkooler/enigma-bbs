@@ -10,6 +10,7 @@ const configModule = require('../config.js');
 const Address = require('../ftn_address.js');
 const { BinkpSession } = require('./session.js');
 const { BsoSpool, attachSpoolToSession } = require('./bso_spool.js');
+const { localAddresses, addressKey, findBestNodeMatch } = require('./util.js');
 
 const Config = () => configModule.get();
 
@@ -22,21 +23,20 @@ function buildSpool() {
     return new BsoSpool({
         paths: _.get(config, 'scannerTossers.ftn_bso.paths'),
         networks: _.get(config, 'messageNetworks.ftn.networks', {}),
+        staleLockMaxAgeMs: _.get(
+            config,
+            'scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs'
+        ),
     });
 }
 
-function localAddresses() {
-    const networks = _.get(Config(), 'messageNetworks.ftn.networks', {});
-    return Object.values(networks)
-        .map(n => n.localAddress)
-        .filter(Boolean);
-}
-
-// Returns the first node config entry whose address pattern matches |addr|,
-// or undefined if none matches.
+// Returns the most-specific node config entry whose pattern matches |addr|.
+// Specificity is by Address#getMatchScore — concrete-and-matching parts beat
+// wildcards — so a "21:1/100" override always wins over a "21:*" catch-all
+// regardless of HJSON insertion order.
 function nodeConfigFor(addr) {
     const nodes = _.get(Config(), 'scannerTossers.ftn_bso.binkp.nodes', {});
-    return _.find(nodes, (conf, pattern) => addr.isPatternMatch(pattern));
+    return findBestNodeMatch(nodes, addr);
 }
 
 // ── callNode ──────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ async function callNode(addr, nodeConf, spool) {
 
         const session = new BinkpSession(socket, {
             role: 'originating',
-            addresses: localAddresses(),
+            addresses: localAddresses(Config()),
             getPassword: () => nodeConf.sessionPassword || null,
             tempDir: _.get(Config(), 'scannerTossers.ftn_bso.binkp.tempDir', os.tmpdir()),
         });
@@ -150,7 +150,7 @@ async function pollNodes(forceAddrs, cb) {
     //  dropped if invalid).
     const addrsByKey = new Map();
     const seen = addr => {
-        const key = `${addr.zone || 0}:${addr.net}/${addr.node}`;
+        const key = addressKey(addr);
         if (!addrsByKey.has(key)) {
             addrsByKey.set(key, addr);
         }

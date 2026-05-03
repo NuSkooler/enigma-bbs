@@ -87,6 +87,11 @@ class BinkpSession extends EventEmitter {
         this._currentRecv = null; // { name, size, timestamp, tempPath, bytesReceived, writeStream }
         this._pendingGots = new Map(); // `name\0size\0ts` → { name, path, size, timestamp, disposition }
 
+        //  Inbound temp files we own. Added when we start writing one and
+        //  removed on successful M_GOT — anything left here at _destroy()
+        //  time is a partial that the peer dropped on us.
+        this._inboundTempPaths = new Set();
+
         this._localEOBSent = false;
         this._localEOB = false;
         this._remoteEOB = false;
@@ -597,6 +602,19 @@ class BinkpSession extends EventEmitter {
 
         if (!cr.writeStream) {
             cr.writeStream = fs.createWriteStream(cr.tempPath);
+            //  We're going to destroy this stream from _destroy() on
+            //  abnormal session end, which can race with in-flight writes
+            //  and surface as an async ERR_STREAM_DESTROYED. The unlink
+            //  in _destroy supersedes any half-written data anyway, so
+            //  swallow the error here rather than letting it bubble to
+            //  uncaughtException.
+            cr.writeStream.on('error', err => {
+                Log.warn(
+                    { name: cr.name, error: err.message },
+                    '[BinkP] Inbound write error'
+                );
+            });
+            this._inboundTempPaths.add(cr.tempPath);
         }
         cr.writeStream.write(slice);
 
@@ -611,6 +629,11 @@ class BinkpSession extends EventEmitter {
         this._currentRecv = null;
 
         const finish = () => {
+            //  File handed off to the listener; ownership of the temp file
+            //  passes to whatever moves it into the inbound spool. Drop our
+            //  tracking entry so _destroy() doesn't unlink it from under
+            //  the consumer.
+            this._inboundTempPaths.delete(cr.tempPath);
             this._sendCmd(Commands.M_GOT, `${cr.name} ${cr.size} ${cr.timestamp}`);
             this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
             this._checkDone();
@@ -620,9 +643,11 @@ class BinkpSession extends EventEmitter {
             cr.writeStream.end(finish);
         } else {
             // Zero-byte file
+            this._inboundTempPaths.add(cr.tempPath);
             fsp.writeFile(cr.tempPath, Buffer.alloc(0))
                 .then(finish)
                 .catch(err => {
+                    this._inboundTempPaths.delete(cr.tempPath);
                     Log.warn(
                         { name: cr.name, error: err.message },
                         '[BinkP] Could not write empty inbound file'
@@ -700,6 +725,20 @@ class BinkpSession extends EventEmitter {
         if (this._currentRecv?.writeStream) {
             this._currentRecv.writeStream.destroy();
         }
+        //  Unlink any inbound temp files we never finished receiving. The
+        //  set is empty in the happy path; entries here mean the peer
+        //  dropped mid-transfer.
+        for (const tempPath of this._inboundTempPaths) {
+            fsp.unlink(tempPath).catch(err => {
+                if (err.code !== 'ENOENT') {
+                    Log.warn(
+                        { path: tempPath, error: err.message },
+                        '[BinkP] Could not remove orphaned inbound temp file'
+                    );
+                }
+            });
+        }
+        this._inboundTempPaths.clear();
         if (!this._socket.destroyed) {
             this._socket.destroy();
         }

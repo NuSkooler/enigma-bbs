@@ -11,6 +11,12 @@ const Log = require('../logger').log;
 const FLOW_EXTS = ['ilo', 'clo', 'dlo', 'flo', 'hlo'];
 const DIRECT_EXTS = ['iut', 'cut', 'dut', 'out', 'hut'];
 
+// Default age beyond which an unreleased .bsy lock is considered orphaned
+// (BBS crashed mid-session). 6× the BinkP session timeout (5 min) gives a
+// generous safety margin without making post-crash recovery slow. Tunable
+// via scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs.
+const DEFAULT_STALE_LOCK_MAX_AGE_MS = 30 * 60 * 1000;
+
 //
 //  BsoSpool — filesystem adapter between BinkP sessions and the BSO outbound/
 //  inbound spool that ftn_bso manages.
@@ -31,6 +37,10 @@ class BsoSpool {
     constructor(config) {
         this._paths = config.paths || {};
         this._networks = config.networks || {};
+        this._staleLockMaxAgeMs =
+            typeof config.staleLockMaxAgeMs === 'number'
+                ? config.staleLockMaxAgeMs
+                : DEFAULT_STALE_LOCK_MAX_AGE_MS;
     }
 
     // ── Lock management ──────────────────────────────────────────────────────
@@ -39,12 +49,27 @@ class BsoSpool {
     // process; throws on unexpected errors.
     async acquireLock(addr) {
         const bsyPath = this._bsyPath(addr);
-        try {
-            await fsp.mkdir(path.dirname(bsyPath), { recursive: true });
+        await fsp.mkdir(path.dirname(bsyPath), { recursive: true });
+
+        const tryCreate = async () => {
             // 'wx' = exclusive create; fails with EEXIST if file is present
             const fh = await fsp.open(bsyPath, 'wx');
             await fh.writeFile(String(process.pid));
             await fh.close();
+        };
+
+        try {
+            await tryCreate();
+            return true;
+        } catch (err) {
+            if (err.code !== 'EEXIST') throw err;
+        }
+
+        //  EEXIST: lock present. Reap if it looks orphaned and retry once.
+        if (!(await this._reapIfStale(bsyPath))) return false;
+
+        try {
+            await tryCreate();
             return true;
         } catch (err) {
             if (err.code === 'EEXIST') return false;
@@ -54,6 +79,58 @@ class BsoSpool {
 
     async releaseLock(addr) {
         await fsp.unlink(this._bsyPath(addr)).catch(() => {});
+    }
+
+    // Sweep every outbound directory for orphaned .bsy lock files. Returns the
+    // number of files reaped. Intended for startup so a crashed prior run
+    // doesn't leave nodes permanently un-pollable.
+    async reapStaleLocks() {
+        const dirs = await this._allOutboundDirs();
+        let reaped = 0;
+        for (const { dir } of dirs) {
+            let entries;
+            try {
+                entries = await fsp.readdir(dir);
+            } catch {
+                continue;
+            }
+            for (const file of entries) {
+                if (!/\.bsy$/i.test(file)) continue;
+                if (await this._reapIfStale(path.join(dir, file))) reaped++;
+            }
+        }
+        return reaped;
+    }
+
+    // Returns true if the .bsy at |bsyPath| was older than staleLockMaxAgeMs
+    // and has been removed (or was already gone). Returns false when the file
+    // is still fresh, or when stat/unlink errors prevent a confident reap.
+    async _reapIfStale(bsyPath) {
+        let stat;
+        try {
+            stat = await fsp.stat(bsyPath);
+        } catch (err) {
+            //  Already gone — caller should treat that as a successful reap
+            //  (the slot is now free).
+            return err.code === 'ENOENT';
+        }
+        const ageMs = Date.now() - stat.mtimeMs;
+        if (ageMs <= this._staleLockMaxAgeMs) return false;
+        try {
+            await fsp.unlink(bsyPath);
+            Log.info(
+                { path: bsyPath, ageMs },
+                '[BinkP/BSO] Reaped stale .bsy lock'
+            );
+            return true;
+        } catch (err) {
+            if (err.code === 'ENOENT') return true;
+            Log.warn(
+                { path: bsyPath, error: err.message },
+                '[BinkP/BSO] Could not reap stale .bsy lock'
+            );
+            return false;
+        }
     }
 
     // ── Outbound file enumeration ────────────────────────────────────────────

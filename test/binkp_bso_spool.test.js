@@ -6,12 +6,6 @@ const path = require('path');
 const os = require('os');
 const net = require('net');
 
-//  Mock logger before any module that imports it
-const loggerModule = require('../core/logger.js');
-if (!loggerModule.log) {
-    loggerModule.log = { warn() {}, info() {}, debug() {}, trace() {}, error() {} };
-}
-
 const {
     BsoSpool,
     attachSpoolToSession,
@@ -110,6 +104,104 @@ describe('BsoSpool — lock management', () => {
 
     it('releaseLock is idempotent when lock does not exist', async () => {
         await assert.doesNotReject(spool.releaseLock(TEST_ADDR));
+    });
+});
+
+// ── Stale .bsy reaper ─────────────────────────────────────────────────────────
+
+describe('BsoSpool — stale .bsy reaper', () => {
+    beforeEach(cleanOutbound);
+
+    //  Build a spool with a tight stale-lock threshold so we don't have to
+    //  wait minutes in tests. The configured value is what the JIT path on
+    //  acquireLock and the bulk reapStaleLocks() both consult.
+    function freshSpool(staleLockMaxAgeMs) {
+        return new BsoSpool({
+            ...makeConfig(tmpDir),
+            staleLockMaxAgeMs,
+        });
+    }
+
+    //  Backdate a file's mtime so it looks older than the threshold without
+    //  needing a real-time wait.
+    async function backdate(filePath, ageMs) {
+        const t = new Date(Date.now() - ageMs);
+        await fsp.utimes(filePath, t, t);
+    }
+
+    it('acquireLock returns false when an existing .bsy is still fresh', async () => {
+        const s = freshSpool(60 * 1000); // 60s threshold
+        await s.acquireLock(TEST_ADDR); // create the .bsy
+        const second = await s.acquireLock(TEST_ADDR);
+        assert.ok(!second, 'fresh lock must not be reaped');
+        await s.releaseLock(TEST_ADDR);
+    });
+
+    it('acquireLock reaps a stale .bsy and succeeds on retry', async () => {
+        const s = freshSpool(60 * 1000); // 60s threshold
+        await s.acquireLock(TEST_ADDR);
+        const bsyPath = path.join(outboundDir(tmpDir), '00680001.bsy');
+        await backdate(bsyPath, 5 * 60 * 1000); // 5 min old → stale
+
+        const got = await s.acquireLock(TEST_ADDR);
+        assert.ok(got, 'stale lock should be reaped and re-acquired');
+
+        //  Lock now belongs to us — release for cleanliness
+        await s.releaseLock(TEST_ADDR);
+    });
+
+    it('reapStaleLocks removes only stale .bsy files', async () => {
+        const s = freshSpool(60 * 1000);
+
+        const stalePath = path.join(outboundDir(tmpDir), '00680001.bsy');
+        const freshPath = path.join(outboundDir(tmpDir), '00680002.bsy');
+        await fsp.writeFile(stalePath, '0');
+        await fsp.writeFile(freshPath, '0');
+        await backdate(stalePath, 5 * 60 * 1000);
+        //  freshPath keeps current mtime
+
+        const reaped = await s.reapStaleLocks();
+        assert.equal(reaped, 1, 'exactly one stale lock should be reaped');
+
+        await assert.rejects(fsp.access(stalePath), { code: 'ENOENT' });
+        await assert.doesNotReject(fsp.access(freshPath));
+
+        await fsp.unlink(freshPath);
+    });
+
+    it('reapStaleLocks ignores non-.bsy files', async () => {
+        const s = freshSpool(60 * 1000);
+        const decoy = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(decoy, 'flow data');
+        await backdate(decoy, 5 * 60 * 1000);
+
+        const reaped = await s.reapStaleLocks();
+        assert.equal(reaped, 0);
+        await assert.doesNotReject(fsp.access(decoy));
+    });
+
+    it('reapStaleLocks is a no-op when outbound dirs do not exist', async () => {
+        const s = new BsoSpool({
+            paths: {
+                outbound: path.join(tmpDir, 'no_such_outbound'),
+                inbound: path.join(tmpDir, 'inbound'),
+                secInbound: path.join(tmpDir, 'secinbound'),
+            },
+            networks: { testnet: { localAddress: '1:1/100', defaultZone: 1 } },
+            staleLockMaxAgeMs: 60 * 1000,
+        });
+        const reaped = await s.reapStaleLocks();
+        assert.equal(reaped, 0);
+    });
+
+    it('default staleLockMaxAgeMs is used when not configured', async () => {
+        //  No staleLockMaxAgeMs in config → constructor falls back to 30 min.
+        //  A fresh lock (~0 ms old) must NOT be reaped under the default.
+        const s = new BsoSpool(makeConfig(tmpDir));
+        await s.acquireLock(TEST_ADDR);
+        const second = await s.acquireLock(TEST_ADDR);
+        assert.ok(!second, 'fresh lock must not be reaped under default threshold');
+        await s.releaseLock(TEST_ADDR);
     });
 });
 

@@ -95,17 +95,29 @@ module.exports = class Address {
         }
     }
 
-    /*
+    //  Returns a numeric specificity score for how well |pattern| matches
+    //  this address. Higher = more specific; concrete-and-matching parts
+    //  count more than wildcard parts. Used to disambiguate when multiple
+    //  patterns match the same address (e.g. "21:1/100" and "21:*" both
+    //  matching "21:1/100" — the concrete one should win regardless of
+    //  config insertion order).
+    //
+    //  Scoring per part (net, node, zone, point, domain):
+    //    +2 — concrete pattern part equals this address part
+    //    +1 — pattern part is wildcard
+    //     0 — concrete pattern part disagrees (and we stop scoring)
+    //
+    //  Returns 0 when the pattern fails to parse.
     getMatchScore(pattern) {
         let score = 0;
         const addr = this.getMatchAddr(pattern);
-        if(addr) {
-            const PARTS = [ 'net', 'node', 'zone', 'point', 'domain' ];
-            for(let i = 0; i < PARTS.length; ++i) {
+        if (addr) {
+            const PARTS = ['net', 'node', 'zone', 'point', 'domain'];
+            for (let i = 0; i < PARTS.length; ++i) {
                 const member = PARTS[i];
-                if(this[member] === addr[member]) {
+                if (this[member] === addr[member]) {
                     score += 2;
-                } else if('*' === addr[member]) {
+                } else if ('*' === addr[member]) {
                     score += 1;
                 } else {
                     break;
@@ -115,7 +127,6 @@ module.exports = class Address {
 
         return score;
     }
-    */
 
     isPatternMatch(pattern) {
         const addr = this.getMatchAddr(pattern);

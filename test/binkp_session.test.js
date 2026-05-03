@@ -7,12 +7,6 @@ const fsp = require('fs/promises');
 const path = require('path');
 const os = require('os');
 
-//  Mock logger before loading any module that pulls it in
-const loggerModule = require('../core/logger.js');
-if (!loggerModule.log) {
-    loggerModule.log = { warn() {}, info() {}, debug() {}, trace() {}, error() {} };
-}
-
 const { BinkpSession } = require('../core/binkp/session');
 
 // ── helpers ───────────────────────────────────────────────────────────────────

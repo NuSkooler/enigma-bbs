@@ -6,25 +6,6 @@ const path = require('path');
 const os = require('os');
 const net = require('net');
 
-//  ── mock logger ──────────────────────────────────────────────────────────────
-const loggerModule = require('../core/logger.js');
-if (!loggerModule.log) {
-    loggerModule.log = {
-        child() {
-            return this;
-        },
-        warn() {},
-        info() {},
-        debug() {},
-        trace() {},
-        error() {},
-    };
-} else if (!loggerModule.log.child) {
-    loggerModule.log.child = function () {
-        return loggerModule.log;
-    };
-}
-
 const configModule = require('../core/config.js');
 const Events = require('../core/events.js');
 const { BinkpSession } = require('../core/binkp/session.js');

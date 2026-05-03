@@ -2,6 +2,8 @@
 
 const net = require('net');
 const os = require('os');
+const path = require('path');
+const fsp = require('fs/promises');
 const _ = require('lodash');
 const later = require('@breejs/later');
 const async = require('async');
@@ -14,6 +16,7 @@ const { MessageScanTossModule } = require('../msg_scan_toss_module.js');
 const { BinkpSession } = require('../binkp/session.js');
 const { BsoSpool, attachSpoolToSession } = require('../binkp/bso_spool.js');
 const { pollNodes } = require('../binkp/caller.js');
+const { localAddresses, addressKey, findBestNodeMatch } = require('../binkp/util.js');
 
 const Config = () => configModule.get();
 
@@ -23,12 +26,53 @@ const Config = () => configModule.get();
 //  scannerTossers.ftn_bso.binkp.crashmailDebounceMs.
 const DEFAULT_CRASHMAIL_DEBOUNCE_MS = 500;
 
+//  Inbound temp file (binkp_in_*.dt) startup-sweep age threshold. Anything
+//  older than this in tempDir at startup is treated as a leaked partial from
+//  a prior crashed session and removed. Tunable via
+//  scannerTossers.ftn_bso.binkp.inboundTempMaxAgeMs.
+const DEFAULT_INBOUND_TEMP_MAX_AGE_MS = 60 * 60 * 1000;
+const INBOUND_TEMP_PATTERN = /^binkp_in_.*\.dt$/i;
+
 exports.moduleInfo = {
     name: 'BinkP',
     desc: 'BinkP FidoNet Mail Exchange',
     author: 'NuSkooler',
     packageName: 'codes.l33t.enigma.binkp',
 };
+
+//  Sweep |tempDir| for inbound temp files (binkp_in_*.dt) older than
+//  |maxAgeMs|. Returns the count reaped. Missing tempDir resolves as 0.
+async function reapInboundTemps(tempDir, maxAgeMs) {
+    let entries;
+    try {
+        entries = await fsp.readdir(tempDir);
+    } catch (err) {
+        if (err.code === 'ENOENT') return 0;
+        throw err;
+    }
+    const cutoff = Date.now() - maxAgeMs;
+    let reaped = 0;
+    for (const name of entries) {
+        if (!INBOUND_TEMP_PATTERN.test(name)) continue;
+        const filePath = path.join(tempDir, name);
+        try {
+            const stat = await fsp.stat(filePath);
+            if (stat.mtimeMs > cutoff) continue;
+            await fsp.unlink(filePath);
+            reaped++;
+        } catch (err) {
+            if (err.code !== 'ENOENT') {
+                Log.warn(
+                    { path: filePath, error: err.message },
+                    '[BinkP] Could not reap inbound temp file'
+                );
+            }
+        }
+    }
+    return reaped;
+}
+
+exports.reapInboundTemps = reapInboundTemps;
 
 exports.getModule = class BinkpModule extends MessageScanTossModule {
     constructor() {
@@ -50,6 +94,8 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
         async.series(
             [
+                callback => this._reapStaleLocks(binkpCfg, ftnBsoCfg, callback),
+                callback => this._reapInboundTemps(binkpCfg, callback),
                 callback => this._startInbound(binkpCfg, ftnBsoCfg, callback),
                 callback => this._startPullSchedule(binkpCfg, callback),
                 callback => this._startCrashmailListener(binkpCfg, callback),
@@ -87,6 +133,62 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
     // ── Private ──────────────────────────────────────────────────────────────
 
+    //  Sweep orphaned .bsy locks left by a prior crashed run before we start
+    //  anything that depends on them. Runs unconditionally — outbound sessions
+    //  acquire locks too, so this matters even when inbound is disabled.
+    _reapStaleLocks(binkpCfg, ftnBsoCfg, cb) {
+        const spool = new BsoSpool({
+            paths: ftnBsoCfg.paths,
+            networks: _.get(Config(), 'messageNetworks.ftn.networks', {}),
+            staleLockMaxAgeMs: binkpCfg.staleLockMaxAgeMs,
+        });
+        spool
+            .reapStaleLocks()
+            .then(reaped => {
+                if (reaped > 0) {
+                    Log.info({ reaped }, '[BinkP] Reaped stale .bsy locks at startup');
+                }
+                return cb(null);
+            })
+            .catch(err => {
+                Log.warn(
+                    { error: err.message },
+                    '[BinkP] Stale-lock sweep failed; continuing'
+                );
+                return cb(null);
+            });
+    }
+
+    //  Sweep leaked inbound temp files (binkp_in_*.dt) from |tempDir|. The
+    //  in-session finalizer in BinkpSession._destroy unlinks any temps it owns
+    //  on error/disconnect, but a hard process kill leaves them behind. This
+    //  startup sweep is the safety net.
+    _reapInboundTemps(binkpCfg, cb) {
+        const tempDir = _.get(binkpCfg, 'tempDir', os.tmpdir());
+        const maxAgeMs = _.get(
+            binkpCfg,
+            'inboundTempMaxAgeMs',
+            DEFAULT_INBOUND_TEMP_MAX_AGE_MS
+        );
+        reapInboundTemps(tempDir, maxAgeMs)
+            .then(reaped => {
+                if (reaped > 0) {
+                    Log.info(
+                        { reaped, tempDir },
+                        '[BinkP] Reaped leaked inbound temp files at startup'
+                    );
+                }
+                return cb(null);
+            })
+            .catch(err => {
+                Log.warn(
+                    { tempDir, error: err.message },
+                    '[BinkP] Inbound temp sweep failed; continuing'
+                );
+                return cb(null);
+            });
+    }
+
     _startInbound(binkpCfg, ftnBsoCfg, cb) {
         const inbound = _.get(binkpCfg, 'inbound', {});
         if (!inbound.enabled) return cb(null);
@@ -94,9 +196,10 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         const spool = new BsoSpool({
             paths: ftnBsoCfg.paths,
             networks: _.get(Config(), 'messageNetworks.ftn.networks', {}),
+            staleLockMaxAgeMs: binkpCfg.staleLockMaxAgeMs,
         });
 
-        const addresses = this._localAddresses();
+        const addresses = localAddresses(Config());
         const tempDir = _.get(binkpCfg, 'tempDir', os.tmpdir());
 
         this._server = net.createServer(socket => {
@@ -177,8 +280,15 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         );
 
         this._crashmailListener = ({ address }) => {
-            if (!address) return;
-            const key = `${address.zone || 0}:${address.net}/${address.node}`;
+            //  Drop malformed events: a crashmail entry with an undefined
+            //  net/node would dedupe to "0:undefined/0" and corrupt the
+            //  pending map. Trust ftn_bso to emit valid Address instances
+            //  but validate defensively — this listener can be bound to
+            //  any future emitter.
+            if (!address || typeof address.isValid !== 'function' || !address.isValid()) {
+                return;
+            }
+            const key = addressKey(address);
             this._crashmailPending.set(key, address);
 
             if (this._crashmailTimer) return; // window already open
@@ -294,21 +404,14 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         session.start();
     }
 
-    _localAddresses() {
-        const networks = _.get(Config(), 'messageNetworks.ftn.networks', {});
-        return Object.values(networks)
-            .map(n => n.localAddress)
-            .filter(Boolean);
-    }
-
     _lookupPassword(nodes, remoteAddrStrings) {
         if (_.isEmpty(nodes)) return null;
         for (const addrStr of remoteAddrStrings || []) {
             const addr = Address.fromString(addrStr);
             if (!addr || !addr.isValid()) continue;
-            const nodeConf = _.find(nodes, (conf, pattern) =>
-                addr.isPatternMatch(pattern)
-            );
+            //  findBestNodeMatch picks the most-specific pattern match so a
+            //  per-node override always wins over a catch-all wildcard.
+            const nodeConf = findBestNodeMatch(nodes, addr);
             if (nodeConf && nodeConf.sessionPassword) return nodeConf.sessionPassword;
         }
         return null;

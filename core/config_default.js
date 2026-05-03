@@ -1058,6 +1058,31 @@ module.exports = () => {
                     crashmailDebounceMs: 500,
 
                     //
+                    //  Stale .bsy lock reaper. When the BBS crashes mid-session
+                    //  the per-node .bsy lock isn't released and that node is
+                    //  un-pollable until the file is removed. On startup (and
+                    //  on every acquireLock attempt that hits EEXIST) we treat
+                    //  any .bsy older than this threshold as orphaned and
+                    //  unlink it.
+                    //
+                    //  Default: 30 minutes (6× the internal session timeout of
+                    //  5 minutes). If you ever raise the session timeout, raise
+                    //  this in proportion.
+                    //
+                    staleLockMaxAgeMs: 30 * 60 * 1000,
+
+                    //
+                    //  Inbound temp file sweep. Inbound files are buffered as
+                    //  binkp_in_*.dt under |tempDir| (defaults to OS temp) and
+                    //  renamed into the inbound spool on successful receipt.
+                    //  If a peer drops mid-transfer the partial is leaked; the
+                    //  in-session finalizer cleans up most cases, this startup
+                    //  sweep catches anything left after a hard process kill.
+                    //  Default: 1 hour (well above any legitimate session).
+                    //
+                    inboundTempMaxAgeMs: 60 * 60 * 1000,
+
+                    //
                     //  Per-node configuration, keyed by FTN address.
                     //
                     //  host            : Hostname/IP for outbound calls (required to call a node).
