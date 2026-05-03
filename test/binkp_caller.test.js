@@ -192,13 +192,21 @@ describe('BinkP caller', function () {
             const refFile = path.join(tmpDir, 'test_outbound.pkt');
             await fsp.writeFile(refFile, 'PKT_CONTENT');
 
-            // Flow file for the answering server's address (1:218/700 → 00da02bc... wait,
-            // net=218=0x00da, node=700=0x02bc → 00da02bc.flo)
-            const flowPath = path.join(outboundDir, '00da02bc.flo');
+            //  Server address must differ from the caller's localAddress
+            //  (1:218/700, set in makeConfig) — otherwise the server's spool
+            //  reads the same flow file the caller is sending and queues it
+            //  for return delivery, the caller's delete-disposition unlinks
+            //  the source mid-flight, and the server intermittently misses
+            //  the inbound file. Same-zone keeps the outbound subdir at
+            //  ".../outbound" (zone-1 = default) instead of "outbound.NNN".
+            //
+            //  net=1, node=2 → flow filename "00010002.flo".
+            const flowPath = path.join(outboundDir, '00010002.flo');
             await fsp.writeFile(flowPath, `^${refFile}\n`);
 
             let serverReceivedFile = false;
             const { port, spool, stop } = await startAnsweringServer({
+                addresses: ['1:1/2@testnet'],
                 onSession: sess => {
                     sess.on('file-received', () => {
                         serverReceivedFile = true;
@@ -206,7 +214,7 @@ describe('BinkP caller', function () {
                 },
             });
             try {
-                const addr = new Address({ zone: 1, net: 218, node: 700 });
+                const addr = new Address({ zone: 1, net: 1, node: 2 });
                 const nodeConf = { host: '127.0.0.1', port };
                 await callNode(addr, nodeConf, spool);
                 assert.ok(serverReceivedFile, 'server should have received the file');

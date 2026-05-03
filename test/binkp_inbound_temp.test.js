@@ -130,6 +130,37 @@ describe('BinkpSession — inbound temp finalizer', () => {
         });
     }
 
+    //  Poll-with-deadline: writeStream.open() and the unlink inside
+    //  _destroy() are both async — setImmediate-based waits race them and
+    //  produce a flake in the full suite under load. Polling makes the
+    //  assertions deterministic without leaking internal timing into the
+    //  test surface.
+    async function waitForFileExists(p, timeoutMs = 1000) {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            try {
+                await fsp.access(p);
+                return;
+            } catch {
+                // not yet
+            }
+            await new Promise(r => setTimeout(r, 5));
+        }
+        throw new Error(`waitForFileExists timeout: ${p}`);
+    }
+    async function waitForFileGone(p, timeoutMs = 1000) {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            try {
+                await fsp.access(p);
+            } catch (err) {
+                if (err.code === 'ENOENT') return;
+            }
+            await new Promise(r => setTimeout(r, 5));
+        }
+        throw new Error(`waitForFileGone timeout: ${p}`);
+    }
+
     it('unlinks a partial inbound temp file on _destroy()', async () => {
         const sess = await makeBoundSession();
 
@@ -146,27 +177,14 @@ describe('BinkpSession — inbound temp finalizer', () => {
             'temp path should be tracked while in-flight'
         );
 
-        //  Wait one tick so the createWriteStream has actually opened the fd
-        //  before destroy. Otherwise the file may not exist at unlink time
-        //  (which is fine for the assertion, but defeats the test purpose).
-        await new Promise(r => setImmediate(r));
-        await assert.doesNotReject(
-            fsp.access(tempPath),
-            'temp file should exist after first data frame'
-        );
+        //  writeStream.open() is async — wait for the file to actually
+        //  exist on disk before we ask _destroy() to clean it up.
+        await waitForFileExists(tempPath);
 
         sess._destroy();
 
-        //  The unlink runs as a fire-and-forget promise inside _destroy.
-        //  Give it one event-loop turn to settle.
-        await new Promise(r => setImmediate(r));
-        await new Promise(r => setImmediate(r));
-
-        await assert.rejects(
-            fsp.access(tempPath),
-            { code: 'ENOENT' },
-            'partial temp file should be unlinked by _destroy()'
-        );
+        //  _destroy()'s unlink is fire-and-forget; poll until it lands.
+        await waitForFileGone(tempPath);
         assert.equal(
             sess._inboundTempPaths.size,
             0,
@@ -179,20 +197,13 @@ describe('BinkpSession — inbound temp finalizer', () => {
 
         sess._onFile('complete.pkt 5 1700000000 0');
         sess._onDataFrame(Buffer.from('HELLO')); //  exact size = 5
-        const tempPath = sess._currentRecv ? sess._currentRecv.tempPath : null;
 
         //  After the full payload arrives, _finalizeReceive runs and
         //  _currentRecv is cleared. Capture the path from the
         //  file-received event instead.
-        let receivedTempPath = null;
-        await new Promise(resolve => {
-            sess.once('file-received', (name, size, ts, p) => {
-                receivedTempPath = p;
-                resolve();
-            });
-        });
-
-        const finalPath = receivedTempPath || tempPath;
+        const [, , , finalPath] = await new Promise(resolve =>
+            sess.once('file-received', (...args) => resolve(args))
+        );
         assert.ok(finalPath, 'should have a temp path from file-received');
 
         //  Once handed off, the session must drop ownership: destroying it
@@ -205,16 +216,16 @@ describe('BinkpSession — inbound temp finalizer', () => {
         );
 
         sess._destroy();
-        await new Promise(r => setImmediate(r));
 
-        //  File still present — destroy did not unlink, since the path
-        //  was no longer tracked.
+        //  Give any spurious unlink one full poll window to manifest. If
+        //  the finalizer mistakenly tried to remove this path we'd see
+        //  ENOENT here; if it correctly skipped it, the file stays intact.
+        await new Promise(r => setTimeout(r, 50));
         await assert.doesNotReject(
             fsp.access(finalPath),
             'handed-off temp file must survive _destroy()'
         );
 
-        //  Manual cleanup
         await fsp.unlink(finalPath).catch(() => {});
     });
 });
