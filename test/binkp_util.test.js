@@ -2,7 +2,11 @@
 
 const { strict: assert } = require('assert');
 
-const { localAddresses, addressKey, findBestNodeMatch } = require('../core/binkp/util.js');
+const {
+    localAddresses,
+    addressKey,
+    findBestNodeMatch,
+} = require('../core/binkp/util.js');
 const Address = require('../core/ftn_address.js');
 
 describe('binkp/util — localAddresses', () => {

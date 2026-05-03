@@ -118,10 +118,7 @@ class BsoSpool {
         if (ageMs <= this._staleLockMaxAgeMs) return false;
         try {
             await fsp.unlink(bsyPath);
-            Log.info(
-                { path: bsyPath, ageMs },
-                '[BinkP/BSO] Reaped stale .bsy lock'
-            );
+            Log.info({ path: bsyPath, ageMs }, '[BinkP/BSO] Reaped stale .bsy lock');
             return true;
         } catch (err) {
             if (err.code === 'ENOENT') return true;
