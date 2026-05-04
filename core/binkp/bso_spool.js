@@ -527,7 +527,7 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
     session.on('file-sent', async (name, size, ts) => {
         const key = `${name}\0${size}\0${ts}`;
         const fn = disposeMap.get(key);
-        if (fn) {
+        if (typeof fn === 'function') {
             disposeMap.delete(key);
             await fn().catch(err =>
                 Log.warn(
@@ -535,6 +535,9 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
                     '[BinkP/BSO] Error applying file disposition'
                 )
             );
+        } else if (fn !== undefined) {
+            disposeMap.delete(key);
+            Log.warn({ name }, '[BinkP/BSO] Invalid file disposition handler; skipping');
         }
     });
 
