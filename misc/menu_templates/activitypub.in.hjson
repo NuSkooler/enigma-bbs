@@ -47,7 +47,15 @@
         }
         {
           value: { command: "P" }
-          action: @menu:activityPubPublicMessages
+          action: [
+            {
+              acs: "AE1"
+              action: @menu:activityPubCompose
+            }
+            {
+              action: @menu:activityPubNotEnabled
+            }
+          ]
         }
         {
           value: { command: "B" }
@@ -316,36 +324,6 @@
               action: @systemMethod:prevMenu
             }
           ]
-        }
-      }
-    }
-
-    activityPubPublicMessages: {
-      desc: ActivityPub Public
-      module: msg_list
-      art: MSGLIST
-      config: {
-        messageAreaTag: activitypub_shared
-        menuViewPost: messageAreaViewPost
-      }
-      form: {
-        0: {
-          mci:  {
-            VM1: {
-              focus: true
-              submit: true
-              argName: messageIndex
-            }
-          }
-          submit: {
-            *: [
-              {
-                  value: { messageIndex: null }
-                  action: @method:selectMessage
-              }
-            ]
-          }
-          actionKeys: @reference:common.quitToPrev
         }
       }
     }
