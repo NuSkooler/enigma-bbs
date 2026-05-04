@@ -2,7 +2,7 @@
 'use strict';
 
 //  enigma-bbs
-const { MenuModule, MenuFlags } = require('./menu_module');
+const { MenuModule } = require('./menu_module');
 const stringFormat = require('./string_format.js');
 const getSortedAvailableFileAreas =
     require('./file_base_area.js').getSortedAvailableFileAreas;
@@ -27,6 +27,7 @@ const async = require('async');
 const _ = require('lodash');
 const temptmp = require('temptmp').createTrackedSession('upload');
 const paths = require('path');
+const fs = require('fs');
 const sanatizeFilename = require('sanitize-filename');
 
 exports.moduleInfo = {
@@ -76,8 +77,6 @@ exports.getModule = class UploadModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.setMergedFlag(MenuFlags.NoHistory);
-
         this.interrupt = MenuModule.InterruptTypes.Never;
 
         if (_.has(options, 'lastMenuResult.recvFilePaths')) {
@@ -93,8 +92,17 @@ exports.getModule = class UploadModule extends MenuModule {
 
         this.availAreas = getSortedAvailableFileAreas(this.client, { writeAcs: true });
 
+        if (this.tempRecvDirectory) {
+            this.restorePersistedUploadState();
+        }
+
         this.menuMethods = {
             optionsNavContinue: (formData, extraArgs, cb) => {
+                const areaIdx = this.viewControllers.options
+                    .getView(MciViewIds.options.area)
+                    .getData();
+                this.areaInfo = this.availAreas[areaIdx];
+
                 return this.performUpload(cb);
             },
 
@@ -138,6 +146,78 @@ exports.getModule = class UploadModule extends MenuModule {
                 return cb(null);
             },
         };
+    }
+
+
+    getPersistUploadStatePath() {
+        if (!this.tempRecvDirectory) {
+            return null;
+        }
+
+        const baseTempDir = this.tempRecvDirectory.replace(/[\/]+$/, '');
+        return `${baseTempDir}.upload_state.json`;
+    }
+
+    persistUploadState() {
+        const statePath = this.getPersistUploadStatePath();
+        if (!statePath || !this.areaInfo) {
+            return;
+        }
+
+        const state = {
+            areaTag: this.areaInfo.areaTag,
+            uploadType: this.uploadType,
+        };
+
+        try {
+            fs.writeFileSync(statePath, JSON.stringify(state), 'utf8');
+            this.client.log.debug('Persisted upload state', state);
+        } catch (err) {
+            this.client.log.warn(
+                { path: statePath, error: err.message },
+                'Failed to persist upload state'
+            );
+        }
+    }
+
+    restorePersistedUploadState() {
+        const statePath = this.getPersistUploadStatePath();
+        if (!statePath || !fs.existsSync(statePath)) {
+            return;
+        }
+
+        try {
+            const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+            if (!this.areaInfo && state.areaTag) {
+                this.areaInfo =
+                    this.availAreas.find(a => a.areaTag === state.areaTag) ||
+                    getFileAreaByTag(state.areaTag);
+            }
+            if (!this.uploadType && state.uploadType) {
+                this.uploadType = state.uploadType;
+            }
+
+            this.client.log.debug('Restored persisted upload state', {
+                areaTag: this.areaInfo ? this.areaInfo.areaTag : 'none',
+                uploadType: this.uploadType,
+                path: statePath,
+            });
+
+            try {
+                fs.unlinkSync(statePath);
+                this.client.log.debug('Removed persisted upload state file', { path: statePath });
+            } catch (err) {
+                this.client.log.warn(
+                    { path: statePath, error: err.message },
+                    'Failed to remove persisted upload state file'
+                );
+            }
+        } catch (err) {
+            this.client.log.warn(
+                { path: statePath, error: err.message },
+                'Failed to restore persisted upload state'
+            );
+        }
     }
 
     getSaveState() {
@@ -203,6 +283,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
     finishedLoading() {
         if (this.isFileTransferComplete()) {
+            this.restorePersistedUploadState();
             //  When files are already transferred (bypassing options form),
             //  ensure areaInfo is set to the first available area
             if (!this.areaInfo && this.availAreas.length > 0) {
@@ -230,6 +311,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
             //  need a terminator for various external protocols
             this.tempRecvDirectory = pathWithTerminatingSeparator(tempRecvDirectory);
+            this.persistUploadState();
 
             const modOpts = {
                 extraArgs: {
