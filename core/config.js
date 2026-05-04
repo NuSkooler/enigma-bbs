@@ -67,3 +67,16 @@ exports.Config = class Config extends ConfigLoader {
         return './config/';
     }
 };
+
+// ── Test helpers ──────────────────────────────────────────────────────────────
+// Replace exports.get with a function that returns |cfg|; returns the old getter
+// so the caller can restore it with _popTestConfig.
+exports._pushTestConfig = function (cfg) {
+    const prev = exports.get;
+    exports.get = () => cfg;
+    return prev;
+};
+
+exports._popTestConfig = function (prev) {
+    exports.get = prev;
+};

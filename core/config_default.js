@@ -1025,6 +1025,81 @@ module.exports = () => {
                     allowReplace: false, //  use "Replaces" TIC field
                     descPriority: 'diz', //  May be diz=.DIZ/etc., or tic=from TIC Ldesc
                 },
+
+                //
+                //  BinkP mail exchange. Uses the same |paths| block above for the BSO spool.
+                //
+                binkp: {
+                    inbound: {
+                        enabled: false,
+                        port: 24554,
+                        address: '0.0.0.0',
+                    },
+
+                    //  Pull cycle: dial every configured peer on this schedule
+                    //  regardless of whether we have outbound mail for them.
+                    //  Keeps echo mail flowing in from quiet hubs that wait for
+                    //  the spoke (us) to call. Any later.js text expression.
+                    //  Set to null/empty to disable the pull cycle entirely
+                    //  (the BBS will then only dial peers when ftn_bso queues
+                    //  outbound — see "Crashmail" below).
+                    pullSchedule: 'every 15 minutes',
+
+                    //
+                    //  Crashmail: when ftn_bso writes a flow file via
+                    //  flowFileAppendRefs (i.e. a message has been queued for a
+                    //  remote peer), the BinkP module dials that peer right
+                    //  away via the NewOutboundBSO system event. Back-to-back
+                    //  exports for the same peer are coalesced into a single
+                    //  session by waiting |crashmailDebounceMs| before dialing
+                    //  (default 500 ms). Lower it to ship faster at the cost
+                    //  of more sessions per burst; raise it if you batch a lot.
+                    //
+                    crashmailDebounceMs: 500,
+
+                    //
+                    //  Stale .bsy lock reaper. When the BBS crashes mid-session
+                    //  the per-node .bsy lock isn't released and that node is
+                    //  un-pollable until the file is removed. On startup (and
+                    //  on every acquireLock attempt that hits EEXIST) we treat
+                    //  any .bsy older than this threshold as orphaned and
+                    //  unlink it.
+                    //
+                    //  Default: 30 minutes (6× the internal session timeout of
+                    //  5 minutes). If you ever raise the session timeout, raise
+                    //  this in proportion.
+                    //
+                    staleLockMaxAgeMs: 30 * 60 * 1000,
+
+                    //
+                    //  Inbound temp file sweep. Inbound files are buffered as
+                    //  binkp_in_*.dt under |tempDir| (defaults to OS temp) and
+                    //  renamed into the inbound spool on successful receipt.
+                    //  If a peer drops mid-transfer the partial is leaked; the
+                    //  in-session finalizer cleans up most cases, this startup
+                    //  sweep catches anything left after a hard process kill.
+                    //  Default: 1 hour (well above any legitimate session).
+                    //
+                    inboundTempMaxAgeMs: 60 * 60 * 1000,
+
+                    //
+                    //  Per-node configuration, keyed by FTN address.
+                    //
+                    //  host            : Hostname/IP for outbound calls (required to call a node).
+                    //  port            : TCP port for outbound calls (default: 24554).
+                    //  sessionPassword : CRAM-MD5 session password (distinct from FTN packet password).
+                    //  pull            : Set false to exclude this node from the periodic pull cycle.
+                    //                    Crashmail (event-driven dialing on outbound) still applies.
+                    //                    Default: true.
+                    //
+                    //  nodes: {
+                    //      "1:218/700": {
+                    //          host: "bbs.example.com"
+                    //          port: 24554
+                    //          sessionPassword: "s3cr3t"
+                    //      }
+                    //  }
+                },
             },
         },
 

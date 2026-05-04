@@ -2,10 +2,20 @@
 'use strict';
 
 const events = require('events');
-const Log = require('./logger.js').log;
+const loggerModule = require('./logger.js');
 const SystemEvents = require('./system_events.js');
 
-//  deps
+//  Trace log helper — looks up logger.log on each call rather than capturing
+//  it once at module-load time. logger.log is set by Log.init() at runtime,
+//  which means a load-time capture would freeze it as `undefined` until init
+//  happens (and unit tests, which never call init, would crash on the first
+//  Events.addListener / once call).
+function _trace(...args) {
+    const log = loggerModule.log;
+    if (log && typeof log.trace === 'function') {
+        log.trace(...args);
+    }
+}
 
 module.exports = new (class Events extends events.EventEmitter {
     constructor() {
@@ -18,7 +28,7 @@ module.exports = new (class Events extends events.EventEmitter {
     }
 
     addListener(event, listener) {
-        Log.trace({ event: event }, 'Registering event listener');
+        _trace({ event: event }, 'Registering event listener');
         return super.addListener(event, listener);
     }
 
@@ -27,17 +37,17 @@ module.exports = new (class Events extends events.EventEmitter {
     }
 
     emit(event, ...args) {
-        Log.trace({ event: event }, 'Emitting event');
+        _trace({ event: event }, 'Emitting event');
         return super.emit(event, ...args);
     }
 
     on(event, listener) {
-        Log.trace({ event: event }, 'Registering event listener');
+        _trace({ event: event }, 'Registering event listener');
         return super.on(event, listener);
     }
 
     once(event, listener) {
-        Log.trace({ event: event }, 'Registering single use event listener');
+        _trace({ event: event }, 'Registering single use event listener');
         return super.once(event, listener);
     }
 
@@ -48,7 +58,7 @@ module.exports = new (class Events extends events.EventEmitter {
     //  The returned object must be used with removeMultipleEventListener()
     //
     addMultipleEventListener(events, listener) {
-        Log.trace({ events }, 'Registering event listeners');
+        _trace({ events }, 'Registering event listeners');
 
         const listeners = [];
 
@@ -62,14 +72,14 @@ module.exports = new (class Events extends events.EventEmitter {
     }
 
     removeMultipleEventListener(listeners) {
-        Log.trace({ events }, 'Removing listeners');
+        _trace({ events }, 'Removing listeners');
         listeners.forEach(listener => {
             this.removeListener(listener.eventName, listener.listenWrapper);
         });
     }
 
     removeListener(event, listener) {
-        Log.trace({ event: event }, 'Removing listener');
+        _trace({ event: event }, 'Removing listener');
         return super.removeListener(event, listener);
     }
 

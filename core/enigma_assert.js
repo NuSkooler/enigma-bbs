@@ -2,14 +2,15 @@
 'use strict';
 
 //  ENiGMA½
-const Config = require('./config.js').get;
+const configModule = require('./config.js');
 const Log = require('./logger.js').log;
 
 //  deps
 const assert = require('assert');
 
 module.exports = function (condition, message) {
-    if (Config().debug.assertsEnabled) {
+    const cfgGet = configModule.get;
+    if (cfgGet && cfgGet().debug.assertsEnabled) {
         assert.apply(this, arguments);
     } else if (!condition) {
         const stack = new Error().stack;

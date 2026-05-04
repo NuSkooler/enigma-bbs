@@ -26,4 +26,18 @@ module.exports = {
     UserStatSet: 'codes.l33t.enigma.system.user_stat_set', //  { ..., statName, statValue }
     UserStatIncrement: 'codes.l33t.enigma.system.user_stat_increment', //  { ..., statName, statIncrementBy, statValue }
     UserAchievementEarned: 'codes.l33t.enigma.system.user_achievement_earned', //  { ..., achievementTag, points, title, text }
+
+    //  Emitted when a native BinkP session receives one or more inbound files.
+    //  ftn_bso subscribes to this to trigger an immediate import/toss rather
+    //  than waiting for the next scheduled run.  External mailers (binkd, etc.)
+    //  are unaffected — they rely on the existing @watch / @sched mechanisms.
+    NewInboundBSO: 'codes.l33t.enigma.system.new_inbound_bso',
+
+    //  Emitted by ftn_bso once an outbound flow file is written and ready to
+    //  ship.  Payload: { address }  (Address instance for the destination).
+    //  The native BinkP module subscribes to this and dials |address|
+    //  immediately (debounced, to coalesce back-to-back exports of multiple
+    //  messages to the same node into a single session) rather than waiting
+    //  for the periodic pull cycle.  Crashmail semantics — see scanner_tossers/binkp.js.
+    NewOutboundBSO: 'codes.l33t.enigma.system.new_outbound_bso',
 };

@@ -14,7 +14,7 @@
         "pretty": "npx prettier --write .",
         "build:acs": "peggy --format commonjs -o core/acs_parser.js misc/acs_parser.pegjs",
         "prepare": "husky",
-        "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000 --require test/setup.js"
+        "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000 --require test/setup.js --exit"
     },
     "repository": {
         "type": "git",

@@ -3,6 +3,12 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.4.0-beta
 
+* **Native BinkP / FTN mailer** — built-in BinkP/1.1 implementation (inbound listener + outbound caller) that integrates directly with the existing BSO scanner/tosser. No external `binkd` or cron-driven poll script required for FidoNet-style networks. Two complementary triggers replace the old single-timer model:
+
+  * **Crashmail** — when ftn_bso writes a flow file, the destination peer is dialed within ~½ second (debounced; tunable via `crashmailDebounceMs`). No more waiting for the next scheduled tick to ship outbound.
+  * **Pull schedule** — `binkp.pullSchedule` (default `every 15 minutes`) dials *every* configured peer in `binkp.nodes` regardless of pending mail, so echo mail flows in from hubs that wait for the spoke to call. Per-node opt-out via `pull: false`.
+  * Configure inbound port, per-node hosts/passwords (CRAM-MD5), and the schedules under `scannerTossers.ftn_bso.binkp` in `config.hjson`.
+
 * **Internet Mail (send & receive)** — users can now send and receive internet email directly from the BBS private message system, via a new `email` scanner/tosser module. See [Email Configuration](./docs/_docs/configuration/email.md) and [Internet Mail](./docs/_docs/messageareas/internet-mail.md).
 
   * **Send**: private messages addressed to `user@domain.com` are delivered through your configured SMTP transport (Nodemailer-compatible — any provider, or service shortcut like Zoho/Fastmail).
