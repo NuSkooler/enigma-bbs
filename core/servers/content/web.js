@@ -17,6 +17,33 @@ const forEachSeries = require('async/forEachSeries');
 const findSeries = require('async/findSeries');
 const WebLog = require('../../web_log.js');
 
+class RateLimiter {
+    constructor() {
+        //  ip+key -> array of timestamps (ms)
+        this._windows = new Map();
+    }
+
+    //  Returns true if the request is allowed, false if it exceeds the limit.
+    //  opts: { windowMs, maxRequests }
+    check(ip, key, opts) {
+        const now = Date.now();
+        const mapKey = `${ip}:${key}`;
+        let timestamps = this._windows.get(mapKey) || [];
+
+        //  Prune entries outside the current window
+        timestamps = timestamps.filter(t => now - t < opts.windowMs);
+
+        if (timestamps.length >= opts.maxRequests) {
+            this._windows.set(mapKey, timestamps);
+            return false;
+        }
+
+        timestamps.push(now);
+        this._windows.set(mapKey, timestamps);
+        return true;
+    }
+}
+
 const ModuleInfo = (exports.moduleInfo = {
     name: 'Web',
     desc: 'Web Server',
@@ -82,6 +109,7 @@ exports.getModule = class WebServerModule extends ServerModule {
         this.enableHttps = config.contentServers.web.https.enabled || false;
 
         this.routes = {};
+        this._rateLimiter = new RateLimiter();
     }
 
     logger() {
@@ -242,6 +270,25 @@ exports.getModule = class WebServerModule extends ServerModule {
         }
     }
 
+    //  Returns true if the request is within limits; false (and sends 429) if not.
+    checkRateLimit(req, resp, key, opts) {
+        const ip = req.socket.remoteAddress || 'unknown';
+        if (this._rateLimiter.check(ip, key, opts)) {
+            return true;
+        }
+        this.log.warn({ ip, key }, 'Rate limit exceeded');
+        return (this.rateLimitExceeded(resp), false);
+    }
+
+    rateLimitExceeded(resp) {
+        return this.respondWithError(
+            resp,
+            429,
+            'Too many requests.',
+            'Too Many Requests'
+        );
+    }
+
     respondWithError(resp, code, bodyText, title) {
         const customErrorPage = paths.join(
             Config().contentServers.web.staticRoot,
@@ -349,24 +396,29 @@ exports.getModule = class WebServerModule extends ServerModule {
                     tryFile
                 );
 
-                const filePath = this.resolveStaticPath(fileName);
-                fs.stat(filePath, (err, stats) => {
-                    if (err || !stats.isFile()) {
+                this.resolveStaticPath(fileName, (err, filePath) => {
+                    if (err || !filePath) {
                         return nextTryFile(null, false);
                     }
 
-                    const headers = {
-                        'Content-Type':
-                            mimeTypes.contentType(paths.basename(filePath)) ||
-                            mimeTypes.contentType('.bin'),
-                        'Content-Length': stats.size,
-                    };
+                    fs.stat(filePath, (err, stats) => {
+                        if (err || !stats.isFile()) {
+                            return nextTryFile(null, false);
+                        }
 
-                    const readStream = fs.createReadStream(filePath);
-                    resp.writeHead(200, headers);
-                    readStream.pipe(resp);
+                        const headers = {
+                            'Content-Type':
+                                mimeTypes.contentType(paths.basename(filePath)) ||
+                                mimeTypes.contentType('.bin'),
+                            'Content-Length': stats.size,
+                        };
 
-                    return nextTryFile(null, true);
+                        const readStream = fs.createReadStream(filePath);
+                        resp.writeHead(200, headers);
+                        readStream.pipe(resp);
+
+                        return nextTryFile(null, true);
+                    });
                 });
             },
             (_, wasHandled) => {
@@ -377,50 +429,79 @@ exports.getModule = class WebServerModule extends ServerModule {
 
     tryStaticRoute(req, resp, cb) {
         const fileName = req.url.substr(req.url.lastIndexOf('/', 1));
-        const filePath = this.resolveStaticPath(fileName);
 
-        if (!filePath) {
-            return cb(false);
-        }
-
-        fs.stat(filePath, (err, stats) => {
-            if (err || !stats.isFile()) {
+        this.resolveStaticPath(fileName, (err, filePath) => {
+            if (err || !filePath) {
                 return cb(false);
             }
 
-            const headers = {
-                'Content-Type':
-                    mimeTypes.contentType(paths.basename(filePath)) ||
-                    mimeTypes.contentType('.bin'),
-                'Content-Length': stats.size,
-            };
+            fs.stat(filePath, (err, stats) => {
+                if (err || !stats.isFile()) {
+                    return cb(false);
+                }
 
-            const readStream = fs.createReadStream(filePath);
-            resp.writeHead(200, headers);
-            readStream.pipe(resp);
+                const headers = {
+                    'Content-Type':
+                        mimeTypes.contentType(paths.basename(filePath)) ||
+                        mimeTypes.contentType('.bin'),
+                    'Content-Length': stats.size,
+                };
 
-            return cb(true);
+                const readStream = fs.createReadStream(filePath);
+                resp.writeHead(200, headers);
+                readStream.pipe(resp);
+
+                return cb(true);
+            });
         });
     }
 
-    resolveStaticPath(requestPath) {
+    resolveStaticPath(requestPath, cb) {
         const staticRoot = _.get(Config(), 'contentServers.web.staticRoot');
-        const path = paths.resolve(staticRoot, `.${requestPath}`);
-        if (path.startsWith(staticRoot)) {
-            return path;
+        //  Ensure the root ends with a separator so '/srv/wwwevil' can't pass
+        //  a startsWith('/srv/www') check.
+        const rootWithSep = staticRoot.endsWith(paths.sep)
+            ? staticRoot
+            : staticRoot + paths.sep;
+        const candidate = paths.resolve(staticRoot, `.${requestPath}`);
+
+        //  Lexical check first — rejects obvious traversal without touching the FS.
+        if (!candidate.startsWith(rootWithSep)) {
+            return cb(null, null);
         }
+
+        //  Dereference symlinks so a link inside staticRoot pointing outside
+        //  it cannot escape the guard.
+        fs.realpath(candidate, (err, real) => {
+            if (err) {
+                return cb(null, null); //  path doesn't exist — not found
+            }
+            return cb(null, real.startsWith(rootWithSep) ? real : null);
+        });
     }
 
-    resolveTemplatePath(path) {
-        if (paths.isAbsolute(path)) {
-            return path;
+    resolveTemplatePath(templatePath, cb) {
+        if (paths.isAbsolute(templatePath)) {
+            //  Absolute paths are operator-supplied from config; use as-is.
+            return cb(null, templatePath);
         }
 
         const staticRoot = _.get(Config(), 'contentServers.web.staticRoot');
-        const resolved = paths.resolve(staticRoot, path);
-        if (resolved.startsWith(staticRoot)) {
-            return resolved;
+        const rootWithSep = staticRoot.endsWith(paths.sep)
+            ? staticRoot
+            : staticRoot + paths.sep;
+        const candidate = paths.resolve(staticRoot, templatePath);
+
+        if (!candidate.startsWith(rootWithSep)) {
+            return cb(null, null);
         }
+
+        fs.realpath(candidate, (err, real) => {
+            if (err) {
+                return cb(null, null);
+            }
+            return cb(null, real.startsWith(rootWithSep) ? real : null);
+        });
     }
 
     routeTemplateFilePage(templatePath, preprocessCallback, resp) {

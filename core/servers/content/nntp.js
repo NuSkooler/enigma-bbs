@@ -5,7 +5,11 @@
 const Log = require('../../logger.js').log;
 const { ServerModule } = require('../../server_module.js');
 const Config = require('../../config.js').get;
-const { openDatabase, getModDatabasePath } = require('../../database.js');
+const {
+    openDatabase,
+    getModDatabasePath,
+    getDatabasePath,
+} = require('../../database.js');
 const {
     getMessageAreaByTag,
     getMessageConferenceByTag,
@@ -1446,7 +1450,16 @@ function performMaintenanceTask(args, cb) {
     }
 
     try {
-        const messageDbPath = paths.join(Config().paths.db, 'message.sqlite3');
+        const messageDbPath = getDatabasePath('message');
+
+        //  ATTACH DATABASE does not support bound parameters (SQLite limitation),
+        //  so we validate the resolved path is within the expected db directory
+        //  before interpolating it into the statement.
+        const dbRoot = paths.resolve(Config().paths.db);
+        if (!paths.resolve(messageDbPath).startsWith(dbRoot + paths.sep)) {
+            throw new Error(`Resolved message DB path escapes db root: ${messageDbPath}`);
+        }
+
         nntpDatabase.db.exec(`ATTACH DATABASE "${messageDbPath}" AS msgdb;`);
 
         const info = nntpDatabase.db

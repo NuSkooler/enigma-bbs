@@ -16,7 +16,7 @@ const getHelpFor = require('./oputil_help.js').getHelpFor;
 //	deps
 const async = require('async');
 const fs = require('fs-extra');
-const exec = require('child_process').exec;
+const { spawn } = require('child_process');
 const inq = require('inquirer');
 
 exports.handleSSHKeyCommand = handleSSHKeyCommand;
@@ -40,16 +40,49 @@ const QUESTIONS = {
     ],
 };
 
-function execute(ui, command) {
-    exec(command, function (error) {
-        ui.log.write(error);
+function generateSSHKey(ui, targetKeyFile, passphrase, cb) {
+    //  Pipe: openssl genpkey ... | openssl rsa -passout ...
+    //  The passphrase is passed as an argument to execFile/spawn, never via a shell
+    //  string, to prevent command injection.
+    const genpkey = spawn('openssl', [
+        'genpkey',
+        '-algorithm',
+        'RSA',
+        '-pkeyopt',
+        'rsa_keygen_bits:2048',
+        '-pkeyopt',
+        'rsa_keygen_pubexp:65537',
+    ]);
 
-        if (error) {
-            const reason = error ? error.message : 'OpenSSL Error';
-            ui.log.write(`openssl command failed: ${reason}`);
-        } else {
-            ui.log.write('SSH Keys Generated');
+    const rsa = spawn('openssl', [
+        'rsa',
+        '-out',
+        `./${targetKeyFile}`,
+        '-aes128',
+        '-traditional',
+        '-passout',
+        `pass:${passphrase}`,
+    ]);
+
+    genpkey.stdout.pipe(rsa.stdin);
+
+    let errOutput = '';
+    genpkey.stderr.on('data', d => {
+        errOutput += d;
+    });
+    rsa.stderr.on('data', d => {
+        errOutput += d;
+    });
+
+    genpkey.on('error', err => cb(err));
+    rsa.on('error', err => cb(err));
+
+    rsa.on('close', code => {
+        if (code !== 0) {
+            return cb(new Error(`openssl failed (exit ${code}): ${errOutput.trim()}`));
         }
+        ui.log.write('SSH Keys Generated');
+        return cb(null);
     });
 }
 
@@ -94,8 +127,7 @@ function createNew(cb) {
                     fs.ensureDirSync(sshKeyPath);
 
                     // Create SSH Keys
-                    const command = `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa -out ./${targetKeyFile} -aes128 -traditional -passout pass:`;
-                    execute(ui, `${command}${sslPassword}`);
+                    generateSSHKey(ui, targetKeyFile, sslPassword, callback);
                 });
             },
         ],

@@ -3,6 +3,22 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.4.0-beta
 
+* **Security hardening** — several security improvements across the system:
+
+  * **Stronger password hashing** — PBKDF2 iteration count raised from 1,000 to 210,000 (OWASP 2024 recommendation for PBKDF2-SHA512). Existing user passwords are transparently re-hashed to the new parameters on next successful login — no user action or migration script required. Hash parameters are now stored per-user in `pw_hash_params` so future algorithm changes can be made without a flag day.
+
+  * **Password reset token TTL** — reset tokens now expire after a configurable period (default 1 hour). Configure via `contentServers.web.resetPassword.tokenTtlMinutes` in `config.hjson`.
+
+  * **Web endpoint rate limiting** — per-IP sliding-window rate limits are now enforced on the password reset and 2FA/OTP registration endpoints (GET and POST), returning HTTP 429 when exceeded. Limits are configurable under `contentServers.web.rateLimits` (`pwResetGet`, `pwResetPost`, `otpRegGet`, `otpRegPost`); defaults are 5–10 requests per 10-minute window.
+
+  * **Command injection fix** — the `oputil ssh-key` generator now passes the key passphrase as a discrete process argument rather than interpolating it into a shell string, eliminating a shell injection vector.
+
+  * **Archive util filename injection fix** — filenames in `compressTo` are now passed as discrete arguments rather than space-joined, preventing argument injection via crafted filenames.
+
+  * **Static file symlink escape fix** — the web server's static file resolver now dereferences symlinks via `fs.realpath` before the path boundary check, preventing a symlink placed inside `staticRoot` from escaping it.
+
+  * **Config file security note** — see [Security](./docs/_docs/configuration/security.md) for guidance on protecting `config.hjson` (which contains secrets such as `privateKeyPass`) with appropriate file permissions.
+
 * **Native BinkP / FTN mailer** — built-in BinkP/1.1 implementation (inbound listener + outbound caller) that integrates directly with the existing BSO scanner/tosser. No external `binkd` or cron-driven poll script required for FidoNet-style networks. Two complementary triggers replace the old single-timer model:
 
   * **Crashmail** — when ftn_bso writes a flow file, the destination peer is dialed within ~½ second (debounced; tunable via `crashmailDebounceMs`). No more waiting for the next scheduled tick to ship outbound.

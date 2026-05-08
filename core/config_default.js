@@ -368,6 +368,17 @@ module.exports = () => {
                         __dirname,
                         './../www/reset_password.template.html'
                     ),
+
+                    //  how long (in minutes) a password reset token remains valid
+                    tokenTtlMinutes: 60,
+                },
+
+                //  per-IP rate limits for sensitive web endpoints
+                rateLimits: {
+                    pwResetGet: { windowMs: 10 * 60 * 1000, maxRequests: 10 },
+                    pwResetPost: { windowMs: 10 * 60 * 1000, maxRequests: 5 },
+                    otpRegGet: { windowMs: 10 * 60 * 1000, maxRequests: 10 },
+                    otpRegPost: { windowMs: 10 * 60 * 1000, maxRequests: 5 },
                 },
 
                 http: {
