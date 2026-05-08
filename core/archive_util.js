@@ -239,10 +239,8 @@ module.exports = class ArchiveUtil {
 
         const fmtObj = {
             archivePath: archivePath,
-            fileList: files.join(' '), //  :TODO: probably need same hack as extractTo here!
         };
 
-        //  :TODO: DRY with extractTo()
         const args = archiver.compress.args.map(arg => {
             return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
         });

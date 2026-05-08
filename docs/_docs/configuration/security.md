@@ -10,6 +10,23 @@ Unlike in the golden era of BBSing, modern Internet-connected systems are prone 
 * Optional SSH public key authentication for passwordless logins over secure transports.
 * Optional [Two-Factor Authentication (2FA)](https://en.wikipedia.org/wiki/Multi-factor_authentication) via [One-Time-Password (OTP)](https://en.wikipedia.org/wiki/One-time_password) for users, supporting [Google Authenticator](http://google-authenticator.com/), [Time-Based One-Time Password Algorithm (TOTP, RFC-6238)](https://tools.ietf.org/html/rfc6238), and [HMAC-Based One-Time Password Algorithm (HOTP, RFC-4266)](https://tools.ietf.org/html/rfc4226).
 
+## Protecting Sensitive Configuration
+
+`config.hjson` contains secrets — most notably the SSH host key passphrase (`loginServers.ssh.privateKeyPass`) and any email gateway credentials. These values are stored in plain text in the file. To limit exposure:
+
+* **Restrict file permissions.** The config file should be readable only by the OS user that runs ENiGMA½:
+  ```bash
+  chmod 600 /path/to/enigma-bbs/config/config.hjson
+  ```
+* **Restrict the SSH private key itself** in the same way:
+  ```bash
+  chmod 600 /path/to/enigma-bbs/config/ssh_private_key.pem
+  ```
+* Do not commit `config.hjson` to version control. Add it to `.gitignore` if you track your configuration in git.
+* Limit OS-level read access to backup archives that include the config directory.
+
+> :warning: If `privateKeyPass` is left blank in your config, the SSH host key will be generated and stored without a passphrase. This is acceptable if the key file itself is properly permission-restricted and the host is otherwise secured.
+
 ## Two-Factor Authentication via One-Time Password
 Enabling Two-Factor Authentication via One-Time-Password (2FA/OTP) on an account adds an extra layer of security ("_something a user has_") in addition to their password ("_something a user knows_"). Providing 2FA/OTP to your users has some prerequisites:
 * [A configured email gateway](../configuration/email.md) such that the system can send out emails.

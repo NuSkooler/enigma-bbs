@@ -10,6 +10,7 @@
 module.exports = {
     PassPbkdf2Salt: 'pw_pbkdf2_salt',
     PassPbkdf2Dk: 'pw_pbkdf2_dk',
+    PassHashParams: 'pw_hash_params', //  JSON object: { iterations, digest, keyLen, saltLen }; absent = legacy SHA-1/1000
 
     AccountStatus: 'account_status', //  See User.AccountStatus enum
 

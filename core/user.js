@@ -49,8 +49,19 @@ module.exports = class User {
 
     static get PBKDF2() {
         return {
-            //  :TODO: bump up iterations for all new PWs
+            iterations: 210000,
+            digest: 'sha512',
+            keyLen: 64,
+            saltLen: 32,
+        };
+    }
+
+    //  Params used by hashes created before PassHashParams was stored.
+    //  Absence of PassHashParams on a user record implies these values.
+    static get LegacyPBKDF2() {
+        return {
             iterations: 1000,
+            digest: 'sha1',
             keyLen: 128,
             saltLen: 32,
         };
@@ -58,7 +69,12 @@ module.exports = class User {
 
     static get StandardPropertyGroups() {
         return {
-            auth: [UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk, UserProps.SSHPubKey],
+            auth: [
+                UserProps.PassPbkdf2Salt,
+                UserProps.PassPbkdf2Dk,
+                UserProps.SSHPubKey,
+                UserProps.PassHashParams,
+            ],
         };
     }
 
@@ -94,17 +110,11 @@ module.exports = class User {
     hasValidPasswordProperties() {
         const salt = this.getProperty(UserProps.PassPbkdf2Salt);
         const dk = this.getProperty(UserProps.PassPbkdf2Dk);
-
-        if (
-            !salt ||
-            !dk ||
-            salt.length !== User.PBKDF2.saltLen * 2 ||
-            dk.length !== User.PBKDF2.keyLen * 2
-        ) {
-            return false;
-        }
-
-        return true;
+        //  Lengths are intentionally not checked against the current PBKDF2
+        //  target here — legacy hashes use a different keyLen and would fail
+        //  that assertion. The actual key lengths are validated at auth time
+        //  using the per-user PassHashParams.
+        return !!(salt && dk && salt.length > 0 && dk.length > 0);
     }
 
     isRoot() {
@@ -261,25 +271,80 @@ module.exports = class User {
         const tempAuthInfo = {};
 
         const validatePassword = (props, callback) => {
+            const hashParams = User.getHashParams(props);
             User.generatePasswordDerivedKey(
                 authInfo.password,
                 props[UserProps.PassPbkdf2Salt],
+                hashParams,
                 (err, dk) => {
                     if (err) {
                         return callback(err);
                     }
 
-                    //
-                    //  Use constant time comparison here for security feel-goods
-                    //
                     const passDkBuf = Buffer.from(dk, 'hex');
                     const propsDkBuf = Buffer.from(props[UserProps.PassPbkdf2Dk], 'hex');
 
-                    return callback(
-                        crypto.timingSafeEqual(passDkBuf, propsDkBuf)
-                            ? null
-                            : Errors.AccessDenied('Invalid password')
-                    );
+                    //  timingSafeEqual requires equal-length buffers; length mismatch
+                    //  means stored params don't match what we derived — treat as failure.
+                    if (
+                        passDkBuf.length !== propsDkBuf.length ||
+                        !crypto.timingSafeEqual(passDkBuf, propsDkBuf)
+                    ) {
+                        return callback(Errors.AccessDenied('Invalid password'));
+                    }
+
+                    //  Upgrade legacy hashes transparently on successful login.
+                    //  setImmediate defers past the current call stack — loadProperties
+                    //  is synchronous (better-sqlite3), so without deferral async's
+                    //  waterfall double-call guard trips on the initProps step.
+                    if (User.needsRehash(props)) {
+                        const oldParams = User.getHashParams(props);
+                        Log.info(
+                            {
+                                userId: tempAuthInfo.userId,
+                                username: tempAuthInfo.username,
+                                fromParams: {
+                                    digest: oldParams.digest,
+                                    iterations: oldParams.iterations,
+                                    keyLen: oldParams.keyLen,
+                                },
+                                toParams: {
+                                    digest: User.PBKDF2.digest,
+                                    iterations: User.PBKDF2.iterations,
+                                    keyLen: User.PBKDF2.keyLen,
+                                },
+                            },
+                            'Upgrading password hash to current parameters'
+                        );
+                        setImmediate(() => {
+                            User.rehashPassword(
+                                tempAuthInfo.userId,
+                                authInfo.password,
+                                rehashErr => {
+                                    if (rehashErr) {
+                                        Log.warn(
+                                            {
+                                                error: rehashErr.message,
+                                                userId: tempAuthInfo.userId,
+                                                username: tempAuthInfo.username,
+                                            },
+                                            'Failed to upgrade password hash; will retry on next login'
+                                        );
+                                    } else {
+                                        Log.info(
+                                            {
+                                                userId: tempAuthInfo.userId,
+                                                username: tempAuthInfo.username,
+                                            },
+                                            'Password hash upgrade complete'
+                                        );
+                                    }
+                                }
+                            );
+                        });
+                    }
+
+                    return callback(null);
                 }
             );
         };
@@ -316,7 +381,7 @@ module.exports = class User {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
 
-            if (authInfo.pubKey.key.algo != pubKeyActual.type) {
+            if (authInfo.pubKey.key.algo !== pubKeyActual.type) {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
 
@@ -523,6 +588,9 @@ module.exports = class User {
                             }
                             self.properties[UserProps.PassPbkdf2Salt] = info.salt;
                             self.properties[UserProps.PassPbkdf2Dk] = info.dk;
+                            self.properties[UserProps.PassHashParams] = JSON.stringify(
+                                User.PBKDF2
+                            );
                             return callback(null);
                         }
                     );
@@ -824,6 +892,7 @@ module.exports = class User {
             const newProperties = {
                 [UserProps.PassPbkdf2Salt]: info.salt,
                 [UserProps.PassPbkdf2Dk]: info.dk,
+                [UserProps.PassHashParams]: JSON.stringify(User.PBKDF2),
             };
 
             this.persistProperties(newProperties, err => {
@@ -1124,6 +1193,54 @@ module.exports = class User {
         );
     }
 
+    //  Returns the hash params stored for a user, or LegacyPBKDF2 if absent (pre-migration user).
+    static getHashParams(props) {
+        const raw = props[UserProps.PassHashParams];
+        if (raw) {
+            try {
+                return JSON.parse(raw);
+            } catch (e) {
+                Log.warn(
+                    { error: e.message },
+                    'Failed to parse PassHashParams; falling back to legacy defaults'
+                );
+            }
+        }
+        return User.LegacyPBKDF2;
+    }
+
+    //  Returns true when the stored hash was produced with parameters that differ from the current target.
+    static needsRehash(props) {
+        const stored = User.getHashParams(props);
+        const target = User.PBKDF2;
+        return (
+            stored.iterations !== target.iterations ||
+            stored.digest !== target.digest ||
+            stored.keyLen !== target.keyLen
+        );
+    }
+
+    //  Re-derives and persists a new salt + dk + PassHashParams for an existing user.
+    //  Called fire-and-forget from validatePassword; errors are logged, not surfaced.
+    static rehashPassword(userId, plainPassword, cb) {
+        User.generatePasswordDerivedKeyAndSalt(plainPassword, (err, info) => {
+            if (err) {
+                return cb(err);
+            }
+            try {
+                const stmt = userDb.prepare(
+                    `REPLACE INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?);`
+                );
+                stmt.run(userId, UserProps.PassPbkdf2Salt, info.salt);
+                stmt.run(userId, UserProps.PassPbkdf2Dk, info.dk);
+                stmt.run(userId, UserProps.PassHashParams, JSON.stringify(User.PBKDF2));
+                return cb(null);
+            } catch (dbErr) {
+                return cb(dbErr);
+            }
+        });
+    }
+
     static generatePasswordDerivedKeySalt(cb) {
         crypto.randomBytes(User.PBKDF2.saltLen, (err, salt) => {
             if (err) {
@@ -1133,15 +1250,20 @@ module.exports = class User {
         });
     }
 
-    static generatePasswordDerivedKey(password, salt, cb) {
+    static generatePasswordDerivedKey(password, salt, options, cb) {
+        if (typeof options === 'function') {
+            cb = options;
+            options = User.PBKDF2;
+        }
+
         password = Buffer.from(password).toString('hex');
 
         crypto.pbkdf2(
             password,
             salt,
-            User.PBKDF2.iterations,
-            User.PBKDF2.keyLen,
-            'sha1',
+            options.iterations,
+            options.keyLen,
+            options.digest,
             (err, dk) => {
                 if (err) {
                     return cb(err);

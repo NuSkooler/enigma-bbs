@@ -242,6 +242,27 @@ class WebPasswordReset {
                         return callback(null, user);
                     });
                 },
+                function checkTokenExpiry(user, callback) {
+                    const ttlMinutes = _.get(
+                        Config(),
+                        'contentServers.web.resetPassword.tokenTtlMinutes',
+                        60
+                    );
+                    const tsStr = user.getProperty(UserProps.EmailPwResetTokenTs);
+                    if (!tsStr) {
+                        return callback(
+                            Errors.Invalid('Password reset token has no timestamp')
+                        );
+                    }
+                    const issuedAt = new Date(tsStr);
+                    const ageMs = Date.now() - issuedAt.getTime();
+                    if (ageMs > ttlMinutes * 60 * 1000) {
+                        return callback(
+                            Errors.Invalid('Password reset token has expired')
+                        );
+                    }
+                    return callback(null, user);
+                },
             ],
             (err, user) => {
                 return cb(err, user);
@@ -251,6 +272,11 @@ class WebPasswordReset {
 
     static routeResetPasswordGet(req, resp) {
         const webServer = getWebServer(); //  must be valid, we just got a req!
+
+        const rlOpts = _.get(Config(), 'contentServers.web.rateLimits.pwResetGet');
+        if (!webServer.instance.checkRateLimit(req, resp, 'pwResetGet', rlOpts)) {
+            return;
+        }
 
         const urlParts = url.parse(req.url, true);
         const token = urlParts.query && urlParts.query.token;
@@ -292,6 +318,11 @@ class WebPasswordReset {
 
     static routeResetPasswordPost(req, resp) {
         const webServer = getWebServer(); //  must be valid, we just got a req!
+
+        const rlOpts = _.get(Config(), 'contentServers.web.rateLimits.pwResetPost');
+        if (!webServer.instance.checkRateLimit(req, resp, 'pwResetPost', rlOpts)) {
+            return;
+        }
 
         let bodyData = '';
         req.on('data', data => {
