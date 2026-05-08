@@ -548,6 +548,7 @@ module.exports = class Message {
 
     //  :TODO: use findMessages
     static getMessageIdsByMetaValue(category, name, value, cb) {
+        let messageIds;
         try {
             const rows = msgDb
                 .prepare(
@@ -556,13 +557,11 @@ module.exports = class Message {
                     WHERE meta_category = ? AND meta_name = ? AND meta_value = ?;`
                 )
                 .all(category, name, value);
-            return cb(
-                null,
-                rows.map(r => parseInt(r.message_id))
-            ); //  return array of ID(s)
+            messageIds = rows.map(r => parseInt(r.message_id));
         } catch (err) {
             return cb(err);
         }
+        return cb(null, messageIds);
     }
 
     //  Add a single meta value to an already-persisted message.
