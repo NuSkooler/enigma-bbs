@@ -14,6 +14,7 @@ const moment = require('moment');
 //  database handles
 const dbs = {};
 
+exports.getDatabasePath = getDatabasePath;
 exports.getModDatabasePath = getModDatabasePath;
 exports.loadDatabaseForMod = loadDatabaseForMod;
 exports.openDatabase = openDatabase;

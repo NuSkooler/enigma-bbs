@@ -76,7 +76,6 @@ module.exports = class Door {
             srvPort: this.sockServer ? this.sockServer.address().port.toString() : '-1',
             userId: this.client.user.userId.toString(),
             userName: this.client.user.getSanitizedName(),
-            userNameRaw: this.client.user.username,
             termWidth: this.client.term.termWidth,
             termHeight: this.client.term.termHeight,
             cwd: cwd,

@@ -333,4 +333,385 @@ describe('user_db', function () {
             });
         });
     });
+    // ─── Password hashing / migration ────────────────────────────────────────────
+
+    describe('PBKDF2 hashing and migration', function () {
+        //  210k-iteration PBKDF2-SHA-512 takes ~1-3 s per hash on modern hardware.
+        //  Tests that touch the current params budget 15 s each; legacy-only tests
+        //  (1k iterations) stay fast.
+        this.timeout(30000);
+
+        before(done => applySchema(_testDb, done));
+
+        beforeEach(done => {
+            _testDb.exec(
+                'DELETE FROM user_group_member; DELETE FROM user_property; DELETE FROM user;'
+            );
+            _userSeq = 0;
+            done();
+        });
+
+        // ── getHashParams ──────────────────────────────────────────────────────────
+
+        it('getHashParams() returns LegacyPBKDF2 when PassHashParams is absent', () => {
+            const params = User.getHashParams({});
+            assert.deepEqual(params, User.LegacyPBKDF2);
+        });
+
+        it('getHashParams() returns LegacyPBKDF2 when PassHashParams is corrupt JSON', () => {
+            const params = User.getHashParams({
+                [UserProps.PassHashParams]: 'not-json{',
+            });
+            assert.deepEqual(params, User.LegacyPBKDF2);
+        });
+
+        it('getHashParams() returns stored params when PassHashParams is valid JSON', () => {
+            const stored = {
+                iterations: 210000,
+                digest: 'sha512',
+                keyLen: 64,
+                saltLen: 32,
+            };
+            const params = User.getHashParams({
+                [UserProps.PassHashParams]: JSON.stringify(stored),
+            });
+            assert.deepEqual(params, stored);
+        });
+
+        // ── needsRehash ────────────────────────────────────────────────────────────
+
+        it('needsRehash() returns true when PassHashParams is absent (legacy user)', () => {
+            assert.ok(User.needsRehash({}));
+        });
+
+        it('needsRehash() returns true when stored iterations differ from target', () => {
+            const oldParams = { ...User.PBKDF2, iterations: 1000 };
+            assert.ok(
+                User.needsRehash({
+                    [UserProps.PassHashParams]: JSON.stringify(oldParams),
+                })
+            );
+        });
+
+        it('needsRehash() returns true when stored digest differs from target', () => {
+            const oldParams = { ...User.PBKDF2, digest: 'sha1' };
+            assert.ok(
+                User.needsRehash({
+                    [UserProps.PassHashParams]: JSON.stringify(oldParams),
+                })
+            );
+        });
+
+        it('needsRehash() returns true when stored keyLen differs from target', () => {
+            const oldParams = { ...User.PBKDF2, keyLen: 128 };
+            assert.ok(
+                User.needsRehash({
+                    [UserProps.PassHashParams]: JSON.stringify(oldParams),
+                })
+            );
+        });
+
+        it('needsRehash() returns false when stored params match current target', () => {
+            assert.ok(
+                !User.needsRehash({
+                    [UserProps.PassHashParams]: JSON.stringify(User.PBKDF2),
+                })
+            );
+        });
+
+        // ── generatePasswordDerivedKey ─────────────────────────────────────────────
+
+        it('generatePasswordDerivedKey() defaults to current PBKDF2 params', done => {
+            User.generatePasswordDerivedKeySalt((err, salt) => {
+                assert.ifError(err);
+                User.generatePasswordDerivedKey('secret', salt, (err, dk) => {
+                    assert.ifError(err);
+                    //  sha512, keyLen 64 → 128 hex chars
+                    assert.equal(dk.length, User.PBKDF2.keyLen * 2);
+                    done();
+                });
+            });
+        });
+
+        it('generatePasswordDerivedKey() accepts explicit legacy params and produces legacy-length DK', done => {
+            User.generatePasswordDerivedKeySalt((err, salt) => {
+                assert.ifError(err);
+                User.generatePasswordDerivedKey(
+                    'secret',
+                    salt,
+                    User.LegacyPBKDF2,
+                    (err, dk) => {
+                        assert.ifError(err);
+                        //  sha1, keyLen 128 → 256 hex chars
+                        assert.equal(dk.length, User.LegacyPBKDF2.keyLen * 2);
+                        done();
+                    }
+                );
+            });
+        });
+
+        it('generatePasswordDerivedKey() produces the same DK for the same inputs and params', done => {
+            User.generatePasswordDerivedKeySalt((err, salt) => {
+                assert.ifError(err);
+                User.generatePasswordDerivedKey(
+                    'mypass',
+                    salt,
+                    User.LegacyPBKDF2,
+                    (err, dk1) => {
+                        assert.ifError(err);
+                        User.generatePasswordDerivedKey(
+                            'mypass',
+                            salt,
+                            User.LegacyPBKDF2,
+                            (err, dk2) => {
+                                assert.ifError(err);
+                                assert.equal(dk1, dk2);
+                                done();
+                            }
+                        );
+                    }
+                );
+            });
+        });
+
+        // ── create() stores current params ─────────────────────────────────────────
+
+        it('create() stores PassHashParams matching current PBKDF2 target', done => {
+            createUser(uniqueName(), 'p@ssw0rd!', (err, user) => {
+                assert.ifError(err);
+                const raw = user.properties[UserProps.PassHashParams];
+                assert.ok(raw, 'PassHashParams should be stored');
+                const stored = JSON.parse(raw);
+                assert.equal(stored.iterations, User.PBKDF2.iterations);
+                assert.equal(stored.digest, User.PBKDF2.digest);
+                assert.equal(stored.keyLen, User.PBKDF2.keyLen);
+                done();
+            });
+        });
+
+        it('create() stores a DK of the current keyLen', done => {
+            createUser(uniqueName(), 'p@ssw0rd!', (err, user) => {
+                assert.ifError(err);
+                const dk = user.properties[UserProps.PassPbkdf2Dk];
+                assert.equal(
+                    dk.length,
+                    User.PBKDF2.keyLen * 2,
+                    'DK length should match current keyLen'
+                );
+                done();
+            });
+        });
+
+        it('needsRehash() returns false for a freshly created user', done => {
+            createUser(uniqueName(), 'p@ssw0rd!', (err, user) => {
+                assert.ifError(err);
+                assert.ok(!User.needsRehash(user.properties));
+                done();
+            });
+        });
+
+        // ── legacy user migration ──────────────────────────────────────────────────
+
+        //  Manually inserts a user with legacy (SHA-1, 1000-iteration) credentials,
+        //  simulating a pre-migration account in the database.
+        function insertLegacyUser(username, password, done) {
+            User.generatePasswordDerivedKeySalt((err, salt) => {
+                assert.ifError(err);
+                User.generatePasswordDerivedKey(
+                    password,
+                    salt,
+                    User.LegacyPBKDF2,
+                    (err, dk) => {
+                        assert.ifError(err);
+
+                        const info = _testDb
+                            .prepare(`INSERT INTO user (user_name) VALUES (?);`)
+                            .run(username);
+                        const userId = info.lastInsertRowid;
+
+                        const propStmt = _testDb.prepare(
+                            `REPLACE INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?);`
+                        );
+                        propStmt.run(userId, UserProps.PassPbkdf2Salt, salt);
+                        propStmt.run(userId, UserProps.PassPbkdf2Dk, dk);
+                        propStmt.run(userId, UserProps.AccountStatus, '2'); //  active (User.AccountStatus.active === 2)
+                        //  Intentionally omit PassHashParams — this is the legacy state.
+
+                        const groupStmt = _testDb.prepare(
+                            `INSERT OR IGNORE INTO user_group_member (group_name, user_id) VALUES (?, ?);`
+                        );
+                        groupStmt.run('users', userId);
+
+                        done(null, userId);
+                    }
+                );
+            });
+        }
+
+        it('needsRehash() returns true for a manually inserted legacy user', done => {
+            insertLegacyUser(uniqueName(), 'legacypass', (err, userId) => {
+                assert.ifError(err);
+                const props = _testDb
+                    .prepare(
+                        `SELECT prop_name, prop_value FROM user_property WHERE user_id = ?`
+                    )
+                    .all(userId)
+                    .reduce((acc, r) => {
+                        acc[r.prop_name] = r.prop_value;
+                        return acc;
+                    }, {});
+                assert.ok(User.needsRehash(props));
+                done();
+            });
+        });
+
+        it('authenticateFactor1() succeeds for a legacy user', done => {
+            const name = uniqueName();
+            const pass = 'legacypass1';
+            insertLegacyUser(name, pass, err => {
+                assert.ifError(err);
+                const user = new User();
+                user.authenticateFactor1(
+                    {
+                        username: name,
+                        password: pass,
+                        type: User.AuthFactor1Types.Password,
+                    },
+                    err => {
+                        assert.ifError(err);
+                        done();
+                    }
+                );
+            });
+        });
+
+        it('authenticateFactor1() upgrades legacy hash params on successful login', done => {
+            const name = uniqueName();
+            const pass = 'legacypass2';
+            insertLegacyUser(name, pass, (err, userId) => {
+                assert.ifError(err);
+                const user = new User();
+                user.authenticateFactor1(
+                    {
+                        username: name,
+                        password: pass,
+                        type: User.AuthFactor1Types.Password,
+                    },
+                    err => {
+                        assert.ifError(err);
+                        //  rehash is fire-and-forget; give it a moment to complete
+                        setTimeout(() => {
+                            //  budget for 210k-iteration PBKDF2 rehash
+                            const row = _testDb
+                                .prepare(
+                                    `SELECT prop_value FROM user_property WHERE user_id = ? AND prop_name = ?`
+                                )
+                                .get(userId, UserProps.PassHashParams);
+                            assert.ok(
+                                row,
+                                'PassHashParams should now be stored after rehash'
+                            );
+                            const stored = JSON.parse(row.prop_value);
+                            assert.equal(stored.iterations, User.PBKDF2.iterations);
+                            assert.equal(stored.digest, User.PBKDF2.digest);
+                            assert.equal(stored.keyLen, User.PBKDF2.keyLen);
+                            done();
+                        }, 3000);
+                    }
+                );
+            });
+        });
+
+        it('re-hashed legacy user can authenticate again with new params', done => {
+            const name = uniqueName();
+            const pass = 'legacypass3';
+            insertLegacyUser(name, pass, err => {
+                assert.ifError(err);
+                const user1 = new User();
+                user1.authenticateFactor1(
+                    {
+                        username: name,
+                        password: pass,
+                        type: User.AuthFactor1Types.Password,
+                    },
+                    err => {
+                        assert.ifError(err);
+                        //  wait for rehash to land, then try logging in again
+                        setTimeout(() => {
+                            //  budget for 210k-iteration PBKDF2 rehash
+                            const user2 = new User();
+                            user2.authenticateFactor1(
+                                {
+                                    username: name,
+                                    password: pass,
+                                    type: User.AuthFactor1Types.Password,
+                                },
+                                err => {
+                                    assert.ifError(
+                                        err,
+                                        'Second login with new hash params should succeed'
+                                    );
+                                    done();
+                                }
+                            );
+                        }, 3000);
+                    }
+                );
+            });
+        });
+
+        it('wrong password is rejected for a legacy user', done => {
+            const name = uniqueName();
+            insertLegacyUser(name, 'correctpass', err => {
+                assert.ifError(err);
+                const user = new User();
+                user.authenticateFactor1(
+                    {
+                        username: name,
+                        password: 'wrongpass',
+                        type: User.AuthFactor1Types.Password,
+                    },
+                    err => {
+                        assert.ok(err, 'Wrong password should be rejected');
+                        done();
+                    }
+                );
+            });
+        });
+
+        it('wrong password is rejected for a current-params user', done => {
+            createUser(uniqueName(), 'correctpass', (err, created) => {
+                assert.ifError(err);
+                const user = new User();
+                user.authenticateFactor1(
+                    {
+                        username: created.username,
+                        password: 'wrongpass',
+                        type: User.AuthFactor1Types.Password,
+                    },
+                    err => {
+                        assert.ok(err, 'Wrong password should be rejected');
+                        done();
+                    }
+                );
+            });
+        });
+
+        // ── setNewAuthCredentials ──────────────────────────────────────────────────
+
+        it('setNewAuthCredentials() stores updated PassHashParams', done => {
+            createUser(uniqueName(), 'originalpass', (err, user) => {
+                assert.ifError(err);
+                user.setNewAuthCredentials('newpass', err => {
+                    assert.ifError(err);
+                    const raw = user.properties[UserProps.PassHashParams];
+                    assert.ok(raw);
+                    const stored = JSON.parse(raw);
+                    assert.equal(stored.iterations, User.PBKDF2.iterations);
+                    assert.equal(stored.digest, User.PBKDF2.digest);
+                    done();
+                });
+            });
+        });
+    });
 }); // describe('user_db')

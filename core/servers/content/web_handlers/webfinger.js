@@ -95,40 +95,49 @@ exports.getModule = class WebFingerWebHandler extends WebHandlerModule {
                 return this.webServer.resourceNotFound(resp);
             }
 
-            let templateFile = _.get(
+            const configuredTemplate = _.get(
                 Config(),
                 'contentServers.web.handlers.webFinger.profileTemplate'
             );
-            if (templateFile) {
-                templateFile = this.webServer.resolveTemplatePath(templateFile);
-            }
 
-            Actor.fromLocalUser(localUser, (err, localActor) => {
-                if (err) {
-                    return this.webServer.internalServerError(resp, err);
-                }
+            const continueWithTemplate = templateFile => {
+                Actor.fromLocalUser(localUser, (err, localActor) => {
+                    if (err) {
+                        return this.webServer.internalServerError(resp, err);
+                    }
 
-                getUserProfileTemplatedBody(
-                    templateFile,
-                    localUser,
-                    localActor,
-                    DefaultProfileTemplate,
-                    'text/html',
-                    (err, body, contentType) => {
-                        if (err) {
-                            return this.webServer.resourceNotFound(resp);
+                    getUserProfileTemplatedBody(
+                        templateFile,
+                        localUser,
+                        localActor,
+                        DefaultProfileTemplate,
+                        'text/html',
+                        (err, body, contentType) => {
+                            if (err) {
+                                return this.webServer.resourceNotFound(resp);
+                            }
+
+                            const headers = {
+                                'Content-Type': contentType,
+                                'Content-Length': Buffer.from(body).length,
+                            };
+
+                            resp.writeHead(200, headers);
+                            return resp.end(body);
                         }
+                    );
+                });
+            };
 
-                        const headers = {
-                            'Content-Type': contentType,
-                            'Content-Length': Buffer.from(body).length,
-                        };
-
-                        resp.writeHead(200, headers);
-                        return resp.end(body);
+            if (configuredTemplate) {
+                return this.webServer.resolveTemplatePath(
+                    configuredTemplate,
+                    (err, templateFile) => {
+                        return continueWithTemplate(templateFile);
                     }
                 );
-            });
+            }
+            return continueWithTemplate(null);
         });
     }
 

@@ -1586,34 +1586,44 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
     }
 
     _selfAsProfileHandler(localUser, localActor, req, resp) {
-        let templateFile = _.get(
+        const configuredTemplate = _.get(
             Config(),
             'contentServers.web.handlers.activityPub.selfTemplate'
         );
-        if (templateFile) {
-            templateFile = this.webServer.resolveTemplatePath(templateFile);
+
+        const renderProfile = templateFile => {
+            // we'll fall back to the same default profile info as the WebFinger profile
+            getUserProfileTemplatedBody(
+                templateFile,
+                localUser,
+                localActor,
+                DefaultProfileTemplate,
+                'text/html',
+                (err, body, contentType) => {
+                    if (err) {
+                        return this.webServer.resourceNotFound(resp);
+                    }
+
+                    this.log.info(
+                        { username: localUser.username },
+                        `Serving ActivityPub Profile for "${localUser.username}"`
+                    );
+
+                    return this.webServer.ok(resp, body, { 'Content-Type': contentType });
+                }
+            );
+        };
+
+        if (configuredTemplate) {
+            return this.webServer.resolveTemplatePath(
+                configuredTemplate,
+                (err, templateFile) => {
+                    return renderProfile(templateFile);
+                }
+            );
         }
 
-        // we'll fall back to the same default profile info as the WebFinger profile
-        getUserProfileTemplatedBody(
-            templateFile,
-            localUser,
-            localActor,
-            DefaultProfileTemplate,
-            'text/html',
-            (err, body, contentType) => {
-                if (err) {
-                    return this.webServer.resourceNotFound(resp);
-                }
-
-                this.log.info(
-                    { username: localUser.username },
-                    `Serving ActivityPub Profile for "${localUser.username}"`
-                );
-
-                return this.webServer.ok(resp, body, { 'Content-Type': contentType });
-            }
-        );
+        return renderProfile(null);
     }
 
     _prepareNewUserAsActor(user, cb) {

@@ -135,6 +135,11 @@ module.exports = class User2FA_OTPWebRegister {
     static routeRegisterGet(req, resp) {
         const webServer = getWebServer(); //  must be valid, we just got a req!
 
+        const rlOpts = _.get(Config(), 'contentServers.web.rateLimits.otpRegGet');
+        if (!webServer.instance.checkRateLimit(req, resp, 'otpRegGet', rlOpts)) {
+            return;
+        }
+
         const urlParts = url.parse(req.url, true);
         const token = urlParts.query && urlParts.query.token;
         const otpType = urlParts.query && urlParts.query.otpType;
@@ -195,6 +200,11 @@ module.exports = class User2FA_OTPWebRegister {
 
     static routeRegisterPost(req, resp) {
         const webServer = getWebServer(); //  must be valid, we just got a req!
+
+        const rlOpts = _.get(Config(), 'contentServers.web.rateLimits.otpRegPost');
+        if (!webServer.instance.checkRateLimit(req, resp, 'otpRegPost', rlOpts)) {
+            return;
+        }
 
         const badRequest = () => {
             return webServer.instance.respondWithError(
