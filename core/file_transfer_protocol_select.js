@@ -108,17 +108,12 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
                     return this.prevMenu();
                 }
 
-                this.client.log.debug(
-                    'Protocol select returning to upload module with results',
-                    {
-                        recvFilePaths: this.recvFilePaths,
-                        tempRecvDirectory: this.extraArgs.recvDirectory,
-                    }
-                );
                 return this.gotoMenu('fileBaseUploadFiles', {
                     lastMenuResult: {
                         recvFilePaths: this.recvFilePaths,
                         tempRecvDirectory: this.extraArgs.recvDirectory,
+                        areaInfo: this.extraArgs.uploadAreaInfo,
+                        uploadType: this.extraArgs.uploadType,
                     },
                 });
             }
