@@ -840,7 +840,20 @@ function Packet(options) {
                     if (e) {
                         cb(e);
                     } else {
-                        self.parsePacketMessages(header, nextBuf, iterator, cb);
+                        //  setImmediate breaks the synchronous recursion when an
+                        //  entire packet is processed without async I/O (e.g. all
+                        //  messages dupes detected via better-sqlite3). Without
+                        //  this, the stack grows one frame per message and
+                        //  overflows on large packets.
+                        setImmediate(
+                            self.parsePacketMessages.bind(
+                                self,
+                                header,
+                                nextBuf,
+                                iterator,
+                                cb
+                            )
+                        );
                     }
                 };
 
