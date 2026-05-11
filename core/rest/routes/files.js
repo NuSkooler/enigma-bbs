@@ -23,6 +23,9 @@ const FileEntry = require('../../file_entry');
 const ACS = require('../../acs');
 const Config = require('../../config').get;
 const User = require('../../user');
+const StatLog = require('../../stat_log');
+const UserProps = require('../../user_property');
+const SysProps = require('../../system_property');
 
 const fs = require('graceful-fs');
 const paths = require('path');
@@ -92,8 +95,12 @@ function _isAreaPublic(areaTag) {
 
 function _matchesGlob(tag, patterns) {
     return patterns.some(p => {
-        if (p === '*') { return true; }
-        if (p.endsWith('*')) { return tag.startsWith(p.slice(0, -1)); }
+        if (p === '*') {
+            return true;
+        }
+        if (p.endsWith('*')) {
+            return tag.startsWith(p.slice(0, -1));
+        }
         return tag === p;
     });
 }
@@ -102,7 +109,12 @@ function _matchesGlob(tag, patterns) {
 //  without calling cb on failure.
 function _resolveAreaReadAccess(req, resp, areaTag, cb) {
     if (isInternalArea(areaTag)) {
-        return problemDetail(resp, 403, 'Forbidden', 'This area is not accessible via the REST API');
+        return problemDetail(
+            resp,
+            403,
+            'Forbidden',
+            'This area is not accessible via the REST API'
+        );
     }
 
     const area = getFileAreaByTag(areaTag);
@@ -118,7 +130,12 @@ function _resolveAreaReadAccess(req, resp, areaTag, cb) {
                 }
                 const acs = _acsForUser(user);
                 if (!acs.hasFileAreaRead(area)) {
-                    return problemDetail(resp, 403, 'Forbidden', 'Insufficient access to this area');
+                    return problemDetail(
+                        resp,
+                        403,
+                        'Forbidden',
+                        'Insufficient access to this area'
+                    );
                 }
                 return cb(user, area);
             });
@@ -209,7 +226,10 @@ function _fileListHandler(req, resp, log) {
 
     _resolveAreaReadAccess(req, resp, areaTag, (_user, _area) => {
         const params = new URL(req.url, 'http://localhost').searchParams;
-        const limit = Math.min(parseInt(params.get('limit') || PAGE_SIZE, 10), MAX_PAGE_SIZE);
+        const limit = Math.min(
+            parseInt(params.get('limit') || PAGE_SIZE, 10),
+            MAX_PAGE_SIZE
+        );
         const cursorParam = params.get('cursor');
 
         let afterFileId = 0;
@@ -249,8 +269,11 @@ function _fileListHandler(req, resp, log) {
                 fileIds.forEach((fileId, idx) => {
                     const entry = new FileEntry();
                     FileEntry.loadBasicEntry(fileId, entry, err => {
-                        if (err) { loadErr = err; }
-                        else { entries[idx] = entry; }
+                        if (err) {
+                            loadErr = err;
+                        } else {
+                            entries[idx] = entry;
+                        }
                         if (--pending === 0) {
                             if (loadErr) {
                                 log.error({ err: loadErr }, 'Error loading file entry');
@@ -258,10 +281,15 @@ function _fileListHandler(req, resp, log) {
                             }
                             const data = entries.filter(Boolean).map(_serializeFileEntry);
                             const lastEntry = data[data.length - 1];
-                            const nextCursor = hasMore && lastEntry
-                                ? encodeCursor({ fileId: lastEntry.fileId })
-                                : null;
-                            return jsonResponse(resp, 200, paginationMeta(data, nextCursor));
+                            const nextCursor =
+                                hasMore && lastEntry
+                                    ? encodeCursor({ fileId: lastEntry.fileId })
+                                    : null;
+                            return jsonResponse(
+                                resp,
+                                200,
+                                paginationMeta(data, nextCursor)
+                            );
                         }
                     });
                 });
@@ -321,7 +349,12 @@ function _downloadHandler(req, resp, log) {
 
                 const acs = _acsForUser(user);
                 if (!acs.hasFileAreaDownload(area)) {
-                    return problemDetail(resp, 403, 'Forbidden', 'Insufficient download access');
+                    return problemDetail(
+                        resp,
+                        403,
+                        'Forbidden',
+                        'Insufficient download access'
+                    );
                 }
 
                 let filePath;
@@ -335,12 +368,19 @@ function _downloadHandler(req, resp, log) {
                 fs.stat(filePath, (err, stat) => {
                     if (err) {
                         log.error({ err, filePath }, 'File not found on disk');
-                        return problemDetail(resp, 404, 'Not Found', 'File not found on disk');
+                        return problemDetail(
+                            resp,
+                            404,
+                            'Not Found',
+                            'File not found on disk'
+                        );
                     }
 
                     const mimeType =
                         mimeTypes.lookup(entry.fileName) || 'application/octet-stream';
-                    const safeFileName = paths.basename(entry.fileName).replace(/[^\w.\-]/g, '_');
+                    const safeFileName = paths
+                        .basename(entry.fileName)
+                        .replace(/[^\w.\-]/g, '_');
 
                     resp.writeHead(200, {
                         'Content-Type': mimeType,
@@ -351,7 +391,10 @@ function _downloadHandler(req, resp, log) {
 
                     const stream = fs.createReadStream(filePath);
                     stream.on('error', streamErr => {
-                        log.error({ err: streamErr, fileId }, 'Stream error during download');
+                        log.error(
+                            { err: streamErr, fileId },
+                            'Stream error during download'
+                        );
                         if (!resp.headersSent) {
                             return problemDetail(resp, 500, 'Internal Server Error');
                         }
@@ -359,7 +402,20 @@ function _downloadHandler(req, resp, log) {
                     });
                     stream.pipe(resp);
 
-                    log.info({ userId: user.userId, fileId, fileName: entry.fileName }, 'File downloaded via REST API');
+                    FileEntry.incrementAndPersistMetaValue(fileId, 'dl_count', 1, err => {
+                        if (err) {
+                            log.warn({ err, fileId }, 'Failed to increment dl_count');
+                        }
+                    });
+
+                    StatLog.incrementUserStat(user, UserProps.FileDlTotalCount, 1);
+                    StatLog.incrementUserStat(user, UserProps.FileDlTotalBytes, stat.size);
+                    StatLog.incrementSystemStat(SysProps.FileDlTotalCount, 1);
+
+                    log.info(
+                        { userId: user.userId, fileId, fileName: entry.fileName },
+                        'File downloaded via REST API'
+                    );
                 });
             });
         });
@@ -386,17 +442,32 @@ function _uploadHandler(req, resp, log) {
 
             const area = getFileAreaByTag(areaTag);
             if (!area) {
-                return problemDetail(resp, 404, 'Not Found', `Area '${areaTag}' not found`);
+                return problemDetail(
+                    resp,
+                    404,
+                    'Not Found',
+                    `Area '${areaTag}' not found`
+                );
             }
 
             const acs = _acsForUser(user);
             if (!acs.hasFileAreaWrite(area)) {
-                return problemDetail(resp, 403, 'Forbidden', 'Insufficient upload access');
+                return problemDetail(
+                    resp,
+                    403,
+                    'Forbidden',
+                    'Insufficient upload access'
+                );
             }
 
             const contentType = req.headers['content-type'] || '';
             if (!contentType.includes('multipart/form-data')) {
-                return problemDetail(resp, 400, 'Bad Request', 'Content-Type must be multipart/form-data');
+                return problemDetail(
+                    resp,
+                    400,
+                    'Bad Request',
+                    'Content-Type must be multipart/form-data'
+                );
             }
 
             _parseMultipartUpload(req, resp, log, (err, uploadInfo) => {
@@ -406,14 +477,22 @@ function _uploadHandler(req, resp, log) {
 
                 const storageTag = area.storageTags?.[0];
                 if (!storageTag) {
-                    return problemDetail(resp, 500, 'Internal Server Error', 'Area has no storage tag configured');
+                    return problemDetail(
+                        resp,
+                        500,
+                        'Internal Server Error',
+                        'Area has no storage tag configured'
+                    );
                 }
 
                 const storageDir = getAreaDefaultStorageDirectory(area);
                 const destPath = paths.join(storageDir, uploadInfo.fileName);
 
                 //  Guard against traversal in the filename itself
-                if (!destPath.startsWith(storageDir + paths.sep) && destPath !== storageDir) {
+                if (
+                    !destPath.startsWith(storageDir + paths.sep) &&
+                    destPath !== storageDir
+                ) {
                     return problemDetail(resp, 400, 'Bad Request', 'Invalid filename');
                 }
 
@@ -438,22 +517,41 @@ function _uploadHandler(req, resp, log) {
                         },
                         (err, fileEntry, _dupeEntries) => {
                             if (err) {
-                                log.error({ err, destPath }, 'Failed to scan uploaded file');
+                                log.error(
+                                    { err, destPath },
+                                    'Failed to scan uploaded file'
+                                );
                                 return problemDetail(resp, 500, 'Internal Server Error');
                             }
 
                             fileEntry.persist(err => {
                                 if (err) {
-                                    log.error({ err, destPath }, 'Failed to persist uploaded file entry');
-                                    return problemDetail(resp, 500, 'Internal Server Error');
+                                    log.error(
+                                        { err, destPath },
+                                        'Failed to persist uploaded file entry'
+                                    );
+                                    return problemDetail(
+                                        resp,
+                                        500,
+                                        'Internal Server Error'
+                                    );
                                 }
 
                                 log.info(
-                                    { userId: user.userId, areaTag, fileId: fileEntry.fileId, fileName: uploadInfo.fileName },
+                                    {
+                                        userId: user.userId,
+                                        areaTag,
+                                        fileId: fileEntry.fileId,
+                                        fileName: uploadInfo.fileName,
+                                    },
                                     'File uploaded via REST API'
                                 );
 
-                                return jsonResponse(resp, 201, _serializeFileEntry(fileEntry));
+                                return jsonResponse(
+                                    resp,
+                                    201,
+                                    _serializeFileEntry(fileEntry)
+                                );
                             });
                         }
                     );
@@ -506,19 +604,27 @@ function _parseMultipartUpload(req, resp, log, cb) {
         let fileBuffer = null;
 
         for (const part of parts) {
-            if (part.startsWith('--')) { break; } // final boundary
+            if (part.startsWith('--')) {
+                break;
+            } // final boundary
 
             const headerEnd = part.indexOf('\r\n\r\n');
-            if (headerEnd === -1) { continue; }
+            if (headerEnd === -1) {
+                continue;
+            }
 
             const headerBlock = part.slice(0, headerEnd);
             const body = part.slice(headerEnd + 4, part.length - 2); // strip trailing \r\n
 
             const dispMatch = headerBlock.match(/Content-Disposition:[^\r\n]*/i);
-            if (!dispMatch) { continue; }
+            if (!dispMatch) {
+                continue;
+            }
             const dispLine = dispMatch[0];
             const nameMatch = dispLine.match(/name="([^"]+)"/i);
-            if (!nameMatch) { continue; }
+            if (!nameMatch) {
+                continue;
+            }
             const fieldName = nameMatch[1];
             const fileNameMatch = dispLine.match(/filename="([^"]+)"/i);
             const partFileName = fileNameMatch ? fileNameMatch[1] : null;
