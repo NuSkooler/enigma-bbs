@@ -1,0 +1,793 @@
+openapi: 3.1.0
+info:
+  title: ENiGMA½ BBS REST API
+  version: "1"
+  description: |
+    REST API for ENiGMA½ BBS. Base path: `/_enig/api/v1`
+
+    ## Authentication
+
+    Most write endpoints and some read endpoints require authentication.
+    Two schemes are supported:
+
+    - **Bearer JWT** — obtain via `POST /auth/login`. Short-lived (15 min).
+      Refresh with `POST /auth/refresh` using the `enigma_refresh` HttpOnly cookie.
+    - **API Key** — static key in `Authorization: Bearer <key>` header,
+      generated via `oputil rest api-key generate`. Suitable for scripts and bots.
+
+    Public endpoints (system info, public message areas, public file areas) work
+    without authentication. The sysop can tune which endpoints are public via
+    `config.hjson`.
+
+servers:
+  - url: /_enig/api/v1
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ProblemDetail:
+      type: object
+      description: RFC 7807 Problem Details
+      properties:
+        type:    { type: string, format: uri }
+        title:   { type: string }
+        status:  { type: integer }
+        detail:  { type: string }
+      required: [type, title, status]
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        tokenType:   { type: string, example: Bearer }
+        expiresIn:   { type: integer, description: Seconds until the access token expires }
+      required: [accessToken, tokenType, expiresIn]
+
+    Conference:
+      type: object
+      properties:
+        confTag: { type: string }
+        name:    { type: string }
+        desc:    { type: string }
+      required: [confTag, name]
+
+    MessageArea:
+      type: object
+      properties:
+        areaTag:  { type: string }
+        name:     { type: string }
+        desc:     { type: string }
+        confTag:  { type: string }
+      required: [areaTag, name, confTag]
+
+    ConferenceDetail:
+      allOf:
+        - $ref: '#/components/schemas/Conference'
+        - type: object
+          properties:
+            areas:
+              type: array
+              items: { $ref: '#/components/schemas/MessageArea' }
+
+    MessageSummary:
+      type: object
+      properties:
+        messageId:        { type: integer }
+        uuid:             { type: string, format: uuid }
+        areaTag:          { type: string }
+        replyToMessageId: { type: integer }
+        toUserName:       { type: string }
+        fromUserName:     { type: string }
+        subject:          { type: string }
+        timestamp:        { type: string, format: date-time }
+      required: [messageId, uuid, areaTag, toUserName, fromUserName, subject, timestamp]
+
+    MessageFull:
+      allOf:
+        - $ref: '#/components/schemas/MessageSummary'
+        - type: object
+          properties:
+            body:
+              type: string
+            network:
+              type: object
+              description: FTN/FidoNet metadata, present only for networked messages
+              properties:
+                ftnOrigNode: { type: string }
+                ftnArea:     { type: string }
+                ftnTearLine: { type: string }
+          required: [body]
+
+    NewMessage:
+      type: object
+      properties:
+        subject:          { type: string, maxLength: 72 }
+        message:          { type: string }
+        toUserName:       { type: string, default: All }
+        replyToMessageId: { type: integer }
+      required: [subject, message]
+
+    PageMeta:
+      type: object
+      properties:
+        count:      { type: integer }
+        nextCursor: { type: string, nullable: true }
+      required: [count]
+
+    PagedMessages:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/MessageSummary' } }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+      required: [data, meta]
+
+    FileArea:
+      type: object
+      properties:
+        areaTag:     { type: string }
+        name:        { type: string }
+        desc:        { type: string }
+        storageTag:  { type: string }
+      required: [areaTag, name]
+
+    FileEntry:
+      type: object
+      properties:
+        fileId:          { type: integer }
+        areaTag:         { type: string }
+        fileName:        { type: string }
+        desc:            { type: string }
+        descLong:        { type: string }
+        byteSize:        { type: integer }
+        uploadTimestamp: { type: string, format: date-time }
+        uploadByUsername:{ type: string }
+        dlCount:         { type: integer }
+        sha256:          { type: string }
+        archiveType:     { type: string }
+        hashTags:        { type: array, items: { type: string } }
+        estReleaseYear:  { type: integer }
+      required: [fileId, areaTag, fileName, dlCount, hashTags]
+
+    PagedFiles:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/FileEntry' } }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+      required: [data, meta]
+
+    SystemInfo:
+      type: object
+      properties:
+        boardName:    { type: string }
+        version:      { type: string }
+        nodeCount:    { type: integer }
+        closedSystem: { type: boolean }
+      required: [boardName, version, nodeCount, closedSystem]
+
+    NodeEntry:
+      type: object
+      properties:
+        node:          { type: integer }
+        authenticated: { type: boolean }
+        action:        { type: string }
+        isSecure:      { type: boolean }
+        username:      { type: string }
+        location:      { type: string }
+        affils:        { type: string }
+        timeOnMinutes: { type: integer }
+      required: [node, authenticated, action, isSecure]
+
+    LastCaller:
+      type: object
+      properties:
+        userId:    { type: integer }
+        timestamp: { type: string, format: date-time }
+      required: [userId, timestamp]
+
+    SystemStats:
+      type: object
+      properties:
+        totalUsers: { type: integer }
+      required: [totalUsers]
+
+    OwnProfile:
+      type: object
+      properties:
+        userId:           { type: integer }
+        username:         { type: string }
+        groups:           { type: array, items: { type: string } }
+        realName:         { type: string }
+        location:         { type: string }
+        affiliations:     { type: string }
+        emailAddress:     { type: string }
+        webAddress:       { type: string }
+        autoSignature:    { type: string }
+        accountCreated:   { type: string, format: date-time }
+        lastLogin:        { type: string, format: date-time }
+        loginCount:       { type: integer }
+        postCount:        { type: integer }
+        uploadCount:      { type: integer }
+        uploadBytes:      { type: integer }
+        downloadCount:    { type: integer }
+        downloadBytes:    { type: integer }
+        achievementPoints:{ type: integer }
+        minutesOnline:    { type: integer }
+      required: [userId, username, groups]
+
+    PublicProfile:
+      type: object
+      description: |
+        Public user profile. Fields are opt-in — only populated when the user
+        has set them. Sysops receive additional fields (groups, emailAddress,
+        lastLogin, loginCount, uploadCount, downloadCount, minutesOnline).
+      properties:
+        userId:           { type: integer }
+        username:         { type: string }
+        accountCreated:   { type: string, format: date-time }
+        postCount:        { type: integer }
+        achievementPoints:{ type: integer }
+        realName:         { type: string }
+        location:         { type: string }
+        affiliations:     { type: string }
+        webAddress:       { type: string }
+        groups:           { type: array, items: { type: string }, description: Sysop only }
+        emailAddress:     { type: string, description: Sysop only }
+        lastLogin:        { type: string, format: date-time, description: Sysop only }
+        loginCount:       { type: integer, description: Sysop only }
+        uploadCount:      { type: integer, description: Sysop only }
+        downloadCount:    { type: integer, description: Sysop only }
+        minutesOnline:    { type: integer, description: Sysop only }
+      required: [userId, username]
+
+    ProfileUpdate:
+      type: object
+      description: Fields that may be updated via PUT /users/me. All fields optional; pass null to clear.
+      properties:
+        realName:      { type: string, nullable: true, maxLength: 64 }
+        location:      { type: string, nullable: true, maxLength: 64 }
+        affiliations:  { type: string, nullable: true, maxLength: 64 }
+        webAddress:    { type: string, nullable: true, maxLength: 256 }
+        autoSignature: { type: string, nullable: true, maxLength: 512 }
+
+  responses:
+    Unauthorized:
+      description: Authentication required or credentials invalid
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    Forbidden:
+      description: Insufficient access
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    BadRequest:
+      description: Invalid request
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    InternalError:
+      description: Internal server error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+
+  /auth/login:
+    post:
+      summary: Log in and obtain tokens
+      operationId: authLogin
+      security: []
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                password: { type: string }
+              required: [username, password]
+      responses:
+        "200":
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh token cookie (`enigma_refresh`)
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "429":
+          description: Rate limit exceeded (10 requests per 15 minutes per IP)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  /auth/refresh:
+    post:
+      summary: Rotate refresh token and issue new access token
+      operationId: authRefresh
+      security: []
+      tags: [Auth]
+      description: Reads the `enigma_refresh` HttpOnly cookie set by `/auth/login`.
+      responses:
+        "200":
+          description: New token pair issued
+          headers:
+            Set-Cookie:
+              description: Rotated refresh token cookie
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      summary: Revoke the current refresh token
+      operationId: authLogout
+      security: []
+      tags: [Auth]
+      responses:
+        "204":
+          description: Logged out (refresh token revoked and cookie cleared)
+
+  # ---------------------------------------------------------------------------
+  # System
+  # ---------------------------------------------------------------------------
+
+  /system/info:
+    get:
+      summary: Basic board information
+      operationId: systemInfo
+      security: []
+      tags: [System]
+      description: Public by default. Can be restricted via config.
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SystemInfo' }
+          description: OK
+
+  /system/nodes:
+    get:
+      summary: Active node list
+      operationId: systemNodes
+      tags: [System]
+      description: Authentication required by default. Can be made public via config.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/NodeEntry' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /system/last-callers:
+    get:
+      summary: Recent login history
+      operationId: systemLastCallers
+      security: []
+      tags: [System]
+      description: Public by default. Returns up to 50 entries.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LastCaller' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+
+  /system/stats:
+    get:
+      summary: Board statistics
+      operationId: systemStats
+      security: []
+      tags: [System]
+      description: Public by default.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SystemStats' }
+
+  # ---------------------------------------------------------------------------
+  # Messages
+  # ---------------------------------------------------------------------------
+
+  /messages/conferences:
+    get:
+      summary: List message conferences
+      operationId: listConferences
+      tags: [Messages]
+      description: |
+        Authenticated users see all conferences their ACS permits.
+        Unauthenticated callers see only conferences with areas in the public allowlist.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Conference' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+
+  /messages/conferences/{confTag}:
+    get:
+      summary: Conference detail with area list
+      operationId: getConference
+      tags: [Messages]
+      parameters:
+        - name: confTag
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConferenceDetail' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /messages/areas/{areaTag}:
+    get:
+      summary: Message area detail
+      operationId: getMessageArea
+      tags: [Messages]
+      parameters:
+        - name: areaTag
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageArea' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /messages/areas/{areaTag}/messages:
+    get:
+      summary: List messages in an area
+      operationId: listMessages
+      tags: [Messages]
+      parameters:
+        - name: areaTag
+          in: path
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, maximum: 100 }
+        - name: cursor
+          in: query
+          description: Opaque cursor from a previous response's `meta.nextCursor`
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedMessages' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    post:
+      summary: Post a message to an area
+      operationId: postMessage
+      tags: [Messages]
+      parameters:
+        - name: areaTag
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewMessage' }
+      responses:
+        "201":
+          description: Message created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageSummary' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /messages/{uuid}:
+    get:
+      summary: Full message detail
+      operationId: getMessage
+      tags: [Messages]
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageFull' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    delete:
+      summary: Delete a message
+      operationId: deleteMessage
+      tags: [Messages]
+      description: Users may delete their own messages. Sysops may delete any message.
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------------------
+  # Files
+  # ---------------------------------------------------------------------------
+
+  /files/areas:
+    get:
+      summary: List file areas
+      operationId: listFileAreas
+      tags: [Files]
+      description: |
+        Authenticated users see all areas their ACS permits.
+        Unauthenticated callers see only areas in the public allowlist.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/FileArea' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+
+  /files/areas/{areaTag}:
+    get:
+      summary: File area detail
+      operationId: getFileArea
+      tags: [Files]
+      parameters:
+        - name: areaTag
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileArea' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    post:
+      summary: Upload a file to an area
+      operationId: uploadFile
+      tags: [Files]
+      parameters:
+        - name: areaTag
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The file to upload (max 512 MiB)
+                desc:
+                  type: string
+                  description: Short description (overrides FILE_ID.DIZ if present)
+              required: [file]
+      responses:
+        "201":
+          description: File uploaded and scanned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileEntry' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+        "500": { $ref: '#/components/responses/InternalError' }
+
+  /files/areas/{areaTag}/files:
+    get:
+      summary: List files in an area
+      operationId: listFiles
+      tags: [Files]
+      parameters:
+        - name: areaTag
+          in: path
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 25, maximum: 100 }
+        - name: cursor
+          in: query
+          description: Opaque cursor from a previous response's `meta.nextCursor`
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedFiles' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /files/{fileId}:
+    get:
+      summary: File metadata
+      operationId: getFileMeta
+      tags: [Files]
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FileEntry' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /files/{fileId}/download:
+    get:
+      summary: Download a file
+      operationId: downloadFile
+      tags: [Files]
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: File stream
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+            Content-Length:
+              schema: { type: integer }
+            X-File-Id:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------------------------------------------------------
+  # Users
+  # ---------------------------------------------------------------------------
+
+  /users/me:
+    get:
+      summary: Own profile (full detail)
+      operationId: getOwnProfile
+      tags: [Users]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnProfile' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+    put:
+      summary: Update own profile
+      operationId: updateOwnProfile
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileUpdate' }
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnProfile' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /users/{username}:
+    get:
+      summary: Public user profile
+      operationId: getPublicProfile
+      tags: [Users]
+      description: |
+        Profile fields are opt-in — only shown when the user has set them.
+        Authenticated sysops receive additional fields marked "Sysop only".
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicProfile' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+tags:
+  - name: Auth
+    description: Authentication and token management
+  - name: System
+    description: Board information and live node status
+  - name: Messages
+    description: Message conferences, areas, and posts
+  - name: Files
+    description: File areas, metadata, uploads, and downloads
+  - name: Users
+    description: User profiles
