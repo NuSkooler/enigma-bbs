@@ -215,7 +215,7 @@ Errors follow [RFC 7807 Problem Details](https://www.rfc-editor.org/rfc/rfc7807)
 
 ## OpenAPI Specification
 
-A full [OpenAPI 3.1 specification](https://github.com/NuSkooler/enigma-bbs/blob/master/docs/api/openapi.yaml) is included in the repository under `docs/api/openapi.yaml`.
+A full [OpenAPI 3.1 specification](https://github.com/NuSkooler/enigma-bbs/blob/master/docs/api/openapi.yaml) is included in the repository under `docs/api/openapi.yaml`. You can paste this into https://editor.swagger.io/ for example to view.
 
 ## Configuration Reference
 
