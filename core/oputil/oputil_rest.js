@@ -64,7 +64,7 @@ function _apiKeyGenerate() {
     async.waterfall(
         [
             callback => initConfigAndDatabases(callback),
-            (config, callback) => {
+            callback => {
                 const User = require('../user');
                 User.getUserByUsername(username, (err, user) => {
                     if (err || !user) {
@@ -106,7 +106,7 @@ function _apiKeyList() {
     async.waterfall(
         [
             callback => initConfigAndDatabases(callback),
-            (config, callback) => {
+            callback => {
                 if (!username) {
                     return callback(null, null);
                 }
@@ -186,7 +186,7 @@ function _apiKeyRevoke() {
     async.waterfall(
         [
             callback => initConfigAndDatabases(callback),
-            (config, callback) => {
+            callback => {
                 const { dbs } = require('../database');
                 const info = dbs.user
                     .prepare('UPDATE api_keys SET revoked = 1 WHERE id = ?')
