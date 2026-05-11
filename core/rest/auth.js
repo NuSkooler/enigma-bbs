@@ -98,7 +98,10 @@ function rotateRefreshToken(rawRefresh, cb) {
     //  Constant-time comparison guards against any DB-layer timing leak
     const hashBuf = Buffer.from(tokenHash, 'hex');
     const storedBuf = Buffer.from(row.token_hash, 'hex');
-    if (hashBuf.length !== storedBuf.length || !crypto.timingSafeEqual(hashBuf, storedBuf)) {
+    if (
+        hashBuf.length !== storedBuf.length ||
+        !crypto.timingSafeEqual(hashBuf, storedBuf)
+    ) {
         return cb(new Error('Invalid or revoked refresh token'));
     }
 
@@ -163,7 +166,10 @@ function _verifyApiKey(keyHeader, cb) {
     //  Constant-time comparison guards against any DB-layer timing leak
     const hashBuf = Buffer.from(keyHash, 'hex');
     const storedBuf = Buffer.from(row.key_hash, 'hex');
-    if (hashBuf.length !== storedBuf.length || !crypto.timingSafeEqual(hashBuf, storedBuf)) {
+    if (
+        hashBuf.length !== storedBuf.length ||
+        !crypto.timingSafeEqual(hashBuf, storedBuf)
+    ) {
         return cb(null, null);
     }
 
