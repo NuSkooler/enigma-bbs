@@ -52,5 +52,11 @@ exports.getModule = class RestApiWebHandler extends WebHandlerModule {
 
         const messageRoutes = require('../../../rest/routes/messages');
         messageRoutes.register(webServer, this.log);
+
+        const fileRoutes = require('../../../rest/routes/files');
+        fileRoutes.register(webServer, this.log);
+
+        const userRoutes = require('../../../rest/routes/users');
+        userRoutes.register(webServer, this.log);
     }
 };

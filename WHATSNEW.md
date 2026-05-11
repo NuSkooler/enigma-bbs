@@ -1,6 +1,9 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.5.0-beta
+
+
 ## 0.4.0-beta
 
 * **Security hardening** — several security improvements across the system:
