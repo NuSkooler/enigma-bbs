@@ -86,12 +86,19 @@ function rotateRefreshToken(rawRefresh, cb) {
 
     const row = dbs.user
         .prepare(
-            `SELECT id, user_id, expires_at, revoked FROM api_refresh_tokens
+            `SELECT id, user_id, token_hash, expires_at, revoked FROM api_refresh_tokens
              WHERE token_hash = ?`
         )
         .get(tokenHash);
 
     if (!row || row.revoked) {
+        return cb(new Error('Invalid or revoked refresh token'));
+    }
+
+    //  Constant-time comparison guards against any DB-layer timing leak
+    const hashBuf = Buffer.from(tokenHash, 'hex');
+    const storedBuf = Buffer.from(row.token_hash, 'hex');
+    if (hashBuf.length !== storedBuf.length || !crypto.timingSafeEqual(hashBuf, storedBuf)) {
         return cb(new Error('Invalid or revoked refresh token'));
     }
 
@@ -144,12 +151,19 @@ function _verifyApiKey(keyHeader, cb) {
 
     const row = dbs.user
         .prepare(
-            `SELECT id, user_id, scope, revoked FROM api_keys
+            `SELECT id, user_id, key_hash, scope, revoked FROM api_keys
              WHERE key_hash = ?`
         )
         .get(keyHash);
 
     if (!row || row.revoked) {
+        return cb(null, null);
+    }
+
+    //  Constant-time comparison guards against any DB-layer timing leak
+    const hashBuf = Buffer.from(keyHash, 'hex');
+    const storedBuf = Buffer.from(row.key_hash, 'hex');
+    if (hashBuf.length !== storedBuf.length || !crypto.timingSafeEqual(hashBuf, storedBuf)) {
         return cb(null, null);
     }
 
