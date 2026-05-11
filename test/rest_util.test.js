@@ -2,14 +2,9 @@
 
 const { strict: assert } = require('assert');
 
-const {
-    encodeCursor,
-    decodeCursor,
-    paginationMeta,
-} = require('../core/rest/util.js');
+const { encodeCursor, decodeCursor, paginationMeta } = require('../core/rest/util.js');
 
 describe('rest_util', function () {
-
     describe('encodeCursor() / decodeCursor()', function () {
         it('round-trips a messageId cursor', function () {
             const payload = { messageId: 42 };

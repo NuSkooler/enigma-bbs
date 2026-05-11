@@ -95,7 +95,8 @@ function _acsForUser(user) {
 //  Check whether an area tag is publicly exposed via restApi.messages.publicAccess config
 function _isAreaPublic(areaTag) {
     const config = Config();
-    const publicAccess = config.contentServers?.web?.restApi?.messages?.publicAccess || {};
+    const publicAccess =
+        config.contentServers?.web?.restApi?.messages?.publicAccess || {};
     const confTag = getMessageConfTagByAreaTag(areaTag);
     if (!confTag) {
         return false;
@@ -134,7 +135,12 @@ function _resolveAreaReadAccess(req, resp, areaTag, cb) {
 
     //  System/internal areas are never accessible via the REST API
     if (BLOCKED_AREA_TAGS.has(areaTag)) {
-        return problemDetail(resp, 403, 'Forbidden', 'This area is not accessible via the REST API');
+        return problemDetail(
+            resp,
+            403,
+            'Forbidden',
+            'This area is not accessible via the REST API'
+        );
     }
 
     resolveAuthenticatedUser(req, (err, authedUser) => {
@@ -145,9 +151,19 @@ function _resolveAreaReadAccess(req, resp, areaTag, cb) {
                     return problemDetail(resp, 401, 'Authentication Required');
                 }
                 const acs = _acsForUser(user);
-                const conf = getMessageConferenceByTag(area.confTag || getMessageConfTagByAreaTag(areaTag));
-                if (!acs.hasMessageConfRead(conf || {}) || !acs.hasMessageAreaRead(area)) {
-                    return problemDetail(resp, 403, 'Forbidden', 'Insufficient access to this area');
+                const conf = getMessageConferenceByTag(
+                    area.confTag || getMessageConfTagByAreaTag(areaTag)
+                );
+                if (
+                    !acs.hasMessageConfRead(conf || {}) ||
+                    !acs.hasMessageAreaRead(area)
+                ) {
+                    return problemDetail(
+                        resp,
+                        403,
+                        'Forbidden',
+                        'Insufficient access to this area'
+                    );
                 }
                 return cb(user, area);
             });
@@ -198,10 +214,18 @@ function _serializeMessageFull(msg) {
     if (msg.meta?.System) {
         const sys = msg.meta.System;
         const net = {};
-        if (sys.FtnOrigNode) { net.ftnOrigNode = sys.FtnOrigNode; }
-        if (sys.FtnArea)     { net.ftnArea = sys.FtnArea; }
-        if (sys.FtnTearLine) { net.ftnTearLine = sys.FtnTearLine; }
-        if (Object.keys(net).length) { out.network = net; }
+        if (sys.FtnOrigNode) {
+            net.ftnOrigNode = sys.FtnOrigNode;
+        }
+        if (sys.FtnArea) {
+            net.ftnArea = sys.FtnArea;
+        }
+        if (sys.FtnTearLine) {
+            net.ftnTearLine = sys.FtnTearLine;
+        }
+        if (Object.keys(net).length) {
+            out.network = net;
+        }
     }
     return out;
 }
@@ -225,7 +249,8 @@ function _conferencesHandler(req, resp, log) {
         } else {
             //  Unauthenticated: return only conferences that contain at least one public area
             const config = Config();
-            const publicAccess = config.contentServers?.web?.restApi?.messages?.publicAccess || {};
+            const publicAccess =
+                config.contentServers?.web?.restApi?.messages?.publicAccess || {};
             confs = getAvailableMessageConferences(null, { noClient: true });
             const publicConfTags = new Set(Object.keys(publicAccess));
             confs = _.pickBy(confs, (_v, tag) => publicConfTags.has(tag));
@@ -255,14 +280,14 @@ function _conferenceDetailHandler(req, resp, log) {
     }
 
     resolveAuthenticatedUser(req, (err, authedUser) => {
-        const _send = (user) => {
+        const _send = user => {
             const fakeClient = user ? { acs: _acsForUser(user) } : null;
             const areas = getAvailableMessageAreasByConfTag(confTag, {
                 client: fakeClient,
                 noAcsCheck: !fakeClient,
             });
             const areaData = Object.entries(areas || {})
-                .filter(([areaTag]) => fakeClient ? true : _isAreaPublic(areaTag))
+                .filter(([areaTag]) => (fakeClient ? true : _isAreaPublic(areaTag)))
                 .map(([areaTag, area]) => _serializeArea(areaTag, { ...area, confTag }));
 
             return jsonResponse(resp, 200, {
@@ -308,7 +333,10 @@ function _messageListHandler(req, resp, log) {
 
     _resolveAreaReadAccess(req, resp, areaTag, (_user, _area) => {
         const params = new URL(req.url, 'http://localhost').searchParams;
-        const limit = Math.min(parseInt(params.get('limit') || PAGE_SIZE, 10), MAX_PAGE_SIZE);
+        const limit = Math.min(
+            parseInt(params.get('limit') || PAGE_SIZE, 10),
+            MAX_PAGE_SIZE
+        );
         const cursorParam = params.get('cursor');
 
         let afterMessageId = 0;
@@ -338,9 +366,10 @@ function _messageListHandler(req, resp, log) {
 
             const data = messages.map(_serializeMessageSummary);
             const lastMsg = data[data.length - 1];
-            const nextCursor = hasMore && lastMsg
-                ? encodeCursor({ messageId: lastMsg.messageId })
-                : null;
+            const nextCursor =
+                hasMore && lastMsg
+                    ? encodeCursor({ messageId: lastMsg.messageId })
+                    : null;
 
             return jsonResponse(resp, 200, paginationMeta(data, nextCursor));
         });
@@ -384,18 +413,33 @@ function _postMessageHandler(req, resp, log) {
 
             const area = getMessageAreaByTag(areaTag);
             if (!area) {
-                return problemDetail(resp, 404, 'Not Found', `Area '${areaTag}' not found`);
+                return problemDetail(
+                    resp,
+                    404,
+                    'Not Found',
+                    `Area '${areaTag}' not found`
+                );
             }
 
             if (BLOCKED_AREA_TAGS.has(areaTag)) {
-                return problemDetail(resp, 403, 'Forbidden', 'This area is not accessible via the REST API');
+                return problemDetail(
+                    resp,
+                    403,
+                    'Forbidden',
+                    'This area is not accessible via the REST API'
+                );
             }
 
             const acs = _acsForUser(user);
             const confTag = getMessageConfTagByAreaTag(areaTag);
             const conf = getMessageConferenceByTag(confTag);
             if (!acs.hasMessageConfWrite(conf || {}) || !acs.hasMessageAreaWrite(area)) {
-                return problemDetail(resp, 403, 'Forbidden', 'Insufficient access to post to this area');
+                return problemDetail(
+                    resp,
+                    403,
+                    'Forbidden',
+                    'Insufficient access to post to this area'
+                );
             }
 
             parseJsonBody(req, (err, body) => {
@@ -405,7 +449,12 @@ function _postMessageHandler(req, resp, log) {
 
                 const { subject, message, toUserName, replyToMessageId } = body || {};
                 if (!subject || !message) {
-                    return problemDetail(resp, 400, 'Bad Request', '"subject" and "message" are required');
+                    return problemDetail(
+                        resp,
+                        400,
+                        'Bad Request',
+                        '"subject" and "message" are required'
+                    );
                 }
 
                 const msg = new Message({
@@ -429,7 +478,10 @@ function _postMessageHandler(req, resp, log) {
                         return problemDetail(resp, 500, 'Internal Server Error');
                     }
 
-                    log.info({ userId: user.userId, areaTag, uuid: msg.messageUuid }, 'Message posted via REST API');
+                    log.info(
+                        { userId: user.userId, areaTag, uuid: msg.messageUuid },
+                        'Message posted via REST API'
+                    );
 
                     return jsonResponse(resp, 201, _serializeMessageSummary(msg));
                 });
@@ -460,12 +512,19 @@ function _deleteMessageHandler(req, resp, log) {
 
                 const isSysop = user.isGroupMember('sysops');
                 const localFromId = parseInt(
-                    msg.meta?.System?.[Message.SystemMetaNames.LocalFromUserID] || '0', 10
+                    msg.meta?.System?.[Message.SystemMetaNames.LocalFromUserID] || '0',
+                    10
                 );
-                const isOwn = localFromId === user.userId || msg.fromUserName === user.username;
+                const isOwn =
+                    localFromId === user.userId || msg.fromUserName === user.username;
 
                 if (!isSysop && !isOwn) {
-                    return problemDetail(resp, 403, 'Forbidden', 'You can only delete your own messages');
+                    return problemDetail(
+                        resp,
+                        403,
+                        'Forbidden',
+                        'You can only delete your own messages'
+                    );
                 }
 
                 //  deleteMessage enforces its own rights check; we pass user for that path,

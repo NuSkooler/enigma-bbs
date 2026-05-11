@@ -6,7 +6,10 @@ const { resolveAuthenticatedUser } = require('../auth');
 const StatLog = require('../../stat_log');
 const SysProps = require('../../system_property');
 const SysLogKeys = require('../../system_log');
-const { getActiveConnectionList, UserVisibleConnections } = require('../../client_connections');
+const {
+    getActiveConnectionList,
+    UserVisibleConnections,
+} = require('../../client_connections');
 const Config = require('../../config').get;
 const packageJson = require('../../../package.json');
 
@@ -92,9 +95,7 @@ function _nodesHandler(req, resp) {
                 entry.username = n.userName;
                 entry.location = n.location !== 'N/A' ? n.location : undefined;
                 entry.affils = n.affils !== 'N/A' ? n.affils : undefined;
-                entry.timeOnMinutes = n.timeOn
-                    ? Math.floor(n.timeOn.asMinutes())
-                    : 0;
+                entry.timeOnMinutes = n.timeOn ? Math.floor(n.timeOn.asMinutes()) : 0;
             }
 
             return entry;

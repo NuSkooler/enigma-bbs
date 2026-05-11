@@ -1,6 +1,12 @@
 'use strict';
 
-const { jsonResponse, problemDetail, applyCorsHeaders, parseJsonBody, API_BASE } = require('../util');
+const {
+    jsonResponse,
+    problemDetail,
+    applyCorsHeaders,
+    parseJsonBody,
+    API_BASE,
+} = require('../util');
 const { resolveAuthenticatedUser, requireAuth } = require('../auth');
 
 const User = require('../../user');
@@ -21,20 +27,20 @@ const WRITABLE_PROPS = [
 
 //  Maximum length for each writable property
 const PROP_MAX_LEN = {
-    [UserProps.RealName]:     64,
-    [UserProps.Location]:     64,
+    [UserProps.RealName]: 64,
+    [UserProps.Location]: 64,
     [UserProps.Affiliations]: 64,
-    [UserProps.WebAddress]:   256,
-    [UserProps.AutoSignature]:512,
+    [UserProps.WebAddress]: 256,
+    [UserProps.AutoSignature]: 512,
 };
 
 //  Fields exposed in public profile, keyed by API name → UserProps key
 //  null value = derived, not a raw property
 const PUBLIC_PROFILE_FIELDS = {
-    realName:     UserProps.RealName,
-    location:     UserProps.Location,
+    realName: UserProps.RealName,
+    location: UserProps.Location,
     affiliations: UserProps.Affiliations,
-    webAddress:   UserProps.WebAddress,
+    webAddress: UserProps.WebAddress,
 };
 
 exports.register = function register(webServer, log) {
@@ -124,9 +130,9 @@ function _serializePublicProfile(target, viewerIsSysop) {
             ? moment(p(UserProps.LastLoginTs)).toISOString()
             : undefined;
         profile.loginCount = pInt(UserProps.LoginCount);
-        profile.uploadCount = pInt(UserProps.FileUlTotalCount),
-        profile.downloadCount = pInt(UserProps.FileDlTotalCount),
-        profile.minutesOnline = pInt(UserProps.MinutesOnlineTotalCount);
+        ((profile.uploadCount = pInt(UserProps.FileUlTotalCount)),
+            (profile.downloadCount = pInt(UserProps.FileDlTotalCount)),
+            (profile.minutesOnline = pInt(UserProps.MinutesOnlineTotalCount)));
     }
 
     return profile;
@@ -161,18 +167,33 @@ function _meUpdateHandler(req, resp, log) {
                 if (apiKey in body) {
                     const val = body[apiKey];
                     if (val !== null && val !== undefined && typeof val !== 'string') {
-                        return problemDetail(resp, 400, 'Bad Request', `Field "${apiKey}" must be a string or null`);
+                        return problemDetail(
+                            resp,
+                            400,
+                            'Bad Request',
+                            `Field "${apiKey}" must be a string or null`
+                        );
                     }
                     const maxLen = PROP_MAX_LEN[propKey];
                     if (val && val.length > maxLen) {
-                        return problemDetail(resp, 400, 'Bad Request', `Field "${apiKey}" exceeds maximum length of ${maxLen}`);
+                        return problemDetail(
+                            resp,
+                            400,
+                            'Bad Request',
+                            `Field "${apiKey}" exceeds maximum length of ${maxLen}`
+                        );
                     }
                     updates[propKey] = val || '';
                 }
             }
 
             if (Object.keys(updates).length === 0) {
-                return problemDetail(resp, 400, 'Bad Request', 'No valid fields provided');
+                return problemDetail(
+                    resp,
+                    400,
+                    'Bad Request',
+                    'No valid fields provided'
+                );
             }
 
             User.getUser(authedUser.userId, (err, user) => {
@@ -182,7 +203,10 @@ function _meUpdateHandler(req, resp, log) {
 
                 user.persistProperties(updates, err => {
                     if (err) {
-                        log.error({ err, userId: user.userId }, 'Failed to update user properties');
+                        log.error(
+                            { err, userId: user.userId },
+                            'Failed to update user properties'
+                        );
                         return problemDetail(resp, 500, 'Internal Server Error');
                     }
 
@@ -209,13 +233,21 @@ function _publicProfileHandler(req, resp, log) {
                     return problemDetail(resp, 404, 'Not Found', 'User not found');
                 }
 
-                const viewerIsSysop = viewer ? (viewer.isSysOp?.() || viewer.isGroupMember?.('sysops')) : false;
-                return jsonResponse(resp, 200, _serializePublicProfile(target, viewerIsSysop));
+                const viewerIsSysop = viewer
+                    ? viewer.isSysOp?.() || viewer.isGroupMember?.('sysops')
+                    : false;
+                return jsonResponse(
+                    resp,
+                    200,
+                    _serializePublicProfile(target, viewerIsSysop)
+                );
             });
         };
 
         if (authedUser) {
-            User.getUser(authedUser.userId, (err, viewer) => continueWithViewer(viewer || null));
+            User.getUser(authedUser.userId, (err, viewer) =>
+                continueWithViewer(viewer || null)
+            );
         } else {
             continueWithViewer(null);
         }
@@ -225,11 +257,11 @@ function _publicProfileHandler(req, resp, log) {
 //  Map UserProps key → camelCase API key for PUT body parsing
 function _propKeyToApiKey(propKey) {
     const map = {
-        [UserProps.RealName]:     'realName',
-        [UserProps.Location]:     'location',
+        [UserProps.RealName]: 'realName',
+        [UserProps.Location]: 'location',
         [UserProps.Affiliations]: 'affiliations',
-        [UserProps.WebAddress]:   'webAddress',
-        [UserProps.AutoSignature]:'autoSignature',
+        [UserProps.WebAddress]: 'webAddress',
+        [UserProps.AutoSignature]: 'autoSignature',
     };
     return map[propKey] || propKey;
 }

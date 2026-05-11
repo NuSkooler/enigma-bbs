@@ -73,7 +73,11 @@ function issueTokenPair(userId, username, groups, cb) {
         return cb(err);
     }
 
-    return cb(null, { accessToken, refreshToken: rawRefresh, expiresIn: ACCESS_TOKEN_TTL_S });
+    return cb(null, {
+        accessToken,
+        refreshToken: rawRefresh,
+        expiresIn: ACCESS_TOKEN_TTL_S,
+    });
 }
 
 function rotateRefreshToken(rawRefresh, cb) {
@@ -126,7 +130,12 @@ function _verifyBearer(authHeader, cb) {
         if (err) {
             return cb(null, null);
         }
-        return cb(null, { userId: payload.userId, username: payload.username, groups: payload.groups || [], scope: 'jwt' });
+        return cb(null, {
+            userId: payload.userId,
+            username: payload.username,
+            groups: payload.groups || [],
+            scope: 'jwt',
+        });
     });
 }
 
@@ -181,7 +190,12 @@ function requireAuth(req, resp, cb) {
     resolveAuthenticatedUser(req, (err, authedUser) => {
         if (err || !authedUser) {
             const { problemDetail } = require('./util');
-            problemDetail(resp, 401, 'Authentication Required', 'Valid credentials must be provided');
+            problemDetail(
+                resp,
+                401,
+                'Authentication Required',
+                'Valid credentials must be provided'
+            );
             return;
         }
         return cb(authedUser);
@@ -228,9 +242,7 @@ function listApiKeys(userId, cb) {
 function revokeApiKey(keyId, userId, cb) {
     try {
         const info = dbs.user
-            .prepare(
-                'UPDATE api_keys SET revoked = 1 WHERE id = ? AND user_id = ?'
-            )
+            .prepare('UPDATE api_keys SET revoked = 1 WHERE id = ? AND user_id = ?')
             .run(keyId, userId);
         return cb(null, info.changes > 0);
     } catch (err) {

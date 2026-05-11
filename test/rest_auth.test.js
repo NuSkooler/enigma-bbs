@@ -146,9 +146,15 @@ describe('rest_auth', function () {
         auth = require('../core/rest/auth.js');
 
         //  Seed a test user
-        const info = userDb.prepare("INSERT INTO user (user_name) VALUES ('testuser')").run();
+        const info = userDb
+            .prepare("INSERT INTO user (user_name) VALUES ('testuser')")
+            .run();
         testUserId = info.lastInsertRowid;
-        userDb.prepare("INSERT INTO user_group_member (group_name, user_id) VALUES ('users', ?)").run(testUserId);
+        userDb
+            .prepare(
+                "INSERT INTO user_group_member (group_name, user_id) VALUES ('users', ?)"
+            )
+            .run(testUserId);
     });
 
     after(function () {
@@ -201,7 +207,9 @@ describe('rest_auth', function () {
                 assert.ifError(err);
 
                 const rows = dbModule.dbs.user
-                    .prepare('SELECT token_hash FROM api_refresh_tokens WHERE revoked = 0 AND user_id = ?')
+                    .prepare(
+                        'SELECT token_hash FROM api_refresh_tokens WHERE revoked = 0 AND user_id = ?'
+                    )
                     .all(testUserId);
 
                 const hasPlaintext = rows.some(r => r.token_hash === tokens.refreshToken);
@@ -277,7 +285,7 @@ describe('rest_auth', function () {
         });
 
         it('revokeApiKey() marks the key revoked', function (done) {
-            auth.storeApiKey(testUserId, 'to-revoke', 'read', (err) => {
+            auth.storeApiKey(testUserId, 'to-revoke', 'read', err => {
                 assert.ifError(err);
 
                 auth.listApiKeys(testUserId, (err, keys) => {
@@ -324,7 +332,9 @@ describe('rest_auth', function () {
             auth.issueTokenPair(testUserId, 'testuser', ['users'], (err, tokens) => {
                 assert.ifError(err);
 
-                const req = { headers: { authorization: `Bearer ${tokens.accessToken}` } };
+                const req = {
+                    headers: { authorization: `Bearer ${tokens.accessToken}` },
+                };
                 auth.resolveAuthenticatedUser(req, (err, user) => {
                     assert.ifError(err);
                     assert.ok(user, 'user should be resolved');

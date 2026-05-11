@@ -2,8 +2,12 @@
 /* eslint-disable no-console */
 'use strict';
 
-const { printUsageAndSetExitCode, ExitCodes, argv, initConfigAndDatabases } =
-    require('./oputil_common.js');
+const {
+    printUsageAndSetExitCode,
+    ExitCodes,
+    argv,
+    initConfigAndDatabases,
+} = require('./oputil_common.js');
 const getHelpFor = require('./oputil_help.js').getHelpFor;
 
 const async = require('async');
@@ -27,7 +31,10 @@ function handleRestCommand() {
             case 'revoke':
                 return _apiKeyRevoke();
             default:
-                return printUsageAndSetExitCode(getHelpFor('Rest'), ExitCodes.BAD_COMMAND);
+                return printUsageAndSetExitCode(
+                    getHelpFor('Rest'),
+                    ExitCodes.BAD_COMMAND
+                );
         }
     }
 
