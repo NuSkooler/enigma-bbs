@@ -249,6 +249,58 @@
                 activityPub: {
                     enabled: false
                 }
+
+                //  ENiGMA½ REST API v1
+                //  Exposes message bases, file areas, user profiles, and
+                //  system information over a JSON REST API.
+                //  Paths are under /_enig/api/v1/
+                restApi: {
+                    enabled: false
+
+                    //  CORS allowed origins. [] = no CORS headers (default/safest).
+                    //  Set to ["*"] to allow any origin (public read endpoints only).
+                    //  Set to specific origins: ["https://example.com"]
+                    corsAllowedOrigins: []
+
+                    //  Optional: override the JWT signing secret (e.g. for multi-node
+                    //  setups that share a secret). If omitted, ENiGMA auto-generates
+                    //  one on first run and stores it in the database.
+                    //  jwtSecret: "a long random string"
+
+                    //  Control which system endpoints are public vs. auth-required.
+                    //  Defaults: info, last-callers, stats = public; nodes = auth required.
+                    //  system: {
+                    //      public: {
+                    //          info: true
+                    //          nodes: false
+                    //          last-callers: true
+                    //          stats: true
+                    //      }
+                    //  }
+
+                    //  Message areas exposed to unauthenticated (public) requests.
+                    //  ACS still applies for authenticated users.
+                    //  Uses include/exclude glob patterns against area tags.
+                    messages: {
+                        publicAccess: {
+                            //  Example: expose all local areas except private ones
+                            //  local: {
+                            //      include: ["*"]
+                            //      exclude: ["private*"]
+                            //  }
+                        }
+                    }
+
+                    //  File areas exposed to unauthenticated (public) requests.
+                    files: {
+                        publicAccess: {
+                            //  Example:
+                            //  local: {
+                            //      include: ["*"]
+                            //  }
+                        }
+                    }
+                }
             }
 
             //
