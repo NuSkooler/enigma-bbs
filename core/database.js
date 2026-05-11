@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const conf = require('./config');
+const Logger = require('./logger.js');
 
 //  deps
 const Database = require('better-sqlite3');
@@ -88,12 +89,26 @@ function loadDatabaseForMod(modInfo, cb) {
 }
 
 function getISOTimestampString(ts) {
+    const originalTs = ts;
     ts = ts || moment();
     if (!moment.isMoment(ts)) {
         if (_.isString(ts)) {
             ts = ts.replace(/\//g, '-');
         }
         ts = moment(ts);
+    }
+    //  Never persist the literal string "Invalid date": moment.format() on an
+    //  invalid moment returns that, which silently corrupts the DB column.
+    if (!ts.isValid()) {
+        //  Logger.log is set by logger.init() during startup; may be undefined
+        //  if this is called before init (shouldn't happen in normal flow).
+        if (Logger.log) {
+            Logger.log.warn(
+                { input: originalTs },
+                'Invalid timestamp passed to getISOTimestampString; falling back to now'
+            );
+        }
+        ts = moment();
     }
     return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 }

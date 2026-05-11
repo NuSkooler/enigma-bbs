@@ -5,6 +5,7 @@ const Config = require('./config.js').get;
 const Address = require('./ftn_address.js');
 const FNV1a = require('./fnv1a.js');
 const getCleanEnigmaVersion = require('./misc_util.js').getCleanEnigmaVersion;
+const Logger = require('./logger.js');
 
 const _ = require('lodash');
 const iconv = require('iconv-lite');
@@ -72,7 +73,19 @@ function getDateFromFtnDateTime(dateTime) {
         'ddd DD MMM YY HH:mm',
     ];
     const m = moment(dateTime, FTN_DATE_FORMATS, true);
-    return m.isValid() ? m : moment(Date.parse(dateTime)); //  fallback for unexpected formats
+    if (m.isValid()) {
+        return m;
+    }
+    const fallback = moment(Date.parse(dateTime));
+    if (fallback.isValid()) {
+        return fallback;
+    }
+    //  Logger.log is set by logger.init() during startup; may be undefined if
+    //  this is called before init (shouldn't happen in normal flow).
+    if (Logger.log) {
+        Logger.log.warn({ dateTime }, 'Unparseable FTN DateTime; falling back to now');
+    }
+    return moment();
 }
 
 function getDateTimeString(m) {

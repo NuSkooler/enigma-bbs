@@ -40,7 +40,16 @@
  *   { type: 'stop' }                            - graceful shutdown request
  */
 
-const { workerData, parentPort } = require('worker_threads');
+const { isMainThread, workerData, parentPort } = require('worker_threads');
+
+//  module_util.js' initializeModules() require()s every *.js under core/
+//  to look for an optional moduleInitialize export. Without this guard the
+//  top-level worker setup below would run in the main thread, where
+//  workerData / parentPort are null, and crash with a TypeError.
+if (isMainThread) {
+    return;
+}
+
 const { readFileSync } = require('fs');
 const { PassThrough } = require('stream');
 const readline = require('readline');

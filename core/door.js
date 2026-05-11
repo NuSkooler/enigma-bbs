@@ -179,6 +179,17 @@ module.exports = class Door {
                     };
 
                     this.doorPty.on('error', err => {
+                        //  EIO is a benign close-time race: the door's PTY
+                        //  slave closes before node-pty finishes reading the
+                        //  last chunk on the master. The real exit status is
+                        //  surfaced via onExit() below.
+                        if ('EIO' === err.code) {
+                            this.client.log.debug(
+                                { error: err.message },
+                                'Door PTY EIO on close (benign)'
+                            );
+                            return;
+                        }
                         this.client.log.warn(
                             { error: err.message },
                             'Door exited with error'

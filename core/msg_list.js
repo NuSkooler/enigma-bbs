@@ -336,9 +336,20 @@ exports.getModule = class MessageListModule extends (
                         self.config.messageList.forEach((listItem, index) => {
                             listItem.msgNum = msgNum++;
                             try {
-                                listItem.ts = moment(listItem.modTimestamp).format(
-                                    dateTimeFormat
-                                );
+                                const m = moment(listItem.modTimestamp);
+                                if (!m.isValid()) {
+                                    self.client.log.warn(
+                                        {
+                                            modTimestamp: listItem.modTimestamp,
+                                            messageUuid: listItem.messageUuid,
+                                            areaTag: listItem.areaTag,
+                                        },
+                                        'Invalid modTimestamp on message list entry'
+                                    );
+                                    listItem.ts = moment().format(dateTimeFormat);
+                                } else {
+                                    listItem.ts = m.format(dateTimeFormat);
+                                }
                             } catch (e) {
                                 self.client.log.warn(
                                     `Error parsing "${listItem.modTimestamp}"; expected timestamp: ${e.message}`
