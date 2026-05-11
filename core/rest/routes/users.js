@@ -46,19 +46,19 @@ const PUBLIC_PROFILE_FIELDS = {
 exports.register = function register(webServer, log) {
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/me$`),
+        path: new RegExp(`^${ROUTE_BASE}/me(?:[?#]|$)`),
         handler: (req, resp) => _meHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'PUT',
-        path: new RegExp(`^${ROUTE_BASE}/me$`),
+        path: new RegExp(`^${ROUTE_BASE}/me(?:[?#]|$)`),
         handler: (req, resp) => _meUpdateHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/([^/]+)$`),
+        path: new RegExp(`^${ROUTE_BASE}/([^/]+)(?:[?#]|$)`),
         handler: (req, resp) => _publicProfileHandler(req, resp, log),
     });
 };

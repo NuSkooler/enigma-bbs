@@ -21,25 +21,25 @@ const ROUTE_BASE = `${API_BASE}/system`;
 exports.register = function register(webServer, log) {
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/info$`),
+        path: new RegExp(`^${ROUTE_BASE}/info(?:[?#]|$)`),
         handler: (req, resp) => _infoHandler(req, resp),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/nodes$`),
+        path: new RegExp(`^${ROUTE_BASE}/nodes(?:[?#]|$)`),
         handler: (req, resp) => _nodesHandler(req, resp),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/last-callers$`),
+        path: new RegExp(`^${ROUTE_BASE}/last-callers(?:[?#]|$)`),
         handler: (req, resp) => _lastCallersHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/stats$`),
+        path: new RegExp(`^${ROUTE_BASE}/stats(?:[?#]|$)`),
         handler: (req, resp) => _statsHandler(req, resp),
     });
 };

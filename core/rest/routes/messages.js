@@ -29,6 +29,7 @@ const { WellKnownAreaTags } = require('../../message_const');
 const ACS = require('../../acs');
 const Config = require('../../config').get;
 const User = require('../../user');
+const { stripAnsiControlCodes } = require('../../string_util');
 
 const BLOCKED_AREA_TAGS = new Set([
     WellKnownAreaTags.Private,
@@ -46,43 +47,43 @@ const MAX_PAGE_SIZE = 100;
 exports.register = function register(webServer, log) {
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/conferences$`),
+        path: new RegExp(`^${ROUTE_BASE}/conferences(?:[?#]|$)`),
         handler: (req, resp) => _conferencesHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/conferences/([^/]+)$`),
+        path: new RegExp(`^${ROUTE_BASE}/conferences/([^/]+)(?:[?#]|$)`),
         handler: (req, resp) => _conferenceDetailHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)$`),
+        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)(?:[?#]|$)`),
         handler: (req, resp) => _areaDetailHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)/messages$`),
+        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)/messages(?:[?#]|$)`),
         handler: (req, resp) => _messageListHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'POST',
-        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)/messages$`),
+        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)/messages(?:[?#]|$)`),
         handler: (req, resp) => _postMessageHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/([0-9a-f-]{36})$`),
+        path: new RegExp(`^${ROUTE_BASE}/([0-9a-f-]{36})(?:[?#]|$)`),
         handler: (req, resp) => _messageDetailHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'DELETE',
-        path: new RegExp(`^${ROUTE_BASE}/([0-9a-f-]{36})$`),
+        path: new RegExp(`^${ROUTE_BASE}/([0-9a-f-]{36})(?:[?#]|$)`),
         handler: (req, resp) => _deleteMessageHandler(req, resp, log),
     });
 };
@@ -177,24 +178,33 @@ function _resolveAreaReadAccess(req, resp, areaTag, cb) {
     });
 }
 
-function _serializeConference(confTag, conf) {
+function _shouldStripAnsi(req) {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    return params.get('stripAnsi') !== 'false';
+}
+
+function _maybeStrip(s, strip) {
+    return s && strip ? stripAnsiControlCodes(s, { all: true }) : s;
+}
+
+function _serializeConference(confTag, conf, strip = true) {
     return {
         confTag,
         name: conf.name || confTag,
-        desc: conf.desc || undefined,
+        desc: _maybeStrip(conf.desc, strip) || undefined,
     };
 }
 
-function _serializeArea(areaTag, area) {
+function _serializeArea(areaTag, area, strip = true) {
     return {
         areaTag,
         name: area.name || areaTag,
-        desc: area.desc || undefined,
+        desc: _maybeStrip(area.desc, strip) || undefined,
         confTag: area.confTag || getMessageConfTagByAreaTag(areaTag),
     };
 }
 
-function _serializeMessageSummary(msg) {
+function _serializeMessageSummary(msg, strip = true) {
     return {
         messageId: msg.messageId || msg.message_id,
         uuid: msg.messageUuid || msg.message_uuid,
@@ -202,14 +212,14 @@ function _serializeMessageSummary(msg) {
         replyToMessageId: msg.replyToMessageId || msg.reply_to_message_id || undefined,
         toUserName: msg.toUserName || msg.to_user_name,
         fromUserName: msg.fromUserName || msg.from_user_name,
-        subject: msg.subject,
+        subject: _maybeStrip(msg.subject, strip),
         timestamp: moment(msg.modTimestamp || msg.modified_timestamp).toISOString(),
     };
 }
 
-function _serializeMessageFull(msg) {
-    const out = _serializeMessageSummary(msg);
-    out.body = msg.message;
+function _serializeMessageFull(msg, strip = true) {
+    const out = _serializeMessageSummary(msg, strip);
+    out.body = _maybeStrip(msg.message, strip);
     //  Include FTN/network meta if present — clients can use this to identify networked msgs
     if (msg.meta?.System) {
         const sys = msg.meta.System;
@@ -244,7 +254,7 @@ function _conferencesHandler(req, resp, log) {
                 //  Pass a minimal client-like object that satisfies getAvailableMessageConferences
                 const fakeClient = { acs: _acsForUser(user) };
                 confs = getAvailableMessageConferences(fakeClient, {});
-                return _sendConferences(resp, confs);
+                return _sendConferences(req, resp, confs);
             });
         } else {
             //  Unauthenticated: return only conferences that contain at least one public area
@@ -259,9 +269,10 @@ function _conferencesHandler(req, resp, log) {
     });
 }
 
-function _sendConferences(resp, confs) {
+function _sendConferences(req, resp, confs) {
+    const strip = _shouldStripAnsi(req);
     const data = Object.entries(confs || {}).map(([confTag, conf]) =>
-        _serializeConference(confTag, conf)
+        _serializeConference(confTag, conf, strip)
     );
     return jsonResponse(resp, 200, paginationMeta(data, null));
 }
@@ -280,6 +291,7 @@ function _conferenceDetailHandler(req, resp, log) {
     }
 
     resolveAuthenticatedUser(req, (err, authedUser) => {
+        const strip = _shouldStripAnsi(req);
         const _send = user => {
             const fakeClient = user ? { acs: _acsForUser(user) } : null;
             const areas = getAvailableMessageAreasByConfTag(confTag, {
@@ -288,10 +300,12 @@ function _conferenceDetailHandler(req, resp, log) {
             });
             const areaData = Object.entries(areas || {})
                 .filter(([areaTag]) => (fakeClient ? true : _isAreaPublic(areaTag)))
-                .map(([areaTag, area]) => _serializeArea(areaTag, { ...area, confTag }));
+                .map(([areaTag, area]) =>
+                    _serializeArea(areaTag, { ...area, confTag }, strip)
+                );
 
             return jsonResponse(resp, 200, {
-                ..._serializeConference(confTag, conf),
+                ..._serializeConference(confTag, conf, strip),
                 areas: areaData,
             });
         };
@@ -312,14 +326,18 @@ function _conferenceDetailHandler(req, resp, log) {
 function _areaDetailHandler(req, resp, log) {
     applyCorsHeaders(req, resp);
 
-    const areaTag = req.url.match(/\/areas\/([^/?]+)$/)?.[1];
+    const areaTag = req.url.match(/\/areas\/([^/?]+)(?:[?#]|$)/)?.[1];
     if (!areaTag) {
         return problemDetail(resp, 400, 'Bad Request');
     }
 
     _resolveAreaReadAccess(req, resp, areaTag, (_user, area) => {
         const confTag = getMessageConfTagByAreaTag(areaTag);
-        return jsonResponse(resp, 200, _serializeArea(areaTag, { ...area, confTag }));
+        return jsonResponse(
+            resp,
+            200,
+            _serializeArea(areaTag, { ...area, confTag }, _shouldStripAnsi(req))
+        );
     });
 }
 
@@ -333,6 +351,7 @@ function _messageListHandler(req, resp, log) {
 
     _resolveAreaReadAccess(req, resp, areaTag, (_user, _area) => {
         const params = new URL(req.url, 'http://localhost').searchParams;
+        const strip = params.get('stripAnsi') !== 'false';
         const limit = Math.min(
             parseInt(params.get('limit') || PAGE_SIZE, 10),
             MAX_PAGE_SIZE
@@ -364,7 +383,7 @@ function _messageListHandler(req, resp, log) {
                 messages = messages.slice(0, limit);
             }
 
-            const data = messages.map(_serializeMessageSummary);
+            const data = messages.map(m => _serializeMessageSummary(m, strip));
             const lastMsg = data[data.length - 1];
             const nextCursor =
                 hasMore && lastMsg
@@ -392,7 +411,11 @@ function _messageDetailHandler(req, resp, log) {
 
         //  Check area access after loading (we need the areaTag from the message)
         _resolveAreaReadAccess(req, resp, msg.areaTag, () => {
-            return jsonResponse(resp, 200, _serializeMessageFull(msg));
+            return jsonResponse(
+                resp,
+                200,
+                _serializeMessageFull(msg, _shouldStripAnsi(req))
+            );
         });
     });
 }
@@ -498,51 +521,51 @@ function _deleteMessageHandler(req, resp, log) {
         return problemDetail(resp, 400, 'Bad Request');
     }
 
-    requireAuth(req, resp, authedUser => {
-        User.getUser(authedUser.userId, (err, user) => {
-            if (err || !user) {
+    //  Load the message first so we know which area it belongs to, then gate
+    //  the delete on _resolveAreaReadAccess — consistent with all other handlers.
+    const msg = new Message();
+    msg.load({ uuid }, err => {
+        if (err) {
+            return problemDetail(resp, 404, 'Not Found', 'Message not found');
+        }
+
+        _resolveAreaReadAccess(req, resp, msg.areaTag, (user, _area) => {
+            //  _resolveAreaReadAccess returns null user for anonymous public areas;
+            //  deletion always requires an authenticated user.
+            if (!user) {
                 return problemDetail(resp, 401, 'Authentication Required');
             }
 
-            const msg = new Message();
-            msg.load({ uuid }, err => {
-                if (err) {
-                    return problemDetail(resp, 404, 'Not Found', 'Message not found');
-                }
+            const isSysop = user.isGroupMember('sysops');
+            const localFromId = parseInt(
+                msg.meta?.System?.[Message.SystemMetaNames.LocalFromUserID] || '0',
+                10
+            );
+            const isOwn =
+                localFromId === user.userId || msg.fromUserName === user.username;
 
-                const isSysop = user.isGroupMember('sysops');
-                const localFromId = parseInt(
-                    msg.meta?.System?.[Message.SystemMetaNames.LocalFromUserID] || '0',
-                    10
+            if (!isSysop && !isOwn) {
+                return problemDetail(
+                    resp,
+                    403,
+                    'Forbidden',
+                    'You can only delete your own messages'
                 );
-                const isOwn =
-                    localFromId === user.userId || msg.fromUserName === user.username;
+            }
 
-                if (!isSysop && !isOwn) {
-                    return problemDetail(
-                        resp,
-                        403,
-                        'Forbidden',
-                        'You can only delete your own messages'
-                    );
-                }
+            try {
+                const { dbs } = require('../../database');
+                dbs.message
+                    .prepare('DELETE FROM message WHERE message_uuid = ?')
+                    .run(msg.messageUuid);
+            } catch (delErr) {
+                log.error({ err: delErr, uuid }, 'Error deleting message');
+                return problemDetail(resp, 500, 'Internal Server Error');
+            }
 
-                //  deleteMessage enforces its own rights check; we pass user for that path,
-                //  but our sysop/own check above already covers the REST use case
-                try {
-                    const { dbs } = require('../../database');
-                    dbs.message
-                        .prepare('DELETE FROM message WHERE message_uuid = ?')
-                        .run(msg.messageUuid);
-                } catch (delErr) {
-                    log.error({ err: delErr, uuid }, 'Error deleting message');
-                    return problemDetail(resp, 500, 'Internal Server Error');
-                }
-
-                log.info({ userId: user.userId, uuid }, 'Message deleted via REST API');
-                resp.writeHead(204);
-                return resp.end();
-            });
+            log.info({ userId: user.userId, uuid }, 'Message deleted via REST API');
+            resp.writeHead(204);
+            return resp.end();
         });
     });
 }

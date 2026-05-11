@@ -20,19 +20,19 @@ const LOGIN_RATE = { windowMs: 15 * 60 * 1000, maxRequests: 10 };
 exports.register = function register(webServer, log) {
     webServer.addRoute({
         method: 'POST',
-        path: new RegExp(`^${ROUTE_BASE}/login$`),
+        path: new RegExp(`^${ROUTE_BASE}/login(?:[?#]|$)`),
         handler: (req, resp) => _loginHandler(req, resp, webServer, log),
     });
 
     webServer.addRoute({
         method: 'POST',
-        path: new RegExp(`^${ROUTE_BASE}/refresh$`),
+        path: new RegExp(`^${ROUTE_BASE}/refresh(?:[?#]|$)`),
         handler: (req, resp) => _refreshHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'POST',
-        path: new RegExp(`^${ROUTE_BASE}/logout$`),
+        path: new RegExp(`^${ROUTE_BASE}/logout(?:[?#]|$)`),
         handler: (req, resp) => _logoutHandler(req, resp, log),
     });
 };

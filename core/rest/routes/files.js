@@ -27,6 +27,7 @@ const StatLog = require('../../stat_log');
 const UserProps = require('../../user_property');
 const SysProps = require('../../system_property');
 
+const { stripAnsiControlCodes } = require('../../string_util');
 const fs = require('graceful-fs');
 const paths = require('path');
 const mimeTypes = require('mime-types');
@@ -42,37 +43,37 @@ const MAX_UPLOAD_BYTES = 1024 * 1024 * 512; // 512 MiB
 exports.register = function register(webServer, log) {
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/areas$`),
+        path: new RegExp(`^${ROUTE_BASE}/areas(?:[?#]|$)`),
         handler: (req, resp) => _areasHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)$`),
+        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)(?:[?#]|$)`),
         handler: (req, resp) => _areaDetailHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)/files$`),
+        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)/files(?:[?#]|$)`),
         handler: (req, resp) => _fileListHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'POST',
-        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)$`),
+        path: new RegExp(`^${ROUTE_BASE}/areas/([^/]+)(?:[?#]|$)`),
         handler: (req, resp) => _uploadHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/(\\d+)$`),
+        path: new RegExp(`^${ROUTE_BASE}/(\\d+)(?:[?#]|$)`),
         handler: (req, resp) => _fileMetaHandler(req, resp, log),
     });
 
     webServer.addRoute({
         method: 'GET',
-        path: new RegExp(`^${ROUTE_BASE}/(\\d+)/download$`),
+        path: new RegExp(`^${ROUTE_BASE}/(\\d+)/download(?:[?#]|$)`),
         handler: (req, resp) => _downloadHandler(req, resp, log),
     });
 };
@@ -148,21 +149,30 @@ function _resolveAreaReadAccess(req, resp, areaTag, cb) {
     });
 }
 
-function _serializeArea(area) {
+function _shouldStripAnsi(req) {
+    const params = new URL(req.url, 'http://localhost').searchParams;
+    return params.get('stripAnsi') !== 'false';
+}
+
+function _maybeStrip(s, strip) {
+    return s && strip ? stripAnsiControlCodes(s, { all: true }) : s;
+}
+
+function _serializeArea(area, strip = true) {
     return {
         areaTag: area.areaTag,
         name: area.name || area.areaTag,
-        desc: area.desc || undefined,
+        desc: _maybeStrip(area.desc, strip) || undefined,
     };
 }
 
-function _serializeFileEntry(entry) {
+function _serializeFileEntry(entry, strip = true) {
     return {
         fileId: entry.fileId,
         areaTag: entry.areaTag,
         fileName: entry.fileName,
-        desc: entry.desc || undefined,
-        descLong: entry.descLong || undefined,
+        desc: _maybeStrip(entry.desc, strip) || undefined,
+        descLong: _maybeStrip(entry.descLong, strip) || undefined,
         byteSize: entry.meta?.byte_size ? parseInt(entry.meta.byte_size, 10) : undefined,
         uploadTimestamp: entry.uploadTimestamp
             ? moment(entry.uploadTimestamp).toISOString()
@@ -189,15 +199,17 @@ function _areasHandler(req, resp, log) {
                 }
                 const fakeClient = { acs: _acsForUser(user) };
                 const areas = getAvailableFileAreas(fakeClient, {});
-                const data = Object.values(areas).map(_serializeArea);
+                const strip = _shouldStripAnsi(req);
+                const data = Object.values(areas).map(a => _serializeArea(a, strip));
                 return jsonResponse(resp, 200, paginationMeta(data, null));
             });
         } else {
             //  Unauthenticated: only areas in the public allowlist
             const areas = getAvailableFileAreas(null, { skipAcsCheck: true });
+            const strip = _shouldStripAnsi(req);
             const data = Object.values(areas)
                 .filter(a => _isAreaPublic(a.areaTag))
-                .map(_serializeArea);
+                .map(a => _serializeArea(a, strip));
             return jsonResponse(resp, 200, paginationMeta(data, null));
         }
     });
@@ -206,13 +218,13 @@ function _areasHandler(req, resp, log) {
 function _areaDetailHandler(req, resp, log) {
     applyCorsHeaders(req, resp);
 
-    const areaTag = req.url.match(/\/areas\/([^/?]+)$/)?.[1];
+    const areaTag = req.url.match(/\/areas\/([^/?]+)(?:[?#]|$)/)?.[1];
     if (!areaTag) {
         return problemDetail(resp, 400, 'Bad Request');
     }
 
     _resolveAreaReadAccess(req, resp, areaTag, (_user, area) => {
-        return jsonResponse(resp, 200, _serializeArea(area));
+        return jsonResponse(resp, 200, _serializeArea(area, _shouldStripAnsi(req)));
     });
 }
 
@@ -226,6 +238,7 @@ function _fileListHandler(req, resp, log) {
 
     _resolveAreaReadAccess(req, resp, areaTag, (_user, _area) => {
         const params = new URL(req.url, 'http://localhost').searchParams;
+        const strip = params.get('stripAnsi') !== 'false';
         const limit = Math.min(
             parseInt(params.get('limit') || PAGE_SIZE, 10),
             MAX_PAGE_SIZE
@@ -279,7 +292,9 @@ function _fileListHandler(req, resp, log) {
                                 log.error({ err: loadErr }, 'Error loading file entry');
                                 return problemDetail(resp, 500, 'Internal Server Error');
                             }
-                            const data = entries.filter(Boolean).map(_serializeFileEntry);
+                            const data = entries
+                                .filter(Boolean)
+                                .map(e => _serializeFileEntry(e, strip));
                             const lastEntry = data[data.length - 1];
                             const nextCursor =
                                 hasMore && lastEntry
@@ -313,7 +328,11 @@ function _fileMetaHandler(req, resp, log) {
         }
 
         _resolveAreaReadAccess(req, resp, entry.areaTag, () => {
-            return jsonResponse(resp, 200, _serializeFileEntry(entry));
+            return jsonResponse(
+                resp,
+                200,
+                _serializeFileEntry(entry, _shouldStripAnsi(req))
+            );
         });
     });
 }
@@ -409,7 +428,11 @@ function _downloadHandler(req, resp, log) {
                     });
 
                     StatLog.incrementUserStat(user, UserProps.FileDlTotalCount, 1);
-                    StatLog.incrementUserStat(user, UserProps.FileDlTotalBytes, stat.size);
+                    StatLog.incrementUserStat(
+                        user,
+                        UserProps.FileDlTotalBytes,
+                        stat.size
+                    );
                     StatLog.incrementSystemStat(SysProps.FileDlTotalCount, 1);
 
                     log.info(
@@ -425,7 +448,7 @@ function _downloadHandler(req, resp, log) {
 function _uploadHandler(req, resp, log) {
     applyCorsHeaders(req, resp);
 
-    const areaTag = req.url.match(/\/areas\/([^/?]+)$/)?.[1];
+    const areaTag = req.url.match(/\/areas\/([^/?]+)(?:[?#]|$)/)?.[1];
     if (!areaTag) {
         return problemDetail(resp, 400, 'Bad Request');
     }
@@ -550,7 +573,7 @@ function _uploadHandler(req, resp, log) {
                                 return jsonResponse(
                                     resp,
                                     201,
-                                    _serializeFileEntry(fileEntry)
+                                    _serializeFileEntry(fileEntry, _shouldStripAnsi(req))
                                 );
                             });
                         }
