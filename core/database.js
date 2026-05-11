@@ -288,6 +288,36 @@ const DB_INIT_TABLE = {
                 UNIQUE(user_name)
             );
 
+            CREATE TABLE IF NOT EXISTS api_refresh_tokens (
+                id              INTEGER PRIMARY KEY,
+                user_id         INTEGER NOT NULL,
+                token_hash      VARCHAR NOT NULL,
+                issued_at       DATETIME NOT NULL,
+                expires_at      DATETIME NOT NULL,
+                revoked         INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(token_hash),
+                FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS api_refresh_tokens_user_idx
+                ON api_refresh_tokens (user_id);
+
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id              INTEGER PRIMARY KEY,
+                user_id         INTEGER NOT NULL,
+                key_hash        VARCHAR NOT NULL,
+                label           VARCHAR NOT NULL DEFAULT '',
+                scope           VARCHAR NOT NULL DEFAULT 'read',
+                created_at      DATETIME NOT NULL,
+                last_used_at    DATETIME,
+                revoked         INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(key_hash),
+                FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS api_keys_user_idx
+                ON api_keys (user_id);
+
             CREATE TABLE IF NOT EXISTS user_property (
                 user_id     INTEGER NOT NULL,
                 prop_name   VARCHAR NOT NULL,

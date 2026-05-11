@@ -63,5 +63,8 @@ Static files live relative to the `contentServers.web.staticRoot` path which def
 ## Custom Error Pages
 Customized error pages can be created for [HTTP error codes](https://en.wikipedia.org/wiki/List_of_HTTP_status_codes#4xx_Client_Error) by providing a `<error_code>.html` file in the *static routes* area. For example: `404.html`.
 
+## REST API
+ENiGMA½ includes a built-in [REST API](./rest-api.md) served under `/_enig/api/v1/`, providing programmatic access to message bases, file areas, user profiles, and system information.
+
 ## Web Handlers
 [Web Handlers](./web-handlers.md) are loaded by the web content server and provide a easy way for adding additional routes & functionality to ENiGMA.

@@ -24,6 +24,7 @@ Commands:
   ssh                       SSH key management
   fat                       FAT disk image management
   v86                       v86 x86 emulation tools
+  rest                      REST API management
 `,
     User: `usage: oputil.js user <action> [<arguments>]
 
@@ -270,6 +271,30 @@ Examples:
   oputil.js fat cp   freedos.img fdconfig.sys FDCONFIG.SYS
   oputil.js fat read freedos.img FDAUTO.BAT
   oputil.js fat read freedos.img FDCONFIG.SYS | less
+`,
+    Rest: `usage: oputil.js rest <action> [<arguments>]
+
+Actions:
+  api-key generate USERNAME    Generate a new API key for USERNAME
+  api-key list [USERNAME]      List API keys (all users, or filtered by USERNAME)
+  api-key revoke ID            Revoke an API key by its numeric ID
+
+api-key generate arguments:
+  --user USERNAME              Username (alternative to positional argument)
+  --label LABEL                Human-readable label for this key (optional)
+  --scope SCOPE                Permissions scope: read, write, or read,write (default: read)
+
+api-key list arguments:
+  --user USERNAME              Filter to a specific user (optional)
+
+api-key revoke arguments:
+  --id ID                      Key ID to revoke (alternative to positional argument)
+
+Examples:
+  oputil.js rest api-key generate sysop --label "Discord bot" --scope read
+  oputil.js rest api-key list
+  oputil.js rest api-key list --user sysop
+  oputil.js rest api-key revoke 3
 `,
     V86: `usage: oputil.js v86 <action> <image.img> [arguments]
 

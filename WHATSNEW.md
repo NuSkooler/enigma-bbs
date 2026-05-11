@@ -1,6 +1,10 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.5.0-beta
+
+* **REST API v1** — a JSON REST API is now available under `/_enig/api/v1/` when the web server is enabled. Endpoints cover system info, message conferences and areas (read/post/delete), file areas (list/metadata/download/upload), and user profiles. Two auth schemes are supported: short-lived JWT Bearer tokens (obtained via `POST /auth/login`) and long-lived API keys managed with `oputil rest api-key`. Public access to specific message and file areas can be configured without requiring authentication. See [REST API](./docs/_docs/servers/contentservers/rest-api.md) for full documentation.
+
 ## 0.4.0-beta
 
 * **Security hardening** — several security improvements across the system:
