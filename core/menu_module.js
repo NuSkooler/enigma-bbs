@@ -583,9 +583,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
     _displayArtPaginated(artSpec, artOptions, cb) {
         const self = this;
 
-        //  Buffer artSpec: decode and paginate directly without fetching via name
+        //  Buffer artSpec: decode and paginate directly without fetching via name.
+        //  Promote bare LF to CRLF; see getArtFromPath() in core/art.js for rationale.
         if (Buffer.isBuffer(artSpec)) {
-            const data = iconvDecode(artSpec, artOptions.encoding || 'cp437');
+            const data = iconvDecode(artSpec, artOptions.encoding || 'cp437').replace(
+                /(?<!\r)\n/g,
+                '\r\n'
+            );
             return self._paginateAndDisplay({ data, sauce: null }, artOptions, cb);
         }
 

@@ -95,15 +95,22 @@ function getArtFromPath(path, options, cb) {
         //  :TODO: how are BOM's currently handled if present? Are they removed? Do we need to?
 
         function sliceOfData() {
+            let decoded;
             if (options.fullFile === true) {
-                return iconv.decode(data, encoding);
+                decoded = iconv.decode(data, encoding);
             } else {
                 const eofMarker = defaultEofFromExtension(ext);
-                return iconv.decode(
+                decoded = iconv.decode(
                     eofMarker ? sliceAtEOF(data, eofMarker) : data,
                     encoding
                 );
             }
+            //  Promote bare LF to CRLF. Strict-NVT clients (e.g. SyncTERM in
+            //  telnet mode) treat bare LF as row+1 with column unchanged,
+            //  producing a diagonal staircase. The lookbehind preserves any
+            //  existing CRLF pair and leaves bare CR (used for cursor reset
+            //  / overlay effects) untouched.
+            return decoded.replace(/(?<!\r)\n/g, '\r\n');
         }
 
         function getResult(sauce) {
