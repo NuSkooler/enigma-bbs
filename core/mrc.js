@@ -718,7 +718,18 @@ exports.getModule = class mrcModule extends MenuModule {
      */
     processOutgoingMessage(message, to_user, to_site) {
         if (message.startsWith('/')) {
-            this.processSlashCommand(message);
+            //  Slash commands run user-supplied input through a dispatcher.
+            //  Any sync throw here would propagate up and exit the process;
+            //  containerise it so a bad command can only break the user's
+            //  own chat session, not the whole BBS.
+            try {
+                this.processSlashCommand(message);
+            } catch (e) {
+                this.client.log.warn(
+                    { error: e.message, stack: e.stack },
+                    'MRC slash command threw'
+                );
+            }
         } else {
             if (message == '') {
                 // don't do anything if message is blank, just update stats
@@ -916,7 +927,12 @@ exports.getModule = class mrcModule extends MenuModule {
 
             case 'join':
             case 'j':
-                this.joinRoom(cmd[1]);
+                //  joinRoom is async; if it rejects (e.g. a future regression),
+                //  swallow the rejection here so it doesn't bubble up to
+                //  process-level unhandledRejection and terminate the BBS.
+                this.joinRoom(cmd[1]).catch(err => {
+                    this.client.log.warn({ error: err.message }, 'joinRoom failed');
+                });
                 break;
 
             case 'chatters':
@@ -1599,6 +1615,12 @@ exports.getModule = class mrcModule extends MenuModule {
      * Joins a room, unsurprisingly
      */
     async joinRoom(room) {
+        //  Guard: a bare "/join" with no argument used to reach here as
+        //  undefined and crash the whole process via room.replace().
+        if (typeof room !== 'string' || room.length === 0) {
+            this.client.log.warn('Ignored /join with no room argument');
+            return;
+        }
         // room names are displayed with a # but referred to without. confusing.
         room = room.replace(/^#/, '');
         const oldRoom = this.state.room;
