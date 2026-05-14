@@ -5,6 +5,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const os = require('os');
+const zlib = require('zlib');
 
 const { FrameParser, buildCommandFrame, buildDataFrame, EOF_FRAME } = require('./frame');
 const { Commands, CommandNames, Opts } = require('./commands');
@@ -14,6 +15,15 @@ const Log = require('../logger').log;
 const BINKP_VER = '1.1';
 const SEND_CHUNK_SIZE = 4096;
 const SESSION_TIMEOUT_MS = 300_000; // 5 min
+
+// Extensions that are already compressed — don't waste CPU trying to GZ them.
+// Arcmail day-of-week bundles (*.mo0, *.tu1, etc.) are also pre-compressed.
+const ALREADY_COMPRESSED_RE = /\.(zip|arc|arj|lzh|lha|gz|bz2|zst|pk[34]|zoo)$/i;
+const ARCMAIL_RE = /\.(su|mo|tu|we|th|fr|sa)[0-9a-z]$/i;
+
+function _isCompressed(filename) {
+    return ALREADY_COMPRESSED_RE.test(filename) || ARCMAIL_RE.test(filename);
+}
 
 // binkd versions with a known-buggy NR implementation — force symmetric NR workaround
 const BUGGY_NR_PATTERNS = [
@@ -45,6 +55,7 @@ const BUGGY_NR_PATTERNS = [
 //  Events emitted:
 //    'addresses'      (addrs: string[])                — remote's M_ADR received
 //    'authenticated'  (isSecure: boolean)              — auth complete
+//    'incoming-file'  (name, size, timestamp)          — inbound transfer started (M_FILE received)
 //    'file-received'  (name, size, timestamp, tempPath) — inbound file ready
 //    'file-sent'      (name, size, timestamp)          — outbound file acknowledged
 //    'file-skipped'   (name, size, timestamp)          — remote sent M_SKIP
@@ -79,6 +90,8 @@ class BinkpSession extends EventEmitter {
 
         // Negotiated capabilities
         this._useNR = false;
+        this._useND = false;
+        this._useGZ = false;
         this._useEXTCMD = false;
 
         // Transfer state
@@ -98,6 +111,9 @@ class BinkpSession extends EventEmitter {
 
         this._sendHeld = false;
         this._timeoutHandle = null;
+        this._batchEndPending = false;
+        this._waitingForClose = false;
+        this._eobHold = 0;  // >0 means an async handler (e.g. FREQ) needs more time before M_EOB
 
         // Pause the socket so no data is consumed until start() is called.
         // This prevents frame processing before the application has finished
@@ -174,7 +190,7 @@ class BinkpSession extends EventEmitter {
         if (this._sentPwd) return;
         this._sentPwd = true;
 
-        const caps = [Opts.NR, Opts.EXTCMD];
+        const caps = [Opts.NR, Opts.NDA, Opts.GZ, Opts.EXTCMD];
         this._sendCmd(Commands.M_NUL, `OPT ${caps.join(' ')}`);
 
         const password = this._lookupPassword();
@@ -325,9 +341,22 @@ class BinkpSession extends EventEmitter {
             confirmedOpts.push(Opts.NR);
             this._useNR = true;
         }
+        // Prefer NDA (asymmetric) over ND; either means we wait for M_GOT before disposing
+        if (this._remoteOpts.has(Opts.NDA)) {
+            confirmedOpts.push(Opts.NDA);
+            this._useND = true;
+        } else if (this._remoteOpts.has(Opts.ND)) {
+            confirmedOpts.push(Opts.ND);
+            this._useND = true;
+        }
+        // GZ requires EXTCMD — only enable both together
         if (this._remoteOpts.has(Opts.EXTCMD)) {
             confirmedOpts.push(Opts.EXTCMD);
             this._useEXTCMD = true;
+            if (this._remoteOpts.has(Opts.GZ)) {
+                confirmedOpts.push(Opts.GZ);
+                this._useGZ = true;
+            }
         }
 
         if (confirmedOpts.length > 0) {
@@ -347,8 +376,14 @@ class BinkpSession extends EventEmitter {
         if (this._remoteOpts.has(Opts.NR) && !this._buggyNR) {
             this._useNR = true;
         }
+        if (this._remoteOpts.has(Opts.NDA) || this._remoteOpts.has(Opts.ND)) {
+            this._useND = true;
+        }
         if (this._remoteOpts.has(Opts.EXTCMD)) {
             this._useEXTCMD = true;
+            if (this._remoteOpts.has(Opts.GZ)) {
+                this._useGZ = true;
+            }
         }
 
         this.emit('authenticated', isSecure);
@@ -384,6 +419,14 @@ class BinkpSession extends EventEmitter {
         const canSend = !this._opts.sendIfPwd || this._authState === 'P_SECURE';
 
         if (!canSend || this._sendQueue.length === 0) {
+            //  An async handler (e.g. FREQ resolver) holds M_EOB while it
+            //  resolves files. Don't send M_EOB until the hold is released.
+            if (this._eobHold > 0) return;
+            //  Answering side defers M_EOB until the remote has sent its M_EOB.
+            //  This gives async handlers time to process inbound files (e.g.
+            //  .req FREQ requests) and queue responses before M_EOB goes out.
+            //  _onEob will call _sendNext() again once _remoteEOB becomes true.
+            if (this._opts.role === 'answering' && !this._remoteEOB) return;
             this._localEOBSent = true;
             this._localEOB = true;
             this._sendCmd(Commands.M_EOB, '');
@@ -392,17 +435,24 @@ class BinkpSession extends EventEmitter {
         }
 
         const file = this._sendQueue.shift();
+        // GZ only when both sides negotiated EXTCMD+GZ and the file isn't
+        // already compressed (arcmail bundles, zips, etc.)
+        const useGZ = this._useGZ && this._useEXTCMD && !_isCompressed(file.name);
         this._currentSend = {
             ...file,
             offset: 0,
             nrPending: this._useNR,
+            useGZ,
             readStream: null,
         };
 
         const offset = this._useNR ? -1 : 0;
+        // Append GZ token only when EXTCMD is active — old implementations
+        // without EXTCMD concatenate extra tokens into the filename.
+        const gzToken = useGZ ? ' GZ' : '';
         this._sendCmd(
             Commands.M_FILE,
-            `${file.name} ${file.size} ${file.timestamp} ${offset}`
+            `${file.name} ${file.size} ${file.timestamp} ${offset}${gzToken}`
         );
 
         if (!this._useNR) {
@@ -421,19 +471,18 @@ class BinkpSession extends EventEmitter {
         });
         cs.readStream = rs;
 
-        rs.on('data', chunk => {
-            rs.pause();
-            const ok = this._socket.write(buildDataFrame(chunk));
-            if (ok) {
-                rs.resume();
-            } else {
-                this._socket.once('drain', () => rs.resume());
-            }
-        });
+        const onSendError = err => {
+            Log.warn(
+                { name: cs.name, error: err.message },
+                '[BinkP] Error reading outbound file'
+            );
+            this._sendCmd(Commands.M_SKIP, `${cs.name} ${cs.size} ${cs.timestamp}`);
+            this._currentSend = null;
+            setImmediate(() => this._sendNext());
+        };
 
-        rs.on('end', () => {
+        const onAllDataSent = () => {
             this._socket.write(EOF_FRAME);
-
             const key = `${cs.name}\0${cs.size}\0${cs.timestamp}`;
             this._pendingGots.set(key, {
                 name: cs.name,
@@ -444,17 +493,45 @@ class BinkpSession extends EventEmitter {
             });
             this._currentSend = null;
             setImmediate(() => this._sendNext());
-        });
+        };
 
-        rs.on('error', err => {
-            Log.warn(
-                { name: cs.name, error: err.message },
-                '[BinkP] Error reading outbound file'
-            );
-            this._sendCmd(Commands.M_SKIP, `${cs.name} ${cs.size} ${cs.timestamp}`);
-            this._currentSend = null;
-            setImmediate(() => this._sendNext());
+        const sendChunk = (source, chunk) => {
+            source.pause();
+            const ok = this._socket.write(buildDataFrame(chunk));
+            if (ok) {
+                source.resume();
+            } else {
+                this._socket.once('drain', () => source.resume());
+            }
+        };
+
+        if (!cs.useGZ) {
+            rs.on('data', chunk => sendChunk(rs, chunk));
+            rs.on('end', onAllDataSent);
+            rs.on('error', onSendError);
+            return;
+        }
+
+        //  GZ path: drive the gzip transform explicitly rather than via pipe,
+        //  keeping the same pause/resume back-pressure pattern on the output.
+        const gz = zlib.createGzip();
+        cs.gzipStream = gz; // stored so _destroy can clean it up
+
+        gz.on('data', chunk => sendChunk(gz, chunk));
+        gz.on('end', onAllDataSent);
+        gz.on('error', onSendError);
+
+        rs.on('data', chunk => {
+            rs.pause();
+            const ok = gz.write(chunk);
+            if (ok) {
+                rs.resume();
+            } else {
+                gz.once('drain', () => rs.resume());
+            }
         });
+        rs.on('end', () => gz.end());
+        rs.on('error', onSendError);
     }
 
     _onGet(arg) {
@@ -544,10 +621,26 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
+        //  Remote started a new batch after we both exchanged M_EOB.
+        //  Reset our EOB state and re-enter the send loop so we'll send
+        //  our own M_EOB for this batch (even if we have nothing to send).
+        if (this._localEOB && this._remoteEOB) {
+            this._localEOB = false;
+            this._localEOBSent = false;
+            this._remoteEOB = false;
+            this._waitingForClose = false;
+            setImmediate(() => this._sendNext());
+        }
+
         const [name, sizeStr, tsStr, offsetStr] = parts;
         const size = parseInt(sizeStr, 10);
         const timestamp = parseInt(tsStr, 10);
         const offset = parseInt(offsetStr, 10);
+
+        // Extra tokens (e.g. GZ) are only valid when EXTCMD was negotiated —
+        // without it, old implementations concatenate them into the filename.
+        const useGZ =
+            this._useEXTCMD && this._useGZ && parts.slice(4).includes('GZ');
 
         // Duplicate detection
         if (
@@ -569,8 +662,16 @@ class BinkpSession extends EventEmitter {
             timestamp,
             tempPath,
             bytesReceived: 0,
+            useGZ,
             writeStream: null,
+            // GZ: collect raw compressed wire-bytes; decompress all at once on EOF
+            compressedChunks: useGZ ? [] : null,
         };
+
+        //  Notify listeners that an inbound transfer is starting. The FREQ
+        //  handler uses this to call holdEOB() before the async file write
+        //  completes — earlier than the 'file-received' event.
+        this.emit('incoming-file', name, size, timestamp);
 
         // NR mode: sender sent offset=-1 requesting us to provide our resume offset
         if (offset === -1) {
@@ -594,12 +695,6 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
-        // Cap to declared size — discard any overshoot
-        const needed = cr.size - cr.bytesReceived;
-        const slice = needed < data.length ? data.slice(0, needed) : data;
-
-        cr.bytesReceived += slice.length;
-
         if (!cr.writeStream) {
             cr.writeStream = fs.createWriteStream(cr.tempPath);
             //  We're going to destroy this stream from _destroy() on
@@ -614,21 +709,52 @@ class BinkpSession extends EventEmitter {
                     '[BinkP] Inbound write error'
                 );
             });
+
+            if (cr.useGZ) {
+                cr.gunzip = zlib.createGunzip();
+                cr.gunzip.on('error', err => {
+                    Log.warn(
+                        { name: cr.name, error: err.message },
+                        '[BinkP] Inbound GZ decompress error'
+                    );
+                });
+                cr.gunzip.pipe(cr.writeStream);
+            }
+
             this._inboundTempPaths.add(cr.tempPath);
         }
-        cr.writeStream.write(slice);
 
-        if (cr.bytesReceived >= cr.size) {
-            this._finalizeReceive();
+        if (cr.useGZ) {
+            //  GZ: wire carries compressed bytes whose count differs from the
+            //  declared (uncompressed) file size. Pass the full chunk through
+            //  to gunzip — do NOT cap against cr.size — and rely solely on the
+            //  EOF frame (data.length === 0 path above) to trigger finalize.
+            cr.gunzip.write(data);
+        } else {
+            //  Non-GZ: cap to declared size and finalize early if we've
+            //  received exactly the right number of bytes.
+            const needed = cr.size - cr.bytesReceived;
+            const slice = needed < data.length ? data.slice(0, needed) : data;
+            cr.bytesReceived += slice.length;
+            cr.writeStream.write(slice);
+            if (cr.bytesReceived >= cr.size) {
+                this._finalizeReceive();
+            }
         }
     }
 
     _finalizeReceive() {
         const cr = this._currentRecv;
-        if (!cr) return;
-        this._currentRecv = null;
+        if (!cr || cr._finalizing) return;
+        cr._finalizing = true;
+        //  Do NOT clear this._currentRecv yet. _checkDone must not consider
+        //  the receive complete until finish() has sent M_GOT. If M_EOB
+        //  arrives while we are waiting for the async writeStream flush, a
+        //  premature _checkDone would close the session before M_GOT is sent
+        //  and the client would wait forever.
 
         const finish = () => {
+            this._currentRecv = null;
             //  File handed off to the listener; ownership of the temp file
             //  passes to whatever moves it into the inbound spool. Drop our
             //  tracking entry so _destroy() doesn't unlink it from under
@@ -639,14 +765,21 @@ class BinkpSession extends EventEmitter {
             this._checkDone();
         };
 
-        if (cr.writeStream) {
+        if (cr.gunzip) {
+            // Wait for the writeStream to finish draining all decompressed bytes
+            // before calling finish. gunzip 'finish' (writable side) precedes
+            // the piped writeStream 'finish'; listen on writeStream.
+            cr.writeStream.once('finish', finish);
+            cr.gunzip.end();
+        } else if (cr.writeStream) {
             cr.writeStream.end(finish);
         } else {
-            // Zero-byte file
+            // Zero-byte file — writeStream was never opened
             this._inboundTempPaths.add(cr.tempPath);
             fsp.writeFile(cr.tempPath, Buffer.alloc(0))
                 .then(finish)
                 .catch(err => {
+                    this._currentRecv = null;
                     this._inboundTempPaths.delete(cr.tempPath);
                     Log.warn(
                         { name: cr.name, error: err.message },
@@ -660,6 +793,11 @@ class BinkpSession extends EventEmitter {
     _onEob() {
         this._remoteEOB = true;
         this._checkDone();
+        //  Answering side defers M_EOB until _remoteEOB is true. Now that
+        //  it is, unblock the send loop so M_EOB (or queued FREQ files) go out.
+        if (this._opts.role === 'answering' && !this._localEOBSent) {
+            setImmediate(() => this._sendNext());
+        }
     }
 
     _onSkip(arg) {
@@ -677,8 +815,60 @@ class BinkpSession extends EventEmitter {
             !this._currentSend &&
             !this._currentRecv
         ) {
-            this._finishSession();
+            this._onBatchComplete();
         }
+    }
+
+    //  Called when both sides have exchanged M_EOB and all transfers are settled.
+    //  If opts.onBatchEnd is provided, call it so the application can queue files
+    //  for another batch (e.g. FREQ responses). If new files were queued, reset
+    //  EOB state and restart sending; otherwise end the session.
+    _onBatchComplete() {
+        if (this._batchEndPending) return;
+        this._batchEndPending = true;
+
+        const hook = this._opts.onBatchEnd;
+
+        //  Snapshot queue depth before calling the hook so we can detect
+        //  whether the hook itself added files (vs. pre-existing unsent ones).
+        const queueBefore = this._sendQueue.length;
+
+        const afterHook = () => {
+            this._batchEndPending = false;
+            const hookQueuedFiles = this._sendQueue.length > queueBefore;
+            if (hookQueuedFiles) {
+                //  Hook added files — start another batch. Reset both EOB
+                //  flags; remote will send a new M_EOB when its side is done.
+                this._localEOB = false;
+                this._localEOBSent = false;
+                this._remoteEOB = false;
+                setImmediate(() => this._sendNext());
+            } else if (this._opts.role === 'originating') {
+                //  Originating side controls session lifetime: nothing left →
+                //  close the connection.
+                this._finishSession();
+            } else {
+                //  Answering side never closes proactively. Wait for the
+                //  originating node to close; _onSocketClose handles cleanup.
+                this._waitingForClose = true;
+            }
+        };
+
+        if (!hook) {
+            afterHook();
+            return;
+        }
+
+        Promise.resolve(hook(this))
+            .then(afterHook)
+            .catch(err => {
+                Log.warn(
+                    { error: err.message },
+                    '[BinkP] onBatchEnd hook error; ending session'
+                );
+                this._batchEndPending = false;
+                this._finishSession();
+            });
     }
 
     _finishSession() {
@@ -686,7 +876,7 @@ class BinkpSession extends EventEmitter {
         this._state = 'done';
         if (this._timeoutHandle) clearTimeout(this._timeoutHandle);
         this.emit('session-end');
-        setImmediate(() => this._destroy());
+        setImmediate(() => this._destroy(true));
     }
 
     // ── Utility ─────────────────────────────────────────────────────────────
@@ -694,6 +884,25 @@ class BinkpSession extends EventEmitter {
     _sendCmd(cmd, arg) {
         if (!this._socket.destroyed) {
             this._socket.write(buildCommandFrame(cmd, arg));
+        }
+    }
+
+    isSecure() {
+        return this._authState === 'P_SECURE';
+    }
+
+    //  Increment the M_EOB hold counter. While held > 0, _sendNext will not
+    //  send M_EOB even when the send queue drains. Call releaseEOB() when done.
+    holdEOB() {
+        this._eobHold++;
+    }
+
+    //  Decrement the hold counter. When it reaches 0, resume _sendNext so
+    //  M_EOB (or newly queued files) can be processed.
+    releaseEOB() {
+        this._eobHold = Math.max(0, this._eobHold - 1);
+        if (this._eobHold === 0 && this._state === 'transfer') {
+            setImmediate(() => this._sendNext());
         }
     }
 
@@ -717,10 +926,16 @@ class BinkpSession extends EventEmitter {
         }, SESSION_TIMEOUT_MS);
     }
 
-    _destroy() {
+    _destroy(graceful = false) {
         if (this._timeoutHandle) clearTimeout(this._timeoutHandle);
+        if (this._currentSend?.gzipStream) {
+            this._currentSend.gzipStream.destroy();
+        }
         if (this._currentSend?.readStream) {
             this._currentSend.readStream.destroy();
+        }
+        if (this._currentRecv?.gunzip) {
+            this._currentRecv.gunzip.destroy();
         }
         if (this._currentRecv?.writeStream) {
             this._currentRecv.writeStream.destroy();
@@ -740,7 +955,14 @@ class BinkpSession extends EventEmitter {
         }
         this._inboundTempPaths.clear();
         if (!this._socket.destroyed) {
-            this._socket.destroy();
+            if (graceful) {
+                //  Graceful FIN: peer reads all buffered data (including any
+                //  in-flight M_EOB) before the connection closes. allowHalfOpen
+                //  defaults to false so the peer will reciprocate automatically.
+                this._socket.end();
+            } else {
+                this._socket.destroy();
+            }
         }
     }
 
@@ -752,7 +974,27 @@ class BinkpSession extends EventEmitter {
 
     _onSocketClose() {
         if (this._state !== 'done') {
-            this.emit('disconnect');
+            //  Either the answering side was explicitly waiting for the
+            //  originating node to close (_waitingForClose), OR both sides
+            //  completed M_EOB exchange with nothing pending (cleanEnd) — the
+            //  latter catches the race where socket close arrives before
+            //  _waitingForClose is set.
+            //  A receive is "done enough" for a clean end if it's in the
+            //  finalizing state: EOF was received and we're just waiting for
+            //  the async writeStream flush. The file was fully transferred.
+            const recvDone = !this._currentRecv || this._currentRecv._finalizing;
+            const cleanEnd =
+                this._localEOB &&
+                this._remoteEOB &&
+                this._pendingGots.size === 0 &&
+                !this._currentSend &&
+                recvDone;
+
+            if (this._waitingForClose || cleanEnd) {
+                this._finishSession();
+            } else {
+                this.emit('disconnect');
+            }
         }
     }
 }

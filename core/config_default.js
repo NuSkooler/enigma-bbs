@@ -1045,6 +1045,17 @@ module.exports = () => {
                         enabled: false,
                         port: 24554,
                         address: '0.0.0.0',
+
+                        //  Optional TLS listener (binkps, port 24555).
+                        //  Requires a certificate and private key. Both plain
+                        //  and TLS listeners run simultaneously when enabled.
+                        //
+                        //  tls: {
+                        //      enabled: true
+                        //      port: 24555
+                        //      certFile: "/path/to/binkp.crt"
+                        //      keyFile:  "/path/to/binkp.key"
+                        //  }
                     },
 
                     //  Pull cycle: dial every configured peer on this schedule
@@ -1096,18 +1107,26 @@ module.exports = () => {
                     //
                     //  Per-node configuration, keyed by FTN address.
                     //
-                    //  host            : Hostname/IP for outbound calls (required to call a node).
-                    //  port            : TCP port for outbound calls (default: 24554).
-                    //  sessionPassword : CRAM-MD5 session password (distinct from FTN packet password).
-                    //  pull            : Set false to exclude this node from the periodic pull cycle.
-                    //                    Crashmail (event-driven dialing on outbound) still applies.
-                    //                    Default: true.
+                    //  host               : Hostname/IP for outbound calls (required to call a node).
+                    //  port               : TCP port for outbound calls (default: 24554).
+                    //  sessionPassword    : CRAM-MD5 session password (distinct from FTN packet password).
+                    //  pull               : Set false to exclude this node from the periodic pull cycle.
+                    //                       Crashmail (event-driven dialing on outbound) still applies.
+                    //                       Default: true.
+                    //
+                    //  TLS outbound (binkps) — exactly one trust option is required when tls:true:
+                    //  tls                : true to connect via TLS (binkps, typically port 24555).
+                    //  tlsAllowSelfSigned : true — accept any certificate (no MITM protection).
+                    //  tlsFingerprint     : "SHA256:AA:BB:..." — pin to a specific certificate fingerprint.
+                    //  tlsCertFile        : "/path/to/ca.pem" — trust a specific CA or self-signed cert.
                     //
                     //  nodes: {
                     //      "1:218/700": {
                     //          host: "bbs.example.com"
-                    //          port: 24554
+                    //          port: 24555
                     //          sessionPassword: "s3cr3t"
+                    //          tls: true
+                    //          tlsAllowSelfSigned: true
                     //      }
                     //  }
                 },

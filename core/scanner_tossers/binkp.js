@@ -1,6 +1,7 @@
 'use strict';
 
 const net = require('net');
+const tls = require('tls');
 const os = require('os');
 const path = require('path');
 const fsp = require('fs/promises');
@@ -17,6 +18,7 @@ const { BinkpSession } = require('../binkp/session.js');
 const { BsoSpool, attachSpoolToSession } = require('../binkp/bso_spool.js');
 const { pollNodes } = require('../binkp/caller.js');
 const { localAddresses, addressKey, findBestNodeMatch } = require('../binkp/util.js');
+const { FreqResolver, attachFreqToSession } = require('../binkp/freq.js');
 
 const Config = () => configModule.get();
 
@@ -78,6 +80,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
     constructor() {
         super();
         this._server = null;
+        this._tlsServer = null;
         this._pullTimer = null;
         this._crashmailTimer = null;
         this._crashmailPending = new Map(); // zone:net/node -> Address
@@ -121,14 +124,29 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             );
             this._crashmailListener = null;
         }
-        if (this._server) {
-            this._server.close(() => {
-                this._server = null;
-                return cb(null);
-            });
-        } else {
-            return cb(null);
-        }
+        const closePlain = done => {
+            if (this._server) {
+                this._server.close(() => {
+                    this._server = null;
+                    done();
+                });
+            } else {
+                done();
+            }
+        };
+
+        const closeTls = done => {
+            if (this._tlsServer) {
+                this._tlsServer.close(() => {
+                    this._tlsServer = null;
+                    done();
+                });
+            } else {
+                done();
+            }
+        };
+
+        closePlain(() => closeTls(() => cb(null)));
     }
 
     // ── Private ──────────────────────────────────────────────────────────────
@@ -201,25 +219,64 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
         const addresses = localAddresses(Config());
         const tempDir = _.get(binkpCfg, 'tempDir', os.tmpdir());
+        const bindAddress = inbound.address || '0.0.0.0';
 
         this._server = net.createServer(socket => {
             this._handleConnection(socket, spool, addresses, binkpCfg, tempDir);
         });
-
         this._server.on('error', err => {
             Log.error({ error: err.message }, '[BinkP] Server error');
         });
 
-        const port = parseInt(inbound.port || 24554);
-        const address = inbound.address || '0.0.0.0';
+        const plainPort = parseInt(inbound.port || 24554);
 
-        this._server.listen(port, address, () => {
-            Log.info(
-                { port: this._server.address().port, address },
-                '[BinkP] Inbound server listening'
+        const startPlain = done => {
+            this._server.listen(plainPort, bindAddress, () => {
+                Log.info(
+                    { port: this._server.address().port, address: bindAddress },
+                    '[BinkP] Inbound server listening'
+                );
+                done(null);
+            });
+        };
+
+        const tlsCfg = inbound.tls;
+        if (!tlsCfg || !tlsCfg.enabled) {
+            return startPlain(cb);
+        }
+
+        // TLS inbound: read cert + key then spin up a second server on tlsCfg.port
+        if (!tlsCfg.certFile || !tlsCfg.keyFile) {
+            return cb(
+                new Error('[BinkP] inbound.tls.enabled requires certFile and keyFile')
             );
-            return cb(null);
-        });
+        }
+
+        Promise.all([fsp.readFile(tlsCfg.certFile), fsp.readFile(tlsCfg.keyFile)])
+            .then(([cert, key]) => {
+                this._tlsServer = tls.createServer({ cert, key }, socket => {
+                    this._handleConnection(socket, spool, addresses, binkpCfg, tempDir);
+                });
+                this._tlsServer.on('error', err => {
+                    Log.error({ error: err.message }, '[BinkP] TLS server error');
+                });
+
+                const tlsPort = parseInt(tlsCfg.port || 24555);
+                this._tlsServer.listen(tlsPort, bindAddress, () => {
+                    Log.info(
+                        { port: tlsPort, address: bindAddress },
+                        '[BinkP] Inbound TLS server listening'
+                    );
+                    startPlain(cb);
+                });
+            })
+            .catch(err => {
+                Log.error(
+                    { error: err.message },
+                    '[BinkP] Failed to start TLS server; check certFile/keyFile'
+                );
+                cb(err);
+            });
     }
 
     //
@@ -346,6 +403,19 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             getPassword: remoteAddrs => this._lookupPassword(binkpCfg.nodes, remoteAddrs),
             tempDir,
         });
+
+        //  Wire FREQ handler if configured. attachFreqToSession registers both
+        //  'incoming-file' (holdEOB) and 'file-received' (resolve + releaseEOB)
+        //  listeners. Must be done before other 'file-received' listeners so
+        //  readReqFileSync runs while the temp file is still in place.
+        const freqCfg = _.get(binkpCfg, 'freq');
+        if (freqCfg && freqCfg.enabled !== false) {
+            const resolver = new FreqResolver(freqCfg);
+            attachFreqToSession(session, resolver, {
+                requirePwd: freqCfg.requirePwd || false,
+                isSecure: () => session.isSecure(),
+            });
+        }
 
         let lockAddr = null;
         let filesReceived = 0;
