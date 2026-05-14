@@ -620,7 +620,25 @@ function FTNMessageScanTossModule() {
             return false;
         }
 
-        //  :TODO: need to check more!
+        //  Half-configured installs (only one of the two blocks present) used
+        //  to silently no-op for export and could crash record() on the next
+        //  posted message; surface the gap explicitly so operators can fix it.
+        if (hasNodes && !hasAreas) {
+            if (shouldLog) {
+                Log.warn(
+                    'scannerTossers.ftn_bso.nodes is configured but messageNetworks.ftn.areas is missing — EchoMail export disabled'
+                );
+            }
+            return false;
+        }
+        if (!hasNodes && hasAreas) {
+            if (shouldLog) {
+                Log.warn(
+                    'messageNetworks.ftn.areas is configured but scannerTossers.ftn_bso.nodes is missing — no uplinks available'
+                );
+            }
+            return false;
+        }
 
         return true;
     };
@@ -3239,7 +3257,16 @@ FTNMessageScanTossModule.prototype.record = function (message) {
     } else if (message.areaTag) {
         Object.assign(info, { type: 'EchoMail' });
 
-        const areaConfig = Config().messageNetworks.ftn.areas[message.areaTag];
+        //  hasValidConfiguration() passes when EITHER nodes or areas is
+        //  configured, so we can land here with messageNetworks.ftn[.areas]
+        //  missing entirely. Use a safe lookup; isAreaConfigValid(undefined)
+        //  already short-circuits to false below.
+        const areaConfig = _.get(Config(), [
+            'messageNetworks',
+            'ftn',
+            'areas',
+            message.areaTag,
+        ]);
         if (!this.isAreaConfigValid(areaConfig)) {
             return;
         }
