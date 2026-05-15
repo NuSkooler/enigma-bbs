@@ -44,8 +44,9 @@ class FreqResolver {
     constructor(config = {}) {
         this._magic = config.magic || {};
         this._areas = config.areas || [];
-        this._dirs  = config.dirs  || [];
-        this._maxFiles = typeof config.maxFiles === 'number' ? config.maxFiles : DEFAULT_MAX_FILES;
+        this._dirs = config.dirs || [];
+        this._maxFiles =
+            typeof config.maxFiles === 'number' ? config.maxFiles : DEFAULT_MAX_FILES;
     }
 
     // Parse a .req temp file and resolve each name. Returns an array of
@@ -56,7 +57,10 @@ class FreqResolver {
         try {
             text = await fsp.readFile(reqTempPath, 'utf8');
         } catch (err) {
-            Log.warn({ path: reqTempPath, error: err.message }, '[BinkP/FREQ] Could not read .req file');
+            Log.warn(
+                { path: reqTempPath, error: err.message },
+                '[BinkP/FREQ] Could not read .req file'
+            );
             return [];
         }
 
@@ -130,7 +134,10 @@ class FreqResolver {
         try {
             matches = await glob(pattern, { nodir: true });
         } catch (err) {
-            Log.warn({ pattern, error: err.message }, '[BinkP/FREQ] Glob expansion error');
+            Log.warn(
+                { pattern, error: err.message },
+                '[BinkP/FREQ] Glob expansion error'
+            );
             return null;
         }
 
@@ -198,10 +205,7 @@ class FreqResolver {
                         FileEntry.loadBasicEntry(fileId, {}, (loadErr, entry) => {
                             if (loadErr) return next();
                             const entryName = (entry.fileName || '').toLowerCase();
-                            if (
-                                entryName === lowerName ||
-                                entryName.startsWith(prefix)
-                            ) {
+                            if (entryName === lowerName || entryName.startsWith(prefix)) {
                                 // Build the result the same way _statFile does.
                                 // entry.filePath is a getter on the FileEntry
                                 // class; loadBasicEntry populates a plain object
@@ -242,7 +246,10 @@ class FreqResolver {
             entries = await fsp.readdir(dir);
         } catch (err) {
             if (err.code !== 'ENOENT') {
-                Log.warn({ dir, error: err.message }, '[BinkP/FREQ] Could not read FREQ dir');
+                Log.warn(
+                    { dir, error: err.message },
+                    '[BinkP/FREQ] Could not read FREQ dir'
+                );
             }
             return null;
         }
@@ -266,7 +273,12 @@ class FreqResolver {
                 if (!stat.isFile()) continue;
                 if (stat.mtimeMs > newestMtime) {
                     newestMtime = stat.mtimeMs;
-                    newest = { filePath, name: entry, size: stat.size, timestamp: Math.floor(stat.mtimeMs / 1000) };
+                    newest = {
+                        filePath,
+                        name: entry,
+                        size: stat.size,
+                        timestamp: Math.floor(stat.mtimeMs / 1000),
+                    };
                 }
             } catch (_) {
                 // skip
@@ -279,7 +291,12 @@ class FreqResolver {
         try {
             const stat = await fsp.stat(filePath);
             if (!stat.isFile()) return null;
-            return { filePath, name, size: stat.size, timestamp: Math.floor(stat.mtimeMs / 1000) };
+            return {
+                filePath,
+                name,
+                size: stat.size,
+                timestamp: Math.floor(stat.mtimeMs / 1000),
+            };
         } catch (_) {
             return null;
         }
@@ -296,7 +313,10 @@ async function parseReqFile(tempPath) {
     try {
         text = await fsp.readFile(tempPath, 'utf8');
     } catch (err) {
-        Log.warn({ path: tempPath, error: err.message }, '[BinkP/FREQ] Could not read .req file');
+        Log.warn(
+            { path: tempPath, error: err.message },
+            '[BinkP/FREQ] Could not read .req file'
+        );
         return [];
     }
     return _splitReqContent(text);
@@ -339,7 +359,7 @@ function _splitReqContent(text) {
 //    isSecure  : () => boolean — checked when incoming-file fires
 //
 function attachFreqToSession(session, resolver, opts = {}) {
-    session.on('incoming-file', (name) => {
+    session.on('incoming-file', name => {
         if (!REQ_FILE_RE.test(name)) return;
         if (opts.requirePwd && !opts.isSecure()) return;
         session.holdEOB();
@@ -362,7 +382,10 @@ function attachFreqToSession(session, resolver, opts = {}) {
                     session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'keep');
                 }
                 if (files.length > 0) {
-                    Log.info({ queued: files.length }, '[BinkP/FREQ] Queued FREQ responses');
+                    Log.info(
+                        { queued: files.length },
+                        '[BinkP/FREQ] Queued FREQ responses'
+                    );
                 }
             })
             .catch(err => {
@@ -387,7 +410,9 @@ function createFreqOnBatchEnd(pendingFreqNames, resolver, opts = {}) {
         if (names.length === 0) return;
 
         if (opts.requirePwd && !opts.isSecure()) {
-            Log.info('[BinkP/FREQ] Ignoring FREQ from non-secure session (requirePwd=true)');
+            Log.info(
+                '[BinkP/FREQ] Ignoring FREQ from non-secure session (requirePwd=true)'
+            );
             return;
         }
 
@@ -401,7 +426,10 @@ function createFreqOnBatchEnd(pendingFreqNames, resolver, opts = {}) {
         }
 
         if (files.length > 0) {
-            Log.info({ queued: files.length }, '[BinkP/FREQ] Queued FREQ responses for next batch');
+            Log.info(
+                { queued: files.length },
+                '[BinkP/FREQ] Queued FREQ responses for next batch'
+            );
         }
     };
 }

@@ -43,7 +43,10 @@ async function makeTempFile(content = 'TESTDATA', suffix = '.pkt') {
 }
 
 async function makeTempDir() {
-    const dir = path.join(TEMP_DIR, `binkp_freq_dir_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+    const dir = path.join(
+        TEMP_DIR,
+        `binkp_freq_dir_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    );
     await fsp.mkdir(dir);
     return dir;
 }
@@ -166,12 +169,21 @@ describe('FreqResolver', () => {
 
     it('resolveReqFile parses newline-separated names and strips passwords', async () => {
         const reqFile = await makeTempFile('NODELIST\nfiles.zip!secret\n\n', '.req');
-        const resolver = new FreqResolver({ magic: { NODELIST: nodelistPath }, dirs: [dir] });
+        const resolver = new FreqResolver({
+            magic: { NODELIST: nodelistPath },
+            dirs: [dir],
+        });
         const results = await resolver.resolveReqFile(reqFile.filePath);
         assert.equal(results.length, 2);
         const names = results.map(r => r.name);
-        assert.ok(names.some(n => n === 'NODELIST.365'), 'expected nodelist');
-        assert.ok(names.some(n => n === 'files.zip'), 'expected zip');
+        assert.ok(
+            names.some(n => n === 'NODELIST.365'),
+            'expected nodelist'
+        );
+        assert.ok(
+            names.some(n => n === 'files.zip'),
+            'expected zip'
+        );
         await fsp.unlink(reqFile.filePath).catch(() => {});
     });
 });
@@ -264,10 +276,10 @@ describe('FreqResolver — area resolver', () => {
         //    FileEntry constructor + filePath getter → actual path in |dir|
         const fakeFileEntry = class FakeFileEntry {
             constructor(opts) {
-                this.fileName   = opts.fileName;
+                this.fileName = opts.fileName;
                 this.storageTag = opts.storageTag;
-                this.areaTag    = opts.areaTag;
-                this.relPath    = opts.relPath || null;
+                this.areaTag = opts.areaTag;
+                this.relPath = opts.relPath || null;
             }
             get filePath() {
                 return path.join(dir, this.fileName);
@@ -278,8 +290,18 @@ describe('FreqResolver — area resolver', () => {
             }
             static loadBasicEntry(fileId, dest, cb) {
                 const entries = {
-                    2: { fileName: 'NODELIST.365', storageTag: 'nl', areaTag: 'nodelists', relPath: null },
-                    1: { fileName: 'NODELIST.001', storageTag: 'nl', areaTag: 'nodelists', relPath: null },
+                    2: {
+                        fileName: 'NODELIST.365',
+                        storageTag: 'nl',
+                        areaTag: 'nodelists',
+                        relPath: null,
+                    },
+                    1: {
+                        fileName: 'NODELIST.001',
+                        storageTag: 'nl',
+                        areaTag: 'nodelists',
+                        relPath: null,
+                    },
                 };
                 const e = entries[fileId];
                 if (!e) return cb(new Error('not found'));
@@ -290,7 +312,12 @@ describe('FreqResolver — area resolver', () => {
 
         //  Inject the stub before loading freq.js so lazy-require picks it up
         const feKey = require.resolve('../core/file_entry.js');
-        require.cache[feKey] = { id: feKey, filename: feKey, loaded: true, exports: fakeFileEntry };
+        require.cache[feKey] = {
+            id: feKey,
+            filename: feKey,
+            loaded: true,
+            exports: fakeFileEntry,
+        };
 
         //  Force a fresh load of freq.js so it sees our stub
         const freqKey = require.resolve('../core/binkp/freq');
@@ -387,7 +414,13 @@ describe('BinkpSession — FREQ end-to-end', () => {
         });
 
         const reqFile = await makeTempFile('NODELIST\n', '.req');
-        clientSess.queueFile(reqFile.filePath, '00010001.req', reqFile.size, reqFile.timestamp, 'keep');
+        clientSess.queueFile(
+            reqFile.filePath,
+            '00010001.req',
+            reqFile.size,
+            reqFile.timestamp,
+            'keep'
+        );
 
         await runToEnd(clientSess, serverSess);
 

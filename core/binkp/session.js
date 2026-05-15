@@ -113,7 +113,7 @@ class BinkpSession extends EventEmitter {
         this._timeoutHandle = null;
         this._batchEndPending = false;
         this._waitingForClose = false;
-        this._eobHold = 0;  // >0 means an async handler (e.g. FREQ) needs more time before M_EOB
+        this._eobHold = 0; // >0 means an async handler (e.g. FREQ) needs more time before M_EOB
 
         // Pause the socket so no data is consumed until start() is called.
         // This prevents frame processing before the application has finished
@@ -639,8 +639,7 @@ class BinkpSession extends EventEmitter {
 
         // Extra tokens (e.g. GZ) are only valid when EXTCMD was negotiated —
         // without it, old implementations concatenate them into the filename.
-        const useGZ =
-            this._useEXTCMD && this._useGZ && parts.slice(4).includes('GZ');
+        const useGZ = this._useEXTCMD && this._useGZ && parts.slice(4).includes('GZ');
 
         // Duplicate detection
         if (
