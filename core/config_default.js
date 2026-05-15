@@ -1105,6 +1105,35 @@ module.exports = () => {
                     inboundTempMaxAgeMs: 60 * 60 * 1000,
 
                     //
+                    //  FREQ (File REQuest) — serve files to requesting nodes.
+                    //
+                    //  When a remote node sends a .req file listing names it wants,
+                    //  ENiGMA resolves each name and sends the files back in the
+                    //  same BinkP session.
+                    //
+                    //  freq: {
+                    //      enabled   : true
+                    //
+                    //      //  magic — map a well-known magic name to an absolute file path.
+                    //      //  Lookup is case-insensitive.  The most common use is serving
+                    //      //  the current nodelist segment to automated polling bots.
+                    //      //
+                    //      //  magic: {
+                    //      //      NODELIST: "/path/to/fidonet/nodelist/NODELIST.365"
+                    //      //      ALLFIX:   "/path/to/allfix/ALLFIX.NA"
+                    //      //  }
+                    //
+                    //      //  dirs — list of directories scanned for files by name.
+                    //      //  Exact filename match is tried first; if not found, a prefix
+                    //      //  match is tried (e.g. requesting "NODELIST" matches
+                    //      //  "NODELIST.365", "NODELIST.001", etc.) and the newest file wins.
+                    //      //
+                    //      //  dirs: [ "/path/to/freq-files" ]
+                    //
+                    //      maxFiles  : 10      //  cap on files returned per session
+                    //      requirePwd: false   //  if true, only honour FREQs from password-authenticated sessions
+                    //  }
+                    //
                     //  Per-node configuration, keyed by FTN address.
                     //
                     //  host               : Hostname/IP for outbound calls (required to call a node).
