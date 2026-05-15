@@ -66,17 +66,23 @@ scannerTossers: {
             // FREQ (File REQuest) — serve files to requesting nodes.
             // When a remote node sends a .req file, ENiGMA resolves each
             // requested name and sends the files back in the same session.
+            // Resolution order: magic → areas (file base) → dirs
             //
             // freq: {
             //     enabled: true
             //
-            //     // magic — map a well-known name to an absolute file path.
+            //     // magic — name → path or glob; newest glob match wins
             //     // magic: {
-            //     //     NODELIST: "/path/to/NODELIST.365"
+            //     //     NODELIST: "/path/to/nl/NODELIST.*"
             //     //     ALLFIX:   "/path/to/ALLFIX.NA"
             //     // }
             //
-            //     // dirs — search directories for files by name.
+            //     // areas — file base area tags (best for TIC-imported files)
+            //     // areas: [
+            //     //     { areaTag: "nodelists" }
+            //     // ]
+            //
+            //     // dirs — raw filesystem directories
             //     // dirs: [ "/path/to/freq-files" ]
             //
             //     maxFiles:   10    // cap on files returned per session (default 10)
@@ -185,19 +191,50 @@ Set `inbound.tls.enabled: true` to start a second, TLS-only listener. Both the p
 
 When FREQ is configured, remote nodes can request named files by sending a `.req` file containing one name per line. ENiGMA½ resolves each name and sends the matching files back **in the same BinkP session** (no extra round-trip required).
 
-Resolution order:
-1. **Magic names** — exact (case-insensitive) match against `freq.magic`, mapping a well-known name to an absolute file path
-2. **Directory search** — each directory in `freq.dirs` is scanned for an exact filename match, then a prefix match (e.g. requesting `NODELIST` matches `NODELIST.365`, `NODELIST.001`, etc.; the newest file wins)
-
 Passwords in `.req` files (e.g. `NODELIST!password`) are stripped and ignored.
+
+**Resolution order** (first match wins):
+
+1. **`magic`** — case-insensitive name → path mapping. The path may contain glob wildcards (`*`, `?`); when it does, ENiGMA½ expands the glob at request time and returns the newest matching file. This means `NODELIST: "/path/to/nl/NODELIST.*"` always serves the current segment without any config changes after each weekly update.
+
+2. **`areas`** — ENiGMA½ file base area tags. This is the preferred option when files arrive via TIC file echoes: TIC processing imports each received file into a configured file area, and the FREQ resolver queries that area by name (exact match first, then prefix — e.g. `NODELIST` matches `NODELIST.365`). The newest file by upload timestamp wins.
+
+3. **`dirs`** — plain filesystem directories. Useful for files managed outside the file base. Exact name match first, then prefix match; newest by filesystem mtime wins.
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `enabled` | `false` | Enable FREQ handling |
-| `magic` | — | Object mapping magic names → absolute file paths |
-| `dirs` | `[]` | Array of directories to search |
-| `maxFiles` | `10` | Maximum files returned per session |
+| `magic` | — | Object mapping magic names → file paths or glob patterns |
+| `areas` | `[]` | Array of `{ areaTag }` objects — file base areas to search |
+| `dirs` | `[]` | Array of directory paths to search |
+| `maxFiles` | `10` | Maximum files returned per session (across all resolvers combined) |
 | `requirePwd` | `false` | When `true`, only honour FREQs from sessions authenticated with a `sessionPassword` (CRAM-MD5) |
+
+**Typical setup for a TIC-fed nodelist:**
+
+```hjson
+// In scannerTossers.ftn_bso.ticAreas — map the hub's TIC area to a local file area
+ticAreas: {
+    fidonet_nodelist: {
+        areaTag: "nodelists"
+        storageTag: "nodelists"
+    }
+}
+
+// In fileBase — define the storage tag and area
+// fileBase.storageTags: { nodelists: "nodelists" }
+// fileBase.areas: { nodelists: { name: "Nodelists", storageTags: ["nodelists"] } }
+
+// In binkp — point FREQ at the same area
+freq: {
+    enabled: true
+    areas: [
+        { areaTag: "nodelists" }
+    ]
+}
+```
+
+With this setup, every new nodelist that arrives via TIC is immediately FREQ-serveable — no path configuration to maintain.
 
 ---
 

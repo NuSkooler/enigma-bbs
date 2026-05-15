@@ -176,6 +176,171 @@ describe('FreqResolver', () => {
     });
 });
 
+// ── Glob magic tests ──────────────────────────────────────────────────────────
+
+describe('FreqResolver — glob magic', () => {
+    let dir;
+
+    before(async () => {
+        dir = await makeTempDir();
+    });
+
+    after(async () => {
+        await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+    });
+
+    it('resolves a glob pattern to the newest matching file', async () => {
+        const older = path.join(dir, 'NODELIST.001');
+        const newer = path.join(dir, 'NODELIST.365');
+        await fsp.writeFile(older, 'old nodelist');
+        await new Promise(r => setTimeout(r, 10));
+        await fsp.writeFile(newer, 'new nodelist');
+
+        const pattern = path.join(dir, 'NODELIST.*');
+        const resolver = new FreqResolver({ magic: { NODELIST: pattern } });
+        const results = await resolver.resolveNames(['NODELIST']);
+
+        assert.equal(results.length, 1);
+        assert.equal(results[0].name, 'NODELIST.365');
+    });
+
+    it('glob magic is case-insensitive on the magic name', async () => {
+        const file = path.join(dir, 'ALLFIX.NA');
+        await fsp.writeFile(file, 'allfix data');
+
+        const resolver = new FreqResolver({ magic: { ALLFIX: file } });
+        const results = await resolver.resolveNames(['allfix']);
+        assert.equal(results.length, 1);
+        assert.equal(results[0].name, 'ALLFIX.NA');
+    });
+
+    it('returns empty when glob matches nothing', async () => {
+        const pattern = path.join(dir, 'MISSING.*');
+        const resolver = new FreqResolver({ magic: { MISSING: pattern } });
+        const results = await resolver.resolveNames(['MISSING']);
+        assert.equal(results.length, 0);
+    });
+
+    it('maxFiles cap applies across magic and dirs combined', async () => {
+        const a = path.join(dir, 'A.txt');
+        const b = path.join(dir, 'B.txt');
+        await fsp.writeFile(a, 'a');
+        await fsp.writeFile(b, 'b');
+
+        const resolver = new FreqResolver({
+            magic: { A: a },
+            dirs: [dir],
+            maxFiles: 1,
+        });
+        const results = await resolver.resolveNames(['A', 'B.txt']);
+        assert.equal(results.length, 1);
+    });
+});
+
+// ── Area resolver tests (file base stub) ─────────────────────────────────────
+
+describe('FreqResolver — area resolver', () => {
+    //  We stub the file_entry module so these tests run without a real ENiGMA
+    //  database.  The stub is injected via require.cache before FreqResolver
+    //  uses lazy-require('../file_entry.js').
+
+    let dir;
+    let resolverModule;
+
+    before(async () => {
+        dir = await makeTempDir();
+
+        //  Write two physical files the stub will point at
+        const older = path.join(dir, 'NODELIST.001');
+        const newer = path.join(dir, 'NODELIST.365');
+        await fsp.writeFile(older, 'old');
+        await new Promise(r => setTimeout(r, 10));
+        await fsp.writeFile(newer, 'new');
+
+        //  Stub FileEntry so that:
+        //    findFiles({ areaTag: 'nodelists', ... }, cb)  → [2, 1]  (newest first)
+        //    loadBasicEntry(2, {}, cb)  → { fileName: 'NODELIST.365', storageTag: 'nl', relPath: null, areaTag: 'nodelists' }
+        //    loadBasicEntry(1, {}, cb)  → { fileName: 'NODELIST.001', storageTag: 'nl', relPath: null, areaTag: 'nodelists' }
+        //    FileEntry constructor + filePath getter → actual path in |dir|
+        const fakeFileEntry = class FakeFileEntry {
+            constructor(opts) {
+                this.fileName   = opts.fileName;
+                this.storageTag = opts.storageTag;
+                this.areaTag    = opts.areaTag;
+                this.relPath    = opts.relPath || null;
+            }
+            get filePath() {
+                return path.join(dir, this.fileName);
+            }
+            static findFiles(filter, cb) {
+                if (filter.areaTag !== 'nodelists') return cb(null, []);
+                cb(null, [2, 1]); // newest-first IDs
+            }
+            static loadBasicEntry(fileId, dest, cb) {
+                const entries = {
+                    2: { fileName: 'NODELIST.365', storageTag: 'nl', areaTag: 'nodelists', relPath: null },
+                    1: { fileName: 'NODELIST.001', storageTag: 'nl', areaTag: 'nodelists', relPath: null },
+                };
+                const e = entries[fileId];
+                if (!e) return cb(new Error('not found'));
+                Object.assign(dest, e);
+                cb(null, dest);
+            }
+        };
+
+        //  Inject the stub before loading freq.js so lazy-require picks it up
+        const feKey = require.resolve('../core/file_entry.js');
+        require.cache[feKey] = { id: feKey, filename: feKey, loaded: true, exports: fakeFileEntry };
+
+        //  Force a fresh load of freq.js so it sees our stub
+        const freqKey = require.resolve('../core/binkp/freq');
+        delete require.cache[freqKey];
+        resolverModule = require('../core/binkp/freq');
+    });
+
+    after(async () => {
+        //  Remove the stub so other tests use the real module
+        delete require.cache[require.resolve('../core/file_entry.js')];
+        delete require.cache[require.resolve('../core/binkp/freq')];
+        await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+    });
+
+    it('finds the newest file in a file base area by prefix', async () => {
+        const { FreqResolver: FR } = resolverModule;
+        const resolver = new FR({ areas: [{ areaTag: 'nodelists' }] });
+        const results = await resolver.resolveNames(['NODELIST']);
+        assert.equal(results.length, 1);
+        assert.equal(results[0].name, 'NODELIST.365');
+    });
+
+    it('finds an exact filename match in a file base area', async () => {
+        const { FreqResolver: FR } = resolverModule;
+        const resolver = new FR({ areas: [{ areaTag: 'nodelists' }] });
+        const results = await resolver.resolveNames(['NODELIST.001']);
+        assert.equal(results.length, 1);
+        assert.equal(results[0].name, 'NODELIST.001');
+    });
+
+    it('returns empty when area has no matching file', async () => {
+        const { FreqResolver: FR } = resolverModule;
+        const resolver = new FR({ areas: [{ areaTag: 'nodelists' }] });
+        const results = await resolver.resolveNames(['ALLFIX']);
+        assert.equal(results.length, 0);
+    });
+
+    it('area resolver falls through to dirs when area has no match', async () => {
+        const { FreqResolver: FR } = resolverModule;
+        const allfix = path.join(dir, 'ALLFIX.NA');
+        await fsp.writeFile(allfix, 'allfix data');
+
+        const resolver = new FR({ areas: [{ areaTag: 'nodelists' }], dirs: [dir] });
+        const results = await resolver.resolveNames(['ALLFIX']);
+        assert.equal(results.length, 1);
+        assert.equal(results[0].name, 'ALLFIX.NA');
+        await fsp.unlink(allfix).catch(() => {});
+    });
+});
+
 // ── REQ_FILE_RE ───────────────────────────────────────────────────────────────
 
 describe('REQ_FILE_RE', () => {
