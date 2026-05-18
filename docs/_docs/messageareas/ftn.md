@@ -18,14 +18,13 @@ Getting a fully running FTN enabled system requires a few configuration points:
 > :information_source: ENiGMA½'s `ftn_bso` module is **not a mailer** and makes **no attempts** to perform packet transport! An external utility such as Binkd is required for this task.
 
 #### Networks
-The `networks` block is a per-network configuration where each entry's ID (or "key") may be referenced elsewhere in `config.hjson`. For example, consider two networks: ArakNet (`araknet`) and fsxNet (`fsxnet`):
+The `networks` block is a per-network configuration where each entry's ID (or "key") may be referenced elsewhere in `config.hjson`. Network keys are matched case-insensitively, so `fsxNet`, `fsxnet`, and `FSXNET` are all equivalent — just be consistent within your config. For example, consider two networks: ArakNet and fsxNet:
 
 ```hjson
 {
   messageNetworks: {
     ftn: {
       networks: {
-        // it is recommended to use lowercase network tags
         fsxnet: {
           defaultZone: 21
           localAddress: "21:1/121"

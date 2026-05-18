@@ -70,28 +70,37 @@ function FTNMessageScanTossModule() {
         this.moduleConfig = config.scannerTossers.ftn_bso;
     }
 
+    this.getNetworkConfig = function (networkName) {
+        const networks = Config().messageNetworks.ftn.networks;
+        const key = Object.keys(networks).find(
+            k => k.toLowerCase() === networkName.toLowerCase()
+        );
+        return key ? networks[key] : undefined;
+    };
+
     this.getDefaultNetworkName = function () {
         if (this.moduleConfig.defaultNetwork) {
-            return this.moduleConfig.defaultNetwork.toLowerCase();
+            return this.moduleConfig.defaultNetwork;
         }
 
         const networkNames = Object.keys(config.messageNetworks.ftn.networks);
         if (1 === networkNames.length) {
-            return networkNames[0].toLowerCase();
+            return networkNames[0];
         }
     };
 
     this.getDefaultZone = function (networkName) {
-        const config = Config();
-        if (_.isNumber(config.messageNetworks.ftn.networks[networkName].defaultZone)) {
-            return config.messageNetworks.ftn.networks[networkName].defaultZone;
+        const networkConfig = this.getNetworkConfig(networkName);
+        if (!networkConfig) {
+            return;
+        }
+        if (_.isNumber(networkConfig.defaultZone)) {
+            return networkConfig.defaultZone;
         }
 
         //  non-explicit: default to local address zone
-        const networkLocalAddress =
-            config.messageNetworks.ftn.networks[networkName].localAddress;
-        if (networkLocalAddress) {
-            const addr = Address.fromString(networkLocalAddress);
+        if (networkConfig.localAddress) {
+            const addr = Address.fromString(networkConfig.localAddress);
             return addr.zone;
         }
     };
@@ -1089,10 +1098,9 @@ function FTNMessageScanTossModule() {
                                     exportOpts.routeAddress = routeInfo.routeAddress;
                                     exportOpts.fileCase =
                                         routeInfo.config.fileCase || 'lower';
-                                    exportOpts.network =
-                                        Config().messageNetworks.ftn.networks[
-                                            routeInfo.networkName
-                                        ];
+                                    exportOpts.network = self.getNetworkConfig(
+                                        routeInfo.networkName
+                                    );
                                     exportOpts.networkName = routeInfo.networkName;
                                     exportOpts.outgoingDir =
                                         self.getOutgoingEchoMailPacketDir(
@@ -1287,7 +1295,7 @@ function FTNMessageScanTossModule() {
 
                 const exportOpts = {
                     nodeConfig,
-                    network: config.messageNetworks.ftn.networks[areaConfig.network],
+                    network: self.getNetworkConfig(areaConfig.network),
                     destAddress: Address.fromString(uplink),
                     networkName: areaConfig.network,
                     fileCase: nodeConfig.fileCase || 'lower',
