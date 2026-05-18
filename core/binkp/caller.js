@@ -1,6 +1,8 @@
 'use strict';
 
 const net = require('net');
+const tls = require('tls');
+const fsp = require('fs/promises');
 const os = require('os');
 const _ = require('lodash');
 
@@ -49,6 +51,10 @@ async function callNode(addr, nodeConf, spool) {
     const host = nodeConf.host;
     const port = nodeConf.port || 24554;
 
+    // Validate + build TLS options before acquiring the lock so a bad config
+    // fails fast without leaving a dangling .bsy file.
+    const tlsOpts = await _buildTlsOpts(nodeConf);
+
     const locked = await spool.acquireLock(addr).catch(() => false);
     if (!locked) {
         Log.info({ addr: addrStr }, '[BinkP/Caller] Node already in session, skipping');
@@ -56,7 +62,7 @@ async function callNode(addr, nodeConf, spool) {
     }
 
     try {
-        const socket = await _connect(host, port);
+        const socket = await _connect(host, port, tlsOpts);
 
         const session = new BinkpSession(socket, {
             role: 'originating',
@@ -187,16 +193,62 @@ async function pollNodes(forceAddrs, cb) {
 
 // ── Private ───────────────────────────────────────────────────────────────────
 
-function _connect(host, port) {
+//  Build a tls.connect() options object from the per-node config.
+//  Returns null when TLS is not requested.
+//  Throws with a descriptive message when TLS is enabled but no trust option
+//  is set — we refuse to silently open a connection that looks secure but
+//  provides no protection against MITM.
+async function _buildTlsOpts(nodeConf) {
+    if (!nodeConf.tls) return null;
+
+    const hasTrust =
+        nodeConf.tlsAllowSelfSigned || nodeConf.tlsFingerprint || nodeConf.tlsCertFile;
+    if (!hasTrust) {
+        throw new Error(
+            `TLS enabled for ${nodeConf.host} but no trust option configured. ` +
+                `Set one of: tlsAllowSelfSigned, tlsFingerprint, or tlsCertFile.`
+        );
+    }
+
+    const opts = {};
+
+    if (nodeConf.tlsAllowSelfSigned) {
+        opts.rejectUnauthorized = false;
+        opts.checkServerIdentity = () => {};
+    } else if (nodeConf.tlsFingerprint) {
+        const expected = nodeConf.tlsFingerprint;
+        opts.rejectUnauthorized = false; // we enforce trust via fingerprint
+        opts.checkServerIdentity = (hostname, cert) => {
+            const got = cert.fingerprint256 || cert.fingerprint;
+            if (got !== expected) {
+                return new Error(
+                    `TLS fingerprint mismatch for ${hostname}: expected ${expected}, got ${got}`
+                );
+            }
+        };
+    } else {
+        // tlsCertFile: trust a specific CA / self-signed cert
+        opts.ca = await fsp.readFile(nodeConf.tlsCertFile);
+    }
+
+    return opts;
+}
+
+function _connect(host, port, tlsOpts) {
     return new Promise((resolve, reject) => {
-        const socket = net.createConnection({ host, port });
+        const socket = tlsOpts
+            ? tls.connect({ ...tlsOpts, host, port })
+            : net.createConnection({ host, port });
+
+        //  TLS handshake completes on 'secureConnect'; plain TCP uses 'connect'.
+        const connectEvent = tlsOpts ? 'secureConnect' : 'connect';
 
         const timer = setTimeout(() => {
             socket.destroy();
             reject(new Error(`Connection to ${host}:${port} timed out`));
         }, CONNECT_TIMEOUT_MS);
 
-        socket.once('connect', () => {
+        socket.once(connectEvent, () => {
             clearTimeout(timer);
             resolve(socket);
         });

@@ -579,3 +579,180 @@ describe('BinkpSession — M_SKIP handling', () => {
         });
     });
 });
+
+// ── GZ compression round-trip ─────────────────────────────────────────────────
+
+describe('BinkpSession — GZ compression', () => {
+    it('transfers a file with GZ compression and delivers correct content', async () => {
+        const f = await makeTempFile('COMPRESSED_PAYLOAD_TEST_DATA_123456');
+
+        const { clientSess, serverSess } = await makeSessionPair();
+
+        // Both sessions negotiate GZ by default (advertised in OPT).
+        // Verify GZ is actually active on both sides after auth.
+        let serverGzActive = false;
+        serverSess.on('authenticated', () => {
+            serverGzActive = serverSess._useGZ;
+        });
+
+        let received = null;
+        serverSess.on('file-received', async (name, size, ts, tempPath) => {
+            received = { name, size, ts, tempPath };
+        });
+
+        clientSess.queueFile(f.filePath, 'gz_test.pkt', f.size, f.timestamp, 'keep');
+
+        await runToEnd(clientSess, serverSess);
+
+        assert.ok(serverGzActive, 'GZ should be negotiated between both sessions');
+        assert.ok(received, 'server should have received the file');
+        assert.equal(received.name, 'gz_test.pkt');
+        assert.equal(received.size, f.size);
+
+        const content = await fsp.readFile(received.tempPath);
+        assert.equal(content.toString(), 'COMPRESSED_PAYLOAD_TEST_DATA_123456');
+
+        await fsp.unlink(received.tempPath).catch(() => {});
+        await fsp.unlink(f.filePath).catch(() => {});
+    });
+
+    it('skips GZ for already-compressed extensions (.zip)', async () => {
+        // Create a fake .zip file (content doesn't matter — we're testing OPT token)
+        const filePath = path.join(TEMP_DIR, `binkp_test_gz_skip_${Date.now()}.zip`);
+        await fsp.writeFile(filePath, 'FAKE_ZIP_CONTENT');
+        const { size } = await fsp.stat(filePath);
+        const timestamp = Math.floor(Date.now() / 1000);
+
+        const { clientSess, serverSess } = await makeSessionPair();
+
+        // Intercept M_FILE to check the GZ token is NOT appended
+        let mFileArg = null;
+        const origSendCmd = clientSess._sendCmd.bind(clientSess);
+        clientSess._sendCmd = (cmd, arg) => {
+            const { Commands } = require('../core/binkp/commands');
+            if (cmd === Commands.M_FILE) mFileArg = arg;
+            return origSendCmd(cmd, arg);
+        };
+
+        let received = null;
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            received = { tempPath };
+        });
+
+        clientSess.queueFile(filePath, 'archive.zip', size, timestamp, 'keep');
+        await runToEnd(clientSess, serverSess);
+
+        assert.ok(mFileArg, 'M_FILE should have been sent');
+        assert.ok(!mFileArg.includes(' GZ'), 'GZ token must not appear for .zip files');
+        assert.ok(received, 'file should still be received successfully');
+
+        await fsp.unlink(received.tempPath).catch(() => {});
+        await fsp.unlink(filePath).catch(() => {});
+    });
+});
+
+// ── Multi-batch ───────────────────────────────────────────────────────────────
+
+describe('BinkpSession — multi-batch (onBatchEnd)', () => {
+    //  In BinkP, the ORIGINATING node controls session lifetime. After both
+    //  sides exchange M_EOB, the originating node decides whether to start
+    //  another batch (by queuing more files in onBatchEnd) or to close.
+    //  The answering node waits for the originating node to close.
+
+    it('originating side starts a second batch via onBatchEnd', async () => {
+        const batch1 = await makeTempFile('BATCH_ONE');
+        const batch2 = await makeTempFile('BATCH_TWO');
+
+        let batchCount = 0;
+
+        //  Client (originating) has the hook; server (answering) has none.
+        const { clientSess, serverSess } = await makeSessionPair(
+            {
+                onBatchEnd: sess => {
+                    batchCount++;
+                    if (batchCount === 1) {
+                        //  Queue a second file — this triggers a new batch.
+                        sess.queueFile(
+                            batch2.filePath,
+                            'batch2.pkt',
+                            batch2.size,
+                            batch2.timestamp,
+                            'keep'
+                        );
+                    }
+                    //  batchCount === 2: nothing more → originating closes.
+                },
+            },
+            {} // server has no hook — waits for originating to close
+        );
+
+        const serverReceived = [];
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            serverReceived.push(name);
+            fsp.unlink(tempPath).catch(() => {});
+        });
+
+        clientSess.queueFile(
+            batch1.filePath,
+            'batch1.pkt',
+            batch1.size,
+            batch1.timestamp,
+            'keep'
+        );
+
+        await runToEnd(clientSess, serverSess);
+
+        assert.equal(batchCount, 2, 'onBatchEnd should fire for each batch');
+        assert.ok(serverReceived.includes('batch1.pkt'), 'server should receive batch1');
+        assert.ok(serverReceived.includes('batch2.pkt'), 'server should receive batch2');
+
+        await fsp.unlink(batch1.filePath).catch(() => {});
+        await fsp.unlink(batch2.filePath).catch(() => {});
+    });
+
+    it('ends session normally when onBatchEnd queues nothing', async () => {
+        const f = await makeTempFile('SINGLE_BATCH');
+        let batchCount = 0;
+
+        const { clientSess, serverSess } = await makeSessionPair(
+            {
+                onBatchEnd: () => {
+                    batchCount++;
+                    // queue nothing — originating closes after this
+                },
+            },
+            {}
+        );
+
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            fsp.unlink(tempPath).catch(() => {});
+        });
+
+        clientSess.queueFile(f.filePath, 'only.pkt', f.size, f.timestamp, 'keep');
+        await runToEnd(clientSess, serverSess);
+
+        assert.equal(batchCount, 1);
+        await fsp.unlink(f.filePath).catch(() => {});
+    });
+
+    it('session ends cleanly when onBatchEnd rejects', async () => {
+        const f = await makeTempFile('ERR_BATCH');
+
+        const { clientSess, serverSess } = await makeSessionPair(
+            {
+                onBatchEnd: () => Promise.reject(new Error('hook failure')),
+            },
+            {}
+        );
+
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            fsp.unlink(tempPath).catch(() => {});
+        });
+
+        clientSess.queueFile(f.filePath, 'err.pkt', f.size, f.timestamp, 'keep');
+
+        await runToEnd(clientSess, serverSess);
+
+        await fsp.unlink(f.filePath).catch(() => {});
+    });
+});

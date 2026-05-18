@@ -14,6 +14,10 @@ BinkP is the TCP/IP session-layer protocol used by modern FidoNet nodes to excha
 - **Pull cycle** — periodic dial of every configured peer to keep echo mail flowing in from quiet hubs
 - **CRAM-MD5 authentication** ([FTS-1027](http://ftsc.org/docs/fts-1027.001))
 - **NR (Non-Reliable) mode** ([FTS-1028](http://ftsc.org/docs/fts-1028.001)) — safe resume after disconnect
+- **TLS / binkps** — optional encrypted listener (port 24555) and TLS outbound per node
+- **GZ compression** ([FTS-1029](http://ftsc.org/docs/fts-1029.001)) — transparent per-file compression negotiated via `EXTCMD`; skips already-compressed types
+- **Multi-batch sessions** — continues exchanging files across multiple EOB cycles in a single TCP connection
+- **FREQ (File REQuest)** — serves files to requesting nodes; supports magic names (e.g. `NODELIST`) and versioned directory search
 - **BSO spool integration** — reads and writes the same BSO outbound/inbound directories that [`ftn_bso`](bso-import-export.md) uses for packet scanning and tossing
 
 > :information_source: The native BinkP mailer handles **transport only**. Scanning outbound messages into packets and tossing received packets into message areas is still performed by the `ftn_bso` scanner/tosser. These two modules work together automatically.
@@ -37,6 +41,15 @@ scannerTossers: {
                 enabled: true
                 port: 24554        // IANA-registered BinkP port
                 address: "0.0.0.0" // listen on all interfaces; use "127.0.0.1" for local-only
+
+                // Optional TLS listener (binkps, port 24555). Both plain and TLS
+                // listeners run simultaneously when enabled.
+                // tls: {
+                //     enabled: true
+                //     port: 24555
+                //     certFile: "/path/to/binkp.crt"
+                //     keyFile:  "/path/to/binkp.key"
+                // }
             }
 
             // Pull cycle: dial every configured peer on this schedule, even
@@ -50,6 +63,32 @@ scannerTossers: {
             // the same peer coalesce into a single session.
             crashmailDebounceMs: 500
 
+            // FREQ (File REQuest) — serve files to requesting nodes.
+            // When a remote node sends a .req file, ENiGMA resolves each
+            // requested name and sends the files back in the same session.
+            // Resolution order: magic → areas (file base) → dirs
+            //
+            // freq: {
+            //     enabled: true
+            //
+            //     // magic — name → path or glob; newest glob match wins
+            //     // magic: {
+            //     //     NODELIST: "/path/to/nl/NODELIST.*"
+            //     //     ALLFIX:   "/path/to/ALLFIX.NA"
+            //     // }
+            //
+            //     // areas — file base area tags (best for TIC-imported files)
+            //     // areas: [
+            //     //     { areaTag: "nodelists" }
+            //     // ]
+            //
+            //     // dirs — raw filesystem directories
+            //     // dirs: [ "/path/to/freq-files" ]
+            //
+            //     maxFiles:   10    // cap on files returned per session (default 10)
+            //     requirePwd: false // if true, only honour FREQs from password-authenticated sessions
+            // }
+
             // Per-node outbound configuration
             nodes: {
                 // Key is an FTN address (wildcards supported, e.g. "21:1/*")
@@ -59,6 +98,15 @@ scannerTossers: {
                     sessionPassword: "s3cr3t" // optional CRAM-MD5 password
                     pull: true                // optional, defaults to true
                 }
+
+                // TLS outbound example (binkps):
+                // "1:218/701": {
+                //     host: "secure.example.com"
+                //     port: 24555
+                //     sessionPassword: "s3cr3t"
+                //     tls: true
+                //     tlsAllowSelfSigned: true   // or tlsFingerprint / tlsCertFile
+                // }
             }
         }
     }
@@ -117,6 +165,76 @@ Each key is an FTN address or wildcard pattern. Values:
 | `pull` | No | `true` | Include this node in the periodic pull cycle. Set `false` for write-only peers. **Crashmail dispatch is unaffected** — outbound queued for a `pull: false` peer still triggers an immediate session. |
 
 Wildcard patterns (e.g. `"21:1/*"`) are valid for inbound password lookup but are skipped during pull cycles, since the pull cycle dials concrete addresses only. Put the most specific patterns first in your config — pattern matching uses first-match-wins on insertion order.
+
+#### `binkp.nodes[].tls` / TLS outbound (binkps)
+
+To dial a node over TLS (binkps, typically port 24555) set `tls: true` in the node block. Exactly one of the following trust options is also required:
+
+| Key | Description |
+|-----|-------------|
+| `tlsAllowSelfSigned` | `true` — accept any certificate (convenient, no MITM protection) |
+| `tlsFingerprint` | `"SHA256:AA:BB:..."` — pin to a specific certificate fingerprint |
+| `tlsCertFile` | `"/path/to/ca.pem"` — trust a specific CA or self-signed certificate file |
+
+#### `binkp.inbound.tls` — TLS listener (binkps)
+
+Set `inbound.tls.enabled: true` to start a second, TLS-only listener. Both the plain (port 24554) and TLS (default 24555) listeners run simultaneously. Requires a certificate and matching private key:
+
+| Key | Description |
+|-----|-------------|
+| `enabled` | `true` to start the TLS listener |
+| `port` | Port to listen on (default `24555`) |
+| `certFile` | Absolute path to the PEM certificate |
+| `keyFile` | Absolute path to the PEM private key |
+
+#### `binkp.freq` — File REQuest (FREQ)
+
+When FREQ is configured, remote nodes can request named files by sending a `.req` file containing one name per line. ENiGMA½ resolves each name and sends the matching files back **in the same BinkP session** (no extra round-trip required).
+
+Passwords in `.req` files (e.g. `NODELIST!password`) are stripped and ignored.
+
+**Resolution order** (first match wins):
+
+1. **`magic`** — case-insensitive name → path mapping. The path may contain glob wildcards (`*`, `?`); when it does, ENiGMA½ expands the glob at request time and returns the newest matching file. This means `NODELIST: "/path/to/nl/NODELIST.*"` always serves the current segment without any config changes after each weekly update.
+
+2. **`areas`** — ENiGMA½ file base area tags. This is the preferred option when files arrive via TIC file echoes: TIC processing imports each received file into a configured file area, and the FREQ resolver queries that area by name (exact match first, then prefix — e.g. `NODELIST` matches `NODELIST.365`). The newest file by upload timestamp wins.
+
+3. **`dirs`** — plain filesystem directories. Useful for files managed outside the file base. Exact name match first, then prefix match; newest by filesystem mtime wins.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `false` | Enable FREQ handling |
+| `magic` | — | Object mapping magic names → file paths or glob patterns |
+| `areas` | `[]` | Array of `{ areaTag }` objects — file base areas to search |
+| `dirs` | `[]` | Array of directory paths to search |
+| `maxFiles` | `10` | Maximum files returned per session (across all resolvers combined) |
+| `requirePwd` | `false` | When `true`, only honour FREQs from sessions authenticated with a `sessionPassword` (CRAM-MD5) |
+
+**Typical setup for a TIC-fed nodelist:**
+
+```hjson
+// In scannerTossers.ftn_bso.ticAreas — map the hub's TIC area to a local file area
+ticAreas: {
+    fidonet_nodelist: {
+        areaTag: "nodelists"
+        storageTag: "nodelists"
+    }
+}
+
+// In fileBase — define the storage tag and area
+// fileBase.storageTags: { nodelists: "nodelists" }
+// fileBase.areas: { nodelists: { name: "Nodelists", storageTags: ["nodelists"] } }
+
+// In binkp — point FREQ at the same area
+freq: {
+    enabled: true
+    areas: [
+        { areaTag: "nodelists" }
+    ]
+}
+```
+
+With this setup, every new nodelist that arrives via TIC is immediately FREQ-serveable — no path configuration to maintain.
 
 ---
 

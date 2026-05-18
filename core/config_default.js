@@ -1045,6 +1045,17 @@ module.exports = () => {
                         enabled: false,
                         port: 24554,
                         address: '0.0.0.0',
+
+                        //  Optional TLS listener (binkps, port 24555).
+                        //  Requires a certificate and private key. Both plain
+                        //  and TLS listeners run simultaneously when enabled.
+                        //
+                        //  tls: {
+                        //      enabled: true
+                        //      port: 24555
+                        //      certFile: "/path/to/binkp.crt"
+                        //      keyFile:  "/path/to/binkp.key"
+                        //  }
                     },
 
                     //  Pull cycle: dial every configured peer on this schedule
@@ -1094,20 +1105,72 @@ module.exports = () => {
                     inboundTempMaxAgeMs: 60 * 60 * 1000,
 
                     //
+                    //  FREQ (File REQuest) — serve files to requesting nodes.
+                    //
+                    //  When a remote node sends a .req file listing names it wants,
+                    //  ENiGMA resolves each name and serves the files back in the
+                    //  same BinkP session.  Resolution order:
+                    //    1. magic  — explicit name → path map (path may be a glob)
+                    //    2. areas  — ENiGMA file base areas (ideal for TIC-imported files)
+                    //    3. dirs   — plain filesystem directories
+                    //
+                    //  freq: {
+                    //      enabled   : true
+                    //
+                    //      //  magic — map a well-known magic name to a file path or glob.
+                    //      //  Lookup is case-insensitive.  When the path contains wildcards
+                    //      //  (*, ?) the newest matching file is returned automatically.
+                    //      //
+                    //      //  magic: {
+                    //      //      NODELIST: "/path/to/nodelists/NODELIST.*"
+                    //      //      ALLFIX:   "/path/to/allfix/ALLFIX.NA"
+                    //      //  }
+                    //
+                    //      //  areas — ENiGMA file base area tags to search.  This is the
+                    //      //  preferred option when files arrive via TIC file echoes: TIC
+                    //      //  processing imports each file into a file base area, and the
+                    //      //  FREQ resolver queries that area by name (exact match first,
+                    //      //  then prefix — e.g. "NODELIST" matches "NODELIST.365").
+                    //      //  The newest file by upload timestamp wins.
+                    //      //
+                    //      //  areas: [
+                    //      //      { areaTag: "nodelists" }
+                    //      //  ]
+                    //
+                    //      //  dirs — list of directories scanned for files by name.
+                    //      //  Useful for files managed outside the file base.
+                    //      //  Exact filename match is tried first; if not found, a prefix
+                    //      //  match is tried (e.g. "NODELIST" matches "NODELIST.365") and
+                    //      //  the newest file by mtime wins.
+                    //      //
+                    //      //  dirs: [ "/path/to/freq-files" ]
+                    //
+                    //      maxFiles  : 10      //  cap on files returned per session
+                    //      requirePwd: false   //  if true, only honour FREQs from password-authenticated sessions
+                    //  }
+                    //
                     //  Per-node configuration, keyed by FTN address.
                     //
-                    //  host            : Hostname/IP for outbound calls (required to call a node).
-                    //  port            : TCP port for outbound calls (default: 24554).
-                    //  sessionPassword : CRAM-MD5 session password (distinct from FTN packet password).
-                    //  pull            : Set false to exclude this node from the periodic pull cycle.
-                    //                    Crashmail (event-driven dialing on outbound) still applies.
-                    //                    Default: true.
+                    //  host               : Hostname/IP for outbound calls (required to call a node).
+                    //  port               : TCP port for outbound calls (default: 24554).
+                    //  sessionPassword    : CRAM-MD5 session password (distinct from FTN packet password).
+                    //  pull               : Set false to exclude this node from the periodic pull cycle.
+                    //                       Crashmail (event-driven dialing on outbound) still applies.
+                    //                       Default: true.
+                    //
+                    //  TLS outbound (binkps) — exactly one trust option is required when tls:true:
+                    //  tls                : true to connect via TLS (binkps, typically port 24555).
+                    //  tlsAllowSelfSigned : true — accept any certificate (no MITM protection).
+                    //  tlsFingerprint     : "SHA256:AA:BB:..." — pin to a specific certificate fingerprint.
+                    //  tlsCertFile        : "/path/to/ca.pem" — trust a specific CA or self-signed cert.
                     //
                     //  nodes: {
                     //      "1:218/700": {
                     //          host: "bbs.example.com"
-                    //          port: 24554
+                    //          port: 24555
                     //          sessionPassword: "s3cr3t"
+                    //          tls: true
+                    //          tlsAllowSelfSigned: true
                     //      }
                     //  }
                 },
