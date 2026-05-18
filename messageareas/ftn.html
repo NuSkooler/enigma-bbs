@@ -17,11 +17,11 @@
 <meta property="og:description" content="FidoNet-Style Networks (FTN) FidoNet proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you’ll be up and running in no time!" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-05-14T02:49:25+00:00" />
+<meta property="article:published_time" content="2026-05-18T15:13:11+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="FidoNet-Style Networks (FTN)" />
 <script type="application/ld+json">
-{"description":"FidoNet-Style Networks (FTN) FidoNet proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you’ll be up and running in no time!","headline":"FidoNet-Style Networks (FTN)","dateModified":"2026-05-14T02:49:25+00:00","datePublished":"2026-05-14T02:49:25+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/ftn.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/ftn.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"FidoNet-Style Networks (FTN) FidoNet proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you’ll be up and running in no time!","headline":"FidoNet-Style Networks (FTN)","dateModified":"2026-05-18T15:13:11+00:00","datePublished":"2026-05-18T15:13:11+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/ftn.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/ftn.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2877,13 +2877,12 @@
 </blockquote>
 
 <h4 id="networks">Networks</h4>
-<p>The <code class="language-plaintext highlighter-rouge">networks</code> block is a per-network configuration where each entry’s ID (or “key”) may be referenced elsewhere in <code class="language-plaintext highlighter-rouge">config.hjson</code>. For example, consider two networks: ArakNet (<code class="language-plaintext highlighter-rouge">araknet</code>) and fsxNet (<code class="language-plaintext highlighter-rouge">fsxnet</code>):</p>
+<p>The <code class="language-plaintext highlighter-rouge">networks</code> block is a per-network configuration where each entry’s ID (or “key”) may be referenced elsewhere in <code class="language-plaintext highlighter-rouge">config.hjson</code>. Network keys are matched case-insensitively, so <code class="language-plaintext highlighter-rouge">fsxNet</code>, <code class="language-plaintext highlighter-rouge">fsxnet</code>, and <code class="language-plaintext highlighter-rouge">FSXNET</code> are all equivalent — just be consistent within your config. For example, consider two networks: ArakNet and fsxNet:</p>
 
 <pre><code class="language-hjson">{
   messageNetworks: {
     ftn: {
       networks: {
-        // it is recommended to use lowercase network tags
         fsxnet: {
           defaultZone: 21
           localAddress: "21:1/121"
