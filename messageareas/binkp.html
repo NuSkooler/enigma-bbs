@@ -17,11 +17,11 @@
 <meta property="og:description" content="BinkP Native Mailer" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-05-18T15:13:11+00:00" />
+<meta property="article:published_time" content="2026-05-18T18:15:36+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="BinkP Native Mailer" />
 <script type="application/ld+json">
-{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-05-18T15:13:11+00:00","datePublished":"2026-05-18T15:13:11+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-05-18T18:15:36+00:00","datePublished":"2026-05-18T18:15:36+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2875,6 +2875,14 @@
   <li>
 <strong>NR (Non-Reliable) mode</strong> (<a href="http://ftsc.org/docs/fts-1028.001">FTS-1028</a>) — safe resume after disconnect</li>
   <li>
+<strong>TLS / binkps</strong> — optional encrypted listener (port 24555) and TLS outbound per node</li>
+  <li>
+<strong>GZ compression</strong> (<a href="http://ftsc.org/docs/fts-1029.001">FTS-1029</a>) — transparent per-file compression negotiated via <code class="language-plaintext highlighter-rouge">EXTCMD</code>; skips already-compressed types</li>
+  <li>
+<strong>Multi-batch sessions</strong> — continues exchanging files across multiple EOB cycles in a single TCP connection</li>
+  <li>
+<strong>FREQ (File REQuest)</strong> — serves files to requesting nodes; supports magic names (e.g. <code class="language-plaintext highlighter-rouge">NODELIST</code>) and versioned directory search</li>
+  <li>
 <strong>BSO spool integration</strong> — reads and writes the same BSO outbound/inbound directories that <a href="/enigma-bbs/messageareas/bso-import-export.html"><code class="language-plaintext highlighter-rouge">ftn_bso</code></a> uses for packet scanning and tossing</li>
 </ul>
 
@@ -2902,6 +2910,15 @@
                 enabled: true
                 port: 24554        // IANA-registered BinkP port
                 address: "0.0.0.0" // listen on all interfaces; use "127.0.0.1" for local-only
+
+                // Optional TLS listener (binkps, port 24555). Both plain and TLS
+                // listeners run simultaneously when enabled.
+                // tls: {
+                //     enabled: true
+                //     port: 24555
+                //     certFile: "/path/to/binkp.crt"
+                //     keyFile:  "/path/to/binkp.key"
+                // }
             }
 
             // Pull cycle: dial every configured peer on this schedule, even
@@ -2915,6 +2932,32 @@
             // the same peer coalesce into a single session.
             crashmailDebounceMs: 500
 
+            // FREQ (File REQuest) — serve files to requesting nodes.
+            // When a remote node sends a .req file, ENiGMA resolves each
+            // requested name and sends the files back in the same session.
+            // Resolution order: magic → areas (file base) → dirs
+            //
+            // freq: {
+            //     enabled: true
+            //
+            //     // magic — name → path or glob; newest glob match wins
+            //     // magic: {
+            //     //     NODELIST: "/path/to/nl/NODELIST.*"
+            //     //     ALLFIX:   "/path/to/ALLFIX.NA"
+            //     // }
+            //
+            //     // areas — file base area tags (best for TIC-imported files)
+            //     // areas: [
+            //     //     { areaTag: "nodelists" }
+            //     // ]
+            //
+            //     // dirs — raw filesystem directories
+            //     // dirs: [ "/path/to/freq-files" ]
+            //
+            //     maxFiles:   10    // cap on files returned per session (default 10)
+            //     requirePwd: false // if true, only honour FREQs from password-authenticated sessions
+            // }
+
             // Per-node outbound configuration
             nodes: {
                 // Key is an FTN address (wildcards supported, e.g. "21:1/*")
@@ -2924,6 +2967,15 @@
                     sessionPassword: "s3cr3t" // optional CRAM-MD5 password
                     pull: true                // optional, defaults to true
                 }
+
+                // TLS outbound example (binkps):
+                // "1:218/701": {
+                //     host: "secure.example.com"
+                //     port: 24555
+                //     sessionPassword: "s3cr3t"
+                //     tls: true
+                //     tlsAllowSelfSigned: true   // or tlsFingerprint / tlsCertFile
+                // }
             }
         }
     }
@@ -3045,6 +3097,158 @@
 </table>
 
 <p>Wildcard patterns (e.g. <code class="language-plaintext highlighter-rouge">"21:1/*"</code>) are valid for inbound password lookup but are skipped during pull cycles, since the pull cycle dials concrete addresses only. Put the most specific patterns first in your config — pattern matching uses first-match-wins on insertion order.</p>
+
+<h4 id="binkpnodestls--tls-outbound-binkps">
+<code class="language-plaintext highlighter-rouge">binkp.nodes[].tls</code> / TLS outbound (binkps)</h4>
+
+<p>To dial a node over TLS (binkps, typically port 24555) set <code class="language-plaintext highlighter-rouge">tls: true</code> in the node block. Exactly one of the following trust options is also required:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tlsAllowSelfSigned</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">true</code> — accept any certificate (convenient, no MITM protection)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tlsFingerprint</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">"SHA256:AA:BB:..."</code> — pin to a specific certificate fingerprint</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tlsCertFile</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">"/path/to/ca.pem"</code> — trust a specific CA or self-signed certificate file</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="binkpinboundtls--tls-listener-binkps">
+<code class="language-plaintext highlighter-rouge">binkp.inbound.tls</code> — TLS listener (binkps)</h4>
+
+<p>Set <code class="language-plaintext highlighter-rouge">inbound.tls.enabled: true</code> to start a second, TLS-only listener. Both the plain (port 24554) and TLS (default 24555) listeners run simultaneously. Requires a certificate and matching private key:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">enabled</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">true</code> to start the TLS listener</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">port</code></td>
+      <td>Port to listen on (default <code class="language-plaintext highlighter-rouge">24555</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">certFile</code></td>
+      <td>Absolute path to the PEM certificate</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">keyFile</code></td>
+      <td>Absolute path to the PEM private key</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="binkpfreq--file-request-freq">
+<code class="language-plaintext highlighter-rouge">binkp.freq</code> — File REQuest (FREQ)</h4>
+
+<p>When FREQ is configured, remote nodes can request named files by sending a <code class="language-plaintext highlighter-rouge">.req</code> file containing one name per line. ENiGMA½ resolves each name and sends the matching files back <strong>in the same BinkP session</strong> (no extra round-trip required).</p>
+
+<p>Passwords in <code class="language-plaintext highlighter-rouge">.req</code> files (e.g. <code class="language-plaintext highlighter-rouge">NODELIST!password</code>) are stripped and ignored.</p>
+
+<p><strong>Resolution order</strong> (first match wins):</p>
+
+<ol>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">magic</code></strong> — case-insensitive name → path mapping. The path may contain glob wildcards (<code class="language-plaintext highlighter-rouge">*</code>, <code class="language-plaintext highlighter-rouge">?</code>); when it does, ENiGMA½ expands the glob at request time and returns the newest matching file. This means <code class="language-plaintext highlighter-rouge">NODELIST: "/path/to/nl/NODELIST.*"</code> always serves the current segment without any config changes after each weekly update.</p>
+  </li>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">areas</code></strong> — ENiGMA½ file base area tags. This is the preferred option when files arrive via TIC file echoes: TIC processing imports each received file into a configured file area, and the FREQ resolver queries that area by name (exact match first, then prefix — e.g. <code class="language-plaintext highlighter-rouge">NODELIST</code> matches <code class="language-plaintext highlighter-rouge">NODELIST.365</code>). The newest file by upload timestamp wins.</p>
+  </li>
+  <li>
+    <p><strong><code class="language-plaintext highlighter-rouge">dirs</code></strong> — plain filesystem directories. Useful for files managed outside the file base. Exact name match first, then prefix match; newest by filesystem mtime wins.</p>
+  </li>
+</ol>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">enabled</code></td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Enable FREQ handling</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">magic</code></td>
+      <td>—</td>
+      <td>Object mapping magic names → file paths or glob patterns</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">areas</code></td>
+      <td><code class="language-plaintext highlighter-rouge">[]</code></td>
+      <td>Array of <code class="language-plaintext highlighter-rouge">{ areaTag }</code> objects — file base areas to search</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">dirs</code></td>
+      <td><code class="language-plaintext highlighter-rouge">[]</code></td>
+      <td>Array of directory paths to search</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">maxFiles</code></td>
+      <td><code class="language-plaintext highlighter-rouge">10</code></td>
+      <td>Maximum files returned per session (across all resolvers combined)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">requirePwd</code></td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>When <code class="language-plaintext highlighter-rouge">true</code>, only honour FREQs from sessions authenticated with a <code class="language-plaintext highlighter-rouge">sessionPassword</code> (CRAM-MD5)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Typical setup for a TIC-fed nodelist:</strong></p>
+
+<pre><code class="language-hjson">// In scannerTossers.ftn_bso.ticAreas — map the hub's TIC area to a local file area
+ticAreas: {
+    fidonet_nodelist: {
+        areaTag: "nodelists"
+        storageTag: "nodelists"
+    }
+}
+
+// In fileBase — define the storage tag and area
+// fileBase.storageTags: { nodelists: "nodelists" }
+// fileBase.areas: { nodelists: { name: "Nodelists", storageTags: ["nodelists"] } }
+
+// In binkp — point FREQ at the same area
+freq: {
+    enabled: true
+    areas: [
+        { areaTag: "nodelists" }
+    ]
+}
+</code></pre>
+
+<p>With this setup, every new nodelist that arrives via TIC is immediately FREQ-serveable — no path configuration to maintain.</p>
 
 <hr>
 
