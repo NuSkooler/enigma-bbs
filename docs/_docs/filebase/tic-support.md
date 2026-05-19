@@ -18,7 +18,7 @@ Under a given node defined in the `ftn_bso` config section in `config.hjson` (se
           encoding: cp437
           archiveType: zip
           tic: { // <--- General TIC config for 46:*
-            password: TESTY-TEST
+            password: TESTY-TEST  // see tip below for keeping this out of plain text
             uploadBy: AgoraNet TIC
             allowReplace: true
           }
@@ -28,6 +28,12 @@ Under a given node defined in the `ftn_bso` config section in `config.hjson` (se
   }
 }
 ```
+
+> :bulb: Avoid storing `password` in plain text. Use `@file:` or `@environment:` instead:
+> ```hjson
+> password: "@file:/run/secrets/tic_pass"
+> ```
+> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
 
 Valid `tic` members:
 

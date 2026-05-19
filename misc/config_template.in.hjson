@@ -156,7 +156,12 @@
             //  (The above is a more modern equivelant of the following):
             //  > openssl genrsa -aes128 -out ./config/security/ssh_private_key.pem 2048
             //
-            //  2 - Set 'privateKeyPass' to the password you used in step #1
+            //  2 - Set 'privateKeyPass' to the password you used in step #1.
+            //      To avoid storing it in plain text, use @file: or @environment:
+            //      instead of a literal value. For example:
+            //        privateKeyPass: "@file:/run/secrets/ssh_key_pass"
+            //        privateKeyPass: "@environment:SSH_KEY_PASS"
+            //      See docs on "Secret Files" in configuration/config-files.md
             //
             //  3 - Finally, set 'enabled' to 'true'
             //
@@ -174,7 +179,9 @@
             //
             enabled: XXXXX
 
-            //  set this to your PK's password, generated in step #1 above
+            //  Set to your PK's password (step #1 above), or use @file:/@environment:
+            //  to avoid storing the secret in this file (recommended):
+            //    privateKeyPass: "@file:/run/secrets/ssh_key_pass"
             privateKeyPass: SuperSecretPasswordChangeMe!
 
             //
@@ -265,7 +272,8 @@
                     //  Optional: override the JWT signing secret (e.g. for multi-node
                     //  setups that share a secret). If omitted, ENiGMA auto-generates
                     //  one on first run and stores it in the database.
-                    //  jwtSecret: "a long random string"
+                    //  Use @file: or @environment: to avoid storing it in plain text:
+                    //  jwtSecret: "@file:/run/secrets/jwt_secret"
 
                     //  Control which system endpoints are public vs. auth-required.
                     //  Defaults: info, last-callers, stats = public; nodes = auth required.
@@ -434,7 +442,9 @@
         //      secure: false
         //      auth: {
         //          user: myuser@yourdomain.com
-        //          pass: supersecretpassword
+        //          //  Avoid plain text — use @file: or @environment: for passwords:
+        //          pass: "@file:/run/secrets/smtp_pass"
+        //          //  pass: "@environment:SMTP_PASS"
         //      }
         //  }
         //
@@ -443,7 +453,7 @@
         //      service: Zoho
         //      auth: {
         //          user: myuser@myhost.com
-        //          pass: supersecretpassword
+        //          pass: "@file:/run/secrets/smtp_pass"
         //      }
         //  }
         //
@@ -461,9 +471,10 @@
         //          port: 993
         //          secure: true
         //
-        //          //  Credentials
+        //          //  Credentials — use @file: or @environment: to avoid plain text:
         //          user: bbs@yourdomain.com
-        //          password: supersecretpassword
+        //          password: "@file:/run/secrets/imap_pass"
+        //          //  password: "@environment:IMAP_PASS"
         //
         //          //  How often to check for new messages (ms). Set to 0 to use IMAP IDLE
         //          //  (push-like, lower latency, persistent connection).
@@ -505,6 +516,14 @@
             //
             //  When you're ready to hook up to FTN networks, please
             //  see the documentation on message networks.
+            //
+            //  Passwords (packetPassword, tic.password, binkp sessionPassword, etc.)
+            //  support @file: and @environment: to avoid plain text storage. Example:
+            //    nodes: {
+            //        "21:1/100": {
+            //            packetPassword: "@file:/run/secrets/ftn_packet_pass"
+            //        }
+            //    }
             //
         }
     }

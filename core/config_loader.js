@@ -1,5 +1,6 @@
 //  deps
 const paths = require('path');
+const fs = require('fs');
 const async = require('async');
 const moment = require('moment');
 
@@ -74,7 +75,7 @@ module.exports = class ConfigLoader {
         //  1 - Fetch base configuration from |baseConfigPath|
         //  2 - Merge with |defaultConfig|
         //  3 - Resolve any includes
-        //  4 - Resolve @reference and @environment
+        //  4 - Resolve @reference, @environment, and @file
         //  5 - Perform any validation
         //
         async.waterfall(
@@ -178,6 +179,26 @@ module.exports = class ConfigLoader {
         return value;
     }
 
+    _resolveFileValue(spec) {
+        //  spec format: @file:/path/to/secret  (or @file:relative/path)
+        const filePath = spec.slice(6); //  strip "@file:"
+        if (!filePath) {
+            return console.info(`WARNING: empty path in spec "${spec}"`);
+        }
+
+        const resolvedPath = paths.isAbsolute(filePath)
+            ? filePath
+            : paths.join(paths.dirname(this.baseConfigPath), filePath);
+
+        try {
+            return fs.readFileSync(resolvedPath, 'utf8').trim();
+        } catch (e) {
+            return console.info(
+                `WARNING: could not read file "${resolvedPath}" from spec "${spec}": ${e.message}`
+            );
+        }
+    }
+
     _resolveEnvironmentVariable(spec) {
         const [, varName, type, array] = spec.split(':');
         if (!varName) {
@@ -264,6 +285,8 @@ module.exports = class ConfigLoader {
                     value = _.get(config, refPath, value);
                 } else if (value.startsWith('@environment:')) {
                     value = this._resolveEnvironmentVariable(value) || value;
+                } else if (value.startsWith('@file:')) {
+                    value = this._resolveFileValue(value) || value;
                 }
             }
 

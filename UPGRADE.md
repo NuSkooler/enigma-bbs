@@ -20,6 +20,12 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.4.0-beta to 0.5.0-beta
+
+* No breaking changes or required migrations.
+
+* **Recommended:** review any secrets currently stored as plain text in `config.hjson` (`privateKeyPass`, SMTP/IMAP passwords, BinkP `sessionPassword`, FTN `packetPassword`, TIC `password`, `jwtSecret`, door service credentials) and consider moving them to `@file:` or `@environment:` references. This is optional but strongly encouraged — existing plain-text values continue to work unchanged. See [Security](./docs/_docs/configuration/security.md#keeping-secrets-out-of-confighjson) for examples.
+
 ## 0.3.0-beta to 0.4.0-beta
 N/A
 

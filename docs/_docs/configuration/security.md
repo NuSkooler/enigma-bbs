@@ -12,7 +12,7 @@ Unlike in the golden era of BBSing, modern Internet-connected systems are prone 
 
 ## Protecting Sensitive Configuration
 
-`config.hjson` contains secrets — most notably the SSH host key passphrase (`loginServers.ssh.privateKeyPass`) and any email gateway credentials. These values are stored in plain text in the file. To limit exposure:
+`config.hjson` may contain secrets — the SSH host key passphrase, email credentials, FTN/BinkP session passwords, and more. To limit exposure:
 
 * **Restrict file permissions.** The config file should be readable only by the OS user that runs ENiGMA½:
   ```bash
@@ -25,7 +25,47 @@ Unlike in the golden era of BBSing, modern Internet-connected systems are prone 
 * Do not commit `config.hjson` to version control. Add it to `.gitignore` if you track your configuration in git.
 * Limit OS-level read access to backup archives that include the config directory.
 
-> :warning: If `privateKeyPass` is left blank in your config, the SSH host key will be generated and stored without a passphrase. This is acceptable if the key file itself is properly permission-restricted and the host is otherwise secured.
+### Keeping Secrets Out of config.hjson
+
+For stronger separation — especially in container or GitOps environments — ENiGMA½ supports two directives that let you keep sensitive values out of `config.hjson` entirely:
+
+* **`@file:/path/to/secret`** — reads the value from a file at startup (trimming surrounding whitespace). Ideal for Docker/Podman secrets (`/run/secrets/…`) or any chmod-600 file on disk.
+* **`@environment:VAR_NAME`** — reads the value from an environment variable.
+
+These work for **any** string-valued config key. Examples:
+
+```hjson
+loginServers: {
+    ssh: {
+        privateKeyPass: "@file:/run/secrets/ssh_key_pass"
+    }
+}
+
+email: {
+    transport: {
+        auth: {
+            user: noreply@yourbbs.net
+            pass: "@environment:SMTP_PASS"
+        }
+    }
+}
+
+scannerTossers: {
+    ftn_bso: {
+        binkp: {
+            nodes: {
+                "1:218/700": {
+                    sessionPassword: "@file:/run/secrets/binkp_pass"
+                }
+            }
+        }
+    }
+}
+```
+
+See [Configuration Files — Secret Files](config-files.md#secret-files) for the full reference and a complete list of supported `@environment:` type coercions.
+
+> :warning: If `privateKeyPass` is left blank in your config, the SSH host key will be used without a passphrase. This is acceptable if the key file itself is properly permission-restricted and the host is otherwise secured.
 
 ## Two-Factor Authentication via One-Time Password
 Enabling Two-Factor Authentication via One-Time-Password (2FA/OTP) on an account adds an extra layer of security ("_something a user has_") in addition to their password ("_something a user knows_"). Providing 2FA/OTP to your users has some prerequisites:
