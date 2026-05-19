@@ -2,6 +2,8 @@
 
 const { strict: assert } = require('assert');
 const paths = require('path');
+const os = require('os');
+const fs = require('fs');
 
 //  ConfigLoader has no load-time Config() dependency — require directly.
 const ConfigLoader = require('../core/config_loader');
@@ -102,6 +104,147 @@ describe('ConfigLoader._configFileChanged()', () => {
 
         loader._configFileChanged({ fileName: 'config.hjson', fileRoot: '/fake' });
         assert.equal(scheduled, true);
+    });
+});
+
+// ─── _resolveFileValue ────────────────────────────────────────────────────────
+
+describe('ConfigLoader._resolveFileValue()', () => {
+    let tmpDir;
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigma-test-'));
+    });
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('reads the file contents and trims surrounding whitespace', () => {
+        const secretFile = paths.join(tmpDir, 'secret');
+        fs.writeFileSync(secretFile, '  s3cr3t\n');
+
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = paths.join(tmpDir, 'config.hjson');
+
+        assert.equal(loader._resolveFileValue(`@file:${secretFile}`), 's3cr3t');
+    });
+
+    it('resolves a relative path against the config directory', () => {
+        const secretFile = paths.join(tmpDir, 'mypass');
+        fs.writeFileSync(secretFile, 'relativepass\n');
+
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = paths.join(tmpDir, 'config.hjson');
+
+        assert.equal(loader._resolveFileValue('@file:mypass'), 'relativepass');
+    });
+
+    it('returns undefined and logs a warning when the file does not exist', () => {
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = paths.join(tmpDir, 'config.hjson');
+
+        const warnings = [];
+        const origInfo = console.info;
+        console.info = msg => {
+            warnings.push(msg);
+        };
+        try {
+            const result = loader._resolveFileValue('@file:/nonexistent/no_such_file');
+            assert.equal(result, undefined);
+            assert.equal(warnings.length, 1);
+            assert.ok(warnings[0].includes('WARNING'));
+        } finally {
+            console.info = origInfo;
+        }
+    });
+
+    it('returns undefined and logs a warning for an empty path (@file: with nothing after)', () => {
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = paths.join(tmpDir, 'config.hjson');
+
+        const warnings = [];
+        const origInfo = console.info;
+        console.info = msg => {
+            warnings.push(msg);
+        };
+        try {
+            const result = loader._resolveFileValue('@file:');
+            assert.equal(result, undefined);
+            assert.equal(warnings.length, 1);
+        } finally {
+            console.info = origInfo;
+        }
+    });
+
+    it('preserves internal whitespace in the secret value', () => {
+        const secretFile = paths.join(tmpDir, 'multi');
+        fs.writeFileSync(secretFile, '  pass word  \n');
+
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = paths.join(tmpDir, 'config.hjson');
+
+        assert.equal(loader._resolveFileValue(`@file:${secretFile}`), 'pass word');
+    });
+});
+
+// ─── _resolveAtSpecs @file integration ───────────────────────────────────────
+
+describe('ConfigLoader._resolveAtSpecs() @file integration', () => {
+    let tmpDir;
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigma-test-'));
+    });
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('resolves @file: values anywhere in the config tree', () => {
+        const secretFile = paths.join(tmpDir, 'smtp_pass');
+        fs.writeFileSync(secretFile, 'hunter2\n');
+
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = paths.join(tmpDir, 'config.hjson');
+
+        const resolved = loader._resolveAtSpecs({
+            email: {
+                transport: {
+                    auth: {
+                        user: 'bbs@example.com',
+                        pass: `@file:${secretFile}`,
+                    },
+                },
+            },
+        });
+
+        assert.equal(resolved.email.transport.auth.pass, 'hunter2');
+        assert.equal(resolved.email.transport.auth.user, 'bbs@example.com');
+    });
+
+    it('leaves a non-@file @-prefixed value untouched', () => {
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = '/fake/config.hjson';
+
+        const resolved = loader._resolveAtSpecs({ key: '@unknown:something' });
+        assert.equal(resolved.key, '@unknown:something');
+    });
+
+    it('leaves the literal @file: spec intact when the file is missing (non-fatal)', () => {
+        const loader = new ConfigLoader({ hotReload: false });
+        loader.baseConfigPath = paths.join(tmpDir, 'config.hjson');
+
+        const origInfo = console.info;
+        console.info = () => {};
+        try {
+            const resolved = loader._resolveAtSpecs({
+                ssh: { pass: '@file:/no/such/file' },
+            });
+            assert.equal(resolved.ssh.pass, '@file:/no/such/file');
+        } finally {
+            console.info = origInfo;
+        }
     });
 });
 

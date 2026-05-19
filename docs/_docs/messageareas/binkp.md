@@ -95,7 +95,7 @@ scannerTossers: {
                 "1:218/700": {
                     host: "bbs.example.com"
                     port: 24554              // optional, defaults to 24554
-                    sessionPassword: "s3cr3t" // optional CRAM-MD5 password
+                    sessionPassword: "s3cr3t" // optional CRAM-MD5 password — see tip below
                     pull: true                // optional, defaults to true
                 }
 
@@ -112,6 +112,12 @@ scannerTossers: {
     }
 }
 ```
+
+> :bulb: Avoid storing `sessionPassword` in plain text. Use `@file:` or `@environment:` instead:
+> ```hjson
+> sessionPassword: "@file:/run/secrets/binkp_pass"
+> ```
+> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
 
 #### `binkp.inbound`
 

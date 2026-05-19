@@ -40,7 +40,7 @@ A node entry starts with a [FTN address](http://ftsc.org/docs/old/fsp-1028.001) 
       nodes: {
         "21:*": { // wildcard address
           packetType: 2+
-          packetPassword: D@TP4SS
+          packetPassword: D@TP4SS  // see tip below for keeping this out of plain text
           encoding: cp437
           archiveType: zip
         }
@@ -49,6 +49,12 @@ A node entry starts with a [FTN address](http://ftsc.org/docs/old/fsp-1028.001) 
   }
 }
 ```
+
+> :bulb: Avoid storing `packetPassword` in plain text. Use `@file:` or `@environment:` instead:
+> ```hjson
+> packetPassword: "@file:/run/secrets/ftn_packet_pass"
+> ```
+> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
 
 #### Paths
 Paths for packet files work out of the box and are relative to your install directory. If you want to configure `reject` or `retain` to keep rejected/imported packet files respectively, set those values. You may override defaults as well.

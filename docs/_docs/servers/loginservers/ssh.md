@@ -41,6 +41,12 @@ Entries available under `config.loginServers.ssh`:
 }
 ```
 
+> :bulb: To avoid storing the passphrase in plain text, use the `@file:` directive to read it from a separate file — for example a Docker/Podman secret or a chmod-600 file:
+> ```hjson
+> privateKeyPass: "@file:/run/secrets/ssh_key_pass"
+> ```
+> See [Configuration Files — Secret Files](../../configuration/config-files.md#secret-files) for details.
+
 ## Generate a SSH Private Key
 
 To utilize the SSH server, an SSH Private Key (PK) will need generated. OpenSSH or (with some versions) OpenSSL can be used for this task:
