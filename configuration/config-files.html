@@ -17,11 +17,11 @@
 <meta property="og:description" content="General Information ENiGMA½ configuration files such as the system config, menus and themes are formatted in the HJSON format." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-05-18T18:15:36+00:00" />
+<meta property="article:published_time" content="2026-05-19T22:39:00+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Configuration Files" />
 <script type="application/ld+json">
-{"description":"General Information ENiGMA½ configuration files such as the system config, menus and themes are formatted in the HJSON format.","headline":"Configuration Files","dateModified":"2026-05-18T18:15:36+00:00","datePublished":"2026-05-18T18:15:36+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/config-files.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/config-files.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"General Information ENiGMA½ configuration files such as the system config, menus and themes are formatted in the HJSON format.","headline":"Configuration Files","dateModified":"2026-05-19T22:39:00+00:00","datePublished":"2026-05-19T22:39:00+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/config-files.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/configuration/config-files.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -3054,6 +3054,43 @@
     }
 }
 </code></pre>
+
+<h3 id="secret-files">Secret Files</h3>
+<p>For secrets that should not be stored in <code class="language-plaintext highlighter-rouge">config.hjson</code> (passwords, API keys, tokens, etc.), ENiGMA½ supports the <code class="language-plaintext highlighter-rouge">@file</code> directive to read a value from a file at startup. This is particularly useful in container environments where secrets are injected as files (e.g. Docker/Podman secrets under <code class="language-plaintext highlighter-rouge">/run/secrets/</code>).</p>
+
+<p>The path may be absolute or relative to the directory containing <code class="language-plaintext highlighter-rouge">config.hjson</code>.</p>
+
+<pre><code class="language-hjson">loginServers: {
+    ssh: {
+        // absolute path (e.g. a Docker/Podman secret)
+        privateKeyPass: "@file:/run/secrets/ssh_key_pass"
+    }
+}
+
+email: {
+    transport: {
+        auth: {
+            user: bbs@example.com
+            // relative path — resolved from the config directory
+            pass: "@file:secrets/smtp_pass"
+        }
+    }
+}
+</code></pre>
+
+<p>The file contents are trimmed of leading/trailing whitespace (including the trailing newline that most editors and secrets managers append).</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> If the file cannot be read, a warning is logged and the literal <code class="language-plaintext highlighter-rouge">@file:…</code> string is left intact rather than crashing the system.</p>
+</blockquote>
+
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> <code class="language-plaintext highlighter-rouge">@file</code> works for <strong>any</strong> string-valued config key — SSH passphrase, SMTP/IMAP passwords, BinkP session passwords, FTN packet passwords, JWT secrets, etc.</p>
+</blockquote>
+
+<blockquote>
+  <p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> On POSIX systems, restrict secret files with <code class="language-plaintext highlighter-rouge">chmod 600</code>.</p>
+</blockquote>
 
 <h2 id="see-also">See Also</h2>
 <ul>
