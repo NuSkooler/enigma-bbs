@@ -603,6 +603,26 @@
 				}
 			}
 
+			userStatusConfig: {
+				config: {
+					cls: true
+					enabledIndicator: "|10\u221A"
+					disabledIndicator: "|12X"
+					menuInfoFormat10: "{visibleIndicator}"
+					menuInfoFormat11: "{availableIndicator}"
+				}
+				0: {
+					mci: {
+						TL10: {
+							width: 40
+						}
+						TL11: {
+							width: 40
+						}
+					}
+				}
+			}
+
 			nodeMessage: {
 				config: {
 					messageFormat: "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}"
