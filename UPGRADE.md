@@ -24,6 +24,39 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 * No breaking changes or required migrations.
 
+* **Optional: expose the new `user_status_config` module** — a new module lets users toggle their own availability and visibility. To add it to your menus, wire up a command or menu entry pointing to `@menu:userStatusConfig`. A minimal menu block is required in your menu config:
+
+  ```hjson
+  userStatusConfig: {
+      desc: User Status
+      module: user_status_config
+      config: {
+          art: {
+              menu: user_status_config
+          }
+          enabledIndicator: "√"
+          disabledIndicator: X
+          menuInfoFormat10: "{availableIndicator}"
+          menuInfoFormat11: "{visibleIndicator}"
+      }
+      form: {
+          0: {
+              mci: {
+                  TL10: {}
+                  TL11: {}
+              }
+              actionKeys: [
+                  { keys: [ "a", "shift + a" ]           action: @method:toggleAvailable }
+                  { keys: [ "v", "shift + v" ]           action: @method:toggleVisible }
+                  { keys: [ "escape", "q", "shift + q" ] action: @systemMethod:prevMenu }
+              ]
+          }
+      }
+  }
+  ```
+
+  You will also need to create an art file named `user_status_config` (`.ans`, `.asc`, etc.) containing `TL10` and `TL11` MCI codes for the availability and visibility indicators respectively. The `menuInfoFormat10`/`menuInfoFormat11` format strings support `{availableIndicator}`, `{visibleIndicator}`, `{isAvailable}`, and `{isVisible}` tokens and can be styled with pipe codes in your theme.
+
 * **Recommended:** review any secrets currently stored as plain text in `config.hjson` (`privateKeyPass`, SMTP/IMAP passwords, BinkP `sessionPassword`, FTN `packetPassword`, TIC `password`, `jwtSecret`, door service credentials) and consider moving them to `@file:` or `@environment:` references. This is optional but strongly encouraged — existing plain-text values continue to work unchanged. See [Security](./docs/_docs/configuration/security.md#keeping-secrets-out-of-confighjson) for examples.
 
 ## 0.3.0-beta to 0.4.0-beta
