@@ -105,6 +105,23 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
             },
 
             replyMessage: (formData, extraArgs, cb) => {
+                //  Block replies to pre-auth (ghost) senders: private messages
+                //  with no local from-user-id and no remote address have no
+                //  deliverable recipient, so a reply would silently fail.
+                if (
+                    self.message.isPrivate() &&
+                    self.message.getLocalFromUserId() === 0 &&
+                    !self.message.isFromRemoteUser()
+                ) {
+                    const noReplyMenu =
+                        _.get(self.menuConfig, 'config.noReplyGhostSenderMenu') ||
+                        'preAuthFeedbackNoReply';
+                    return self.gotoMenuOrShowMessage(
+                        noReplyMenu,
+                        'Sender has no account; reply cannot be delivered.'
+                    );
+                }
+
                 if (_.isString(extraArgs.menu)) {
                     const modOpts = {
                         extraArgs: {

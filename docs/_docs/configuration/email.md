@@ -111,6 +111,16 @@ email: {
 
 See [Internet Mail](../messageareas/internet-mail.md) for the full reference, inbound flow details, failed-message handling, and provider-specific tips (app passwords, catch-all rules, etc.).
 
+> :bulb: Avoid storing SMTP/IMAP passwords in plain text. Use `@file:` or `@environment:` to inject credentials securely:
+> ```hjson
+> auth: {
+>     user: noreply@yourbbs.net
+>     pass: "@file:/run/secrets/smtp_pass"
+>     // or: pass: "@environment:SMTP_PASS"
+> }
+> ```
+> See [Configuration Files — Secret Files](config-files.md#secret-files) for details.
+
 ## Password Reset / Account Unlock
 
 If email is configured and you allow email-driven password resets, you may also allow locked accounts to be unlocked at reset time. This is controlled by `users.unlockAtEmailPwReset`. If an account is locked due to too many failed login attempts, the user can reset their password to remedy the situation themselves.

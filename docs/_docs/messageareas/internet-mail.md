@@ -200,6 +200,13 @@ email: {
 
 > :warning: Many providers (Gmail, Outlook) require an **app password** or OAuth2 token rather than your account password for IMAP/SMTP access. Generate one in your provider's security settings.
 
+> :bulb: Avoid storing SMTP/IMAP passwords in plain text in `config.hjson`. Use `@file:` or `@environment:` to inject credentials securely — for example:
+> ```hjson
+> pass: "@file:/run/secrets/smtp_pass"
+> password: "@environment:IMAP_PASSWORD"
+> ```
+> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+
 ## Failed Message Handling
 
 Messages that cannot be delivered to a local user (unknown username, parse error) are:

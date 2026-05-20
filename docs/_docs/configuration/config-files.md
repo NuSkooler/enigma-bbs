@@ -121,6 +121,38 @@ If the environment has `BAR_VAR=1337`, this would produce:
 }
 ```
 
+### Secret Files
+For secrets that should not be stored in `config.hjson` (passwords, API keys, tokens, etc.), ENiGMA½ supports the `@file` directive to read a value from a file at startup. This is particularly useful in container environments where secrets are injected as files (e.g. Docker/Podman secrets under `/run/secrets/`).
+
+The path may be absolute or relative to the directory containing `config.hjson`.
+
+```hjson
+loginServers: {
+    ssh: {
+        // absolute path (e.g. a Docker/Podman secret)
+        privateKeyPass: "@file:/run/secrets/ssh_key_pass"
+    }
+}
+
+email: {
+    transport: {
+        auth: {
+            user: bbs@example.com
+            // relative path — resolved from the config directory
+            pass: "@file:secrets/smtp_pass"
+        }
+    }
+}
+```
+
+The file contents are trimmed of leading/trailing whitespace (including the trailing newline that most editors and secrets managers append).
+
+> :information_source: If the file cannot be read, a warning is logged and the literal `@file:…` string is left intact rather than crashing the system.
+
+> :bulb: `@file` works for **any** string-valued config key — SSH passphrase, SMTP/IMAP passwords, BinkP session passwords, FTN packet passwords, JWT secrets, etc.
+
+> :bulb: On POSIX systems, restrict secret files with `chmod 600`.
+
 ## See Also
 * [System Configuration](config-hjson.md)
 * [Menu Configuration](menu-hjson.md)
