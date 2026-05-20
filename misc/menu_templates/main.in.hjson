@@ -201,8 +201,16 @@
                     ]
                 }
                 {
+                    value: { command: "T" }
+                    action: @menu:userStatusConfig
+                }
+                {
                     value: { command: "MSG" }
                     action: @menu:nodeMessage
+                }
+                {
+                    value: { command: "P" }
+                    action: @menu:pageSysop
                 }
             ]
         }
