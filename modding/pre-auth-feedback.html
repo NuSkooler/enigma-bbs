@@ -9,19 +9,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
     <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
     <!-- Begin Jekyll SEO tag v2.7.1 -->
-<title>Rumorz | ENiGMA½ BBS Software</title>
+<title>Pre-Auth Feedback | ENiGMA½ BBS Software</title>
 <meta name="generator" content="Jekyll v4.2.2" />
-<meta property="og:title" content="Rumorz" />
+<meta property="og:title" content="Pre-Auth Feedback" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="The Rumorz Module The built in rumorz module provides a classic interface for users to add and view rumorz!" />
-<meta property="og:description" content="The Rumorz Module The built in rumorz module provides a classic interface for users to add and view rumorz!" />
+<meta name="description" content="Pre-Auth Feedback" />
+<meta property="og:description" content="Pre-Auth Feedback" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2026-05-20T18:43:54+00:00" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="Rumorz" />
+<meta property="twitter:title" content="Pre-Auth Feedback" />
 <script type="application/ld+json">
-{"description":"The Rumorz Module The built in rumorz module provides a classic interface for users to add and view rumorz!","headline":"Rumorz","dateModified":"2026-05-20T18:43:54+00:00","datePublished":"2026-05-20T18:43:54+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/rumorz.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/rumorz.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Pre-Auth Feedback","headline":"Pre-Auth Feedback","dateModified":"2026-05-20T18:43:54+00:00","datePublished":"2026-05-20T18:43:54+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/pre-auth-feedback.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/pre-auth-feedback.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2154,7 +2154,7 @@
 
 
     
-      <li class="active-nav">Rumorz</li>
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
     
 
 
@@ -2529,7 +2529,7 @@
 
 
     
-    <li><a href="/enigma-bbs/modding/pre-auth-feedback.html">Pre-Auth Feedback</a></li>
+      <li class="active-nav">Pre-Auth Feedback</li>
     
 
 
@@ -2869,36 +2869,137 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/bbs-list.html">&laquo; BBS List</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/sysop-chat.html">&laquo; Sysop Chat</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/administration.html">Administration &raquo;</a>
               
               <br clear="both" />
               </div>
 
                 <div class="page">
-    <h1 class="page-title">Rumorz</h1>
-    <h2 id="the-rumorz-module">The Rumorz Module</h2>
-<p>The built in <code class="language-plaintext highlighter-rouge">rumorz</code> module provides a classic interface for users to add and view rumorz!</p>
+    <h1 class="page-title">Pre-Auth Feedback</h1>
+    <h2 id="pre-auth-feedback">Pre-Auth Feedback</h2>
 
-<h2 id="configuration">Configuration</h2>
+<p>The <code class="language-plaintext highlighter-rouge">pre_auth_feedback</code> module lets unauthenticated visitors send a private message to the sysop <strong>before logging in</strong> — directly from the login matrix. This is distinct from <a href="/enigma-bbs/modding/sysop-chat.html"><code class="language-plaintext highlighter-rouge">page_sysop</code></a>, which requires an authenticated user.</p>
 
-<h3 id="theming">Theming</h3>
-<p>The following <code class="language-plaintext highlighter-rouge">itemFormat</code> object is provided to MCI 1 (ie: <code class="language-plaintext highlighter-rouge">%VM1</code>) (the rumor list):</p>
+<p>The sender types a free-text name in the From field. It is stored as-is and <strong>never resolved to a user account</strong>, so a malicious visitor cannot impersonate an existing user. The To field is locked to the sysop. The full FSE editor is used for composition.</p>
+
+<p>Because the sender has no account, <strong>replies to these messages are blocked</strong>: attempting to reply from the inbox shows the <code class="language-plaintext highlighter-rouge">preAuthFeedbackNoReply</code> notice and returns to the inbox rather than opening a compose screen that would silently discard the mail.</p>
+
+<hr />
+
+<h2 id="enabling-the-feature">Enabling the Feature</h2>
+
+<ol>
+  <li>Add a <code class="language-plaintext highlighter-rouge">feedback</code> item to your login <code class="language-plaintext highlighter-rouge">matrix</code> menu’s <code class="language-plaintext highlighter-rouge">VM1</code> items list and wire it to <code class="language-plaintext highlighter-rouge">@menu:preAuthFeedback</code>.</li>
+  <li>Add a <code class="language-plaintext highlighter-rouge">preAuthFeedback</code> menu entry to your login menu config (see <code class="language-plaintext highlighter-rouge">misc/menu_templates/login.in.hjson</code> for a complete example).</li>
+  <li>Create art <code class="language-plaintext highlighter-rouge">msg_op_feedback_header</code> with <code class="language-plaintext highlighter-rouge">ET1</code> (From — editable), <code class="language-plaintext highlighter-rouge">ET2</code> (To — locked), <code class="language-plaintext highlighter-rouge">ET3</code> (Subject — editable), and optional <code class="language-plaintext highlighter-rouge">TL4</code> (error message). The body, footer, and help art reuse the standard <code class="language-plaintext highlighter-rouge">MSGBODY</code>, <code class="language-plaintext highlighter-rouge">MSGEFTR</code>, <code class="language-plaintext highlighter-rouge">MSGEMFT</code>, <code class="language-plaintext highlighter-rouge">MSGEHLP</code> files.</li>
+  <li>Create art <code class="language-plaintext highlighter-rouge">PREAFNRPLY</code> for the “cannot reply” notice shown to the sysop. The menu auto-advances to <code class="language-plaintext highlighter-rouge">prevMenu</code> after 3 seconds.</li>
+  <li>Add a <code class="language-plaintext highlighter-rouge">preAuthFeedback</code> theme block (see <code class="language-plaintext highlighter-rouge">theme.hjson</code>) matching the MCI widths and body <code class="language-plaintext highlighter-rouge">MT1</code> height — copy from <code class="language-plaintext highlighter-rouge">privateMailMenuCreateMessage</code>.</li>
+</ol>
+
+<hr />
+
+<h2 id="art-files">Art Files</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Spec</th>
+      <th>Description</th>
+      <th>Key MCI</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">msg_op_feedback_header</code></td>
+      <td>Header form — From (editable), To (locked), Subject (editable), optional error</td>
+      <td><code class="language-plaintext highlighter-rouge">ET1</code> (from), <code class="language-plaintext highlighter-rouge">ET2</code> (to), <code class="language-plaintext highlighter-rouge">ET3</code> (subject), <code class="language-plaintext highlighter-rouge">TL4</code> (error)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PREAFNRPLY</code></td>
+      <td>Notice shown when sysop attempts to reply to a ghost-sender message</td>
+      <td>none required</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="preauthfeedback-menu-config-keys"><code class="language-plaintext highlighter-rouge">preAuthFeedback</code> Menu Config Keys</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sysopUserName</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Sysop</code></td>
+      <td>Display name shown in the locked To field</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">defaultFromName</code></td>
+      <td><code class="language-plaintext highlighter-rouge">""</code></td>
+      <td>Seed value for the editable From field</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">defaultSubject</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Feedback to Sysop</code></td>
+      <td>Pre-populated Subject (user may edit)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">noReplyGhostSenderMenu</code></td>
+      <td><code class="language-plaintext highlighter-rouge">preAuthFeedbackNoReply</code></td>
+      <td>Menu shown when sysop attempts to reply</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="theming">Theming</h2>
+
+<p>Add a <code class="language-plaintext highlighter-rouge">preAuthFeedback</code> block to your <code class="language-plaintext highlighter-rouge">theme.hjson</code>, matching the MCI view widths from your art file and the body <code class="language-plaintext highlighter-rouge">MT1</code> height:</p>
+
+<pre><code class="language-hjson">preAuthFeedback: {
+    0: {
+        mci: {
+            ET1: { width: 19, textOverflow: "..." }
+            ET2: { width: 19, textOverflow: "..." }
+            ET3: { width: 19, textOverflow: "..." }
+        }
+    }
+    1: {
+        mci: {
+            MT1: { height: 14 }
+        }
+    }
+}
+</code></pre>
+
+<hr />
+
+<h2 id="see-also">See Also</h2>
+
 <ul>
-  <li><code class="language-plaintext highlighter-rouge">rumor</code>: The rumor text. Also available in the standard <code class="language-plaintext highlighter-rouge">{text}</code> field.</li>
+  <li><a href="/enigma-bbs/modding/sysop-chat.html">Sysop Chat</a> — two-way split-screen chat and paging for authenticated users.</li>
 </ul>
 
 </div>
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/bbs-list.html">&laquo; BBS List</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/sysop-chat.html">&laquo; Sysop Chat</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/administration.html">Administration &raquo;</a>
               
               <br clear="both" />
               </div>
