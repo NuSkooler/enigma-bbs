@@ -125,3 +125,9 @@ sysopChat: {
 ```
 
 Token available: `{userName}`.
+
+---
+
+## See Also
+
+* [Pre-Auth Feedback](pre-auth-feedback.md) — allow unauthenticated visitors to send mail to the sysop directly from the login matrix.
