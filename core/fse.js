@@ -630,12 +630,7 @@ exports.FullScreenEditorModule =
             const headerValues = this.viewControllers.header.getFormData().value;
             const area = getMessageAreaByTag(this.messageAreaTag);
 
-            const getFromUserName = () => {
-                return area && area.realNames
-                    ? this.client.user.getProperty(UserProps.RealName) ||
-                          this.client.user.username
-                    : this.client.user.username;
-            };
+            const getFromUserName = () => this._getFromUserName(area);
 
             let messageBody = this._bodyView.getData({
                 forceLineTerms: this.replyIsAnsi,
@@ -839,7 +834,7 @@ exports.FullScreenEditorModule =
                         return callback(null);
                     },
                     function populateLocalUserInfo(callback) {
-                        self.message.setLocalFromUserId(self.client.user.userId);
+                        self.message.setLocalFromUserId(self._getLocalFromUserId());
 
                         const areaInfo = getMessageAreaByTag(self.messageAreaTag);
                         if (
@@ -1130,11 +1125,32 @@ exports.FullScreenEditorModule =
             return cb(null);
         }
 
+        //  Subclasses that allow the sender to type their own From name (e.g.
+        //  pre-auth feedback) override this to return true.
+        _isFromFieldEditable() {
+            return false;
+        }
+
+        //  Subclasses that should not stamp a local from-user-id (e.g. pre-auth
+        //  feedback where the sender has no user record) override this to return 0.
+        _getLocalFromUserId() {
+            return this.client.user.userId;
+        }
+
+        //  Subclasses that provide a different From name source (e.g. a free-text
+        //  field typed by a pre-auth user) override this.
+        _getFromUserName(area) {
+            return area && area.realNames
+                ? this.client.user.getProperty(UserProps.RealName) ||
+                      this.client.user.username
+                : this.client.user.username;
+        }
+
         //  Step 3: lock the From field (display-only) and seed the body view's
         //  edit-mode/position indicator state.
         _initViewState(cb) {
             const from = this.viewControllers.header.getView(MciViewIds.header.from);
-            if (from) {
+            if (from && !this._isFromFieldEditable()) {
                 from.acceptsFocus = false;
             }
 

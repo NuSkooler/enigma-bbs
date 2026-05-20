@@ -141,6 +141,7 @@ collections:
       - modding/menu-modules.md
       - modding/wfc.md
       - modding/sysop-chat.md
+      - modding/pre-auth-feedback.md
       - admin/administration.md
       - admin/oputil.md
       - admin/upgrading.md
