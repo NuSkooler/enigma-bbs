@@ -285,6 +285,9 @@ exports.getModule = class ZMachineDoorModule extends MenuModule {
         //  Emit a string of worker output to the client, counting newlines and
         //  pausing at PAGE_ROWS. If already paused, buffers for later flush.
         const emitToClient = data => {
+            //  Promote bare LF → CRLF; strict-NVT telnet clients render bare LF
+            //  as "down one row, column unchanged", producing a diagonal staircase.
+            data = data.replace(/(?<!\r)\n/g, '\r\n');
             if (_paused) {
                 _pausedQueue.push(data);
                 return;
