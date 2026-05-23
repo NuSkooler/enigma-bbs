@@ -161,8 +161,9 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                     this.menuConfig.config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
                 const formatObj = {
-                    webBatchDlLink:
-                        ansi.vtxHyperlink(this.client, webBatchDlLink) + webBatchDlLink,
+                    webBatchDlLink: this.client.terminalSupports('osc8_hyperlink')
+                        ? ansi.osc8Hyperlink(webBatchDlLink, webBatchDlLink)
+                        : webBatchDlLink,
                     webBatchDlExpire: expireTime.format(webDlExpireTimeFormat),
                 };
 
@@ -232,8 +233,9 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 
                                                 fileEntry.webDlLinkRaw = url;
                                                 fileEntry.webDlLink =
-                                                    ansi.vtxHyperlink(self.client, url) +
-                                                    url;
+                                                    self.client.terminalSupports('osc8_hyperlink')
+                                                        ? ansi.osc8Hyperlink(url, url)
+                                                        : url;
                                                 fileEntry.webDlExpire =
                                                     expireTime.format(
                                                         webDlExpireTimeFormat
@@ -245,10 +247,9 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                                     } else {
                                         fileEntry.webDlLinkRaw = serveItem.url;
                                         fileEntry.webDlLink =
-                                            ansi.vtxHyperlink(
-                                                self.client,
-                                                serveItem.url
-                                            ) + serveItem.url;
+                                            self.client.terminalSupports('osc8_hyperlink')
+                                                ? ansi.osc8Hyperlink(serveItem.url, serveItem.url)
+                                                : serveItem.url;
                                         fileEntry.webDlExpire = moment(
                                             serveItem.expireTimestamp
                                         ).format(webDlExpireTimeFormat);

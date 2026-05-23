@@ -58,6 +58,10 @@ exports.Client = Client;
 /* eslint-disable no-control-regex */
 const RE_DSR_RESPONSE_ANYWHERE = /(?:\u001b\[)([0-9;]+)(R)/;
 const RE_DEV_ATTR_RESPONSE_ANYWHERE = /(?:\u001b\[)[=?]([0-9a-zA-Z;]+)(c)/;
+//  CTerm capability query response: ESC [ = <id> ; <value> n
+//  e.g. \x1b[=6;1n  → capability 6 (OSC 8 hyperlinks) supported
+//  See https://syncterm.bbsdev.net/cterm.html
+const RE_CTERM_CAP_RESPONSE_ANYWHERE = /\u001b\[=([0-9]+);([0-9]+)n/;
 const RE_META_KEYCODE_ANYWHERE = /(?:\u001b)([a-zA-Z0-9])/;
 const RE_META_KEYCODE = new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
 const RE_FUNCTION_KEYCODE_ANYWHERE = new RegExp(
@@ -78,6 +82,7 @@ const RE_ESC_CODE_ANYWHERE = new RegExp(
         RE_META_KEYCODE_ANYWHERE.source,
         RE_DSR_RESPONSE_ANYWHERE.source,
         RE_DEV_ATTR_RESPONSE_ANYWHERE.source,
+        RE_CTERM_CAP_RESPONSE_ANYWHERE.source,
         /\u001b./.source, //  eslint-disable-line no-control-regex
     ].join('|')
 );
@@ -166,6 +171,12 @@ function Client(/*input, output*/) {
                 //  * SyncTERM
                 //
                 termClient = 'cterm';
+            } else if (deviceAttr.startsWith('73;99;121;84;101;114;109')) {
+                //
+                //  DA prefix decodes to "IcyTerm"; remaining bytes are version info.
+                //  See https://github.com/mkrueger/icy_tools
+                //
+                termClient = 'icy_term';
             }
         }
 
@@ -338,6 +349,11 @@ function Client(/*input, output*/) {
                 if (termClient) {
                     self.term.termClient = termClient;
                 }
+            } else if ((parts = RE_CTERM_CAP_RESPONSE_ANYWHERE.exec(s))) {
+                self.emit('cterm capability response', {
+                    id: parseInt(parts[1], 10),
+                    value: parseInt(parts[2], 10),
+                });
             } else if ('\r' === s) {
                 key.name = 'return';
             } else if ('\n' === s) {
@@ -630,8 +646,16 @@ Client.prototype.terminalSupports = function (query) {
             //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
             return 'vtx' === termClient;
 
-        case 'vtx_hyperlink':
-            return 'vtx' === termClient;
+        case 'osc8_hyperlink':
+            //  OSC 8 clickable hyperlink support
+            //  cterm/SyncTERM: confirmed via active capability query (CSI = 6 n)
+            //  IcyTerm: confirmed via DA response + feature documentation
+            //  VTX: uses xterm.js which supports OSC 8
+            //  *nix xterm-class: broad support
+            if (this.term.termCapabilities.osc8) return true;
+            if ('icy_term' === termClient) return true;
+            if ('vtx' === termClient) return true;
+            return this.term.isNixTerm();
 
         default:
             return false;

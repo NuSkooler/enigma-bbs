@@ -529,6 +529,7 @@
                     mci: {
                         MT1: {
                             mode: preview
+                            hyperlinks: true
                         }
                     }
                 }

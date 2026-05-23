@@ -36,6 +36,7 @@ exports.isAnsiLine = isAnsiLine;
 exports.isFormattedLine = isFormattedLine;
 exports.splitTextAtTerms = splitTextAtTerms;
 exports.wildcardMatch = wildcardMatch;
+exports.extractUrls = extractUrls;
 
 //  :TODO: create Unicode version of this
 const VOWELS = ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U'];
@@ -630,4 +631,22 @@ function wildcardMatch(input, rule) {
         _wildcardCache.set(rule, re);
     }
     return re.test(input);
+}
+
+//  Matches URLs with common schemes.  Terminates at whitespace or shell-style
+//  punctuation that is unlikely to be part of a URL.
+//  mailto: uses a bare colon (no //); all others use ://
+const URL_RE = /(?:(?:https?|ftps?|gopher|ssh|telnet):\/\/[^\s\x00-\x1f"'<>()[\],;]+|mailto:[^\s\x00-\x1f"'<>()[\],;]+)/g;
+
+//  extractUrls(str) → [{ start, end, url }, ...]
+//  Indices refer to positions in |str|.  Zero-allocation fast path when no
+//  URLs are present (the regex is reset via lastIndex before each call).
+function extractUrls(str) {
+    const results = [];
+    URL_RE.lastIndex = 0;
+    let m;
+    while ((m = URL_RE.exec(str)) !== null) {
+        results.push({ start: m.index, end: m.index + m[0].length, url: m[0] });
+    }
+    return results;
 }

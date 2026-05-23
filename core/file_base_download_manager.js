@@ -145,8 +145,9 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
                         this.menuConfig.config.webDlExpireTimeFormat ||
                         'YYYY-MMM-DD @ h:mm';
 
-                    fileEntry.webDlLink =
-                        ansi.vtxHyperlink(this.client, serveItem.url) + serveItem.url;
+                    fileEntry.webDlLink = this.client.terminalSupports('osc8_hyperlink')
+                        ? ansi.osc8Hyperlink(serveItem.url, serveItem.url)
+                        : serveItem.url;
                     fileEntry.webDlExpire = moment(serveItem.expireTimestamp).format(
                         webDlExpireTimeFormat
                     );

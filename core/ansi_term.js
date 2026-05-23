@@ -23,8 +23,8 @@
 //  VT100
 //      * http://www.noah.org/python/pexpect/ANSI-X3.64.htm
 //
-//  VTX
-//      * https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
+//  OSC 8 Hyperlinks
+//      * https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
 //
 //  General
 //      * http://en.wikipedia.org/wiki/ANSI_escape_code
@@ -62,7 +62,7 @@ exports.setSyncTermFont = setSyncTermFont;
 exports.getSyncTermFontFromAlias = getSyncTermFontFromAlias;
 exports.setSyncTermFontWithAlias = setSyncTermFontWithAlias;
 exports.setCursorStyle = setCursorStyle;
-exports.vtxHyperlink = vtxHyperlink;
+exports.osc8Hyperlink = osc8Hyperlink;
 
 //
 //  See also
@@ -489,16 +489,9 @@ function disableVT100LineWrapping() {
     return `${ESC_CSI}?7l`;
 }
 
-function vtxHyperlink(client, url, len) {
-    if (!client.terminalSupports('vtx_hyperlink')) {
-        return '';
-    }
-
-    len = len || url.length;
-
-    const codes = new Array(url.length);
-    for (let i = 0; i < url.length; i++) {
-        codes[i] = url.charCodeAt(i);
-    }
-    return `${ESC_CSI}1;${len};1;1;${codes.join(';')}\\`;
+//  OSC 8 hyperlink: wraps |text| with a clickable OSC 8 sequence pointing to |url|.
+//  Both the open and close sequences are zero display-width.
+//  Spec: https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
+function osc8Hyperlink(url, text) {
+    return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
 }

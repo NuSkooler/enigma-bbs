@@ -21,6 +21,7 @@ function ClientTerminal(output) {
     this.convertLF = true;
 
     this.syncTermFontsEnabled = false;
+    this.termCapabilities = {};
 
     //
     //  Some terminal we handle specially
