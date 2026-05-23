@@ -187,6 +187,9 @@ class MultiLineEditTextView extends View {
         this._pipeCodeExpanded = false;
         this._pipeCodeDebounceTimer = null;
         this._pipeCodeNearIndex = -1; //  buffer index of the one code being shown
+
+        //  OSC 8 hyperlink rendering (view mode only; ignored in edit mode)
+        this.hyperlinks = options.hyperlinks || false;
     }
 
     isEditMode() {
@@ -215,6 +218,57 @@ class MultiLineEditTextView extends View {
     //  sequence (bare | or |d).  Used to decide whether to enter expanded mode.
     _hasPipeCodesOrPartial(chars) {
         return /\|[0-9]{2}/.test(chars) || /\|[0-9]?$/.test(chars);
+    }
+
+    //  Wraps detected URLs in |rawText| with OSC 8 hyperlink sequences (zero display-width).
+    //  To handle URLs split by soft word-wrap, reconstructs the full paragraph text,
+    //  runs URL detection, then maps overlapping URL spans back to this visual line.
+    //  Each visual line emits balanced open/close sequences so links don't bleed across
+    //  lines that are rendered independently with explicit cursor-goto positioning.
+    _wrapUrlsInLine(rawText, lineIndex) {
+        if (!this.client.terminalSupports('osc8_hyperlink')) {
+            return rawText;
+        }
+
+        //  Walk back to the start of the paragraph (first line after a hard EOL).
+        let paraStart = lineIndex;
+        while (paraStart > 0 && this.buffer.lines[paraStart - 1] && !this.buffer.lines[paraStart - 1].eol) {
+            paraStart--;
+        }
+
+        //  Build the full paragraph text and track the char offset of each visual line.
+        let paraText = '';
+        const lineStartOffsets = [];
+        for (let i = paraStart; i <= lineIndex; i++) {
+            lineStartOffsets.push(paraText.length);
+            paraText += (this.buffer.lines[i]?.chars || '').replace(/\t/g, ' ');
+        }
+
+        const lineStart = lineStartOffsets[lineIndex - paraStart];
+        const lineEnd = lineStart + rawText.length;
+
+        const urls = strUtil.extractUrls(paraText);
+        const overlapping = urls.filter(u => u.start < lineEnd && u.end > lineStart);
+        if (overlapping.length === 0) {
+            return rawText;
+        }
+
+        //  Build annotated output — each URL span gets balanced OSC 8 open/close per
+        //  visual line so that independent goto-positioned rendering stays correct.
+        let result = '';
+        let cursor = 0; // position within rawText
+
+        for (const { start, end, url } of overlapping) {
+            const localStart = Math.max(start, lineStart) - lineStart;
+            const localEnd   = Math.min(end,   lineEnd)  - lineStart;
+
+            result += rawText.slice(cursor, localStart);
+            const fragment = rawText.slice(localStart, localEnd);
+            result += `\x1b]8;;${url}\x1b\\${fragment}\x1b]8;;\x1b\\`;
+            cursor = localEnd;
+        }
+
+        return result + rawText.slice(cursor);
     }
 
     //  Renders |## numeric pipe color codes in chars to ANSI SGR sequences for
@@ -707,7 +761,10 @@ class MultiLineEditTextView extends View {
 
         //  Default path — plain text or ANSI-baked preview mode.
         const remain = this.dimens.width - strUtil.renderStringLength(rawText);
-        return remain > 0 ? rawText + ' '.repeat(remain) : rawText;
+        const text = (this.hyperlinks && !_.isUndefined(index))
+            ? this._wrapUrlsInLine(rawText, index)
+            : rawText;
+        return remain > 0 ? text + ' '.repeat(remain) : text;
     }
 
     //  Compatibility shim — returns raw buffer lines (shape: { chars, attrs, eol })
@@ -1972,6 +2029,12 @@ class MultiLineEditTextView extends View {
 
             case 'findCurrentMatchStyle':
                 this._findCurrentMatchStyle = value;
+                break;
+
+            case 'hyperlinks':
+                if (_.isBoolean(value)) {
+                    this.hyperlinks = value;
+                }
                 break;
         }
 

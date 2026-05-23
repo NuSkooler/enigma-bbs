@@ -20,6 +20,7 @@ A text display / editor designed to edit or display a message.
 | `height` | Sets the height of a view to display vertically |
 | `argName` | Sets the argument name for the form |
 | `mode` | One of edit, preview, or read-only. See **Mode** below |
+| `hyperlinks` | When `true`, URLs in the displayed text are rendered as clickable OSC 8 hyperlinks on supported terminals (IcyTerm, SyncTERM, VTX, and modern *nix terminals). Only active in `preview` or `read-only` mode; ignored in `edit` mode. Defaults to `false`. |
 
 ### Mode
 
@@ -47,6 +48,15 @@ ML1: {
   width: 79
   argName: message
   mode: edit
+}
+```
+
+Viewer with clickable hyperlinks:
+```
+MT1: {
+  width: 79
+  mode: preview
+  hyperlinks: true
 }
 ```
 </div>

@@ -24,6 +24,17 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 * No breaking changes or required migrations.
 
+* **Optional: enable OSC 8 hyperlinks in message viewers** — clickable URL support is now available for `%MT` views in `preview` or `read-only` mode. The default menu templates already include `hyperlinks: true` on the appropriate views. If you maintain a custom menu config, add `hyperlinks: true` to any message-body or NFO viewer `%MT` view where you want URL detection:
+
+  ```hjson
+  MT1: {
+      mode: preview
+      hyperlinks: true
+  }
+  ```
+
+  No effect on terminals that do not support OSC 8 — it degrades silently to plain text.
+
 * **Optional: expose the new `user_status_config` module** — a new module lets users toggle their own availability and visibility. To add it to your menus, wire up a command or menu entry pointing to `@menu:userStatusConfig`. A minimal menu block is required in your menu config:
 
   ```hjson

@@ -236,6 +236,38 @@ const ansiQuerySyncTermFontSupport = (client, cb) => {
     );
 };
 
+const CTERM_CAP_OSC8 = 6; //  capability ID for OSC 8 hyperlink support
+
+const ansiQueryCtermOsc8Support = (client, cb) => {
+    if (client.term.termClient !== 'cterm') {
+        return cb(null);
+    }
+
+    let giveUpTimer;
+
+    const done = () => {
+        client.removeListener('cterm capability response', capListener);
+        clearTimeout(giveUpTimer);
+        return cb(null);
+    };
+
+    const capListener = ({ id, value }) => {
+        if (id === CTERM_CAP_OSC8) {
+            if (value === 1) {
+                client.log.info(`CTerm OSC 8 hyperlink support enabled on node ${client.node}`);
+                client.term.termCapabilities.osc8 = true;
+            }
+            return done();
+        }
+    };
+
+    client.on('cterm capability response', capListener);
+    giveUpTimer = setTimeout(done, 2000);
+
+    //  Query: CSI = 6 n
+    client.term.rawWrite('[=6n');
+};
+
 function ansiQueryTermSizeIfNeeded(client, cb) {
     if (client.term.termHeight > 0 || client.term.termWidth > 0) {
         return cb(null);
@@ -351,6 +383,9 @@ function connectEntry(client, nextMenu) {
             },
             function querySyncTERMFontSupport(callback) {
                 return ansiQuerySyncTermFontSupport(client, callback);
+            },
+            function queryCtermOsc8Support(callback) {
+                return ansiQueryCtermOsc8Support(client, callback);
             },
         ],
         () => {

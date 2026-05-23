@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.0-beta
 
+* **OSC 8 clickable hyperlinks** — URLs in message bodies, file NFO/readme viewers, and file download listings are now rendered as clickable hyperlinks on terminals that support the OSC 8 standard: IcyTerm, SyncTERM, VTX, and modern *nix terminals (foot, Alacritty, GNOME Terminal, kitty, WezTerm, Windows Terminal, and others). Sysops enable hyperlinks per-view by adding `hyperlinks: true` to any `%MT` view in preview or read-only mode. The default menu templates and ActivityPub viewer have this enabled out of the box. See [Multi Line Edit Text View](./docs/_docs/art/views/multi_line_edit_text_view.md) for details.
+
 * **User status config module** — users can now toggle their own availability and visibility via the new `user_status_config` module (command `STATUS` from the main menu in the default template). Availability controls whether the user can be paged/messaged; visibility controls whether they appear in who's-online and last-callers lists. Sysops expose the module by wiring `@menu:userStatusConfig` into their menu config. The module supports `enabledIndicator`/`disabledIndicator` config overrides and `TL10`/`TL11` custom-format views (`{availableIndicator}`, `{visibleIndicator}`) for full theme control.
 
 * **Pre-auth feedback to sysop** — visitors can now send a private message to the sysop directly from the login matrix, before logging in. The sender types a free-text name (not resolved to any user account) and composes a message using the full FSE editor. Replies to these ghost-sender messages are blocked at the inbox with a clear notice rather than failing silently. See the Sysop Chat & Contact doc for configuration details.

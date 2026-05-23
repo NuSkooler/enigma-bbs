@@ -330,8 +330,9 @@ exports.getModule = class FileAreaList extends MenuModule {
                         config.webDlExpireTimeFormat ||
                         this.client.currentTheme.helpers.getDateTimeFormat('short');
 
-                    entryInfo.webDlLink =
-                        ansi.vtxHyperlink(this.client, serveItem.url) + serveItem.url;
+                    entryInfo.webDlLink = this.client.terminalSupports('osc8_hyperlink')
+                        ? ansi.osc8Hyperlink(serveItem.url, serveItem.url)
+                        : serveItem.url;
                     entryInfo.webDlExpire = moment(serveItem.expireTimestamp).format(
                         webDlExpireTimeFormat
                     );
@@ -610,7 +611,9 @@ exports.getModule = class FileAreaList extends MenuModule {
                                 'YYYY-MMM-DD @ h:mm';
 
                             self.currentFileEntry.entryInfo.webDlLink =
-                                ansi.vtxHyperlink(self.client, url) + url;
+                                self.client.terminalSupports('osc8_hyperlink')
+                                    ? ansi.osc8Hyperlink(url, url)
+                                    : url;
                             self.currentFileEntry.entryInfo.webDlExpire =
                                 expireTime.format(webDlExpireTimeFormat);
 
