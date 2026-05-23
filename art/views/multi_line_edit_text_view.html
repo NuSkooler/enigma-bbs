@@ -17,11 +17,11 @@
 <meta property="og:description" content="Multi Line Edit Text View A text display / editor designed to edit or display a message." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-05-20T19:06:05+00:00" />
+<meta property="article:published_time" content="2026-05-23T01:49:26+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Multi Line Edit Text View" />
 <script type="application/ld+json">
-{"description":"Multi Line Edit Text View A text display / editor designed to edit or display a message.","headline":"Multi Line Edit Text View","dateModified":"2026-05-20T19:06:05+00:00","datePublished":"2026-05-20T19:06:05+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/multi_line_edit_text_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/multi_line_edit_text_view.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Multi Line Edit Text View A text display / editor designed to edit or display a message.","headline":"Multi Line Edit Text View","dateModified":"2026-05-23T01:49:26+00:00","datePublished":"2026-05-23T01:49:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/art/views/multi_line_edit_text_view.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/art/views/multi_line_edit_text_view.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2923,6 +2923,10 @@
       <td><code class="language-plaintext highlighter-rouge">mode</code></td>
       <td>One of edit, preview, or read-only. See <strong>Mode</strong> below</td>
     </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">hyperlinks</code></td>
+      <td>When <code class="language-plaintext highlighter-rouge">true</code>, URLs in the displayed text are rendered as clickable OSC 8 hyperlinks on supported terminals (IcyTerm, SyncTERM, VTX, and modern *nix terminals). Only active in <code class="language-plaintext highlighter-rouge">preview</code> or <code class="language-plaintext highlighter-rouge">read-only</code> mode; ignored in <code class="language-plaintext highlighter-rouge">edit</code> mode. Defaults to <code class="language-plaintext highlighter-rouge">false</code>.</td>
+    </tr>
   </tbody>
 </table>
 
@@ -2973,6 +2977,15 @@
   width: 79
   argName: message
   mode: edit
+}
+</code></pre></div>    </div>
+
+    <p>Viewer with clickable hyperlinks:</p>
+    <div class="language-plaintext highlighter-rouge">
+<div class="highlight"><pre class="highlight"><code>MT1: {
+  width: 79
+  mode: preview
+  hyperlinks: true
 }
 </code></pre></div>    </div>
   </div>
