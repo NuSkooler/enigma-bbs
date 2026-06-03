@@ -305,17 +305,15 @@ BIOS files default to misc/v86_bios/seabios.bin and misc/v86_bios/vgabios.bin.
 Run misc/install.sh to download them, or see docs/_docs/modding/local-doors-v86.md.
 
 Actions:
-  console IMAGE               Boot image and monitor COM1 output in this terminal
-                              Ctrl+] to exit.
-                              Note: keyboard input is not forwarded to the shell —
-                              a C:\> prompt confirms serial output is working, but
-                              the shell is not interactive. Use 'desktop' instead.
-                              Full-screen programs (VGA RAM) also won't appear here.
+  console IMAGE               Boot image, wire COM1 to this terminal (interactive).
+                              Ctrl+] to exit and save changes to IMAGE.
+                              Note: full-screen programs that write directly to
+                              VGA RAM won't appear here. Use 'desktop' for those.
 
-  desktop IMAGE               Boot image and open a full VGA DOS desktop in
-                              the system browser. Use to install and configure
-                              doors. A "Save Image" button downloads the modified
-                              image when done.
+  desktop IMAGE               Boot image in a full VGA DOS desktop served in the
+                              system browser. Use to install and configure doors.
+                              Click "Save Image" to write changes back to IMAGE on
+                              the server — no browser download dialog appears.
 
 Options:
   --bios PATH                 Override SeaBIOS path

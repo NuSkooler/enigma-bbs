@@ -232,7 +232,7 @@ module.exports = class DropFile {
                 userName, //  "The current user's name, up to the first space."
                 userName, //  "The current user's name, following the first space."
                 location || '', //  "Where the user lives, or a blank line if unknown."
-                '1', //  "The number "0" if TTY, or "1" if ANSI."
+                '2', //  0=TTY, 1=IBM high-bit chars, 2=ANSI color (RBBS standard; TW2002 requires 2)
                 secLevel, //  "The number 5 for problem users, 30 for regular users, 80 for Aides, and 100 for Sysops."
                 '546', //  "The number of minutes left in the current user's account, limited to 546 to keep from overflowing other software."
                 '-1', //  "The number "-1" if using an external serial driver or "0" if using internal serial routines."

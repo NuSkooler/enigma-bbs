@@ -47,7 +47,7 @@ const { createFloppyWithFiles } = require('./fat_image.js');
 const async = require('async');
 const _ = require('lodash');
 const paths = require('path');
-const { existsSync } = require('fs');
+const { existsSync, readFileSync, writeFileSync } = require('fs');
 const { Worker } = require('worker_threads');
 
 const WORKER_PATH = paths.join(__dirname, 'v86_worker.js');
@@ -57,6 +57,41 @@ const DEFAULT_VGA_BIOS_PATH = paths.join(ENIGMA_ROOT, 'misc', 'v86_bios', 'vgabi
 
 //  Track active instances per door name (mirrors abracadabra pattern)
 const activeDoorInstances = {};
+
+// ─── SAB image registry ───────────────────────────────────────────────────────
+// Maps imagePath → { sab: SharedArrayBuffer, flushQueue: Promise<void> }
+//
+// All concurrent sessions for the same image path share one SAB. Guest writes go
+// directly into the SAB with no cross-instance coordination — this is an accepted
+// race (Option A). In practice the window is tiny: simultaneous overlapping sector
+// writes require two guests to be in the same FAT metadata or file-data sector at
+// the exact same CPU cycle. For casual BBS use this is acceptable; implement the
+// ENIGLOCK.COM TSR approach (Option C) if real-world corruption is observed.
+//
+// flushQueue serializes SAB → disk writes so two exiting sessions never call
+// writeFileSync on the same path concurrently at the OS level.
+const imageRegistry = new Map();
+
+function getOrCreateSab(imagePath) {
+    if (imageRegistry.has(imagePath)) {
+        return imageRegistry.get(imagePath).sab;
+    }
+    const fileData = readFileSync(imagePath);
+    const sab = new SharedArrayBuffer(fileData.byteLength);
+    new Uint8Array(sab).set(fileData);
+    imageRegistry.set(imagePath, { sab, flushQueue: Promise.resolve() });
+    return sab;
+}
+
+function flushSabToDisk(imagePath) {
+    const entry = imageRegistry.get(imagePath);
+    if (!entry) {
+        return;
+    }
+    entry.flushQueue = entry.flushQueue.then(() => {
+        writeFileSync(imagePath, Buffer.from(entry.sab));
+    });
+}
 
 exports.moduleInfo = {
     name: 'V86Door',
@@ -217,9 +252,19 @@ exports.getModule = class V86DoorModule extends MenuModule {
 
                 function runDoor(callback) {
                     const doorTracking = trackDoorRunBegin(self.client, self.config.name);
+                    const doorName = self.config.name;
+
+                    //  Load (or reuse) the SAB-backed disk image for this session
+                    let imageSab;
+                    try {
+                        imageSab = getOrCreateSab(self.config.image);
+                    } catch (err) {
+                        trackDoorRunEnd(doorTracking);
+                        return callback(err);
+                    }
 
                     const workerData = {
-                        imagePath: self.config.image,
+                        imageSab,
                         floppyBuffer: self.floppyBuffer || Buffer.alloc(0),
                         memoryMb: self.config.memoryMb,
                         biosPath: self.config.biosPath,
@@ -238,7 +283,6 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     const SPINNER_FRAMES = ['|', '/', '-', '\\'];
                     let spinnerIdx = 0;
                     let firstOutput = true;
-                    const doorName = self.config.name;
 
                     self.client.term.write(ansi.resetScreen());
                     self.client.term.write(
@@ -267,12 +311,12 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     };
                     self.client.term.output.on('data', onClientData);
 
-                    //  Client disconnected
+                    //  Client disconnected mid-session
                     self.client.once('end', () => {
                         clientTerminated = true;
                         clearInterval(spinnerInterval);
                         self.client.log.info(
-                            { name: self.config.name },
+                            { name: doorName },
                             'Client disconnected — terminating v86 worker'
                         );
                         worker.terminate();
@@ -283,7 +327,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                         switch (msg.type) {
                             case 'ready':
                                 self.client.log.info(
-                                    { name: self.config.name },
+                                    { name: doorName },
                                     'v86 emulator ready'
                                 );
                                 break;
@@ -297,13 +341,14 @@ exports.getModule = class V86DoorModule extends MenuModule {
                                 clearInterval(spinnerInterval);
                                 const secs = (msg.elapsed / 1000).toFixed(1);
                                 self.client.log.info(
-                                    { name: self.config.name, elapsed: secs },
+                                    { name: doorName, elapsed: secs },
                                     'v86 emulator stopped'
                                 );
                                 self.client.term.output.removeListener(
                                     'data',
                                     onClientData
                                 );
+                                flushSabToDisk(self.config.image);
                                 trackDoorRunEnd(doorTracking);
                                 self._decrementInstances();
                                 return callback(null);
@@ -312,13 +357,14 @@ exports.getModule = class V86DoorModule extends MenuModule {
                             case 'error':
                                 clearInterval(spinnerInterval);
                                 self.client.log.warn(
-                                    { name: self.config.name, error: msg.message },
+                                    { name: doorName, error: msg.message },
                                     'v86 worker error'
                                 );
                                 self.client.term.output.removeListener(
                                     'data',
                                     onClientData
                                 );
+                                flushSabToDisk(self.config.image);
                                 trackDoorRunEnd(doorTracking);
                                 self._decrementInstances();
                                 return callback(new Error(msg.message));
@@ -331,10 +377,11 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     worker.on('error', err => {
                         clearInterval(spinnerInterval);
                         self.client.log.warn(
-                            { name: self.config.name, error: err.message },
+                            { name: doorName, error: err.message },
                             'v86 worker thread error'
                         );
                         self.client.term.output.removeListener('data', onClientData);
+                        flushSabToDisk(self.config.image);
                         trackDoorRunEnd(doorTracking);
                         self._decrementInstances();
                         return callback(err);
@@ -343,7 +390,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     worker.on('exit', code => {
                         if (code !== 0) {
                             self.client.log.warn(
-                                { name: self.config.name, code },
+                                { name: doorName, code },
                                 'v86 worker exited with non-zero code'
                             );
                         }
@@ -375,4 +422,11 @@ exports.getModule = class V86DoorModule extends MenuModule {
             this._instanceIncremented = false;
         }
     }
+};
+
+//  Exported for unit tests only — not part of the public API
+exports._test = {
+    imageRegistry,
+    getOrCreateSab,
+    flushSabToDisk,
 };
