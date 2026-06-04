@@ -60,7 +60,13 @@ const handleAuthFailures = (callingMenu, err, cb) => {
     return callingMenu.prevMenu(cb);
 };
 
+//  Menu methods are invoked through the menu dispatcher with a cb that closes
+//  out the action. A few call sites have historically dropped that cb (e.g.
+//  abracadabra.autoNextMenu()), and an unguarded cb(err) here used to take
+//  down the whole BBS for everyone. Normalising cb at the entry of each
+//  exported method makes the body safe without scattering if (cb) checks.
 function login(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     userLogin(
         callingMenu.client,
         formData.value.username,
@@ -77,6 +83,7 @@ function login(callingMenu, formData, extraArgs, cb) {
 }
 
 function login2FA_OTP(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     loginFactor2_OTP(callingMenu.client, formData.value.token, err => {
         if (err) {
             return handleAuthFailures(callingMenu, err, cb);
@@ -88,6 +95,7 @@ function login2FA_OTP(callingMenu, formData, extraArgs, cb) {
 }
 
 function logoff(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     //
     //  Simple logoff. Note that recording of @ logoff properties/stats
     //  occurs elsewhere!
@@ -117,6 +125,7 @@ function logoff(callingMenu, formData, extraArgs, cb) {
 }
 
 function prevMenu(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     //  :TODO: this is a pretty big hack -- need the whole key map concep there like other places
     if (formData.key && 'return' === formData.key.name) {
         callingMenu.submitFormData = formData;
@@ -134,6 +143,7 @@ function prevMenu(callingMenu, formData, extraArgs, cb) {
 }
 
 function nextMenu(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     callingMenu.nextMenu(err => {
         if (err) {
             callingMenu.client.log.error(
@@ -151,6 +161,7 @@ function reloadMenu(menu, cb) {
 }
 
 function prevConf(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
     const currIndex =
         confs.findIndex(
@@ -172,6 +183,7 @@ function prevConf(callingMenu, formData, extraArgs, cb) {
 }
 
 function nextConf(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
     let currIndex = confs.findIndex(
         e => e.confTag === callingMenu.client.user.properties[UserProps.MessageConfTag]
@@ -195,6 +207,7 @@ function nextConf(callingMenu, formData, extraArgs, cb) {
 }
 
 function prevArea(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     const areas = messageArea.getSortedAvailMessageAreasByConfTag(
         callingMenu.client.user.properties[UserProps.MessageConfTag]
     );
@@ -218,6 +231,7 @@ function prevArea(callingMenu, formData, extraArgs, cb) {
 }
 
 function nextArea(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     const areas = messageArea.getSortedAvailMessageAreasByConfTag(
         callingMenu.client.user.properties[UserProps.MessageConfTag]
     );
@@ -243,6 +257,7 @@ function nextArea(callingMenu, formData, extraArgs, cb) {
 }
 
 function setClientEncoding(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     // TODO: Also add other encoding types
     const client = callingMenu.client;
     let encoding = formData.value.encoding;
@@ -253,6 +268,7 @@ function setClientEncoding(callingMenu, formData, extraArgs, cb) {
 }
 
 function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     const username = formData.value.username || callingMenu.client.user.username;
 
     const WebPasswordReset = require('./web_password_reset.js').WebPasswordReset;
@@ -274,6 +290,7 @@ function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
 }
 
 function optimizeDatabases(callingMenu, formData, extraArgs, cb) {
+    cb = cb || _.noop;
     const dbs = require('./database').dbs;
     const client = callingMenu.client;
 

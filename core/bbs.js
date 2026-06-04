@@ -228,6 +228,25 @@ function initialize(cb) {
 
                 process.on('SIGINT', shutdownSystem);
 
+                //  Safety net: a single unhandled throw/rejection in one
+                //  user's menu method (e.g. a missing cb, a typo in a slash
+                //  command) used to terminate the whole BBS process and drop
+                //  every connected node. Log with full context and keep
+                //  serving. The offending session may be in an inconsistent
+                //  state, but other sessions are unaffected.
+                process.on('uncaughtException', (err, origin) => {
+                    logger.log.fatal(
+                        { err, origin },
+                        'Uncaught exception — process continuing (session may be broken)'
+                    );
+                });
+                process.on('unhandledRejection', (reason, promise) => {
+                    logger.log.fatal(
+                        { err: reason, promise: String(promise) },
+                        'Unhandled promise rejection — process continuing (session may be broken)'
+                    );
+                });
+
                 require('@breejs/later').date.localTime(); //  use local times for later.js/scheduling
 
                 return callback(null);

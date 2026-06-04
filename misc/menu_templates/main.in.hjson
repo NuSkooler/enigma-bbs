@@ -668,6 +668,43 @@
             }
         }
 
+        userStatusConfig: {
+            desc: User Status
+            module: user_status_config
+            config: {
+                art: {
+                    menu: user_status_config
+                }
+                enabledIndicator: "\u221A"
+                disabledIndicator: X
+                menuInfoFormat10: "{visibleIndicator}"
+                menuInfoFormat11: "{availableIndicator}"
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL10: {}
+                        TL11: {}
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "a", "shift + a" ]
+                            action: @method:toggleAvailable
+                        }
+                        {
+                            keys: [ "v", "shift + v" ]
+                            action: @method:toggleVisible
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
         userTwoFactorAuthOTPSecConnRequired: {
             desc: Insecure Warning
             art: 2FAOTPSECREQ

@@ -257,7 +257,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                         '\r\n\r\n'
                 );
 
-                this.autoNextMenu();
+                //  Pass an explicit no-op cb. autoNextMenu's chain forwards
+                //  this through handleNext → callModuleMenuMethod, and an
+                //  undefined cb here used to crash the BBS via unguarded
+                //  cb(null) calls in system_menu_method.js (e.g. logoff).
+                this.autoNextMenu(() => {});
             });
         });
     }
