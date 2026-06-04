@@ -17,11 +17,11 @@
 <meta property="og:description" content="Native DOS Emulation via v86" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-06-04T02:32:42+00:00" />
+<meta property="article:published_time" content="2026-06-04T03:42:00+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Local Doors — Native v86 Emulation" />
 <script type="application/ld+json">
-{"description":"Native DOS Emulation via v86","headline":"Local Doors — Native v86 Emulation","dateModified":"2026-06-04T02:32:42+00:00","datePublished":"2026-06-04T02:32:42+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors-v86.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors-v86.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Native DOS Emulation via v86","headline":"Local Doors — Native v86 Emulation","dateModified":"2026-06-04T03:42:00+00:00","datePublished":"2026-06-04T03:42:00+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors-v86.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors-v86.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -3040,7 +3040,9 @@ curl <span class="nt">-fL</span> https://github.com/copy/v86/raw/master/bios/vga
 
 <hr>
 
-<h3 id="example-menu-entry">Example Menu Entry</h3>
+<h3 id="example-menu-entries">Example Menu Entries</h3>
+
+<p><strong>Single-player door (PimpWars):</strong></p>
 
 <pre><code class="language-hjson">doorPimpWars: {
     desc: Playing PimpWars
@@ -3053,8 +3055,9 @@ curl <span class="nt">-fL</span> https://github.com/copy/v86/raw/master/bios/vga
         tooManyArt: DOORMANY
         runBatch:
             '''
-            COPY A:\{dropFile} C:\DOORS\PW\
+            @ECHO OFF
             C:\FOSSIL\X00.SYS
+            COPY A:\{dropFile} C:\DOORS\PW\
             CD C:\DOORS\PW
             PW.EXE {node}
             ECHO Returning to BBS, please wait... &gt; COM1
@@ -3062,6 +3065,35 @@ curl <span class="nt">-fL</span> https://github.com/copy/v86/raw/master/bios/vga
     }
 }
 </code></pre>
+
+<p><strong>Multi-node door with shared game state (TradeWars 2002):</strong></p>
+
+<pre><code class="language-hjson">doorTradeWars2002: {
+    desc: TradeWars 2002
+    module: v86_door
+    config: {
+        name: TradeWars2002
+        image: /path/to/images/tw2002.img
+        dropFileType: DORINFO
+        nodeMax: 4
+        tooManyArt: DOORMANY
+        runBatch:
+            '''
+            @ECHO OFF
+            C:\FOSSIL\X00.SYS
+            C:\FREEDOS\BIN\SHARE.COM
+            COPY A:\{dropFile} C:\DOORS\TW2\{dropFile}
+            CD C:\DOORS\TW2
+            TW2.EXE
+            C:\FREEDOS\BIN\FDAPM POWEROFF
+            '''
+    }
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> <strong>ANSI color with DORINFO:</strong> ENiGMA½ sets the DORINFO graphics field to <code class="language-plaintext highlighter-rouge">2</code> (ANSI color), which is the value required by RBBS-mode doors such as TradeWars 2002. A value of <code class="language-plaintext highlighter-rouge">1</code> enables IBM high-bit characters but not color in strict RBBS mode.</p>
+</blockquote>
 
 <hr>
 
@@ -3135,7 +3167,7 @@ doorSmurfCombat: {
 </code></pre>
 
 <blockquote>
-  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Concurrent sessions on the same image file are safe — each worker loads the image into its own isolated memory buffer. <code class="language-plaintext highlighter-rouge">nodeMax: 1</code> gates single-player doors, but even without it there is no shared state between sessions.</p>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> All concurrent sessions for the same image path share a single in-memory disk buffer (SharedArrayBuffer). Guest writes from one session are immediately visible to others — exactly as they would be with a real shared disk. Use <code class="language-plaintext highlighter-rouge">nodeMax: 1</code> for single-player doors that have no locking. For multi-node games that rely on file/record locking (e.g. TradeWars 2002), load a FOSSIL-aware SHARE driver (<code class="language-plaintext highlighter-rouge">C:\FOSSIL\X00.SYS</code> plus <code class="language-plaintext highlighter-rouge">C:\FREEDOS\BIN\SHARE.COM</code>) in <code class="language-plaintext highlighter-rouge">runBatch</code> — the game handles concurrent access the same way it would on a real BBS.</p>
 </blockquote>
 
 <h4 id="fossil-driver">FOSSIL Driver</h4>
@@ -3151,6 +3183,28 @@ doorSmurfCombat: {
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>DEVICE=C:\FOSSIL\X00.SYS
 </code></pre></div></div>
+
+<h4 id="creating-and-configuring-images-with-oputil-v86">Creating and Configuring Images with <code class="language-plaintext highlighter-rouge">oputil v86</code>
+</h4>
+
+<p>ENiGMA½ ships two <code class="language-plaintext highlighter-rouge">oputil</code> subcommands for working with disk images without needing QEMU or DOSBox-X installed on the server:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>oputil.js v86 console &lt;image.img&gt;   Boot and wire COM1 to this terminal (interactive)
+oputil.js v86 desktop &lt;image.img&gt;   Boot in a full VGA browser session
+</code></pre></div></div>
+
+<p><strong><code class="language-plaintext highlighter-rouge">console</code></strong> — best for doors that output entirely through COM1 (most doors). Use <code class="language-plaintext highlighter-rouge">CTTY COM1</code> in the image’s <code class="language-plaintext highlighter-rouge">FDAUTO.BAT</code> to redirect all I/O. Ctrl+] exits and saves changes back to the image file automatically.</p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">desktop</code></strong> — boots the image in a small local HTTP server and opens your browser to a full VGA canvas. Use this for setup programs that write directly to VGA (e.g. door configuration wizards). Click <strong>Save Image</strong> to write changes back to the image file on the server — no browser download dialog appears.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Interactive COM1 terminal</span>
+node core/oputil/oputil_main.js v86 console /path/to/tw2002.img
+
+<span class="c"># Full VGA browser session (opens browser automatically)</span>
+node core/oputil/oputil_main.js v86 desktop /path/to/tw2002.img <span class="nt">--port</span> 18086
+</code></pre></div></div>
+
+<p>See also: <code class="language-plaintext highlighter-rouge">oputil.js fat</code> for listing and copying files into images without booting them.</p>
 
 <h4 id="creating-the-image-with-qemu">Creating the Image with QEMU</h4>
 
