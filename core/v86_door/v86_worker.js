@@ -10,7 +10,7 @@
  *
  * workerData shape:
  * {
- *   imagePath:    string   - path to the FreeDOS door disk image (hda)
+ *   imageSab:     SharedArrayBuffer - door disk image (hda / C:), shared across sessions
  *   floppyBuffer: Buffer   - 1.44MB FAT12 floppy image with drop file (fda / A:)
  *   memoryMb:     number   - guest RAM in MB (default 64)
  *   biosPath:     string   - path to SeaBIOS image
@@ -38,24 +38,26 @@ if (isMainThread) {
     return;
 }
 
+// v86's Ba() helper checks `buffer instanceof ArrayBuffer`. SharedArrayBuffer is not
+// a subtype of ArrayBuffer in JS, so SAB-backed hda buffers fail that check.
+// Patch Symbol.hasInstance before requiring v86 so both types pass.
+Object.defineProperty(ArrayBuffer, Symbol.hasInstance, {
+    value(v) {
+        return (
+            v !== null &&
+            typeof v === 'object' &&
+            (v.constructor === ArrayBuffer || v.constructor === SharedArrayBuffer)
+        );
+    },
+    configurable: true,
+    writable: true,
+});
+
 const { readFileSync } = require('fs');
 
 const t0 = Date.now();
 
-// ─── Load disk image synchronously ───────────────────────────────────────────
-// async: true deadlocks in Node.js — v86's CPU loop starves the event loop,
-// so disk read callbacks never fire. Sync load is required.
-
-let diskBuffer;
-try {
-    diskBuffer = readFileSync(workerData.imagePath);
-} catch (err) {
-    parentPort.postMessage({
-        type: 'error',
-        message: `Cannot read disk image: ${err.message}`,
-    });
-    process.exit(1);
-}
+// ─── Load BIOS files ──────────────────────────────────────────────────────────
 
 let biosBuffer;
 let vgaBiosBuffer;
@@ -88,6 +90,8 @@ try {
 
 const memoryMb = workerData.memoryMb || 64;
 
+const floppyBuf = workerData.floppyBuffer;
+
 const emulator = new V86({
     wasm_path: v86WasmPath,
     bios: {
@@ -103,23 +107,27 @@ const emulator = new V86({
         ),
     },
 
-    // HDD: door image (C: in FreeDOS) — sync, no async (would deadlock)
+    // HDD: door image (C: in FreeDOS) backed by SharedArrayBuffer shared across all
+    // concurrent sessions for this image. Writes go directly into the SAB; the parent
+    // thread serializes flushing the SAB back to disk after each session ends.
+    // Note: cross-instance write races are possible (Option A — see v86_door.js).
     hda: {
-        buffer: diskBuffer.buffer.slice(
-            diskBuffer.byteOffset,
-            diskBuffer.byteOffset + diskBuffer.byteLength
-        ),
+        buffer: workerData.imageSab,
         async: false,
     },
 
-    // Floppy: drop file image (A: in FreeDOS)
-    fda: {
-        buffer: workerData.floppyBuffer.buffer.slice(
-            workerData.floppyBuffer.byteOffset,
-            workerData.floppyBuffer.byteOffset + workerData.floppyBuffer.byteLength
-        ),
-        async: false,
-    },
+    // Floppy: per-session drop file image (A: in FreeDOS) — omitted when no drop file
+    ...(floppyBuf.byteLength > 0
+        ? {
+              fda: {
+                  buffer: floppyBuf.buffer.slice(
+                      floppyBuf.byteOffset,
+                      floppyBuf.byteOffset + floppyBuf.byteLength
+                  ),
+                  async: false,
+              },
+          }
+        : {}),
 
     // Boot from HDD first. Without this, v86 defaults to floppy-first (boot_order 801)
     // when fda is set. Our FAT12 floppy has a valid 0x55AA boot signature (written by fatfs)
@@ -139,7 +147,9 @@ const emulator = new V86({
 
 emulator.add_listener('emulator-loaded', () => {
     // Assert DCD + DSR + CTS on COM1 so door games see a live connection
-    emulator.serial_set_modem_status(0, 0xb0);
+    emulator.serial_set_carrier_detect(0, true);
+    emulator.serial_set_data_set_ready(0, true);
+    emulator.serial_set_clear_to_send(0, true);
     parentPort.postMessage({ type: 'ready' });
 });
 

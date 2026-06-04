@@ -24,6 +24,8 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 * No breaking changes or required migrations.
 
+* **DORINFO graphics field changed from `1` to `2`** — ENiGMA½ now writes `2` (ANSI color) in the DORINFO graphics field instead of `1` (IBM high-bit chars). RBBS-mode doors such as TradeWars 2002 require `2` to enable ANSI color; other doors treat any non-zero value as graphics-capable and are unaffected. No configuration change required.
+
 * **Optional: enable OSC 8 hyperlinks in message viewers** — clickable URL support is now available for `%MT` views in `preview` or `read-only` mode. The default menu templates already include `hyperlinks: true` on the appropriate views. If you maintain a custom menu config, add `hyperlinks: true` to any message-body or NFO viewer `%MT` view where you want URL detection:
 
   ```hjson

@@ -65,13 +65,28 @@ function cmdConsole(imagePath) {
 
     const { createFloppyWithFiles } = require('../v86_door/fat_image.js');
 
+    // v86's Ba() helper checks `buffer instanceof ArrayBuffer`; SAB is not a subtype.
+    // Patch before requiring v86 (via the worker) so both types pass.
+    Object.defineProperty(ArrayBuffer, Symbol.hasInstance, {
+        value(v) {
+            return v !== null && typeof v === 'object' &&
+                (v.constructor === ArrayBuffer || v.constructor === SharedArrayBuffer);
+        },
+        configurable: true, writable: true,
+    });
+
+    // Load image into SAB so worker can use it and we can flush it back on exit.
+    const imageFile = fs.readFileSync(paths.imagePath);
+    const imageSab  = new SharedArrayBuffer(imageFile.byteLength);
+    new Uint8Array(imageSab).set(imageFile);
+
     // Inject a RUN.BAT that redirects the DOS shell to COM1 so the
     // terminal becomes an interactive DOS prompt (requires CTTY support).
     const runBat = Buffer.from('CTTY COM1\r\n', 'ascii');
     createFloppyWithFiles([{ name: 'RUN.BAT', content: runBat }])
         .then(floppyBuffer => {
             const workerData = {
-                imagePath: paths.imagePath,
+                imageSab,
                 floppyBuffer,
                 memoryMb: argv['memory'] || 64,
                 biosPath: paths.biosPath,
@@ -103,6 +118,9 @@ function cmdConsole(imagePath) {
 
                     case 'stopped':
                         process.stdin.setRawMode?.(false);
+                        console.error('\nv86 console: saving image...');
+                        fs.writeFileSync(paths.imagePath, Buffer.from(imageSab));
+                        console.error(`v86 console: saved to ${paths.imagePath}`);
                         process.exit(0);
                         break;
 
@@ -251,7 +269,9 @@ let emulator;
         log('Image loaded (' + (received / 1048576).toFixed(1) + ' MB) — starting emulator', 'ok');
         status.textContent = 'Starting emulator...';
 
-        // Combine chunks into one ArrayBuffer
+        // Combine chunks into one ArrayBuffer.
+        // Keep a reference to imageData — v86 writes guest disk changes directly
+        // into this buffer, so saving imageData.buffer is always correct and current.
         const imageData = new Uint8Array(received);
         let   offset    = 0;
         for (const chunk of chunks) { imageData.set(chunk, offset); offset += chunk.length; }
@@ -279,9 +299,30 @@ let emulator;
             log('emulator-started — CPU running', 'ok');
         });
         emulator.add_listener('emulator-stopped', () => {
-            status.textContent = 'Stopped.';
-            log('emulator-stopped', 'inf');
+            status.textContent = 'Stopped — save image before closing.';
+            log('emulator-stopped — use Save Image to persist changes', 'inf');
         });
+
+        // Save button: POST imageData.buffer to server — server writes it to disk.
+        // This avoids the broken internal buffer path and works whether the emulator
+        // is running or stopped.
+        document.getElementById('btnSave').onclick = async () => {
+            status.textContent = 'Saving image to server...';
+            log('POSTing image (' + (imageData.byteLength / 1048576).toFixed(1) + ' MB) to /save...', 'inf');
+            try {
+                const resp = await fetch('/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/octet-stream' },
+                    body: imageData,
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                status.textContent = 'Image saved to server.';
+                log('Image saved.', 'ok');
+            } catch (err) {
+                status.textContent = 'Save failed: ' + err.message;
+                log('Save error: ' + err.message, 'err');
+            }
+        };
 
     } catch (err) {
         status.textContent = 'Error: ' + err.message;
@@ -291,38 +332,12 @@ let emulator;
 
 document.getElementById('btnStop').onclick = () => {
     if (!emulator) return;
-    if (!confirm('Stop the emulator and shut down the server?')) return;
-    log('Stop requested — shutting down server', 'inf');
+    if (!confirm('Stop the emulator? (Save image first if you want to keep changes.)')) return;
+    log('Stop requested — stopping emulator', 'inf');
     emulator.stop();
-    fetch('/shutdown').catch(() => {});
 };
 
-document.getElementById('btnSave').onclick = () => {
-    if (!emulator) { alert('Emulator not running yet.'); return; }
-    status.textContent = 'Reading image buffer...';
-    log('Saving image...', 'inf');
-    // v86 exposes the IDE master buffer after boot
-    const buf = emulator.v86.cpu.devices.ide.primary.master.buffer;
-    const blob = new Blob([buf], { type: 'application/octet-stream' });
-
-    // Prefer File System Access API (Chromium) for save-in-place
-    if (window.showSaveFilePicker) {
-        window.showSaveFilePicker({ suggestedName: 'freedos.img' })
-            .then(handle => handle.createWritable())
-            .then(writable => blob.stream().pipeTo(writable))
-            .then(() => { status.textContent = 'Image saved.'; log('Image saved.', 'ok'); })
-            .catch(err => { status.textContent = 'Save cancelled: ' + err.message; log('Save error: ' + err.message, 'err'); });
-    } else {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'freedos.img';
-        a.click();
-        status.textContent = 'Image download started.';
-        log('Image download started (fallback).', 'ok');
-    }
-};
-
-// Server shuts down via Ctrl+C in the terminal, or the Stop button above.
+// Server shuts down via Ctrl+C in the terminal.
 </script>
 </body>
 </html>`;
@@ -398,16 +413,28 @@ function cmdDesktop(imagePath) {
                 break;
 
             case '/image':
-                //  Stream image — browser/v86 uses range requests if async
                 serve(paths.imagePath, 'application/octet-stream');
                 break;
 
-            case '/shutdown':
-                res.writeHead(200);
-                res.end('bye');
-                console.error('\nv86 desktop: browser page closed — shutting down');
-                server.close();
-                process.exit(0);
+            case '/save':
+                if (req.method !== 'POST') { res.writeHead(405); res.end(); break; }
+                {
+                    const chunks = [];
+                    req.on('data', c => chunks.push(c));
+                    req.on('end', () => {
+                        const buf = Buffer.concat(chunks);
+                        try {
+                            fs.writeFileSync(paths.imagePath, buf);
+                            console.error(`\nv86 desktop: image saved (${(buf.length / 1048576).toFixed(1)} MB) → ${paths.imagePath}`);
+                            res.writeHead(200);
+                            res.end('saved');
+                        } catch (err) {
+                            console.error(`\nv86 desktop: save failed: ${err.message}`);
+                            res.writeHead(500);
+                            res.end(err.message);
+                        }
+                    });
+                }
                 break;
 
             default:

@@ -74,7 +74,9 @@ When `runBatch` is set, ENiGMA replaces the following variables before writing `
 
 ---
 
-### Example Menu Entry
+### Example Menu Entries
+
+**Single-player door (PimpWars):**
 
 ```hjson
 doorPimpWars: {
@@ -88,8 +90,9 @@ doorPimpWars: {
         tooManyArt: DOORMANY
         runBatch:
             '''
-            COPY A:\{dropFile} C:\DOORS\PW\
+            @ECHO OFF
             C:\FOSSIL\X00.SYS
+            COPY A:\{dropFile} C:\DOORS\PW\
             CD C:\DOORS\PW
             PW.EXE {node}
             ECHO Returning to BBS, please wait... > COM1
@@ -97,6 +100,34 @@ doorPimpWars: {
     }
 }
 ```
+
+**Multi-node door with shared game state (TradeWars 2002):**
+
+```hjson
+doorTradeWars2002: {
+    desc: TradeWars 2002
+    module: v86_door
+    config: {
+        name: TradeWars2002
+        image: /path/to/images/tw2002.img
+        dropFileType: DORINFO
+        nodeMax: 4
+        tooManyArt: DOORMANY
+        runBatch:
+            '''
+            @ECHO OFF
+            C:\FOSSIL\X00.SYS
+            C:\FREEDOS\BIN\SHARE.COM
+            COPY A:\{dropFile} C:\DOORS\TW2\{dropFile}
+            CD C:\DOORS\TW2
+            TW2.EXE
+            C:\FREEDOS\BIN\FDAPM POWEROFF
+            '''
+    }
+}
+```
+
+> :information_source: **ANSI color with DORINFO:** ENiGMA½ sets the DORINFO graphics field to `2` (ANSI color), which is the value required by RBBS-mode doors such as TradeWars 2002. A value of `1` enables IBM high-bit characters but not color in strict RBBS mode.
 
 ---
 
@@ -164,7 +195,7 @@ doorSmurfCombat: {
 }
 ```
 
-> :information_source: Concurrent sessions on the same image file are safe — each worker loads the image into its own isolated memory buffer. `nodeMax: 1` gates single-player doors, but even without it there is no shared state between sessions.
+> :information_source: All concurrent sessions for the same image path share a single in-memory disk buffer (SharedArrayBuffer). Guest writes from one session are immediately visible to others — exactly as they would be with a real shared disk. Use `nodeMax: 1` for single-player doors that have no locking. For multi-node games that rely on file/record locking (e.g. TradeWars 2002), load a FOSSIL-aware SHARE driver (`C:\FOSSIL\X00.SYS` plus `C:\FREEDOS\BIN\SHARE.COM`) in `runBatch` — the game handles concurrent access the same way it would on a real BBS.
 
 #### FOSSIL Driver
 
@@ -181,6 +212,29 @@ Or in `FDCONFIG.SYS` if all doors on the image need it:
 ```
 DEVICE=C:\FOSSIL\X00.SYS
 ```
+
+#### Creating and Configuring Images with `oputil v86`
+
+ENiGMA½ ships two `oputil` subcommands for working with disk images without needing QEMU or DOSBox-X installed on the server:
+
+```
+oputil.js v86 console <image.img>   Boot and wire COM1 to this terminal (interactive)
+oputil.js v86 desktop <image.img>   Boot in a full VGA browser session
+```
+
+**`console`** — best for doors that output entirely through COM1 (most doors). Use `CTTY COM1` in the image's `FDAUTO.BAT` to redirect all I/O. Ctrl+] exits and saves changes back to the image file automatically.
+
+**`desktop`** — boots the image in a small local HTTP server and opens your browser to a full VGA canvas. Use this for setup programs that write directly to VGA (e.g. door configuration wizards). Click **Save Image** to write changes back to the image file on the server — no browser download dialog appears.
+
+```bash
+# Interactive COM1 terminal
+node core/oputil/oputil_main.js v86 console /path/to/tw2002.img
+
+# Full VGA browser session (opens browser automatically)
+node core/oputil/oputil_main.js v86 desktop /path/to/tw2002.img --port 18086
+```
+
+See also: `oputil.js fat` for listing and copying files into images without booting them.
 
 #### Creating the Image with QEMU
 
