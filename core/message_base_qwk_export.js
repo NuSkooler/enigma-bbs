@@ -15,6 +15,7 @@ const Config = require('./config').get;
 const FileEntry = require('./file_entry');
 const DownloadQueue = require('./download_queue');
 const { getISOTimestampString } = require('./database');
+const { safeMoveFile } = require('./file_util');
 
 //  deps
 const async = require('async');
@@ -424,7 +425,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     }
 
                     const sysDownloadPath = paths.join(sysTempDownloadDir, this.tempName);
-                    fse.move(packetInfo.path, sysDownloadPath, err => {
+                    safeMoveFile(packetInfo.path, sysDownloadPath, err => {
                         return callback(err, sysDownloadPath, packetInfo);
                     });
                 },
