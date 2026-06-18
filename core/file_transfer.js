@@ -9,6 +9,7 @@ const Errors = require('./enig_error.js').Errors;
 const DownloadQueue = require('./download_queue.js');
 const StatLog = require('./stat_log.js');
 const FileEntry = require('./file_entry.js');
+const { moveFileWithCollisionHandling } = require('./file_util.js');
 const Log = require('./logger.js').log;
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
@@ -22,7 +23,6 @@ const pty = require('node-pty');
 const temptmp = require('temptmp').createTrackedSession('transfer_file');
 const paths = require('path');
 const fs = require('graceful-fs');
-const fse = require('fs-extra');
 
 //  some consts
 const SYSTEM_EOL = require('os').EOL;
@@ -200,49 +200,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
     */
 
     moveFileWithCollisionHandling(src, dst, cb) {
-        //
-        //  Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc.
-        //  in the case of collisions.
-        //
-        const dstPath = paths.dirname(dst);
-        const dstFileExt = paths.extname(dst);
-        const dstFileSuffix = paths.basename(dst, dstFileExt);
-
-        let renameIndex = 0;
-        let movedOk = false;
-        let tryDstPath;
-
-        async.until(
-            callback => callback(null, movedOk), //  until moved OK
-            cb => {
-                if (0 === renameIndex) {
-                    //  try originally supplied path first
-                    tryDstPath = dst;
-                } else {
-                    tryDstPath = paths.join(
-                        dstPath,
-                        `${dstFileSuffix}(${renameIndex})${dstFileExt}`
-                    );
-                }
-
-                fse.move(src, tryDstPath, err => {
-                    if (err) {
-                        if ('EEXIST' === err.code) {
-                            renameIndex += 1;
-                            return cb(null); //  keep trying
-                        }
-
-                        return cb(err);
-                    }
-
-                    movedOk = true;
-                    return cb(null, tryDstPath);
-                });
-            },
-            (err, finalPath) => {
-                return cb(err, finalPath);
-            }
-        );
+        //  Delegate to the shared util — same collision-rename semantics,
+        //  but routes through safeMoveFile so CIFS/SMB targets that fail
+        //  utimens with EPERM still get the file delivered via stream copy.
+        return moveFileWithCollisionHandling(src, dst, cb);
     }
 
     recvFiles(cb) {

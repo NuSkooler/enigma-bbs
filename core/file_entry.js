@@ -5,6 +5,7 @@ const fileDb = require('./database.js').dbs.file;
 const Errors = require('./enig_error.js').Errors;
 const { getISOTimestampString, sanitizeString, coerceToText } = require('./database.js');
 const Config = require('./config.js').get;
+const { safeMoveFile } = require('./file_util.js');
 
 //  deps
 const async = require('async');
@@ -856,7 +857,7 @@ module.exports = class FileEntry {
                         return callback(null); //  don't need to move file, but may change areas
                     }
 
-                    fse.move(srcPath, dstPath, err => {
+                    safeMoveFile(srcPath, dstPath, err => {
                         return callback(err);
                     });
                 },

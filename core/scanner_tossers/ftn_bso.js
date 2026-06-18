@@ -18,8 +18,10 @@ const FileEntry = require('../file_entry.js');
 const scanFile = require('../file_base_area.js').scanFile;
 const getFileAreaByTag = require('../file_base_area.js').getFileAreaByTag;
 const getDescFromFileName = require('../file_base_area.js').getDescFromFileName;
-const copyFileWithCollisionHandling =
-    require('../file_util.js').copyFileWithCollisionHandling;
+const {
+    copyFileWithCollisionHandling,
+    safeCopyFile,
+} = require('../file_util.js');
 const getAreaStorageDirectoryByTag =
     require('../file_base_area.js').getAreaStorageDirectoryByTag;
 const isValidStorageTag = require('../file_base_area.js').isValidStorageTag;
@@ -1960,7 +1962,7 @@ function FTNMessageScanTossModule() {
             'Archiving import file'
         );
 
-        fse.copy(origPath, archivePath, err => {
+        safeCopyFile(origPath, archivePath, err => {
             if (err) {
                 Log.warn(
                     {
@@ -2230,7 +2232,7 @@ function FTNMessageScanTossModule() {
 
     this.copyTicAttachment = function (src, dst, isUpdate, cb) {
         if (isUpdate) {
-            fse.copy(src, dst, { overwrite: true }, err => {
+            safeCopyFile(src, dst, { overwrite: true }, err => {
                 return cb(err, dst);
             });
         } else {
