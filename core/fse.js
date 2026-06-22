@@ -1071,6 +1071,18 @@ exports.FullScreenEditorModule =
                         this.client.log.warn({ error: err.message }, 'FSE init error');
                     } else {
                         this.isReady = true;
+                        //  The body render during mciReady paints over the initial
+                        //  footer, wiping any static command hints in the editor
+                        //  footer art. Re-render the footer once on top (same path
+                        //  used when the find prompt closes) so the hints are
+                        //  visible from the start. Only needed in edit mode;
+                        //  view-mode footers use redrawn views (HM) that survive.
+                        if (this.isEditMode()) {
+                            return this.switchFooter(() => {
+                                this._returnFocusToBody();
+                                this.finishedLoading();
+                            });
+                        }
                         this.finishedLoading();
                     }
                 }
