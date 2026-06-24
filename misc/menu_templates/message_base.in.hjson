@@ -25,6 +25,10 @@
                     action: @menu:messageBaseMessageList
                 }
                 {
+                    value: { command: "I" }
+                    action: @menu:messageIndexReader
+                }
+                {
                     value: { command: "<" }
                     action: @systemMethod:prevConf
                 }
@@ -69,6 +73,47 @@
                     action: @menu:fullLogoffSequence
                 }
             ]
+        }
+
+        messageIndexReader: {
+            desc: Message Index
+            module: msg_index_list
+            art: MSGIDX
+            config: {
+                messageListMenu: messageBaseMessageList
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            height: 12
+                            width: 57
+                            submit: true
+                            argName: index
+                            itemFormat: "  |07{confName:<14.14} |15{name:<26.26} |11{newMessageCount:>5}  |03{totalMessageCount:>6}"
+                            focusItemFormat: "  |16|15{confName:<14.14} {name:<26.26} {newMessageCount:>5}  {totalMessageCount:>6}"
+                        }
+                        TL4: {
+                            width: 60
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { index: null }
+                                action: @method:selectArea
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
         }
 
         messageBaseNewPost: {
