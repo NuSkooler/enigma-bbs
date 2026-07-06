@@ -103,6 +103,86 @@ describe('art.paginate', () => {
     });
 });
 
+// ─── MenuModule construction under the shared default config ──────────────────
+//
+//  Regression guard: MenuModule's constructor reads Config().menus.cls. The
+//  shared test default (test/setup.js MINIMAL_CONFIG) must satisfy that, since
+//  module caching can freeze `Config` to the default before any test pushes a
+//  richer one. If setup.js drops `menus`, this fails with "reading 'cls'".
+
+describe('MenuModule construction with a config missing menus', () => {
+    const CLIENT = {
+        term: { termWidth: 80, termHeight: 25 },
+        log: { warn: () => {}, debug: () => {}, trace: () => {} },
+        currentTheme: { prompts: {} },
+    };
+
+    //  Force a fresh capture of `const Config = require('./config.js').get` so
+    //  the constructor sees exactly the config we push here — module caching
+    //  otherwise freezes Config to whichever config was live at first-require.
+    //  The original cached module is restored afterward so other suites keep
+    //  their existing MenuModule class reference (instanceof, etc.).
+    function withFreshMenuModule(pushedConfig, fn) {
+        const modPath = require.resolve('../core/menu_module.js');
+        const savedEntry = require.cache[modPath];
+        delete require.cache[modPath];
+        const prev = configModule._pushTestConfig(pushedConfig);
+        try {
+            const { MenuModule } = require('../core/menu_module.js');
+            return fn(MenuModule);
+        } finally {
+            configModule._popTestConfig(prev);
+            if (savedEntry) {
+                require.cache[modPath] = savedEntry;
+            } else {
+                delete require.cache[modPath];
+            }
+        }
+    }
+
+    it('does not throw and defaults cls to false when Config() has no menus', () => {
+        withFreshMenuModule({ debug: { assertsEnabled: false } }, MenuModule => {
+            let instance;
+            assert.doesNotThrow(() => {
+                instance = new MenuModule({
+                    menuName: 'noMenusCfg',
+                    menuConfig: { config: {}, art: null },
+                    client: CLIENT,
+                });
+            });
+            assert.equal(instance.cls, false, 'cls must default to false');
+        });
+    });
+
+    it('honors Config().menus.cls when present', () => {
+        withFreshMenuModule(
+            { debug: { assertsEnabled: false }, menus: { cls: true } },
+            MenuModule => {
+                const instance = new MenuModule({
+                    menuName: 'menusCfg',
+                    menuConfig: { config: {}, art: null },
+                    client: CLIENT,
+                });
+                assert.equal(instance.cls, true);
+            }
+        );
+    });
+
+    it('menu-level cls overrides the global menus.cls', () => {
+        withFreshMenuModule(
+            { debug: { assertsEnabled: false }, menus: { cls: false } },
+            MenuModule => {
+                const instance = new MenuModule({
+                    menuName: 'menuLevelCls',
+                    menuConfig: { config: { cls: true }, art: null },
+                    client: CLIENT,
+                });
+                assert.equal(instance.cls, true, 'menu config cls wins');
+            }
+        );
+    });
+});
+
 // ─── MenuModule.shouldPause / getPauseMode ────────────────────────────────────
 
 describe('MenuModule.shouldPause / getPauseMode', () => {

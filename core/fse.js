@@ -528,6 +528,16 @@ exports.FullScreenEditorModule =
         //  after returning from any overlay (quote builder, find prompt, help, etc.).
         _returnFocusToBody() {
             this.client.term.beginWrite();
+            //  Detach any other input-accepting section (in particular the
+            //  header) so the body is the only ViewController attached to the
+            //  client 'key press' event. Otherwise a still-attached header would
+            //  receive the same keystrokes as the body (#712). setFocus(false)
+            //  is a no-op when the ViewController isn't attached, so this is safe
+            //  on the overlay-return paths (find/quote/help) where the header was
+            //  never attached to begin with.
+            if (this.viewControllers.header) {
+                this.viewControllers.header.setFocus(false);
+            }
             this.viewControllers.body.switchFocus(1);
             const bodyView = this._bodyView;
             if (bodyView) {
@@ -1071,22 +1081,43 @@ exports.FullScreenEditorModule =
                         this.client.log.warn({ error: err.message }, 'FSE init error');
                     } else {
                         this.isReady = true;
-                        //  The body render during mciReady paints over the initial
-                        //  footer, wiping any static command hints in the editor
-                        //  footer art. Re-render the footer once on top (same path
-                        //  used when the find prompt closes) so the hints are
-                        //  visible from the start. Only needed in edit mode;
-                        //  view-mode footers use redrawn views (HM) that survive.
                         if (this.isEditMode()) {
-                            return this.switchFooter(() => {
-                                this._returnFocusToBody();
-                                this.finishedLoading();
-                            });
+                            return this._finishEditModeInit(() => this.finishedLoading());
                         }
                         this.finishedLoading();
                     }
                 }
             );
+        }
+
+        //  Final init step for edit mode.
+        //
+        //  switchFooter() re-renders the footer art so the static command hints
+        //  (painted over by the body MLTEV render during mciReady) are visible
+        //  from the start — this is the #705/#706 fix. But switchFooter() also
+        //  moves keyboard focus onto the footer ViewController, so focus must be
+        //  restored afterward.
+        //
+        //  Focus is then restored to whichever section init landed on — and only
+        //  that one — so a single ViewController is attached to the client 'key
+        //  press' event. Attaching two input-accepting sections at once (as the
+        //  original code did by returning focus to the body while the header was
+        //  still attached) delivered every keystroke — and later the ESC
+        //  command-menu navigation — to both views, corrupting input (#712).
+        //
+        //  A fresh compose starts on the header (To field); returning from an
+        //  upload round-trip keeps the cursor in the body, where _restoreSavedState
+        //  set _focusBodyAfterInit. _returnFocusToBody()/switchToHeader() each
+        //  detach the other section, preserving the single-attach invariant.
+        _finishEditModeInit(cb) {
+            this.switchFooter(() => {
+                if (this._focusBodyAfterInit) {
+                    this._returnFocusToBody();
+                } else {
+                    this.switchToHeader();
+                }
+                return cb();
+            });
         }
 
         //  Step 1 of createInitialViews: prep header, body, and footer ViewControllers.
@@ -1234,8 +1265,13 @@ exports.FullScreenEditorModule =
 
             //  After loading content, transfer focus to the body so the user
             //  can interact immediately (header ESC → prevMenu would fire otherwise).
+            //  We also flag this so the final init step (_finishEditModeInit)
+            //  re-focuses the body — not the header — after it redraws the footer
+            //  (which steals focus). This keeps the cursor in the body when
+            //  returning from an upload round-trip (#712).
             const done = () => {
                 if (this.isEditMode()) {
+                    this._focusBodyAfterInit = true;
                     this.switchToBody();
                 }
                 return cb(null);

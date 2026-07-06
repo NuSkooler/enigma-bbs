@@ -16,7 +16,17 @@
 
 const configModule = require('../core/config.js');
 
-const MINIMAL_CONFIG = { debug: { assertsEnabled: false } };
+//  MenuModule (and every subclass) reads Config().menus.cls in its constructor.
+//  Modules capture `const Config = require('./config.js').get` at first-require,
+//  and Node's module cache means a later _pushTestConfig() cannot rebind that
+//  captured reference — so whichever test first constructs a MenuModule freezes
+//  Config to THIS default. It must therefore carry everything a core constructor
+//  reads, or those tests fail order-dependently with "Cannot read properties of
+//  undefined (reading 'cls')".
+const MINIMAL_CONFIG = {
+    debug: { assertsEnabled: false },
+    menus: { cls: false },
+};
 configModule.get = () => MINIMAL_CONFIG;
 
 //  Logger stub — production code reaches for require('../core/logger.js').log

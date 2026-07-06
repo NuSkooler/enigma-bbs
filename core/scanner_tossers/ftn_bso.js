@@ -18,10 +18,7 @@ const FileEntry = require('../file_entry.js');
 const scanFile = require('../file_base_area.js').scanFile;
 const getFileAreaByTag = require('../file_base_area.js').getFileAreaByTag;
 const getDescFromFileName = require('../file_base_area.js').getDescFromFileName;
-const {
-    copyFileWithCollisionHandling,
-    safeCopyFile,
-} = require('../file_util.js');
+const { copyFileWithCollisionHandling, safeCopyFile } = require('../file_util.js');
 const getAreaStorageDirectoryByTag =
     require('../file_base_area.js').getAreaStorageDirectoryByTag;
 const isValidStorageTag = require('../file_base_area.js').isValidStorageTag;

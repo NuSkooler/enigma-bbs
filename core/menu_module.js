@@ -47,7 +47,15 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.client = options.client;
         this.menuMethods = {}; //  methods called from @method's
         this.menuConfig.config = this.menuConfig.config || {};
-        this.cls = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
+        //  Fall back to the global menus.cls, defaulting to false if the config
+        //  has no `menus` section (e.g. a minimal/partial config). The explicit
+        //  default avoids a hard TypeError on Config().menus.cls when menus is
+        //  absent.
+        this.cls = _.get(
+            this.menuConfig.config,
+            'cls',
+            _.get(Config(), 'menus.cls', false)
+        );
         this.viewControllers = {};
         this.interrupt = _.get(
             this.menuConfig.config,

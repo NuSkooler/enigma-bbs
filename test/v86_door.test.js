@@ -37,7 +37,11 @@ describe('v86_door SAB registry', () => {
 
     afterEach(() => {
         clearRegistry(tmpPath);
-        try { fs.unlinkSync(tmpPath); } catch (_) { /* ignore */ }
+        try {
+            fs.unlinkSync(tmpPath);
+        } catch (_) {
+            /* ignore */
+        }
     });
 
     it('getOrCreateSab returns a SharedArrayBuffer', () => {
@@ -83,7 +87,11 @@ describe('v86_door flushSabToDisk', () => {
 
     afterEach(() => {
         clearRegistry(tmpPath);
-        try { fs.unlinkSync(tmpPath); } catch (_) { /* ignore */ }
+        try {
+            fs.unlinkSync(tmpPath);
+        } catch (_) {
+            /* ignore */
+        }
     });
 
     it('writes SAB contents back to disk', async () => {
@@ -121,4 +129,3 @@ describe('v86_door flushSabToDisk', () => {
         assert.doesNotThrow(() => flushSabToDisk('/nonexistent/path.img'));
     });
 });
-

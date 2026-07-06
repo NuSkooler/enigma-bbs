@@ -254,7 +254,9 @@ const ansiQueryCtermOsc8Support = (client, cb) => {
     const capListener = ({ id, value }) => {
         if (id === CTERM_CAP_OSC8) {
             if (value === 1) {
-                client.log.info(`CTerm OSC 8 hyperlink support enabled on node ${client.node}`);
+                client.log.info(
+                    `CTerm OSC 8 hyperlink support enabled on node ${client.node}`
+                );
                 client.term.termCapabilities.osc8 = true;
             }
             return done();

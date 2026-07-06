@@ -55,7 +55,7 @@ exports.CRC32 = class CRC32 {
         const len = input.length - 3;
         let i = 0;
 
-        for (i = 0; i < len; ) {
+        for (i = 0; i < len;) {
             this.crc = (this.crc >>> 8) ^ CRC32_TABLE[(this.crc ^ input[i++]) & 0xff];
             this.crc = (this.crc >>> 8) ^ CRC32_TABLE[(this.crc ^ input[i++]) & 0xff];
             this.crc = (this.crc >>> 8) ^ CRC32_TABLE[(this.crc ^ input[i++]) & 0xff];
@@ -70,7 +70,7 @@ exports.CRC32 = class CRC32 {
         const len = input.length - 7;
         let i = 0;
 
-        for (i = 0; i < len; ) {
+        for (i = 0; i < len;) {
             this.crc = (this.crc >>> 8) ^ CRC32_TABLE[(this.crc ^ input[i++]) & 0xff];
             this.crc = (this.crc >>> 8) ^ CRC32_TABLE[(this.crc ^ input[i++]) & 0xff];
             this.crc = (this.crc >>> 8) ^ CRC32_TABLE[(this.crc ^ input[i++]) & 0xff];

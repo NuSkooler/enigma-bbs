@@ -69,15 +69,19 @@ function cmdConsole(imagePath) {
     // Patch before requiring v86 (via the worker) so both types pass.
     Object.defineProperty(ArrayBuffer, Symbol.hasInstance, {
         value(v) {
-            return v !== null && typeof v === 'object' &&
-                (v.constructor === ArrayBuffer || v.constructor === SharedArrayBuffer);
+            return (
+                v !== null &&
+                typeof v === 'object' &&
+                (v.constructor === ArrayBuffer || v.constructor === SharedArrayBuffer)
+            );
         },
-        configurable: true, writable: true,
+        configurable: true,
+        writable: true,
     });
 
     // Load image into SAB so worker can use it and we can flush it back on exit.
     const imageFile = fs.readFileSync(paths.imagePath);
-    const imageSab  = new SharedArrayBuffer(imageFile.byteLength);
+    const imageSab = new SharedArrayBuffer(imageFile.byteLength);
     new Uint8Array(imageSab).set(imageFile);
 
     // Inject a RUN.BAT that redirects the DOS shell to COM1 so the
@@ -417,7 +421,11 @@ function cmdDesktop(imagePath) {
                 break;
 
             case '/save':
-                if (req.method !== 'POST') { res.writeHead(405); res.end(); break; }
+                if (req.method !== 'POST') {
+                    res.writeHead(405);
+                    res.end();
+                    break;
+                }
                 {
                     const chunks = [];
                     req.on('data', c => chunks.push(c));
@@ -425,7 +433,9 @@ function cmdDesktop(imagePath) {
                         const buf = Buffer.concat(chunks);
                         try {
                             fs.writeFileSync(paths.imagePath, buf);
-                            console.error(`\nv86 desktop: image saved (${(buf.length / 1048576).toFixed(1)} MB) → ${paths.imagePath}`);
+                            console.error(
+                                `\nv86 desktop: image saved (${(buf.length / 1048576).toFixed(1)} MB) → ${paths.imagePath}`
+                            );
                             res.writeHead(200);
                             res.end('saved');
                         } catch (err) {

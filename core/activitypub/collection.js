@@ -326,7 +326,12 @@ module.exports = class Collection extends ActivityPubObject {
                     WHERE f.collection_id = ? AND f.name = ?
                       AND json_extract(a.object_json, '$.endpoints.sharedInbox') IS NOT NULL`
                 )
-                .all(ActorCollectionId, Collections.Actors, followersEndpoint, Collections.Followers);
+                .all(
+                    ActorCollectionId,
+                    Collections.Actors,
+                    followersEndpoint,
+                    Collections.Followers
+                );
 
             return cb(
                 null,
