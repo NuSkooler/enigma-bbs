@@ -636,7 +636,8 @@ function wildcardMatch(input, rule) {
 //  Matches URLs with common schemes.  Terminates at whitespace or shell-style
 //  punctuation that is unlikely to be part of a URL.
 //  mailto: uses a bare colon (no //); all others use ://
-const URL_RE = /(?:(?:https?|ftps?|gopher|ssh|telnet):\/\/[^\s\x00-\x1f"'<>()[\],;]+|mailto:[^\s\x00-\x1f"'<>()[\],;]+)/g;
+const URL_RE =
+    /(?:(?:https?|ftps?|gopher|ssh|telnet):\/\/[^\s\x00-\x1f"'<>()[\],;]+|mailto:[^\s\x00-\x1f"'<>()[\],;]+)/g;
 
 //  extractUrls(str) → [{ start, end, url }, ...]
 //  Indices refer to positions in |str|.  Zero-allocation fast path when no

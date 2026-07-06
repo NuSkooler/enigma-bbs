@@ -232,7 +232,11 @@ class MultiLineEditTextView extends View {
 
         //  Walk back to the start of the paragraph (first line after a hard EOL).
         let paraStart = lineIndex;
-        while (paraStart > 0 && this.buffer.lines[paraStart - 1] && !this.buffer.lines[paraStart - 1].eol) {
+        while (
+            paraStart > 0 &&
+            this.buffer.lines[paraStart - 1] &&
+            !this.buffer.lines[paraStart - 1].eol
+        ) {
             paraStart--;
         }
 
@@ -260,7 +264,7 @@ class MultiLineEditTextView extends View {
 
         for (const { start, end, url } of overlapping) {
             const localStart = Math.max(start, lineStart) - lineStart;
-            const localEnd   = Math.min(end,   lineEnd)  - lineStart;
+            const localEnd = Math.min(end, lineEnd) - lineStart;
 
             result += rawText.slice(cursor, localStart);
             const fragment = rawText.slice(localStart, localEnd);
@@ -761,9 +765,10 @@ class MultiLineEditTextView extends View {
 
         //  Default path — plain text or ANSI-baked preview mode.
         const remain = this.dimens.width - strUtil.renderStringLength(rawText);
-        const text = (this.hyperlinks && !_.isUndefined(index))
-            ? this._wrapUrlsInLine(rawText, index)
-            : rawText;
+        const text =
+            this.hyperlinks && !_.isUndefined(index)
+                ? this._wrapUrlsInLine(rawText, index)
+                : rawText;
         return remain > 0 ? text + ' '.repeat(remain) : text;
     }
 

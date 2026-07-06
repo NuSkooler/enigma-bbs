@@ -85,15 +85,11 @@ exports.getModule = class UserStatusConfigModule extends MenuModule {
         const isAvailable = this.client.user.isAvailable();
         const isVisible = this.client.user.isVisible();
 
-        this.updateCustomViewTextsWithFilter(
-            'menu',
-            MciViewIds.menu.customRangeStart,
-            {
-                isAvailable,
-                isVisible,
-                availableIndicator: isAvailable ? enabled : disabled,
-                visibleIndicator: isVisible ? enabled : disabled,
-            }
-        );
+        this.updateCustomViewTextsWithFilter('menu', MciViewIds.menu.customRangeStart, {
+            isAvailable,
+            isVisible,
+            availableIndicator: isAvailable ? enabled : disabled,
+            visibleIndicator: isVisible ? enabled : disabled,
+        });
     }
 };

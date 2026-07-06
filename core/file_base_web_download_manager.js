@@ -233,7 +233,9 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 
                                                 fileEntry.webDlLinkRaw = url;
                                                 fileEntry.webDlLink =
-                                                    self.client.terminalSupports('osc8_hyperlink')
+                                                    self.client.terminalSupports(
+                                                        'osc8_hyperlink'
+                                                    )
                                                         ? ansi.osc8Hyperlink(url, url)
                                                         : url;
                                                 fileEntry.webDlExpire =
@@ -248,7 +250,10 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                                         fileEntry.webDlLinkRaw = serveItem.url;
                                         fileEntry.webDlLink =
                                             self.client.terminalSupports('osc8_hyperlink')
-                                                ? ansi.osc8Hyperlink(serveItem.url, serveItem.url)
+                                                ? ansi.osc8Hyperlink(
+                                                      serveItem.url,
+                                                      serveItem.url
+                                                  )
                                                 : serveItem.url;
                                         fileEntry.webDlExpire = moment(
                                             serveItem.expireTimestamp
