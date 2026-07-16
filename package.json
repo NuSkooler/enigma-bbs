@@ -75,7 +75,7 @@
         "sanitize-filename": "^1.6.3",
         "ssh2": "1.17.0",
         "string-strip-html": "8.4.0",
-        "systeminformation": "^5.27.10",
+        "systeminformation": "^5.31.7",
         "telnet-socket": "^0.2.6",
         "temptmp": "^1.1.0",
         "v86": "^0.5.319",
