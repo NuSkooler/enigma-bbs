@@ -5,9 +5,23 @@
 const Log = require('./logger.js').log;
 const renegadeToAnsi = require('./color_codes.js').renegadeToAnsi;
 const Config = require('./config.js').get;
+const { CP437_TERM_ENCODING } = require('./cp437.js');
 const iconv = require('iconv-lite');
 const assert = require('assert');
 const _ = require('lodash');
+
+//
+//  What we actually hand iconv, keyed by the encoding name the rest of the
+//  system sees. CP437 output goes through the BBS-aware variant so the glyphs
+//  living under 0x20 survive instead of becoming '?' -- see core/cp437.js.
+//
+//  The name stays 'cp437' everywhere outside this file on purpose: ACS "EC0"
+//  compares against it literally, and setClientEncoding() assigns it straight
+//  from menu form data.
+//
+const TERM_CODEC = {
+    cp437: CP437_TERM_ENCODING,
+};
 
 exports.ClientTerminal = ClientTerminal;
 
@@ -294,5 +308,5 @@ ClientTerminal.prototype.encode = function (s, convertLineFeeds) {
     if (convertLineFeeds && _.isString(s)) {
         s = s.replace(/\n/g, '\r\n');
     }
-    return iconv.encode(s, this.outputEncoding);
+    return iconv.encode(s, TERM_CODEC[this.outputEncoding] || this.outputEncoding);
 };
