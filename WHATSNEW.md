@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.0-beta
 
+* **NetRunner over SSH sizing fix** — NetRunner connects via stock cryptlib, which hardcodes the terminal size it reports as 80x48, throwing art positioning off by a row on an 80x25 screen. That reported size is now skipped; ENiGMA½ queries the terminal instead, which NetRunner answers correctly. SyncTERM is unaffected — Synchronet's cryptlib fork reports a real size and identifies itself distinctly. Controlled by `loginServers.ssh.untrustedTermSizeClients`.
+
 * **v86 multi-node shared disk** — concurrent door sessions for the same disk image now share a single in-memory buffer (SharedArrayBuffer), giving all nodes a live view of the same disk — exactly as they would on a real BBS with a shared drive. Games that rely on file/record locking (e.g. TradeWars 2002) work correctly when `SHARE.COM` is loaded from `runBatch`. Single-player doors are unchanged; use `nodeMax: 1` as before. The buffer is flushed back to the image file after each session exits, serialized so concurrent exits never race at the OS level.
 
 * **OSC 8 clickable hyperlinks** — URLs in message bodies, file NFO/readme viewers, and file download listings are now rendered as clickable hyperlinks on terminals that support the OSC 8 standard: IcyTerm, SyncTERM, VTX, and modern *nix terminals (foot, Alacritty, GNOME Terminal, kitty, WezTerm, Windows Terminal, and others). Sysops enable hyperlinks per-view by adding `hyperlinks: true` to any `%MT` view in preview or read-only mode. The default menu templates and ActivityPub viewer have this enabled out of the box. See [Multi Line Edit Text View](./docs/_docs/art/views/multi_line_edit_text_view.md) for details.
