@@ -238,6 +238,24 @@ module.exports = () => {
                 firstMenuNewUser: 'sshConnectedNewUser',
 
                 //
+                //  SSH clients whose reported terminal size cannot be believed, matched
+                //  against the full client identification string, case-insensitively.
+                //
+                //  Stock cryptlib hardcodes the pty-req as "xterm" 80x48 with no way for
+                //  the application to override it (upstream 3.4.9.3, session/ssh2_msgcli.c),
+                //  so NetRunner reports 80x48 whatever its real window is. Skipping it lets
+                //  the ANSI CPR query (which these clients answer correctly) find the
+                //  actual size, and failing that the usual 80x25 assumption applies.
+                //
+                //  Match exactly, never as a substring: Synchronet's cryptlib fork patches
+                //  the terminal attributes in and was measured reporting the actual size, but
+                //  it identifies as "SSH-2.0-cryptlib(SBBS)" (SyncTERM 1.9rc4) or
+                //  "SSH-2.0-SyncTERM_<version>" (newer). A substring match on "cryptlib"
+                //  would sweep every SyncTERM user in with NetRunner.
+                //
+                untrustedTermSizeClients: ['SSH-2.0-cryptlib'],
+
+                //
                 //  SSH details that can affect security. Stronger ciphers are better for example,
                 //  but terminals such as SyncTERM require KEX diffie-hellman-group14-sha1,
                 //  cipher 3des-cbc, etc.
