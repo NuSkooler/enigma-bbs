@@ -17,11 +17,11 @@
 <meta property="og:description" content="SSH Login Server" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-07T19:34:09+00:00" />
+<meta property="article:published_time" content="2026-08-08T21:13:24+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="SSH Server" />
 <script type="application/ld+json">
-{"description":"SSH Login Server","headline":"SSH Server","dateModified":"2026-08-07T19:34:09+00:00","datePublished":"2026-08-07T19:34:09+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/loginservers/ssh.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/loginservers/ssh.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"SSH Login Server","headline":"SSH Server","dateModified":"2026-08-08T21:13:24+00:00","datePublished":"2026-08-08T21:13:24+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/loginservers/ssh.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/servers/loginservers/ssh.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2944,6 +2944,11 @@
       <td><code class="language-plaintext highlighter-rouge">traceConnections</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
       <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to enable full trace-level information on SSH connections.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">untrustedTermSizeClients</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>List of SSH client identification strings whose reported terminal size should be skipped, compared in full and case-insensitively. Defaults to <code class="language-plaintext highlighter-rouge">[ "SSH-2.0-cryptlib" ]</code>, which covers NetRunner: stock cryptlib hardcodes the terminal size as 80x48 and gives the application no way to change it. The size is established by querying the terminal instead, falling back to the usual 80x25 assumption if that query fails. Matching is deliberately exact rather than by substring: SyncTERM reports the actual size but identifies as <code class="language-plaintext highlighter-rouge">SSH-2.0-cryptlib(SBBS)</code> on 1.9rc4 and <code class="language-plaintext highlighter-rouge">SSH-2.0-SyncTERM_&lt;version&gt;</code> on newer builds, so a loose match on <code class="language-plaintext highlighter-rouge">cryptlib</code> would wrongly catch it. Remove an entry if a client’s size reporting is fixed upstream.</td>
     </tr>
   </tbody>
 </table>
