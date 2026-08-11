@@ -97,7 +97,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ...and so many others! This project would be nothing without the BBS and art scene communities!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=nuskooler/enigma-bbs&type=Date)](https://star-history.com/#nuskooler/enigma-bbs&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=nuskooler/enigma-bbs&type=Date)](https://star-history.dera.page/#nuskooler/enigma-bbs&Date)
 
 ## License
 Released under [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause). See [LICENSE.TXT](LICENSE.TXT)
