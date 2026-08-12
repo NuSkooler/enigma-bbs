@@ -3,6 +3,9 @@
 const { strict: assert } = require('assert');
 const moment = require('moment');
 const iconv = require('iconv-lite');
+const fs = require('fs');
+const os = require('os');
+const paths = require('path');
 
 //  Mock the logger before loading any module that uses it
 const loggerModule = require('../core/logger.js');
@@ -227,5 +230,74 @@ describe('processMessageBody — kludge line parsing', () => {
         const data = await processBody(buf);
         assert.ok(data.message.includes('Hello World'));
         assert.ok(data.message.includes('Line two'));
+    });
+});
+
+// -------------------------------------------------------------------------
+// Packet.read — malformed input must not drop the completion callback
+//
+// Regression guard for the FTN import hang: parsePacketHeader caught a parse
+// failure but `return`ed the error object instead of invoking cb(), so a
+// 0-byte / truncated .pkt (common inside real echomail bundles) wedged the
+// entire tosser until the 5-minute watchdog fired. read() must ALWAYS invoke
+// its completion callback — with an error — never hang.
+// -------------------------------------------------------------------------
+
+describe('Packet.read — malformed input invokes completion (never hangs)', () => {
+    //  Reject fast so a dropped-callback regression fails loudly instead of
+    //  stalling until the mocha suite timeout.
+    const CALLBACK_DEADLINE_MS = 1500;
+
+    function readInput(input) {
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(
+                () =>
+                    reject(
+                        new Error(
+                            'Packet.read never invoked its completion callback ' +
+                                '(dropped callback / hang regression)'
+                        )
+                    ),
+                CALLBACK_DEADLINE_MS
+            );
+            try {
+                new Packet({ keepTearAndOrigin: false }).read(
+                    input,
+                    (entryType, entryData, next) => next(null),
+                    err => {
+                        clearTimeout(timer);
+                        resolve(err);
+                    }
+                );
+            } catch (e) {
+                clearTimeout(timer);
+                reject(e);
+            }
+        });
+    }
+
+    it('calls back with an error for an empty (0-byte) packet buffer', async () => {
+        const err = await readInput(Buffer.alloc(0));
+        assert.ok(err, 'expected an error, not a silent/undefined completion');
+        assert.match(err.message, /packet header/i);
+    });
+
+    it('calls back with an error for a truncated packet buffer (shorter than header)', async () => {
+        const err = await readInput(Buffer.alloc(10, 0));
+        assert.ok(err, 'expected an error for a sub-header-length buffer');
+        assert.match(err.message, /packet header/i);
+    });
+
+    it('calls back with an error for a 0-byte packet FILE (production repro)', async () => {
+        const dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'ftn-pkt-'));
+        const emptyPkt = paths.join(dir, 'empty.pkt');
+        fs.writeFileSync(emptyPkt, Buffer.alloc(0));
+        try {
+            const err = await readInput(emptyPkt);
+            assert.ok(err, 'expected an error reading a 0-byte .pkt file');
+            assert.match(err.message, /packet header/i);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

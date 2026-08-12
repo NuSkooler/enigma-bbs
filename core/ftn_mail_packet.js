@@ -315,7 +315,10 @@ function Packet(options) {
         try {
             packetHeader = PacketHeaderParser.parse(packetBuffer);
         } catch (e) {
-            return Errors.Invalid(`Unable to parse FTN packet header: ${e.message}`);
+            //  Must invoke cb here: a bare return would drop the callback and
+            //  wedge the entire import (0-byte / truncated .pkt files hang the
+            //  tosser until the watchdog fires). See the header-type path below.
+            return cb(Errors.Invalid(`Unable to parse FTN packet header: ${e.message}`));
         }
 
         //  Convert password from NULL padded array to string

@@ -2088,9 +2088,43 @@ function FTNMessageScanTossModule() {
                     });
                 },
                 function importBundles(bundleFiles, callback) {
-                    let rejects = [];
+                    //
+                    //  Process each bundle to *completion* individually:
+                    //  extract -> toss its .pkt(s) -> archive + unlink the source
+                    //  bundle.  Doing cleanup per-bundle (rather than once at the
+                    //  very end) means partial progress is durable: if this pass is
+                    //  interrupted -- e.g. the import watchdog fires on a large
+                    //  backlog -- every bundle already handled stays removed and is
+                    //  not re-processed next cycle.  The backlog therefore drains
+                    //  monotonically instead of being re-tossed forever.
+                    //
+                    const finishBundle = (bundleFile, status, nextFile) => {
+                        //  Archive (rejects only, per maybeArchiveImportFile) then
+                        //  remove the source so it is not re-processed next cycle.
+                        self.maybeArchiveImportFile(
+                            bundleFile.path,
+                            'bundle',
+                            status,
+                            () => {
+                                fs.unlink(bundleFile.path, err => {
+                                    //  ENOENT: an overlapping import cycle already
+                                    //  removed it -- harmless, not an error.
+                                    if (err && 'ENOENT' !== err.code) {
+                                        Log.error(
+                                            {
+                                                path: bundleFile.path,
+                                                error: err.message,
+                                            },
+                                            'Failed unlinking bundle'
+                                        );
+                                    }
+                                    return nextFile(null);
+                                });
+                            }
+                        );
+                    };
 
-                    async.each(
+                    async.eachSeries(
                         bundleFiles,
                         (bundleFile, nextFile) => {
                             if (bundleFile.archName === undefined) {
@@ -2099,9 +2133,8 @@ function FTNMessageScanTossModule() {
                                     'Unknown bundle archive type'
                                 );
 
-                                rejects.push(bundleFile.path);
-
-                                return nextFile(); //  unknown archive type
+                                //  can't extract it; archive as reject + remove
+                                return finishBundle(bundleFile, 'reject', nextFile);
                             }
 
                             Log.debug({ bundleFile: bundleFile }, 'Processing bundle');
@@ -2110,73 +2143,56 @@ function FTNMessageScanTossModule() {
                                 bundleFile.path,
                                 self.importTempDir,
                                 bundleFile.archName,
-                                err => {
-                                    if (err) {
+                                extractErr => {
+                                    if (extractErr) {
                                         Log.warn(
-                                            { path: bundleFile.path, error: err.message },
+                                            {
+                                                path: bundleFile.path,
+                                                error: extractErr.message,
+                                            },
                                             'Failed to extract bundle'
                                         );
 
-                                        rejects.push(bundleFile.path);
-                                    }
-
-                                    nextFile();
-                                }
-                            );
-                        },
-                        err => {
-                            if (err) {
-                                return callback(err);
-                            }
-
-                            //
-                            //  All extracted - import .pkt's
-                            //
-                            self.importPacketFilesFromDirectory(
-                                self.importTempDir,
-                                '',
-                                err => {
-                                    if (err) {
-                                        Log.warn(
-                                            {
-                                                importDir: self.importTempDir,
-                                                error: err.message,
-                                            },
-                                            'Error importing packets from extracted bundle'
+                                        return finishBundle(
+                                            bundleFile,
+                                            'reject',
+                                            nextFile
                                         );
                                     }
-                                    callback(null, bundleFiles, rejects);
-                                }
-                            );
-                        }
-                    );
-                },
-                function handleProcessedBundleFiles(bundleFiles, rejects, callback) {
-                    async.each(
-                        bundleFiles,
-                        (bundleFile, nextFile) => {
-                            self.maybeArchiveImportFile(
-                                bundleFile.path,
-                                'bundle',
-                                rejects.includes(bundleFile.path) ? 'reject' : 'good',
-                                () => {
-                                    fs.unlink(bundleFile.path, err => {
-                                        if (err) {
-                                            Log.error(
-                                                {
-                                                    path: bundleFile.path,
-                                                    error: err.message,
-                                                },
-                                                'Failed unlinking bundle'
+
+                                    //
+                                    //  Toss the .pkt(s) this bundle produced, then
+                                    //  clean up the source bundle.  importPacket-
+                                    //  FilesFromDirectory removes each .pkt it
+                                    //  handles, so the temp dir does not accumulate
+                                    //  across bundles.
+                                    //
+                                    self.importPacketFilesFromDirectory(
+                                        self.importTempDir,
+                                        '',
+                                        importErr => {
+                                            if (importErr) {
+                                                Log.warn(
+                                                    {
+                                                        importDir: self.importTempDir,
+                                                        error: importErr.message,
+                                                    },
+                                                    'Error importing packets from extracted bundle'
+                                                );
+                                            }
+
+                                            return finishBundle(
+                                                bundleFile,
+                                                'good',
+                                                nextFile
                                             );
                                         }
-                                        return nextFile(null);
-                                    });
+                                    );
                                 }
                             );
                         },
                         err => {
-                            callback(err);
+                            return callback(err);
                         }
                     );
                 },
