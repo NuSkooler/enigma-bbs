@@ -29,7 +29,26 @@ const ModuleInfo = (exports.moduleInfo = {
     packageName: 'codes.l33t.enigma.ssh.server',
 });
 
-function SSHClient(clientConn) {
+//
+//  Some clients report a terminal size that has nothing to do with their window;
+//  see the 'untrustedTermSizeClients' config for details.
+//
+function isUntrustedTermSizeClient(clientIdent) {
+    const untrusted = _.get(Config(), 'loginServers.ssh.untrustedTermSizeClients', []);
+
+    //
+    //  Exact match, not substring: SyncTERM reports the actual size but identifies as
+    //  "SSH-2.0-cryptlib(SBBS)" on 1.9rc4 and "SSH-2.0-SyncTERM_<version>" on
+    //  newer builds, so matching "cryptlib" loosely would sweep it in alongside
+    //  stock "SSH-2.0-cryptlib".
+    //
+    const ident = clientIdent.toLowerCase();
+    return untrusted.some(name => name.toLowerCase() === ident);
+}
+
+exports.isUntrustedTermSizeClient = isUntrustedTermSizeClient;
+
+function SSHClient(clientConn, connInfo) {
     baseClient.Client.apply(this, arguments);
 
     //
@@ -38,6 +57,8 @@ function SSHClient(clientConn) {
     //
 
     const self = this;
+
+    self.sshClientIdent = _.get(connInfo, 'header.identRaw');
 
     clientConn.on('authentication', function authAttempt(ctx) {
         const username = ctx.username || '';
@@ -266,6 +287,22 @@ function SSHClient(clientConn) {
         assert(_.isObject(self.term));
 
         //
+        //  Leaving the size at 0 hands the job to connect.js, which asks the
+        //  terminal directly via CPR (the only trustworthy answer from these
+        //  clients) and otherwise assumes 80x25. See #414. There is nothing
+        //  worth keeping from the reported size: it is a constant compiled into
+        //  the client's SSH library, so it says nothing about the real window.
+        //
+        if (isUntrustedTermSizeClient(self.sshClientIdent)) {
+            self.log.debug(
+                { clientIdent: self.sshClientIdent, termHeight, termWidth },
+                'Ignoring terminal size reported by untrusted SSH client'
+            );
+            termHeight = 0;
+            termWidth = 0;
+        }
+
+        //
         //  Note that if we fail here, connect.js attempts some non-standard
         //  queries/etc., and ultimately will default to 80x24 if all else fails
         //
@@ -413,7 +450,7 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
         this.server = new ssh2.Server(serverConf);
         this.server.on('connection', (conn, info) => {
             Log.info(info, 'New SSH connection');
-            this.handleNewClient(new SSHClient(conn), conn._sock, ModuleInfo);
+            this.handleNewClient(new SSHClient(conn, info), conn._sock, ModuleInfo);
         });
 
         return cb(null);

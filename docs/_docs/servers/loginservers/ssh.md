@@ -23,6 +23,7 @@ Entries available under `config.loginServers.ssh`:
 | `address` | :-1: | Sets an explicit bind address. |
 | `algorithms` | :-1: | Configuration block for SSH algorithms. Includes keys of `kex`, `cipher`, `hmac`, and `compress`. See the algorithms section in the [ssh2-streams](https://github.com/mscdex/ssh2-streams#ssh2stream-methods) documentation for details. For defaults set by ENiGMA½, see `core/config_default.js`.
 | `traceConnections` | :-1: | Set to `true` to enable full trace-level information on SSH connections.
+| `untrustedTermSizeClients` | :-1: | List of SSH client identification strings whose reported terminal size should be skipped, compared in full and case-insensitively. Defaults to `[ "SSH-2.0-cryptlib" ]`, which covers NetRunner: stock cryptlib hardcodes the terminal size as 80x48 and gives the application no way to change it. The size is established by querying the terminal instead, falling back to the usual 80x25 assumption if that query fails. Matching is deliberately exact rather than by substring: SyncTERM reports the actual size but identifies as `SSH-2.0-cryptlib(SBBS)` on 1.9rc4 and `SSH-2.0-SyncTERM_<version>` on newer builds, so a loose match on `cryptlib` would wrongly catch it. Remove an entry if a client's size reporting is fixed upstream.
 
 * *IMPORTANT* With the `privateKeyPass` option set, make sure that you verify that the config file is not readable by other users!
 
