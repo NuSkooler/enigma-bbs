@@ -2,10 +2,15 @@
 
 const { strict: assert } = require('assert');
 
+const fsp = require('fs/promises');
+const path = require('path');
+const os = require('os');
+
 const {
     localAddresses,
     addressKey,
     findBestNodeMatch,
+    buildSpool,
 } = require('../core/binkp/util.js');
 const Address = require('../core/ftn_address.js');
 
@@ -140,5 +145,67 @@ describe('binkp/util — findBestNodeMatch', () => {
         const nodes = { '21:1/100': { host: 'plain.example' } };
         const got = findBestNodeMatch(nodes, { zone: 21, net: 1, node: 100 });
         assert.equal(got.host, 'plain.example');
+    });
+});
+
+describe('binkp/util — buildSpool', () => {
+    let tmpDir;
+
+    before(async () => {
+        tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'enigma_buildspool_'));
+    });
+
+    after(async () => {
+        await fsp.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    function makeConfig(overrides = {}) {
+        return {
+            scannerTossers: {
+                ftn_bso: Object.assign(
+                    {
+                        paths: {
+                            outbound: tmpDir,
+                            inbound: path.join(tmpDir, 'in'),
+                            secInbound: path.join(tmpDir, 'secin'),
+                        },
+                    },
+                    overrides
+                ),
+            },
+            messageNetworks: {
+                ftn: {
+                    networks: {
+                        testnet: { localAddress: '1:218/700', defaultZone: 1 },
+                    },
+                },
+            },
+        };
+    }
+
+    it('wires paths and networks through to the spool', async () => {
+        //  Round-trip rather than inspect: a spool built from |config| must
+        //  find mail written under that config's outbound path.
+        const outDir = path.join(tmpDir, 'outbound');
+        await fsp.mkdir(outDir, { recursive: true });
+        const pkt = path.join(outDir, 'pending.pkt');
+        await fsp.writeFile(pkt, 'DATA');
+        await fsp.writeFile(path.join(outDir, '00da02bd.flo'), `^${pkt}\n`);
+
+        const spool = buildSpool(makeConfig());
+        const pending = await spool.getNodesWithPendingMail();
+
+        assert.equal(pending.length, 1);
+        assert.equal(pending[0].toString('3D'), '1:218/701');
+    });
+
+    it('passes staleLockMaxAgeMs through when configured', () => {
+        const spool = buildSpool(makeConfig({ binkp: { staleLockMaxAgeMs: 1234 } }));
+        assert.equal(spool._staleLockMaxAgeMs, 1234);
+    });
+
+    it('tolerates an empty or absent config rather than throwing', () => {
+        assert.doesNotThrow(() => buildSpool({}));
+        assert.doesNotThrow(() => buildSpool(undefined));
     });
 });

@@ -2,6 +2,7 @@
 
 const _ = require('lodash');
 const Address = require('../ftn_address.js');
+const { BsoSpool } = require('./bso_spool.js');
 
 //  Helpers shared across the BinkP module surface (caller, scanner_tosser).
 //  Anything reaching for `messageNetworks.ftn.networks` or the in-memory
@@ -66,4 +67,24 @@ function findBestNodeMatch(nodes, addr) {
     return bestConf;
 }
 
-module.exports = { localAddresses, addressKey, findBestNodeMatch };
+//
+//  A BsoSpool for the current configuration.
+//
+//  Build one at the point of use and throw it away -- never cache it in a
+//  closure. config.hjson is hot-reloadable, so a poll or an inbound session
+//  starting after a reload has to honour the new paths and networks. Holding
+//  a spool built at startup silently pins the process to boot-time config.
+//
+//  |config| is the full Config() object, as with localAddresses() above.
+//
+function buildSpool(config) {
+    const ftnBsoCfg = _.get(config, 'scannerTossers.ftn_bso', {});
+    return new BsoSpool({
+        paths: ftnBsoCfg.paths,
+        networks: _.get(config, 'messageNetworks.ftn.networks', {}),
+        defaultNetwork: ftnBsoCfg.defaultNetwork,
+        staleLockMaxAgeMs: _.get(ftnBsoCfg, 'binkp.staleLockMaxAgeMs'),
+    });
+}
+
+module.exports = { localAddresses, addressKey, findBestNodeMatch, buildSpool };

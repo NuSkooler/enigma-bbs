@@ -11,27 +11,19 @@ const Events = require('../events.js');
 const configModule = require('../config.js');
 const Address = require('../ftn_address.js');
 const { BinkpSession } = require('./session.js');
-const { BsoSpool, attachSpoolToSession } = require('./bso_spool.js');
-const { localAddresses, addressKey, findBestNodeMatch } = require('./util.js');
+const { attachSpoolToSession } = require('./bso_spool.js');
+const {
+    localAddresses,
+    addressKey,
+    findBestNodeMatch,
+    buildSpool,
+} = require('./util.js');
 
 const Config = () => configModule.get();
 
 const CONNECT_TIMEOUT_MS = 30_000;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function buildSpool() {
-    const config = Config();
-    return new BsoSpool({
-        paths: _.get(config, 'scannerTossers.ftn_bso.paths'),
-        networks: _.get(config, 'messageNetworks.ftn.networks', {}),
-        defaultNetwork: _.get(config, 'scannerTossers.ftn_bso.defaultNetwork'),
-        staleLockMaxAgeMs: _.get(
-            config,
-            'scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs'
-        ),
-    });
-}
 
 // Returns the most-specific node config entry whose pattern matches |addr|.
 // Specificity is by Address#getMatchScore — concrete-and-matching parts beat
@@ -142,7 +134,7 @@ async function pollNodes(forceAddrs, cb) {
         return cb(null);
     }
 
-    const spool = buildSpool();
+    const spool = buildSpool(config);
 
     let pendingAddrs;
     try {

@@ -15,9 +15,14 @@ const configModule = require('../config.js');
 const Address = require('../ftn_address.js');
 const { MessageScanTossModule } = require('../msg_scan_toss_module.js');
 const { BinkpSession } = require('../binkp/session.js');
-const { BsoSpool, attachSpoolToSession } = require('../binkp/bso_spool.js');
+const { attachSpoolToSession } = require('../binkp/bso_spool.js');
 const { pollNodes } = require('../binkp/caller.js');
-const { localAddresses, addressKey, findBestNodeMatch } = require('../binkp/util.js');
+const {
+    localAddresses,
+    addressKey,
+    findBestNodeMatch,
+    buildSpool,
+} = require('../binkp/util.js');
 const { FreqResolver, attachFreqToSession } = require('../binkp/freq.js');
 
 const Config = () => configModule.get();
@@ -27,6 +32,20 @@ const Config = () => configModule.get();
 //  node coalesce into a single session. Tunable via
 //  scannerTossers.ftn_bso.binkp.crashmailDebounceMs.
 const DEFAULT_CRASHMAIL_DEBOUNCE_MS = 500;
+
+//  Settings baked into a socket at listen() time. Unlike everything else in
+//  the binkp block, these cannot be picked up by re-reading config: applying
+//  them means tearing down and rebinding a listener, potentially under live
+//  sessions. A reload that touches them is reported instead.
+const LISTENER_BOUND_KEYS = [
+    'inbound.enabled',
+    'inbound.port',
+    'inbound.address',
+    'inbound.tls.enabled',
+    'inbound.tls.port',
+    'inbound.tls.certFile',
+    'inbound.tls.keyFile',
+];
 
 //  Inbound temp file (binkp_in_*.dt) startup-sweep age threshold. Anything
 //  older than this in tempDir at startup is treated as a leaked partial from
@@ -85,6 +104,9 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         this._crashmailTimer = null;
         this._crashmailPending = new Map(); // zone:net/node -> Address
         this._crashmailListener = null;
+        this._configChangedListener = null;
+        this._listenerConfig = null; // boot-time LISTENER_BOUND_KEYS snapshot
+        this._pullSchedule = null;
     }
 
     startup(cb) {
@@ -97,11 +119,12 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
         async.series(
             [
-                callback => this._reapStaleLocks(binkpCfg, ftnBsoCfg, callback),
+                callback => this._reapStaleLocks(callback),
                 callback => this._reapInboundTemps(binkpCfg, callback),
-                callback => this._startInbound(binkpCfg, ftnBsoCfg, callback),
+                callback => this._startInbound(binkpCfg, callback),
                 callback => this._startPullSchedule(binkpCfg, callback),
-                callback => this._startCrashmailListener(binkpCfg, callback),
+                callback => this._startCrashmailListener(callback),
+                callback => this._startConfigWatch(binkpCfg, callback),
             ],
             cb
         );
@@ -117,6 +140,13 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             this._crashmailTimer = null;
         }
         this._crashmailPending.clear();
+        if (this._configChangedListener) {
+            Events.removeListener(
+                Events.getSystemEvents().ConfigChanged,
+                this._configChangedListener
+            );
+            this._configChangedListener = null;
+        }
         if (this._crashmailListener) {
             Events.removeListener(
                 Events.getSystemEvents().NewOutboundBSO,
@@ -154,14 +184,8 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
     //  Sweep orphaned .bsy locks left by a prior crashed run before we start
     //  anything that depends on them. Runs unconditionally — outbound sessions
     //  acquire locks too, so this matters even when inbound is disabled.
-    _reapStaleLocks(binkpCfg, ftnBsoCfg, cb) {
-        const spool = new BsoSpool({
-            paths: ftnBsoCfg.paths,
-            networks: _.get(Config(), 'messageNetworks.ftn.networks', {}),
-            defaultNetwork: ftnBsoCfg.defaultNetwork,
-            staleLockMaxAgeMs: binkpCfg.staleLockMaxAgeMs,
-        });
-        spool
+    _reapStaleLocks(cb) {
+        buildSpool(Config())
             .reapStaleLocks()
             .then(reaped => {
                 if (reaped > 0) {
@@ -208,23 +232,17 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             });
     }
 
-    _startInbound(binkpCfg, ftnBsoCfg, cb) {
+    _startInbound(binkpCfg, cb) {
         const inbound = _.get(binkpCfg, 'inbound', {});
         if (!inbound.enabled) return cb(null);
 
-        const spool = new BsoSpool({
-            paths: ftnBsoCfg.paths,
-            networks: _.get(Config(), 'messageNetworks.ftn.networks', {}),
-            defaultNetwork: ftnBsoCfg.defaultNetwork,
-            staleLockMaxAgeMs: binkpCfg.staleLockMaxAgeMs,
-        });
-
-        const addresses = localAddresses(Config());
-        const tempDir = _.get(binkpCfg, 'tempDir', os.tmpdir());
         const bindAddress = inbound.address || '0.0.0.0';
 
+        //  Only the binding itself is fixed for the life of the socket.
+        //  Everything a session reads is resolved per connection in
+        //  _handleConnection() so a config reload applies without a restart.
         this._server = net.createServer(socket => {
-            this._handleConnection(socket, spool, addresses, binkpCfg, tempDir);
+            this._handleConnection(socket);
         });
         this._server.on('error', err => {
             Log.error({ error: err.message }, '[BinkP] Server error');
@@ -257,7 +275,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         Promise.all([fsp.readFile(tlsCfg.certFile), fsp.readFile(tlsCfg.keyFile)])
             .then(([cert, key]) => {
                 this._tlsServer = tls.createServer({ cert, key }, socket => {
-                    this._handleConnection(socket, spool, addresses, binkpCfg, tempDir);
+                    this._handleConnection(socket);
                 });
                 this._tlsServer.on('error', err => {
                     Log.error({ error: err.message }, '[BinkP] TLS server error');
@@ -312,7 +330,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         this._pullTimer = later.setInterval(() => {
             if (polling) return;
             polling = true;
-            const addrs = this._pullAddresses(binkpCfg);
+            const addrs = this._pullAddresses();
             Log.info({ count: addrs.length }, '[BinkP] Scheduled pull cycle starting');
             pollNodes(addrs, () => {
                 polling = false;
@@ -331,13 +349,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
     //  the same peer turns into one session, not N. After the debounce
     //  window elapses, dial whatever set of addresses accumulated.
     //
-    _startCrashmailListener(binkpCfg, cb) {
-        const debounceMs = _.get(
-            binkpCfg,
-            'crashmailDebounceMs',
-            DEFAULT_CRASHMAIL_DEBOUNCE_MS
-        );
-
+    _startCrashmailListener(cb) {
         this._crashmailListener = ({ address }) => {
             //  Drop malformed events: a crashmail entry with an undefined
             //  net/node would dedupe to "0:undefined/0" and corrupt the
@@ -351,6 +363,13 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             this._crashmailPending.set(key, address);
 
             if (this._crashmailTimer) return; // window already open
+
+            //  Read per burst so a reload retunes the coalescing window
+            const debounceMs = _.get(
+                Config(),
+                'scannerTossers.ftn_bso.binkp.crashmailDebounceMs',
+                DEFAULT_CRASHMAIL_DEBOUNCE_MS
+            );
             this._crashmailTimer = setTimeout(() => {
                 this._crashmailTimer = null;
                 const addrs = Array.from(this._crashmailPending.values());
@@ -374,10 +393,75 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         return cb(null);
     }
 
+    //
+    //  config.hjson is hot-reloadable. Almost everything this module needs is
+    //  read at the point of use -- per inbound connection, per poll, per
+    //  crashmail burst -- so a reload applies on its own. Two things can't
+    //  work that way and are reconciled here:
+    //
+    //    * the pull schedule, which is compiled into a timer -> rebuild it
+    //    * the inbound listener bindings, which are baked into a socket ->
+    //      report that a restart is needed rather than silently ignoring them
+    //
+    _startConfigWatch(binkpCfg, cb) {
+        this._listenerConfig = this._listenerSnapshot(binkpCfg);
+        this._pullSchedule = binkpCfg.pullSchedule;
+
+        this._configChangedListener = () => this._applyConfigChange();
+        Events.addListener(
+            Events.getSystemEvents().ConfigChanged,
+            this._configChangedListener
+        );
+        return cb(null);
+    }
+
+    _listenerSnapshot(binkpCfg) {
+        return LISTENER_BOUND_KEYS.reduce((snapshot, key) => {
+            snapshot[key] = _.get(binkpCfg, key);
+            return snapshot;
+        }, {});
+    }
+
+    _applyConfigChange() {
+        const binkpCfg = _.get(Config(), 'scannerTossers.ftn_bso.binkp', {});
+
+        if (binkpCfg.pullSchedule !== this._pullSchedule) {
+            this._pullSchedule = binkpCfg.pullSchedule;
+            if (this._pullTimer) {
+                this._pullTimer.clear();
+                this._pullTimer = null;
+            }
+            //  _startPullSchedule logs the outcome, including a disabled or
+            //  unparsable schedule, and never errors
+            this._startPullSchedule(binkpCfg, () => {});
+            Log.info(
+                { schedule: binkpCfg.pullSchedule || null },
+                '[BinkP] Pull schedule reloaded'
+            );
+        }
+
+        //  Compared against the boot-time snapshot rather than the previous
+        //  reload: the mismatch stands until the BBS is restarted, so it is
+        //  still worth saying on a later reload.
+        const current = this._listenerSnapshot(binkpCfg);
+        const changed = LISTENER_BOUND_KEYS.filter(
+            key => !_.isEqual(current[key], this._listenerConfig[key])
+        );
+        if (changed.length > 0) {
+            Log.warn(
+                { changed },
+                '[BinkP] Inbound listener settings changed; restart required for them to take effect'
+            );
+        }
+    }
+
     //  Build the list of addresses for a pull cycle: every entry in
     //  binkp.nodes whose pattern parses as a concrete address (not a
     //  wildcard) and whose config doesn't set `pull: false`.
+    //  |binkpCfg| defaults to the live config; pass one explicitly only to
+    //  evaluate a set of nodes other than what is currently configured.
     _pullAddresses(binkpCfg) {
+        binkpCfg = binkpCfg || _.get(Config(), 'scannerTossers.ftn_bso.binkp', {});
         const nodes = binkpCfg.nodes || {};
         const out = [];
         for (const [pattern, conf] of Object.entries(nodes)) {
@@ -395,9 +479,19 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         return out;
     }
 
-    async _handleConnection(socket, spool, addresses, binkpCfg, tempDir) {
+    async _handleConnection(socket) {
         const remote = `${socket.remoteAddress}:${socket.remotePort}`;
         Log.info({ remote }, '[BinkP] Inbound connection');
+
+        //  Resolved per connection, not per process: config.hjson is
+        //  hot-reloadable and a session opened after a reload must honour the
+        //  new spool paths, local addresses, node passwords and FREQ config.
+        //  Read once here so the values can't shift mid-session.
+        const config = Config();
+        const binkpCfg = _.get(config, 'scannerTossers.ftn_bso.binkp', {});
+        const spool = buildSpool(config);
+        const addresses = localAddresses(config);
+        const tempDir = _.get(binkpCfg, 'tempDir', os.tmpdir());
 
         const session = new BinkpSession(socket, {
             role: 'answering',
