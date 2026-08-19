@@ -17,11 +17,11 @@
 <meta property="og:description" content="BinkP Native Mailer" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-19T23:06:38+00:00" />
+<meta property="article:published_time" content="2026-08-19T23:18:10+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="BinkP Native Mailer" />
 <script type="application/ld+json">
-{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-08-19T23:06:38+00:00","datePublished":"2026-08-19T23:06:38+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-08-19T23:18:10+00:00","datePublished":"2026-08-19T23:18:10+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -3281,6 +3281,69 @@ freq: {
 </code></pre>
 
 <p>With this setup, every new nodelist that arrives via TIC is immediately FREQ-serveable — no path configuration to maintain.</p>
+
+<h4 id="reloading-configuration">Reloading configuration</h4>
+
+<p><code class="language-plaintext highlighter-rouge">config.hjson</code> is watched and reloaded while the BBS runs. Almost everything under <code class="language-plaintext highlighter-rouge">binkp</code> is read at the moment it is used, so a reload applies on its own:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Setting</th>
+      <th>Applies to</th>
+      <th>When it takes effect</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">nodes</code> (hosts, ports, passwords, <code class="language-plaintext highlighter-rouge">pull</code>, TLS)</td>
+      <td>next session, inbound or outbound</td>
+      <td>Immediately</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">freq</code></td>
+      <td>next inbound session</td>
+      <td>Immediately</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">crashmailDebounceMs</code></td>
+      <td>next crashmail burst</td>
+      <td>Immediately</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">tempDir</code>, <code class="language-plaintext highlighter-rouge">staleLockMaxAgeMs</code>
+</td>
+      <td>next session</td>
+      <td>Immediately</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">ftn_bso</code> <code class="language-plaintext highlighter-rouge">paths</code> and <code class="language-plaintext highlighter-rouge">messageNetworks.ftn.networks</code>
+</td>
+      <td>next session or poll</td>
+      <td>Immediately</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pullSchedule</code></td>
+      <td>the pull timer</td>
+      <td>On reload — the timer is rebuilt</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">inbound.enabled</code>, <code class="language-plaintext highlighter-rouge">inbound.port</code>, <code class="language-plaintext highlighter-rouge">inbound.address</code>, <code class="language-plaintext highlighter-rouge">inbound.tls.*</code>
+</td>
+      <td>the listening socket</td>
+      <td><strong>Restart required</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The last row is bound into the socket when it starts listening; changing it under live sessions is not something a reload can do safely. A reload that touches those keys logs a warning naming them so the change isn’t silently lost:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[BinkP] Inbound listener settings changed; restart required for them to take effect
+</code></pre></div></div>
 
 <hr>
 
