@@ -14,7 +14,7 @@ Let's look at some of the basic configuration:
 |-------------|----------|----------------------------------------------------------|
 | `schedule`  | :+1: | Sets `import` and `export` schedules. [Later style text parsing](https://bunkat.github.io/later/parsers.html#text) supported. `import` also can utilize a `@watch:<path/to/file>` syntax while `export` additionally supports `@immediate`. |
 | `packetMsgEncoding` | :-1: | Override default `utf8` encoding.
-| `defaultNetwork` | :-1: | Explicitly set default network (by tag found within `messageNetworks.ftn.networks`). If not set, the first found is used. |
+| `defaultNetwork` | :-1: | Explicitly set default network (by tag found within `messageNetworks.ftn.networks`, matched case-insensitively). If not set, the first found is used. Set to `null` for *no* default network. See **Outbound Directory Layout** below. |
 | `nodes` | :+1: | Per-node settings. Entries (keys) here support wildcards for a portion of the FTN-style address (e.g.: `21:1/*`). See **Nodes** below.
 | `paths` | :-1: | An optional configuration block that can set a additional paths or override defaults. See **Paths** below. |
 | `packetTargetByteSize`  | :-1: | Overrides the system *target* packet (.pkt) size of 512000 bytes (512k) |
@@ -66,6 +66,32 @@ Paths for packet files work out of the box and are relative to your install dire
 | `secInbound` | *Base* path to write **secure** inbound packet files and bundles. | `enigma-bbs/mail/ftn_secin/` |
 | `reject` | Path in which to write rejected packet files. | No default |
 | `retain` | Path in which to write imported packet files. Useful for debugging or if you wish to archive the raw .pkt files. | No default |
+
+#### Outbound Directory Layout
+Within `paths.outbound`, mail is placed in a subdirectory determined by the network it belongs to and the destination zone:
+
+| Directory | Contents |
+|-----------|----------|
+| `outbound/` | The **default network**, at that network's default zone |
+| `outbound.<zzz>/` | The default network, at some other zone `<zzz>` (three lowercase hex digits, e.g. `outbound.00f` for zone 15) |
+| `<networkName>/` | A non-default network, at that network's default zone |
+| `<networkName>.<zzz>/` | A non-default network, at some other zone |
+
+A network's default zone is its `defaultZone` if set, else the zone of its `localAddress`. Directory names are always lowercase.
+
+The **default network** is `defaultNetwork` when set, otherwise the first network listed in `messageNetworks.ftn.networks`. Explicitly setting `defaultNetwork` is recommended whenever you have more than one network configured: it pins the layout so that adding or reordering entries in `messageNetworks.ftn.networks` cannot relocate a spool directory out from under your mailer.
+
+To have *no* default network — every network in its own subdirectory, nothing in `outbound/` — set `defaultNetwork` to `null`:
+
+```hjson
+scannerTossers: {
+  ftn_bso: {
+    defaultNetwork: null
+  }
+}
+```
+
+> :information_source: The [native BinkP mailer](binkp.md) resolves these directories through the same logic, so the two always agree. If you use an external mailer such as Binkd, its per-domain outbound paths must match the table above — see the Binkd example at the end of this document.
 
 ### Scheduling
 Schedules can be defined for importing and exporting via `import` and `export` under `schedule`. Each entry is allowed a "free form" text and/or special indicators for immediate export or watch file triggers.

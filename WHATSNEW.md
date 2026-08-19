@@ -1,6 +1,10 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.5.1-beta
+
+* **Multi-network BSO outbound fix** — `ftn_bso` (the scanner/tosser) and the native BinkP mailer used two independent rules to decide which FTN network owns the bare `outbound/` spool directory. With two or more networks configured and no explicit `scannerTossers.ftn_bso.defaultNetwork`, the two disagreed: outbound NetMail and EchoMail for the first-listed network was written to `mail/ftn_out/<network>/` but looked for in `mail/ftn_out/outbound/`, so it was never sent — and never logged an error. Both sides now share a single resolver (`defaultNetwork` when set, otherwise the first listed network), network names are matched case-insensitively, and mail already queued under the previous layout is picked up and sent automatically. See [UPGRADE.md](UPGRADE.md) for details.
+
 ## 0.5.0-beta
 
 * **NetRunner over SSH sizing fix** — NetRunner connects via stock cryptlib, which hardcodes the terminal size it reports as 80x48, throwing art positioning off by a row on an 80x25 screen. That reported size is now skipped; ENiGMA½ queries the terminal instead, which NetRunner answers correctly. SyncTERM is unaffected — Synchronet's cryptlib fork reports a real size and identifies itself distinctly. Controlled by `loginServers.ssh.untrustedTermSizeClients`.

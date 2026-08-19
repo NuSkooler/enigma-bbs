@@ -25,6 +25,13 @@ const isValidStorageTag = require('../file_base_area.js').isValidStorageTag;
 const User = require('../user.js');
 const StatLog = require('../stat_log.js');
 const SysProps = require('../system_property.js');
+const {
+    resolveDefaultNetworkName,
+    resolveNetworkDefaultZone,
+    outboundDirName,
+    legacyOutboundDirName,
+    validateOutboundConfig,
+} = require('../bso_util.js');
 
 //  deps
 const moment = require('moment');
@@ -77,31 +84,28 @@ function FTNMessageScanTossModule() {
         return key ? networks[key] : undefined;
     };
 
-    this.getDefaultNetworkName = function () {
-        if (this.moduleConfig.defaultNetwork) {
-            return this.moduleConfig.defaultNetwork;
-        }
+    //
+    //  Outbound spool path resolution is shared with the native BinkP mailer
+    //  (core/binkp/bso_spool.js) via core/bso_util.js. Both sides must agree on
+    //  which network owns the bare "outbound" directory; see that module.
+    //
+    this.getNetworks = function () {
+        return _.get(Config(), 'messageNetworks.ftn.networks', {});
+    };
 
-        const networkNames = Object.keys(config.messageNetworks.ftn.networks);
-        if (1 === networkNames.length) {
-            return networkNames[0];
-        }
+    this.getConfiguredDefaultNetwork = function () {
+        return _.get(this.moduleConfig, 'defaultNetwork');
+    };
+
+    this.getDefaultNetworkName = function () {
+        return resolveDefaultNetworkName(
+            this.getNetworks(),
+            this.getConfiguredDefaultNetwork()
+        );
     };
 
     this.getDefaultZone = function (networkName) {
-        const networkConfig = this.getNetworkConfig(networkName);
-        if (!networkConfig) {
-            return;
-        }
-        if (_.isNumber(networkConfig.defaultZone)) {
-            return networkConfig.defaultZone;
-        }
-
-        //  non-explicit: default to local address zone
-        if (networkConfig.localAddress) {
-            const addr = Address.fromString(networkConfig.localAddress);
-            return addr.zone;
-        }
+        return resolveNetworkDefaultZone(this.getNetworks(), networkName);
     };
 
     /*
@@ -173,27 +177,15 @@ function FTNMessageScanTossModule() {
     */
 
     this.getOutgoingEchoMailPacketDir = function (networkName, destAddress) {
-        networkName = networkName.toLowerCase();
-
-        let dir = this.moduleConfig.paths.outbound;
-
-        const defaultNetworkName = this.getDefaultNetworkName();
-        const defaultZone = this.getDefaultZone(networkName);
-
-        let zoneExt;
-        if (defaultZone !== destAddress.zone) {
-            zoneExt = '.' + `000${destAddress.zone.toString(16)}`.substr(-3);
-        } else {
-            zoneExt = '';
-        }
-
-        if (defaultNetworkName === networkName) {
-            dir = paths.join(dir, `outbound${zoneExt}`);
-        } else {
-            dir = paths.join(dir, `${networkName}${zoneExt}`);
-        }
-
-        return dir;
+        return paths.join(
+            this.moduleConfig.paths.outbound,
+            outboundDirName(
+                this.getNetworks(),
+                this.getConfiguredDefaultNetwork(),
+                networkName,
+                destAddress.zone
+            )
+        );
     };
 
     this.getOutgoingPacketFileName = function (basePath, messageId, isTemp, fileCase) {
@@ -2881,10 +2873,104 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (import
     );
 };
 
+//
+//  Report configuration that makes outbound spool directories ambiguous or
+//  unresolvable, plus any leftovers from the pre-0.5.1-beta layout. Advisory
+//  only -- nothing here fails startup.
+//
+FTNMessageScanTossModule.prototype.logOutboundSpoolDiagnostics = function () {
+    const networks = this.getNetworks();
+    const defaultNetwork = this.getConfiguredDefaultNetwork();
+
+    validateOutboundConfig(networks, defaultNetwork).forEach(issue => {
+        switch (issue.code) {
+            case 'unknownDefaultNetwork':
+                Log.warn(
+                    { defaultNetwork: issue.defaultNetwork, using: issue.using },
+                    'scannerTossers.ftn_bso.defaultNetwork does not name a configured FTN network; falling back to the first configured network'
+                );
+                break;
+
+            case 'unresolvableZone':
+                Log.warn(
+                    { network: issue.network },
+                    'FTN network has neither a defaultZone nor a parsable localAddress; its outbound zone directories cannot be resolved'
+                );
+                break;
+
+            case 'reservedNetworkName':
+                Log.warn(
+                    { network: issue.network },
+                    'FTN network name collides with the default outbound directory name; please rename the network'
+                );
+                break;
+        }
+    });
+
+    //
+    //  Before the writer and the native BinkP reader were unified (issue #719)
+    //  a multi-network system with no explicit |defaultNetwork| had no default
+    //  network at all on the writing side, so what is now "outbound/" was
+    //  written as "<network>/". BsoSpool still scans the old directory so
+    //  anything queued there ships, but let the sysop know it exists.
+    //
+    const outboundPath = _.get(this.moduleConfig, 'paths.outbound');
+    const defaultNetworkName = resolveDefaultNetworkName(networks, defaultNetwork);
+    if (!_.isString(outboundPath) || !defaultNetworkName) {
+        return;
+    }
+
+    const legacyBase = legacyOutboundDirName(
+        networks,
+        defaultNetwork,
+        defaultNetworkName
+    );
+    const currentBase = outboundDirName(networks, defaultNetwork, defaultNetworkName);
+    if (!legacyBase || legacyBase === currentBase) {
+        return;
+    }
+
+    const zoneSuffixed = `${legacyBase}.`;
+    fs.readdir(outboundPath, (err, entries) => {
+        if (err) {
+            return;
+        }
+
+        entries
+            .filter(entry => {
+                const lower = entry.toLowerCase();
+                return (
+                    lower === legacyBase ||
+                    (lower.startsWith(zoneSuffixed) &&
+                        /^[0-9a-f]{3}$/.test(lower.slice(zoneSuffixed.length)))
+                );
+            })
+            .forEach(entry => {
+                const legacyDir = paths.join(outboundPath, entry);
+                fs.readdir(legacyDir, (readErr, files) => {
+                    if (readErr || 0 === files.length) {
+                        return;
+                    }
+
+                    Log.warn(
+                        {
+                            network: defaultNetworkName,
+                            legacyDir,
+                            currentDir: paths.join(outboundPath, currentBase),
+                            fileCount: files.length,
+                        },
+                        'Outbound mail found in the pre-0.5.1-beta directory for the default network; it will still be sent, and the directory may be removed once empty. See UPGRADE.md'
+                    );
+                });
+            });
+    });
+};
+
 FTNMessageScanTossModule.prototype.startup = function (cb) {
     Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
 
     this.hasValidConfiguration({ shouldLog: true }); //  just check and log
+    this.logOutboundSpoolDiagnostics();
 
     //  Refresh cached top-level module config when config.hjson is hot-reloaded
     this._onConfigChanged = () => {
@@ -2892,6 +2978,11 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
         if (_.has(config, 'scannerTossers.ftn_bso')) {
             this.moduleConfig = config.scannerTossers.ftn_bso;
         }
+
+        //  ...and re-check what the new config says about the outbound spool:
+        //  a reload can introduce a bad defaultNetwork, or move the default
+        //  network and leave mail behind in the previous directory.
+        this.logOutboundSpoolDiagnostics();
     };
     Events.on(Events.getSystemEvents().ConfigChanged, this._onConfigChanged);
 

@@ -248,6 +248,10 @@ With this setup, every new nodelist that arrives via TIC is immediately FREQ-ser
 
 The two modules share the same BSO spool directories (`paths.outbound`, `paths.inbound`, `paths.secInbound`):
 
+Both resolve outbound subdirectories — which network owns the bare `outbound/` directory, and how zones are suffixed — through the same shared logic, so they cannot disagree about where a given node's mail lives. See [Outbound Directory Layout](bso-import-export.md#outbound-directory-layout).
+
+> :information_source: Systems upgraded from before 0.5.1-beta may still have mail queued under the previous layout, in which a multi-network system with no explicit `defaultNetwork` wrote the first-listed network's mail to `<networkName>/` rather than `outbound/`. BinkP scans that directory as well, so anything left there is still sent; once it is empty it can be removed. See [UPGRADE.md](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md).
+
 **Outbound flow:**
 1. `ftn_bso` scans message areas → writes `.pkt` files and flow file references into the outbound spool
 2. `ftn_bso` emits a `NewOutboundBSO` event with the destination address
