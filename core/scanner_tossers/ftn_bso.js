@@ -2978,6 +2978,11 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
         if (_.has(config, 'scannerTossers.ftn_bso')) {
             this.moduleConfig = config.scannerTossers.ftn_bso;
         }
+
+        //  ...and re-check what the new config says about the outbound spool:
+        //  a reload can introduce a bad defaultNetwork, or move the default
+        //  network and leave mail behind in the previous directory.
+        this.logOutboundSpoolDiagnostics();
     };
     Events.on(Events.getSystemEvents().ConfigChanged, this._onConfigChanged);
 

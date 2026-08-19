@@ -24,6 +24,11 @@ const DIRECT_EXTS = ['iut', 'cut', 'dut', 'out', 'hut'];
 // via scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs.
 const DEFAULT_STALE_LOCK_MAX_AGE_MS = 30 * 60 * 1000;
 
+// Networks we've already complained about. Module scope rather than per
+// instance: a spool is rebuilt for every poll and every inbound session, but
+// the complaint is about static configuration — once per process is plenty.
+const warnedNetworks = new Set();
+
 //
 //  BsoSpool — filesystem adapter between BinkP sessions and the BSO outbound/
 //  inbound spool that ftn_bso manages.
@@ -47,9 +52,6 @@ class BsoSpool {
         this._paths = config.paths || {};
         this._networks = config.networks || {};
         this._defaultNetwork = config.defaultNetwork;
-        //  Networks we've already complained about; _allOutboundDirs() runs on
-        //  every poll and the complaint is about static config.
-        this._warnedNetworks = new Set();
         this._staleLockMaxAgeMs =
             typeof config.staleLockMaxAgeMs === 'number'
                 ? config.staleLockMaxAgeMs
@@ -442,8 +444,8 @@ class BsoSpool {
         for (const netName of Object.keys(this._networks)) {
             const defaultZone = this._defaultZone(netName);
             if (typeof defaultZone !== 'number') {
-                if (!this._warnedNetworks.has(netName)) {
-                    this._warnedNetworks.add(netName);
+                if (!warnedNetworks.has(netName)) {
+                    warnedNetworks.add(netName);
                     Log.warn(
                         { network: netName },
                         '[BinkP/BSO] Network has no resolvable default zone; skipping its outbound directories'
