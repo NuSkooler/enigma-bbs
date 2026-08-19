@@ -25,6 +25,7 @@ function buildSpool() {
     return new BsoSpool({
         paths: _.get(config, 'scannerTossers.ftn_bso.paths'),
         networks: _.get(config, 'messageNetworks.ftn.networks', {}),
+        defaultNetwork: _.get(config, 'scannerTossers.ftn_bso.defaultNetwork'),
         staleLockMaxAgeMs: _.get(
             config,
             'scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs'

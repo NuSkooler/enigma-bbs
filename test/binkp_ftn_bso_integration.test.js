@@ -297,6 +297,325 @@ describe('ftn_bso ↔ BinkP integration', function () {
         });
     });
 
+    // ── multi-network agreement (issue #719) ─────────────────────────────────────
+    //
+    //  ftn_bso (writer) and BsoSpool (reader) must resolve the same outbound
+    //  directory for a given network/zone. They once carried separate
+    //  implementations that only agreed when exactly one network was
+    //  configured — which is all the two tests above exercise — so outbound
+    //  mail for a multi-network system was written to one directory and looked
+    //  for in another. These cases drive both sides through the layouts that
+    //  used to diverge.
+
+    describe('ftn_bso ↔ BsoSpool multi-network agreement', () => {
+        const Address = require('../core/ftn_address.js');
+
+        const THREE_NETWORKS = {
+            fidonet: { localAddress: '1:103/705' },
+            fsxnet: { localAddress: '21:1/121' },
+            spooknet: { localAddress: '700:100/28' },
+        };
+
+        //  One uplink per network, in config order
+        const UPLINKS = [
+            { network: 'fidonet', addr: { zone: 1, net: 103, node: 705 } },
+            { network: 'fsxnet', addr: { zone: 21, net: 1, node: 100 } },
+            { network: 'spooknet', addr: { zone: 700, net: 100, node: 1 } },
+        ];
+
+        const ALL_PENDING = ['1:103/705', '21:1/100', '700:100/1'];
+
+        let caseSeq = 0;
+
+        const FTN_BSO_PATH = require.resolve('../core/scanner_tossers/ftn_bso.js');
+
+        //  ftn_bso captures `Config` (the getter function itself) at require
+        //  time, so a _pushTestConfig() after the module is cached has no
+        //  effect on it — every case here needs a different config, so drop it
+        //  from the require cache and let it re-capture.
+        function requireFtnBso() {
+            delete require.cache[FTN_BSO_PATH];
+            return require('../core/scanner_tossers/ftn_bso.js');
+        }
+
+        //  ...and leave the cache empty so the next suite re-captures under
+        //  its own config rather than the last one pushed here.
+        after(() => {
+            delete require.cache[FTN_BSO_PATH];
+        });
+
+        //  Each case gets its own outbound root so layouts can't bleed together.
+        async function makeCase(networks, defaultNetwork) {
+            const outbound = path.join(tmpDir, `multinet_${caseSeq++}`);
+            await fsp.mkdir(outbound, { recursive: true });
+
+            const paths_ = {
+                outbound,
+                inbound: path.join(tmpDir, 'ftn_in'),
+                secInbound: path.join(tmpDir, 'ftn_secin'),
+            };
+
+            const prev = configModule._pushTestConfig({
+                debug: { assertsEnabled: false },
+                scannerTossers: { ftn_bso: { paths: paths_, defaultNetwork } },
+                messageNetworks: { ftn: { networks } },
+            });
+
+            const { getModule } = requireFtnBso();
+            const { BsoSpool } = require('../core/binkp/bso_spool.js');
+
+            return {
+                outbound,
+                mod: new getModule(),
+                spool: new BsoSpool({ paths: paths_, networks, defaultNetwork }),
+                restore: () => configModule._popTestConfig(prev),
+            };
+        }
+
+        function flowBaseName(addr) {
+            const net = `0000${addr.net.toString(16)}`.slice(-4);
+            const node = `0000${addr.node.toString(16)}`.slice(-4);
+            return `${net}${node}`;
+        }
+
+        //  Drop a .pkt plus a flow file referencing it into |dir|, exactly as
+        //  ftn_bso's export path does.
+        async function writeFlowInto(dir, addr, pktName) {
+            await fsp.mkdir(dir, { recursive: true });
+            const pkt = path.join(dir, pktName);
+            await fsp.writeFile(pkt, 'PKT');
+            await fsp.writeFile(path.join(dir, `${flowBaseName(addr)}.flo`), `^${pkt}\n`);
+            return dir;
+        }
+
+        //  Export every uplink through the writer, then read it all back
+        //  through the spool. Returns the writer's directory choice per
+        //  network plus what the reader found.
+        async function roundTrip(ctx, uplinks) {
+            const writerDirs = {};
+            for (const uplink of uplinks) {
+                writerDirs[uplink.network] = path.basename(
+                    await writeFlowInto(
+                        ctx.mod.getOutgoingEchoMailPacketDir(uplink.network, uplink.addr),
+                        uplink.addr,
+                        `${uplink.network}.pkt`
+                    )
+                );
+            }
+
+            const pending = (await ctx.spool.getNodesWithPendingMail())
+                .map(a => `${a.zone}:${a.net}/${a.node}`)
+                .sort();
+
+            const fileCounts = {};
+            for (const uplink of uplinks) {
+                fileCounts[uplink.network] = (
+                    await ctx.spool.getOutboundFilesForNode(new Address(uplink.addr))
+                ).length;
+            }
+
+            return { writerDirs, pending, fileCounts };
+        }
+
+        it('finds mail for every network when defaultNetwork is unset', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, undefined);
+            try {
+                const { writerDirs, pending, fileCounts } = await roundTrip(ctx, UPLINKS);
+
+                assert.deepEqual(writerDirs, {
+                    fidonet: 'outbound',
+                    fsxnet: 'fsxnet',
+                    spooknet: 'spooknet',
+                });
+                assert.deepEqual(
+                    pending,
+                    ALL_PENDING,
+                    'first-listed network must not go missing'
+                );
+                assert.deepEqual(fileCounts, {
+                    fidonet: 1,
+                    fsxnet: 1,
+                    spooknet: 1,
+                });
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('does not mis-attribute zones when defaultNetwork is not first-listed', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, 'fsxnet');
+            try {
+                const { writerDirs, pending, fileCounts } = await roundTrip(ctx, UPLINKS);
+
+                assert.deepEqual(writerDirs, {
+                    fidonet: 'fidonet',
+                    fsxnet: 'outbound',
+                    spooknet: 'spooknet',
+                });
+                //  The reader used to read fsxnet's outbound/ with fidonet's
+                //  zone, reporting a node that does not exist (1:1/100).
+                assert.deepEqual(pending, ALL_PENDING);
+                assert.deepEqual(fileCounts, {
+                    fidonet: 1,
+                    fsxnet: 1,
+                    spooknet: 1,
+                });
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('keeps working when defaultNetwork names the first-listed network', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, 'fidonet');
+            try {
+                const { writerDirs, pending } = await roundTrip(ctx, UPLINKS);
+                assert.equal(writerDirs.fidonet, 'outbound');
+                assert.deepEqual(pending, ALL_PENDING);
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('falls back to the first-listed network when defaultNetwork is unknown', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, 'nosuchnet');
+            try {
+                const { writerDirs, pending } = await roundTrip(ctx, UPLINKS);
+                assert.equal(writerDirs.fidonet, 'outbound');
+                assert.deepEqual(pending, ALL_PENDING);
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('gives every network its own subdir when defaultNetwork is disabled', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, null);
+            try {
+                const { writerDirs, pending, fileCounts } = await roundTrip(ctx, UPLINKS);
+
+                assert.deepEqual(writerDirs, {
+                    fidonet: 'fidonet',
+                    fsxnet: 'fsxnet',
+                    spooknet: 'spooknet',
+                });
+                assert.deepEqual(pending, ALL_PENDING);
+                assert.deepEqual(fileCounts, {
+                    fidonet: 1,
+                    fsxnet: 1,
+                    spooknet: 1,
+                });
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('agrees on a mixed-case network key', async () => {
+            const ctx = await makeCase(
+                { fsxNet: { localAddress: '21:1/121' } },
+                undefined
+            );
+            try {
+                const uplink = {
+                    network: 'fsxNet',
+                    addr: { zone: 21, net: 1, node: 100 },
+                };
+                const { writerDirs, pending, fileCounts } = await roundTrip(ctx, [
+                    uplink,
+                ]);
+
+                assert.equal(writerDirs.fsxNet, 'outbound');
+                assert.deepEqual(pending, ['21:1/100']);
+                assert.equal(fileCounts.fsxNet, 1);
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('agrees on zone-suffixed subdirs across networks', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, undefined);
+            try {
+                const uplinks = [
+                    //  zone 15 is not fidonet's (default network) default zone
+                    { network: 'fidonet', addr: { zone: 15, net: 2, node: 3 } },
+                    //  ...nor fsxnet's
+                    { network: 'fsxnet', addr: { zone: 15, net: 4, node: 5 } },
+                ];
+                const { writerDirs, pending, fileCounts } = await roundTrip(ctx, uplinks);
+
+                assert.deepEqual(writerDirs, {
+                    fidonet: 'outbound.00f',
+                    fsxnet: 'fsxnet.00f',
+                });
+                assert.deepEqual(pending, ['15:2/3', '15:4/5'].sort());
+                assert.deepEqual(fileCounts, { fidonet: 1, fsxnet: 1 });
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('still ships mail queued under the pre-0.5.1-beta layout', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, undefined);
+            try {
+                const uplink = UPLINKS[0]; //  fidonet — the default network
+
+                //  What the old writer produced: the default network's mail in
+                //  a directory named after the network rather than outbound/.
+                const legacyDir = path.join(ctx.outbound, 'fidonet');
+                await writeFlowInto(legacyDir, uplink.addr, 'legacy.pkt');
+
+                assert.equal(
+                    ctx.mod.getOutgoingEchoMailPacketDir(uplink.network, uplink.addr),
+                    path.join(ctx.outbound, 'outbound'),
+                    'new mail belongs in outbound/'
+                );
+
+                const pending = (await ctx.spool.getNodesWithPendingMail()).map(
+                    a => `${a.zone}:${a.net}/${a.node}`
+                );
+                assert.deepEqual(pending, ['1:103/705']);
+
+                const files = await ctx.spool.getOutboundFilesForNode(
+                    new Address(uplink.addr)
+                );
+                assert.equal(files.length, 1);
+                assert.equal(path.basename(files[0].path), 'legacy.pkt');
+            } finally {
+                ctx.restore();
+            }
+        });
+
+        it('reports a node once when both the current and legacy layouts hold mail', async () => {
+            const ctx = await makeCase(THREE_NETWORKS, undefined);
+            try {
+                const uplink = UPLINKS[0];
+
+                await writeFlowInto(
+                    path.join(ctx.outbound, 'fidonet'),
+                    uplink.addr,
+                    'legacy.pkt'
+                );
+                await writeFlowInto(
+                    ctx.mod.getOutgoingEchoMailPacketDir(uplink.network, uplink.addr),
+                    uplink.addr,
+                    'current.pkt'
+                );
+
+                const pending = await ctx.spool.getNodesWithPendingMail();
+                assert.equal(pending.length, 1, 'node must not be reported twice');
+
+                //  ...but both files still ship
+                const files = await ctx.spool.getOutboundFilesForNode(
+                    new Address(uplink.addr)
+                );
+                assert.deepEqual(files.map(f => path.basename(f.path)).sort(), [
+                    'current.pkt',
+                    'legacy.pkt',
+                ]);
+            } finally {
+                ctx.restore();
+            }
+        });
+    });
+
     // ── ftn_bso ↔ NewOutboundBSO event ───────────────────────────────────────────
     //
     //  ftn_bso emits NewOutboundBSO each time flowFileAppendRefs successfully

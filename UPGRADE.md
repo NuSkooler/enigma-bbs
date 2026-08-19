@@ -20,6 +20,28 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 # Version to Version Notes
 > :warning: Be sure to inspect these notes during any upgrades!
 
+## 0.5.0-beta to 0.5.1-beta
+
+* **Multi-network BSO outbound directories are now consistent between `ftn_bso` and the native BinkP mailer** ([#719](https://github.com/NuSkooler/enigma-bbs/issues/719)). The scanner/tosser and the mailer each used their own rule for deciding which FTN network owns the bare `outbound/` directory, and the two disagreed whenever more than one network was configured. Both now use the documented rule: `scannerTossers.ftn_bso.defaultNetwork` when set, otherwise the first network listed in `messageNetworks.ftn.networks`.
+
+  **If you have two or more FTN networks configured and have _not_ set `defaultNetwork`**, the first-listed network's outbound now lands in `mail/ftn_out/outbound/` rather than `mail/ftn_out/<networkName>/`.
+
+  * **Built-in BinkP mailer — no action required.** Mail already queued under the previous layout is still found and sent; once that directory drains you may delete it. A startup log entry appears while this applies.
+  * **External mailer (Binkd, Mystic, etc.) — action required.** Either update the mailer's outbound path for that network to `outbound/`, or keep the previous layout by explicitly declaring that there is no default network:
+
+    ```hjson
+    scannerTossers: {
+      ftn_bso: {
+        //  no default network; every network uses its own subdirectory
+        defaultNetwork: null
+      }
+    }
+    ```
+
+  Either way, explicitly setting `defaultNetwork` to a network name is recommended for multi-network systems: it pins the layout so that adding or reordering entries in `messageNetworks.ftn.networks` can never relocate a spool directory. See [BSO Import / Export](./docs/_docs/messageareas/bso-import-export.md).
+
+* **Network names are now matched case-insensitively when resolving outbound directories.** Systems using a mixed-case key in `messageNetworks.ftn.networks` (e.g. `fsxNet`) on a case-sensitive filesystem could have outbound mail written to a directory the mailer never scanned. No action required.
+
 ## 0.4.0-beta to 0.5.0-beta
 
 * No breaking changes or required migrations.

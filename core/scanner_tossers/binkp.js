@@ -158,6 +158,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         const spool = new BsoSpool({
             paths: ftnBsoCfg.paths,
             networks: _.get(Config(), 'messageNetworks.ftn.networks', {}),
+            defaultNetwork: ftnBsoCfg.defaultNetwork,
             staleLockMaxAgeMs: binkpCfg.staleLockMaxAgeMs,
         });
         spool
@@ -214,6 +215,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
         const spool = new BsoSpool({
             paths: ftnBsoCfg.paths,
             networks: _.get(Config(), 'messageNetworks.ftn.networks', {}),
+            defaultNetwork: ftnBsoCfg.defaultNetwork,
             staleLockMaxAgeMs: binkpCfg.staleLockMaxAgeMs,
         });
 

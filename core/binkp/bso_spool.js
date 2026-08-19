@@ -6,6 +6,13 @@ const path = require('path');
 const Address = require('../ftn_address');
 const { moveFileWithCollisionHandling } = require('../file_util');
 const Log = require('../logger').log;
+const {
+    resolveDefaultNetworkName,
+    resolveNetworkDefaultZone,
+    outboundDirName,
+    legacyOutboundDirName,
+    DEFAULT_NETWORK_DIR_NAME,
+} = require('../bso_util');
 
 // In priority order (highest first)
 const FLOW_EXTS = ['ilo', 'clo', 'dlo', 'flo', 'hlo'];
@@ -32,11 +39,17 @@ const DEFAULT_STALE_LOCK_MAX_AGE_MS = 30 * 60 * 1000;
 //    paths.inbound    : unsecured inbound dir
 //    paths.secInbound : password-protected inbound dir
 //    networks         : messageNetworks.ftn.networks  (for zone/dir resolution)
+//    defaultNetwork   : scannerTossers.ftn_bso.defaultNetwork  (which network
+//                       owns the bare outbound/ dir; see core/bso_util.js)
 //
 class BsoSpool {
     constructor(config) {
         this._paths = config.paths || {};
         this._networks = config.networks || {};
+        this._defaultNetwork = config.defaultNetwork;
+        //  Networks we've already complained about; _allOutboundDirs() runs on
+        //  every poll and the complaint is about static config.
+        this._warnedNetworks = new Set();
         this._staleLockMaxAgeMs =
             typeof config.staleLockMaxAgeMs === 'number'
                 ? config.staleLockMaxAgeMs
@@ -136,49 +149,57 @@ class BsoSpool {
     // Each entry: { name, path, size, timestamp, disposition, disposeFn }
     // Call disposeFn() after the remote acknowledges receipt (file-sent event).
     async getOutboundFilesForNode(addr) {
-        const dir = this._outboundDir(addr);
         const base = nodeBaseName(addr);
         const results = [];
 
-        for (const ext of DIRECT_EXTS) {
-            const filePath = path.join(dir, `${base}.${ext}`);
-            try {
-                const stat = await fsp.stat(filePath);
-                // Zero-byte .ilo = poll trigger, not actual mail
-                if (stat.size === 0) continue;
-                results.push({
-                    name: path.basename(filePath),
-                    path: filePath,
-                    size: stat.size,
-                    timestamp: Math.floor(stat.mtimeMs / 1000),
-                    disposition: 'delete',
-                    //  Direct-attach has no flow file to annotate, and the
-                    //  session layer (BinkpSession._applyDisposition) already
-                    //  unlinks/truncates per the queued disposition. Nothing
-                    //  for the spool layer to do post-send.
-                    disposeFn: null,
-                });
-            } catch (err) {
-                if (err.code !== 'ENOENT') {
-                    Log.warn(
-                        { path: filePath, error: err.message },
-                        '[BinkP/BSO] Error stat-ing direct-attach file'
-                    );
-                }
-            }
+        //  A 2D address (no zone) matches no zone-tagged directory; fall back
+        //  to the canonical one rather than reporting nothing pending.
+        let dirs = await this._candidateDirsForZone(addr.zone);
+        if (0 === dirs.length) {
+            dirs = [this._outboundDir(addr)];
         }
 
-        for (const ext of FLOW_EXTS) {
-            const flowPath = path.join(dir, `${base}.${ext}`);
-            try {
-                const entries = await this._parseFlowFile(flowPath);
-                results.push(...entries);
-            } catch (err) {
-                if (err.code !== 'ENOENT') {
-                    Log.warn(
-                        { path: flowPath, error: err.message },
-                        '[BinkP/BSO] Error reading flow file'
-                    );
+        for (const dir of dirs) {
+            for (const ext of DIRECT_EXTS) {
+                const filePath = path.join(dir, `${base}.${ext}`);
+                try {
+                    const stat = await fsp.stat(filePath);
+                    // Zero-byte .ilo = poll trigger, not actual mail
+                    if (stat.size === 0) continue;
+                    results.push({
+                        name: path.basename(filePath),
+                        path: filePath,
+                        size: stat.size,
+                        timestamp: Math.floor(stat.mtimeMs / 1000),
+                        disposition: 'delete',
+                        //  Direct-attach has no flow file to annotate, and the
+                        //  session layer (BinkpSession._applyDisposition) already
+                        //  unlinks/truncates per the queued disposition. Nothing
+                        //  for the spool layer to do post-send.
+                        disposeFn: null,
+                    });
+                } catch (err) {
+                    if (err.code !== 'ENOENT') {
+                        Log.warn(
+                            { path: filePath, error: err.message },
+                            '[BinkP/BSO] Error stat-ing direct-attach file'
+                        );
+                    }
+                }
+            }
+
+            for (const ext of FLOW_EXTS) {
+                const flowPath = path.join(dir, `${base}.${ext}`);
+                try {
+                    const entries = await this._parseFlowFile(flowPath);
+                    results.push(...entries);
+                } catch (err) {
+                    if (err.code !== 'ENOENT') {
+                        Log.warn(
+                            { path: flowPath, error: err.message },
+                            '[BinkP/BSO] Error reading flow file'
+                        );
+                    }
                 }
             }
         }
@@ -258,19 +279,19 @@ class BsoSpool {
 
     // ── Private ──────────────────────────────────────────────────────────────
 
+    //  Which network owns the bare outbound/ dir. Shared with ftn_bso via
+    //  core/bso_util.js so the writer and this reader cannot drift.
     _defaultNetworkName() {
-        const names = Object.keys(this._networks);
-        return names.length > 0 ? names[0] : null;
+        return resolveDefaultNetworkName(this._networks, this._defaultNetwork);
     }
 
     _defaultZone(networkName) {
-        const net = this._networks[networkName];
-        if (!net) return 1;
-        if (typeof net.defaultZone === 'number') return net.defaultZone;
-        const addr = Address.fromString(net.localAddress || '');
-        return addr && addr.zone ? addr.zone : 1;
+        return resolveNetworkDefaultZone(this._networks, networkName);
     }
 
+    //  Best-effort network for |addr|, by zone. Only used to pick the single
+    //  canonical directory the per-node .bsy lock lives in -- file lookup goes
+    //  through _candidateDirsForZone() instead, which doesn't have to guess.
     _networkNameForAddr(addr) {
         for (const [name] of Object.entries(this._networks)) {
             if (addr.zone === this._defaultZone(name)) return name;
@@ -278,20 +299,33 @@ class BsoSpool {
         return this._defaultNetworkName();
     }
 
+    //  Canonical directory for |addr|. Deterministic -- the .bsy lock must
+    //  resolve to exactly one path for a given node.
     _outboundDir(addr) {
-        const netName = this._networkNameForAddr(addr);
-        const defaultNet = this._defaultNetworkName();
-        const defaultZone = this._defaultZone(netName);
+        //  An address belonging to no configured network still needs somewhere
+        //  to put its lock; fall back to the first network, then to outbound/.
+        const netName = this._networkNameForAddr(addr) || Object.keys(this._networks)[0];
 
-        const zoneExt =
-            addr.zone !== undefined && addr.zone !== defaultZone
-                ? '.' + `000${addr.zone.toString(16)}`.slice(-3)
-                : '';
-
-        const dirName =
-            netName === defaultNet ? `outbound${zoneExt}` : `${netName}${zoneExt}`;
+        const dirName = netName
+            ? outboundDirName(this._networks, this._defaultNetwork, netName, addr.zone)
+            : DEFAULT_NETWORK_DIR_NAME;
 
         return path.join(this._paths.outbound, dirName);
+    }
+
+    //  Every directory that could hold mail for a node in |zone|.
+    //
+    //  More than one is normal: a legacy pre-0.5.1-beta directory may still be
+    //  draining, and nothing stops two configured networks from sharing a zone.
+    //  Scanning all of them beats guessing one and silently missing mail.
+    async _candidateDirsForZone(zone) {
+        const seen = new Set();
+        for (const { dir, zone: dirZone } of await this._allOutboundDirs()) {
+            if (dirZone === zone) {
+                seen.add(dir);
+            }
+        }
+        return Array.from(seen);
     }
 
     _bsyPath(addr) {
@@ -389,39 +423,71 @@ class BsoSpool {
 
     async _allOutboundDirs() {
         const dirs = [];
-        const defaultNet = this._defaultNetworkName();
+        const seen = new Set();
+        const push = (dirName, zone) => {
+            const dir = path.join(this._paths.outbound, dirName);
+            const key = `${dir}\0${zone}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            dirs.push({ dir, zone });
+        };
 
-        for (const [netName] of Object.entries(this._networks)) {
+        let rootEntries = [];
+        try {
+            rootEntries = await fsp.readdir(this._paths.outbound);
+        } catch {
+            // outbound root does not exist yet — fine
+        }
+
+        for (const netName of Object.keys(this._networks)) {
             const defaultZone = this._defaultZone(netName);
-            const isDefault = netName === defaultNet;
-            const baseName = isDefault ? 'outbound' : netName;
-
-            dirs.push({
-                dir: path.join(this._paths.outbound, baseName),
-                zone: defaultZone,
-            });
-
-            // Also pick up zone-specific subdirs (outbound.001, outbound.002, …)
-            try {
-                const re = new RegExp(`^${baseName}\\.([0-9a-f]{3})$`, 'i');
-                const entries = await fsp.readdir(this._paths.outbound);
-                for (const entry of entries) {
-                    const m = re.exec(entry);
-                    if (m) {
-                        dirs.push({
-                            dir: path.join(this._paths.outbound, entry),
-                            zone: parseInt(m[1], 16),
-                        });
-                    }
+            if (typeof defaultZone !== 'number') {
+                if (!this._warnedNetworks.has(netName)) {
+                    this._warnedNetworks.add(netName);
+                    Log.warn(
+                        { network: netName },
+                        '[BinkP/BSO] Network has no resolvable default zone; skipping its outbound directories'
+                    );
                 }
-            } catch {
-                // outbound root does not exist yet — fine
+                continue;
+            }
+
+            //  The canonical directory, plus the pre-0.5.1-beta one when the
+            //  layout changed under this network (see core/bso_util.js) so
+            //  anything still queued there gets sent.
+            const baseNames = [
+                outboundDirName(
+                    this._networks,
+                    this._defaultNetwork,
+                    netName,
+                    defaultZone
+                ),
+                legacyOutboundDirName(
+                    this._networks,
+                    this._defaultNetwork,
+                    netName,
+                    defaultZone
+                ),
+            ].filter(Boolean);
+
+            for (const baseName of baseNames) {
+                push(baseName, defaultZone);
+
+                // Also pick up zone-specific subdirs (outbound.001, outbound.002, …)
+                const prefix = `${baseName}.`;
+                for (const entry of rootEntries) {
+                    const lower = entry.toLowerCase();
+                    if (!lower.startsWith(prefix)) continue;
+                    const suffix = lower.slice(prefix.length);
+                    if (!/^[0-9a-f]{3}$/.test(suffix)) continue;
+                    push(entry, parseInt(suffix, 16));
+                }
             }
         }
 
         // Fallback when no networks are configured
         if (dirs.length === 0) {
-            dirs.push({ dir: path.join(this._paths.outbound, 'outbound'), zone: 1 });
+            push(DEFAULT_NETWORK_DIR_NAME, 1);
         }
 
         return dirs;
