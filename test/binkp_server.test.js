@@ -628,4 +628,257 @@ describe('BinkP server', function () {
                 .catch(done);
         });
     });
+
+    // ── configuration hot-reload ──────────────────────────────────────────────────
+    //
+    //  config.hjson is hot-reloadable. Anything a session or a poll reads must
+    //  be resolved when that work happens, not captured at startup — otherwise
+    //  the process stays pinned to boot-time config until it is restarted.
+    //  What genuinely cannot work that way (the pull timer, the listener
+    //  bindings) is reconciled on the ConfigChanged event instead.
+
+    describe('BinkpModule — configuration hot-reload', () => {
+        //  Push a second config over the one startModule() installed. Returns a
+        //  restore fn; call it before the module's own stop().
+        function reload(cfg, { emit = true } = {}) {
+            const prev = configModule._pushTestConfig(cfg);
+            if (emit) {
+                Events.emit(Events.getSystemEvents().ConfigChanged);
+            }
+            return () => configModule._popTestConfig(prev);
+        }
+
+        //  Collect Log.warn calls. binkp.js holds a reference to the logger
+        //  object from setup.js, so patching the method is enough.
+        function captureWarnings() {
+            const Log = require('../core/logger.js').log;
+            const original = Log.warn;
+            const captured = [];
+            Log.warn = (obj, msg) => captured.push({ obj, msg });
+            return {
+                captured,
+                restore: () => {
+                    Log.warn = original;
+                },
+            };
+        }
+
+        it('advertises a local address added after startup', done => {
+            startModule()
+                .then(({ port, stop }) => {
+                    //  testnet moves to a different node number mid-run
+                    const changed = makeConfig();
+                    changed.messageNetworks.ftn.networks.testnet.localAddress =
+                        '1:218/777';
+                    const restore = reload(changed);
+
+                    const { session } = connectClient(port);
+                    let receivedAddrs = [];
+                    session.on('addresses', addrs => {
+                        receivedAddrs = addrs;
+                    });
+                    const finish = err => {
+                        restore();
+                        stop()
+                            .then(() => done(err))
+                            .catch(done);
+                    };
+                    session.on('session-end', () => {
+                        try {
+                            assert.ok(
+                                receivedAddrs.some(a => a.includes('1:218/777')),
+                                `expected reloaded address 1:218/777 in: ${receivedAddrs.join(', ')}`
+                            );
+                            finish();
+                        } catch (e) {
+                            finish(e);
+                        }
+                    });
+                    session.on('error', finish);
+                    session.start();
+                })
+                .catch(done);
+        });
+
+        it('serves outbound mail from an outbound path set after startup', done => {
+            //  The spool used to be built once at startup, so a reloaded
+            //  paths.outbound was invisible to every inbound session.
+            startModule()
+                .then(async ({ port, stop }) => {
+                    const newSpoolDir = await fsp.mkdtemp(
+                        path.join(os.tmpdir(), 'enigma_reload_spool_')
+                    );
+                    const outDir = path.join(newSpoolDir, 'outbound');
+                    await fsp.mkdir(outDir, { recursive: true });
+
+                    //  Mail for the connecting client, 1:218/701 -> 00da02bd
+                    const pkt = path.join(outDir, 'reloaded.pkt');
+                    await fsp.writeFile(pkt, 'RELOADED');
+                    await fsp.writeFile(path.join(outDir, '00da02bd.flo'), `^${pkt}\n`);
+
+                    const changed = makeConfig();
+                    changed.scannerTossers.ftn_bso.paths.outbound = newSpoolDir;
+                    const restore = reload(changed);
+
+                    const { session } = connectClient(port);
+                    const received = [];
+                    session.on('file-received', name => received.push(name));
+
+                    const finish = err => {
+                        restore();
+                        fsp.rm(newSpoolDir, { recursive: true, force: true })
+                            .then(() => stop())
+                            .then(() => done(err))
+                            .catch(done);
+                    };
+                    session.on('session-end', () => {
+                        try {
+                            assert.deepEqual(
+                                received,
+                                ['reloaded.pkt'],
+                                'file queued under the reloaded outbound path should be sent'
+                            );
+                            finish();
+                        } catch (e) {
+                            finish(e);
+                        }
+                    });
+                    session.on('error', finish);
+                    session.start();
+                })
+                .catch(done);
+        });
+
+        it('_pullAddresses reflects nodes added after startup', async () => {
+            const { mod, stop } = await startModule({ nodes: {} });
+            assert.deepEqual(mod._pullAddresses(), []);
+
+            const restore = reload(
+                makeConfig({
+                    nodes: { '1:218/900': { host: 'example.com' } },
+                })
+            );
+            try {
+                assert.deepEqual(
+                    mod._pullAddresses().map(a => a.toString('3D')),
+                    ['1:218/900'],
+                    'pull cycle should dial nodes added by a reload'
+                );
+
+                //  An explicit argument still wins, for callers evaluating a
+                //  node set other than the configured one
+                assert.deepEqual(mod._pullAddresses({ nodes: {} }), []);
+            } finally {
+                restore();
+                await stop();
+            }
+        });
+
+        it('rebuilds the pull timer when pullSchedule changes', async () => {
+            const { mod, stop } = await startModule({
+                pullSchedule: 'every 15 minutes',
+            });
+            const originalTimer = mod._pullTimer;
+            assert.ok(originalTimer, 'pull timer should exist at startup');
+
+            const restore = reload(makeConfig({ pullSchedule: 'every 30 minutes' }));
+            try {
+                assert.ok(mod._pullTimer, 'pull timer should still be running');
+                assert.notEqual(
+                    mod._pullTimer,
+                    originalTimer,
+                    'timer should be rebuilt, not left on the old schedule'
+                );
+                assert.equal(mod._pullSchedule, 'every 30 minutes');
+            } finally {
+                restore();
+                await stop();
+            }
+        });
+
+        it('stops the pull timer when pullSchedule is removed', async () => {
+            const { mod, stop } = await startModule({
+                pullSchedule: 'every 15 minutes',
+            });
+            assert.ok(mod._pullTimer);
+
+            const restore = reload(makeConfig({ pullSchedule: null }));
+            try {
+                assert.equal(mod._pullTimer, null);
+            } finally {
+                restore();
+                await stop();
+            }
+        });
+
+        it('leaves the pull timer alone when pullSchedule is unchanged', async () => {
+            const { mod, stop } = await startModule({
+                pullSchedule: 'every 15 minutes',
+            });
+            const originalTimer = mod._pullTimer;
+
+            const restore = reload(
+                makeConfig({
+                    pullSchedule: 'every 15 minutes',
+                    crashmailDebounceMs: 999,
+                })
+            );
+            try {
+                assert.equal(mod._pullTimer, originalTimer);
+            } finally {
+                restore();
+                await stop();
+            }
+        });
+
+        it('warns that a restart is required when a listener binding changes', async () => {
+            const { mod, stop } = await startModule();
+            const warn = captureWarnings();
+
+            const changed = makeConfig();
+            changed.scannerTossers.ftn_bso.binkp.inbound.port = 24999;
+            const restore = reload(changed);
+            try {
+                const restartWarnings = warn.captured.filter(w =>
+                    /restart required/i.test(w.msg || '')
+                );
+                assert.equal(restartWarnings.length, 1);
+                assert.deepEqual(restartWarnings[0].obj.changed, ['inbound.port']);
+            } finally {
+                warn.restore();
+                restore();
+                await stop();
+            }
+            assert.ok(mod);
+        });
+
+        it('does not warn when only hot-appliable settings change', async () => {
+            const { stop } = await startModule();
+            const warn = captureWarnings();
+
+            const restore = reload(makeConfig({ crashmailDebounceMs: 999 }));
+            try {
+                assert.deepEqual(
+                    warn.captured.filter(w => /restart required/i.test(w.msg || '')),
+                    []
+                );
+            } finally {
+                warn.restore();
+                restore();
+                await stop();
+            }
+        });
+
+        it('removes its ConfigChanged listener on shutdown', async () => {
+            const eventName = Events.getSystemEvents().ConfigChanged;
+            const before = Events.listenerCount(eventName);
+
+            const { mod, stop } = await startModule();
+            assert.equal(Events.listenerCount(eventName), before + 1);
+
+            await stop();
+            assert.equal(Events.listenerCount(eventName), before);
+            assert.equal(mod._configChangedListener, null);
+        });
+    });
 }); // describe('BinkP server')

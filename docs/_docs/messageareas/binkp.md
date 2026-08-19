@@ -242,6 +242,26 @@ freq: {
 
 With this setup, every new nodelist that arrives via TIC is immediately FREQ-serveable — no path configuration to maintain.
 
+#### Reloading configuration
+
+`config.hjson` is watched and reloaded while the BBS runs. Almost everything under `binkp` is read at the moment it is used, so a reload applies on its own:
+
+| Setting | Applies to | When it takes effect |
+|---------|-----------|----------------------|
+| `nodes` (hosts, ports, passwords, `pull`, TLS) | next session, inbound or outbound | Immediately |
+| `freq` | next inbound session | Immediately |
+| `crashmailDebounceMs` | next crashmail burst | Immediately |
+| `tempDir`, `staleLockMaxAgeMs` | next session | Immediately |
+| `ftn_bso` `paths` and `messageNetworks.ftn.networks` | next session or poll | Immediately |
+| `pullSchedule` | the pull timer | On reload — the timer is rebuilt |
+| `inbound.enabled`, `inbound.port`, `inbound.address`, `inbound.tls.*` | the listening socket | **Restart required** |
+
+The last row is bound into the socket when it starts listening; changing it under live sessions is not something a reload can do safely. A reload that touches those keys logs a warning naming them so the change isn't silently lost:
+
+```
+[BinkP] Inbound listener settings changed; restart required for them to take effect
+```
+
 ---
 
 ### How it works with `ftn_bso`
