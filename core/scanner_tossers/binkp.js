@@ -497,6 +497,9 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             role: 'answering',
             addresses,
             getPassword: remoteAddrs => this._lookupPassword(binkpCfg.nodes, remoteAddrs),
+            //  Resolved lazily: the node is not known until M_ADR arrives,
+            //  and the OPT frame that carries NR goes out after that.
+            requestNR: remoteAddrs => this._lookupRequestNR(binkpCfg.nodes, remoteAddrs),
             tempDir,
         });
 
@@ -568,6 +571,19 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
         await attachSpoolToSession(session, spool, null);
         session.start();
+    }
+
+    //  Does any of the remote's addresses match a node configured with
+    //  |requestNR|? See the FTS-1028 note in core/binkp/caller.js.
+    _lookupRequestNR(nodes, remoteAddrStrings) {
+        if (_.isEmpty(nodes)) return false;
+        for (const addrStr of remoteAddrStrings || []) {
+            const addr = Address.fromString(addrStr);
+            if (!addr || !addr.isValid()) continue;
+            const nodeConf = findBestNodeMatch(nodes, addr);
+            if (nodeConf && true === nodeConf.requestNR) return true;
+        }
+        return false;
     }
 
     _lookupPassword(nodes, remoteAddrStrings) {

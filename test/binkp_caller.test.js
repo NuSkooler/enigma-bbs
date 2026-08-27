@@ -127,6 +127,40 @@ describe('BinkP caller', function () {
             }
         });
 
+        //  The answering side turns NR on for itself only when the caller
+        //  sent OPT NR, so its _useNR is a direct read-out of what we
+        //  announced -- see FTS-1028 and core/binkp/session.js.
+        async function callAndReportRemoteNR(nodeExtra) {
+            let remoteUsedNR = null;
+            const { port, spool, stop } = await startAnsweringServer({
+                onSession: sess => {
+                    sess.on('authenticated', () => {
+                        remoteUsedNR = sess._useNR;
+                    });
+                },
+            });
+            try {
+                const addr = new Address({ zone: 1, net: 218, node: 700 });
+                await callNode(addr, { host: '127.0.0.1', port, ...nodeExtra }, spool);
+            } finally {
+                await stop();
+            }
+            return remoteUsedNR;
+        }
+
+        it('does not ask the remote for NR mode by default', async () => {
+            assert.equal(await callAndReportRemoteNR({}), false);
+        });
+
+        it('asks for NR mode when the node config opts in', async () => {
+            assert.equal(await callAndReportRemoteNR({ requestNR: true }), true);
+        });
+
+        it('treats a non-true requestNR as off', async () => {
+            //  Guards against a truthy string from HJSON turning it on.
+            assert.equal(await callAndReportRemoteNR({ requestNR: 'yes' }), false);
+        });
+
         it('acquires the BSY lock before connecting and releases it after', async () => {
             const { port, spool, stop } = await startAnsweringServer();
             try {

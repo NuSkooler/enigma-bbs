@@ -427,14 +427,16 @@ describe('BinkpSession — file transfer', () => {
 // ── NR mode ───────────────────────────────────────────────────────────────────
 
 describe('BinkpSession — NR mode', () => {
-    it('negotiates NR mode when both sides support it', async () => {
-        let nrNegotiated = false;
+    //  Run a pair and report what each side settled on for NR.
+    async function negotiate(clientOpts = {}, serverOpts = {}) {
+        const { clientSess, serverSess } = await makeSessionPair(clientOpts, serverOpts);
 
-        const { clientSess, serverSess } = await makeSessionPair();
-
-        // Patch: observe the _useNR flag after authenticated
+        const seen = {};
         serverSess.on('authenticated', () => {
-            nrNegotiated = serverSess._useNR;
+            seen.server = serverSess._useNR;
+        });
+        clientSess.on('authenticated', () => {
+            seen.client = clientSess._useNR;
         });
 
         clientSess.start();
@@ -445,10 +447,33 @@ describe('BinkpSession — NR mode', () => {
             waitFor(serverSess, 'session-end', null),
         ]);
 
-        assert.ok(
-            nrNegotiated,
-            'NR mode should be negotiated when both sides announce it'
-        );
+        return seen;
+    }
+
+    it('stays out of NR mode unless a side asks for it', async () => {
+        //  FTS-1028 is explicit that NR "degrades performance over regular
+        //  quality connections and it should be used only if absolutely
+        //  necessary", and OPT NR is a request aimed at the remote rather
+        //  than a capability advert — so it is opt-in on both sides.
+        const seen = await negotiate();
+        assert.equal(seen.client, false, 'client should not send in NR mode');
+        assert.equal(seen.server, false, 'server should not send in NR mode');
+    });
+
+    it('sends in NR mode to a side that asks for it', async () => {
+        //  Only the originating side asks. FTS-1028: "If remote sends the
+        //  M_NUL 'OPT NR' frame, a mailer MUST send files in NR mode if it
+        //  supports this." — so the answering side owes it NR, and not the
+        //  other way around.
+        const seen = await negotiate({ requestNR: true });
+        assert.equal(seen.server, true, 'answering side honours the request');
+        assert.equal(seen.client, false, 'originating side was not asked');
+    });
+
+    it('negotiates NR both ways when both sides ask', async () => {
+        const seen = await negotiate({ requestNR: true }, { requestNR: true });
+        assert.equal(seen.client, true);
+        assert.equal(seen.server, true);
     });
 });
 
