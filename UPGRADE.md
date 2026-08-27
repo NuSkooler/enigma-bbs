@@ -22,6 +22,8 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **BinkP sessions were left to time out rather than closing cleanly.** ENiGMA½ ended after the first binkp/1.1 batch, so the peer waited for an `M_EOB` that never arrived. Mail transferred correctly, but the remote logged the session as failed, and while ours sat waiting it held that node's lock — so crashmail queued for the node during the window was skipped until the next scheduled poll. **No action is required**; if a peer has been reporting failed sessions with your system despite the mail arriving, this is why.
+
 * **BinkP files compressed with GZ were rejected by every other mailer** ([#723](https://github.com/NuSkooler/enigma-bbs/issues/723)). ENiGMA½ wrapped compressed data in the gzip container where [FTS-1029](http://ftsc.org/docs/fts-1029.001) — and binkd, Mystic and the rest — use the zlib one. The receiving mailer rejected the stream immediately; our side logged nothing and re-sent the file on every poll. **Nothing was lost** and **no configuration change is required**: the affected files stayed in the outbound spool and go out on the next poll.
 
   Only nodes with no `archiveType` were affected, since ArcMail bundles are already compressed and never carried GZ.

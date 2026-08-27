@@ -262,6 +262,12 @@ freq: {
 
 With this setup, every new nodelist that arrives via TIC is immediately FREQ-serveable — no path configuration to maintain.
 
+#### Sessions and batches
+
+A binkp/1.1 session is a series of *batches*. Each ends when both sides have sent `M_EOB`, and another follows any batch that carried more than that pair — so a session that moved mail always ends on a short empty batch. Each new batch is also an opportunity: anything that turned up mid-session, such as a FREQ response or mail tossed from a packet that just arrived, goes out on the same connection instead of waiting for the next poll.
+
+Both sides decide this the same way, by counting the command frames sent and received since the batch began, so they agree without negotiating. A peer that identifies itself as binkp/1.0, or that never sends a version at all, is not offered a second batch.
+
 #### Reloading configuration
 
 `config.hjson` is watched and reloaded while the BBS runs. Almost everything under `binkp` is read at the moment it is used, so a reload applies on its own:

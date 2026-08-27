@@ -704,7 +704,9 @@ describe('BinkpSession — multi-batch (onBatchEnd)', () => {
                             'keep'
                         );
                     }
-                    //  batchCount === 2: nothing more → originating closes.
+                    //  Nothing more is queued after this. batchCount then
+                    //  reaches 3: the trailing empty batch is what actually
+                    //  ends a binkp/1.1 session — see the note below.
                 },
             },
             {} // server has no hook — waits for originating to close
@@ -726,7 +728,11 @@ describe('BinkpSession — multi-batch (onBatchEnd)', () => {
 
         await runToEnd(clientSess, serverSess);
 
-        assert.equal(batchCount, 2, 'onBatchEnd should fire for each batch');
+        //  Two batches carried a file each, and a third carried nothing but
+        //  the pair of M_EOBs. That empty batch is not waste: binkp/1.1 ends
+        //  a session on it, and skipping it leaves the peer waiting for an
+        //  M_EOB that never comes.
+        assert.equal(batchCount, 3, 'onBatchEnd should fire for each batch');
         assert.ok(serverReceived.includes('batch1.pkt'), 'server should receive batch1');
         assert.ok(serverReceived.includes('batch2.pkt'), 'server should receive batch2');
 
@@ -742,7 +748,8 @@ describe('BinkpSession — multi-batch (onBatchEnd)', () => {
             {
                 onBatchEnd: () => {
                     batchCount++;
-                    // queue nothing — originating closes after this
+                    //  Queues nothing, so the batch after this one is empty
+                    //  and the originating side closes on it.
                 },
             },
             {}
@@ -755,7 +762,8 @@ describe('BinkpSession — multi-batch (onBatchEnd)', () => {
         clientSess.queueFile(f.filePath, 'only.pkt', f.size, f.timestamp, 'keep');
         await runToEnd(clientSess, serverSess);
 
-        assert.equal(batchCount, 1);
+        //  One batch for the file, then the empty one that ends the session.
+        assert.equal(batchCount, 2);
         await fsp.unlink(f.filePath).catch(() => {});
     });
 

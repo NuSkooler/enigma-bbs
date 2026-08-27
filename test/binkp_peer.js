@@ -72,6 +72,13 @@ class ScriptedPeer {
         this.sendQueue = (opts.filesToSend || []).slice();
         this.currentSend = null;
         this.nzRequestedFor = null;
+        //  binkd counts every command frame, sent and received, since the
+        //  batch began, and only closes after one that carried nothing but
+        //  the two M_EOBs (protocol.c:3275-3293).
+        this.msgsInBatch = 0;
+        this.batches = []; //  message count of each completed batch
+        this.batchClosed = false;
+        this.closed = false;
         this.nzRequests = []; //  files we were asked to resend in the clear
         this.skipsReceived = [];
 
@@ -100,6 +107,9 @@ class ScriptedPeer {
     }
 
     _send(cmd, arg) {
+        if ('transfer' === this.state) {
+            ++this.msgsInBatch;
+        }
         if (!this.socket.destroyed) {
             this.socket.write(buildCommandFrame(cmd, arg));
         }
@@ -107,7 +117,14 @@ class ScriptedPeer {
 
     _sendGreeting() {
         this._send(Commands.M_NUL, 'SYS Scripted Peer');
-        this._send(Commands.M_NUL, 'VER binkd/1.1a-115/Linux binkp/1.1');
+        //  |noVer| models a peer that never identifies its protocol version,
+        //  which has to be read conservatively rather than assumed to be 1.1.
+        if (!this.opts.noVer) {
+            this._send(
+                Commands.M_NUL,
+                `VER binkd/1.1a-115/Linux binkp/${this.opts.protocolVer || '1.1'}`
+            );
+        }
         this._send(Commands.M_ADR, '1:1/1@testnet');
     }
 
@@ -136,6 +153,9 @@ class ScriptedPeer {
         }
 
         this.framesIn.push({ cmd: frame.cmd, arg: frame.arg });
+        if ('transfer' === this.state) {
+            ++this.msgsInBatch;
+        }
 
         switch (frame.cmd) {
             case Commands.M_PWD:
@@ -289,6 +309,31 @@ class ScriptedPeer {
     _onEob() {
         this.remoteEOB = true;
         this._maybeEob();
+        this._endOfBatch();
+    }
+
+    //  Both M_EOBs are in and nothing is in flight. binkd starts another
+    //  batch unless this one was empty; |singleBatch| models a binkp/1.0
+    //  peer, which always stops here.
+    _endOfBatch() {
+        //  Reached from both _onEob and _maybeEob, which can fire in the same
+        //  tick when the two M_EOBs cross; count the batch once.
+        if (this.batchClosed) {
+            return;
+        }
+        if (!this.eobSent || !this.remoteEOB || this.currentSend || this.inFile) {
+            return;
+        }
+        this.batchClosed = true;
+        this.batches.push(this.msgsInBatch);
+        if (this.msgsInBatch > 2 && !this.opts.singleBatch) {
+            this.msgsInBatch = 0;
+            this.eobSent = false;
+            this.remoteEOB = false;
+            this.batchClosed = false;
+            this._sendNext();
+            return;
+        }
         this._maybeClose();
     }
 
@@ -402,17 +447,15 @@ class ScriptedPeer {
         }
         this.eobSent = true;
         this._send(Commands.M_EOB, '');
-        this._maybeClose();
+        this._endOfBatch();
     }
 
     //  binkp leaves it to the originating side to hang up.
     _maybeClose() {
-        if ('originating' !== this.opts.role) {
+        if ('originating' !== this.opts.role || this.closed) {
             return;
         }
-        if (!this.eobSent || !this.remoteEOB || this.inFile || this.currentSend) {
-            return;
-        }
+        this.closed = true;
         setImmediate(() => this.socket.end());
     }
 }

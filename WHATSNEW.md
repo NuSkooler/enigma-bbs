@@ -3,6 +3,14 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **BinkP sessions ended on a timeout instead of a clean close** — binkp/1.1 runs a session as a series of batches: another follows any batch that carried more than the two `M_EOB`s, and only an empty batch ends the session. ENiGMA½ stopped after the first one, leaving a conforming peer waiting for an `M_EOB` that never came.
+
+  No mail was lost — it had already transferred by then — but the peer sat until its own timeout (five minutes, for binkd) and then recorded an otherwise successful session as `failed`. With binkd's shipped `try`/`hold` settings, enough of those in a row will put us on hold and stop it calling for a while.
+
+  The cost was ours too: an inbound session parked like that still holds the node's lock, so crashmail queued for that node inside the window is skipped and waits for the next scheduled poll — quietly defeating the point of crashmail. Sessions against binkd now finish in milliseconds and log `done (..., OK, ...)`.
+
+  Peers below binkp/1.1, and any that never identify their version, are treated exactly as before.
+
 * **BinkP GZ compression used the wrong container** ([#723](https://github.com/NuSkooler/enigma-bbs/issues/723)) — [FTS-1029](http://ftsc.org/docs/fts-1029.001) specifies zlib's `compress()`/`compress2()`, which produce the RFC 1950 container: two header bytes and an Adler-32 tail. ENiGMA½ emitted RFC 1952 (gzip) instead — the same deflate payload behind a different header — so every conforming peer rejected it on sight. binkd logs `Decompress <file> error -3` and abandons the transfer; the *sending* side saw nothing wrong and re-offered the same file on every poll, for days. Confirmed here against binkd 1.1a-115 and reported against Mystic 1.12A48.
 
   Only nodes **without** `archiveType` were affected: ArcMail bundles and archives are already compressed, so GZ is skipped for them entirely. That is the same set of systems as the packet-naming bug in #722.

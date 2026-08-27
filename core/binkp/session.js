@@ -16,6 +16,11 @@ const BINKP_VER = '1.1';
 const SEND_CHUNK_SIZE = 4096;
 const SESSION_TIMEOUT_MS = 300_000; // 5 min
 
+//  Runaway guard only, not part of the protocol. A batch carrying nothing but
+//  the two M_EOBs always ends the session, so this can only be reached by a
+//  peer that keeps talking; better to hang up than to loop forever.
+const MAX_BATCHES = 16;
+
 // Extensions that are already compressed — don't waste CPU trying to GZ them.
 // Arcmail day-of-week bundles (*.mo0, *.tu1, etc.) are also pre-compressed.
 const ALREADY_COMPRESSED_RE = /\.(zip|arc|arj|lzh|lha|gz|bz2|zst|pk[34]|zoo)$/i;
@@ -103,6 +108,13 @@ class BinkpSession extends EventEmitter {
         this._localEOBSent = false;
         this._localEOB = false;
         this._remoteEOB = false;
+
+        //  binkp/1.1 batches. |_batchMsgCount| counts command frames both
+        //  sent and received since the batch began, which is what decides
+        //  whether another one follows -- see _onBatchComplete.
+        this._batchMsgCount = 0;
+        this._batchesDone = 0;
+        this._remoteVer = null; // { major, minor } from the remote's VER
 
         this._sendHeld = false;
         this._timeoutHandle = null;
@@ -257,6 +269,7 @@ class BinkpSession extends EventEmitter {
         if (this._state === 'handshake') {
             this._onHandshakeCommand(cmd, arg);
         } else if (this._state === 'transfer') {
+            ++this._batchMsgCount;
             this._onTransferCommand(cmd, arg);
         }
     }
@@ -317,6 +330,16 @@ class BinkpSession extends EventEmitter {
         const value = spaceIdx < 0 ? '' : arg.slice(spaceIdx + 1);
 
         if (keyword !== 'OPT') {
+            if ('VER' === keyword) {
+                //  e.g. "binkd/1.1a-115/Linux binkp/1.1"
+                const m = /binkp\/(\d+)\.(\d+)/i.exec(value);
+                if (m) {
+                    this._remoteVer = {
+                        major: parseInt(m[1], 10),
+                        minor: parseInt(m[2], 10),
+                    };
+                }
+            }
             return;
         }
 
@@ -1171,15 +1194,28 @@ class BinkpSession extends EventEmitter {
 
         const afterHook = () => {
             this._batchEndPending = false;
-            const hookQueuedFiles = this._sendQueue.length > queueBefore;
-            if (hookQueuedFiles) {
-                //  Hook added files — start another batch. Reset both EOB
-                //  flags; remote will send a new M_EOB when its side is done.
-                this._localEOB = false;
-                this._localEOBSent = false;
-                this._remoteEOB = false;
-                setImmediate(() => this._sendNext());
-            } else if (this._opts.role === 'originating') {
+            ++this._batchesDone;
+
+            //  Hook added files — start another batch to carry them.
+            if (this._sendQueue.length > queueBefore) {
+                return this._startNextBatch();
+            }
+
+            //  binkp/1.1 batching: a batch that carried more than the two
+            //  M_EOBs is followed by another, and only an empty batch ends
+            //  the session. Skipping that leaves a 1.1 peer waiting for an
+            //  M_EOB that never comes — binkd sits until its own timeout and
+            //  books the session as failed even though the mail arrived,
+            //  while we hold the node's lock for the duration and skip any
+            //  crashmail for it in the meantime.
+            //
+            //  Both sides count every command frame, sent and received, so
+            //  they arrive at the same total and reach the same decision.
+            if (this._shouldStartAnotherBatch()) {
+                return this._startNextBatch();
+            }
+
+            if (this._opts.role === 'originating') {
                 //  Originating side controls session lifetime: nothing left →
                 //  close the connection.
                 this._finishSession();
@@ -1207,6 +1243,33 @@ class BinkpSession extends EventEmitter {
             });
     }
 
+    //  Another batch follows unless this one was empty. Gated on the remote
+    //  actually speaking binkp/1.1: a 1.0 peer closes after the first batch,
+    //  so offering it a second one would strand us.
+    _shouldStartAnotherBatch() {
+        if (this._batchMsgCount <= 2) {
+            return false; //  our M_EOB and theirs, nothing else
+        }
+        if (this._batchesDone >= MAX_BATCHES) {
+            Log.warn(
+                { batches: this._batchesDone },
+                '[BinkP] Batch limit reached; ending session'
+            );
+            return false;
+        }
+        const ver = this._remoteVer;
+        return !!ver && ver.major * 100 + ver.minor > 100;
+    }
+
+    _startNextBatch() {
+        this._batchMsgCount = 0;
+        this._localEOB = false;
+        this._localEOBSent = false;
+        this._remoteEOB = false;
+        this._waitingForClose = false;
+        setImmediate(() => this._sendNext());
+    }
+
     _finishSession() {
         if (this._state === 'done') return;
         this._state = 'done';
@@ -1218,6 +1281,9 @@ class BinkpSession extends EventEmitter {
     // ── Utility ─────────────────────────────────────────────────────────────
 
     _sendCmd(cmd, arg) {
+        if (this._state === 'transfer') {
+            ++this._batchMsgCount;
+        }
         if (!this._socket.destroyed) {
             this._socket.write(buildCommandFrame(cmd, arg));
         }
@@ -1319,12 +1385,12 @@ class BinkpSession extends EventEmitter {
             //  finalizing state: EOF was received and we're just waiting for
             //  the async writeStream flush. The file was fully transferred.
             const recvDone = !this._currentRecv || this._currentRecv._finalizing;
+            //  A close between batches counts too: the peer decided the
+            //  session was over one batch sooner than we did, and with
+            //  nothing outstanding there is nothing to report.
+            const settled = (this._localEOB && this._remoteEOB) || this._batchesDone > 0;
             const cleanEnd =
-                this._localEOB &&
-                this._remoteEOB &&
-                this._pendingGots.size === 0 &&
-                !this._currentSend &&
-                recvDone;
+                settled && this._pendingGots.size === 0 && !this._currentSend && recvDone;
 
             if (this._waitingForClose || cleanEnd) {
                 this._finishSession();
