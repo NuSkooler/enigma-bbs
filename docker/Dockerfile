@@ -1,4 +1,4 @@
-FROM --platform=${BUILDPLATFORM:-linux/amd64} node:20-bookworm-slim
+FROM --platform=${BUILDPLATFORM:-linux/amd64} node:22-bookworm-slim
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -29,7 +29,6 @@ RUN apt-get update \
     p7zip-full \
     dos2unix \
     && npm set progress=false && npm config set depth 0 \
-    && npm install -g npm@latest \
     && npm install -g pm2 \
     && cd /enigma-bbs && npm install
 
