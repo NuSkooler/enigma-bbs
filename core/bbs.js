@@ -11,6 +11,7 @@ const UserProps = require('./user_property.js');
 const SysProps = require('./system_property.js');
 const SysLogKeys = require('./system_log.js');
 const UserLogNames = require('./user_log_name');
+const { consoleStyle } = require('./server_listen.js');
 
 //  deps
 const async = require('async');
@@ -52,6 +53,28 @@ function printVersionAndExit() {
     console.info(require('../package.json').version);
 }
 
+//
+//  Banner first, so anything the startup then has to say -- config warnings,
+//  which servers bound, a failure -- appears underneath it in the order it
+//  actually happened. It used to be printed at the very end, which put the
+//  warnings and the server list above it and read backwards.
+//
+function displayStartupBanner(cb) {
+    fs.readFile(
+        paths.join(__dirname, '../misc/startup_banner.asc'),
+        'utf8',
+        (err, banner) => {
+            console.info(FULL_COPYRIGHT);
+            if (!err) {
+                //  note this is escaped:
+                console.info(banner);
+            }
+            console.info(consoleStyle('|07System starting up...'));
+            return cb();
+        }
+    );
+}
+
 function main() {
     let errorDisplayed = false;
 
@@ -70,10 +93,12 @@ function main() {
 
                 const configOverridePath = argv.config;
 
-                return callback(
-                    null,
-                    configOverridePath || conf.Config.getDefaultPath(),
-                    _.isString(configOverridePath)
+                return displayStartupBanner(() =>
+                    callback(
+                        null,
+                        configOverridePath || conf.Config.getDefaultPath(),
+                        _.isString(configOverridePath)
+                    )
                 );
             },
             function initConfig(configPath, configPathSupplied, callback) {
@@ -121,18 +146,7 @@ function main() {
         ],
         function complete(err) {
             if (!err) {
-                //  note this is escaped:
-                fs.readFile(
-                    paths.join(__dirname, '../misc/startup_banner.asc'),
-                    'utf8',
-                    (err, banner) => {
-                        console.info(FULL_COPYRIGHT);
-                        if (!err) {
-                            console.info(banner);
-                        }
-                        console.info('System started!');
-                    }
-                );
+                console.info(consoleStyle('|10System started!'));
             }
 
             if (err) {

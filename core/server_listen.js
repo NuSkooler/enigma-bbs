@@ -85,20 +85,46 @@ function makeBindError(err, { name, port, address }) {
 //  Input is pipe/Renegade coded so it matches the rest of the codebase rather
 //  than introducing a second colour vocabulary.
 //
+//
+//  Renegade pipe colour index -> ANSI foreground digit. |00-|07 are normal
+//  intensity, |08-|15 the bright pair.
+//
+const PIPE_COLOR_TO_ANSI = [0, 4, 2, 6, 1, 5, 3, 7];
+const PIPE_CODE_RE = /\|([0-9]{2})/g;
+
+//
+//  Deliberately *not* color_codes.js. That module reaches stat_log.js through
+//  predefined_mci -> message_area, and this runs before the databases are
+//  initialized -- stat_log captures dbs.system at load time, so pulling it in
+//  this early leaves it permanently undefined and StatLog.init() then throws.
+//  (color_codes.js also reaches back here via activitypub -> web.js, so a
+//  load-time require would be circular besides.) Four colours do not justify
+//  either hazard.
+//
+function pipeToAnsi(s) {
+    return s.replace(PIPE_CODE_RE, (_m, digits) => {
+        const idx = parseInt(digits, 10);
+        if (idx > 15) {
+            return ''; //  background/unsupported: drop rather than mis-render
+        }
+        const intensity = idx > 7 ? 1 : 22;
+        return `\u001b[${intensity};3${PIPE_COLOR_TO_ANSI[idx % 8]}m`;
+    });
+}
+
+function stripPipeCodes(s) {
+    return s.replace(PIPE_CODE_RE, '');
+}
+
 function consoleStyle(s, stream) {
     stream = stream || process.stdout;
 
-    //  Required at call time, not module load: color_codes.js reaches back
-    //  here through predefined_mci -> message_area -> activitypub -> web.js,
-    //  and destructuring at load time in that cycle yields undefined.
-    const { renegadeToAnsi, stripMciColorCodes } = require('./color_codes.js');
-
     const useColor = !('NO_COLOR' in process.env) && true === stream.isTTY;
     if (!useColor) {
-        return stripMciColorCodes(s);
+        return stripPipeCodes(s);
     }
 
-    return `${renegadeToAnsi(s)}${ANSI_RESET}`;
+    return `${pipeToAnsi(s)}${ANSI_RESET}`;
 }
 
 function nameColumn(name) {

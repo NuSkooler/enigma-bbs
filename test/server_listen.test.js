@@ -3,6 +3,7 @@
 
 const { strict: assert } = require('assert');
 const net = require('net');
+const { execFileSync } = require('child_process');
 
 const {
     listenServer,
@@ -220,6 +221,39 @@ describe('server_listen — bind result reporting', () => {
         it('marks the error as a bind failure', () => {
             const err = makeBindError({ code: 'EADDRINUSE' }, opts);
             assert.equal(err.bindFailure, true);
+        });
+    });
+
+    //
+    //  server_listen runs before initializeDatabases(). stat_log.js captures
+    //  dbs.system at load time, so anything that pulls it in this early leaves
+    //  it undefined for the life of the process and StatLog.init() then throws
+    //  'Cannot read properties of undefined (reading prepare)'. color_codes.js
+    //  reaches it via predefined_mci -> message_area, which is why this module
+    //  renders its own pipe codes. Guard that boundary.
+    //
+    describe('module isolation', () => {
+        it('does not pull in the database-dependent module graph', () => {
+            const probe = [
+                `const { consoleStyle } = require(${JSON.stringify(
+                    require.resolve('../core/server_listen.js')
+                )});`,
+                "consoleStyle('|07probe', { isTTY: true });",
+                'const re = /core\\/(stat_log|message_area|predefined_mci|color_codes)\\.js$/;',
+                'console.log(',
+                '    JSON.stringify(Object.keys(require.cache).filter(f => re.test(f)))',
+                ');',
+            ].join('\n');
+
+            const out = execFileSync(process.execPath, ['-e', probe], {
+                encoding: 'utf8',
+            });
+
+            assert.deepEqual(
+                JSON.parse(out.trim()),
+                [],
+                'server_listen must stay standalone at startup'
+            );
         });
     });
 

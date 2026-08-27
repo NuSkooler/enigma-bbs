@@ -9,6 +9,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   Every login, content, and chat server now binds through a shared helper that listens for both `'listening'` and `'error'` and calls back exactly once, with an error an operator can act on — `EADDRINUSE`, `EACCES` on a privileged port, and `EADDRNOTAVAIL` each get an explanation rather than a bare code. A bind failure is now fatal for **every** server, including NNTP; see [UPGRADE.md](UPGRADE.md).
 
+  * **Startup output now reads in the order things happen** -- the banner, then any configuration warnings, then the server list, then `System started!`. The banner was previously printed at the very end, underneath everything it was supposed to introduce.
+
   * **Startup now reports what actually bound.** One line per server with its address and port, so a misconfigured or missing service is visible at a glance instead of only in the log. Colour is used only when stdout is a TTY and [`NO_COLOR`](https://no-color.org/) is unset, so piped output and journals stay clean.
 
   * **Startup failures always exit non-zero.** An error that had already been displayed previously fell through the final handler and the process wound down with status `0`, so service managers and install scripts saw a clean exit from a failed start.
