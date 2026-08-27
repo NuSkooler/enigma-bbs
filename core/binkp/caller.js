@@ -66,6 +66,9 @@ async function callNode(addr, nodeConf, spool) {
             //  on a link that keeps dropping mid-transfer, not otherwise --
             //  see FTS-1028.
             requestNR: true === nodeConf.requestNR,
+            //  Opt out of compression for a peer whose decompressor cannot be
+            //  fixed. Absent means on.
+            gz: false !== nodeConf.gz,
             tempDir: _.get(Config(), 'scannerTossers.ftn_bso.binkp.tempDir', os.tmpdir()),
         });
 

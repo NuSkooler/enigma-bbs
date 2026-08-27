@@ -500,6 +500,7 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
             //  Resolved lazily: the node is not known until M_ADR arrives,
             //  and the OPT frame that carries NR goes out after that.
             requestNR: remoteAddrs => this._lookupRequestNR(binkpCfg.nodes, remoteAddrs),
+            gz: remoteAddrs => this._lookupNodeGz(binkpCfg.nodes, remoteAddrs),
             tempDir,
         });
 
@@ -571,6 +572,20 @@ exports.getModule = class BinkpModule extends MessageScanTossModule {
 
         await attachSpoolToSession(session, spool, null);
         session.start();
+    }
+
+    //  Compression is on unless a matching node turns it off. Only an
+    //  explicit gz:false counts, so an unrelated wildcard entry cannot
+    //  silently disable it for everyone.
+    _lookupNodeGz(nodes, remoteAddrStrings) {
+        if (_.isEmpty(nodes)) return true;
+        for (const addrStr of remoteAddrStrings || []) {
+            const addr = Address.fromString(addrStr);
+            if (!addr || !addr.isValid()) continue;
+            const nodeConf = findBestNodeMatch(nodes, addr);
+            if (nodeConf && false === nodeConf.gz) return false;
+        }
+        return true;
     }
 
     //  Does any of the remote's addresses match a node configured with

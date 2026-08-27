@@ -98,6 +98,7 @@ scannerTossers: {
                     sessionPassword: "s3cr3t" // optional CRAM-MD5 password — see tip below
                     pull: true                // optional, defaults to true
                     // requestNR: true        // optional; ask this node to send in NR mode
+                    // gz: false              // optional; disable GZ compression for this node
                 }
 
                 // TLS outbound example (binkps):
@@ -171,6 +172,7 @@ Each key is an FTN address or wildcard pattern. Values:
 | `sessionPassword` | No | — | Session password for CRAM-MD5 authentication (distinct from FTN packet password) |
 | `pull` | No | `true` | Include this node in the periodic pull cycle. Set `false` for write-only peers. **Crashmail dispatch is unaffected** — outbound queued for a `pull: false` peer still triggers an immediate session. |
 | `requestNR` | No | `false` | Ask this node to send files to us in NR mode. See below. |
+| `gz` | No | `true` | Set `false` to neither offer nor use GZ compression with this node. |
 
 Wildcard patterns (e.g. `"21:1/*"`) are valid for inbound password lookup but are skipped during pull cycles, since the pull cycle dials concrete addresses only. Put the most specific patterns first in your config — pattern matching uses first-match-wins on insertion order.
 
@@ -181,6 +183,14 @@ NR mode is the binkp answer to a link that keeps dropping mid-transfer. Normally
 `OPT NR` is a request aimed at the *remote*: it asks the other side to send **to us** that way. It costs a round trip per file, and the standard is blunt that it "degrades performance over regular quality connections and it should be used only if absolutely necessary" — so ENiGMA½ does not send it unless a node opts in with `requestNR: true`. binkd behaves the same way, asking only when the sysop sets `-nr` or `-nd` on a node.
 
 The other direction needs no configuration. If a peer asks us for NR mode we always honour it, which FTS-1028 makes a `MUST`.
+
+#### `binkp.nodes[].gz` — compression
+
+When both sides advertise `GZ` (and `EXTCMD`), file data is compressed on the wire. Files that are already compressed — ArcMail bundles (`.mo0`, `.tu1`, …), `.zip`, `.arj` and friends — are sent as-is, so a node using `archiveType` sees little of this either way.
+
+The wire format is the zlib container ([FTS-1029](http://ftsc.org/docs/fts-1029.001)), which is what binkd, Mystic and the rest expect. Inbound data is decoded from either the zlib or the gzip container, so a peer running an ENiGMA½ older than 0.5.1-beta — which sent gzip — is still understood.
+
+If a peer cannot decompress what we send, ENiGMA½ does not simply give up on the file: FTS-1029 allows a receiver to ask for it again uncompressed, and a peer that asks us that way is honoured for the rest of the session. Set `gz: false` to skip compression with a node entirely.
 
 #### `binkp.nodes[].tls` / TLS outbound (binkps)
 
