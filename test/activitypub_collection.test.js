@@ -81,19 +81,6 @@ function applySchema(db) {
 
 const TEST_COLLECTION_ID = 'https://test.example.com/_enig/ap/users/testuser/followers';
 const TEST_OWNER_ACTOR_ID = 'https://test.example.com/_enig/ap/users/testuser';
-const ACTOR_COLLECTION_ID = 'https://www.w3.org/ns/activitystreams#Public'; // ActorCollectionId
-
-function makeEntry(id, name, collectionId, ownerId, isPrivate = false) {
-    const obj = { id, type: 'Person', name: `Actor ${id}` };
-    _apDb
-        .prepare(
-            `INSERT OR IGNORE INTO collection
-                (collection_id, name, timestamp, owner_actor_id, object_id, object_json, is_private)
-                VALUES (?, ?, datetime('now'), ?, ?, ?, ?)`
-        )
-        .run(collectionId, name, ownerId, id, JSON.stringify(obj), isPrivate ? 1 : 0);
-    return obj;
-}
 
 function makeEntryAt(id, name, collectionId, ownerId, daysAgo, isPrivate = false) {
     const obj = { id, type: 'Person' };

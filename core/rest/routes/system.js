@@ -49,7 +49,7 @@ function _isPublicEndpoint(endpoint) {
     const pub = config.contentServers?.web?.restApi?.system?.public || {};
     //  defaults: info=public, last-callers=public, stats=public, nodes=auth required
     const defaults = { info: true, 'last-callers': true, stats: true, nodes: false };
-    return endpoint in pub ? Boolean(pub[endpoint]) : (defaults[endpoint] ?? false);
+    return endpoint in pub ? Boolean(pub[endpoint]) : defaults[endpoint] ?? false;
 }
 
 function _requirePublicOrAuth(req, resp, endpoint, cb) {
@@ -82,7 +82,7 @@ function _infoHandler(req, resp) {
 function _nodesHandler(req, resp) {
     applyCorsHeaders(req, resp);
 
-    _requirePublicOrAuth(req, resp, 'nodes', authedUser => {
+    _requirePublicOrAuth(req, resp, 'nodes', _authedUser => {
         const nodes = getActiveConnectionList(UserVisibleConnections).map(n => {
             const entry = {
                 node: n.node,

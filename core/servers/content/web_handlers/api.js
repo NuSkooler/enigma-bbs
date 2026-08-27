@@ -1,8 +1,7 @@
 'use strict';
 
 const WebHandlerModule = require('../../../web_handler_module');
-const { Errors } = require('../../../enig_error');
-const { API_BASE, applyCorsHeaders, problemDetail } = require('../../../rest/util');
+const { API_BASE, applyCorsHeaders } = require('../../../rest/util');
 
 exports.moduleInfo = {
     name: 'RestApi',

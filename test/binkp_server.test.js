@@ -189,7 +189,9 @@ describe('BinkP server', function () {
                                 try {
                                     assert.ok(
                                         receivedAddrs.some(a => a.includes('1:218/700')),
-                                        `Expected 1:218/700 in addresses: ${receivedAddrs.join(', ')}`
+                                        `Expected 1:218/700 in addresses: ${receivedAddrs.join(
+                                            ', '
+                                        )}`
                                     );
                                     done();
                                 } catch (e) {
@@ -520,7 +522,7 @@ describe('BinkP server', function () {
             fakeServer.listen(0, '127.0.0.1', async () => {
                 const fakePort = fakeServer.address().port;
                 const target = '1:218/702'; // address we'll dial
-                const { mod, stop } = await startModule({
+                const { stop } = await startModule({
                     crashmailDebounceMs: 50,
                     nodes: {
                         [target]: { host: '127.0.0.1', port: fakePort },
@@ -571,7 +573,7 @@ describe('BinkP server', function () {
 
             fakeServer.listen(0, '127.0.0.1', async () => {
                 const fakePort = fakeServer.address().port;
-                const { mod, stop } = await startModule({
+                const { stop } = await startModule({
                     crashmailDebounceMs: 50,
                     nodes: {
                         '1:218/710': { host: '127.0.0.1', port: fakePort },
@@ -687,7 +689,9 @@ describe('BinkP server', function () {
                         try {
                             assert.ok(
                                 receivedAddrs.some(a => a.includes('1:218/777')),
-                                `expected reloaded address 1:218/777 in: ${receivedAddrs.join(', ')}`
+                                `expected reloaded address 1:218/777 in: ${receivedAddrs.join(
+                                    ', '
+                                )}`
                             );
                             finish();
                         } catch (e) {

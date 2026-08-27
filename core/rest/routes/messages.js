@@ -18,8 +18,6 @@ const {
     getMessageAreaByTag,
     getMessageConferenceByTag,
     getMessageConfTagByAreaTag,
-    hasMessageConfAndAreaRead,
-    hasMessageConfAndAreaWrite,
     getMessageListForArea,
     persistMessage,
 } = require('../../message_area');
@@ -240,7 +238,7 @@ function _serializeMessageFull(msg, strip = true) {
     return out;
 }
 
-function _conferencesHandler(req, resp, log) {
+function _conferencesHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     resolveAuthenticatedUser(req, (err, authedUser) => {
@@ -277,7 +275,7 @@ function _sendConferences(req, resp, confs) {
     return jsonResponse(resp, 200, paginationMeta(data, null));
 }
 
-function _conferenceDetailHandler(req, resp, log) {
+function _conferenceDetailHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const confTag = req.url.match(/\/conferences\/([^/?]+)/)?.[1];
@@ -323,7 +321,7 @@ function _conferenceDetailHandler(req, resp, log) {
     });
 }
 
-function _areaDetailHandler(req, resp, log) {
+function _areaDetailHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const areaTag = req.url.match(/\/areas\/([^/?]+)(?:[?#]|$)/)?.[1];
@@ -395,7 +393,7 @@ function _messageListHandler(req, resp, log) {
     });
 }
 
-function _messageDetailHandler(req, resp, log) {
+function _messageDetailHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const uuid = req.url.match(/\/messages\/([0-9a-f-]{36})/)?.[1];

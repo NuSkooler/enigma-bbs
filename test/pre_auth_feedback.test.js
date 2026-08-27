@@ -303,15 +303,13 @@ describe('ghost-sender reply guard', () => {
 
     it('blocks reply when private mail has no local from-user-id and no remote sender', done => {
         const msg = makeMsg({ fromUserId: 0, remoteFrom: null });
-        const { inst, getGotoMenuOrShowMessage, getGotoMenu } = makeViewer(msg);
+        const { inst } = makeViewer(msg);
 
         //  Invoke replyMessage directly (it's assigned in the constructor via Object.assign)
         //  Re-create the menuMethods as the constructor would:
         const _ = require('lodash');
         const self = inst;
-        let blocked = false;
         inst.gotoMenuOrShowMessage = (name, text) => {
-            blocked = true;
             assert.equal(name, 'preAuthFeedbackNoReply');
             assert.ok(text.length > 0);
             done();

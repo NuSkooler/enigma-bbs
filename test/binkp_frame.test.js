@@ -126,10 +126,6 @@ describe('FrameParser — command frames', () => {
 
     it('strips trailing null bytes from arg', () => {
         // Some implementations pad the arg field with nulls
-        const raw = Buffer.concat([
-            buildCommandFrame(Commands.M_NUL, 'SYS test'),
-            Buffer.from([0x00, 0x00]), // extra nulls (won't be parsed as part of arg)
-        ]);
         // Just verify the arg has no trailing nulls
         const [f] = singleFrame(buildCommandFrame(Commands.M_NUL, 'SYS test\x00\x00'));
         assert.equal(f.arg, 'SYS test');

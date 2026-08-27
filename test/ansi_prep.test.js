@@ -13,12 +13,6 @@ function prep(input, options = {}) {
     });
 }
 
-//  Strip all ANSI escape sequences from a string (for text-only assertions).
-function stripAnsi(s) {
-    // eslint-disable-next-line no-control-regex
-    return s.replace(/\x1b\[[0-9;]*[mGKHJABCDfhilnrstu]/g, '');
-}
-
 // ─── Basic behaviour ──────────────────────────────────────────────────────────
 
 describe('ansiPrep', () => {

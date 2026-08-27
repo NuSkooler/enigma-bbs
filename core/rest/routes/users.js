@@ -130,15 +130,15 @@ function _serializePublicProfile(target, viewerIsSysop) {
             ? moment(p(UserProps.LastLoginTs)).toISOString()
             : undefined;
         profile.loginCount = pInt(UserProps.LoginCount);
-        ((profile.uploadCount = pInt(UserProps.FileUlTotalCount)),
+        (profile.uploadCount = pInt(UserProps.FileUlTotalCount)),
             (profile.downloadCount = pInt(UserProps.FileDlTotalCount)),
-            (profile.minutesOnline = pInt(UserProps.MinutesOnlineTotalCount)));
+            (profile.minutesOnline = pInt(UserProps.MinutesOnlineTotalCount));
     }
 
     return profile;
 }
 
-function _meHandler(req, resp, log) {
+function _meHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     requireAuth(req, resp, authedUser => {
@@ -217,7 +217,7 @@ function _meUpdateHandler(req, resp, log) {
     });
 }
 
-function _publicProfileHandler(req, resp, log) {
+function _publicProfileHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const usernameMatch = req.url.match(/\/users\/([^/?]+)/);

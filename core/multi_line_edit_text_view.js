@@ -892,9 +892,6 @@ class MultiLineEditTextView extends View {
     }
 
     insertCharactersInText(c, index, col) {
-        const prevTextLength = this.getTextLength(index);
-        let editingEol = this.cursorPos.col === prevTextLength;
-
         //  Insert each character
         for (let i = 0; i < c.length; i++) {
             this.buffer.insertChar(index, col + i, c[i]);

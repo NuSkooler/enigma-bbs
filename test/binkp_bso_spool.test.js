@@ -577,9 +577,6 @@ describe('attachSpoolToSession', () => {
         // sends it to the client (net=2,node=2 → 00020002.flo).
         const flowPath = path.join(outboundDir(tmpDir), '00020002.flo'); // net=2,node=2
         fsp.writeFile(flowPath, `^${refFile}\n`).then(() => {
-            const serverAddr = { zone: 1, net: 1, node: 1 }; // server's address
-            const clientAddr = { zone: 1, net: 2, node: 2 }; // client's address
-
             const server = net.createServer(serverSocket => {
                 const serverSess = new BinkpSession(serverSocket, {
                     role: 'answering',
@@ -678,7 +675,6 @@ describe('attachSpoolToSession', () => {
                 });
             });
 
-            let serverGotFile = false;
             // We need a server session that can receive
             // (the simple server above won't track it — this test just checks no crash)
             clientSess.on('session-end', () => {

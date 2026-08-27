@@ -30,8 +30,6 @@ exports.getModule = class GoldmineModule extends MenuModule {
     }
 
     initSequence() {
-        let clientTerminated = false;
-
         async.series(
             [
                 callback => {

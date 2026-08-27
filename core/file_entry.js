@@ -11,7 +11,6 @@ const { safeMoveFile } = require('./file_util.js');
 const async = require('async');
 const _ = require('lodash');
 const paths = require('path');
-const fse = require('fs-extra');
 const { unlink, readFile } = require('graceful-fs');
 const crypto = require('crypto');
 const moment = require('moment');
@@ -683,8 +682,8 @@ module.exports = class FileEntry {
                             SELECT file_id
                             FROM file_meta
                             WHERE meta_name = '${safeName}' AND meta_value LIKE '${sanitizeString(
-                                mp.value
-                            )}'
+                            mp.value
+                        )}'
                         )`
                     );
                 } else {
@@ -693,8 +692,8 @@ module.exports = class FileEntry {
                             SELECT file_id
                             FROM file_meta
                             WHERE meta_name = '${safeName}' AND meta_value = '${sanitizeString(
-                                mp.value
-                            )}'
+                            mp.value
+                        )}'
                         )`
                     );
                 }

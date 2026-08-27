@@ -188,7 +188,7 @@ function _serializeFileEntry(entry, strip = true) {
     };
 }
 
-function _areasHandler(req, resp, log) {
+function _areasHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     resolveAuthenticatedUser(req, (err, authedUser) => {
@@ -215,7 +215,7 @@ function _areasHandler(req, resp, log) {
     });
 }
 
-function _areaDetailHandler(req, resp, log) {
+function _areaDetailHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const areaTag = req.url.match(/\/areas\/([^/?]+)(?:[?#]|$)/)?.[1];
@@ -313,7 +313,7 @@ function _fileListHandler(req, resp, log) {
     });
 }
 
-function _fileMetaHandler(req, resp, log) {
+function _fileMetaHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const fileId = parseInt(req.url.match(/\/files\/(\d+)/)?.[1], 10);
@@ -399,7 +399,7 @@ function _downloadHandler(req, resp, log) {
                         mimeTypes.lookup(entry.fileName) || 'application/octet-stream';
                     const safeFileName = paths
                         .basename(entry.fileName)
-                        .replace(/[^\w.\-]/g, '_');
+                        .replace(/[^\w.-]/g, '_');
 
                     resp.writeHead(200, {
                         'Content-Type': mimeType,
@@ -654,7 +654,7 @@ function _parseMultipartUpload(req, resp, log, cb) {
 
             if (partFileName) {
                 //  This is the file part
-                fileName = paths.basename(partFileName).replace(/[^\w.\-]/g, '_');
+                fileName = paths.basename(partFileName).replace(/[^\w.-]/g, '_');
                 fileBuffer = Buffer.from(body, 'binary');
                 fileSize = fileBuffer.length;
             } else if (fieldName === 'desc') {
