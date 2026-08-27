@@ -22,6 +22,42 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **EchoMail exported to a node with no `archiveType` was silently never delivered** ([#722](https://github.com/NuSkooler/enigma-bbs/issues/722)). A node with no `archiveType` configured exports bare packets instead of ArcMail bundles, and those were written to the outbound spool with a malformed name — the dot before the extension was missing (`43792ae5cut` rather than `43792ae5.cut`). No mailer could match such a file, so the message stayed in the spool indefinitely with no error at any log level. This is fixed; un-archived packets now ship as flow file references like everything else, and **no configuration change is required**. Setting `archiveType` is no longer a workaround for anything, though it is still recommended for bandwidth.
+
+  **Action required if you run a node without `archiveType`:** stranded files are not migrated automatically, because their names carry no destination address. Find them:
+
+  ```bash
+  #  the malformed direct-attach names
+  find mail/ftn_out -type f -regextype posix-extended \
+      -regex '.*/[0-9a-fA-F]{8}(out|cut|iut|hut|dut)' -print
+
+  #  and, if you use fileCase: 'upper', names where the temp extension was never stripped
+  find mail/ftn_out -type f -iname '*.pk_*' -print
+  ```
+
+  Each one is a complete FTS-0001 packet. The directory it sits in identifies the network and zone, and the destination net/node is in the packet header — normally just the uplink that area exports to, but you can read it directly:
+
+  ```bash
+  node -e 'const b = require("fs").readFileSync(process.argv[1]);
+           console.log(`dest = ${b.readUInt16LE(22)}/${b.readUInt16LE(2)}`)' \
+      mail/ftn_out/outbound/43792ae5cut
+  ```
+
+  To deliver one, give it a `.pkt` extension and reference it from that node's flow file, whose name is 4 hex digits of the destination net followed by 4 of its node:
+
+  ```bash
+  mv mail/ftn_out/outbound/43792ae5cut mail/ftn_out/outbound/43792ae5.pkt
+  echo "^$(pwd)/mail/ftn_out/outbound/43792ae5.pkt" >> mail/ftn_out/outbound/00640000.clo
+  ```
+
+  If the messages are old enough not to be worth recovering, deleting the files is safe — they are copies; the originals remain in your message base.
+
+* **Outbound files are now matched case-insensitively.** If you set `fileCase: 'upper'` on a node, the native BinkP mailer previously reported that node as having mail and then queued none of it — dialing every poll cycle and shipping nothing. The mailer now handles both cases, as [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §2 asks. No action required; anything queued in upper case starts shipping on the next poll. This also applies to an outbound directory inherited from a DOS-era mailer, where upper case names are the norm.
+
+* **Mail to point addresses is now shipped by the native BinkP mailer.** `ftn_bso` has always written point mail to the `NNNNnnnn.pnt` subdirectory the spec requires, but the mailer did not look there, so it was never sent. If you carry points and have been running the built-in mailer, expect a backlog to go out on the next poll — check that the accumulated volume is something you are happy to send before starting up, and delete anything stale from `mail/ftn_out/**/*.pnt/` first if not.
+
+* **Direct-attach netmail packets are renamed when sent.** A `NNNNnnnn.?ut` file in the outbound is now transmitted as a unique `NNNNNNNN.pkt`, per [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §3.1. Previously it went out under its `.?ut` name and the receiving system's tosser ignored it. This only affects `.?ut` files placed in your outbound by something other than ENiGMA½ — a netmail tracker, another mailer, or by hand. No action required.
+
 * **Multi-network BSO outbound directories are now consistent between `ftn_bso` and the native BinkP mailer** ([#719](https://github.com/NuSkooler/enigma-bbs/issues/719)). The scanner/tosser and the mailer each used their own rule for deciding which FTN network owns the bare `outbound/` directory, and the two disagreed whenever more than one network was configured. Both now use the documented rule: `scannerTossers.ftn_bso.defaultNetwork` when set, otherwise the first network listed in `messageNetworks.ftn.networks`.
 
   **If you have two or more FTN networks configured and have _not_ set `defaultNetwork`**, the first-listed network's outbound now lands in `mail/ftn_out/outbound/` rather than `mail/ftn_out/<networkName>/`.
