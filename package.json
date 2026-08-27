@@ -12,6 +12,8 @@
         "start": "node main.js",
         "oputil": "node ./oputil.js",
         "pretty": "npx prettier --write .",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
         "build:acs": "peggy --format commonjs -o core/acs_parser.js misc/acs_parser.pegjs",
         "prepare": "husky",
         "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000 --require test/setup.js --exit"
