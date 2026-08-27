@@ -10,7 +10,6 @@ const {
     hasMessageConfAndAreaRead,
     filterMessageListByReadACS,
 } = require('./message_area.js');
-const Errors = require('./enig_error.js').Errors;
 const Message = require('./message.js');
 
 //  deps

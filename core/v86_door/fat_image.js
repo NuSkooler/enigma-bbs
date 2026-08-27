@@ -29,6 +29,8 @@ const RESERVED_SECTORS = 1;
 
 const FAT1_SECTOR = RESERVED_SECTORS;
 const FAT2_SECTOR = FAT1_SECTOR + SECTORS_PER_FAT;
+//  Completes the layout sequence above; not needed directly (yet)
+// eslint-disable-next-line no-unused-vars
 const ROOT_SECTOR = FAT2_SECTOR + SECTORS_PER_FAT;
 
 function buildBootSector() {

@@ -40,7 +40,6 @@ exports.register = function register(webServer, log) {
 function _loginHandler(req, resp, webServer, log) {
     applyCorsHeaders(req, resp);
 
-    const ip = req.socket?.remoteAddress || '0.0.0.0';
     if (!webServer.checkRateLimit(req, resp, 'rest:login', LOGIN_RATE)) {
         return;
     }
@@ -120,7 +119,7 @@ function _loginHandler(req, resp, webServer, log) {
     });
 }
 
-function _refreshHandler(req, resp, log) {
+function _refreshHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const cookie = req.headers['cookie'] || '';
@@ -150,7 +149,7 @@ function _refreshHandler(req, resp, log) {
     });
 }
 
-function _logoutHandler(req, resp, log) {
+function _logoutHandler(req, resp, _log) {
     applyCorsHeaders(req, resp);
 
     const cookie = req.headers['cookie'] || '';

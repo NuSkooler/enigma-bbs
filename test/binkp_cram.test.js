@@ -1,7 +1,6 @@
 'use strict';
 
 const { strict: assert } = require('assert');
-const crypto = require('crypto');
 const {
     generateChallenge,
     computeResponse,

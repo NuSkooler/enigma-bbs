@@ -58,7 +58,6 @@ function stylizeString(s, style) {
     var len = s.length;
     var c;
     var i;
-    var stylized = '';
 
     switch (style) {
         //  None/normal

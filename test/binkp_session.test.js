@@ -2,7 +2,6 @@
 
 const { strict: assert } = require('assert');
 const net = require('net');
-const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const os = require('os');
@@ -272,7 +271,7 @@ describe('BinkpSession — file transfer', () => {
         });
 
         let clientFileSent = false;
-        clientSess.on('file-sent', name => {
+        clientSess.on('file-sent', _name => {
             clientFileSent = true;
         });
 
@@ -463,7 +462,7 @@ describe('BinkpSession — duplicate detection (hasFile)', () => {
             {},
             {
                 // Server claims it already has the file
-                hasFile: (name, size, ts) => name === 'dup.pkt',
+                hasFile: (name, _size, _ts) => name === 'dup.pkt',
             }
         );
 

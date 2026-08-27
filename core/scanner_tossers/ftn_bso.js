@@ -1241,7 +1241,9 @@ function FTNMessageScanTossModule() {
                                                 subject: `Failed: ${message.subject}`,
                                                 message:
                                                     `Your message to ${message.toUserName} could not be delivered.\r\n\r\n` +
-                                                    `Reason: ${err.reason || err.message}\r\n\r\n` +
+                                                    `Reason: ${
+                                                        err.reason || err.message
+                                                    }\r\n\r\n` +
                                                     `The original message has been retained for your reference.` +
                                                     ` Please contact your sysop if you believe this is in error.`,
                                             });
@@ -1275,7 +1277,6 @@ function FTNMessageScanTossModule() {
     };
 
     this.exportEchoMailMessagesToUplinks = function (messageUuids, areaConfig, cb) {
-        const config = Config();
         async.each(
             areaConfig.uplinks,
             (uplink, nextUplink) => {

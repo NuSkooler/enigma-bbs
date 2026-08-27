@@ -41,7 +41,6 @@ const {
     verifyObjectOwner,
     actorDomainMatchesKeyId,
     readInboxBody,
-    MaxRequestAgeSecs,
 } = require('../../../activitypub/security');
 
 // deps

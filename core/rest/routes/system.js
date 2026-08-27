@@ -82,7 +82,7 @@ function _infoHandler(req, resp) {
 function _nodesHandler(req, resp) {
     applyCorsHeaders(req, resp);
 
-    _requirePublicOrAuth(req, resp, 'nodes', authedUser => {
+    _requirePublicOrAuth(req, resp, 'nodes', _authedUser => {
         const nodes = getActiveConnectionList(UserVisibleConnections).map(n => {
             const entry = {
                 node: n.node,

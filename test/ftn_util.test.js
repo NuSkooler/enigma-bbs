@@ -1,7 +1,6 @@
 'use strict';
 
 const { strict: assert } = require('assert');
-const moment = require('moment');
 
 const ftnUtil = require('../core/ftn_util.js');
 
@@ -146,7 +145,6 @@ describe('getUpdatedPathEntries', () => {
 
     it('starts a new line when last line is full', () => {
         //  Fill the last line close to the 71-char limit
-        const Address = require('../core/ftn_address.js');
         const longLine = Array.from({ length: 6 }, (_, i) => `${10000 + i}/1`).join(' ');
         assert.ok(longLine.length > 40); // confirm it's substantial
         const existing = [longLine];
@@ -154,7 +152,6 @@ describe('getUpdatedPathEntries', () => {
         const extra = Array.from({ length: 10 }, (_, i) => `${20000 + i}/1`);
         let result = existing;
         for (const e of extra) {
-            const addr = new Address({ net: parseInt(e), node: 1 });
             result = ftnUtil.getUpdatedPathEntries(result, `${e}`);
         }
         assert.ok(result.length > 1, 'expected multiple PATH lines');

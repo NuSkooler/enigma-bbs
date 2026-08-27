@@ -114,7 +114,7 @@ const PostCommand = {
     head: 'POST',
     validate: /^POST$/i,
 
-    run(session, cmd) {
+    run(session, _cmd) {
         if (!session.authenticated) {
             session.receivingPostArticle = false; // ensure reset
             return Responses.AuthRequired;

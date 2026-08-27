@@ -1,4 +1,4 @@
 {
-    "*.js": ["npx eslint --fix", "npx prettier --write"],
-    "*.json": ["npx eslint --fix", "npx prettier --write"]
+    "*.{js,mjs}": ["eslint --fix", "prettier --write"],
+    "*.json": ["eslint --fix", "prettier --write"]
 }

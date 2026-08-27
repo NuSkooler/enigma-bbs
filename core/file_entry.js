@@ -11,7 +11,6 @@ const { safeMoveFile } = require('./file_util.js');
 const async = require('async');
 const _ = require('lodash');
 const paths = require('path');
-const fse = require('fs-extra');
 const { unlink, readFile } = require('graceful-fs');
 const crypto = require('crypto');
 const moment = require('moment');

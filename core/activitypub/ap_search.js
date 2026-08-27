@@ -575,7 +575,7 @@ exports.getModule = class ApSearchModule extends MenuModule {
         this._selectedActor._isFollowing = !this._selectedActor._isFollowing;
 
         const actor = this._cleanActor();
-        const done = e => {
+        const done = _e => {
             //  Full view refresh so all fixed fields (TL1-6) and TL10+ reflect new state
             return this._updateActorView(cb);
         };

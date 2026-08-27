@@ -694,7 +694,7 @@ describe('isSafeOutboundUrl()', function () {
 // ─── readInboxBody ────────────────────────────────────────────────────────────
 
 //  Helper: build a fake req EventEmitter that emits the given chunks then 'end'.
-function makeFakeReq(chunks, errorAfterBytes = null) {
+function makeFakeReq(chunks, _errorAfterBytes = null) {
     const req = new EventEmitter();
     req.destroyed = false;
     req.destroy = () => {
@@ -809,7 +809,7 @@ describe('readInboxBody()', function () {
         };
 
         let callCount = 0;
-        readInboxBody(req, 10, err => {
+        readInboxBody(req, 10, _err => {
             callCount++;
             assert.equal(callCount, 1, 'cb must not be called more than once');
             if (callCount === 1) {

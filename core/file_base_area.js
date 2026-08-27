@@ -702,21 +702,6 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
     );
 }
 
-function addNewFileEntry(fileEntry, filePath, cb) {
-    //  :TODO: Use detectTypeWithBuf() once avail - we *just* read some file data
-
-    async.series(
-        [
-            function addNewDbRecord(callback) {
-                return fileEntry.persist(callback);
-            },
-        ],
-        err => {
-            return cb(err);
-        }
-    );
-}
-
 const HASH_NAMES = ['sha1', 'sha256', 'md5', 'crc32'];
 
 function scanFile(filePath, options, iterator, cb) {

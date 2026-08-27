@@ -731,7 +731,6 @@ describe('Achievements.getAchievementsEarnedByUser()', function () {
     it('returns multiple achievements for the same user', done => {
         const user = makeUser(43);
         const instance = makeInstanceWithConfig();
-        const item = makeInterruptItem();
 
         const info2 = makeRecordInfo(user, {
             matchField: 2,

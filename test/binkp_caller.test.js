@@ -319,8 +319,6 @@ describe('BinkP caller', function () {
         });
 
         it('calls a node that has pending mail and a configured host', done => {
-            let sessionCompleted = false;
-
             startAnsweringServer()
                 .then(async ({ port, stop }) => {
                     const refFile = path.join(tmpDir, 'poll_test.pkt');

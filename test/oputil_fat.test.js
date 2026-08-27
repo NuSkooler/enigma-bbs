@@ -58,13 +58,6 @@ function mkdir(fs, p) {
     );
 }
 
-/** Promise wrapper around fatfs.writeFile */
-function writeFile(fs, p, data) {
-    return new Promise((resolve, reject) =>
-        fs.writeFile(p, data, err => (err ? reject(err) : resolve()))
-    );
-}
-
 // ─── createFloppyWithFiles ────────────────────────────────────────────────────
 
 describe('createFloppyWithFiles', () => {

@@ -83,7 +83,9 @@ function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
         }
         return cb(
             Errors.Invalid(
-                `Announce.object is an embedded non-Note/Article type: ${objectOrId && objectOrId.type}`
+                `Announce.object is an embedded non-Note/Article type: ${
+                    objectOrId && objectOrId.type
+                }`
             )
         );
     }
@@ -137,7 +139,9 @@ function fetchAnnouncedNote(objectOrId, fromActorId, cb) {
             if (!parsed || !isNoteOrArticle(parsed.type)) {
                 return cb(
                     Errors.Invalid(
-                        `Fetched object at "${noteId}" is not a Note or Article (got type: ${parsed && parsed.type})`
+                        `Fetched object at "${noteId}" is not a Note or Article (got type: ${
+                            parsed && parsed.type
+                        })`
                     )
                 );
             }
@@ -327,8 +331,6 @@ function undoBoost(localUser, noteId, cb) {
         );
     }
 
-    const followersEndpoint = Endpoints.followers(localUser);
-
     //  We need the original Announce to wrap in Undo.object
     //  Find it in the Outbox by scanning for an Announce with matching object.
     //  Note: this queries via json_extract — acceptable for a user-triggered action.
@@ -367,7 +369,7 @@ function undoBoost(localUser, noteId, cb) {
                         sharedInboxes,
                         4,
                         (inbox, next) => {
-                            undo.sendTo(inbox, localUser, (err, body, res) => {
+                            undo.sendTo(inbox, localUser, (err, _body, _res) => {
                                 if (err) {
                                     Log.warn(
                                         { inbox, noteId, error: err.message },

@@ -153,7 +153,7 @@ function makeMessageBody(lines) {
 }
 
 function processBody(buf) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, _reject) => {
         new Packet().processMessageBody(buf, data => {
             resolve(data);
         });
@@ -173,7 +173,9 @@ describe('processMessageBody — kludge line parsing', () => {
             const data = await processBody(buf);
             assert.ok(
                 data.kludgeLines['Via'],
-                `"${prefix}" should be normalized to "Via" key, got keys: ${Object.keys(data.kludgeLines).join(', ')}`
+                `"${prefix}" should be normalized to "Via" key, got keys: ${Object.keys(
+                    data.kludgeLines
+                ).join(', ')}`
             );
         }
     });

@@ -1,6 +1,4 @@
 const { Errors } = require('./enig_error');
-const { getAddressedToInfo } = require('./mail_util');
-const Message = require('./message');
 const { getJson } = require('./http_util');
 
 // deps
