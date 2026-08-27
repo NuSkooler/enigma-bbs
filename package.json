@@ -11,7 +11,7 @@
     "scripts": {
         "start": "node main.js",
         "oputil": "node ./oputil.js",
-        "pretty": "npx prettier --write .",
+        "pretty": "prettier --write .",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "build:acs": "peggy --format commonjs -o core/acs_parser.js misc/acs_parser.pegjs",

@@ -1,0 +1,31 @@
+name: Lint
+
+on:
+  push:
+    branches: [ master ]
+
+  pull_request:
+
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          #  package.json requires >=22
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        #  ci rather than install so the lockfile is honoured, and
+        #  --include=dev because eslint is a devDependency
+        run: npm ci --include=dev
+
+      - name: ESLint
+        run: npm run lint

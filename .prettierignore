@@ -10,3 +10,6 @@ www
 mkdocs.yml
 *.md
 .github
+.venv
+dev_util/gotosocial/web
+node_modules
