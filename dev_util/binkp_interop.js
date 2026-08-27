@@ -444,8 +444,9 @@ async function scenarioAnswer(binkd, root) {
     const weGot = 1 === received.length && received[0].intact;
 
     //  binkd/1.1 opens another batch after any batch that carried more than
-    //  the two M_EOBs and waits for our M_EOB, which we never send. It is
-    //  tracked separately; both files still transfer, so judge on those.
+    //  the two M_EOBs and waits for our M_EOB before hanging up. If it does
+    //  not exit, that exchange did not complete — look for a "done (..., OK"
+    //  line in its log to tell a clean finish from a timeout.
     const stalled = 'timeout' === exit;
 
     return reportBody(
@@ -458,7 +459,7 @@ async function scenarioAnswer(binkd, root) {
             binkdInbound: binkdGot,
             binkdBytesIntact: binkdIntact,
             note: stalled
-                ? 'binkd did not exit — expected until multi-batch support lands'
+                ? 'binkd did not exit — it is still waiting on the batch exchange'
                 : undefined,
         },
         log
