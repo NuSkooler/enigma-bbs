@@ -3,6 +3,7 @@ const SysLogger = require('../../logger.js').log;
 const ServerModule = require('../../server_module.js').ServerModule;
 const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
+const { listenServer } = require('../../server_listen.js');
 const { loadModulesForCategory, moduleCategories } = require('../../module_util');
 const WebHandlerModule = require('../../web_handler_module');
 
@@ -212,9 +213,14 @@ exports.getModule = class WebServerModule extends ServerModule {
                         );
                     }
 
-                    this[name].listen(
-                        port,
-                        config.contentServers.web[service].address,
+                    return listenServer(
+                        this[name],
+                        {
+                            name: service,
+                            port,
+                            address: config.contentServers.web[service].address,
+                            log: SysLogger,
+                        },
                         err => {
                             return nextService(err);
                         }

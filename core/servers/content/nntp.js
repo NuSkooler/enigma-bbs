@@ -27,6 +27,11 @@ const {
 const AnsiPrep = require('../../ansi_prep.js');
 const { stripMciColorCodes } = require('../../color_codes.js');
 const ACS = require('../../acs');
+const {
+    makeBindError,
+    reportListening,
+    reportBindFailure,
+} = require('../../server_listen.js');
 
 //  deps
 const NNTPServerBase = require('nntp-server');
@@ -1414,14 +1419,28 @@ exports.getModule = class NNTPServerModule extends ServerModule {
                 const server = this[`${service}Server`];
                 if (server) {
                     const port = config.contentServers.nntp[service].port;
+
+                    //  listenURI() binds all interfaces; report the same thing
+                    //  we actually asked for.
+                    const bindInfo = { name: service, port, address: '0.0.0.0' };
+
                     server.listen(this.listenURI(port, service)).then(
-                        () => nextService(null),
-                        e => {
-                            Log.warn(
-                                { error: e.message, port },
-                                `${service.toUpperCase()} failed to listen`
+                        () => {
+                            reportListening(bindInfo);
+                            Log.info(
+                                { server: service, port },
+                                'Listening for connections'
                             );
-                            return nextService(null); //  try next anyway
+                            return nextService(null);
+                        },
+                        e => {
+                            //  A port conflict here used to be logged and
+                            //  skipped, which left the board running with NNTP
+                            //  silently absent. Treat it like every other
+                            //  server: report it and stop startup.
+                            const bindErr = makeBindError(e, bindInfo);
+                            reportBindFailure(bindErr, bindInfo);
+                            return nextService(bindErr);
                         }
                     );
                 } else {

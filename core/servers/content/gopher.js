@@ -22,6 +22,7 @@ const { sortAreasOrConfs } = require('../../conf_area_util.js');
 const AnsiPrep = require('../../ansi_prep.js');
 const { wordWrapText } = require('../../word_wrap.js');
 const { stripMciColorCodes } = require('../../color_codes.js');
+const { listenServer } = require('../../server_listen.js');
 
 //  deps
 const net = require('net');
@@ -131,7 +132,9 @@ exports.getModule = class GopherModule extends ServerModule {
             );
         }
 
-        return this.server.listen(port, config.contentServers.gopher.address, cb);
+        const address = config.contentServers.gopher.address;
+
+        return listenServer(this.server, { name: 'gopher', port, address, log: Log }, cb);
     }
 
     get enabled() {

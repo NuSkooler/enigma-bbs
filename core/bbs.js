@@ -106,8 +106,14 @@ function main() {
             },
             function initSystem(callback) {
                 initialize(function init(err) {
-                    if (err) {
+                    //  Bind failures and friends have already printed something
+                    //  an operator can act on; a util.inspect() dump on top of
+                    //  that is just noise.
+                    if (err && !err.consoleReported) {
                         console.error('Error initializing: ' + util.inspect(err));
+                    }
+                    if (err) {
+                        errorDisplayed = true;
                     }
                     return callback(err);
                 });
@@ -129,8 +135,14 @@ function main() {
                 );
             }
 
-            if (err && !errorDisplayed) {
-                console.error('Error initializing: ' + util.inspect(err));
+            if (err) {
+                if (!errorDisplayed && !err.consoleReported) {
+                    console.error('Error initializing: ' + util.inspect(err));
+                }
+                //  Always exit non-zero on a startup failure. Previously an
+                //  error that had already been displayed fell through here and
+                //  the process wound down with status 0, so service managers
+                //  and scripts saw a clean exit. See issue #547.
                 return process.exit(1);
             }
         }
