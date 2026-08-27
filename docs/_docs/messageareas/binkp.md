@@ -97,6 +97,7 @@ scannerTossers: {
                     port: 24554              // optional, defaults to 24554
                     sessionPassword: "s3cr3t" // optional CRAM-MD5 password — see tip below
                     pull: true                // optional, defaults to true
+                    // requestNR: true        // optional; ask this node to send in NR mode
                 }
 
                 // TLS outbound example (binkps):
@@ -169,8 +170,17 @@ Each key is an FTN address or wildcard pattern. Values:
 | `port` | No | `24554` | Remote port |
 | `sessionPassword` | No | — | Session password for CRAM-MD5 authentication (distinct from FTN packet password) |
 | `pull` | No | `true` | Include this node in the periodic pull cycle. Set `false` for write-only peers. **Crashmail dispatch is unaffected** — outbound queued for a `pull: false` peer still triggers an immediate session. |
+| `requestNR` | No | `false` | Ask this node to send files to us in NR mode. See below. |
 
 Wildcard patterns (e.g. `"21:1/*"`) are valid for inbound password lookup but are skipped during pull cycles, since the pull cycle dials concrete addresses only. Put the most specific patterns first in your config — pattern matching uses first-match-wins on insertion order.
+
+#### `binkp.nodes[].requestNR` — NR (non-reliable) mode
+
+NR mode is the binkp answer to a link that keeps dropping mid-transfer. Normally a sender starts every file at offset 0 and the receiver has to interrupt with `M_GET` to move it; on a bad line the connection is often gone again before that lands. In NR mode the sender instead offers the file with an offset of `-1` and waits to be told where to start, so the resume position is settled before any data moves. See [FTS-1028](http://ftsc.org/docs/fts-1028.001).
+
+`OPT NR` is a request aimed at the *remote*: it asks the other side to send **to us** that way. It costs a round trip per file, and the standard is blunt that it "degrades performance over regular quality connections and it should be used only if absolutely necessary" — so ENiGMA½ does not send it unless a node opts in with `requestNR: true`. binkd behaves the same way, asking only when the sysop sets `-nr` or `-nd` on a node.
+
+The other direction needs no configuration. If a peer asks us for NR mode we always honour it, which FTS-1028 makes a `MUST`.
 
 #### `binkp.nodes[].tls` / TLS outbound (binkps)
 

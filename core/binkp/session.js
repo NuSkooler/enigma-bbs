@@ -25,16 +25,6 @@ function _isCompressed(filename) {
     return ALREADY_COMPRESSED_RE.test(filename) || ARCMAIL_RE.test(filename);
 }
 
-// binkd versions with a known-buggy NR implementation — force symmetric NR workaround
-const BUGGY_NR_PATTERNS = [
-    'binkd/0.9/',
-    'binkd/0.9.1/',
-    'binkd/0.9.2/',
-    'binkd/0.9.3/',
-    'binkd/0.9.3x/',
-    'binkd/0.9.4/',
-];
-
 //
 //  BinkpSession — implements BinkP 1.1 as both answering and originating node.
 //
@@ -86,7 +76,6 @@ class BinkpSession extends EventEmitter {
         this._sentPwd = false;
         this._remoteAddresses = [];
         this._remoteOpts = new Set();
-        this._buggyNR = false;
 
         // Negotiated capabilities
         this._useNR = false;
@@ -98,6 +87,9 @@ class BinkpSession extends EventEmitter {
         this._sendQueue = []; // { name, path, size, timestamp, disposition }
         this._currentSend = null; // { name, path, size, timestamp, disposition, offset, nrPending, readStream }
         this._currentRecv = null; // { name, size, timestamp, tempPath, bytesReceived, writeStream }
+        //  Set when we have answered an NR-mode M_FILE (offset -1) with
+        //  M_GET and are waiting for the sender to re-announce the file.
+        this._pendingOffsetReq = null; // { name, size, timestamp, useGZ }
         this._pendingGots = new Map(); // `name\0size\0ts` → { name, path, size, timestamp, disposition }
 
         //  Inbound temp files we own. Added when we start writing one and
@@ -190,7 +182,16 @@ class BinkpSession extends EventEmitter {
         if (this._sentPwd) return;
         this._sentPwd = true;
 
-        const caps = [Opts.NR, Opts.NDA, Opts.GZ, Opts.EXTCMD];
+        const caps = [Opts.NDA, Opts.GZ, Opts.EXTCMD];
+        //  NR is a request that the *remote* send to us in NR mode, not an
+        //  advert that we understand it (FTS-1028). It costs a round trip
+        //  per file and the spec is explicit that it "degrades performance
+        //  over regular quality connections and it should be used only if
+        //  absolutely necessary", so it stays off unless a node opts in.
+        //  Answering an inbound OPT NR is unconditional -- see _onPwd.
+        if (this._wantNR()) {
+            caps.unshift(Opts.NR);
+        }
         this._sendCmd(Commands.M_NUL, `OPT ${caps.join(' ')}`);
 
         const password = this._lookupPassword();
@@ -201,6 +202,17 @@ class BinkpSession extends EventEmitter {
         } else {
             this._sendCmd(Commands.M_PWD, password || '-');
         }
+    }
+
+    //  Should we ask the remote to send to us in NR mode? |requestNR| is a
+    //  boolean or a predicate over the remote's addresses, so the answering
+    //  side can decide per node once M_ADR has arrived.
+    _wantNR() {
+        const requestNR = this._opts.requestNR;
+        if (typeof requestNR === 'function') {
+            return true === requestNR(this._remoteAddresses);
+        }
+        return true === requestNR;
     }
 
     _lookupPassword() {
@@ -284,9 +296,6 @@ class BinkpSession extends EventEmitter {
         const value = spaceIdx < 0 ? '' : arg.slice(spaceIdx + 1);
 
         if (keyword !== 'OPT') {
-            if (keyword === 'VER') {
-                this._buggyNR = BUGGY_NR_PATTERNS.some(p => value.includes(p));
-            }
             return;
         }
 
@@ -337,9 +346,16 @@ class BinkpSession extends EventEmitter {
         this._authState = isSecure ? 'P_SECURE' : 'P_NONSECURE';
 
         const confirmedOpts = [];
-        if (this._remoteOpts.has(Opts.NR) && !this._buggyNR) {
-            confirmedOpts.push(Opts.NR);
+        //  FTS-1028: "If remote sends the M_NUL \"OPT NR\" frame, a mailer
+        //  MUST send files in NR mode if it supports this." The frame is a
+        //  request that *we* send in NR mode -- not a capability advert --
+        //  so echoing it back is both the acknowledgement and our own
+        //  request, and is only correct when we actually want NR inbound.
+        if (this._remoteOpts.has(Opts.NR)) {
             this._useNR = true;
+        }
+        if (this._wantNR()) {
+            confirmedOpts.push(Opts.NR);
         }
         // Prefer NDA (asymmetric) over ND; either means we wait for M_GOT before disposing
         if (this._remoteOpts.has(Opts.NDA)) {
@@ -373,7 +389,7 @@ class BinkpSession extends EventEmitter {
         this._authState = isSecure ? 'P_SECURE' : 'P_NONSECURE';
 
         // Answering side confirms opts in M_NUL before M_OK; pick up what they confirmed
-        if (this._remoteOpts.has(Opts.NR) && !this._buggyNR) {
+        if (this._remoteOpts.has(Opts.NR)) {
             this._useNR = true;
         }
         if (this._remoteOpts.has(Opts.NDA) || this._remoteOpts.has(Opts.ND)) {
@@ -414,7 +430,16 @@ class BinkpSession extends EventEmitter {
     _sendNext() {
         if (this._state !== 'transfer' || this._currentSend) return;
 
-        if (this._localEOBSent) return;
+        if (this._localEOBSent) {
+            //  M_EOB is already out, so nothing further will be offered this
+            //  batch — but state can still settle after it (a late M_GOT
+            //  clearing the last pending file, or an M_SKIP dropping the
+            //  send in flight). Re-test for completion instead of just
+            //  returning, or the batch reaches a finished state with nobody
+            //  left to notice and the session hangs to its timeout.
+            this._checkDone();
+            return;
+        }
 
         const canSend = !this._opts.sendIfPwd || this._authState === 'P_SECURE';
 
@@ -446,19 +471,55 @@ class BinkpSession extends EventEmitter {
             readStream: null,
         };
 
-        const offset = this._useNR ? -1 : 0;
-        // Append GZ token only when EXTCMD is active — old implementations
-        // without EXTCMD concatenate extra tokens into the filename.
-        const gzToken = useGZ ? ' GZ' : '';
-        this._sendCmd(
-            Commands.M_FILE,
-            `${file.name} ${file.size} ${file.timestamp} ${offset}${gzToken}`
-        );
+        //  NR mode: offer the file with an offset of -1 and let the remote
+        //  name the offset it wants (FTS-1028 sec. 2). _onGet resumes from there.
+        this._sendFileHeader(this._useNR ? -1 : 0);
 
         if (!this._useNR) {
             this._pumpFile();
         }
         // else: wait for M_GET from remote before pumping
+    }
+
+    //
+    //  Emit M_FILE for the current send at |offset|.
+    //
+    //  M_FILE is the only thing that opens a file on the receiving side --
+    //  FTS-1026: "Until the next M_FILE command is received, all data frames
+    //  must carry data from this file" -- and a receiver that has answered
+    //  with M_GET has already torn its inbound state down (binkd closes the
+    //  file and zeroes its receive struct the moment it sends M_GET). So
+    //  every start *or restart* of a transfer must be preceded by a fresh
+    //  M_FILE, which FTS-1026 spells out under M_GET: "proceed with
+    //  transmission of the file requested starting with an appropriate
+    //  M_FILE".
+    //
+    _sendFileHeader(offset) {
+        const cs = this._currentSend;
+        if (!cs) return;
+        // Append GZ token only when EXTCMD is active — old implementations
+        // without EXTCMD concatenate extra tokens into the filename.
+        const gzToken = cs.useGZ ? ' GZ' : '';
+        this._sendCmd(
+            Commands.M_FILE,
+            `${cs.name} ${cs.size} ${cs.timestamp} ${offset}${gzToken}`
+        );
+    }
+
+    //  Tear down whatever is feeding an in-flight send. Safe when nothing is
+    //  in flight: an NR-mode send sits with a null readStream while it waits
+    //  for M_GET. Listeners come off first so a destroy can't re-enter
+    //  _sendNext through the 'error'/'end' handlers _pumpFile installed.
+    _teardownSendStreams(cs) {
+        if (!cs) return;
+        for (const key of ['gzipStream', 'readStream']) {
+            const stream = cs[key];
+            if (!stream) continue;
+            stream.removeAllListeners();
+            stream.on('error', () => {});
+            stream.destroy();
+            cs[key] = null;
+        }
     }
 
     _pumpFile() {
@@ -534,21 +595,89 @@ class BinkpSession extends EventEmitter {
         rs.on('error', onSendError);
     }
 
+    //
+    //  M_GET: the remote wants us to (re)start a file at a given offset. In
+    //  NR mode this is the answer to the -1 we offered; outside it, it is a
+    //  resume request for a partial the remote already holds.
+    //
     _onGet(arg) {
-        // NR mode: remote tells us the offset to resume from
         const parts = arg.split(' ');
-        if (parts.length < 4) return;
+        if (parts.length < 4) {
+            Log.warn({ arg }, '[BinkP] Malformed M_GET');
+            return;
+        }
 
-        const [name, , , offsetStr] = parts;
+        const [name, sizeStr, tsStr, offsetStr] = parts;
         const offset = parseInt(offsetStr, 10);
+        if (!Number.isFinite(offset) || offset < 0) {
+            Log.warn({ arg }, '[BinkP] M_GET with an unusable offset');
+            return;
+        }
 
-        if (!this._currentSend || this._currentSend.name !== name) {
+        if (this._currentSend && this._currentSend.name === name) {
+            return this._restartSend(offset);
+        }
+
+        //  FTS-1026 also requires us to recognise an M_GET naming "a file
+        //  that have been transmitted, but we are still waiting an M_GOT
+        //  acknowledge for it" -- the race the spec calls out, where we
+        //  finish a file and move on to the next before its M_GET lands.
+        //  Dropping it strands the remote until a session timeout.
+        const key = `${name}\0${sizeStr}\0${tsStr}`;
+        const pending = this._pendingGots.get(key);
+        if (!pending) {
             Log.warn({ name }, '[BinkP] M_GET for unknown or inactive file');
             return;
         }
 
-        this._currentSend.offset = Math.max(0, offset);
-        this._currentSend.nrPending = false;
+        this._pendingGots.delete(key);
+
+        //  Anything in flight goes back to the head of the queue so it is
+        //  re-offered once the re-requested file has been dealt with.
+        if (this._currentSend) {
+            const displaced = this._currentSend;
+            this._teardownSendStreams(displaced);
+            this._sendQueue.unshift({
+                path: displaced.path,
+                name: displaced.name,
+                size: displaced.size,
+                timestamp: displaced.timestamp,
+                disposition: displaced.disposition,
+            });
+        }
+
+        this._currentSend = {
+            ...pending,
+            offset: 0,
+            nrPending: false,
+            useGZ: this._useGZ && this._useEXTCMD && !_isCompressed(pending.name),
+            readStream: null,
+        };
+        this._restartSend(offset);
+    }
+
+    //  Seek the current send to |offset| and (re)start it, announcing the
+    //  new position with an M_FILE first -- see _sendFileHeader.
+    _restartSend(offset) {
+        const cs = this._currentSend;
+        if (!cs) return;
+
+        this._teardownSendStreams(cs);
+
+        if (offset > cs.size) {
+            //  Past EOF. binkd answers this with M_ERR and drops the
+            //  session; clamping costs nothing, keeps the batch alive and
+            //  still leaves the file with us until the remote acknowledges.
+            Log.warn(
+                { name: cs.name, offset, size: cs.size },
+                '[BinkP] M_GET offset past end of file; clamping'
+            );
+            offset = cs.size;
+        }
+
+        cs.offset = offset;
+        cs.nrPending = false;
+        this._sendFileHeader(offset);
         this._pumpFile();
     }
 
@@ -578,6 +707,7 @@ class BinkpSession extends EventEmitter {
             const [skipped] = this._sendQueue.splice(queueIdx, 1);
             this._applyDisposition(skipped);
             Log.debug({ name }, '[BinkP] Destructive skip via M_GOT (queued file)');
+            this._checkDone();
             return;
         }
 
@@ -587,9 +717,7 @@ class BinkpSession extends EventEmitter {
             String(this._currentSend.size) === sizeStr
         ) {
             Log.debug({ name }, '[BinkP] Destructive skip via M_GOT (active send)');
-            if (this._currentSend.readStream) {
-                this._currentSend.readStream.destroy();
-            }
+            this._teardownSendStreams(this._currentSend);
             this._applyDisposition(this._currentSend);
             this._currentSend = null;
             setImmediate(() => this._sendNext());
@@ -632,6 +760,10 @@ class BinkpSession extends EventEmitter {
             setImmediate(() => this._sendNext());
         }
 
+        //  Any M_FILE supersedes an outstanding offset request, whether it
+        //  is the re-announcement we asked for or the sender moving on.
+        this._pendingOffsetReq = null;
+
         const [name, sizeStr, tsStr, offsetStr] = parts;
         const size = parseInt(sizeStr, 10);
         const timestamp = parseInt(tsStr, 10);
@@ -649,6 +781,33 @@ class BinkpSession extends EventEmitter {
             this._sendCmd(Commands.M_GOT, `${name} ${size} ${timestamp}`);
             return;
         }
+
+        //  NR mode: the sender offered -1 and wants us to name the offset
+        //  (FTS-1028 sec. 2). Answer with M_GET and stop here — nothing is
+        //  being received yet. The transfer only begins when the sender
+        //  re-announces the file with an M_FILE carrying the real offset,
+        //  which FTS-1026 requires of it under M_GET. Building the receive
+        //  now would build it twice and fire 'incoming-file' twice with it.
+        if (offset === -1) {
+            // :TODO: check for existing partial file and respond with its size
+            this._pendingOffsetReq = { name, size, timestamp, useGZ };
+            this._sendCmd(Commands.M_GET, `${name} ${size} ${timestamp} 0`);
+            return;
+        }
+
+        this._beginReceive({ name, size, timestamp, useGZ });
+    }
+
+    //
+    //  Set up inbound state for one file and tell listeners about it.
+    //
+    //  'incoming-file' must fire exactly once per received file: the FREQ
+    //  handler pairs it with holdEOB() and releases on 'file-received', so a
+    //  second emit for the same file pins the hold above zero and the batch
+    //  never sends M_EOB.
+    //
+    _beginReceive({ name, size, timestamp, useGZ }) {
+        this._pendingOffsetReq = null;
 
         const tempPath = path.join(
             this._opts.tempDir || os.tmpdir(),
@@ -671,15 +830,17 @@ class BinkpSession extends EventEmitter {
         //  handler uses this to call holdEOB() before the async file write
         //  completes — earlier than the 'file-received' event.
         this.emit('incoming-file', name, size, timestamp);
-
-        // NR mode: sender sent offset=-1 requesting us to provide our resume offset
-        if (offset === -1) {
-            // :TODO: check for existing partial file and respond with its size
-            this._sendCmd(Commands.M_GET, `${name} ${size} ${timestamp} 0`);
-        }
     }
 
     _onDataFrame(data) {
+        //  A sender that answers our M_GET with data but no fresh M_FILE is
+        //  not following FTS-1026, but the bytes are on the wire and
+        //  discarding them would hang the batch. Adopt the outstanding
+        //  offset request as the active receive instead.
+        if (!this._currentRecv && this._pendingOffsetReq) {
+            this._beginReceive(this._pendingOffsetReq);
+        }
+
         const cr = this._currentRecv;
 
         if (!cr) {
@@ -791,6 +952,9 @@ class BinkpSession extends EventEmitter {
 
     _onEob() {
         this._remoteEOB = true;
+        //  The remote is done sending; anything we asked an offset for is
+        //  not coming this session.
+        this._pendingOffsetReq = null;
         this._checkDone();
         //  Answering side defers M_EOB until _remoteEOB is true. Now that
         //  it is, unblock the send loop so M_EOB (or queued FREQ files) go out.
@@ -799,11 +963,61 @@ class BinkpSession extends EventEmitter {
         }
     }
 
+    //
+    //  M_SKIP: FTS-1026 non-destructive skip — "the remote should postpone
+    //  sending the file until next session". The file stays on disk (no
+    //  disposition is applied), but we have to stop tracking it: a skipped
+    //  file left in _currentSend stalls the send loop, and one left in
+    //  _pendingGots blocks _checkDone. Either way the batch hangs until a
+    //  session timeout, which is the same failure NR mode used to produce.
+    //
     _onSkip(arg) {
         const parts = arg.split(' ');
         if (parts.length < 3) return;
         const [name, sizeStr, tsStr] = parts;
-        this.emit('file-skipped', name, parseInt(sizeStr), parseInt(tsStr));
+
+        const skipped = () => {
+            this.emit('file-skipped', name, parseInt(sizeStr, 10), parseInt(tsStr, 10));
+        };
+
+        const key = `${name}\0${sizeStr}\0${tsStr}`;
+        if (this._pendingGots.delete(key)) {
+            Log.debug({ name }, '[BinkP] M_SKIP for a file awaiting M_GOT');
+            skipped();
+            this._checkDone();
+            return;
+        }
+
+        const queueIdx = this._sendQueue.findIndex(
+            f =>
+                f.name === name &&
+                String(f.size) === sizeStr &&
+                String(f.timestamp) === tsStr
+        );
+        if (queueIdx >= 0) {
+            this._sendQueue.splice(queueIdx, 1);
+            Log.debug({ name }, '[BinkP] M_SKIP for a queued file');
+            skipped();
+            this._checkDone();
+            return;
+        }
+
+        //  Name + size only, matching _onGot's active-send check: some
+        //  mailers echo a normalised timestamp back at us.
+        if (
+            this._currentSend &&
+            this._currentSend.name === name &&
+            String(this._currentSend.size) === sizeStr
+        ) {
+            Log.debug({ name }, '[BinkP] M_SKIP for the file in flight');
+            this._teardownSendStreams(this._currentSend);
+            this._currentSend = null;
+            skipped();
+            setImmediate(() => this._sendNext());
+            return;
+        }
+
+        skipped();
     }
 
     _checkDone() {

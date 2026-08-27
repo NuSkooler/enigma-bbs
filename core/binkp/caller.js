@@ -61,6 +61,11 @@ async function callNode(addr, nodeConf, spool) {
             role: 'originating',
             addresses: localAddresses(Config()),
             getPassword: () => nodeConf.sessionPassword || null,
+            //  Opt-in per node: OPT NR asks the remote to hand us files an
+            //  offset at a time, which costs a round trip per file. Worth it
+            //  on a link that keeps dropping mid-transfer, not otherwise --
+            //  see FTS-1028.
+            requestNR: true === nodeConf.requestNR,
             tempDir: _.get(Config(), 'scannerTossers.ftn_bso.binkp.tempDir', os.tmpdir()),
         });
 

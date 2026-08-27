@@ -22,6 +22,23 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **BinkP sessions hung to the five minute timeout against peers using NR mode** ([#724](https://github.com/NuSkooler/enigma-bbs/issues/724)). If a peer asked for non-reliable mode, ENiGMA½ offered each file correctly but then sent its data without the `M_FILE` that [FTS-1026](http://ftsc.org/docs/fts-1026.001) requires after an `M_GET`. A conforming receiver had already closed the file and discarded the bytes without complaint, so both sides waited until the session timed out. **Nothing was lost** — the affected files stayed in the outbound spool and will go out on the next poll. **No configuration change is required.**
+
+  binkd asks for NR mode whenever a sysop has set `-nr` **or** `-nd` on your node, which is why this could appear against one peer and not another regardless of version.
+
+  One behaviour change worth knowing about: ENiGMA½ no longer asks peers to send *to it* in NR mode by default. That request costs a round trip per file, and FTS-1028 is explicit that it "should be used only if absolutely necessary" — binkd likewise only asks when configured to. If you peer over a link that drops often enough that restarting transfers from zero is a real cost, opt back in for that node:
+
+  ```hjson
+  nodes: {
+      "21:1/100": {
+          host: "bbs.example.com"
+          requestNR: true
+      }
+  }
+  ```
+
+  Honouring a peer that asks *us* for NR mode is unconditional and needs no configuration, as the spec requires.
+
 * **EchoMail exported to a node with no `archiveType` was silently never delivered** ([#722](https://github.com/NuSkooler/enigma-bbs/issues/722)). A node with no `archiveType` configured exports bare packets instead of ArcMail bundles, and those were written to the outbound spool with a malformed name — the dot before the extension was missing (`43792ae5cut` rather than `43792ae5.cut`). No mailer could match such a file, so the message stayed in the spool indefinitely with no error at any log level. This is fixed; un-archived packets now ship as flow file references like everything else, and **no configuration change is required**. Setting `archiveType` is no longer a workaround for anything, though it is still recommended for bandwidth.
 
   **Action required if you run a node without `archiveType`:** stranded files are not migrated automatically, because their names carry no destination address. Find them:

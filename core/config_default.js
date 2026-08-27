@@ -1175,6 +1175,12 @@ module.exports = () => {
                     //  pull               : Set false to exclude this node from the periodic pull cycle.
                     //                       Crashmail (event-driven dialing on outbound) still applies.
                     //                       Default: true.
+                    //  requestNR          : Ask this node to send files to us in NR (non-reliable) mode,
+                    //                       settling the resume offset before any data moves. Costs a
+                    //                       round trip per file; FTS-1028 says to use it only when a
+                    //                       link drops often enough to make it worthwhile.
+                    //                       Honouring a peer that asks *us* is unconditional and needs
+                    //                       no setting here. Default: false.
                     //
                     //  TLS outbound (binkps) — exactly one trust option is required when tls:true:
                     //  tls                : true to connect via TLS (binkps, typically port 24555).
