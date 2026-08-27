@@ -117,6 +117,61 @@ describe('BinkP server', function () {
         });
     });
 
+    // ── per-node NR opt-in ────────────────────────────────────────────────────────
+
+    describe('BinkpModule — requestNR node lookup', () => {
+        function lookup(nodes, addrs) {
+            const { getModule } = require('../core/scanner_tossers/binkp.js');
+            return new getModule()._lookupRequestNR(nodes, addrs);
+        }
+
+        it('is off when no nodes are configured', () => {
+            assert.equal(lookup({}, ['21:1/100']), false);
+            assert.equal(lookup(undefined, ['21:1/100']), false);
+        });
+
+        it('is off for a node that has not opted in', () => {
+            assert.equal(lookup({ '21:1/100': { host: 'x' } }, ['21:1/100']), false);
+        });
+
+        it('is on for a node that has', () => {
+            assert.equal(lookup({ '21:1/100': { requestNR: true } }, ['21:1/100']), true);
+        });
+
+        it('ignores addresses that do not match', () => {
+            assert.equal(
+                lookup({ '21:1/100': { requestNR: true } }, ['21:1/200']),
+                false
+            );
+        });
+
+        it('honours any of the remote presented addresses', () => {
+            assert.equal(
+                lookup({ '46:1/100': { requestNR: true } }, ['21:1/200', '46:1/100']),
+                true
+            );
+        });
+
+        it('lets a specific node override a wildcard', () => {
+            //  findBestNodeMatch scores by specificity rather than insertion
+            //  order, so the concrete entry wins whichever way round the
+            //  HJSON was written.
+            const nodes = {
+                '21:*': { requestNR: true },
+                '21:1/100': { requestNR: false },
+            };
+            assert.equal(lookup(nodes, ['21:1/100']), false);
+            assert.equal(lookup(nodes, ['21:1/999']), true);
+        });
+
+        it('tolerates malformed addresses from the remote', () => {
+            assert.equal(
+                lookup({ '21:1/100': { requestNR: true } }, ['not-an-address', '']),
+                false
+            );
+        });
+    });
+
     // ── startup / shutdown lifecycle ──────────────────────────────────────────────
 
     describe('BinkpModule — lifecycle', () => {

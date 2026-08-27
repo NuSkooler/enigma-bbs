@@ -99,6 +99,25 @@ class ScriptedPeer {
         this._send(Commands.M_ADR, '1:1/1@testnet');
     }
 
+    //  Originating role: the answering side speaks first, and we answer its
+    //  M_ADR with our options and password. binkd does the same.
+    _onAdr() {
+        if ('originating' !== this.opts.role) {
+            return;
+        }
+        const opts = this.opts.opts || [];
+        if (opts.length) {
+            this._send(Commands.M_NUL, `OPT ${opts.join(' ')}`);
+        }
+        this._send(Commands.M_PWD, '-');
+    }
+
+    _onOk() {
+        this.state = 'transfer';
+        this._sendNext();
+        this._maybeEob();
+    }
+
     _onFrame(frame) {
         if ('data' === frame.type) {
             return this._onData(frame.data);
@@ -109,6 +128,10 @@ class ScriptedPeer {
         switch (frame.cmd) {
             case Commands.M_PWD:
                 return this._onPwd();
+            case Commands.M_ADR:
+                return this._onAdr();
+            case Commands.M_OK:
+                return this._onOk();
             case Commands.M_FILE:
                 return this._onFile(frame.arg);
             case Commands.M_GET:
@@ -123,6 +146,9 @@ class ScriptedPeer {
     }
 
     _onPwd() {
+        if ('originating' === this.opts.role) {
+            return;
+        }
         const opts = this.opts.opts || [];
         if (opts.length) {
             this._send(Commands.M_NUL, `OPT ${opts.join(' ')}`);
@@ -161,6 +187,7 @@ class ScriptedPeer {
             return this._send(Commands.M_GET, `${name} ${size} ${timestamp} ${at}`);
         }
 
+        this.awaitingReannounce = false;
         this.inFile = { name, size, timestamp, offset, gz, chunks: [], bytes: 0 };
     }
 
@@ -176,6 +203,26 @@ class ScriptedPeer {
 
         this.inFile.chunks.push(data);
         this.inFile.bytes += data.length;
+
+        //  Interrupt the transfer once we hold |getAfterBytes| and ask for it
+        //  again from |getAfterOffset|. The partial is dropped and further
+        //  data ignored until a fresh M_FILE arrives -- the same discipline
+        //  binkd applies whenever it emits an M_GET.
+        if (
+            undefined !== this.opts.getAfterBytes &&
+            !this.getIssued &&
+            this.inFile.bytes >= this.opts.getAfterBytes &&
+            this.inFile.bytes < this.inFile.size - this.inFile.offset
+        ) {
+            this.getIssued = true;
+            const f = this.inFile;
+            this.awaitingReannounce = true;
+            this.inFile = null;
+            return this._send(
+                Commands.M_GET,
+                `${f.name} ${f.size} ${f.timestamp} ${this.opts.getAfterOffset || 0}`
+            );
+        }
 
         //  GZ frames carry compressed bytes, so the declared size says
         //  nothing about how many arrive; wait for the EOF frame.
@@ -218,6 +265,7 @@ class ScriptedPeer {
     _onEob() {
         this.remoteEOB = true;
         this._maybeEob();
+        this._maybeClose();
     }
 
     // ── sending ──────────────────────────────────────────────────────────────
@@ -276,11 +324,26 @@ class ScriptedPeer {
         if (this.eobSent || this.currentSend || this.sendQueue.length) {
             return;
         }
-        if (!this.remoteEOB) {
+        //  The answering side holds its M_EOB until the caller's arrives;
+        //  the originating side leads. Getting this backwards deadlocks the
+        //  pair, since ENiGMA's answering side defers in the same way.
+        if ('originating' !== this.opts.role && !this.remoteEOB) {
             return;
         }
         this.eobSent = true;
         this._send(Commands.M_EOB, '');
+        this._maybeClose();
+    }
+
+    //  binkp leaves it to the originating side to hang up.
+    _maybeClose() {
+        if ('originating' !== this.opts.role) {
+            return;
+        }
+        if (!this.eobSent || !this.remoteEOB || this.inFile || this.currentSend) {
+            return;
+        }
+        setImmediate(() => this.socket.end());
     }
 }
 
@@ -307,6 +370,41 @@ function makeScriptedPair(peerOpts = {}, sessionOpts = {}) {
                     ...sessionOpts,
                 });
                 resolve({ session, peer });
+            });
+        });
+    });
+}
+
+//  The mirror of makeScriptedPair: ENiGMA answers and the scripted peer
+//  originates. |onSession| runs before start() so a test can queue outbound
+//  files. Resolves once the answering session finishes.
+function runAnswering(peerOpts = {}, sessionOpts = {}, onSession = () => {}) {
+    return new Promise((resolve, reject) => {
+        let peer;
+        const server = net.createServer(socket => {
+            const session = new BinkpSession(socket, {
+                role: 'answering',
+                addresses: ['1:1/1@testnet'],
+                systemName: 'Test Server',
+                tempDir: TEMP_DIR,
+                ...sessionOpts,
+            });
+            const finish = err => {
+                server.close();
+                return err ? reject(err) : resolve({ session, peer });
+            };
+            session.on('session-end', () => finish());
+            session.on('error', e => finish(e));
+            session.on('disconnect', () => finish(new Error('Remote disconnected')));
+            onSession(session);
+            session.start();
+        });
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const socket = net.createConnection(server.address().port, '127.0.0.1');
+            socket.on('error', reject);
+            socket.once('connect', () => {
+                peer = new ScriptedPeer(socket, { role: 'originating', ...peerOpts });
             });
         });
     });
@@ -740,5 +838,156 @@ describe('BinkpSession — NR negotiation (FTS-1028)', function () {
         assert.equal(peer.fileHeaders(f.name)[0].offset, -1);
         assert.equal(peer.received.length, 1);
         assert.equal(peer.received[0].data.toString(), 'OLD-BINKD');
+    });
+});
+
+// ── NR mode with the roles reversed ───────────────────────────────────────────
+
+describe('BinkpSession — NR mode as the answering side', function () {
+    this.timeout(10000);
+
+    it('honours an inbound OPT NR when sending', async () => {
+        const body = 'ANSWERING-SIDE-NR';
+        const f = await makeTempFile(body);
+
+        const { peer } = await runAnswering({ opts: ['NR'] }, {}, session => {
+            session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'keep');
+        });
+
+        const headers = peer.fileHeaders(f.name);
+        assert.equal(headers.length, 2, 'offer plus re-announcement');
+        assert.equal(headers[0].offset, -1);
+        assert.equal(headers[1].offset, 0);
+        assert.equal(peer.received.length, 1);
+        assert.equal(peer.received[0].data.toString(), body);
+    });
+
+    it('stays out of NR mode when the caller does not ask', async () => {
+        const f = await makeTempFile('ANSWERING-PLAIN');
+
+        const { peer } = await runAnswering({ opts: ['NDA'] }, {}, session => {
+            session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'keep');
+        });
+
+        const headers = peer.fileHeaders(f.name);
+        assert.equal(headers.length, 1, 'one M_FILE, no offset round trip');
+        assert.equal(headers[0].offset, 0);
+        assert.equal(peer.received[0].data.toString(), 'ANSWERING-PLAIN');
+    });
+
+    it('receives an NR-mode file and emits incoming-file once', async () => {
+        const body = Buffer.from('INBOUND-TO-ANSWERING');
+        const incoming = [];
+        let tempPath = null;
+
+        await runAnswering(
+            {
+                opts: ['NR'],
+                filesToSend: [
+                    {
+                        name: 'answered.pkt',
+                        size: body.length,
+                        timestamp: 1700000000,
+                        data: body,
+                        nr: true,
+                    },
+                ],
+            },
+            {},
+            session => {
+                session.on('incoming-file', name => incoming.push(name));
+                session.on('file-received', (name, size, ts, p) => {
+                    tempPath = p;
+                });
+            }
+        );
+
+        assert.deepEqual(incoming, ['answered.pkt']);
+        assert.ok(tempPath);
+        assert.equal((await fsp.readFile(tempPath)).toString(), body.toString());
+        await fsp.unlink(tempPath).catch(() => {});
+    });
+});
+
+// ── Restarting a transfer already in flight ───────────────────────────────────
+
+describe('BinkpSession — mid-transfer restart', function () {
+    this.timeout(20000);
+
+    //  Big enough to span many SEND_CHUNK_SIZE frames and to make the socket
+    //  apply back-pressure, so the restart lands while a chunk is parked
+    //  waiting on 'drain'.
+    const SIZE = 1024 * 1024;
+    const RESUME_AT = 512 * 1024;
+
+    function makeBody() {
+        const buf = Buffer.allocUnsafe(SIZE);
+        for (let i = 0; i < SIZE; ++i) {
+            buf[i] = (i * 31) & 0xff;
+        }
+        return buf;
+    }
+
+    it('seeks and re-announces when M_GET arrives mid-flight', async () => {
+        const body = makeBody();
+        const f = await makeTempFile(body);
+
+        const { session, peer } = await makeScriptedPair({
+            opts: ['NR'],
+            getAfterBytes: 64 * 1024,
+            getAfterOffset: RESUME_AT,
+        });
+        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'keep');
+
+        await runSession(session);
+
+        assert.deepEqual(
+            peer.fileHeaders(f.name).map(h => h.offset),
+            [-1, 0, RESUME_AT],
+            'offer, re-announcement, then the seek the remote asked for'
+        );
+        assert.equal(peer.received.length, 1);
+        assert.ok(
+            peer.received[0].data.equals(body.slice(RESUME_AT)),
+            'only the requested tail is retransmitted, byte for byte'
+        );
+    });
+
+    it('takes a parked back-pressure handler off the socket when a send is retired', async () => {
+        const { session } = await makeScriptedPair({ opts: [] });
+
+        //  Back-pressure is not reachable over loopback: _pumpFile keeps a
+        //  single SEND_CHUNK_SIZE frame in flight and that is well under a
+        //  socket's write high-water mark, so write() never returns false.
+        //  Park the handler the way sendChunk would and check the teardown
+        //  clears it, rather than pretending the network can be provoked
+        //  into doing it here.
+        const handler = () => {};
+        const cs = { drainHandler: handler };
+        session._socket.once('drain', handler);
+        assert.equal(session._socket.listenerCount('drain'), 1);
+
+        session._teardownSendStreams(cs);
+
+        assert.equal(
+            session._socket.listenerCount('drain'),
+            0,
+            'retiring a send must not strand its drain handler on the socket'
+        );
+        assert.equal(cs.drainHandler, null);
+        session._destroy();
+    });
+
+    it('transfers a large file over NR without interruption', async () => {
+        const body = makeBody();
+        const f = await makeTempFile(body);
+
+        const { session, peer } = await makeScriptedPair({ opts: ['NR'] });
+        session.queueFile(f.filePath, f.name, f.size, f.timestamp, 'keep');
+
+        await runSession(session);
+
+        assert.equal(peer.received.length, 1);
+        assert.ok(peer.received[0].data.equals(body), 'received byte for byte');
     });
 });

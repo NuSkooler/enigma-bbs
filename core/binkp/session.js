@@ -512,6 +512,10 @@ class BinkpSession extends EventEmitter {
     //  _sendNext through the 'error'/'end' handlers _pumpFile installed.
     _teardownSendStreams(cs) {
         if (!cs) return;
+        if (cs.drainHandler) {
+            this._socket.removeListener('drain', cs.drainHandler);
+            cs.drainHandler = null;
+        }
         for (const key of ['gzipStream', 'readStream']) {
             const stream = cs[key];
             if (!stream) continue;
@@ -543,6 +547,7 @@ class BinkpSession extends EventEmitter {
         };
 
         const onAllDataSent = () => {
+            cs.drainHandler = null;
             this._socket.write(EOF_FRAME);
             const key = `${cs.name}\0${cs.size}\0${cs.timestamp}`;
             this._pendingGots.set(key, {
@@ -561,9 +566,19 @@ class BinkpSession extends EventEmitter {
             const ok = this._socket.write(buildDataFrame(chunk));
             if (ok) {
                 source.resume();
-            } else {
-                this._socket.once('drain', () => source.resume());
+                return;
             }
+            //  Backpressure: wait for the socket to drain before reading on.
+            //  The handler is parked on |cs| so _teardownSendStreams can take
+            //  it off again — an M_GET or M_SKIP can retire this send while a
+            //  chunk is still waiting, and a stale listener would otherwise
+            //  sit on the socket resuming a stream nobody is reading.
+            const onDrain = () => {
+                cs.drainHandler = null;
+                source.resume();
+            };
+            cs.drainHandler = onDrain;
+            this._socket.once('drain', onDrain);
         };
 
         if (!cs.useGZ) {
