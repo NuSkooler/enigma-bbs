@@ -8,6 +8,7 @@ const Config = require('../../config.js').get;
 const { Errors } = require('../../enig_error.js');
 const SysProps = require('../../system_property.js');
 const StatLog = require('../../stat_log.js');
+const { listenServer } = require('../../server_listen.js');
 
 //  deps
 const net = require('net');
@@ -120,7 +121,7 @@ exports.getModule = class MrcModule extends ServerModule {
             { server: ModuleInfo.name, port: config.chatServers.mrc.multiplexerPort },
             'MRC multiplexer starting up'
         );
-        return this.server.listen(port, cb);
+        return listenServer(this.server, { name: 'mrc', port, log: Log }, cb);
     }
 
     /**

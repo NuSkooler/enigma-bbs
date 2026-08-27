@@ -11,6 +11,7 @@ const enigVersion = require('../../../package.json').version;
 const theme = require('../../theme.js');
 const stringFormat = require('../../string_format.js');
 const { Errors, ErrorReasons } = require('../../enig_error.js');
+const { listenServer } = require('../../server_listen.js');
 const User = require('../../user.js');
 const UserProps = require('../../user_property.js');
 
@@ -471,14 +472,20 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
             return cb(Errors.Invalid(`Invalid port: ${config.loginServers.ssh.port}`));
         }
 
-        this.server.listen(port, config.loginServers.ssh.address, err => {
-            if (!err) {
-                Log.info(
-                    { server: ModuleInfo.name, port: port },
-                    'Listening for connections'
-                );
+        const address = config.loginServers.ssh.address;
+
+        return listenServer(
+            this.server,
+            { name: 'ssh', port, address, log: Log },
+            err => {
+                if (!err) {
+                    Log.info(
+                        { server: ModuleInfo.name, port, address },
+                        'Listening for connections'
+                    );
+                }
+                return cb(err);
             }
-            return cb(err);
-        });
+        );
     }
 };

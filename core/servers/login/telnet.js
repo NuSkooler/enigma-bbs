@@ -4,6 +4,7 @@ const { Client } = require('../../client');
 const Config = require('../../config').get;
 const { log: Log } = require('../../logger');
 const { Errors } = require('../../enig_error');
+const { listenServer } = require('../../server_listen');
 
 //  deps
 const net = require('net');
@@ -266,10 +267,6 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
             this.handleNewClient(client, socket, ModuleInfo);
         });
 
-        this.server.on('error', err => {
-            Log.info({ error: err.message }, 'Telnet server error');
-        });
-
         return cb(null);
     }
 
@@ -284,15 +281,21 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
             return cb(Errors.Invalid(`Invalid port: ${config.loginServers.telnet.port}`));
         }
 
-        this.server.listen(port, config.loginServers.telnet.address, err => {
-            if (!err) {
-                Log.info(
-                    { server: ModuleInfo.name, port: port },
-                    'Listening for connections'
-                );
+        const address = config.loginServers.telnet.address;
+
+        return listenServer(
+            this.server,
+            { name: 'telnet', port, address, log: Log },
+            err => {
+                if (!err) {
+                    Log.info(
+                        { server: ModuleInfo.name, port, address },
+                        'Listening for connections'
+                    );
+                }
+                return cb(err);
             }
-            return cb(err);
-        });
+        );
     }
 };
 

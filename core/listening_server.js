@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const logger = require('./logger.js');
+const { consoleStyle } = require('./server_listen.js');
 
 //  deps
 const async = require('async');
@@ -15,6 +16,7 @@ exports.shutdown = shutdown;
 exports.getServer = getServer;
 
 function startup(cb) {
+    console.info(consoleStyle('|07Starting servers...'));
     return startListening(cb);
 }
 

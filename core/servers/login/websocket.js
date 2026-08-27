@@ -7,6 +7,7 @@ const TelnetClient = require('./telnet.js').TelnetClient;
 const Log = require('../../logger.js').log;
 const LoginServerModule = require('../../login_server_module.js');
 const { Errors } = require('../../enig_error.js');
+const { listenServer } = require('../../server_listen.js');
 
 //  deps
 const _ = require('lodash');
@@ -226,26 +227,39 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                     return nextServerType(Errors.Invalid(`Invalid port: ${confPort}`));
                 }
 
-                server.httpServer.listen(port, conf.address, err => {
-                    if (err) {
-                        return nextServerType(err);
-                    }
+                return listenServer(
+                    server.httpServer,
+                    {
+                        name: 'secure' === serverType ? 'wss' : 'ws',
+                        port,
+                        address: conf.address,
+                        log: Log,
+                    },
+                    err => {
+                        if (err) {
+                            return nextServerType(err);
+                        }
 
-                    server.wsServer.on('connection', (ws, req) => {
-                        const webSocketClient = new WebSocketClient(ws, req, serverType);
-                        this.handleNewClient(
-                            webSocketClient,
-                            webSocketClient.socket,
-                            ModuleInfo
+                        server.wsServer.on('connection', (ws, req) => {
+                            const webSocketClient = new WebSocketClient(
+                                ws,
+                                req,
+                                serverType
+                            );
+                            this.handleNewClient(
+                                webSocketClient,
+                                webSocketClient.socket,
+                                ModuleInfo
+                            );
+                        });
+
+                        Log.info(
+                            { server: serverName, port, address: conf.address },
+                            'Listening for connections'
                         );
-                    });
-
-                    Log.info(
-                        { server: serverName, port: port },
-                        'Listening for connections'
-                    );
-                    return nextServerType(null);
-                });
+                        return nextServerType(null);
+                    }
+                );
             },
             err => {
                 cb(err);

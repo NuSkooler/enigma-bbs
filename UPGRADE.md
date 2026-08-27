@@ -22,6 +22,10 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **A port conflict now stops startup instead of being ignored** ([#547](https://github.com/NuSkooler/enigma-bbs/issues/547)). Previously a server that could not bind its port left the startup sequence hanging with no message and no exit; NNTP specifically logged a warning and carried on, so the board ran with NNTP silently absent. Bind failures are now reported on the console and are **fatal for every server**, and ENiGMA½ exits with a non-zero status.
+
+  **Action:** if you run NNTP, Gopher, or the web server on a port something else on the host also uses, a start that previously "worked" (minus that service) will now stop with an explicit error. Fix the conflicting port in `config.hjson`, or disable the service with `enabled: false`.
+
 * **BinkP sessions were left to time out rather than closing cleanly.** ENiGMA½ ended after the first binkp/1.1 batch, so the peer waited for an `M_EOB` that never arrived. Mail transferred correctly, but the remote logged the session as failed, and while ours sat waiting it held that node's lock — so crashmail queued for the node during the window was skipped until the next scheduled poll. **No action is required**; if a peer has been reporting failed sessions with your system despite the mail arriving, this is why.
 
 * **BinkP files compressed with GZ were rejected by every other mailer** ([#723](https://github.com/NuSkooler/enigma-bbs/issues/723)). ENiGMA½ wrapped compressed data in the gzip container where [FTS-1029](http://ftsc.org/docs/fts-1029.001) — and binkd, Mystic and the rest — use the zlib one. The receiving mailer rejected the stream immediately; our side logged nothing and re-sent the file on every poll. **Nothing was lost** and **no configuration change is required**: the affected files stayed in the outbound spool and go out on the next poll.

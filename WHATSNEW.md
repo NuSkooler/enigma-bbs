@@ -3,6 +3,18 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **A second instance bound nothing, said nothing, and kept running** ([#547](https://github.com/NuSkooler/enigma-bbs/issues/547)) — starting ENiGMA½ while another instance already held its ports produced no error, no `System started!`, and no exit. The process simply sat there, serving no one.
+
+  Node's `server.listen(port, host, cb)` registers `cb` as a one-shot `'listening'` listener: it never receives an error argument, and on a failed bind it never fires at all. Every server treated it as an error-first callback, so `EADDRINUSE` left the startup series in `listening_server.js` waiting for a callback that would never come. Telnet caught the event but logged it at `info` — and the default logging config writes to a rotating file with no console stream, so nothing reached the terminal. The remaining servers had no server-level `'error'` handler at all, so the event fell through to the process-level `uncaughtException` net, which by design keeps the process alive.
+
+  Every login, content, and chat server now binds through a shared helper that listens for both `'listening'` and `'error'` and calls back exactly once, with an error an operator can act on — `EADDRINUSE`, `EACCES` on a privileged port, and `EADDRNOTAVAIL` each get an explanation rather than a bare code. A bind failure is now fatal for **every** server, including NNTP; see [UPGRADE.md](UPGRADE.md).
+
+  * **Startup output now reads in the order things happen** -- the banner, then any configuration warnings, then the server list, then `System started!`. The banner was previously printed at the very end, underneath everything it was supposed to introduce.
+
+  * **Startup now reports what actually bound.** One line per server with its address and port, so a misconfigured or missing service is visible at a glance instead of only in the log. Colour is used only when stdout is a TTY and [`NO_COLOR`](https://no-color.org/) is unset, so piped output and journals stay clean.
+
+  * **Startup failures always exit non-zero.** An error that had already been displayed previously fell through the final handler and the process wound down with status `0`, so service managers and install scripts saw a clean exit from a failed start.
+
 * **BinkP sessions ended on a timeout instead of a clean close** — binkp/1.1 runs a session as a series of batches: another follows any batch that carried more than the two `M_EOB`s, and only an empty batch ends the session. ENiGMA½ stopped after the first one, leaving a conforming peer waiting for an `M_EOB` that never came.
 
   No mail was lost — it had already transferred by then — but the peer sat until its own timeout (five minutes, for binkd) and then recorded an otherwise successful session as `failed`. With binkd's shipped `try`/`hold` settings, enough of those in a row will put us on hold and stop it calling for a while.
