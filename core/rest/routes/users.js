@@ -130,9 +130,9 @@ function _serializePublicProfile(target, viewerIsSysop) {
             ? moment(p(UserProps.LastLoginTs)).toISOString()
             : undefined;
         profile.loginCount = pInt(UserProps.LoginCount);
-        (profile.uploadCount = pInt(UserProps.FileUlTotalCount)),
+        ((profile.uploadCount = pInt(UserProps.FileUlTotalCount)),
             (profile.downloadCount = pInt(UserProps.FileDlTotalCount)),
-            (profile.minutesOnline = pInt(UserProps.MinutesOnlineTotalCount));
+            (profile.minutesOnline = pInt(UserProps.MinutesOnlineTotalCount)));
     }
 
     return profile;

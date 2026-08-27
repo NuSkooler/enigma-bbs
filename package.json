@@ -93,11 +93,11 @@
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-json": "^4.0.1",
         "globals": "^16.4.0",
-        "husky": "^8.0.0",
+        "husky": "^9.1.7",
         "lint-staged": "^13.1.0",
         "mocha": "^10.8.2",
         "peggy": "^5.1.0",
-        "prettier": "2.8.1"
+        "prettier": "^3.9.6"
     },
     "engines": {
         "node": ">=22"

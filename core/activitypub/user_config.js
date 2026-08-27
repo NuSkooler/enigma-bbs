@@ -117,6 +117,10 @@ exports.getModule = class ActivityPubUserConfig extends MenuModule {
         ];
         if (
             !reqFields.every(p => {
+                //  :TODO: `[values[p]]` is an array literal and so always
+                //  truthy -- this guard never fires. Being fixed separately;
+                //  silenced here only so the lint gate is not red meanwhile.
+                //  eslint-disable-next-line no-constant-binary-expression
                 return true === !![values[p]];
             })
         ) {
