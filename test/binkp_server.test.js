@@ -172,6 +172,45 @@ describe('BinkP server', function () {
         });
     });
 
+    // ── per-node GZ opt-out ───────────────────────────────────────────────────────
+
+    describe('BinkpModule — GZ node lookup', () => {
+        function lookup(nodes, addrs) {
+            const { getModule } = require('../core/scanner_tossers/binkp.js');
+            return new getModule()._lookupNodeGz(nodes, addrs);
+        }
+
+        it('is on when nothing is configured', () => {
+            assert.equal(lookup({}, ['21:1/100']), true);
+            assert.equal(lookup(undefined, ['21:1/100']), true);
+        });
+
+        it('is on for a node that says nothing about it', () => {
+            assert.equal(lookup({ '21:1/100': { host: 'x' } }, ['21:1/100']), true);
+        });
+
+        it('is off only for an explicit false', () => {
+            assert.equal(lookup({ '21:1/100': { gz: false } }, ['21:1/100']), false);
+            assert.equal(lookup({ '21:1/100': { gz: true } }, ['21:1/100']), true);
+            //  A stray string must not read as "off" — that would silently
+            //  disable compression for a peer the sysop meant to keep it on.
+            assert.equal(lookup({ '21:1/100': { gz: 'no' } }, ['21:1/100']), true);
+        });
+
+        it('does not let an unrelated node disable it', () => {
+            assert.equal(lookup({ '21:1/100': { gz: false } }, ['21:1/200']), true);
+        });
+
+        it('lets a specific node override a wildcard', () => {
+            const nodes = {
+                '21:*': { gz: false },
+                '21:1/100': { gz: true },
+            };
+            assert.equal(lookup(nodes, ['21:1/100']), true);
+            assert.equal(lookup(nodes, ['21:1/999']), false);
+        });
+    });
+
     // ── startup / shutdown lifecycle ──────────────────────────────────────────────
 
     describe('BinkpModule — lifecycle', () => {

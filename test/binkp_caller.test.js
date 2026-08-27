@@ -127,15 +127,17 @@ describe('BinkP caller', function () {
             }
         });
 
-        //  The answering side turns NR on for itself only when the caller
-        //  sent OPT NR, so its _useNR is a direct read-out of what we
-        //  announced -- see FTS-1028 and core/binkp/session.js.
-        async function callAndReportRemoteNR(nodeExtra) {
-            let remoteUsedNR = null;
+        //  The answering side mirrors what the caller announced: it turns NR
+        //  on only if it saw OPT NR, and GZ only if it saw OPT GZ. Its own
+        //  flags are therefore a direct read-out of our OPT frame -- see
+        //  FTS-1028/1029 and core/binkp/session.js.
+        async function callAndReportRemoteFlags(nodeExtra) {
+            const seen = {};
             const { port, spool, stop } = await startAnsweringServer({
                 onSession: sess => {
                     sess.on('authenticated', () => {
-                        remoteUsedNR = sess._useNR;
+                        seen.nr = sess._useNR;
+                        seen.gz = sess._useGZ;
                     });
                 },
             });
@@ -145,20 +147,36 @@ describe('BinkP caller', function () {
             } finally {
                 await stop();
             }
-            return remoteUsedNR;
+            return seen;
         }
 
         it('does not ask the remote for NR mode by default', async () => {
-            assert.equal(await callAndReportRemoteNR({}), false);
+            assert.equal((await callAndReportRemoteFlags({})).nr, false);
         });
 
         it('asks for NR mode when the node config opts in', async () => {
-            assert.equal(await callAndReportRemoteNR({ requestNR: true }), true);
+            assert.equal((await callAndReportRemoteFlags({ requestNR: true })).nr, true);
         });
 
         it('treats a non-true requestNR as off', async () => {
             //  Guards against a truthy string from HJSON turning it on.
-            assert.equal(await callAndReportRemoteNR({ requestNR: 'yes' }), false);
+            assert.equal(
+                (await callAndReportRemoteFlags({ requestNR: 'yes' })).nr,
+                false
+            );
+        });
+
+        it('offers GZ by default', async () => {
+            assert.equal((await callAndReportRemoteFlags({})).gz, true);
+        });
+
+        it('withholds GZ when the node config turns it off', async () => {
+            assert.equal((await callAndReportRemoteFlags({ gz: false })).gz, false);
+        });
+
+        it('only an explicit false disables GZ', async () => {
+            //  Anything else -- absent, true, a stray string -- leaves it on.
+            assert.equal((await callAndReportRemoteFlags({ gz: 'no' })).gz, true);
         });
 
         it('acquires the BSY lock before connecting and releases it after', async () => {

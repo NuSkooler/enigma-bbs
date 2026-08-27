@@ -22,6 +22,23 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **BinkP files compressed with GZ were rejected by every other mailer** ([#723](https://github.com/NuSkooler/enigma-bbs/issues/723)). ENiGMA½ wrapped compressed data in the gzip container where [FTS-1029](http://ftsc.org/docs/fts-1029.001) — and binkd, Mystic and the rest — use the zlib one. The receiving mailer rejected the stream immediately; our side logged nothing and re-sent the file on every poll. **Nothing was lost** and **no configuration change is required**: the affected files stayed in the outbound spool and go out on the next poll.
+
+  Only nodes with no `archiveType` were affected, since ArcMail bundles are already compressed and never carried GZ.
+
+  **If you peer with a system still running a pre-fix ENiGMA½**, be aware the incompatibility is now reversed in that one direction: they cannot decode what we send, though we can decode what they send. Either coordinate the update, or disable compression for that node until they do:
+
+  ```hjson
+  nodes: {
+      "21:1/100": {
+          host: "bbs.example.com"
+          gz: false
+      }
+  }
+  ```
+
+  Only an explicit `false` disables it. A failed decompression is also no longer fatal: ENiGMA½ asks for the file again uncompressed (an `NZ` request, per FTS-1029) and skips it rather than stalling if that does not work either.
+
 * **BinkP sessions hung to the five minute timeout against peers using NR mode** ([#724](https://github.com/NuSkooler/enigma-bbs/issues/724)). If a peer asked for non-reliable mode, ENiGMA½ offered each file correctly but then sent its data without the `M_FILE` that [FTS-1026](http://ftsc.org/docs/fts-1026.001) requires after an `M_GET`. A conforming receiver had already closed the file and discarded the bytes without complaint, so both sides waited until the session timed out. **Nothing was lost** — the affected files stayed in the outbound spool and will go out on the next poll. **No configuration change is required.**
 
   binkd asks for NR mode whenever a sysop has set `-nr` **or** `-nd` on your node, which is why this could appear against one peer and not another regardless of version.

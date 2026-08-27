@@ -91,6 +91,9 @@ class BinkpSession extends EventEmitter {
         //  M_GET and are waiting for the sender to re-announce the file.
         this._pendingOffsetReq = null; // { name, size, timestamp, useGZ }
         this._pendingGots = new Map(); // `name\0size\0ts` → { name, path, size, timestamp, disposition }
+        //  Files we have already asked to have resent uncompressed, so a
+        //  second failure falls through to M_SKIP instead of looping.
+        this._nzRequested = new Set();
 
         //  Inbound temp files we own. Added when we start writing one and
         //  removed on successful M_GOT — anything left here at _destroy()
@@ -182,7 +185,10 @@ class BinkpSession extends EventEmitter {
         if (this._sentPwd) return;
         this._sentPwd = true;
 
-        const caps = [Opts.NDA, Opts.GZ, Opts.EXTCMD];
+        const caps = [Opts.NDA, Opts.EXTCMD];
+        if (this._gzAllowed()) {
+            caps.splice(1, 0, Opts.GZ);
+        }
         //  NR is a request that the *remote* send to us in NR mode, not an
         //  advert that we understand it (FTS-1028). It costs a round trip
         //  per file and the spec is explicit that it "degrades performance
@@ -213,6 +219,21 @@ class BinkpSession extends EventEmitter {
             return true === requestNR(this._remoteAddresses);
         }
         return true === requestNR;
+    }
+
+    //  May we compress for this peer? |gz| is a boolean or a predicate over
+    //  the remote's addresses; absent means yes. Switching it off for a node
+    //  neither advertises GZ nor compresses to it — an escape hatch for a
+    //  peer whose decompressor we cannot fix.
+    _gzAllowed() {
+        const gz = this._opts.gz;
+        if (undefined === gz || null === gz) {
+            return true;
+        }
+        if (typeof gz === 'function') {
+            return false !== gz(this._remoteAddresses);
+        }
+        return false !== gz;
     }
 
     _lookupPassword() {
@@ -369,7 +390,7 @@ class BinkpSession extends EventEmitter {
         if (this._remoteOpts.has(Opts.EXTCMD)) {
             confirmedOpts.push(Opts.EXTCMD);
             this._useEXTCMD = true;
-            if (this._remoteOpts.has(Opts.GZ)) {
+            if (this._remoteOpts.has(Opts.GZ) && this._gzAllowed()) {
                 confirmedOpts.push(Opts.GZ);
                 this._useGZ = true;
             }
@@ -397,7 +418,7 @@ class BinkpSession extends EventEmitter {
         }
         if (this._remoteOpts.has(Opts.EXTCMD)) {
             this._useEXTCMD = true;
-            if (this._remoteOpts.has(Opts.GZ)) {
+            if (this._remoteOpts.has(Opts.GZ) && this._gzAllowed()) {
                 this._useGZ = true;
             }
         }
@@ -516,7 +537,7 @@ class BinkpSession extends EventEmitter {
             this._socket.removeListener('drain', cs.drainHandler);
             cs.drainHandler = null;
         }
-        for (const key of ['gzipStream', 'readStream']) {
+        for (const key of ['deflateStream', 'readStream']) {
             const stream = cs[key];
             if (!stream) continue;
             stream.removeAllListeners();
@@ -588,10 +609,17 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
-        //  GZ path: drive the gzip transform explicitly rather than via pipe,
+        //  GZ path: drive the compressor explicitly rather than via pipe,
         //  keeping the same pause/resume back-pressure pattern on the output.
-        const gz = zlib.createGzip();
-        cs.gzipStream = gz; // stored so _destroy can clean it up
+        //
+        //  createDeflate, not createGzip: FTS-1029 specifies zlib's own
+        //  compress()/compress2(), i.e. the RFC 1950 container -- two header
+        //  bytes and an Adler-32 tail. gzip (RFC 1952) wraps the same deflate
+        //  payload in a different header, and a decoder expecting one rejects
+        //  the other outright. binkd calls deflateInit()/inflateInit(), which
+        //  is RFC 1950, and answers a gzip header with Z_DATA_ERROR (-3).
+        const gz = zlib.createDeflate();
+        cs.deflateStream = gz; // stored so _destroy can clean it up
 
         gz.on('data', chunk => sendChunk(gz, chunk));
         gz.on('end', onAllDataSent);
@@ -627,6 +655,20 @@ class BinkpSession extends EventEmitter {
         if (!Number.isFinite(offset) || offset < 0) {
             Log.warn({ arg }, '[BinkP] M_GET with an unusable offset');
             return;
+        }
+
+        //  FTS-1029: an NZ token on M_GET asks us to switch compression off
+        //  and resend. Treat it as final for the session rather than for the
+        //  one file — a peer that could not decompress this will not manage
+        //  the next one either.
+        if (this._useEXTCMD && parts.slice(4).includes('NZ')) {
+            if (this._useGZ) {
+                Log.info({ name }, '[BinkP] Remote asked for uncompressed transfer (NZ)');
+            }
+            this._useGZ = false;
+            if (this._currentSend) {
+                this._currentSend.useGZ = false;
+            }
         }
 
         if (this._currentSend && this._currentSend.name === name) {
@@ -786,7 +828,11 @@ class BinkpSession extends EventEmitter {
 
         // Extra tokens (e.g. GZ) are only valid when EXTCMD was negotiated —
         // without it, old implementations concatenate them into the filename.
-        const useGZ = this._useEXTCMD && this._useGZ && parts.slice(4).includes('GZ');
+        //  The token is explicit per file, so honour it whenever extended
+        //  commands are in play and let the container sniffing sort the rest
+        //  out. binkd does the same. The EXTCMD gate stays because without
+        //  it an old implementation folds extra tokens into the filename.
+        const useGZ = this._useEXTCMD && parts.slice(4).includes('GZ');
 
         // Duplicate detection
         if (
@@ -886,14 +932,15 @@ class BinkpSession extends EventEmitter {
             });
 
             if (cr.useGZ) {
-                cr.gunzip = zlib.createGunzip();
-                cr.gunzip.on('error', err => {
-                    Log.warn(
-                        { name: cr.name, error: err.message },
-                        '[BinkP] Inbound GZ decompress error'
-                    );
-                });
-                cr.gunzip.pipe(cr.writeStream);
+                //  createUnzip rather than createInflate: it sniffs the
+                //  header and takes either container. Correct senders use
+                //  RFC 1950, but ENiGMA itself sent RFC 1952 until this was
+                //  fixed, and the GZ option carries no version to tell them
+                //  apart -- so accepting both is what keeps a mixed-version
+                //  network working while operators upgrade.
+                cr.inflate = zlib.createUnzip();
+                cr.inflate.on('error', err => this._onInflateError(cr, err));
+                cr.inflate.pipe(cr.writeStream);
             }
 
             this._inboundTempPaths.add(cr.tempPath);
@@ -904,7 +951,7 @@ class BinkpSession extends EventEmitter {
             //  declared (uncompressed) file size. Pass the full chunk through
             //  to gunzip — do NOT cap against cr.size — and rely solely on the
             //  EOF frame (data.length === 0 path above) to trigger finalize.
-            cr.gunzip.write(data);
+            cr.inflate.write(data);
         } else {
             //  Non-GZ: cap to declared size and finalize early if we've
             //  received exactly the right number of bytes.
@@ -916,6 +963,67 @@ class BinkpSession extends EventEmitter {
                 this._finalizeReceive();
             }
         }
+    }
+
+    //
+    //  Inbound decompression failed. The bytes are unrecoverable, but the
+    //  file need not be: FTS-1029 lets a receiver switch compression off
+    //  mid-session by answering with an M_GET carrying an NZ token, asking
+    //  for the file again in the clear. Without that the batch simply stops
+    //  — we never send M_GOT, the sender waits out its timeout, and the mail
+    //  comes back on every poll from then on with nothing to show why.
+    //
+    _onInflateError(cr, err) {
+        if (this._currentRecv !== cr) {
+            return; //  already torn down
+        }
+
+        Log.warn(
+            { name: cr.name, error: err.message },
+            '[BinkP] Inbound decompression failed'
+        );
+
+        this._abandonReceive(cr);
+
+        const key = `${cr.name}\0${cr.size}\0${cr.timestamp}`;
+        if (this._useEXTCMD && !this._nzRequested.has(key)) {
+            this._nzRequested.add(key);
+            Log.info(
+                { name: cr.name },
+                '[BinkP] Requesting an uncompressed retransmit (NZ)'
+            );
+            this._sendCmd(Commands.M_GET, `${cr.name} ${cr.size} ${cr.timestamp} 0 NZ`);
+            return;
+        }
+
+        //  Nothing further to try: either the peer has no EXTCMD to carry the
+        //  token, or the clear retransmit failed too. A non-destructive skip
+        //  leaves the file with the sender for another session and lets this
+        //  batch finish rather than hang.
+        this._sendCmd(Commands.M_SKIP, `${cr.name} ${cr.size} ${cr.timestamp}`);
+        this._checkDone();
+    }
+
+    //  Drop a partial receive and everything holding on to it.
+    _abandonReceive(cr) {
+        for (const key of ['inflate', 'writeStream']) {
+            const stream = cr[key];
+            if (!stream) continue;
+            stream.removeAllListeners();
+            stream.on('error', () => {});
+            stream.destroy();
+            cr[key] = null;
+        }
+        this._currentRecv = null;
+        this._inboundTempPaths.delete(cr.tempPath);
+        fsp.unlink(cr.tempPath).catch(err => {
+            if ('ENOENT' !== err.code) {
+                Log.warn(
+                    { path: cr.tempPath, error: err.message },
+                    '[BinkP] Could not remove abandoned inbound temp file'
+                );
+            }
+        });
     }
 
     _finalizeReceive() {
@@ -940,12 +1048,12 @@ class BinkpSession extends EventEmitter {
             this._checkDone();
         };
 
-        if (cr.gunzip) {
+        if (cr.inflate) {
             // Wait for the writeStream to finish draining all decompressed bytes
-            // before calling finish. gunzip 'finish' (writable side) precedes
-            // the piped writeStream 'finish'; listen on writeStream.
+            // before calling finish. The decompressor's 'finish' (writable side)
+            // precedes the piped writeStream 'finish'; listen on writeStream.
             cr.writeStream.once('finish', finish);
-            cr.gunzip.end();
+            cr.inflate.end();
         } else if (cr.writeStream) {
             cr.writeStream.end(finish);
         } else {
@@ -1156,14 +1264,14 @@ class BinkpSession extends EventEmitter {
 
     _destroy(graceful = false) {
         if (this._timeoutHandle) clearTimeout(this._timeoutHandle);
-        if (this._currentSend?.gzipStream) {
-            this._currentSend.gzipStream.destroy();
+        if (this._currentSend?.deflateStream) {
+            this._currentSend.deflateStream.destroy();
         }
         if (this._currentSend?.readStream) {
             this._currentSend.readStream.destroy();
         }
-        if (this._currentRecv?.gunzip) {
-            this._currentRecv.gunzip.destroy();
+        if (this._currentRecv?.inflate) {
+            this._currentRecv.inflate.destroy();
         }
         if (this._currentRecv?.writeStream) {
             this._currentRecv.writeStream.destroy();

@@ -1175,6 +1175,10 @@ module.exports = () => {
                     //  pull               : Set false to exclude this node from the periodic pull cycle.
                     //                       Crashmail (event-driven dialing on outbound) still applies.
                     //                       Default: true.
+                    //  gz                 : Set false to neither offer nor use GZ compression with
+                    //                       this node. Useful for a peer whose decompressor cannot
+                    //                       be fixed. Only an explicit false disables it.
+                    //                       Default: true.
                     //  requestNR          : Ask this node to send files to us in NR (non-reliable) mode,
                     //                       settling the resume offset before any data moves. Costs a
                     //                       round trip per file; FTS-1028 says to use it only when a
