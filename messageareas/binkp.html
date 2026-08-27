@@ -17,11 +17,11 @@
 <meta property="og:description" content="BinkP Native Mailer" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-27T19:45:38+00:00" />
+<meta property="article:published_time" content="2026-08-27T20:53:47+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="BinkP Native Mailer" />
 <script type="application/ld+json">
-{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-08-27T19:45:38+00:00","datePublished":"2026-08-27T19:45:38+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-08-27T20:53:47+00:00","datePublished":"2026-08-27T20:53:47+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2992,6 +2992,7 @@
                     sessionPassword: "s3cr3t" // optional CRAM-MD5 password — see tip below
                     pull: true                // optional, defaults to true
                     // requestNR: true        // optional; ask this node to send in NR mode
+                    // gz: false              // optional; disable GZ compression for this node
                 }
 
                 // TLS outbound example (binkps):
@@ -3132,6 +3133,12 @@
       <td><code class="language-plaintext highlighter-rouge">false</code></td>
       <td>Ask this node to send files to us in NR mode. See below.</td>
     </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">gz</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td>Set <code class="language-plaintext highlighter-rouge">false</code> to neither offer nor use GZ compression with this node.</td>
+    </tr>
   </tbody>
 </table>
 
@@ -3145,6 +3152,15 @@
 <p><code class="language-plaintext highlighter-rouge">OPT NR</code> is a request aimed at the <em>remote</em>: it asks the other side to send <strong>to us</strong> that way. It costs a round trip per file, and the standard is blunt that it “degrades performance over regular quality connections and it should be used only if absolutely necessary” — so ENiGMA½ does not send it unless a node opts in with <code class="language-plaintext highlighter-rouge">requestNR: true</code>. binkd behaves the same way, asking only when the sysop sets <code class="language-plaintext highlighter-rouge">-nr</code> or <code class="language-plaintext highlighter-rouge">-nd</code> on a node.</p>
 
 <p>The other direction needs no configuration. If a peer asks us for NR mode we always honour it, which FTS-1028 makes a <code class="language-plaintext highlighter-rouge">MUST</code>.</p>
+
+<h4 id="binkpnodesgz--compression">
+<code class="language-plaintext highlighter-rouge">binkp.nodes[].gz</code> — compression</h4>
+
+<p>When both sides advertise <code class="language-plaintext highlighter-rouge">GZ</code> (and <code class="language-plaintext highlighter-rouge">EXTCMD</code>), file data is compressed on the wire. Files that are already compressed — ArcMail bundles (<code class="language-plaintext highlighter-rouge">.mo0</code>, <code class="language-plaintext highlighter-rouge">.tu1</code>, …), <code class="language-plaintext highlighter-rouge">.zip</code>, <code class="language-plaintext highlighter-rouge">.arj</code> and friends — are sent as-is, so a node using <code class="language-plaintext highlighter-rouge">archiveType</code> sees little of this either way.</p>
+
+<p>The wire format is the zlib container (<a href="http://ftsc.org/docs/fts-1029.001">FTS-1029</a>), which is what binkd, Mystic and the rest expect. Inbound data is decoded from either the zlib or the gzip container, so a peer running an ENiGMA½ older than 0.5.1-beta — which sent gzip — is still understood.</p>
+
+<p>If a peer cannot decompress what we send, ENiGMA½ does not simply give up on the file: FTS-1029 allows a receiver to ask for it again uncompressed, and a peer that asks us that way is honoured for the rest of the session. Set <code class="language-plaintext highlighter-rouge">gz: false</code> to skip compression with a node entirely.</p>
 
 <h4 id="binkpnodestls--tls-outbound-binkps">
 <code class="language-plaintext highlighter-rouge">binkp.nodes[].tls</code> / TLS outbound (binkps)</h4>
