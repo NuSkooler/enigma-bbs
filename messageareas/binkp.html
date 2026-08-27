@@ -17,11 +17,11 @@
 <meta property="og:description" content="BinkP Native Mailer" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-27T17:53:00+00:00" />
+<meta property="article:published_time" content="2026-08-27T19:45:38+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="BinkP Native Mailer" />
 <script type="application/ld+json">
-{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-08-27T17:53:00+00:00","datePublished":"2026-08-27T17:53:00+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-08-27T19:45:38+00:00","datePublished":"2026-08-27T19:45:38+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2991,6 +2991,7 @@
                     port: 24554              // optional, defaults to 24554
                     sessionPassword: "s3cr3t" // optional CRAM-MD5 password — see tip below
                     pull: true                // optional, defaults to true
+                    // requestNR: true        // optional; ask this node to send in NR mode
                 }
 
                 // TLS outbound example (binkps):
@@ -3125,10 +3126,25 @@
       <td><code class="language-plaintext highlighter-rouge">true</code></td>
       <td>Include this node in the periodic pull cycle. Set <code class="language-plaintext highlighter-rouge">false</code> for write-only peers. <strong>Crashmail dispatch is unaffected</strong> — outbound queued for a <code class="language-plaintext highlighter-rouge">pull: false</code> peer still triggers an immediate session.</td>
     </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">requestNR</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Ask this node to send files to us in NR mode. See below.</td>
+    </tr>
   </tbody>
 </table>
 
 <p>Wildcard patterns (e.g. <code class="language-plaintext highlighter-rouge">"21:1/*"</code>) are valid for inbound password lookup but are skipped during pull cycles, since the pull cycle dials concrete addresses only. Put the most specific patterns first in your config — pattern matching uses first-match-wins on insertion order.</p>
+
+<h4 id="binkpnodesrequestnr--nr-non-reliable-mode">
+<code class="language-plaintext highlighter-rouge">binkp.nodes[].requestNR</code> — NR (non-reliable) mode</h4>
+
+<p>NR mode is the binkp answer to a link that keeps dropping mid-transfer. Normally a sender starts every file at offset 0 and the receiver has to interrupt with <code class="language-plaintext highlighter-rouge">M_GET</code> to move it; on a bad line the connection is often gone again before that lands. In NR mode the sender instead offers the file with an offset of <code class="language-plaintext highlighter-rouge">-1</code> and waits to be told where to start, so the resume position is settled before any data moves. See <a href="http://ftsc.org/docs/fts-1028.001">FTS-1028</a>.</p>
+
+<p><code class="language-plaintext highlighter-rouge">OPT NR</code> is a request aimed at the <em>remote</em>: it asks the other side to send <strong>to us</strong> that way. It costs a round trip per file, and the standard is blunt that it “degrades performance over regular quality connections and it should be used only if absolutely necessary” — so ENiGMA½ does not send it unless a node opts in with <code class="language-plaintext highlighter-rouge">requestNR: true</code>. binkd behaves the same way, asking only when the sysop sets <code class="language-plaintext highlighter-rouge">-nr</code> or <code class="language-plaintext highlighter-rouge">-nd</code> on a node.</p>
+
+<p>The other direction needs no configuration. If a peer asks us for NR mode we always honour it, which FTS-1028 makes a <code class="language-plaintext highlighter-rouge">MUST</code>.</p>
 
 <h4 id="binkpnodestls--tls-outbound-binkps">
 <code class="language-plaintext highlighter-rouge">binkp.nodes[].tls</code> / TLS outbound (binkps)</h4>
