@@ -601,27 +601,38 @@ describe('BsoSpool — upper case outbound (FTS-5005.003 §2)', () => {
         assert.match(files[0].name, /^[0-9a-f]{8}\.pkt$/);
     });
 
-    it('does not double-report a node when both cases are present', async () => {
+    it('prefers the lower case spelling when both cases are present', async () => {
         //  Possible only on a case-sensitive filesystem; take the lower case
-        //  spelling the spec prefers rather than queueing the file twice.
-        const refFile = path.join(tmpDir, 'dup.pkt');
-        await fsp.writeFile(refFile, 'DATA');
+        //  spelling the spec prefers rather than queueing the node's mail twice.
+        //
+        //  The two flow files reference *different* packets so the assertions
+        //  can tell which spelling won -- referencing the same packet would
+        //  make the count come out right for the wrong reason.
+        const lowerRef = path.join(tmpDir, 'dup_lower.pkt');
+        const upperRef = path.join(tmpDir, 'dup_upper.pkt');
+        await fsp.writeFile(lowerRef, 'DATA');
+        await fsp.writeFile(upperRef, 'DATA');
         await fsp.writeFile(
             path.join(outboundDir(tmpDir), '00680001.clo'),
-            `^${refFile}\n`
+            `^${lowerRef}\n`
         );
         await fsp.writeFile(
             path.join(outboundDir(tmpDir), '00680001.CLO'),
-            `^${refFile}\n`
+            `^${upperRef}\n`
         );
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
-        assert.equal(files.length, 1);
+        assert.deepEqual(
+            files.map(f => path.basename(f.path)),
+            ['dup_lower.pkt'],
+            'exactly the lower case flow file, queued once'
+        );
 
         const nodes = await spool.getNodesWithPendingMail();
         assert.equal(nodes.length, 1);
 
-        await fsp.unlink(refFile);
+        await fsp.unlink(lowerRef);
+        await fsp.unlink(upperRef);
     });
 
     it('honours an upper case .bsy written by another mailer', async () => {
@@ -695,15 +706,42 @@ describe('BsoSpool — point addresses (FTS-5005.003 §2)', () => {
         await fsp.unlink(bossRef);
     });
 
-    it('does not serve a point’s mail to the boss node', async () => {
-        const refFile = path.join(tmpDir, 'point3.pkt');
-        await fsp.writeFile(refFile, 'DATA');
-        await writePointFlow(refFile);
+    it('keeps a point’s mail and its boss node’s mail apart', async () => {
+        //  Both have mail queued at once, so neither assertion can pass merely
+        //  because the other side's spool was never looked at.
+        const bossRef = path.join(tmpDir, 'boss_own.pkt');
+        const pointRef = path.join(tmpDir, 'point3.pkt');
+        await fsp.writeFile(bossRef, 'DATA');
+        await fsp.writeFile(pointRef, 'DATA');
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.clo'),
+            `^${bossRef}\n`
+        );
+        await writePointFlow(pointRef);
 
-        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
-        assert.equal(files.length, 0);
+        assert.deepEqual(
+            (await spool.getOutboundFilesForNode(TEST_ADDR)).map(f =>
+                path.basename(f.path)
+            ),
+            ['boss_own.pkt'],
+            'the boss node gets its own mail, not the point’s'
+        );
+        assert.deepEqual(
+            (await spool.getOutboundFilesForNode(POINT_ADDR)).map(f =>
+                path.basename(f.path)
+            ),
+            ['point3.pkt'],
+            'the point gets its own mail, not the boss node’s'
+        );
 
-        await fsp.unlink(refFile);
+        //  Both are pending, and as distinct addresses
+        assert.deepEqual(
+            (await spool.getNodesWithPendingMail()).map(a => a.toString()).sort(),
+            ['1:104/1', '1:104/1.45']
+        );
+
+        await fsp.unlink(bossRef);
+        await fsp.unlink(pointRef);
     });
 
     it('finds an upper case .PNT subdirectory', async () => {
@@ -748,16 +786,27 @@ describe('BsoSpool — point addresses (FTS-5005.003 §2)', () => {
     });
 
     it('ignores a point number of zero, which addresses the boss node', async () => {
-        const refFile = path.join(tmpDir, 'point0.pkt');
-        await fsp.writeFile(refFile, 'DATA');
+        //  A real point sits alongside the bogus .0 entry, so the scan has to
+        //  actually descend into the .pnt dir and discriminate -- rather than
+        //  passing because it never looked inside at all.
+        const zeroRef = path.join(tmpDir, 'point0.pkt');
+        const realRef = path.join(tmpDir, 'point45.pkt');
+        await fsp.writeFile(zeroRef, 'DATA');
+        await fsp.writeFile(realRef, 'DATA');
+
         const pntDir = path.join(outboundDir(tmpDir), '00680001.pnt');
         await fsp.mkdir(pntDir, { recursive: true });
-        await fsp.writeFile(path.join(pntDir, '00000000.clo'), `^${refFile}\n`);
+        await fsp.writeFile(path.join(pntDir, '00000000.clo'), `^${zeroRef}\n`);
+        await fsp.writeFile(path.join(pntDir, '0000002d.clo'), `^${realRef}\n`);
 
-        const nodes = await spool.getNodesWithPendingMail();
-        assert.equal(nodes.length, 0);
+        assert.deepEqual(
+            (await spool.getNodesWithPendingMail()).map(a => a.toString()),
+            ['1:104/1.45'],
+            'the real point is reported; the .0 entry is not'
+        );
 
-        await fsp.unlink(refFile);
+        await fsp.unlink(zeroRef);
+        await fsp.unlink(realRef);
     });
 });
 
