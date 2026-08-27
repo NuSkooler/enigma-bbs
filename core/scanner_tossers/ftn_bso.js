@@ -1360,74 +1360,81 @@ function FTNMessageScanTossModule() {
                             async.each(
                                 exportedFileNames,
                                 (oldPath, nextFile) => {
-                                    const ext = paths.extname(oldPath).toLowerCase();
+                                    //
+                                    //  Un-bundled packets are written to the temp area as
+                                    //  .pk_ (see |createTempPacket| in exportMessagesByUuid);
+                                    //  give them their real .pkt extension on the way out.
+                                    //  Bundles already carry their final name.
+                                    //
+                                    //  Note that we deliberately do *not* write a BSO netmail
+                                    //  flow file (NNNNnnnn.?ut) for the un-bundled case:
+                                    //  FTS-5005.003 §3.1 gives those a one-to-one
+                                    //  correspondence with the destination address, so a node
+                                    //  can hold exactly one at a time, while a single export
+                                    //  may produce several packets (see packetTargetByteSize).
+                                    //  Reference files have no such limit, so everything --
+                                    //  bundle or bare packet -- ships as a reference.
+                                    //
+                                    const ext = paths.extname(oldPath);
+                                    let newPath;
                                     if ('.pk_' === ext.toLowerCase()) {
-                                        //
-                                        //  For a given temporary .pk_ file, we need to move it to the outoing
-                                        //  directory with the appropriate BSO style filename.
-                                        //
-                                        const newExt = self.getOutgoingFlowFileExtension(
+                                        //  |ext| is not lower cased above: paths.basename()
+                                        //  matches it case-sensitively, and a fileCase of
+                                        //  'upper' produces a .PK_ we must still strip.
+                                        const pktExt =
+                                            'upper' === exportOpts.fileCase
+                                                ? '.PKT'
+                                                : '.pkt';
+                                        newPath = paths.join(
+                                            outgoingDir,
+                                            `${paths.basename(oldPath, ext)}${pktExt}`
+                                        );
+                                    } else {
+                                        newPath = paths.join(
+                                            outgoingDir,
+                                            paths.basename(oldPath)
+                                        );
+                                    }
+
+                                    fse.move(oldPath, newPath, err => {
+                                        if (err) {
+                                            Log.warn(
+                                                {
+                                                    oldPath: oldPath,
+                                                    newPath: newPath,
+                                                    error: err.toString(),
+                                                },
+                                                'Failed moving temporary outbound file!'
+                                            );
+
+                                            return nextFile();
+                                        }
+
+                                        const flowFilePath = self.getOutgoingFlowFileName(
+                                            outgoingDir,
                                             exportOpts.destAddress,
-                                            'mail',
+                                            'ref',
                                             exportType,
                                             exportOpts.fileCase
                                         );
 
-                                        const newPath = paths.join(
-                                            outgoingDir,
-                                            `${paths.basename(oldPath, ext)}${newExt}`
-                                        );
-
-                                        fse.move(oldPath, newPath, nextFile);
-                                    } else {
-                                        const newPath = paths.join(
-                                            outgoingDir,
-                                            paths.basename(oldPath)
-                                        );
-                                        fse.move(oldPath, newPath, err => {
-                                            if (err) {
-                                                Log.warn(
-                                                    {
-                                                        oldPath: oldPath,
-                                                        newPath: newPath,
-                                                        error: err.toString(),
-                                                    },
-                                                    'Failed moving temporary bundle file!'
-                                                );
-
-                                                return nextFile();
-                                            }
-
-                                            //
-                                            //  For bundles, we need to append to the appropriate flow file
-                                            //
-                                            const flowFilePath =
-                                                self.getOutgoingFlowFileName(
-                                                    outgoingDir,
-                                                    exportOpts.destAddress,
-                                                    'ref',
-                                                    exportType,
-                                                    exportOpts.fileCase
-                                                );
-
-                                            //  directive of '^' = delete file after transfer
-                                            self.flowFileAppendRefs(
-                                                flowFilePath,
-                                                [newPath],
-                                                '^',
-                                                exportOpts.destAddress,
-                                                err => {
-                                                    if (err) {
-                                                        Log.warn(
-                                                            { path: flowFilePath },
-                                                            'Failed appending flow reference record!'
-                                                        );
-                                                    }
-                                                    nextFile();
+                                        //  directive of '^' = delete file after transfer
+                                        self.flowFileAppendRefs(
+                                            flowFilePath,
+                                            [newPath],
+                                            '^',
+                                            exportOpts.destAddress,
+                                            err => {
+                                                if (err) {
+                                                    Log.warn(
+                                                        { path: flowFilePath },
+                                                        'Failed appending flow reference record!'
+                                                    );
                                                 }
-                                            );
-                                        });
-                                    }
+                                                nextFile();
+                                            }
+                                        );
+                                    });
                                 },
                                 callback
                             );

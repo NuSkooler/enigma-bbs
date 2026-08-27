@@ -210,13 +210,17 @@ describe('BsoSpool — stale .bsy reaper', () => {
 describe('BsoSpool — getOutboundFilesForNode: direct-attach', () => {
     beforeEach(cleanOutbound);
 
-    it('returns a .out file with disposition=delete', async () => {
+    it('returns a .out file with disposition=delete, renamed to a unique .pkt', async () => {
         const outPath = path.join(outboundDir(tmpDir), '00680001.out');
         await fsp.writeFile(outPath, 'PACKETDATA');
 
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         assert.equal(files.length, 1);
-        assert.equal(files[0].name, '00680001.out');
+        assert.equal(files[0].path, outPath, 'reads from the .out on disk');
+        //  FTS-5005.003 §3.1: netmail flow files must be sent under a unique
+        //  name with a .pkt extension, or the remote's tosser will not
+        //  recognise what it received as a packet.
+        assert.match(files[0].name, /^[0-9a-f]{8}\.pkt$/);
         assert.equal(files[0].disposition, 'delete');
         assert.equal(files[0].size, 10);
     });
@@ -553,6 +557,207 @@ describe('BsoSpool — getNodesWithPendingMail', () => {
     it('returns an empty list when there are no outbound files', async () => {
         const nodes = await spool.getNodesWithPendingMail();
         assert.equal(nodes.length, 0);
+    });
+});
+
+// ── Filename case ─────────────────────────────────────────────────────────────
+//
+//  FTS-5005.003 §2: "Lower case filenames are prefered if supported by the file
+//  system. If the OS file system supports lower and upper case filenames, the
+//  software should be able to handle both for maximum compatibility."
+//
+//  We write lower case, but an outbound inherited from a DOS-era mailer -- or
+//  written by ftn_bso with fileCase: 'upper' -- is upper case. The scan used a
+//  case-insensitive regexp while the per-node lookup stat()ed an exactly lower
+//  case name, so such a node was reported as pending and then had nothing
+//  queued for it: a poll loop that dialled every cycle and never shipped.
+
+describe('BsoSpool — upper case outbound (FTS-5005.003 §2)', () => {
+    beforeEach(cleanOutbound);
+
+    it('finds an upper case flow file, and agrees with the pending scan', async () => {
+        const refFile = path.join(tmpDir, 'UPPER.PKT');
+        await fsp.writeFile(refFile, 'DATA');
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.CLO'),
+            `^${refFile}\n`
+        );
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1, 'per-node lookup must find it');
+        assert.equal(path.basename(files[0].path), 'UPPER.PKT');
+
+        const nodes = await spool.getNodesWithPendingMail();
+        assert.equal(nodes.length, 1, 'scan and lookup must agree');
+
+        await fsp.unlink(refFile);
+    });
+
+    it('finds an upper case direct-attach file', async () => {
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.CUT'), 'PKTDATA');
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1);
+        assert.match(files[0].name, /^[0-9a-f]{8}\.pkt$/);
+    });
+
+    it('does not double-report a node when both cases are present', async () => {
+        //  Possible only on a case-sensitive filesystem; take the lower case
+        //  spelling the spec prefers rather than queueing the file twice.
+        const refFile = path.join(tmpDir, 'dup.pkt');
+        await fsp.writeFile(refFile, 'DATA');
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.clo'),
+            `^${refFile}\n`
+        );
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.CLO'),
+            `^${refFile}\n`
+        );
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1);
+
+        const nodes = await spool.getNodesWithPendingMail();
+        assert.equal(nodes.length, 1);
+
+        await fsp.unlink(refFile);
+    });
+
+    it('honours an upper case .bsy written by another mailer', async () => {
+        //  §5.1 makes .bsy the interlock between every program touching the
+        //  spool. An exclusive create on our own lower case spelling would not
+        //  collide with theirs, and both would believe they held the lock.
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.BSY'), '4242');
+
+        const locked = await spool.acquireLock(TEST_ADDR);
+        assert.ok(!locked, 'must not acquire a lock another mailer holds');
+    });
+});
+
+// ── Point addresses ───────────────────────────────────────────────────────────
+//
+//  FTS-5005.003 §2: a point's flow and control files live in a "<nff>.pnt"
+//  subdirectory of the boss node's outbound, named from the point number as 8
+//  hex digits -- 1:104/1.45 is outbound/00680001.pnt/0000002d.*.
+//
+//  ftn_bso has always written that layout; the reader knew nothing about it, so
+//  point mail was never shipped, and a poll of the point address was served the
+//  boss node's mail instead.
+
+describe('BsoSpool — point addresses (FTS-5005.003 §2)', () => {
+    const POINT_ADDR = { zone: 1, net: 104, node: 1, point: 45 };
+
+    beforeEach(cleanOutbound);
+
+    async function writePointFlow(refFile, dirName = '00680001.pnt') {
+        const pntDir = path.join(outboundDir(tmpDir), dirName);
+        await fsp.mkdir(pntDir, { recursive: true });
+        await fsp.writeFile(path.join(pntDir, '0000002d.clo'), `^${refFile}\n`);
+        return pntDir;
+    }
+
+    it('finds mail in the boss node’s .pnt subdirectory', async () => {
+        const refFile = path.join(tmpDir, 'point.pkt');
+        await fsp.writeFile(refFile, 'DATA');
+        await writePointFlow(refFile);
+
+        const files = await spool.getOutboundFilesForNode(POINT_ADDR);
+        assert.equal(files.length, 1);
+        assert.equal(path.basename(files[0].path), 'point.pkt');
+
+        await fsp.unlink(refFile);
+    });
+
+    it('reports the point as pending, at its full 4D address', async () => {
+        const refFile = path.join(tmpDir, 'point2.pkt');
+        await fsp.writeFile(refFile, 'DATA');
+        await writePointFlow(refFile);
+
+        const nodes = await spool.getNodesWithPendingMail();
+        assert.equal(nodes.length, 1);
+        assert.equal(nodes[0].toString(), '1:104/1.45');
+
+        await fsp.unlink(refFile);
+    });
+
+    it('does not serve the boss node’s mail to a point', async () => {
+        const bossRef = path.join(tmpDir, 'boss.pkt');
+        await fsp.writeFile(bossRef, 'DATA');
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.clo'),
+            `^${bossRef}\n`
+        );
+
+        const files = await spool.getOutboundFilesForNode(POINT_ADDR);
+        assert.equal(files.length, 0, 'the point has no mail of its own');
+
+        await fsp.unlink(bossRef);
+    });
+
+    it('does not serve a point’s mail to the boss node', async () => {
+        const refFile = path.join(tmpDir, 'point3.pkt');
+        await fsp.writeFile(refFile, 'DATA');
+        await writePointFlow(refFile);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 0);
+
+        await fsp.unlink(refFile);
+    });
+
+    it('finds an upper case .PNT subdirectory', async () => {
+        const refFile = path.join(tmpDir, 'point4.pkt');
+        await fsp.writeFile(refFile, 'DATA');
+        const pntDir = path.join(outboundDir(tmpDir), '00680001.PNT');
+        await fsp.mkdir(pntDir, { recursive: true });
+        await fsp.writeFile(path.join(pntDir, '0000002D.CLO'), `^${refFile}\n`);
+
+        const files = await spool.getOutboundFilesForNode(POINT_ADDR);
+        assert.equal(files.length, 1);
+
+        await fsp.unlink(refFile);
+    });
+
+    it('locks a point inside its .pnt subdirectory', async () => {
+        const locked = await spool.acquireLock(POINT_ADDR);
+        assert.ok(locked);
+
+        const bsy = path.join(outboundDir(tmpDir), '00680001.pnt', '0000002d.bsy');
+        await fsp.access(bsy); // throws if the lock landed elsewhere
+
+        //  The boss node is a different system and must remain pollable
+        assert.ok(await spool.acquireLock(TEST_ADDR), 'boss lock is independent');
+
+        await spool.releaseLock(POINT_ADDR);
+        await spool.releaseLock(TEST_ADDR);
+        assert.ok(await spool.acquireLock(POINT_ADDR), 'lock must be released');
+        await spool.releaseLock(POINT_ADDR);
+    });
+
+    it('reaps a stale .bsy inside a .pnt subdirectory', async () => {
+        const pntDir = path.join(outboundDir(tmpDir), '00680001.pnt');
+        await fsp.mkdir(pntDir, { recursive: true });
+        const bsy = path.join(pntDir, '0000002d.bsy');
+        await fsp.writeFile(bsy, '1');
+
+        const old = new Date(Date.now() - 60 * 60 * 1000);
+        await fsp.utimes(bsy, old, old);
+
+        assert.equal(await spool.reapStaleLocks(), 1);
+    });
+
+    it('ignores a point number of zero, which addresses the boss node', async () => {
+        const refFile = path.join(tmpDir, 'point0.pkt');
+        await fsp.writeFile(refFile, 'DATA');
+        const pntDir = path.join(outboundDir(tmpDir), '00680001.pnt');
+        await fsp.mkdir(pntDir, { recursive: true });
+        await fsp.writeFile(path.join(pntDir, '00000000.clo'), `^${refFile}\n`);
+
+        const nodes = await spool.getNodesWithPendingMail();
+        assert.equal(nodes.length, 0);
+
+        await fsp.unlink(refFile);
     });
 });
 

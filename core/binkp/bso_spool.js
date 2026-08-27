@@ -5,6 +5,7 @@ const path = require('path');
 
 const Address = require('../ftn_address');
 const { moveFileWithCollisionHandling } = require('../file_util');
+const FNV1a = require('../fnv1a');
 const Log = require('../logger').log;
 const {
     resolveDefaultNetworkName,
@@ -17,6 +18,18 @@ const {
 // In priority order (highest first)
 const FLOW_EXTS = ['ilo', 'clo', 'dlo', 'flo', 'hlo'];
 const DIRECT_EXTS = ['iut', 'cut', 'dut', 'out', 'hut'];
+
+// Any BSO flow file: an 8 hex digit basename plus a flow or direct-attach
+// extension. Built from the lists above so the two cannot drift apart.
+// Case-insensitive: FTS-5005.003 §2 asks that software "be able to handle
+// both" upper and lower case BSO filenames.
+const FLOW_FILE_RE = new RegExp(
+    `^([0-9a-f]{8})\\.(${FLOW_EXTS.concat(DIRECT_EXTS).join('|')})$`,
+    'i'
+);
+
+// A point's outbound subdirectory, e.g. 00680024.pnt (FTS-5005.003 §2)
+const POINT_DIR_RE = /^([0-9a-f]{8})\.pnt$/i;
 
 // Default age beyond which an unreleased .bsy lock is considered orphaned
 // (BBS crashed mid-session). 6× the BinkP session timeout (5 min) gives a
@@ -73,6 +86,15 @@ class BsoSpool {
             await fh.close();
         };
 
+        //  Another mailer sharing this spool may have written the lock under a
+        //  different case (FTS-5005.003 §2); an exclusive create on our own
+        //  spelling would not collide with it, and we would both believe we
+        //  held the lock.
+        const existing = await this._resolveExistingBsy(bsyPath);
+        if (existing && existing !== bsyPath && !(await this._reapIfStale(existing))) {
+            return false;
+        }
+
         try {
             await tryCreate();
             return true;
@@ -102,17 +124,28 @@ class BsoSpool {
     async reapStaleLocks() {
         const dirs = await this._allOutboundDirs();
         let reaped = 0;
-        for (const { dir } of dirs) {
+
+        //  |recurse| descends one level into NNNNnnnn.pnt/ subdirectories,
+        //  where a point's lock lives. Points do not nest.
+        const sweep = async (dir, recurse) => {
             let entries;
             try {
                 entries = await fsp.readdir(dir);
             } catch {
-                continue;
+                return;
             }
             for (const file of entries) {
+                if (recurse && POINT_DIR_RE.test(file)) {
+                    await sweep(path.join(dir, file), false);
+                    continue;
+                }
                 if (!/\.bsy$/i.test(file)) continue;
                 if (await this._reapIfStale(path.join(dir, file))) reaped++;
             }
+        };
+
+        for (const { dir } of dirs) {
+            await sweep(dir, true);
         }
         return reaped;
     }
@@ -151,25 +184,26 @@ class BsoSpool {
     // Each entry: { name, path, size, timestamp, disposition, disposeFn }
     // Call disposeFn() after the remote acknowledges receipt (file-sent event).
     async getOutboundFilesForNode(addr) {
-        const base = nodeBaseName(addr);
         const results = [];
 
-        //  A 2D address (no zone) matches no zone-tagged directory; fall back
-        //  to the canonical one rather than reporting nothing pending.
-        let dirs = await this._candidateDirsForZone(addr.zone);
-        if (0 === dirs.length) {
-            dirs = [this._outboundDir(addr)];
-        }
-
-        for (const dir of dirs) {
+        for (const { dir, base, entries } of await this._spoolTargetsForNode(addr)) {
             for (const ext of DIRECT_EXTS) {
-                const filePath = path.join(dir, `${base}.${ext}`);
+                const actual = entries.get(`${base}.${ext}`);
+                if (!actual) continue;
+
+                const filePath = path.join(dir, actual);
                 try {
                     const stat = await fsp.stat(filePath);
                     // Zero-byte .ilo = poll trigger, not actual mail
                     if (stat.size === 0) continue;
                     results.push({
-                        name: path.basename(filePath),
+                        //  FTS-5005.003 §3.1: a netmail flow file "must be
+                        //  dynamically renamed at the moment of sending to a
+                        //  remote system with a unique name and extension
+                        //  'pkt'". Sending it under its NNNNnnnn.?ut name
+                        //  leaves the remote with a file its tosser will not
+                        //  recognise as a packet.
+                        name: uniquePacketName(filePath),
                         path: filePath,
                         size: stat.size,
                         timestamp: Math.floor(stat.mtimeMs / 1000),
@@ -191,10 +225,12 @@ class BsoSpool {
             }
 
             for (const ext of FLOW_EXTS) {
-                const flowPath = path.join(dir, `${base}.${ext}`);
+                const actual = entries.get(`${base}.${ext}`);
+                if (!actual) continue;
+
+                const flowPath = path.join(dir, actual);
                 try {
-                    const entries = await this._parseFlowFile(flowPath);
-                    results.push(...entries);
+                    results.push(...(await this._parseFlowFile(flowPath)));
                 } catch (err) {
                     if (err.code !== 'ENOENT') {
                         Log.warn(
@@ -215,25 +251,38 @@ class BsoSpool {
         const seen = new Set();
         const results = [];
 
-        for (const { dir, zone } of outboundDirs) {
+        //  |bossBase| is set when scanning inside a NNNNnnnn.pnt/ subdirectory,
+        //  in which case each basename is a point number rather than a
+        //  net/node pair (FTS-5005.003 §2).
+        const scanDir = async (dir, zone, bossBase) => {
             let entries;
             try {
                 entries = await fsp.readdir(dir);
             } catch {
-                continue;
+                return;
             }
 
             for (const file of entries) {
-                const m =
-                    /^([0-9a-f]{8})\.(flo|clo|ilo|hlo|dlo|out|cut|iut|hut|dut)$/i.exec(
-                        file
-                    );
+                if (!bossBase) {
+                    const pnt = POINT_DIR_RE.exec(file);
+                    if (pnt) {
+                        await scanDir(path.join(dir, file), zone, pnt[1].toLowerCase());
+                        continue;
+                    }
+                }
+
+                const m = FLOW_FILE_RE.exec(file);
                 if (!m) continue;
 
                 const base = m[1].toLowerCase();
                 const ext = m[2].toLowerCase();
-                const key = `${zone}:${base}`;
+                const key = bossBase ? `${zone}:${bossBase}.${base}` : `${zone}:${base}`;
                 if (seen.has(key)) continue;
+
+                //  A point number of zero addresses the boss node, whose files
+                //  belong in the outbound directory proper.
+                const point = bossBase ? parseInt(base, 16) : 0;
+                if (bossBase && 0 === point) continue;
 
                 const filePath = path.join(dir, file);
 
@@ -246,14 +295,20 @@ class BsoSpool {
                 }
 
                 seen.add(key);
+                const nodeBase = bossBase || base;
                 results.push(
                     new Address({
                         zone,
-                        net: parseInt(base.slice(0, 4), 16),
-                        node: parseInt(base.slice(4, 8), 16),
+                        net: parseInt(nodeBase.slice(0, 4), 16),
+                        node: parseInt(nodeBase.slice(4, 8), 16),
+                        ...(point ? { point } : {}),
                     })
                 );
             }
+        };
+
+        for (const { dir, zone } of outboundDirs) {
+            await scanDir(dir, zone);
         }
 
         return results;
@@ -330,8 +385,64 @@ class BsoSpool {
         return Array.from(seen);
     }
 
+    //  Every (directory, basename) pair that could hold flow or control files
+    //  for |addr|, each with a case-insensitive index of that directory's
+    //  entries (lowercased name -> name as it appears on disk).
+    //
+    //  For a point, FTS-5005.003 §2 puts the files one level down in the boss
+    //  node's "<nff>.pnt" subdirectory, named from the point number rather
+    //  than net/node -- 1:104/36.45 lives in outbound/00680024.pnt/0000002d.*.
+    async _spoolTargetsForNode(addr) {
+        //  A 2D address (no zone) matches no zone-tagged directory; fall back
+        //  to the canonical one rather than reporting nothing pending.
+        let dirs = await this._candidateDirsForZone(addr.zone);
+        if (0 === dirs.length) {
+            dirs = [this._outboundDir(addr)];
+        }
+
+        const targets = [];
+        for (const dir of dirs) {
+            const entries = await readDirCaseMap(dir);
+
+            if (!addr.point) {
+                targets.push({ dir, base: nodeBaseName(addr), entries });
+                continue;
+            }
+
+            const pointDir = entries.get(`${nodeBaseName(addr)}.pnt`);
+            if (!pointDir) continue;
+
+            const pointDirPath = path.join(dir, pointDir);
+            targets.push({
+                dir: pointDirPath,
+                base: pointBaseName(addr),
+                entries: await readDirCaseMap(pointDirPath),
+            });
+        }
+
+        return targets;
+    }
+
     _bsyPath(addr) {
-        return path.join(this._outboundDir(addr), `${nodeBaseName(addr)}.bsy`);
+        const dir = this._outboundDir(addr);
+        if (addr.point) {
+            return path.join(
+                dir,
+                `${nodeBaseName(addr)}.pnt`,
+                `${pointBaseName(addr)}.bsy`
+            );
+        }
+        return path.join(dir, `${nodeBaseName(addr)}.bsy`);
+    }
+
+    //  The lock file for |bsyPath|'s node as it actually exists on disk, in
+    //  whatever case it was written, or null when there is none.
+    async _resolveExistingBsy(bsyPath) {
+        const dir = path.dirname(bsyPath);
+        const actual = (await readDirCaseMap(dir)).get(
+            path.basename(bsyPath).toLowerCase()
+        );
+        return actual ? path.join(dir, actual) : null;
     }
 
     async _parseFlowFile(flowPath) {
@@ -503,6 +614,55 @@ function nodeBaseName(addr) {
     const net = `0000${addr.net.toString(16)}`.slice(-4);
     const node = `0000${addr.node.toString(16)}`.slice(-4);
     return `${net}${node}`;
+}
+
+// BSO base filename for a point, inside its boss node's .pnt subdirectory:
+// the point number as 8 hex digits, zero padded (FTS-5005.003 §2)
+function pointBaseName(addr) {
+    return `00000000${addr.point.toString(16)}`.slice(-8);
+}
+
+// Index a directory by lowercased entry name -> the name as it appears on
+// disk, so lookups can be case-insensitive (FTS-5005.003 §2). An absent
+// directory yields an empty map; anything else is reported and treated the
+// same, since a directory we cannot read holds no mail we can send.
+async function readDirCaseMap(dir) {
+    const map = new Map();
+
+    let names;
+    try {
+        names = await fsp.readdir(dir);
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            Log.warn(
+                { path: dir, error: err.message },
+                '[BinkP/BSO] Error reading outbound directory'
+            );
+        }
+        return map;
+    }
+
+    for (const name of names) {
+        const lower = name.toLowerCase();
+        //  A case-insensitive filesystem cannot hold two spellings at once; on
+        //  a case-sensitive one, prefer the lower case name the spec prefers.
+        if (!map.has(lower) || name === lower) {
+            map.set(lower, name);
+        }
+    }
+
+    return map;
+}
+
+// A unique "NNNNNNNN.pkt" wire name for a direct-attach netmail flow file.
+// FTS-5005.003 §3.1 requires the rename and leaves the naming method to the
+// implementation. Mirrors ftn_util.getMessageSerialNumber(): the clock keeps
+// names distinct between sessions, the path between files queued within one.
+function uniquePacketName(filePath) {
+    const hash = Math.abs(
+        new FNV1a(`${Date.now() - Date.UTC(2016, 1, 1)}${filePath}`).value
+    ).toString(16);
+    return `${`00000000${hash}`.slice(-8)}.pkt`;
 }
 
 async function flowHasPending(flowPath) {

@@ -30,7 +30,7 @@ A node entry starts with a [FTN address](http://ftsc.org/docs/old/fsp-1028.001) 
 | `packetType`     | :-1:     | `2`, `2.2`, or `2+`. Defaults to `2+` for modern mailer compatibility. |
 | `packetPassword` | :-1:     | Optional password for the packet |
 | `encoding`       | :-1:     | Encoding to use for message bodies; Defaults to `utf-8`. |
-| `archiveType`    | :-1:     | Specifies the archive type (by extension or MIME type) for ArcMail bundles. This should be `zip` (or `application/zip`) for most setups. Other valid examples include `arc`, `arj`, `lhz`, `pak`, `sqz`, or `zoo`. See [Archivers](../configuration/archivers.md) for more information. |
+| `archiveType`    | :-1:     | Specifies the archive type (by extension or MIME type) for ArcMail bundles. This should be `zip` (or `application/zip`) for most setups. Other valid examples include `arc`, `arj`, `lhz`, `pak`, `sqz`, or `zoo`. See [Archivers](../configuration/archivers.md) for more information. When omitted, or when no archiver is available for the type given, mail is sent as bare uncompressed packets referenced from the node's flow file — correct, but larger on the wire. |
 
 **Example**:
 ```hjson

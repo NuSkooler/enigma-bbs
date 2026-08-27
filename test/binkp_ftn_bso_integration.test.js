@@ -706,4 +706,232 @@ describe('ftn_bso ↔ BinkP integration', function () {
                 .catch(done);
         });
     });
+    //
+    //  Un-bundled (no archiveType) EchoMail export — issue #722.
+    //
+    //  A node with no archiveType configured exports bare packets rather than
+    //  ArcMail bundles. Those are written to the temp area as .pk_ and used to
+    //  be renamed straight onto a BSO netmail flow file name -- badly: the
+    //  separating dot was missing ("43792ae5cut"), so neither this mailer nor
+    //  any other could match it, and the basename was a message serial number
+    //  rather than a net/node pair, so anything that *did* match decoded it as
+    //  a bogus address.
+    //
+    //  They now ship as flow file references, like bundles and like NetMail:
+    //  FTS-5005.003 §3.1 gives a netmail flow file a one-to-one correspondence
+    //  with its destination, so a node can hold exactly one, while a single
+    //  export may produce several packets (see packetTargetByteSize).
+    //
+    //  These exercise the REAL exportEchoMailMessagesToUplinks waterfall,
+    //  stubbing only exportMessagesByUuid so no message database is needed.
+
+    describe('ftn_bso — un-bundled EchoMail export (issue #722)', () => {
+        const AREA_CONFIG = { network: 'testnet', uplinks: ['1:218/701'] };
+        const DEST = { zone: 1, net: 218, node: 701 };
+
+        //  Each case gets its own outbound root: nothing here actually ships,
+        //  so files would otherwise pile up and collide between tests.
+        function makeExportConfig(root, fileCase) {
+            const config = makeConfig();
+            config.scannerTossers.ftn_bso.paths = {
+                outbound: root,
+                inbound: path.join(root, 'ftn_in'),
+                secInbound: path.join(root, 'ftn_secin'),
+            };
+            config.scannerTossers.ftn_bso.nodes = {
+                '1:218/701': {
+                    packetType: '2+',
+                    //  deliberately no archiveType -- the #722 trigger
+                    ...(fileCase ? { fileCase } : {}),
+                },
+            };
+            return config;
+        }
+
+        //  Runs a real export whose "exporter" drops |packetNames| into the
+        //  temp dir. Yields { outDir, root } for inspection.
+        function runExport({ label, fileCase, packetNames }, cb) {
+            const root = path.join(tmpDir, `unbundled_${label}`);
+            const tempDir = path.join(root, 'export_temp');
+
+            const config = makeExportConfig(root, fileCase);
+            const prev = configModule._pushTestConfig(config);
+            const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+            const mod = new getModule();
+
+            //  ftn_bso captures config.js's |get| at first require, so whichever
+            //  suite loads the module first freezes what Config() returns for
+            //  the rest of the run (see the note in test/setup.js). Everything
+            //  that varies between these cases -- the outbound root and the
+            //  node's fileCase -- is reached through |moduleConfig|, so set it
+            //  directly rather than relying on the push above.
+            mod.moduleConfig = config.scannerTossers.ftn_bso;
+            mod.exportTempDir = tempDir;
+
+            mod.exportMessagesByUuid = (uuids, exportOpts, callback) => {
+                fsp.mkdir(tempDir, { recursive: true })
+                    .then(() =>
+                        Promise.all(
+                            packetNames.map(name => {
+                                const p = path.join(tempDir, name);
+                                return fsp.writeFile(p, 'PKTDATA').then(() => p);
+                            })
+                        )
+                    )
+                    .then(written => callback(null, written))
+                    .catch(callback);
+            };
+
+            const outDir = mod.getOutgoingEchoMailPacketDir('testnet', DEST);
+
+            mod.exportEchoMailMessagesToUplinks(['uuid-1'], AREA_CONFIG, err => {
+                configModule._popTestConfig(prev);
+                cb(err, { outDir, root });
+            });
+        }
+
+        function spoolFor(root) {
+            const { BsoSpool } = require('../core/binkp/bso_spool.js');
+            return new BsoSpool({
+                paths: {
+                    outbound: root,
+                    inbound: path.join(root, 'ftn_in'),
+                    secInbound: path.join(root, 'ftn_secin'),
+                },
+                networks: { testnet: { localAddress: '1:218/700', defaultZone: 1 } },
+            });
+        }
+
+        it('names the packet <serial>.pkt -- never a dotless BSO flow file', done => {
+            runExport(
+                { label: 'lower', packetNames: ['43792ae5.pk_'] },
+                (err, { outDir }) => {
+                    if (err) return done(err);
+                    fsp.readdir(outDir)
+                        .then(entries => {
+                            assert.deepEqual(
+                                entries.sort(),
+                                ['00da02bd.clo', '43792ae5.pkt'],
+                                'expected a crash flow file plus the packet'
+                            );
+                            //  The exact shape of the original bug
+                            assert.ok(
+                                !entries.includes('43792ae5cut'),
+                                'must not produce a dotless flow file name'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('strips the temp extension correctly when fileCase is upper', done => {
+            //  paths.basename() matches its ext argument case-sensitively, so
+            //  passing a lower cased ext silently failed to strip ".PK_" --
+            //  which used to yield "43792AE5.PK_CUT".
+            runExport(
+                { label: 'upper', fileCase: 'upper', packetNames: ['43792AE5.PK_'] },
+                (err, { outDir }) => {
+                    if (err) return done(err);
+                    fsp.readdir(outDir)
+                        .then(entries => {
+                            assert.deepEqual(entries.sort(), [
+                                '00DA02BD.CLO',
+                                '43792AE5.PKT',
+                            ]);
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('BsoSpool ships every packet of a multi-packet export', done => {
+            //  packetTargetByteSize makes multi-packet exports routine. A BSO
+            //  netmail flow file could only ever have carried one of them.
+            runExport(
+                { label: 'multi', packetNames: ['0000000a.pk_', '0000000b.pk_'] },
+                (err, { root }) => {
+                    if (err) return done(err);
+                    const Address = require('../core/ftn_address.js');
+
+                    spoolFor(root)
+                        .getOutboundFilesForNode(new Address(DEST))
+                        .then(files => {
+                            assert.deepEqual(
+                                files.map(f => path.basename(f.path)).sort(),
+                                ['0000000a.pkt', '0000000b.pkt']
+                            );
+                            //  '^' == delete after transfer
+                            assert.ok(
+                                files.every(f => f.disposition === 'delete'),
+                                'packets must be removed from the spool once sent'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('BsoSpool finds an upper case export (FTS-5005.003 §2)', done => {
+            //  The writer honours fileCase; the reader used to look only for
+            //  lower case names, so it reported the node as pending and then
+            //  queued nothing -- a poll loop that never shipped anything.
+            runExport(
+                {
+                    label: 'upperspool',
+                    fileCase: 'upper',
+                    packetNames: ['0000000C.PK_'],
+                },
+                (err, { root }) => {
+                    if (err) return done(err);
+                    const Address = require('../core/ftn_address.js');
+                    const spool = spoolFor(root);
+                    const addr = new Address(DEST);
+
+                    Promise.all([
+                        spool.getNodesWithPendingMail(),
+                        spool.getOutboundFilesForNode(addr),
+                    ])
+                        .then(([pending, files]) => {
+                            assert.ok(
+                                pending.map(a => a.toString()).includes('1:218/701'),
+                                'node with upper case flow file must be pending'
+                            );
+                            assert.deepEqual(
+                                files.map(f => path.basename(f.path)),
+                                ['0000000C.PKT'],
+                                'the scan and the lookup must agree'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('reports the node at its real address, not a decoded serial', done => {
+            //  The old name decoded a message serial as net/node -- 43792ae5
+            //  became 700:17273/10981, a node that does not exist.
+            runExport(
+                { label: 'addr', packetNames: ['43792ae5.pk_'] },
+                (err, { root }) => {
+                    if (err) return done(err);
+                    spoolFor(root)
+                        .getNodesWithPendingMail()
+                        .then(addrs => {
+                            assert.deepEqual(
+                                addrs.map(a => a.toString()),
+                                ['1:218/701'],
+                                'must not decode a message serial as an address'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+    });
 }); // describe('ftn_bso ↔ BinkP integration')
