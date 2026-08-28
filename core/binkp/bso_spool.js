@@ -42,9 +42,13 @@ const DEFAULT_STALE_LOCK_MAX_AGE_MS = 30 * 60 * 1000;
 // the complaint is about static configuration — once per process is plenty.
 const warnedNetworks = new Set();
 
-// Flow file references that resolve to nothing. Same reasoning as
-// |warnedNetworks|: a dangling reference is a standing condition the sysop
-// needs told about once, not once per poll cycle.
+// Flow file references we've already complained about. Same reasoning as
+// |warnedNetworks|: an unusable reference is a standing condition the sysop
+// needs told about once, not once per poll cycle. Bounded because unlike
+// networks these are unbounded in principle -- a downlink that never answers
+// accumulates a uniquely named packet per export. Past the cap we start over
+// rather than grow: a little repetition beats a leak.
+const MAX_WARNED_FLOW_REFS = 1024;
 const warnedFlowRefs = new Set();
 
 //
@@ -705,12 +709,27 @@ async function flowHasPending(flowPath) {
 //  reports success.
 //
 async function resolveFlowRef(flowPath, ref) {
+    const warnOnce = (key, fields, message) => {
+        if (warnedFlowRefs.has(key)) return;
+        if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) warnedFlowRefs.clear();
+        warnedFlowRefs.add(key);
+        Log.warn(fields, message);
+    };
+
     const tryStat = async p => {
         try {
-            return await fsp.stat(p);
+            const stat = await fsp.stat(p);
+            //  A reference has to name a regular file. A directory sitting at
+            //  the path would queue, fail to open, and leave its node pending
+            //  forever — the very loop the existence check above exists to
+            //  break. The fallback below can also collapse a wholly dangling
+            //  reference onto one: a path ending in ".." lands on the parent
+            //  of the outbound directory.
+            return stat.isFile() ? stat : null;
         } catch (err) {
             if ('ENOENT' !== err.code && 'ENOTDIR' !== err.code) {
-                Log.warn(
+                warnOnce(
+                    `stat\0${p}`,
                     { path: p, error: err.message },
                     '[BinkP/BSO] Error stat-ing flow file reference'
                 );
@@ -731,14 +750,11 @@ async function resolveFlowRef(flowPath, ref) {
         if (stat) return { path: alt, stat };
     }
 
-    const key = `${flowPath}\0${ref}`;
-    if (!warnedFlowRefs.has(key)) {
-        warnedFlowRefs.add(key);
-        Log.warn(
-            { flowFile: flowPath, ref },
-            '[BinkP/BSO] Flow file references a file that does not exist; skipping entry'
-        );
-    }
+    warnOnce(
+        `ref\0${flowPath}\0${ref}`,
+        { flowFile: flowPath, ref },
+        '[BinkP/BSO] Flow file reference names no usable file; skipping entry'
+    );
 
     return null;
 }

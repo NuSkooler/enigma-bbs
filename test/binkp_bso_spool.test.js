@@ -652,6 +652,52 @@ describe('BsoSpool — dangling and rescued flow references', () => {
         const files = await spool.getOutboundFilesForNode(TEST_ADDR);
         assert.equal(files.length, 0);
     });
+
+    it('skips a reference that names a directory', async () => {
+        //  A directory would queue, then fail to open at send time, and its
+        //  node would stay pending forever.
+        const dir = path.join(outboundDir(tmpDir), 'itsadir');
+        await fsp.mkdir(dir, { recursive: true });
+
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${dir}\n`);
+
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+    });
+
+    it('does not collapse a dangling reference onto a directory', async () => {
+        //  The rescue takes the reference's last path segment. For a path
+        //  ending in ".." that segment resolves to the parent of the outbound
+        //  directory -- outside the spool entirely -- and for "." to the
+        //  outbound directory itself. Neither is a file, and neither may be
+        //  offered to a remote.
+        for (const tail of ['..', '.']) {
+            await cleanOutbound();
+            const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+            //  built by hand: path.join() would normalise the tail away
+            await fsp.writeFile(flowPath, `^${tmpDir}/gone/missing/${tail}\n`);
+
+            assert.deepEqual(
+                await spool.getOutboundFilesForNode(TEST_ADDR),
+                [],
+                `a reference ending in "${tail}" must resolve to nothing`
+            );
+            assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+        }
+    });
+
+    it('rescues a reference written with the other platform separators', async () => {
+        const here = path.join(outboundDir(tmpDir), 'aabbccdd.pkt');
+        await fsp.writeFile(here, 'PKT');
+
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, '^C:\\bbs\\out\\aabbccdd.pkt\n');
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1);
+        assert.equal(files[0].path, here);
+    });
 });
 
 // ── Filename case ─────────────────────────────────────────────────────────────

@@ -32,6 +32,17 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   **Action:** review your configuration if it mixes a wildcard with more specific entries that also match. Two cases change behaviour, both towards what the specific entry says: a `"21:*"` node block written above `"21:1/100"` no longer shadows that node's own settings -- including `packetPassword`, which means a packet password you configured and believed to be in force may only now start being enforced -- and a `"*"` NetMail route written above `"21:*"` no longer claims mail the narrower route was meant to take.
 
+  **The same rule can also relax a packet password, so check this direction too.** A matching entry is used whole; its fields are not merged with those of the wildcard it beat. So where the wildcard carries the password and the specific entry does not:
+
+  ````hjson
+  nodes: {
+      "21:*"     : { packetPassword: MUHPA55 }
+      "21:1/100" : { archiveType: ZIP }        //  no packetPassword
+  }
+  ````
+
+  packets from `21:1/100` used to be password checked by way of the wildcard and now are not, because the specific entry wins and sets no password. If any of your specific node blocks omit a `packetPassword` that a broader entry supplies, add it to them.
+
 * **The `download` file area ACS is now actually enforced.** It previously applied only to the REST API; over telnet and SSH any user who could browse an area could also download from it. If you set a `download` ACS on any file area expecting it to restrict downloads, **it was not doing so until now**.
 
   **Action:** review your `fileBase.areas` ACS blocks. Areas with no `download` ACS are unaffected -- the default (`GM[users]`) matches the `read` default, so nothing changes for them. Areas where you *did* set `download` will now restrict downloads to what you configured, which may be tighter than what users have actually been getting. Note that an entry whose area is no longer in `config.hjson` fails closed and can no longer be downloaded.
