@@ -459,6 +459,139 @@ describe('auto_area_create', () => {
         });
     });
 
+    // ─── Info pack enrichment ────────────────────────────────────────────────
+
+    it('replaces the placeholder name and desc on areas we generated', done => {
+        autoAreaCreate.createAreas(NETWORK, ['FSX_GEN', 'FSX_BBS'], err => {
+            assert.ifError(err);
+
+            const entries = [
+                { ftnTag: 'FSX_GEN', name: 'General Chat + More..' },
+                { ftnTag: 'FSX_BBS', name: 'BBS Support/Dev' },
+                { ftnTag: 'FSX_MYS', name: 'Mystic BBS Support/Dev' },
+            ];
+
+            autoAreaCreate.applyInfoPackEntries(NETWORK, entries, {}, (err2, result) => {
+                assert.ifError(err2);
+                assert.deepEqual(result.enriched.sort(), ['fsx_bbs', 'fsx_gen']);
+
+                //  we are not linked to FSX_MYS, so it is not created
+                assert.equal(result.created.length, 0);
+
+                const areas = configModule.get().messageConferences[CONF_TAG].areas;
+                assert.equal(areas.fsx_gen.name, 'General Chat + More..');
+                assert.equal(areas.fsx_gen.desc, 'General Chat + More..');
+                assert.equal(areas.fsx_mys, undefined);
+
+                //  the write-deny ACS survives enrichment
+                assert.equal(areas.fsx_gen.acs.write, autoAreaCreate.DenyAllAcs);
+                done();
+            });
+        });
+    });
+
+    it('does not touch an area the operator defined in config.hjson', done => {
+        writeBaseConfig({
+            messageConferences: {
+                [CONF_TAG]: {
+                    name: 'fsxNet',
+                    desc: 'fsxNet Echos',
+                    areas: { fsx_gen: { name: 'Mine', desc: 'My words' } },
+                },
+            },
+        });
+
+        configModule.reload(reloadErr => {
+            assert.ifError(reloadErr);
+            autoAreaCreate.applyInfoPackEntries(
+                NETWORK,
+                [{ ftnTag: 'FSX_GEN', name: 'General Chat + More..' }],
+                {},
+                (err, result) => {
+                    assert.ifError(err);
+                    assert.equal(result.enriched.length, 0);
+                    assert.equal(
+                        configModule.get().messageConferences[CONF_TAG].areas.fsx_gen
+                            .desc,
+                        'My words'
+                    );
+                    done();
+                }
+            );
+        });
+    });
+
+    it('creates unlinked areas only when asked, with real names', done => {
+        const entries = [
+            { ftnTag: 'FSX_GEN', name: 'General Chat + More..' },
+            { ftnTag: 'FSX_BBS', name: 'BBS Support/Dev' },
+        ];
+
+        autoAreaCreate.applyInfoPackEntries(
+            NETWORK,
+            entries,
+            { createUnlinked: true },
+            (err, result) => {
+                assert.ifError(err);
+                assert.deepEqual(result.created.map(c => c.areaTag).sort(), [
+                    'fsx_bbs',
+                    'fsx_gen',
+                ]);
+
+                const areas = configModule.get().messageConferences[CONF_TAG].areas;
+                assert.equal(areas.fsx_gen.desc, 'General Chat + More..');
+                assert.equal(
+                    configModule.get().messageNetworks.ftn.areas.fsx_gen.uplinks,
+                    undefined
+                );
+                done();
+            }
+        );
+    });
+
+    it('applies the collision guard to createUnlinked as well', done => {
+        autoAreaCreate.applyInfoPackEntries(
+            NETWORK,
+            [{ ftnTag: 'PRIVATE_MAIL', name: 'Hostile' }],
+            { createUnlinked: true },
+            (err, result) => {
+                assert.ifError(err);
+                assert.equal(result.created.length, 0);
+                assert.equal(
+                    result.rejected[0].reason,
+                    autoAreaCreate.RejectReasons.WellKnown
+                );
+                done();
+            }
+        );
+    });
+
+    it('writes nothing when the pack says what we already say', done => {
+        autoAreaCreate.createAreas(NETWORK, ['FSX_GEN'], err => {
+            assert.ifError(err);
+            const before = fs.statSync(
+                paths.join(tempDir, autoAreaCreate.GeneratedIncludeFileName)
+            ).mtimeMs;
+
+            autoAreaCreate.applyInfoPackEntries(
+                NETWORK,
+                [{ ftnTag: 'FSX_GEN', name: 'FSX_GEN' }],
+                {},
+                (err2, result) => {
+                    assert.ifError(err2);
+                    assert.equal(result.enriched.length, 0);
+                    assert.equal(
+                        fs.statSync(
+                            paths.join(tempDir, autoAreaCreate.GeneratedIncludeFileName)
+                        ).mtimeMs,
+                        before
+                    );
+                    done();
+                }
+            );
+        });
+    });
+
     // ─── Feature gating ──────────────────────────────────────────────────────
 
     it('is off for a network with no autoAreas block', done => {

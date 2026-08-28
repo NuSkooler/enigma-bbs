@@ -24,7 +24,6 @@ const getMessageAreaByTag = areaTag =>
 const fs = require('graceful-fs');
 const paths = require('path');
 const hjson = require('hjson');
-const async = require('async');
 const _ = require('lodash');
 
 //
@@ -312,6 +311,189 @@ function checkCollision(ftnTag, areaTag, networkName, generated, config) {
 }
 
 //
+//  Validate everything a write depends on, once.  Returns an Error or a
+//  { autoConfig, confTag, includeState, ignore } context.
+//
+function prepareGeneratedWrite(networkName) {
+    const autoConfig = getAutoAreasConfig(networkName);
+    if (!autoConfig) {
+        return Errors.MissingConfig(
+            `No autoAreas configuration for network "${networkName}"`
+        );
+    }
+
+    const confTag = autoConfig.confTag;
+    if (!_.isString(confTag) || 0 === confTag.length) {
+        return Errors.MissingConfig(
+            `autoAreas for network "${networkName}" has no "confTag"`
+        );
+    }
+
+    //
+    //  The conference must already exist.  defaultsDeep would happily create
+    //  one from this file, but it would have areas and no name or desc.
+    //  Refuse rather than manufacture a broken conference.
+    //
+    if (!_.has(Config(), ['messageConferences', confTag])) {
+        return Errors.MissingConfig(
+            `autoAreas confTag "${confTag}" (network "${networkName}") is not a configured message conference`
+        );
+    }
+
+    const includeState = getGeneratedIncludeState();
+    if (!includeState.path) {
+        return Errors.UnexpectedState('Configuration base path is unknown');
+    }
+
+    if (!includeState.included) {
+        return Errors.MissingConfig(
+            `"${GeneratedIncludeFileName}" is not listed in the "includes" of ${ConfigModule.Config.getBasePath()}; ` +
+                'run "oputil.js mb auto-areas init"'
+        );
+    }
+
+    return {
+        autoConfig,
+        confTag,
+        includeState,
+        ignore: new Set(autoConfig.ignore.map(t => _.toUpper(String(t)))),
+    };
+}
+
+//
+//  The ignore list is the only way to un-create something, so it has to apply
+//  to what has already been generated, not just to new arrivals.
+//
+function pruneIgnored(generated, networkName, ignore, result) {
+    _.forEach(generatedAreasForNetwork(generated, networkName), (areaConf, areaTag) => {
+        if (ignore.has(_.toUpper(areaConf.tag || ''))) {
+            delete generated.messageNetworks.ftn.areas[areaTag];
+            _.forEach(generated.messageConferences, conf => {
+                if (conf.areas) {
+                    delete conf.areas[areaTag];
+                }
+            });
+            result.pruned.push(areaTag);
+        }
+    });
+}
+
+//
+//  Add areas for |ftnTags| that pass the ignore list, the collision guard and
+//  the total cap.  |names| optionally supplies a real name/desc per tag.
+//
+function addGeneratedAreas(generated, networkName, ctx, ftnTags, result, names) {
+    const config = Config();
+
+    //  Deterministic order so a maxAutoCreate cut is reproducible
+    const candidates = Array.from(
+        new Set(ftnTags.map(t => String(t).trim()).filter(t => t.length > 0))
+    ).sort();
+
+    let count = Object.keys(generatedAreasForNetwork(generated, networkName)).length;
+
+    candidates.forEach(ftnTag => {
+        const areaTag = localAreaTagFor(ftnTag);
+
+        if (ctx.ignore.has(_.toUpper(ftnTag))) {
+            result.rejected.push({ ftnTag, areaTag, reason: RejectReasons.Ignored });
+            return;
+        }
+
+        const collision = checkCollision(ftnTag, areaTag, networkName, generated, config);
+        if (collision) {
+            result.rejected.push({ ftnTag, areaTag, reason: collision });
+            return;
+        }
+
+        if (_.has(generated, ['messageNetworks', 'ftn', 'areas', areaTag])) {
+            //  already ours; nothing to do
+            return;
+        }
+
+        //
+        //  The cap is on the total, not the run: a per-run cap compounds, and
+        //  ten runs of 500 is 5000 areas.  The generated file is the durable
+        //  counter.
+        //
+        if (count >= ctx.autoConfig.maxAutoCreate) {
+            result.rejected.push({ ftnTag, areaTag, reason: RejectReasons.MaxReached });
+            return;
+        }
+
+        //
+        //  Without an info pack the tag is all we know, so it stands in for
+        //  the name and description. An info pack may replace those later,
+        //  and an operator's config.hjson beats both.
+        //
+        const name = (names && names[_.toUpper(ftnTag)]) || ftnTag;
+
+        _.set(generated, ['messageConferences', ctx.confTag, 'areas', areaTag], {
+            name,
+            desc: name,
+            acs: {
+                write: DenyAllAcs,
+            },
+        });
+
+        _.set(generated, ['messageNetworks', 'ftn', 'areas', areaTag], {
+            network: networkName,
+            tag: ftnTag,
+            //  deliberately no "uplinks": nothing is exported
+        });
+
+        result.created.push({ ftnTag, areaTag });
+        count += 1;
+    });
+}
+
+//
+//  Write |generated| if anything changed, reload, and prove the areas resolve.
+//
+function commitGenerated(includeState, generated, changed, result, cb) {
+    if (!changed) {
+        return cb(null);
+    }
+
+    writeGenerated(includeState.path, generated, writeErr => {
+        if (writeErr) {
+            return cb(writeErr);
+        }
+
+        //
+        //  Reload explicitly rather than waiting on ConfigChanged: that event
+        //  fires only on a *successful* reload, so on failure the stale config
+        //  stays live and an unguarded await never returns.
+        //
+        if (!_.isFunction(ConfigModule.reload)) {
+            return cb(Errors.UnexpectedState('Configuration reload is unavailable'));
+        }
+
+        ConfigModule.reload(err => {
+            if (err) {
+                return cb(err);
+            }
+
+            //  ...and prove the areas actually resolve now
+            const unresolved = (result.created || []).filter(
+                c => !getMessageAreaByTag(c.areaTag)
+            );
+            if (unresolved.length > 0) {
+                return cb(
+                    Errors.UnexpectedState(
+                        `Created areas did not resolve after reload: ${unresolved
+                            .map(u => u.areaTag)
+                            .join(', ')}`
+                    )
+                );
+            }
+
+            return cb(null);
+        });
+    });
+}
+
+//
 //  Create message areas for |ftnTags| on |networkName|.
 //
 //  cb(err, {
@@ -323,206 +505,114 @@ function checkCollision(ftnTag, areaTag, networkName, generated, config) {
 //  Creating nothing is a success with an empty |created|.
 //
 function createAreas(networkName, ftnTags, cb) {
-    const autoConfig = getAutoAreasConfig(networkName);
-    if (!autoConfig) {
-        return cb(
-            Errors.MissingConfig(
-                `No autoAreas configuration for network "${networkName}"`
-            )
-        );
+    const ctx = prepareGeneratedWrite(networkName);
+    if (ctx instanceof Error) {
+        return cb(ctx);
     }
 
-    const confTag = autoConfig.confTag;
-    if (!_.isString(confTag) || 0 === confTag.length) {
-        return cb(
-            Errors.MissingConfig(
-                `autoAreas for network "${networkName}" has no "confTag"`
-            )
-        );
-    }
+    const result = { created: [], rejected: [], pruned: [] };
 
-    //
-    //  The conference must already exist.  defaultsDeep would happily create
-    //  one from this file, but it would have areas and no name or desc.
-    //  Refuse rather than manufacture a broken conference.
-    //
-    if (!_.has(Config(), ['messageConferences', confTag])) {
-        return cb(
-            Errors.MissingConfig(
-                `autoAreas confTag "${confTag}" (network "${networkName}") is not a configured message conference`
-            )
-        );
-    }
-
-    const includeState = getGeneratedIncludeState();
-    if (!includeState.path) {
-        return cb(Errors.UnexpectedState('Configuration base path is unknown'));
-    }
-
-    if (!includeState.included) {
-        return cb(
-            Errors.MissingConfig(
-                `"${GeneratedIncludeFileName}" is not listed in the "includes" of ${ConfigModule.Config.getBasePath()}; ` +
-                    'run "oputil.js mb auto-areas init"'
-            )
-        );
-    }
-
-    const ignore = new Set(autoConfig.ignore.map(t => _.toUpper(String(t))));
-
-    let result;
-
-    async.waterfall(
-        [
-            callback => readGenerated(includeState.path, callback),
-            (generated, callback) => {
-                const config = Config();
-                result = { created: [], rejected: [], pruned: [] };
-
-                //
-                //  The ignore list is the only way to un-create something, so
-                //  it has to apply to what is already here, not just to new
-                //  arrivals.
-                //
-                _.forEach(
-                    generatedAreasForNetwork(generated, networkName),
-                    (areaConf, areaTag) => {
-                        if (ignore.has(_.toUpper(areaConf.tag || ''))) {
-                            delete generated.messageNetworks.ftn.areas[areaTag];
-                            _.forEach(generated.messageConferences, conf => {
-                                if (conf.areas) {
-                                    delete conf.areas[areaTag];
-                                }
-                            });
-                            result.pruned.push(areaTag);
-                        }
-                    }
-                );
-
-                //  Deterministic order so a maxAutoCreate cut is reproducible
-                const candidates = Array.from(
-                    new Set(ftnTags.map(t => String(t).trim()).filter(t => t.length > 0))
-                ).sort();
-
-                let count = Object.keys(
-                    generatedAreasForNetwork(generated, networkName)
-                ).length;
-
-                candidates.forEach(ftnTag => {
-                    const areaTag = localAreaTagFor(ftnTag);
-
-                    if (ignore.has(_.toUpper(ftnTag))) {
-                        result.rejected.push({
-                            ftnTag,
-                            areaTag,
-                            reason: RejectReasons.Ignored,
-                        });
-                        return;
-                    }
-
-                    const collision = checkCollision(
-                        ftnTag,
-                        areaTag,
-                        networkName,
-                        generated,
-                        config
-                    );
-                    if (collision) {
-                        result.rejected.push({ ftnTag, areaTag, reason: collision });
-                        return;
-                    }
-
-                    if (_.has(generated, ['messageNetworks', 'ftn', 'areas', areaTag])) {
-                        //  already ours; nothing to do
-                        return;
-                    }
-
-                    //
-                    //  The cap is on the total, not the run: a per-run cap
-                    //  compounds, and ten runs of 500 is 5000 areas.  The
-                    //  generated file is the durable counter.
-                    //
-                    if (count >= autoConfig.maxAutoCreate) {
-                        result.rejected.push({
-                            ftnTag,
-                            areaTag,
-                            reason: RejectReasons.MaxReached,
-                        });
-                        return;
-                    }
-
-                    _.set(generated, ['messageConferences', confTag, 'areas', areaTag], {
-                        //  Placeholder name/desc.  On-demand discovery knows the
-                        //  tag and nothing else; an info pack may replace these
-                        //  later, and an operator's config.hjson beats both.
-                        name: ftnTag,
-                        desc: ftnTag,
-                        acs: {
-                            write: DenyAllAcs,
-                        },
-                    });
-
-                    _.set(generated, ['messageNetworks', 'ftn', 'areas', areaTag], {
-                        network: networkName,
-                        tag: ftnTag,
-                        //  deliberately no "uplinks": nothing is exported
-                    });
-
-                    result.created.push({ ftnTag, areaTag });
-                    count += 1;
-                });
-
-                return callback(null, generated);
-            },
-            (generated, callback) => {
-                if (0 === result.created.length && 0 === result.pruned.length) {
-                    return callback(null, false);
-                }
-                writeGenerated(includeState.path, generated, err => callback(err, true));
-            },
-            (didWrite, callback) => {
-                if (!didWrite) {
-                    return callback(null);
-                }
-
-                //
-                //  Reload explicitly rather than waiting on ConfigChanged: the
-                //  event fires only on a successful reload, so on failure the
-                //  stale config stays live and an await never returns.
-                //
-                if (!_.isFunction(ConfigModule.reload)) {
-                    return callback(
-                        Errors.UnexpectedState('Configuration reload is unavailable')
-                    );
-                }
-
-                ConfigModule.reload(err => {
-                    if (err) {
-                        return callback(err);
-                    }
-
-                    //  ...and prove the areas actually resolve now
-                    const unresolved = result.created.filter(
-                        c => !getMessageAreaByTag(c.areaTag)
-                    );
-                    if (unresolved.length > 0) {
-                        return callback(
-                            Errors.UnexpectedState(
-                                `Created areas did not resolve after reload: ${unresolved
-                                    .map(u => u.areaTag)
-                                    .join(', ')}`
-                            )
-                        );
-                    }
-
-                    return callback(null);
-                });
-            },
-        ],
-        err => {
+    readGenerated(ctx.includeState.path, (err, generated) => {
+        if (err) {
             return cb(err, result);
         }
-    );
+
+        pruneIgnored(generated, networkName, ctx.ignore, result);
+        addGeneratedAreas(generated, networkName, ctx, ftnTags, result);
+
+        const changed = result.created.length > 0 || result.pruned.length > 0;
+        commitGenerated(ctx.includeState, generated, changed, result, commitErr =>
+            cb(commitErr, result)
+        );
+    });
+}
+
+//
+//  Apply an info pack's area list.
+//
+//  The pack owns exactly two fields -- name and desc -- and only for areas we
+//  generated ourselves. An area an operator defined in config.hjson is left
+//  alone: config.hjson wins over the include anyway, so writing there would
+//  be pointless, and it would risk a second copy of the area in a different
+//  conference. getMessageAreaByTag() stops at the first conference carrying a
+//  tag, so a duplicate resolves by object key order rather than intent.
+//
+//  A pack lists what the *network* carries, not what *we* are linked to, so
+//  creating from it is opt-in: createUnlinked otherwise produces hundreds of
+//  permanently empty areas.
+//
+//  cb(err, { enriched: [areaTag], created, rejected, pruned })
+//
+function applyInfoPackEntries(networkName, entries, { createUnlinked } = {}, cb) {
+    const ctx = prepareGeneratedWrite(networkName);
+    if (ctx instanceof Error) {
+        return cb(ctx);
+    }
+
+    const result = { enriched: [], created: [], rejected: [], pruned: [] };
+
+    const byTag = {};
+    entries.forEach(e => {
+        if (_.isString(e.ftnTag) && _.isString(e.name) && e.name.length > 0) {
+            byTag[_.toUpper(e.ftnTag)] = e.name;
+        }
+    });
+
+    readGenerated(ctx.includeState.path, (err, generated) => {
+        if (err) {
+            return cb(err, result);
+        }
+
+        pruneIgnored(generated, networkName, ctx.ignore, result);
+
+        if (createUnlinked) {
+            addGeneratedAreas(
+                generated,
+                networkName,
+                ctx,
+                Object.keys(byTag),
+                result,
+                byTag
+            );
+        }
+
+        _.forEach(
+            generatedAreasForNetwork(generated, networkName),
+            (areaConf, areaTag) => {
+                const name = byTag[_.toUpper(areaConf.tag || '')];
+                if (!name) {
+                    return;
+                }
+
+                //  find the conference this area was generated into
+                const confTag = _.findKey(
+                    generated.messageConferences,
+                    conf => conf && conf.areas && conf.areas[areaTag]
+                );
+                if (!confTag) {
+                    return;
+                }
+
+                const area = generated.messageConferences[confTag].areas[areaTag];
+                if (area.name === name && area.desc === name) {
+                    return; //  already says this
+                }
+
+                area.name = name;
+                area.desc = name;
+                result.enriched.push(areaTag);
+            }
+        );
+
+        const changed =
+            result.created.length > 0 ||
+            result.pruned.length > 0 ||
+            result.enriched.length > 0;
+
+        commitGenerated(ctx.includeState, generated, changed, result, commitErr =>
+            cb(commitErr, result)
+        );
+    });
 }
 
 module.exports = {
@@ -532,6 +622,7 @@ module.exports = {
 
     getAutoAreasConfig,
     onDemandNetworkNames,
+    applyInfoPackEntries,
     anyAutoAreasEnabled,
     getGeneratedIncludePath,
     getGeneratedIncludeState,

@@ -30,6 +30,9 @@ module.exports = {
     //  AreaFix requests we have sent and are waiting on a reply for
     FtnAreaFixPending: 'ftn_areafix_pending',
 
+    //  JSON: { "<network>": "<sha256>" } -- last info pack ingested per network
+    FtnInfoPackSha: 'ftn_info_pack_sha',
+
     SysOpUsername: 'sysop_username', //  non-persistent
     SysOpRealName: 'sysop_real_name', //  non-persistent
     SysOpLocation: 'sysop_location', //  non-persistent

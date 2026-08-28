@@ -39,6 +39,7 @@ const {
     validateOutboundConfig,
 } = require('../bso_util.js');
 const autoAreaCreate = require('../auto_area_create.js');
+const areaInfoPack = require('../area_info_pack.js');
 const { AreaFixStatus, parseAreaFixReply } = require('../areafix_reply.js');
 
 //  deps
@@ -4012,23 +4013,33 @@ FTNMessageScanTossModule.prototype.performImport = function (cb) {
             //  skipped exactly as they were before.
             //
             self.maybeAutoCreateAreas(() => {
-                async.each(
-                    ['inbound', 'secInbound'],
-                    (inboundType, nextDir) => {
-                        const importDir = self.moduleConfig.paths[inboundType];
-                        self.importFromDirectory(inboundType, importDir, err => {
-                            if (err) {
-                                Log.trace(
-                                    { importDir, error: err.message },
-                                    'Cannot perform FTN import for directory'
-                                );
-                            }
+                //
+                //  ...and pick up any new info pack, so areas created above
+                //  get their real names in the same cycle.  This queries the
+                //  file area rather than reacting to a TIC arrival, so a pack
+                //  that landed before the feature was enabled still counts and
+                //  a missed trigger is picked up next pass.  An unchanged pack
+                //  costs one file-area query.
+                //
+                areaInfoPack.ingestInfoPacks(() => {
+                    async.each(
+                        ['inbound', 'secInbound'],
+                        (inboundType, nextDir) => {
+                            const importDir = self.moduleConfig.paths[inboundType];
+                            self.importFromDirectory(inboundType, importDir, err => {
+                                if (err) {
+                                    Log.trace(
+                                        { importDir, error: err.message },
+                                        'Cannot perform FTN import for directory'
+                                    );
+                                }
 
-                            return nextDir(null);
-                        });
-                    },
-                    done
-                );
+                                return nextDir(null);
+                            });
+                        },
+                        done
+                    );
+                });
             });
         },
         cb
