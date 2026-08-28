@@ -85,6 +85,107 @@ function readGeneratedSync() {
     );
 }
 
+// ─── Wiring the include into config.hjson ────────────────────────────────────
+//
+//  writeConfig() round-trips through hjson, which preserves comments but
+//  normalizes whitespace: column alignment is lost, comment spacing collapses
+//  and inline arrays expand. Measured against a real 688 line config that is a
+//  seven hunk diff for what should be a one line addition, so the include is
+//  inserted textually and the result checked against the original parse.
+//
+describe('auto_area_create: addIncludeEntry()', () => {
+    const FILE = 'auto-areas.hjson';
+    const add = text => autoAreaCreate.addIncludeEntry(text, FILE);
+
+    it('adds an includes block to a config that has none', () => {
+        const before = '{\n    general: {\n        boardName: Test\n    }\n}\n';
+        const after = add(before);
+
+        assert.ok(after);
+        assert.deepEqual(hjson.parse(after).includes, [FILE]);
+        assert.equal(hjson.parse(after).general.boardName, 'Test');
+    });
+
+    it('appends LAST to an includes array that already exists', () => {
+        //
+        //  Order is load bearing: includes merge in order and the earliest
+        //  wins, so the generated file has to come last. An include the
+        //  operator wrote should beat it, the same way config.hjson does.
+        //
+        const before = '{\n    includes: [\n        other.hjson\n    ]\n}\n';
+        const after = add(before);
+
+        assert.ok(after);
+        assert.deepEqual(hjson.parse(after).includes, ['other.hjson', FILE]);
+    });
+
+    it('appends last to an inline includes array too', () => {
+        const after = add('{\n    includes: [ "a.hjson", "b.hjson" ]\n}\n');
+        assert.ok(after);
+        assert.deepEqual(hjson.parse(after).includes, ['a.hjson', 'b.hjson', FILE]);
+    });
+
+    it('is a no-op it refuses to repeat: the caller checks first', () => {
+        //  adding twice would produce a duplicate entry, so oputil checks for
+        //  an existing entry before calling this at all
+        const once = add('{\n    includes: []\n}\n');
+        const twice = add(once);
+        assert.deepEqual(hjson.parse(twice).includes, [FILE, FILE]);
+    });
+
+    it('handles an empty inline includes array', () => {
+        const after = add('{\n    includes: []\n}\n');
+        assert.ok(after);
+        assert.deepEqual(hjson.parse(after).includes, [FILE]);
+    });
+
+    it('changes nothing else in a config it does not understand the layout of', () => {
+        const before = [
+            '{',
+            '    //  a comment I care about',
+            '    general: {',
+            '        boardName: Test Board   //  aligned trailing comment',
+            '    }',
+            '',
+            '    /*  block',
+            '        comment */',
+            '    fileBase: {',
+            '        storageTags: {',
+            '            local_flat:    /some/path',
+            '            local_scene:   /some/other/path',
+            '        }',
+            '    }',
+            '    corsAllowedOrigins: ["*"]   //  inline array',
+            '}',
+            '',
+        ].join('\n');
+
+        const after = add(before);
+        assert.ok(after);
+
+        //  every original line survives byte for byte
+        before
+            .split('\n')
+            .filter(l => l.trim().length > 0 && l.trim() !== '}')
+            .forEach(line => {
+                assert.ok(
+                    after.includes(line),
+                    `line was reformatted: ${JSON.stringify(line)}`
+                );
+            });
+
+        assert.deepEqual(hjson.parse(after).corsAllowedOrigins, ['*']);
+    });
+
+    it('refuses a config it cannot parse rather than mangling it', () => {
+        assert.equal(add('{ this is not: valid hjson ]['), null);
+    });
+
+    it('refuses when there is no closing brace to insert before', () => {
+        assert.equal(add(''), null);
+    });
+});
+
 describe('auto_area_create', () => {
     before(() => {
         savedGet = configModule.get;

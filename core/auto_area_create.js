@@ -311,6 +311,123 @@ function checkCollision(ftnTag, areaTag, networkName, generated, config) {
 }
 
 //
+//  Add |fileName| to the "includes" array of a config.hjson, editing the text
+//  in place rather than re-serializing.
+//
+//  writeConfig() round-trips through hjson, which preserves comments but
+//  normalizes whitespace: column alignment is lost, comment spacing collapses,
+//  and inline arrays are expanded. That is a fine trade when rewriting whole
+//  sections, as import-areas does. It is a bad one for appending a single
+//  line to a hand-maintained config, so this touches only the bytes it has to.
+//
+//  Returns the new text, or null if it could not be done safely -- in which
+//  case the caller tells the operator what to add by hand.
+//
+function addIncludeEntry(configText, fileName) {
+    let before;
+    try {
+        before = hjson.parse(configText);
+    } catch (e) {
+        return null;
+    }
+
+    const insert = (() => {
+        const existing = /^([ \t]*)includes[ \t]*:[ \t]*\[/m.exec(configText);
+
+        //  no "includes" yet: add one before the closing brace of the document
+        if (!existing) {
+            const close = configText.lastIndexOf('}');
+            if (close < 0) {
+                return null;
+            }
+            return (
+                configText.slice(0, close) +
+                `    includes: [\n        ${fileName}\n    ]\n` +
+                configText.slice(close)
+            );
+        }
+
+        //
+        //  One already exists, so append to the *end* of it. Includes are
+        //  merged in order and the earliest wins, so the generated file has to
+        //  come last: an include the operator wrote should beat it, the same
+        //  way config.hjson does.
+        //
+        const indent = existing[1];
+        const open = existing.index + existing[0].length;
+
+        let depth = 1;
+        let quote = null;
+        let close = -1;
+
+        for (let i = open; i < configText.length; ++i) {
+            const ch = configText.charAt(i);
+
+            if (quote) {
+                if (ch === quote && '\\' !== configText.charAt(i - 1)) {
+                    quote = null;
+                }
+                continue;
+            }
+
+            if ('"' === ch || "'" === ch) {
+                quote = ch;
+            } else if ('[' === ch) {
+                depth += 1;
+            } else if (']' === ch) {
+                depth -= 1;
+                if (0 === depth) {
+                    close = i;
+                    break;
+                }
+            }
+        }
+
+        if (close < 0) {
+            return null;
+        }
+
+        return (
+            configText.slice(0, close).replace(/\s+$/, '') +
+            `\n${indent}    ${fileName}\n${indent}` +
+            configText.slice(close)
+        );
+    })();
+
+    if (!insert) {
+        return null;
+    }
+
+    //
+    //  Prove the edit did exactly what was intended and nothing else: the
+    //  result must parse, must now include the file, and must be otherwise
+    //  identical to what was there before.
+    //
+    let after;
+    try {
+        after = hjson.parse(insert);
+    } catch (e) {
+        return null;
+    }
+
+    const includes = after.includes;
+    if (!Array.isArray(includes) || !includes.includes(fileName)) {
+        return null;
+    }
+
+    if (!_.isEqual(_.omit(before, 'includes'), _.omit(after, 'includes'))) {
+        return null;
+    }
+
+    const priorIncludes = Array.isArray(before.includes) ? before.includes : [];
+    if (!_.isEqual(includes, priorIncludes.concat([fileName]))) {
+        return null;
+    }
+
+    return insert;
+}
+
+//
 //  Validate everything a write depends on, once.  Returns an Error or a
 //  { autoConfig, confTag, includeState, ignore } context.
 //
@@ -727,6 +844,7 @@ module.exports = {
     //  exported for tests and for oputil
     readGenerated,
     writeGenerated,
+    addIncludeEntry,
     emptyGenerated,
     generatedAreasForNetwork,
 };

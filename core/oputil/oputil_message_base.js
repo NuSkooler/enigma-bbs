@@ -486,6 +486,7 @@ function autoAreas() {
         GeneratedIncludeFileName,
         emptyGenerated,
         writeGenerated,
+        addIncludeEntry,
     } = require('../auto_area_create.js');
 
     const configPath = getConfigPath();
@@ -508,22 +509,18 @@ function autoAreas() {
             },
             function loadConfigHjson(callback) {
                 fs.readFile(configPath, 'utf8', (err, confData) => {
-                    if (err) {
-                        return callback(err);
-                    }
-
-                    let config;
-                    try {
-                        config = hjson.parse(confData, { keepWsc: true });
-                    } catch (e) {
-                        return callback(e);
-                    }
-                    return callback(null, config);
+                    return callback(err, confData);
                 });
             },
-            function addInclude(config, callback) {
-                const includes = Array.isArray(config.includes) ? config.includes : [];
+            function addInclude(confData, callback) {
+                let config;
+                try {
+                    config = hjson.parse(confData);
+                } catch (e) {
+                    return callback(e);
+                }
 
+                const includes = Array.isArray(config.includes) ? config.includes : [];
                 if (
                     includes.some(inc => paths.basename(inc) === GeneratedIncludeFileName)
                 ) {
@@ -533,13 +530,28 @@ function autoAreas() {
                     return callback(null);
                 }
 
-                includes.push(GeneratedIncludeFileName);
-                config.includes = includes;
+                const updated = addIncludeEntry(confData, GeneratedIncludeFileName);
+                if (!updated) {
+                    //
+                    //	Refuse rather than fall back to a full rewrite: this is
+                    //	somebody's live configuration and a one line addition is
+                    //	not worth reformatting it.
+                    //
+                    console.info('');
+                    console.info(`Could not safely add the include to ${configPath}.`);
+                    console.info('Please add it by hand:');
+                    console.info('');
+                    console.info('    includes: [');
+                    console.info(`        ${GeneratedIncludeFileName}`);
+                    console.info('    ]');
+                    console.info('');
+                    return callback(Errors.General('Could not update configuration'));
+                }
 
-                if (!writeConfig(config, configPath)) {
-                    return callback(
-                        Errors.UnexpectedState('Failed writing configuration')
-                    );
+                try {
+                    fs.writeFileSync(configPath, updated, 'utf8');
+                } catch (e) {
+                    return callback(e);
                 }
 
                 console.info(
