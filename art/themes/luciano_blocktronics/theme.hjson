@@ -926,6 +926,7 @@
 
 					isQueuedIndicator: "|00|10YES"
 					isNotQueuedIndicator: "|00|07no"
+					noDownloadAccessIndicator: "|00|08n/a"
 
 					userRatingTicked: "|00|15*"
 					userRatingUnticked: "|00|07-"
@@ -1026,6 +1027,7 @@
 
 					isQueuedIndicator: "|00|10YES"
 					isNotQueuedIndicator: "|00|07no"
+					noDownloadAccessIndicator: "|00|08n/a"
 
 					userRatingTicked: "|00|15*"
 					userRatingUnticked: "|00|07-"

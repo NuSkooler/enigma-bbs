@@ -22,6 +22,10 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **The `download` file area ACS is now actually enforced.** It previously applied only to the REST API; over telnet and SSH any user who could browse an area could also download from it. If you set a `download` ACS on any file area expecting it to restrict downloads, **it was not doing so until now**.
+
+  **Action:** review your `fileBase.areas` ACS blocks. Areas with no `download` ACS are unaffected -- the default (`GM[users]`) matches the `read` default, so nothing changes for them. Areas where you *did* set `download` will now restrict downloads to what you configured, which may be tighter than what users have actually been getting. Note that an entry whose area is no longer in `config.hjson` fails closed and can no longer be downloaded.
+
 * **A port conflict now stops startup instead of being ignored** ([#547](https://github.com/NuSkooler/enigma-bbs/issues/547)). Previously a server that could not bind its port left the startup sequence hanging with no message and no exit; NNTP specifically logged a warning and carried on, so the board ran with NNTP silently absent. Bind failures are now reported on the console and are **fatal for every server**, and ENiGMA½ exits with a non-zero status.
 
   **Action:** if you run NNTP, Gopher, or the web server on a port something else on the host also uses, a start that previously "worked" (minus that service) will now stop with an explicit error. Fix the conflicting port in `config.hjson`, or disable the service with `enabled: false`.

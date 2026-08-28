@@ -31,6 +31,7 @@ const moment = require('moment');
 
 exports.startup = startup;
 exports.isInternalArea = isInternalArea;
+exports.hasFileAreaDownloadAccess = hasFileAreaDownloadAccess;
 exports.getAvailableFileAreas = getAvailableFileAreas;
 exports.getAvailableFileAreaTags = getAvailableFileAreaTags;
 exports.getSortedAvailableFileAreas = getSortedAvailableFileAreas;
@@ -105,6 +106,37 @@ function isInternalArea(areaTag) {
         WellKnownAreaTags.MessageAreaAttach,
         WellKnownAreaTags.TempDownloads,
     ].includes(areaTag);
+}
+
+//
+//  Does |client| have download rights to the area |areaTag| belongs to?
+//
+//  Note that this is a *separate* right from 'read' (list/browse): an area can
+//  perfectly reasonably let everyone look while restricting who may actually
+//  pull bytes down. Until this was wired up, the 'download' ACS was honoured by
+//  the REST API and by nothing else, so a sysop who set it saw it silently
+//  ignored over telnet and SSH.
+//
+function hasFileAreaDownloadAccess(client, areaTag) {
+    //  Internal areas -- temporary session downloads (QWK packets, FSE
+    //  attachments) -- are generated *for* the user on request rather than
+    //  browsed, and carry no ACS of their own.
+    if (isInternalArea(areaTag)) {
+        return true;
+    }
+
+    //  Raw config rather than getFileAreaByTag(): the ACS check only reads
+    //  |area.acs|, and this runs per-entry while a list is drawn -- no reason
+    //  to resolve storage locations and rebuild hashTags for it.
+    const area = Config().fileBase.areas[areaTag];
+    if (!area) {
+        //  An entry whose area is no longer configured. Fail closed: this is
+        //  an access control, and an orphaned entry is not something a user
+        //  should be able to pull down by default.
+        return false;
+    }
+
+    return client.acs.hasFileAreaDownload(area);
 }
 
 function getAvailableFileAreas(client, options) {
