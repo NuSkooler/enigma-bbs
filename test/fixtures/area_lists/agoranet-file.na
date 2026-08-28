@@ -1,0 +1,18 @@
+% ========================================================================
+%  Agoranet Fileecho List                               December 3rd, 2011
+% ========================================================================
+%
+% ------------------------------------------------------------------------
+% File Echo                   Description
+% ------------------------------------------------------------------------
+%
+%
+Area AGN_NODE     0     !       AGN: Current Nodelist In ZIP Format
+Area AGN_DIFF     0     !       AGN: Current Nodediff in ZIP Format
+Area AGN_INFO     0     !       AGN: Information Pack
+Area AGN_MODS     0     !       AGN: BBS Mods
+Area AGN_GAME     0     !       AGN: InterBBS Games
+Area AGN_MISC     0     !       AGN: Miscellaneous
+%
+% End of Agoranet Fileecho List
+

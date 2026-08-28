@@ -1,0 +1,19 @@
+% ========================================================================
+%  FSXNet Fileecho List                                  July 9 2016
+% ========================================================================
+%
+% ------------------------------------------------------------------------
+% File Echo                   Description
+% ------------------------------------------------------------------------
+%
+%
+Area FSX_NODE     0     !       FSX: Current Nodelist
+Area FSX_INFO     0     !       FSX: Current Infopack
+Area FSX_MYST     0     !       FSX: Mystic BBS Software
+Area FSX_MUTL     0     !       FSX: Mystic BBS Utils, Mods etc.
+Area FSX_BBS      0     !       FSX: BBS Software (Current + Legacy)
+Area FSX_UTLS     0     !       FSX: BBS Utils, Tools, Networking etc.
+Area FSX_DOOR     0     !       FSX: BBS Doors, Games etc.
+Area FSX_ART      0     !       FSX: ANSI Art - Groups, Individuals etc.
+%
+% End of FSXNet Fileecho List

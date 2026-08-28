@@ -1,0 +1,15 @@
+DN-ADMI             Manditory - Administrative (No users) Sysop-Co only private base test messages goes here too
+DN-ART              ansi/ascii art scene related
+DN-BBS              bbs news. anything bbs news related
+DN-CHAT             open chat
+DN-CODE             programming related
+DN-DOORS            bbs door/util related
+DN-HTML             html 101 web, css etc...
+DN-INET             bbs / internet & bbs echo net related
+DN-MODD             bbs modding
+DN-MYSTIC           official mystic bbs echo
+DN-MPL              MPL related
+DN-OS               misc operating systems 
+DN-ADDS	            BBS adds 
+DN-BBSES            Other bbs software support
+netmail		    netmail base (send test mail to your uplink)

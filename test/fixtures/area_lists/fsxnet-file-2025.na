@@ -1,0 +1,21 @@
+; ========================================================================
+;  FSXNet Fileecho List                                    
+; ========================================================================
+;
+; ------------------------------------------------------------------------
+; File Echo                   Description
+; ------------------------------------------------------------------------
+;
+;
+Area FSX_NODE  0     !      Weekly Nodelist (fsxNet)
+Area FSX_INFO  0     !      Weekly Infopack (fsxNet)
+Area FSX_MYST  0     !      Mystic BBS Software
+Area FSX_MUTL  0     !      Mystic BBS Utils, Mods etc.
+Area FSX_SOFT  0     !      BBS Software (Current + Legacy)
+Area FSX_UTLS  0     !      BBS Utils, Tools, Networking etc.
+Area FSX_DOOR  0     !      BBS Doors, Games etc.
+Area FSX_ARTS  0     !      ANSI Art - Groups, Individuals etc.
+Area FSX_IMGE  0     !      Image Files (Various)
+Area FSX_TEXT  0     !      Text Files (Various)
+;
+; End of FSXNet Fileecho List
