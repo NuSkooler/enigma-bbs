@@ -201,6 +201,47 @@ describe('FTN AreaFix rescan requests', () => {
         );
     });
 
+    it('persists through the message network layer so @immediate export fires', async () => {
+        //
+        //  A bare message.persist() stores the netmail but never records it
+        //  with the message network modules, and record() is what drives
+        //  "@immediate" export. A system scheduling export as "@immediate"
+        //  alone -- no time component -- would queue the request and never
+        //  send it. Caught on a live instance, where the outbound spool
+        //  stayed empty while the log said the request had been queued.
+        //
+        const messageArea = require('../core/message_area.js');
+        const savedPersistMessage = messageArea.persistMessage;
+
+        const recorded = [];
+        messageArea.persistMessage = (message, cb) => {
+            recorded.push(message);
+            return message.persist(cb);
+        };
+
+        try {
+            await request(
+                makeModule({
+                    rescan: true,
+                    rescanUplink: '21:1/100',
+                    rescanCommand: '=%TAG% R=%DAYS%',
+                })
+            );
+        } finally {
+            messageArea.persistMessage = savedPersistMessage;
+        }
+
+        assert.equal(recorded.length, 1, 'the rescan netmail must be recorded');
+        assert.equal(recorded[0].toUserName, 'AreaFix');
+
+        //  ...and it must still look like NetMail to the exporter: private,
+        //  with no local recipient, which is what isNetMailMessage() requires
+        assert.equal(
+            recorded[0].meta.System[Message.SystemMetaNames.LocalToUserID],
+            undefined
+        );
+    });
+
     it('records what it asked for so the reply can be correlated', async () => {
         const inst = makeModule({
             rescan: true,

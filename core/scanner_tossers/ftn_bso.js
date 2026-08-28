@@ -3774,7 +3774,15 @@ FTNMessageScanTossModule.prototype.maybeRequestAreaFixRescan = function (
             message.setLocalFromUserId(User.RootUserID);
         }
 
-        message.persist(persistErr => {
+        //
+        //  persistMessage() rather than message.persist(): the latter does not
+        //  record the message with the message network modules, which is what
+        //  drives "@immediate" export. A system scheduling export as
+        //  "@immediate" alone would otherwise queue this request and never
+        //  send it.
+        //
+        const { persistMessage } = require('../message_area.js');
+        persistMessage(message, persistErr => {
             if (persistErr) {
                 Log.warn(
                     { networkName, error: persistErr.message },
