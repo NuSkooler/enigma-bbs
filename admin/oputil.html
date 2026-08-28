@@ -17,11 +17,11 @@
 <meta property="og:description" content="The oputil CLI ENiGMA½ comes with oputil.js henceforth known as oputil, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-28T00:45:23+00:00" />
+<meta property="article:published_time" content="2026-08-28T21:06:24+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="oputil" />
 <script type="application/ld+json">
-{"description":"The oputil CLI ENiGMA½ comes with oputil.js henceforth known as oputil, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration.","headline":"oputil","dateModified":"2026-08-28T00:45:23+00:00","datePublished":"2026-08-28T00:45:23+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/admin/oputil.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/admin/oputil.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"The oputil CLI ENiGMA½ comes with oputil.js henceforth known as oputil, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration.","headline":"oputil","dateModified":"2026-08-28T21:06:24+00:00","datePublished":"2026-08-28T21:06:24+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/admin/oputil.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/admin/oputil.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -30,9 +30,9 @@
     
     <div id="container">
         <div class="sidebar" id="sidebar">
-        <hr class="mobile-divide" />
+        <hr class="mobile-divide">
             <div class="container">
-          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
             </div>
             
             <ul>
@@ -2869,13 +2869,13 @@
             <section id="main_content">
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/administration.html">&laquo; Administration</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/administration.html">« Administration</a>
               
               <a href="#sidebar" class="btn menu_button">MENU</a>
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/upgrading.html">Upgrading &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/upgrading.html">Upgrading »</a>
               
-              <br clear="both" />
+              <br clear="both">
               </div>
 
                 <div class="page">
@@ -2939,8 +2939,10 @@ Commands:
 
 <p>Global arguments apply to most commands and actions:</p>
 <ul>
-  <li><code class="language-plaintext highlighter-rouge">--config</code>: Specify configuration directory if it is not the default of <code class="language-plaintext highlighter-rouge">./config/</code>.</li>
-  <li><code class="language-plaintext highlighter-rouge">--no-prompt</code>: Assume defaults and do not prompt when possible.</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">--config</code>: Specify configuration directory if it is not the default of <code class="language-plaintext highlighter-rouge">./config/</code>.</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">--no-prompt</code>: Assume defaults and do not prompt when possible.</li>
 </ul>
 
 <p>Type <code class="language-plaintext highlighter-rouge">./oputil.js &lt;command&gt; --help</code> for additional help on a particular command. The following sections will describe them.</p>
@@ -3028,13 +3030,17 @@ info arguments:
       <td><code class="language-plaintext highlighter-rouge">pw</code></td>
       <td>Set password</td>
       <td><code class="language-plaintext highlighter-rouge">./oputil.js user pw joeuser s3cr37</code></td>
-      <td><code class="language-plaintext highlighter-rouge">passwd</code>, <code class="language-plaintext highlighter-rouge">password</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">passwd</code>, <code class="language-plaintext highlighter-rouge">password</code>
+</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">rm</code></td>
       <td>Removes user</td>
       <td><code class="language-plaintext highlighter-rouge">./oputil.js user del joeuser</code></td>
-      <td><code class="language-plaintext highlighter-rouge">remove</code>, <code class="language-plaintext highlighter-rouge">del</code>, <code class="language-plaintext highlighter-rouge">delete</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">remove</code>, <code class="language-plaintext highlighter-rouge">del</code>, <code class="language-plaintext highlighter-rouge">delete</code>
+</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">rename</code></td>
@@ -3075,7 +3081,8 @@ info arguments:
     <tr>
       <td><code class="language-plaintext highlighter-rouge">group</code></td>
       <td>Modifies users group membership</td>
-      <td>Add to group: <code class="language-plaintext highlighter-rouge">./oputil.js user group joeuser +derp</code><br />Remove from group: <code class="language-plaintext highlighter-rouge">./oputil.js user group joeuser ~derp</code></td>
+      <td>Add to group: <code class="language-plaintext highlighter-rouge">./oputil.js user group joeuser +derp</code><br>Remove from group: <code class="language-plaintext highlighter-rouge">./oputil.js user group joeuser ~derp</code>
+</td>
       <td>N/A</td>
     </tr>
   </tbody>
@@ -3111,7 +3118,8 @@ cat arguments:
     <tr>
       <td><code class="language-plaintext highlighter-rouge">new</code></td>
       <td>Generates a new/initial configuration</td>
-      <td><code class="language-plaintext highlighter-rouge">./oputil.js config new</code> (follow the prompts)</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">./oputil.js config new</code> (follow the prompts)</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">cat</code></td>
@@ -3180,7 +3188,8 @@ remove arguments:
 import-areas arguments:
   --type TYPE                  Sets import areas type
 
-  Valid types are are "zxx" or "na".
+  Valid types are are "zxx" or "na". This selects which file extensions are
+  accepted; the format itself is determined from the file's content.
 
   --create-dirs                Also create backing storage directories
 
@@ -3248,6 +3257,14 @@ file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
 <h3 id="importing-filegate-raid-style-areas">Importing FileGate RAID Style Areas</h3>
 <p>Given a FileGate “RAID” style <code class="language-plaintext highlighter-rouge">FILEGATE.ZXX</code> file, one can import areas. This format also often comes in FTN-style info packs in the form of a <code class="language-plaintext highlighter-rouge">.NA</code> file i.e.: <code class="language-plaintext highlighter-rouge">FILEBONE.NA</code>.</p>
 
+<p>The format is determined from the file’s <strong>content</strong>, so a <code class="language-plaintext highlighter-rouge">.na</code> file holding a FILEBONE list works regardless of what it is called. A handful of networks — ArakNet among them — instead ship their <em>file</em> echo list as a plain <code class="language-plaintext highlighter-rouge">TAG  Description</code> list, and those are now imported too rather than producing “Nothing to import”.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> A plain <code class="language-plaintext highlighter-rouge">TAG  Description</code> list is exactly the shape a <strong>message</strong> echo list uses, and nothing in the content distinguishes them. <code class="language-plaintext highlighter-rouge">import-areas</code> says so before the confirmation prompt; check the listed areas before answering yes, particularly with <code class="language-plaintext highlighter-rouge">--create-dirs</code>.</p>
+</blockquote>
+
+<p>A list in a format that cannot be recognised — including the reversed-column <code class="language-plaintext highlighter-rouge">Description … TAG</code> style one network ships — is refused with an explanation rather than partly imported.</p>
+
 <h4 id="example">Example</h4>
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js fb import-areas FILEGATE.ZXX <span class="nt">--create-dirs</span>
 </code></pre></div></div>
@@ -3272,6 +3289,11 @@ Actions:
   such as "%COMPRESS ZIP" should be quoted.
 
   import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
+
+  auto-areas init             Prepare automatic message area creation: creates
+                              auto-areas.hjson and adds it to "includes" in
+                              config.hjson. Safe to re-run. The feature itself
+                              stays off until configured per network.
 
   qwk-dump PATH               Dumps a QWK packet to stdout.
   qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
@@ -3309,6 +3331,12 @@ qwk-export arguments:
       <td><code class="language-plaintext highlighter-rouge">./oputil.js mb import-areas /some/path/l33tnet.na</code></td>
     </tr>
     <tr>
+      <td><code class="language-plaintext highlighter-rouge">auto-areas init</code></td>
+      <td>One-time setup for <a href="/enigma-bbs/messageareas/ftn.html#automatic-area-creation">automatic area creation</a>
+</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js mb auto-areas init</code></td>
+    </tr>
+    <tr>
       <td><code class="language-plaintext highlighter-rouge">areafix</code></td>
       <td>Utility for sending AreaFix mails without logging into the system</td>
       <td> </td>
@@ -3327,6 +3355,8 @@ qwk-export arguments:
 </table>
 
 <p>When using the <code class="language-plaintext highlighter-rouge">import-areas</code> action, you will be prompted for any missing additional arguments described in “import-areas args”.</p>
+
+<p>The format of the supplied file is determined by its <strong>content</strong>, not its extension: several networks ship a FILEBONE <em>file</em> echo list named <code class="language-plaintext highlighter-rouge">*.na</code>, and at least one ships its list with the columns reversed. <code class="language-plaintext highlighter-rouge">import-areas</code> skips <code class="language-plaintext highlighter-rouge">;</code>, <code class="language-plaintext highlighter-rouge">%</code> and <code class="language-plaintext highlighter-rouge">#</code> comment lines, tells you which lines it could not use, and declines a file it does not recognise rather than importing nonsense. A FILEBONE list is recognised as such and pointed at <a href="#importing-filegate-raid-style-areas"><code class="language-plaintext highlighter-rouge">fb import-areas</code></a>. <code class="language-plaintext highlighter-rouge">AREAS.BBS</code> cannot be told from a plain area list by shape, so it is only assumed when the file is named <code class="language-plaintext highlighter-rouge">.bbs</code> or <code class="language-plaintext highlighter-rouge">--type bbs</code> is given.</p>
 
 <h2 id="fat-disk-image-management">FAT Disk Image Management</h2>
 <p>The <code class="language-plaintext highlighter-rouge">fat</code> command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the <code class="language-plaintext highlighter-rouge">v86_door</code> module.</p>
@@ -3369,7 +3399,9 @@ Actions:
     <tr>
       <td><code class="language-plaintext highlighter-rouge">read</code></td>
       <td>Read a file from the image and write to stdout</td>
-      <td><code class="language-plaintext highlighter-rouge">cat</code>, <code class="language-plaintext highlighter-rouge">type</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">cat</code>, <code class="language-plaintext highlighter-rouge">type</code>
+</td>
     </tr>
   </tbody>
 </table>
@@ -3454,8 +3486,10 @@ Options:
 <p><strong>Limitations:</strong></p>
 
 <ul>
-  <li><strong>Input is not supported.</strong> A <code class="language-plaintext highlighter-rouge">C:\&gt;</code> prompt will appear (confirming the boot chain and serial output are working), but keystrokes are not forwarded to the shell. This is a limitation of how v86’s serial receive interacts with FreeDOS’s BIOS INT 14h input — it works for door games that use a FOSSIL driver, but not for interactive shell use. Use <code class="language-plaintext highlighter-rouge">desktop</code> for an interactive DOS session.</li>
-  <li><strong>Full-screen programs are not visible.</strong> Programs that draw directly to VGA memory (most door games) will not appear over serial. Again, use <code class="language-plaintext highlighter-rouge">desktop</code> for those.</li>
+  <li>
+<strong>Input is not supported.</strong> A <code class="language-plaintext highlighter-rouge">C:\&gt;</code> prompt will appear (confirming the boot chain and serial output are working), but keystrokes are not forwarded to the shell. This is a limitation of how v86’s serial receive interacts with FreeDOS’s BIOS INT 14h input — it works for door games that use a FOSSIL driver, but not for interactive shell use. Use <code class="language-plaintext highlighter-rouge">desktop</code> for an interactive DOS session.</li>
+  <li>
+<strong>Full-screen programs are not visible.</strong> Programs that draw directly to VGA memory (most door games) will not appear over serial. Again, use <code class="language-plaintext highlighter-rouge">desktop</code> for those.</li>
 </ul>
 
 <h4 id="desktop">desktop</h4>
@@ -3485,12 +3519,12 @@ Options:
 
               <div class="PageNavigation">
               
-              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/administration.html">&laquo; Administration</a>
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/administration.html">« Administration</a>
               
               
-              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/upgrading.html">Upgrading &raquo;</a>
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/upgrading.html">Upgrading »</a>
               
-              <br clear="both" />
+              <br clear="both">
               </div>
             </section>
           </div>

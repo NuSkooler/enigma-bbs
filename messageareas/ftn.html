@@ -17,11 +17,11 @@
 <meta property="og:description" content="FidoNet-Style Networks (FTN) FidoNet proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you’ll be up and running in no time!" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-28T00:45:23+00:00" />
+<meta property="article:published_time" content="2026-08-28T21:06:24+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="FidoNet-Style Networks (FTN)" />
 <script type="application/ld+json">
-{"description":"FidoNet-Style Networks (FTN) FidoNet proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you’ll be up and running in no time!","headline":"FidoNet-Style Networks (FTN)","dateModified":"2026-08-28T00:45:23+00:00","datePublished":"2026-08-28T00:45:23+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/ftn.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/ftn.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"FidoNet-Style Networks (FTN) FidoNet proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you’ll be up and running in no time!","headline":"FidoNet-Style Networks (FTN)","dateModified":"2026-08-28T21:06:24+00:00","datePublished":"2026-08-28T21:06:24+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/ftn.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/ftn.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -3007,6 +3007,170 @@
 <blockquote>
   <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Remember for a complete FTN experience, you’ll probably also want to configure <a href="/enigma-bbs/messageareas/bso-import-export.html">FTN/BSO scanner/tosser</a> settings.</p>
 </blockquote>
+
+<h4 id="automatic-area-creation">Automatic Area Creation</h4>
+<p>EchoMail that arrives for an FTN area tag you have not configured is skipped and, because the packet is then removed, lost. ENiGMA½ can instead create those areas for you. <strong>The feature is off unless you configure it</strong>, and a system with no <code class="language-plaintext highlighter-rouge">autoAreas</code> block behaves exactly as it always has.</p>
+
+<h5 id="getting-started">Getting started</h5>
+<p>Run this once:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js mb auto-areas init
+</code></pre></div></div>
+
+<p>That creates <code class="language-plaintext highlighter-rouge">config/auto-areas.hjson</code> and adds it to <code class="language-plaintext highlighter-rouge">includes</code> in your <code class="language-plaintext highlighter-rouge">config.hjson</code>, <strong>in that order</strong> — a file listed in <code class="language-plaintext highlighter-rouge">includes</code> that does not exist stops the board from starting, so it must be created first. The command is safe to re-run.</p>
+
+<p>Automatically created areas are written to <code class="language-plaintext highlighter-rouge">auto-areas.hjson</code>, never to your <code class="language-plaintext highlighter-rouge">config.hjson</code>. Includes are merged such that <strong><code class="language-plaintext highlighter-rouge">config.hjson</code> always wins</strong>, so that file can be rewritten on every pass without ever touching something you set by hand.</p>
+
+<h5 id="configuration-1">Configuration</h5>
+<p>Configured per network under <code class="language-plaintext highlighter-rouge">messageNetworks.ftn.networks.&lt;network&gt;.autoAreas</code>:</p>
+
+<pre><code class="language-hjson">{
+  messageNetworks: {
+    ftn: {
+      networks: {
+        fsxnet: {
+          defaultZone: 21
+          localAddress: "21:1/121"
+
+          autoAreas: {
+            //  conference new areas are placed in; must already exist
+            confTag: fsxnet
+
+            //  never create these, and remove them if already created
+            ignore: [ "FSX_BOT", "SOME.AREA" ]
+
+            //  cap on the TOTAL number ever created for this network
+            maxAutoCreate: 500
+
+            onDemand: {
+              //  create areas when EchoMail arrives for an unknown tag
+              enabled: true
+            }
+
+            infoPack: {
+              //  take real names and descriptions from the network info pack
+              enabled: true
+
+              //  file area the pack is TIC'd into, and how to spot it there
+              areaTag: fsxnet_info
+              match: "fsxnet*.zip"
+
+              //  the area list INSIDE the pack. Name it exactly: fsxNet also
+              //  ships fsx_file.na, which is a FILEBONE file echo list
+              areaFile: fsxnet.na
+            }
+          }
+        }
+      }
+    }
+  }
+}
+</code></pre>
+
+<p>There is no parent <code class="language-plaintext highlighter-rouge">enabled</code> flag: the feature is on for a network if either <code class="language-plaintext highlighter-rouge">onDemand.enabled</code> or <code class="language-plaintext highlighter-rouge">infoPack.enabled</code> is set. Two flags that have to agree is a configuration bug waiting to happen.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Config Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">confTag</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Message conference created areas are placed in. Must already exist; creation is refused otherwise</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ignore</code></td>
+      <td> </td>
+      <td>FTN tags never to create. Also <strong>removes</strong> ones already created, so this is how you un-create something</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">maxAutoCreate</code></td>
+      <td> </td>
+      <td>Cap on the total number of areas ever created for this network. Defaults to <code class="language-plaintext highlighter-rouge">500</code>. This is a total, not a per-run limit</td>
+    </tr>
+  </tbody>
+</table>
+
+<h5 id="created-areas-are-read-only">Created areas are read-only</h5>
+<p>An area created this way carries no <code class="language-plaintext highlighter-rouge">uplinks</code>, so nothing is ever exported from it. That alone is not read-only — a local user could still post into an area that looks live and goes nowhere — so it also gets <code class="language-plaintext highlighter-rouge">acs: { write: ID0 }</code>, which no user satisfies.</p>
+
+<p>To adopt an area, define it in your <code class="language-plaintext highlighter-rouge">config.hjson</code> under the same conference and area tag with your own <code class="language-plaintext highlighter-rouge">uplinks</code> and <code class="language-plaintext highlighter-rouge">acs</code>. Your <code class="language-plaintext highlighter-rouge">config.hjson</code> wins over the generated file, so the two coexist.</p>
+
+<p>Some tags are refused outright rather than merged, and the operator is told why:</p>
+
+<ul>
+  <li>A tag that would lower case onto a built-in area, such as <code class="language-plaintext highlighter-rouge">PRIVATE_MAIL</code> → <code class="language-plaintext highlighter-rouge">private_mail</code>
+</li>
+  <li>A tag already used by an area in <strong>any</strong> conference, or already carried by another network</li>
+</ul>
+
+<h5 id="the-info-pack">The info pack</h5>
+<p>Networks distribute an “info pack” — an archive with the area list, nodelist and documentation — through a file echo, so it arrives by TIC like any other file. ENiGMA½ does not wait to be told about it; it looks in the file area you name. A pack that landed before you turned the feature on is picked up just the same, as is one you dropped in by hand and scanned with <code class="language-plaintext highlighter-rouge">oputil fb scan</code>.</p>
+
+<p>Its job is narrow: replace the placeholder name and description on areas you <strong>already carry</strong>. A pack lists what the <em>network</em> carries, not what <em>you are linked to</em>, so creating from it wholesale would leave you with hundreds of permanently empty areas. Set <code class="language-plaintext highlighter-rouge">createUnlinked: true</code> if you want that anyway.</p>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> <code class="language-plaintext highlighter-rouge">areaFile</code> is an exact name for a reason. Most networks ship <em>two</em> <code class="language-plaintext highlighter-rouge">.na</code> files — one message echo list and one <strong>file</strong> echo list — and the extension does not tell them apart. Pointing at the wrong one gets you nothing; ENiGMA½ recognises a FILEBONE list and declines to take descriptions from it rather than importing nonsense.</p>
+</blockquote>
+
+<p>Some networks ship no machine-readable list at all. If the file cannot be recognised, you get a warning saying what it looked like instead, and your areas keep their tag-based names.</p>
+
+<h5 id="areafix-rescan">AreaFix rescan</h5>
+<p>Optionally, an AreaFix request can be sent to your uplink after an area is created, asking it to send the backlog. This is <strong>off by default and has no default command</strong>, because there is no portable syntax:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Uplink software</th>
+      <th>Working per-area rescan</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Mystic, CrashMail II</td>
+      <td><code class="language-plaintext highlighter-rouge">=TAG R=n</code></td>
+    </tr>
+    <tr>
+      <td>husky, SBBSecho</td>
+      <td><code class="language-plaintext highlighter-rouge">%RESCAN TAG R=n</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>FSC-0057 specifies <code class="language-plaintext highlighter-rouge">=TAG R=n</code>, but husky and SBBSecho do not implement <code class="language-plaintext highlighter-rouge">=</code>: they read it as a request to <em>add</em> an area with a garbage tag, and a husky hub with <code class="language-plaintext highlighter-rouge">forwardRequests</code> may pass that upstream. So you state the form your uplink speaks, or nothing is sent:</p>
+
+<pre><code class="language-hjson">onDemand: {
+  enabled: true
+  rescan: true
+  rescanUplink: "21:1/100"
+  rescanPassword: "YOURPASS"
+  rescanDays: 30
+
+  //  %TAG% and %DAYS% are substituted
+  rescanCommand: "=%TAG% R=%DAYS%"
+}
+</code></pre>
+
+<p>Replies from the uplink’s AreaFix robot are matched against requests actually sent — by address, robot name, and a 14 day window — and only lines naming an area asked about are read. You get a NetMail summarising what the uplink said. Reply wording differs between tossers; anything not recognised is reported with the raw line rather than acted on, and you can teach it more:</p>
+
+<pre><code class="language-hjson">messageNetworks: {
+  ftn: {
+    areaFixStatusPhrases: {
+      "linked ok": added
+    }
+  }
+}
+</code></pre>
+
+<h5 id="removing-an-area">Removing an area</h5>
+<p>Add its FTN tag to <code class="language-plaintext highlighter-rouge">ignore</code>. It is dropped from <code class="language-plaintext highlighter-rouge">auto-areas.hjson</code> on the next pass.</p>
+
+<p>Its messages are <strong>not</strong> deleted — they stay in the database keyed by area tag, invisible, and reappear if the tag is ever created again. A later re-link and rescan will dupe-drop rather than re-import that history, since the MSGID duplicate check is system wide.</p>
 
 <h4 id="ftnbso-scanner-tosser">FTN/BSO Scanner Tosser</h4>
 <p>Please see the <a href="/enigma-bbs/messageareas/bso-import-export.html">FTN/BSO Scanner/Tosser</a> documentation for information on this area.</p>
