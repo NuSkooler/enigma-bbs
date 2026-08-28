@@ -18,6 +18,7 @@ Available `config` block entries:
 * `hashTagsSep`: Separator for hash entries. Defaults to ", ".
 * `isQueuedIndicator`: Indicator for items that are in the users download queue. Defaults to "Y".
 * `isNotQueuedIndicator`: Indicator for items that are _not_ in the users download queue. Defaults to "N".
+* `noDownloadAccessIndicator`: Indicator for items the user may browse but has no `download` ACS for, and therefore cannot queue. Defaults to "-".
 * `userRatingTicked`: Indicator for a items current _n_/5 "star" rating. Defaults to "\*". `userRatingTicked` and `userRatingUnticked` are combined to build strings such as "***--" for 3/5 rating.
 * `userRatingUnticked`: Indicator for missing "stars" in a items _n_/5 rating. Defaults to "-". `userRatingTicked` and `userRatingUnticked` are combined to build strings such as "***--" for 3/5 rating.
 * `webDlExpireTimeFormat`: Presents the expiration time of a web download URL. Defaults to current theme → system `short` date/time format.
@@ -68,7 +69,7 @@ The browse page uses the `browse` art described above. The following MCI codes a
     * `{ticLDesc}`: Long description from TIC imported files "LDesc" field joined by a line feed, or "N/A".
     * `{uploadTimestamp}`: Upload timestamp formatted with `browseUploadTimestampFormat`.
     * `{hashTags}`: A string of hash tags(s) separated by `hashTagsSep` described above. "(none)" if there are no tags.
-    * `{isQueued}`: Indicates if a item is currently in the user's download queue presented as `isQueuedIndicator` or `isNotQueuedIndicator` described above.
+    * `{isQueued}`: Indicates if a item is currently in the user's download queue presented as `isQueuedIndicator` or `isNotQueuedIndicator` described above. Where the user has no `download` access to the area, `noDownloadAccessIndicator` is shown instead.
     * `{webDlLink}`: Web download link if generated else `webDlLinkNeedsGenerated` or `webDlLinkNoWebserver` described above.
     * `{webDlExpire}`: Web download link expiration using `webDlExpireTimeFormat` described above.
 
