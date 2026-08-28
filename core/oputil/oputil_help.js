@@ -179,7 +179,8 @@ remove arguments:
 import-areas arguments:
   --type TYPE                  Sets import areas type
 
-  Valid types are are "zxx" or "na".
+  Valid types are are "zxx" or "na". This selects which file extensions are
+  accepted; the format itself is determined from the file's content.
 
   --create-dirs                Also create backing storage directories
 `,

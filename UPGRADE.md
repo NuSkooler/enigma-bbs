@@ -41,6 +41,8 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   Lines that are skipped for their own reasons are now listed before the confirmation prompt. `AREAS.BBS` handling is unchanged.
 
+  `oputil fb import-areas` shares the same parser. FileGate `.ZXX` and FILEBONE `.NA` files import exactly as before — verified byte for byte against real network packs — and a file echo list shipped as a plain `TAG  Description` list now imports rather than reporting "Nothing to import". **Be aware** that a plain list looks identical to a *message* echo list; `import-areas` warns before the confirmation prompt, so read the area listing before answering yes, especially with `--create-dirs`.
+
 * **A port conflict now stops startup instead of being ignored** ([#547](https://github.com/NuSkooler/enigma-bbs/issues/547)). Previously a server that could not bind its port left the startup sequence hanging with no message and no exit; NNTP specifically logged a warning and carried on, so the board ran with NNTP silently absent. Bind failures are now reported on the console and are **fatal for every server**, and ENiGMA½ exits with a non-zero status.
 
   **Action:** if you run NNTP, Gopher, or the web server on a port something else on the host also uses, a start that previously "worked" (minus that service) will now stop with an explicit error. Fix the conflicting port in `config.hjson`, or disable the service with `enabled: false`.

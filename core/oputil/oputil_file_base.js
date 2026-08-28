@@ -15,6 +15,12 @@ const {
     writeConfig,
 } = require('./oputil_common.js');
 const Errors = require('../enig_error.js').Errors;
+const {
+    AreaListFormat,
+    parseAreaList,
+    describeFormat,
+    buildFileAreaImportRecords,
+} = require('../area_import.js');
 
 const async = require('async');
 const fs = require('graceful-fs');
@@ -23,7 +29,6 @@ const _ = require('lodash');
 const moment = require('moment');
 const inq = require('inquirer');
 const { glob } = require('glob');
-const sanatizeFilename = require('sanitize-filename');
 const hjson = require('hjson');
 const { mkdirs } = require('fs-extra');
 
@@ -1056,38 +1061,63 @@ function importFileAreas() {
                         return callback(err);
                     }
 
-                    const importInfo = {
-                        storageTags: {},
-                        areas: {},
-                        count: 0,
-                    };
+                    //
+                    //  The format is worked out from the file's content, not
+                    //  its extension. FILEBONE / FileGate "RAID" is the common
+                    //  shape, but some networks ship their file echo list as a
+                    //  plain "TAG  Description" list -- the same layout their
+                    //  *message* list uses -- and nothing in the name says
+                    //  which you have.
+                    //
+                    const parsed = parseAreaList(importData);
 
-                    const re = /Area\s+([^\s]+)\s+[0-9]\s+(?:!|\*&)\s+([^\r\n]+)/gm;
-                    let m;
-                    while ((m = re.exec(importData))) {
-                        const dir = m[1].trim();
-                        const name = m[2].trim();
-                        const safeName = sanatizeFilename(name);
-
-                        const stPrefix = _.snakeCase(sanatizeFilename(safeName));
-                        const storageTag = `${stPrefix}__${_.snakeCase(
-                            sanatizeFilename(dir)
-                        )}`;
-                        const areaTag = _.snakeCase(safeName);
-
-                        if (!dir || !name || !storageTag || !areaTag) {
-                            console.info(`Skipping entry: ${m[0]}`);
-                            continue;
-                        }
-
-                        importInfo.storageTags[storageTag] = dir;
-                        importInfo.areas[areaTag] = {
-                            name: name,
-                            desc: name,
-                            storageTags: [storageTag],
-                        };
-                        ++importInfo.count;
+                    if (
+                        ![AreaListFormat.FileBone, AreaListFormat.NA].includes(
+                            parsed.format
+                        )
+                    ) {
+                        return callback(
+                            Errors.Invalid(
+                                `Nothing to import from "${paths.basename(
+                                    importPath
+                                )}": ${describeFormat(parsed.format)} ` +
+                                    `(${parsed.stats.dataLines} data line(s), ` +
+                                    `${parsed.stats.commentLines} comment line(s))`
+                            )
+                        );
                     }
+
+                    if (AreaListFormat.NA === parsed.format) {
+                        //
+                        //  A plain "TAG  Description" list is exactly the shape
+                        //  a *message* echo list uses, and several networks
+                        //  ship both with a .na extension. Nothing in the
+                        //  content can tell them apart, so say so and let the
+                        //  operator decide at the confirmation prompt below.
+                        //
+                        console.info('');
+                        console.info(
+                            `NOTE: "${paths.basename(
+                                importPath
+                            )}" is a plain "TAG  Description" list, which is also`
+                        );
+                        console.info(
+                            '      how message echo lists are written. Check the areas below'
+                        );
+                        console.info(
+                            '      before proceeding -- this may not be a file echo list.'
+                        );
+                        console.info('');
+                    }
+
+                    const importInfo = buildFileAreaImportRecords(parsed.entries);
+
+                    const skipped = parsed.skipped.concat(importInfo.skipped);
+                    skipped.forEach(sk => {
+                        console.info(
+                            `Skipping line ${sk.lineNumber} (${sk.reason}): ${sk.text}`
+                        );
+                    });
 
                     if (0 === importInfo.count) {
                         return callback(new Error('Nothing to import'));

@@ -30,6 +30,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   `AREAS.BBS` is unchanged: it cannot be told from a plain area list by shape, so it is still only assumed from the `.bbs` extension or `--type bbs`.
 
+* **`oputil fb import-areas` shares that parser**, so a FILEBONE list is recognised by its content rather than its name, and a *file* echo list shipped as a plain `TAG  Description` list — ArakNet's, among others — imports rather than reporting "Nothing to import". FileGate `.ZXX` and FILEBONE `.NA` files produce byte-identical results to before; a multi-digit area level and flags other than `!` and `*&` are now accepted as well. Since a plain list is indistinguishable from a *message* echo list, `import-areas` says so before the confirmation prompt.
+
 * **A missing `includes:` file said the wrong thing on startup** — a file listed in `includes` that does not exist stops the board from starting, correctly, but the message advised running `./oputil.js config new` as though `config.hjson` itself were missing, and printed the placeholder `'{configFile}'` instead of a path. Both now name the file that is actually missing and say what to do about it.
 
 * **A second instance bound nothing, said nothing, and kept running** ([#547](https://github.com/NuSkooler/enigma-bbs/issues/547)) — starting ENiGMA½ while another instance already held its ports produced no error, no `System started!`, and no exit. The process simply sat there, serving no one.

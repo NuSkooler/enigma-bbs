@@ -12,6 +12,7 @@ const {
     validateUplinks,
     localAreaTagFor,
     buildAreaImportRecords,
+    buildFileAreaImportRecords,
 } = require('../core/area_import.js');
 
 const FixtureDir = paths.join(__dirname, 'fixtures', 'area_lists');
@@ -345,5 +346,83 @@ describe('area_import: record builders', () => {
         assert.equal(validateUplinks(['not-an-address']), false);
         assert.equal(validateUplinks([]), false);
         assert.equal(validateUplinks('21:1/100'), false);
+    });
+});
+
+// ─── File base area records ──────────────────────────────────────────────────
+
+describe('area_import: file base record builder', () => {
+    const build = fixture =>
+        buildFileAreaImportRecords(parseAreaList(readFixture(fixture)).entries);
+
+    it('builds the same records the FileGate/FILEBONE regex used to', () => {
+        //  Long standing oputil behaviour: the area tag comes from the
+        //  description and the storage tag combines description and FTN tag.
+        //  Changing either would orphan already-imported storage directories.
+        const records = build('fsxnet-file-2025.na');
+
+        assert.equal(records.count, 10);
+        assert.deepEqual(records.areas.weekly_nodelist_fsx_net, {
+            name: 'Weekly Nodelist (fsxNet)',
+            desc: 'Weekly Nodelist (fsxNet)',
+            storageTags: ['weekly_nodelist_fsx_net__fsx_node'],
+        });
+        assert.equal(records.storageTags.weekly_nodelist_fsx_net__fsx_node, 'FSX_NODE');
+    });
+
+    it('handles a file echo list shipped as a plain TAG/description list', () => {
+        //  ArakNet ships its FILE echoes this way -- the opposite convention
+        //  from the FILEBONE lists most networks use. This used to import
+        //  nothing at all.
+        const records = build('araknet-file.na');
+
+        assert.equal(records.count, 3);
+        assert.equal(
+            records.storageTags.araknet_infopack_sysop_access_only__ark_info,
+            'ARK_INFO'
+        );
+    });
+
+    it('produces nothing from a reversed-column list', () => {
+        const parsed = parseAreaList(readFixture('spooknet-baselist.txt'));
+        assert.equal(parsed.format, AreaListFormat.DescFirst);
+        assert.equal(buildFileAreaImportRecords(parsed.entries).count, 0);
+    });
+
+    it('skips an entry that cannot produce a usable tag', () => {
+        //  a description of only punctuation sanitizes away to nothing
+        const records = buildFileAreaImportRecords([
+            { ftnTag: 'FSX_NODE', name: '...', lineNumber: 1 },
+            { ftnTag: 'FSX_INFO', name: 'Infopack', lineNumber: 2 },
+        ]);
+        assert.equal(records.count, 1);
+        assert.equal(records.skipped.length, 1);
+        assert.ok(records.areas.infopack);
+    });
+
+    it('accepts a multi-digit level and flags beyond ! and *&', () => {
+        //  the regex this replaced allowed a single digit and only "!" / "*&"
+        const parsed = parseAreaList(
+            [
+                'Area FSX_NODE  10   !R    Weekly Nodelist',
+                'Area FSX_INFO  0    *&    Weekly Infopack',
+                'Area FSX_MYST  100  !     Mystic BBS Software',
+            ].join('\n')
+        );
+        assert.equal(parsed.format, AreaListFormat.FileBone);
+        assert.equal(buildFileAreaImportRecords(parsed.entries).count, 3);
+    });
+
+    it('does not treat an English sentence starting with "Area" as an entry', () => {
+        //  the numeric level requirement is what keeps prose out
+        const parsed = parseAreaList(
+            [
+                'Area 51 is a place',
+                'Area codes are not area tags',
+                'Area FSX_NODE 0 ! Weekly Nodelist',
+            ].join('\n')
+        );
+        assert.equal(parsed.entries.filter(e => e.ftnTag === 'FSX_NODE').length, 1);
+        assert.equal(parsed.entries.length, 1);
     });
 });

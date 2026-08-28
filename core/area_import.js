@@ -4,6 +4,9 @@
 //  ENiGMA½
 const Errors = require('./enig_error.js').Errors;
 
+//  deps
+const _ = require('lodash');
+
 //
 //  Shared parsing of FTN-style area/echo lists.
 //
@@ -74,8 +77,16 @@ const StrictAreaTagRe = /^[A-Z0-9][A-Z0-9_.-]*$/;
 
 //  A line is FILEBONE if it opens with the "Area" keyword
 const FileBoneDetectRe = /^Area\b/i;
+//
 //  ...and parses as: Area TAG <level> <flags> Description
-const FileBoneParseRe = /^Area\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+)$/i;
+//
+//  The level is required to be numeric. It keeps an English sentence that
+//  happens to start with "Area" from parsing as an entry, and it is what the
+//  format actually specifies. Unlike the regex this replaces, the level may
+//  have more than one digit and the flags are not limited to "!" and "*&" --
+//  both occur in real FileGate and FILEBONE lists.
+//
+const FileBoneParseRe = /^Area\s+(\S+)\s+(\d+)\s+(\S+)\s+(.+)$/i;
 
 //  TAG Description
 const NaParseRe = /^(\S+)\s+(.+)$/;
@@ -96,6 +107,7 @@ const SkipReasons = {
     FileBoneLine: 'FILEBONE-style line in a plain area list',
     Unparsable: 'does not match the detected format',
     UnrecognizedFormat: 'file format not recognized',
+    UnusableRecord: 'does not produce a usable area or storage tag',
 };
 
 //  Accepting an entry: permissive, case-insensitive
@@ -420,6 +432,49 @@ function buildAreaImportRecords(entries, { confTag, networkName, uplinks } = {})
     };
 }
 
+//
+//  Turn parsed entries into file base area + storage tag records.
+//
+//  The area tag comes from the *description*, not the FTN tag, and the
+//  storage tag combines both. That is long standing `oputil fb import-areas`
+//  behaviour and is preserved exactly: changing it would orphan the storage
+//  directories of anyone who has already imported.
+//
+function buildFileAreaImportRecords(entries) {
+    const sanitizeFilename = require('sanitize-filename');
+
+    const result = { storageTags: {}, areas: {}, count: 0, skipped: [] };
+
+    entries.forEach(entry => {
+        const dir = entry.ftnTag.trim();
+        const name = entry.name.trim();
+        const safeName = sanitizeFilename(name);
+
+        const stPrefix = _.snakeCase(sanitizeFilename(safeName));
+        const storageTag = `${stPrefix}__${_.snakeCase(sanitizeFilename(dir))}`;
+        const areaTag = _.snakeCase(safeName);
+
+        if (!dir || !name || !storageTag || !areaTag) {
+            result.skipped.push({
+                lineNumber: entry.lineNumber,
+                text: `${entry.ftnTag} ${entry.name}`,
+                reason: SkipReasons.UnusableRecord,
+            });
+            return;
+        }
+
+        result.storageTags[storageTag] = dir;
+        result.areas[areaTag] = {
+            name: name,
+            desc: name,
+            storageTags: [storageTag],
+        };
+        result.count += 1;
+    });
+
+    return result;
+}
+
 module.exports = {
     AreaListFormat,
     SkipReasons,
@@ -434,4 +489,5 @@ module.exports = {
     validateUplinks,
     localAreaTagFor,
     buildAreaImportRecords,
+    buildFileAreaImportRecords,
 };

@@ -201,7 +201,8 @@ remove arguments:
 import-areas arguments:
   --type TYPE                  Sets import areas type
 
-  Valid types are are "zxx" or "na".
+  Valid types are are "zxx" or "na". This selects which file extensions are
+  accepted; the format itself is determined from the file's content.
 
   --create-dirs                Also create backing storage directories
 
@@ -273,6 +274,12 @@ file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
 
 ### Importing FileGate RAID Style Areas
 Given a FileGate "RAID" style `FILEGATE.ZXX` file, one can import areas. This format also often comes in FTN-style info packs in the form of a `.NA` file i.e.: `FILEBONE.NA`.
+
+The format is determined from the file's **content**, so a `.na` file holding a FILEBONE list works regardless of what it is called. A handful of networks — ArakNet among them — instead ship their *file* echo list as a plain `TAG  Description` list, and those are now imported too rather than producing "Nothing to import".
+
+> :warning: A plain `TAG  Description` list is exactly the shape a **message** echo list uses, and nothing in the content distinguishes them. `import-areas` says so before the confirmation prompt; check the listed areas before answering yes, particularly with `--create-dirs`.
+
+A list in a format that cannot be recognised — including the reversed-column `Description … TAG` style one network ships — is refused with an explanation rather than partly imported.
 
 #### Example
 ```bash
