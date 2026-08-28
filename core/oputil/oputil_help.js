@@ -212,6 +212,11 @@ Actions:
 
   import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
 
+  auto-areas init             Prepare automatic message area creation: creates
+                              auto-areas.hjson and adds it to "includes" in
+                              config.hjson. Safe to re-run. The feature itself
+                              stays off until configured per network.
+
   qwk-dump PATH               Dumps a QWK packet to stdout.
   qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
                               packet in the directory specified by PATH. The QWK

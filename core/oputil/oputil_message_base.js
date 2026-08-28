@@ -469,6 +469,103 @@ function importAreas() {
     );
 }
 
+//
+//	oputil.js mb auto-areas init
+//
+//	Bootstraps automatic area creation.  The order matters: a referenced but
+//	missing include fails the entire config load, so the generated file has to
+//	exist before config.hjson points at it or the board will not start.
+//
+function autoAreas() {
+    const action = argv._[2];
+    if ('init' !== action) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
+    }
+
+    const {
+        GeneratedIncludeFileName,
+        emptyGenerated,
+        writeGenerated,
+    } = require('../auto_area_create.js');
+
+    const configPath = getConfigPath();
+    const generatedPath = paths.join(paths.dirname(configPath), GeneratedIncludeFileName);
+
+    async.waterfall(
+        [
+            function createGeneratedFile(callback) {
+                if (fs.existsSync(generatedPath)) {
+                    console.info(`Already present: ${generatedPath}`);
+                    return callback(null);
+                }
+
+                writeGenerated(generatedPath, emptyGenerated(), err => {
+                    if (!err) {
+                        console.info(`Created: ${generatedPath}`);
+                    }
+                    return callback(err);
+                });
+            },
+            function loadConfigHjson(callback) {
+                fs.readFile(configPath, 'utf8', (err, confData) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    let config;
+                    try {
+                        config = hjson.parse(confData, { keepWsc: true });
+                    } catch (e) {
+                        return callback(e);
+                    }
+                    return callback(null, config);
+                });
+            },
+            function addInclude(config, callback) {
+                const includes = Array.isArray(config.includes) ? config.includes : [];
+
+                if (
+                    includes.some(inc => paths.basename(inc) === GeneratedIncludeFileName)
+                ) {
+                    console.info(
+                        `Already included from ${configPath}: ${GeneratedIncludeFileName}`
+                    );
+                    return callback(null);
+                }
+
+                includes.push(GeneratedIncludeFileName);
+                config.includes = includes;
+
+                if (!writeConfig(config, configPath)) {
+                    return callback(
+                        Errors.UnexpectedState('Failed writing configuration')
+                    );
+                }
+
+                console.info(
+                    `Added to "includes" in ${configPath}: ${GeneratedIncludeFileName}`
+                );
+                return callback(null);
+            },
+        ],
+        err => {
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                return console.error(err.reason ? err.reason : err.message);
+            }
+
+            console.info('');
+            console.info(
+                'Automatic area creation can now be configured per FTN network under'
+            );
+            console.info(
+                'messageNetworks.ftn.networks.<network>.autoAreas -- it stays off until you do.'
+            );
+            console.info('See the Message Networks documentation for details.');
+        }
+    );
+}
+
 function dumpQWKPacket() {
     const packetPath = argv._[argv._.length - 1];
     if (argv._.length < 3 || !packetPath || 0 === packetPath.length) {
@@ -848,6 +945,7 @@ function handleMessageBaseCommand() {
         {
             areafix: areaFix,
             'import-areas': importAreas,
+            'auto-areas': autoAreas,
             'qwk-dump': dumpQWKPacket,
             'qwk-export': exportQWKPacket,
             'list-confs': listConferences,

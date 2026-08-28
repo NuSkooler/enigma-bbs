@@ -57,9 +57,17 @@ exports.Config = class Config extends ConfigLoader {
             //  late bind an exported get method to the global Config
             //  instance we just created
             exports.get = systemConfigInstance.get.bind(systemConfigInstance);
+            exports.reload = systemConfigInstance.reload.bind(systemConfigInstance);
 
             return cb(null);
         });
+    }
+
+    //  Path to config.hjson as loaded; undefined until create() has run.
+    //  Anything generating a config include needs this to know where to
+    //  write it.
+    static getBasePath() {
+        return systemConfigInstance ? systemConfigInstance.baseConfigPath : undefined;
     }
 
     static getDefaultPath() {
