@@ -510,11 +510,64 @@ function commitGenerated(includeState, generated, changed, result, cb) {
 //
 let generatedWriteChain = Promise.resolve();
 
-function serializeGeneratedWrite(fn) {
-    generatedWriteChain = generatedWriteChain.then(
-        () => new Promise(resolve => fn(resolve)),
-        () => new Promise(resolve => fn(resolve))
-    );
+//
+//  Upper bound on one queued operation. Writing a small file and reloading
+//  config is a sub-second job; this only exists so a dropped callback cannot
+//  wedge the queue.
+//
+const DefaultGeneratedWriteTimeoutMs = 60 * 1000;
+
+//
+//  Run |fn| after any operation already queued, guaranteeing |cb| fires
+//  exactly once.
+//
+//  The bound is not optional. Because operations are chained, one that never
+//  settles would block every later one *permanently* -- worse than the
+//  overlap it exists to prevent. So a synchronous throw becomes an error, and
+//  a callback that never arrives becomes a timeout, either of which lets the
+//  queue move on. That mirrors guardedCall() in the FTN scanner/tosser, which
+//  bounds the import cycle around this for the same reason.
+//
+function serializeGeneratedWrite(label, fn, cb) {
+    let settled = false;
+    let timer;
+
+    const settle = (err, result) => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        return cb(err, result);
+    };
+
+    const run = () =>
+        new Promise(resolve => {
+            const finish = (err, result) => {
+                settle(err, result);
+                return resolve();
+            };
+
+            const timeoutMs =
+                module.exports.GeneratedWriteTimeoutMs || DefaultGeneratedWriteTimeoutMs;
+
+            timer = setTimeout(() => {
+                finish(Errors.Timeout(`Timed out updating generated areas: ${label}`));
+            }, timeoutMs);
+
+            //  never hold the process open on our account
+            if (_.isFunction(timer.unref)) {
+                timer.unref();
+            }
+
+            try {
+                fn(finish);
+            } catch (e) {
+                finish(e);
+            }
+        });
+
+    generatedWriteChain = generatedWriteChain.then(run, run);
     return generatedWriteChain;
 }
 
@@ -530,11 +583,10 @@ function serializeGeneratedWrite(fn) {
 //  Creating nothing is a success with an empty |created|.
 //
 function createAreas(networkName, ftnTags, cb) {
-    serializeGeneratedWrite(done =>
-        _createAreas(networkName, ftnTags, (err, result) => {
-            cb(err, result);
-            return done();
-        })
+    serializeGeneratedWrite(
+        `create areas for "${networkName}"`,
+        done => _createAreas(networkName, ftnTags, done),
+        cb
     );
 }
 
@@ -578,11 +630,10 @@ function _createAreas(networkName, ftnTags, cb) {
 //  cb(err, { enriched: [areaTag], created, rejected, pruned })
 //
 function applyInfoPackEntries(networkName, entries, options, cb) {
-    serializeGeneratedWrite(done =>
-        _applyInfoPackEntries(networkName, entries, options || {}, (err, result) => {
-            cb(err, result);
-            return done();
-        })
+    serializeGeneratedWrite(
+        `apply info pack for "${networkName}"`,
+        done => _applyInfoPackEntries(networkName, entries, options || {}, done),
+        cb
     );
 }
 
@@ -660,6 +711,8 @@ function _applyInfoPackEntries(networkName, entries, { createUnlinked } = {}, cb
 
 module.exports = {
     GeneratedIncludeFileName,
+    //  overridable so tests do not have to wait a minute for the bound
+    GeneratedWriteTimeoutMs: DefaultGeneratedWriteTimeoutMs,
     DenyAllAcs,
     RejectReasons,
 

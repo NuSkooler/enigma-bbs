@@ -495,6 +495,38 @@ describe('auto_area_create', () => {
         });
     });
 
+    it('a stuck operation times out instead of wedging the queue forever', done => {
+        //
+        //  Operations are chained, so one that never settles would block every
+        //  later one permanently -- worse than the overlap the chaining exists
+        //  to prevent. maybeAutoCreateAreas() also waits on this callback
+        //  inside the import watchdog.
+        //
+        const savedTimeout = autoAreaCreate.GeneratedWriteTimeoutMs;
+        const savedReload = configModule.reload;
+        autoAreaCreate.GeneratedWriteTimeoutMs = 50;
+
+        //  a config reload whose callback never arrives
+        configModule.reload = () => {};
+
+        autoAreaCreate.createAreas(NETWORK, ['FSX_GEN'], err => {
+            configModule.reload = savedReload;
+            assert.ok(err, 'expected a timeout, not a dropped callback');
+            assert.match(err.message, /Timed out/);
+
+            //  ...and the queue still works afterwards
+            autoAreaCreate.GeneratedWriteTimeoutMs = savedTimeout;
+            autoAreaCreate.createAreas(NETWORK, ['FSX_BBS'], (err2, result) => {
+                assert.ifError(err2);
+                assert.deepEqual(
+                    result.created.map(c => c.areaTag),
+                    ['fsx_bbs']
+                );
+                done();
+            });
+        });
+    });
+
     // ─── Info pack enrichment ────────────────────────────────────────────────
 
     it('replaces the placeholder name and desc on areas we generated', done => {
