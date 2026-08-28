@@ -16,7 +16,8 @@
         "lint:fix": "eslint . --fix",
         "build:acs": "peggy --format commonjs -o core/acs_parser.js misc/acs_parser.pegjs",
         "prepare": "husky",
-        "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000 --require test/setup.js --exit"
+        "test": "mocha 'test/**/*.test.js' --recursive --timeout 5000 --require test/setup.js --exit && npm run test:live",
+        "test:live": "mocha 'test/live/*.live.js' --timeout 30000 --require test/setup.js --exit"
     },
     "repository": {
         "type": "git",

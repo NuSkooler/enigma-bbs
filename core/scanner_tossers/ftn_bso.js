@@ -3792,6 +3792,26 @@ FTNMessageScanTossModule.prototype.maybeRequestAreaFixRescan = function (
                 `Queued AreaFix rescan request for ${result.created.length} area(s)`
             );
 
+            //
+            //  Queued is not sent. NetMail needs a route to reach an uplink,
+            //  and without one the export fails with the request still sitting
+            //  in the message base -- which reads as "we asked and got no
+            //  answer" rather than "we never asked". Check the same way the
+            //  export will, and say so now.
+            //
+            self.getNetMailRouteInfoFromAddress(uplink, routeErr => {
+                if (routeErr) {
+                    Log.warn(
+                        {
+                            networkName,
+                            uplink: uplink.toString(),
+                            error: routeErr.message,
+                        },
+                        'AreaFix rescan request is queued but cannot be routed; it will not be sent until "scannerTossers.ftn_bso.netMail.routes" covers this uplink'
+                    );
+                }
+            });
+
             self.recordPendingAreaFixRequests(
                 uplink.toString(),
                 networkName,
