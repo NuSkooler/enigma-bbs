@@ -128,6 +128,45 @@ module.exports = class Address {
         return score;
     }
 
+    //
+    //  The most-specific entry of |patterned| whose key matches |addr|.
+    //
+    //  |patterned| is an object keyed by FTN address patterns -- concrete or
+    //  wildcard -- such as scannerTossers.ftn_bso.nodes{} or the NetMail
+    //  routes{} table. Configurations routinely pair a catch-all ("21:*", or
+    //  even "*") with more specific overrides ("21:1/100"). A first-match-wins
+    //  scan follows object iteration order, so which one wins depends only on
+    //  the order the sysop happened to write the HJSON -- and a catch-all
+    //  listed first silently shadows every override below it. Scoring with
+    //  getMatchScore() makes the outcome deterministic and matches intent.
+    //
+    //  Returns { pattern, value } for the winner, or undefined when nothing
+    //  matches. |addr| may be an Address or anything of the same shape.
+    //
+    static findBestPatternMatch(patterned, addr) {
+        if (!patterned || 'object' !== typeof patterned) {
+            return undefined;
+        }
+
+        const a = addr instanceof Address ? addr : new Address(addr);
+
+        let best;
+        let bestScore = 0;
+        for (const [pattern, value] of Object.entries(patterned)) {
+            if (!a.isPatternMatch(pattern)) {
+                continue;
+            }
+
+            const score = a.getMatchScore(pattern);
+            if (score > bestScore) {
+                bestScore = score;
+                best = { pattern, value };
+            }
+        }
+
+        return best;
+    }
+
     isPatternMatch(pattern) {
         const addr = this.getMatchAddr(pattern);
         if (addr) {

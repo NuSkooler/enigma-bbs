@@ -42,6 +42,11 @@ const DEFAULT_STALE_LOCK_MAX_AGE_MS = 30 * 60 * 1000;
 // the complaint is about static configuration — once per process is plenty.
 const warnedNetworks = new Set();
 
+// Flow file references that resolve to nothing. Same reasoning as
+// |warnedNetworks|: a dangling reference is a standing condition the sysop
+// needs told about once, not once per poll cycle.
+const warnedFlowRefs = new Set();
+
 //
 //  BsoSpool — filesystem adapter between BinkP sessions and the BSO outbound/
 //  inbound spool that ftn_bso manages.
@@ -469,22 +474,20 @@ class BsoSpool {
                 filePath = trimmed;
             }
 
-            let stat;
-            try {
-                stat = await fsp.stat(filePath);
-            } catch {
-                // File referenced in flow but missing on disk — skip silently
-                continue;
-            }
+            const resolved = await resolveFlowRef(flowPath, filePath);
+            if (!resolved) continue;
 
             const lineIdx = i;
             const captured = trimmed; // close over the line as it was when read
             results.push({
-                name: path.basename(filePath),
-                path: filePath,
-                size: stat.size,
-                timestamp: Math.floor(stat.mtimeMs / 1000),
+                name: path.basename(resolved.path),
+                path: resolved.path,
+                size: resolved.stat.size,
+                timestamp: Math.floor(resolved.stat.mtimeMs / 1000),
                 disposition,
+                //  Bookkeeping keys off the line as it was written, not off
+                //  |resolved.path| — so a reference rescued by the fallback
+                //  above is still marked sent correctly.
                 disposeFn: () => this._applyFlowDisposition(flowPath, lineIdx, captured),
             });
         }
@@ -665,12 +668,79 @@ function uniquePacketName(filePath) {
     return `${`00000000${hash}`.slice(-8)}.pkt`;
 }
 
+//
+//  True when |flowPath| has at least one entry that is neither already marked
+//  sent ('~') nor dangling.
+//
+//  The existence check matters: a flow file whose live entries all resolve to
+//  nothing would otherwise keep its node in the pending list forever, and the
+//  poller would dial it every cycle only to transfer nothing and log a clean
+//  "Session complete".
+//
 async function flowHasPending(flowPath) {
     const content = await fsp.readFile(flowPath, 'utf8').catch(() => '');
-    return content.split('\n').some(line => {
-        const t = line.trim();
-        return t.length > 0 && t[0] !== '~';
-    });
+    for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed[0] === '~') continue;
+
+        const ref = /^[\^#-]/.test(trimmed) ? trimmed.slice(1) : trimmed;
+        if (await resolveFlowRef(flowPath, ref)) return true;
+    }
+    return false;
+}
+
+//
+//  Resolve a flow file reference to a file that exists, as { path, stat }, or
+//  null when it resolves nowhere.
+//
+//  Flow files carry absolute paths (FTS-5005.003 §3.1). A stored path that no
+//  longer resolves means the file moved out from under the reference — a
+//  relocated outbound tree, or a sysop hand-recovering mail that was filed in
+//  the wrong directory. Before giving up we look for the referenced basename
+//  in the flow file's own directory, which makes that recovery a matter of
+//  moving files rather than also hand-editing flow files.
+//
+//  A reference that resolves nowhere is logged once per process. Silence here
+//  is how misfiled outbound mail hides: the session finds nothing to send and
+//  reports success.
+//
+async function resolveFlowRef(flowPath, ref) {
+    const tryStat = async p => {
+        try {
+            return await fsp.stat(p);
+        } catch (err) {
+            if ('ENOENT' !== err.code && 'ENOTDIR' !== err.code) {
+                Log.warn(
+                    { path: p, error: err.message },
+                    '[BinkP/BSO] Error stat-ing flow file reference'
+                );
+            }
+            return null;
+        }
+    };
+
+    let stat = await tryStat(ref);
+    if (stat) return { path: ref, stat };
+
+    //  Split on either separator — the reference may have been written by a
+    //  mailer running on the other sort of platform.
+    const base = ref.split(/[\\/]/).pop();
+    const alt = base && path.join(path.dirname(flowPath), base);
+    if (alt && alt !== ref) {
+        stat = await tryStat(alt);
+        if (stat) return { path: alt, stat };
+    }
+
+    const key = `${flowPath}\0${ref}`;
+    if (!warnedFlowRefs.has(key)) {
+        warnedFlowRefs.add(key);
+        Log.warn(
+            { flowFile: flowPath, ref },
+            '[BinkP/BSO] Flow file references a file that does not exist; skipping entry'
+        );
+    }
+
+    return null;
 }
 
 //

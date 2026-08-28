@@ -23,9 +23,16 @@ const configModule = require('../core/config.js');
 //  Config to THIS default. It must therefore carry everything a core constructor
 //  reads, or those tests fail order-dependently with "Cannot read properties of
 //  undefined (reading 'cls')".
+//  |general.boardName| is here for the same reason: core/ftn_util.js captures
+//  config.js's |get| at require time, and mocha loads every test file (and so
+//  every top-level require) before running anything -- so ftn_util is pinned
+//  to THIS config for the whole run, no matter what a later suite pushes.
+//  getOrigin() reads general.boardName, and without it any test that exports
+//  an FTN message throws from inside an async series.
 const MINIMAL_CONFIG = {
     debug: { assertsEnabled: false },
     menus: { cls: false },
+    general: { boardName: 'ENiGMA½ BBS' },
 };
 configModule.get = () => MINIMAL_CONFIG;
 

@@ -709,13 +709,24 @@ function FTNMessageScanTossModule() {
         }
     };
 
+    //
+    //  Node configuration for |addr|, or undefined when none matches.
+    //
+    //  nodes{} keys are FTN patterns and more than one can match a given
+    //  address. The *most specific* match wins -- see
+    //  Address.findBestPatternMatch(). First-match-wins would let a catch-all
+    //  such as "21:*" shadow a specific "21:1/100" block purely by virtue of
+    //  appearing first in config.hjson, which among other things would drop
+    //  that node's packetPassword.
+    //
     this.getNodeConfigByAddress = function (addr) {
         addr = _.isString(addr) ? Address.fromString(addr) : addr;
+        if (!addr) {
+            return undefined;
+        }
 
-        //  :TODO: sort wildcard nodes{} entries by most->least explicit according to FTN hierarchy
-        return _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {
-            return addr.isPatternMatch(nodeAddrWildcard);
-        });
+        const best = Address.findBestPatternMatch(this.moduleConfig.nodes, addr);
+        return best ? best.value : undefined;
     };
 
     this.exportNetMailMessagePacket = function (message, exportOpts, cb) {
@@ -998,18 +1009,20 @@ function FTNMessageScanTossModule() {
         );
     };
 
+    //
+    //  NetMail route for |dstAddr|, or undefined when none is configured.
+    //
+    //  routes{} keys are FTN patterns; the *most specific* match wins so that
+    //  a catch-all "*" alongside a specific "21:*" behaves the same no matter
+    //  which order they appear in config.hjson.
+    //
     this.getNetMailRoute = function (dstAddr) {
         //
         //  Route full|wildcard -> full adddress/network lookup
         //
         const routes = _.get(Config(), 'scannerTossers.ftn_bso.netMail.routes');
-        if (!routes) {
-            return;
-        }
-
-        return _.find(routes, (route, addrWildcard) => {
-            return dstAddr.isPatternMatch(addrWildcard);
-        });
+        const best = Address.findBestPatternMatch(routes, dstAddr);
+        return best ? best.value : undefined;
     };
 
     this.getNetMailRouteInfoFromAddress = function (destAddress, cb) {
@@ -1040,9 +1053,7 @@ function FTNMessageScanTossModule() {
 
         networkName = networkName || this.getNetworkNameByAddress(routeAddress);
 
-        const config = _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {
-            return routeAddress.isPatternMatch(nodeAddrWildcard);
-        }) || {
+        const config = this.getNodeConfigByAddress(routeAddress) || {
             packetType: '2+',
             encoding: Config().scannerTossers.ftn_bso.packetMsgEncoding,
         };
@@ -1063,7 +1074,7 @@ function FTNMessageScanTossModule() {
             messagesOrMessageUuids,
             (msgOrUuid, nextMessageOrUuid) => {
                 const exportOpts = {};
-                const message = new Message();
+                let message = new Message();
                 let messageLoaded = false;
 
                 async.series(
@@ -1077,8 +1088,13 @@ function FTNMessageScanTossModule() {
                                     return callback(err, message);
                                 });
                             } else {
+                                //  Already-loaded Message. Adopt it -- every
+                                //  step below reads |message|, so leaving the
+                                //  empty placeholder in place would export a
+                                //  blank message to nowhere.
+                                message = msgOrUuid;
                                 messageLoaded = true;
-                                return callback(null, msgOrUuid);
+                                return callback(null, message);
                             }
                         },
                         function discoverUplink(callback) {
@@ -1102,10 +1118,23 @@ function FTNMessageScanTossModule() {
                                         routeInfo.networkName
                                     );
                                     exportOpts.networkName = routeInfo.networkName;
+                                    //
+                                    //  The packet is filed for the node we
+                                    //  will *dial*, not the message's final
+                                    //  recipient. For routed NetMail those
+                                    //  differ, and when they differ by zone
+                                    //  they resolve to different outbound
+                                    //  directories -- so using destAddress
+                                    //  here filed cross-zone routed mail in a
+                                    //  directory the mailer never looks in
+                                    //  when calling the uplink (issue #734).
+                                    //  |routeAddress| is |destAddress| when
+                                    //  the message is unrouted.
+                                    //
                                     exportOpts.outgoingDir =
                                         self.getOutgoingEchoMailPacketDir(
                                             exportOpts.networkName,
-                                            exportOpts.destAddress
+                                            exportOpts.routeAddress
                                         );
                                     exportOpts.exportType = self.getExportType(
                                         routeInfo.config
@@ -1116,6 +1145,23 @@ function FTNMessageScanTossModule() {
                                             Errors.DoesNotExist(
                                                 `No configuration found for network ${routeInfo.networkName}`
                                             )
+                                        );
+                                    }
+
+                                    if (routeInfo.isRouted) {
+                                        //  Which routes{} pattern applied is
+                                        //  not obvious from the outside -- a
+                                        //  catch-all captures NetMail for
+                                        //  every network, AreaFix to your
+                                        //  uplinks included. Say where the
+                                        //  message actually went.
+                                        Log.debug(
+                                            {
+                                                dest: exportOpts.destAddress.toString(),
+                                                route: exportOpts.routeAddress.toString(),
+                                                network: exportOpts.networkName,
+                                            },
+                                            'Routing NetMail via uplink'
                                         );
                                     }
 
@@ -1799,11 +1845,7 @@ function FTNMessageScanTossModule() {
                     } else {
                         //  Validate packet password against node config (if configured)
                         const originAddr = new Address(packetHeader.origAddress);
-                        const nodeConfig = _.find(
-                            self.moduleConfig.nodes,
-                            (node, addrWildcard) =>
-                                originAddr.isPatternMatch(addrWildcard)
-                        );
+                        const nodeConfig = self.getNodeConfigByAddress(originAddr);
                         if (nodeConfig && nodeConfig.packetPassword) {
                             const expected = nodeConfig.packetPassword.toUpperCase();
                             const actual = (packetHeader.password || '').toUpperCase();
@@ -2042,10 +2084,7 @@ function FTNMessageScanTossModule() {
                     //  not be able to create areas on its way past.
                     //
                     const originAddr = new Address(entryData.origAddress);
-                    const nodeConfig = _.find(
-                        self.moduleConfig.nodes,
-                        (node, addrWildcard) => originAddr.isPatternMatch(addrWildcard)
-                    );
+                    const nodeConfig = self.getNodeConfigByAddress(originAddr);
                     if (nodeConfig && nodeConfig.packetPassword) {
                         const expected = nodeConfig.packetPassword.toUpperCase();
                         const actual = (entryData.password || '').toUpperCase();

@@ -22,6 +22,16 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **Cross-zone routed NetMail queued before this release will not have been delivered, and needs moving by hand** ([#734](https://github.com/NuSkooler/enigma-bbs/issues/734)). NetMail routed through an uplink in a zone other than the recipient's was filed in the outbound directory for the *recipient's* zone rather than the uplink's, where no mailer would ever find it. The fix applies to newly exported mail only -- it does not relocate what is already queued.
+
+  **Action:** only if you route NetMail across zones. Look for a zone-suffixed outbound directory that should not hold mail for that uplink -- for a `1:154/10` uplink carrying zone 2 mail, that is `outbound.002/009a000a.*` (`009a` = net 154, `000a` = node 10) plus the `.pkt` files its flow file names. Move both the flow file and the packets into the uplink's own outbound directory (`outbound/` when the uplink is in your network's default zone). **The stored paths inside the flow file do not need editing** -- a reference that no longer resolves is now also looked for by name in the flow file's own directory. If you would rather not sort it out, deleting the stray directory's contents loses the affected messages and nothing else.
+
+  Two related changes are worth knowing about even if none of this applies to you: a flow file entry whose file is missing is now logged rather than silently skipped, and a node whose entries all point at missing files is no longer reported as having pending mail -- so it stops being dialled every poll cycle with nothing to send.
+
+* **The most specific `nodes{}` and NetMail `routes{}` pattern now wins, rather than the first one written.** Where only one pattern matched an address nothing changes. Where several matched, the entry that applied used to depend on the order of your `config.hjson`.
+
+  **Action:** review your configuration if it mixes a wildcard with more specific entries that also match. Two cases change behaviour, both towards what the specific entry says: a `"21:*"` node block written above `"21:1/100"` no longer shadows that node's own settings -- including `packetPassword`, which means a packet password you configured and believed to be in force may only now start being enforced -- and a `"*"` NetMail route written above `"21:*"` no longer claims mail the narrower route was meant to take.
+
 * **The `download` file area ACS is now actually enforced.** It previously applied only to the REST API; over telnet and SSH any user who could browse an area could also download from it. If you set a `download` ACS on any file area expecting it to restrict downloads, **it was not doing so until now**.
 
   **Action:** review your `fileBase.areas` ACS blocks. Areas with no `download` ACS are unaffected -- the default (`GM[users]`) matches the `read` default, so nothing changes for them. Areas where you *did* set `download` will now restrict downloads to what you configured, which may be tighter than what users have actually been getting. Note that an entry whose area is no longer in `config.hjson` fails closed and can no longer be downloaded.

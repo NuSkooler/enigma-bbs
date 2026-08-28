@@ -3,6 +3,22 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Routed cross-zone NetMail was filed where nothing would ever look for it** ([#734](https://github.com/NuSkooler/enigma-bbs/issues/734)) -- NetMail routed through an uplink in a different zone than the recipient (the standard FidoNet zone gate: zone 2 mail leaving through a zone 1 hub) was written to the outbound directory of the *recipient's* zone instead of the *uplink's*. A mailer only looks in the zone of the node it is calling, so the session to the uplink completed cleanly having transferred nothing and the message sat on disk indefinitely.
+
+  Nothing surfaced it. The packet's flow file was named for the uplink but filed under the recipient's zone, so the pending-mail scan -- which reads a node's address from the directory's zone plus the flow file's name -- reported a node that does not exist (`2:154/10`, for an uplink of `1:154/10`), which the poller then skipped at `debug` level. Every visible signal said success.
+
+  Packets are now filed for the node that will actually be dialled. Three related changes mean this shape of failure is noisy rather than silent if it ever recurs:
+
+  * A flow file entry whose file is missing is **logged** rather than skipped in silence.
+  * A node whose live flow entries all point at missing files is **no longer reported as having pending mail**. That state used to put the poller in a dial-every-cycle-and-transfer-nothing loop.
+  * A reference is also looked for by name **in the flow file's own directory**. Flow files store absolute paths, so mail that has been moved -- including anything misfiled by this bug before upgrading -- now ships by moving the files, with no hand-editing of flow files. See [UPGRADE](UPGRADE.md).
+
+  Each routed NetMail also logs where it was routed, so the effective route can be confirmed rather than inferred.
+
+* **A wildcard could shadow a more specific entry in `nodes{}` and NetMail `routes{}`** -- where several patterns matched an address, which one applied depended on nothing but the order they were written in `config.hjson`. A `"*"` route above `"21:*"` took every message; a `"21:*"` node block above `"21:1/100"` meant that node's `packetPassword` was never the one checked. The **most specific match now wins** regardless of order, which is what the native BinkP mailer already did for its own `binkp.nodes{}`.
+
+  `routes{}` is still consulted before `nodes{}`, so a catch-all `"*"` route claims all NetMail -- AreaFix to your uplinks on other networks included. With ordering no longer deciding the outcome, a more specific route can now reliably send those direct. See [NetMail](docs/_docs/messageareas/netmail.md#which-route-applies).
+
 * **The `download` file area ACS was enforced over the REST API and nowhere else** -- a security control that silently did not work. A file area can reasonably let everyone browse while restricting who may actually pull bytes down:
 
   ```hjson
