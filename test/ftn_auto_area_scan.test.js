@@ -435,4 +435,56 @@ describe('FTN automatic area creation: end to end', () => {
         assert.ok(getMessageAreaByTag('fsx_bbs'));
         assert.equal(getMessageAreaByTag('fsx_bot'), undefined);
     });
+
+    it('mail that would have been skipped is routed to the new area on pass 2', async () => {
+        //
+        //  The whole point of the feature. Before pass 1, a message for an
+        //  unconfigured tag hits the unknown-area branch of the import, is
+        //  counted as skipped, and -- because the packet is unlinked straight
+        //  afterwards -- is gone. After pass 1 the same packet routes.
+        //
+        writeConfigHjson({
+            autoAreas: {
+                confTag: 'fsxnet',
+                maxAutoCreate: 10,
+                onDemand: { enabled: true },
+            },
+        });
+        await loadConfig();
+
+        const packetPath = await writePacket('e2e00004.pkt', makeHeader(), [
+            makeEchoMessage('FSX_GEN', 'known area'),
+            makeEchoMessage('FSX_BBS', 'unknown area'),
+        ]);
+
+        const inst = makeModule();
+
+        //  Stub only the DB-backed leaf so the real toss path runs
+        const routed = [];
+        inst.importMailToArea = (importConfig, header, message, cb) => {
+            routed.push({ areaTag: importConfig.localAreaTag, subject: message.subject });
+            return cb(null);
+        };
+
+        const toss = () =>
+            new Promise(resolve =>
+                inst.importMessagesFromPacketFile(packetPath, '', resolve)
+            );
+
+        await toss();
+        assert.deepEqual(
+            routed.map(r => r.subject),
+            ['known area'],
+            'the unknown-area message should be skipped before the areas exist'
+        );
+
+        routed.length = 0;
+        await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+        await toss();
+
+        assert.deepEqual(routed.map(r => `${r.subject} -> ${r.areaTag}`).sort(), [
+            'known area -> fsx_gen',
+            'unknown area -> fsx_bbs',
+        ]);
+    });
 });

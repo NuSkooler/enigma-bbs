@@ -494,6 +494,31 @@ function commitGenerated(includeState, generated, changed, result, cb) {
 }
 
 //
+//  Everything that mutates the generated file runs one at a time.
+//
+//  All import triggers funnel through the tosser's `importing` flag, but the
+//  5 minute import watchdog force-completes a stuck cycle and lets the next
+//  one start while the first may still be running -- overlapping cycles are
+//  an acknowledged reality in that code. Two overlapping read-modify-writes
+//  here would have the later reader working from a copy that predates the
+//  earlier writer, and its write would drop whatever the other had just
+//  added. The next pass re-discovers it, since the scan is read-only and the
+//  mail is still there, but only if the packet has not been tossed in
+//  between. Serializing removes the window rather than relying on that.
+//
+//  One BBS instance per mail tree, so in-process is the whole story.
+//
+let generatedWriteChain = Promise.resolve();
+
+function serializeGeneratedWrite(fn) {
+    generatedWriteChain = generatedWriteChain.then(
+        () => new Promise(resolve => fn(resolve)),
+        () => new Promise(resolve => fn(resolve))
+    );
+    return generatedWriteChain;
+}
+
+//
 //  Create message areas for |ftnTags| on |networkName|.
 //
 //  cb(err, {
@@ -505,6 +530,15 @@ function commitGenerated(includeState, generated, changed, result, cb) {
 //  Creating nothing is a success with an empty |created|.
 //
 function createAreas(networkName, ftnTags, cb) {
+    serializeGeneratedWrite(done =>
+        _createAreas(networkName, ftnTags, (err, result) => {
+            cb(err, result);
+            return done();
+        })
+    );
+}
+
+function _createAreas(networkName, ftnTags, cb) {
     const ctx = prepareGeneratedWrite(networkName);
     if (ctx instanceof Error) {
         return cb(ctx);
@@ -543,7 +577,16 @@ function createAreas(networkName, ftnTags, cb) {
 //
 //  cb(err, { enriched: [areaTag], created, rejected, pruned })
 //
-function applyInfoPackEntries(networkName, entries, { createUnlinked } = {}, cb) {
+function applyInfoPackEntries(networkName, entries, options, cb) {
+    serializeGeneratedWrite(done =>
+        _applyInfoPackEntries(networkName, entries, options || {}, (err, result) => {
+            cb(err, result);
+            return done();
+        })
+    );
+}
+
+function _applyInfoPackEntries(networkName, entries, { createUnlinked } = {}, cb) {
     const ctx = prepareGeneratedWrite(networkName);
     if (ctx instanceof Error) {
         return cb(ctx);

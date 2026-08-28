@@ -459,6 +459,42 @@ describe('auto_area_create', () => {
         });
     });
 
+    it('serializes overlapping writes instead of losing one of them', done => {
+        //
+        //  The import watchdog can force-complete a cycle and let the next one
+        //  start while the first is still running. Two unserialized
+        //  read-modify-writes would both read the empty file and the later
+        //  writer would drop what the earlier one added.
+        //
+        let finished = 0;
+        const check = () => {
+            if (2 !== ++finished) {
+                return;
+            }
+
+            const areas = configModule.get().messageConferences[CONF_TAG].areas;
+            assert.ok(areas.fsx_gen, 'first batch survived');
+            assert.ok(areas.fsx_bbs, 'second batch survived');
+
+            const generated = readGeneratedSync();
+            assert.deepEqual(Object.keys(generated.messageNetworks.ftn.areas).sort(), [
+                'fsx_bbs',
+                'fsx_gen',
+            ]);
+            done();
+        };
+
+        //  fired back to back, neither awaiting the other
+        autoAreaCreate.createAreas(NETWORK, ['FSX_GEN'], err => {
+            assert.ifError(err);
+            check();
+        });
+        autoAreaCreate.createAreas(NETWORK, ['FSX_BBS'], err => {
+            assert.ifError(err);
+            check();
+        });
+    });
+
     // ─── Info pack enrichment ────────────────────────────────────────────────
 
     it('replaces the placeholder name and desc on areas we generated', done => {
