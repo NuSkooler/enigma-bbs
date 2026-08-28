@@ -3,6 +3,27 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **The `download` file area ACS was enforced over the REST API and nowhere else** -- a security control that silently did not work. A file area can reasonably let everyone browse while restricting who may actually pull bytes down:
+
+  ```hjson
+  someArea: {
+      acs: {
+          read: GM[users]
+          download: GM[donors]
+      }
+  }
+  ```
+
+  `read` was honoured everywhere, so browsing looked correctly gated and the configuration appeared to work. `download` was checked only by `core/rest/routes/files.js` -- over telnet and SSH, where essentially every user is, anyone who could see a file could queue and download it. It was the only ACS scope in the system with no terminal-side enforcement.
+
+  The check is now applied at every path that can move a file to a user:
+
+  * **Queueing** -- `DownloadQueue.add()` refuses an entry the user has no `download` right to, and the file area list shows a distinct indicator (`noDownloadAccessIndicator`, `n/a` in the shipped theme) rather than letting the queue key look broken.
+  * **Protocol downloads** -- the send queue is filtered at transfer time. A download queue persists in a user property across sessions, so an item queued while permitted can outlive the permission; being removed from a group now takes effect immediately.
+  * **Web download links** -- both single and batch link generation are gated in `FileAreaWeb`, which also covers the browse screen's "generate web link" action. That path never went through the download queue at all.
+
+  Temporary session downloads -- QWK packets, FSE attachments -- are generated for the user on request, carry no ACS of their own, and are unaffected.
+
 * **Message areas can now be created automatically for EchoMail you are not configured for** ([#241](https://github.com/NuSkooler/enigma-bbs/issues/241)) — mail arriving for an unknown FTN area tag was skipped with a warning, and since the packet was then removed, skipped meant *lost*. ENiGMA½ can now create those areas instead. **Off unless you configure it**; a system with no `autoAreas` block behaves exactly as before, and with no network enabled nothing extra runs at all.
 
   Setup is one command — `./oputil.js mb auto-areas init` — and then a per-network `autoAreas` block. See [FTN](docs/_docs/messageareas/ftn.md#automatic-area-creation).

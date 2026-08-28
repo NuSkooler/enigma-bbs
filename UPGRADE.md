@@ -22,6 +22,10 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **The `download` file area ACS is now actually enforced.** It previously applied only to the REST API; over telnet and SSH any user who could browse an area could also download from it. If you set a `download` ACS on any file area expecting it to restrict downloads, **it was not doing so until now**.
+
+  **Action:** review your `fileBase.areas` ACS blocks. Areas with no `download` ACS are unaffected -- the default (`GM[users]`) matches the `read` default, so nothing changes for them. Areas where you *did* set `download` will now restrict downloads to what you configured, which may be tighter than what users have actually been getting. Note that an entry whose area is no longer in `config.hjson` fails closed and can no longer be downloaded.
+
 * **Automatic message area creation is available, and off** ([#241](https://github.com/NuSkooler/enigma-bbs/issues/241)). EchoMail for an FTN area tag you have not configured can now create that area instead of being skipped and lost. **No action is required**: with no `autoAreas` block in your configuration nothing changes, and with no network enabled the feature does no work at all.
 
   **If you want it**, run `./oputil.js mb auto-areas init` once and then add an `autoAreas` block per network — see [FTN](./docs/_docs/messageareas/ftn.md#automatic-area-creation). Two things are worth knowing before you turn it on:

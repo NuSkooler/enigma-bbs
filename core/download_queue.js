@@ -4,6 +4,7 @@
 const FileEntry = require('./file_entry');
 const UserProps = require('./user_property');
 const Events = require('./events');
+const { hasFileAreaDownloadAccess } = require('./file_base_area.js');
 
 //  deps
 const _ = require('lodash');
@@ -35,17 +36,37 @@ module.exports = class DownloadQueue {
         this.client.user.downloadQueue = [];
     }
 
+    //
+    //  May the current user download |fileEntry|? Browsing an area ('read')
+    //  and downloading from it ('download') are separate rights.
+    //
+    canDownload(fileEntry) {
+        return hasFileAreaDownloadAccess(this.client, fileEntry.areaTag);
+    }
+
+    //  Returns true if the entry ended up queued, false if it was refused.
     toggle(fileEntry, systemFile = false) {
         if (this.isQueued(fileEntry)) {
             this.client.user.downloadQueue = this.client.user.downloadQueue.filter(
                 e => fileEntry.fileId !== e.fileId
             );
-        } else {
-            this.add(fileEntry, systemFile);
+            return false;
         }
+
+        return this.add(fileEntry, systemFile);
     }
 
+    //  Returns true if queued, false if the user has no download rights to the
+    //  entry's area.
     add(fileEntry, systemFile = false) {
+        if (!systemFile && !this.canDownload(fileEntry)) {
+            this.client.log.info(
+                { fileId: fileEntry.fileId, areaTag: fileEntry.areaTag },
+                'Refusing to queue download; no download ACS for area'
+            );
+            return false;
+        }
+
         this.client.user.downloadQueue.push({
             fileId: fileEntry.fileId,
             areaTag: fileEntry.areaTag,
@@ -54,6 +75,20 @@ module.exports = class DownloadQueue {
             byteSize: fileEntry.meta.byte_size || 0,
             systemFile: systemFile,
         });
+
+        return true;
+    }
+
+    //
+    //  Queues persist in a user property across sessions, so an item queued
+    //  while permitted can outlive the permission. Filter at the point of
+    //  actually sending or generating links, not just at queue time.
+    //
+    get allowedItems() {
+        return this.items.filter(
+            item =>
+                item.systemFile || hasFileAreaDownloadAccess(this.client, item.areaTag)
+        );
     }
 
     removeItems(fileIds) {

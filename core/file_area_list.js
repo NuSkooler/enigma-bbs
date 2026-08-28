@@ -132,6 +132,8 @@ exports.getModule = class FileAreaList extends MenuModule {
                 return this.displayBrowsePage(true, cb); //  true=clearScreen
             },
             toggleQueue: (formData, extraArgs, cb) => {
+                //  Refused when the user may browse the area but not download
+                //  from it; updateQueueIndicator() reflects that back to them.
                 this.dlQueue.toggle(this.currentFileEntry);
                 this.updateQueueIndicator();
                 return cb(null);
@@ -245,6 +247,7 @@ exports.getModule = class FileAreaList extends MenuModule {
         const hashTagsSep = config.hashTagsSep || ', ';
         const isQueuedIndicator = config.isQueuedIndicator || 'Y';
         const isNotQueuedIndicator = config.isNotQueuedIndicator || 'N';
+        const noDownloadAccessIndicator = config.noDownloadAccessIndicator || '-';
 
         const entryInfo = (currEntry.entryInfo = {
             fileId: currEntry.fileId,
@@ -260,9 +263,12 @@ exports.getModule = class FileAreaList extends MenuModule {
                 uploadTimestampFormat
             ),
             hashTags: Array.from(currEntry.hashTags).join(hashTagsSep),
-            isQueued: this.dlQueue.isQueued(currEntry)
-                ? isQueuedIndicator
-                : isNotQueuedIndicator,
+            isQueued: this._queueIndicatorFor(
+                currEntry,
+                isQueuedIndicator,
+                isNotQueuedIndicator,
+                noDownloadAccessIndicator
+            ),
             webDlLink: '', //  :TODO: fetch web any existing web d/l link
             webDlExpire: '', //  :TODO: fetch web d/l link expire time
         });
@@ -637,14 +643,31 @@ exports.getModule = class FileAreaList extends MenuModule {
         );
     }
 
+    //
+    //  'read' lets a user browse an area; 'download' is what lets them take
+    //  something out of it. Where the two differ, say so rather than letting
+    //  the queue key look broken.
+    //
+    _queueIndicatorFor(entry, queued, notQueued, noAccess) {
+        if (!this.dlQueue.canDownload(entry)) {
+            return noAccess;
+        }
+        return this.dlQueue.isQueued(entry) ? queued : notQueued;
+    }
+
     updateQueueIndicator() {
-        const isQueuedIndicator = this.menuConfig.config.isQueuedIndicator || 'Y';
-        const isNotQueuedIndicator = this.menuConfig.config.isNotQueuedIndicator || 'N';
+        const config = this.menuConfig.config;
+        const isQueuedIndicator = config.isQueuedIndicator || 'Y';
+        const isNotQueuedIndicator = config.isNotQueuedIndicator || 'N';
+        const noDownloadAccessIndicator = config.noDownloadAccessIndicator || '-';
 
         this.currentFileEntry.entryInfo.isQueued = stringFormat(
-            this.dlQueue.isQueued(this.currentFileEntry)
-                ? isQueuedIndicator
-                : isNotQueuedIndicator
+            this._queueIndicatorFor(
+                this.currentFileEntry,
+                isQueuedIndicator,
+                isNotQueuedIndicator,
+                noDownloadAccessIndicator
+            )
         );
 
         this.updateCustomViewTextsWithFilter(

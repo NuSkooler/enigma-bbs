@@ -18,6 +18,7 @@ const Events = require('./events.js');
 const UserProps = require('./user_property.js');
 const SysProps = require('./system_menu_method.js');
 const { buildUrl } = require('./web_util');
+const { hasFileAreaDownloadAccess } = require('./file_base_area.js');
 
 //  deps
 const hashids = require('hashids/cjs');
@@ -243,6 +244,20 @@ class FileAreaWebAccess {
             return cb(notEnabledError());
         }
 
+        //  Central gate for web links: several paths reach here without going
+        //  through the download queue (browse -> "web link", for one).
+        if (!hasFileAreaDownloadAccess(client, fileEntry.areaTag)) {
+            Log.info(
+                {
+                    username: client.user.username,
+                    fileId: fileEntry.fileId,
+                    areaTag: fileEntry.areaTag,
+                },
+                'Refusing web download link; no download ACS for area'
+            );
+            return cb(Errors.AccessDenied('No download access to this file area'));
+        }
+
         const hashId = this.getSingleFileHashId(client, fileEntry);
         const url = this.buildSingleFileTempDownloadLink(client, fileEntry, hashId);
         options.expireTime = options.expireTime || moment().add(2, 'days');
@@ -256,6 +271,29 @@ class FileAreaWebAccess {
         if (!this.isEnabled()) {
             return cb(notEnabledError());
         }
+
+        //  A queue persists across sessions, so it can outlive the rights that
+        //  filled it. Drop anything the user may no longer take.
+        const allowed = fileEntries.filter(entry =>
+            hasFileAreaDownloadAccess(client, entry.areaTag)
+        );
+
+        if (allowed.length !== fileEntries.length) {
+            Log.info(
+                {
+                    username: client.user.username,
+                    requested: fileEntries.length,
+                    allowed: allowed.length,
+                },
+                'Omitting batch download entries; no download ACS for area'
+            );
+        }
+
+        if (0 === allowed.length) {
+            return cb(Errors.AccessDenied('No download access to any queued file area'));
+        }
+
+        fileEntries = allowed;
 
         const batchId = moment().utc().unix();
         const hashId = this.getBatchArchiveHashId(client, batchId);
