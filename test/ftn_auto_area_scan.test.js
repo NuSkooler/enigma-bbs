@@ -258,3 +258,181 @@ describe('FTN automatic area creation: read-only inbound scan', () => {
         assert.equal(scanned, false, 'no scan should run with the feature off');
     });
 });
+
+//
+//  The whole path, end to end: real packets in a real inbound directory, a
+//  real config.hjson with a real include, through maybeAutoCreateAreas().
+//  Each half is covered above and in auto_area_create.test.js; this is the
+//  join between them.
+//
+describe('FTN automatic area creation: end to end', () => {
+    const hjson = require('hjson');
+    const autoAreaCreate = require('../core/auto_area_create.js');
+
+    let savedGet;
+    let savedReload;
+
+    before(() => {
+        savedGet = configModule.get;
+        savedReload = configModule.reload;
+    });
+
+    after(() => {
+        configModule.get = savedGet;
+        configModule.reload = savedReload;
+        delete require.cache[FTN_BSO_PATH];
+    });
+
+    function writeConfigHjson(autoAreas) {
+        const config = {
+            includes: [autoAreaCreate.GeneratedIncludeFileName],
+            debug: { assertsEnabled: false },
+            scannerTossers: {
+                ftn_bso: {
+                    paths: {
+                        inbound: paths.join(tempDir, 'in'),
+                        secInbound: paths.join(tempDir, 'secin'),
+                        outbound: paths.join(tempDir, 'out'),
+                    },
+                    nodes: {},
+                },
+            },
+            messageConferences: {
+                fsxnet: { name: 'fsxNet', desc: 'fsxNet', areas: {} },
+            },
+            messageNetworks: {
+                ftn: {
+                    networks: {
+                        fsxnet: Object.assign({ localAddress: '21:1/121' }, autoAreas),
+                    },
+                    areas: {
+                        fsx_gen: {
+                            network: 'fsxnet',
+                            tag: 'FSX_GEN',
+                            uplinks: ['21:1/100'],
+                        },
+                    },
+                },
+            },
+        };
+
+        fs.writeFileSync(
+            paths.join(tempDir, 'config.hjson'),
+            hjson.stringify(config, { emitRootBraces: true, space: 4, eol: '\n' }),
+            'utf8'
+        );
+    }
+
+    beforeEach(() => {
+        tempDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-autoarea-e2e-'));
+        ['in', 'secin', 'out'].forEach(d => fs.mkdirSync(paths.join(tempDir, d)));
+        fs.writeFileSync(
+            paths.join(tempDir, autoAreaCreate.GeneratedIncludeFileName),
+            '{}\n',
+            'utf8'
+        );
+    });
+
+    afterEach(() => {
+        delete require.cache[FTN_BSO_PATH];
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    function loadConfig() {
+        return new Promise((resolve, reject) =>
+            configModule.Config.create(
+                paths.join(tempDir, 'config.hjson'),
+                { hotReload: false },
+                err => (err ? reject(err) : resolve())
+            )
+        );
+    }
+
+    it('creates areas for unknown tags found in inbound mail, and they resolve', async () => {
+        writeConfigHjson({
+            autoAreas: {
+                confTag: 'fsxnet',
+                maxAutoCreate: 10,
+                onDemand: { enabled: true },
+            },
+        });
+        await loadConfig();
+
+        await writePacket('e2e00001.pkt', makeHeader(), [
+            makeEchoMessage('FSX_GEN', 'already configured'),
+            makeEchoMessage('FSX_BBS', 'unknown'),
+            makeEchoMessage('FSX_MYS', 'unknown too'),
+        ]);
+
+        const inst = makeModule();
+        await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+
+        //  ...the areas now resolve, which is what lets pass 2 import the mail
+        const { getMessageAreaByTag } = require('../core/message_area.js');
+        assert.ok(getMessageAreaByTag('fsx_bbs'), 'fsx_bbs should now exist');
+        assert.ok(getMessageAreaByTag('fsx_mys'), 'fsx_mys should now exist');
+
+        //  ...and the tosser can map the FTN tag to them
+        assert.equal(inst.getLocalAreaTagByFtnAreaTag('FSX_BBS'), 'fsx_bbs');
+
+        //  read-only, both halves
+        const ftnArea = configModule.get().messageNetworks.ftn.areas.fsx_bbs;
+        assert.equal(ftnArea.uplinks, undefined);
+        assert.equal(getMessageAreaByTag('fsx_bbs').acs.write, autoAreaCreate.DenyAllAcs);
+
+        //  the packet is still there for pass 2
+        assert.ok(fs.existsSync(paths.join(tempDir, 'in', 'e2e00001.pkt')));
+    });
+
+    it('does nothing when the generated include is not wired into config.hjson', async () => {
+        writeConfigHjson({
+            autoAreas: {
+                confTag: 'fsxnet',
+                onDemand: { enabled: true },
+            },
+        });
+        //  drop the include entry, keeping the file
+        const configPath = paths.join(tempDir, 'config.hjson');
+        const parsed = hjson.parse(fs.readFileSync(configPath, 'utf8'));
+        parsed.includes = [];
+        fs.writeFileSync(
+            configPath,
+            hjson.stringify(parsed, { emitRootBraces: true, space: 4, eol: '\n' }),
+            'utf8'
+        );
+        await loadConfig();
+
+        await writePacket('e2e00002.pkt', makeHeader(), [
+            makeEchoMessage('FSX_BBS', 'unknown'),
+        ]);
+
+        const inst = makeModule();
+        await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+
+        const { getMessageAreaByTag } = require('../core/message_area.js');
+        assert.equal(getMessageAreaByTag('fsx_bbs'), undefined);
+    });
+
+    it('honours the ignore list against real inbound mail', async () => {
+        writeConfigHjson({
+            autoAreas: {
+                confTag: 'fsxnet',
+                ignore: ['FSX_BOT'],
+                onDemand: { enabled: true },
+            },
+        });
+        await loadConfig();
+
+        await writePacket('e2e00003.pkt', makeHeader(), [
+            makeEchoMessage('FSX_BOT', 'noisy robot echo'),
+            makeEchoMessage('FSX_BBS', 'wanted'),
+        ]);
+
+        const inst = makeModule();
+        await new Promise(resolve => inst.maybeAutoCreateAreas(resolve));
+
+        const { getMessageAreaByTag } = require('../core/message_area.js');
+        assert.ok(getMessageAreaByTag('fsx_bbs'));
+        assert.equal(getMessageAreaByTag('fsx_bot'), undefined);
+    });
+});
