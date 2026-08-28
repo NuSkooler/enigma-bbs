@@ -302,6 +302,11 @@ Actions:
 
   import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
 
+  auto-areas init             Prepare automatic message area creation: creates
+                              auto-areas.hjson and adds it to "includes" in
+                              config.hjson. Safe to re-run. The feature itself
+                              stays off until configured per network.
+
   qwk-dump PATH               Dumps a QWK packet to stdout.
   qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
                               packet in the directory specified by PATH. The QWK
@@ -326,11 +331,14 @@ qwk-export arguments:
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
 | `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file. Optionally maps areas to FTN networks.  | `./oputil.js mb import-areas /some/path/l33tnet.na`   |
+| `auto-areas init` | One-time setup for [automatic area creation](../messageareas/ftn.md#automatic-area-creation) | `./oputil.js mb auto-areas init` |
 | `areafix` | Utility for sending AreaFix mails without logging into the system | |
 | `qwk-dump` | Dump a QWK packet to stdout | `./oputil.js mb qwk-dump /path/to/XIBALBA.QWK` |
 | `qwk-export` | Export messages to a QWK packet | `./oputil.js mb qwk-export /path/to/XIBALBA.QWK` |
 
 When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".
+
+The format of the supplied file is determined by its **content**, not its extension: several networks ship a FILEBONE *file* echo list named `*.na`, and at least one ships its list with the columns reversed. `import-areas` skips `;`, `%` and `#` comment lines, tells you which lines it could not use, and declines a file it does not recognise rather than importing nonsense. A FILEBONE list is recognised as such and pointed at [`fb import-areas`](#importing-filegate-raid-style-areas). `AREAS.BBS` cannot be told from a plain area list by shape, so it is only assumed when the file is named `.bbs` or `--type bbs` is given.
 
 ## FAT Disk Image Management
 The `fat` command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the `v86_door` module.

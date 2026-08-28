@@ -3,6 +3,35 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Message areas can now be created automatically for EchoMail you are not configured for** ([#241](https://github.com/NuSkooler/enigma-bbs/issues/241)) — mail arriving for an unknown FTN area tag was skipped with a warning, and since the packet was then removed, skipped meant *lost*. ENiGMA½ can now create those areas instead. **Off unless you configure it**; a system with no `autoAreas` block behaves exactly as before, and with no network enabled nothing extra runs at all.
+
+  Setup is one command — `./oputil.js mb auto-areas init` — and then a per-network `autoAreas` block. See [FTN](docs/_docs/messageareas/ftn.md#automatic-area-creation).
+
+  * **Created areas are read-only, and that means both halves.** They carry no `uplinks`, so nothing is exported. On its own that is not read-only: a local user could still post into an area that looks live and goes nowhere. So they also carry a write-deny ACS. To adopt one, define it in `config.hjson` with your own `uplinks` and `acs` — `config.hjson` always wins over the generated file.
+
+  * **Nothing is ever written to your `config.hjson`.** Created areas go to a generated `auto-areas.hjson` pulled in through `includes`, which merges such that your own file wins. That file can therefore be rewritten on every pass without ever touching a description you wrote by hand.
+
+  * **Real names and descriptions come from the network info pack.** The pack arrives by TIC like any other file; ENiGMA½ looks for it in the file area you name rather than waiting to be told, so one that landed before you enabled the feature counts too. It only renames areas you already carry — a pack lists what the *network* carries, which would otherwise leave you with hundreds of permanently empty areas.
+
+  * **Collisions are refused, not merged.** An FTN tag lower cases straight onto a local area tag, and `PRIVATE_MAIL` would land an echo in everyone's mailbox. A tag already used in any conference, or carried by another network, is refused too, and the reason is logged.
+
+  * **`ignore` and `maxAutoCreate`.** Adding a tag to `ignore` removes it if it was already created, so it is a real un-create. `maxAutoCreate` caps the total ever created for a network rather than the number per run — a per-run cap compounds.
+
+  * **AreaFix rescan is optional, off, and has no default command.** [FSC-0057](http://ftsc.org/docs/fsc-0057.003) specifies `=TAG R=n` and Mystic and CrashMail II implement it, but husky and SBBSecho do not: they read it as a request to *add* an area with a garbage tag, and a husky hub with `forwardRequests` may pass that upstream. There is no portable form, so you state the one your uplink speaks or nothing is sent. Replies are matched to requests actually sent and summarised to you in NetMail.
+
+* **`oputil mb import-areas` imported comment lines as message areas** ([#733](https://github.com/NuSkooler/enigma-bbs/issues/733)) — a leading `;` or `%` line became an area whose tag was the comment character. Measured against real network info packs, importing fsxNet's file echo list produced 18 of them and AgoraNet's 14, written straight into `config.hjson` for you to find and remove by hand.
+
+  The area list parser is now shared between `oputil` and automatic area creation, and it works out the format from the file's **content** rather than its extension:
+
+  * `;`, `%` and `#` comment lines are skipped. fsxNet used `%` in its 2018 pack and `;` in the current one, so both are needed.
+  * A FILEBONE *file* echo list — which six of eight surveyed networks ship named `*.na`, alongside their message list — is recognised and sent to `fb import-areas` instead of being imported as areas all tagged `Area`.
+  * A list with the columns reversed, description first, is recognised and refused. SpookNet ships one, and the old parser took 35 entries from it with tags like `Aliens,` — nothing on those lines is malformed enough to reject one at a time, so the decision has to be made about the file as a whole.
+  * Lines that survive but cannot be used are listed for you before the confirmation prompt instead of being silently dropped.
+
+  `AREAS.BBS` is unchanged: it cannot be told from a plain area list by shape, so it is still only assumed from the `.bbs` extension or `--type bbs`.
+
+* **A missing `includes:` file said the wrong thing on startup** — a file listed in `includes` that does not exist stops the board from starting, correctly, but the message advised running `./oputil.js config new` as though `config.hjson` itself were missing, and printed the placeholder `'{configFile}'` instead of a path. Both now name the file that is actually missing and say what to do about it.
+
 * **A second instance bound nothing, said nothing, and kept running** ([#547](https://github.com/NuSkooler/enigma-bbs/issues/547)) — starting ENiGMA½ while another instance already held its ports produced no error, no `System started!`, and no exit. The process simply sat there, serving no one.
 
   Node's `server.listen(port, host, cb)` registers `cb` as a one-shot `'listening'` listener: it never receives an error argument, and on a failed bind it never fires at all. Every server treated it as an error-first callback, so `EADDRINUSE` left the startup series in `listening_server.js` waiting for a callback that would never come. Telnet caught the event but logged it at `info` — and the default logging config writes to a rotating file with no console stream, so nothing reached the terminal. The remaining servers had no server-level `'error'` handler at all, so the event fell through to the process-level `uncaughtException` net, which by design keeps the process alive.
