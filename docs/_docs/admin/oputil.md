@@ -201,7 +201,8 @@ remove arguments:
 import-areas arguments:
   --type TYPE                  Sets import areas type
 
-  Valid types are are "zxx" or "na".
+  Valid types are are "zxx" or "na". This selects which file extensions are
+  accepted; the format itself is determined from the file's content.
 
   --create-dirs                Also create backing storage directories
 
@@ -274,6 +275,12 @@ file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
 ### Importing FileGate RAID Style Areas
 Given a FileGate "RAID" style `FILEGATE.ZXX` file, one can import areas. This format also often comes in FTN-style info packs in the form of a `.NA` file i.e.: `FILEBONE.NA`.
 
+The format is determined from the file's **content**, so a `.na` file holding a FILEBONE list works regardless of what it is called. A handful of networks — ArakNet among them — instead ship their *file* echo list as a plain `TAG  Description` list, and those are now imported too rather than producing "Nothing to import".
+
+> :warning: A plain `TAG  Description` list is exactly the shape a **message** echo list uses, and nothing in the content distinguishes them. `import-areas` says so before the confirmation prompt; check the listed areas before answering yes, particularly with `--create-dirs`.
+
+A list in a format that cannot be recognised — including the reversed-column `Description … TAG` style one network ships — is refused with an explanation rather than partly imported.
+
 #### Example
 ```bash
 ./oputil.js fb import-areas FILEGATE.ZXX --create-dirs
@@ -302,6 +309,11 @@ Actions:
 
   import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
 
+  auto-areas init             Prepare automatic message area creation: creates
+                              auto-areas.hjson and adds it to "includes" in
+                              config.hjson. Safe to re-run. The feature itself
+                              stays off until configured per network.
+
   qwk-dump PATH               Dumps a QWK packet to stdout.
   qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
                               packet in the directory specified by PATH. The QWK
@@ -326,11 +338,14 @@ qwk-export arguments:
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
 | `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file. Optionally maps areas to FTN networks.  | `./oputil.js mb import-areas /some/path/l33tnet.na`   |
+| `auto-areas init` | One-time setup for [automatic area creation](../messageareas/ftn.md#automatic-area-creation) | `./oputil.js mb auto-areas init` |
 | `areafix` | Utility for sending AreaFix mails without logging into the system | |
 | `qwk-dump` | Dump a QWK packet to stdout | `./oputil.js mb qwk-dump /path/to/XIBALBA.QWK` |
 | `qwk-export` | Export messages to a QWK packet | `./oputil.js mb qwk-export /path/to/XIBALBA.QWK` |
 
 When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".
+
+The format of the supplied file is determined by its **content**, not its extension: several networks ship a FILEBONE *file* echo list named `*.na`, and at least one ships its list with the columns reversed. `import-areas` skips `;`, `%` and `#` comment lines, tells you which lines it could not use, and declines a file it does not recognise rather than importing nonsense. A FILEBONE list is recognised as such and pointed at [`fb import-areas`](#importing-filegate-raid-style-areas). `AREAS.BBS` cannot be told from a plain area list by shape, so it is only assumed when the file is named `.bbs` or `--type bbs` is given.
 
 ## FAT Disk Image Management
 The `fat` command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the `v86_door` module.

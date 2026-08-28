@@ -179,7 +179,8 @@ remove arguments:
 import-areas arguments:
   --type TYPE                  Sets import areas type
 
-  Valid types are are "zxx" or "na".
+  Valid types are are "zxx" or "na". This selects which file extensions are
+  accepted; the format itself is determined from the file's content.
 
   --create-dirs                Also create backing storage directories
 `,
@@ -211,6 +212,11 @@ Actions:
   such as "%COMPRESS ZIP" should be quoted.
 
   import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
+
+  auto-areas init             Prepare automatic message area creation: creates
+                              auto-areas.hjson and adds it to "includes" in
+                              config.hjson. Safe to re-run. The feature itself
+                              stays off until configured per network.
 
   qwk-dump PATH               Dumps a QWK packet to stdout.
   qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK

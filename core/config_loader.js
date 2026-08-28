@@ -49,6 +49,34 @@ module.exports = class ConfigLoader {
         return this._reload(baseConfigPath, cb);
     }
 
+    //
+    //  Reload from disk right now, bypassing the file watcher and its debounce.
+    //
+    //  For a caller that has just written a config include and needs the new
+    //  values live before it can continue, waiting on the ConfigChanged event
+    //  is not safe: that event is emitted only on a *successful* reload, so a
+    //  bad include leaves the previous config in place, emits nothing, and an
+    //  unguarded await never returns.  Here the error comes straight back.
+    //
+    reload(cb) {
+        //
+        //  Read from disk, not from ConfigCache.  Without this, a caller that
+        //  has just written an include gets the *previous* parsed copy back:
+        //  the cache is only refreshed by the file watcher, which arrives
+        //  later and on its own schedule.  An explicit reload has to mean
+        //  what it says.
+        //
+        this._forceReCache = true;
+        return this._reload(this.baseConfigPath, err => {
+            this._forceReCache = false;
+
+            if (_.isFunction(this.onReload)) {
+                this.onReload(err);
+            }
+            return cb(err);
+        });
+    }
+
     //  Returns the current effective config.  When theme.js finalises a merged
     //  theme it writes back to this.current directly; get() surfaces that value.
     get() {
@@ -229,6 +257,8 @@ module.exports = class ConfigLoader {
             filePath,
             hotReload: this.hotReload,
             keepWsc: this.keepWsc,
+            //  set for the duration of an explicit reload(); see above
+            forceReCache: true === this._forceReCache,
             callback: this._configFileChanged.bind(this),
         };
 

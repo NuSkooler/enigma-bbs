@@ -26,6 +26,13 @@ module.exports = {
     MessageTotalCount: 'message_post_total_count', //  total non-private messages on the system; non-persistent
     MessagesToday: 'message_post_today', //  non-private messages posted/imported today; non-persistent
 
+    //  JSON: { "<uplink FTN address>": { network, toUserName, tags: { TAG: { action, timestamp } } } }
+    //  AreaFix requests we have sent and are waiting on a reply for
+    FtnAreaFixPending: 'ftn_areafix_pending',
+
+    //  JSON: { "<network>": "<sha256>" } -- last info pack ingested per network
+    FtnInfoPackSha: 'ftn_info_pack_sha',
+
     SysOpUsername: 'sysop_username', //  non-persistent
     SysOpRealName: 'sysop_real_name', //  non-persistent
     SysOpLocation: 'sysop_location', //  non-persistent

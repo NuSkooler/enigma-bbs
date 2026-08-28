@@ -26,6 +26,27 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   **Action:** review your `fileBase.areas` ACS blocks. Areas with no `download` ACS are unaffected -- the default (`GM[users]`) matches the `read` default, so nothing changes for them. Areas where you *did* set `download` will now restrict downloads to what you configured, which may be tighter than what users have actually been getting. Note that an entry whose area is no longer in `config.hjson` fails closed and can no longer be downloaded.
 
+* **Automatic message area creation is available, and off** ([#241](https://github.com/NuSkooler/enigma-bbs/issues/241)). EchoMail for an FTN area tag you have not configured can now create that area instead of being skipped and lost. **No action is required**: with no `autoAreas` block in your configuration nothing changes, and with no network enabled the feature does no work at all.
+
+  **If you want it**, run `./oputil.js mb auto-areas init` once and then add an `autoAreas` block per network — see [FTN](./docs/_docs/messageareas/ftn.md#automatic-area-creation). Two things are worth knowing before you turn it on:
+
+  * The `init` command adds `auto-areas.hjson` to `includes` in your `config.hjson`. **Do not remove that file while it is still listed** — a file listed in `includes` that does not exist stops the board from starting. To back the feature out, remove the `includes` entry first, then the file.
+  * Created areas are **read-only by design**: no `uplinks`, so nothing exports, plus a write-deny `acs` so nothing can be posted into them. If you want to actually link one, define it in your own `config.hjson` with `uplinks` and your own `acs` — `config.hjson` wins over the generated file, so you do not need to edit or remove anything there.
+
+  Turning it on adds a read-only scan of your inbound directories at the start of each import cycle. For loose `.pkt` files that is a second parse; for bundles it is a second extraction, since the import removes each bundle as it finishes with it. Neither happens while the feature is off.
+
+* **`oputil mb import-areas` is stricter about what it will import** ([#733](https://github.com/NuSkooler/enigma-bbs/issues/733)). It previously imported `;` and `%` comment lines as message areas, and imported a FILEBONE *file* echo list — which most networks ship named `*.na`, alongside their message list — as a set of areas all tagged `Area`. It now works the format out from the file's content.
+
+  **Action:** if you have imported a `.na` file in the past, check `config.hjson` for areas tagged `;`, `%` or `Area` and remove them. Going forward, three things that used to "succeed" now stop with an explanation instead:
+
+  * A FILEBONE list is refused and points you at `oputil.js fb import-areas`.
+  * A list with the columns reversed (description first, tag last) is refused — SpookNet ships one, and the old parser accepted 35 nonsense areas from it.
+  * A file in no recognised format is refused rather than half-imported.
+
+  Lines that are skipped for their own reasons are now listed before the confirmation prompt. `AREAS.BBS` handling is unchanged.
+
+  `oputil fb import-areas` shares the same parser. FileGate `.ZXX` and FILEBONE `.NA` files import exactly as before — verified byte for byte against real network packs — and a file echo list shipped as a plain `TAG  Description` list now imports rather than reporting "Nothing to import". **Be aware** that a plain list looks identical to a *message* echo list; `import-areas` warns before the confirmation prompt, so read the area listing before answering yes, especially with `--create-dirs`.
+
 * **A port conflict now stops startup instead of being ignored** ([#547](https://github.com/NuSkooler/enigma-bbs/issues/547)). Previously a server that could not bind its port left the startup sequence hanging with no message and no exit; NNTP specifically logged a warning and carried on, so the board ran with NNTP silently absent. Bind failures are now reported on the console and are **fatal for every server**, and ENiGMA½ exits with a non-zero status.
 
   **Action:** if you run NNTP, Gopher, or the web server on a port something else on the host also uses, a start that previously "worked" (minus that service) will now stop with an explicit error. Fix the conflicting port in `config.hjson`, or disable the service with `enabled: false`.

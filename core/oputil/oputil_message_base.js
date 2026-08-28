@@ -15,6 +15,14 @@ const {
 const getHelpFor = require('./oputil_help.js').getHelpFor;
 const Address = require('../ftn_address.js');
 const Errors = require('../enig_error.js').Errors;
+const {
+    AreaListFormat,
+    parseAreaList,
+    describeFormat,
+    validateUplinks,
+    localAreaTagFor,
+    buildAreaImportRecords,
+} = require('../area_import.js');
 
 //	deps
 const async = require('async');
@@ -142,15 +150,6 @@ function areaFix() {
     );
 }
 
-function validateUplinks(uplinks) {
-    const ftnAddress = require('../../core/ftn_address.js');
-    const valid = uplinks.every(ul => {
-        const addr = ftnAddress.fromString(ul);
-        return addr;
-    });
-    return valid;
-}
-
 function getMsgAreaImportType(path) {
     if (argv.type) {
         return argv.type.toLowerCase();
@@ -179,6 +178,7 @@ function importAreas() {
     }
 
     let importEntries;
+    let importSkipped = [];
 
     async.waterfall(
         [
@@ -188,10 +188,43 @@ function importAreas() {
                         return callback(err);
                     }
 
-                    importEntries = getImportEntries(importType, importData);
-                    if (0 === importEntries.length) {
-                        return callback(Errors.Invalid('Invalid or empty import file'));
+                    //
+                    //  AREAS.BBS cannot be told apart from a plain area list by
+                    //  shape, so it is only ever used when asked for explicitly.
+                    //  Everything else is sniffed from content: the extension
+                    //  does not indicate the format -- several networks ship a
+                    //  FILEBONE file echo list named "*.na".
+                    //
+                    const parsed = parseAreaList(
+                        importData,
+                        'bbs' === importType ? { format: AreaListFormat.AreasBbs } : {}
+                    );
+
+                    if (AreaListFormat.FileBone === parsed.format) {
+                        return callback(
+                            Errors.Invalid(
+                                `"${paths.basename(importPath)}" is a ${describeFormat(
+                                    parsed.format
+                                )}, not a message area list.\n` +
+                                    'File echo lists are imported with "oputil.js fb import-areas".'
+                            )
+                        );
                     }
+
+                    if (0 === parsed.entries.length) {
+                        return callback(
+                            Errors.Invalid(
+                                `Nothing to import from "${paths.basename(
+                                    importPath
+                                )}": ${describeFormat(parsed.format)} ` +
+                                    `(${parsed.stats.dataLines} data line(s), ` +
+                                    `${parsed.stats.commentLines} comment line(s))`
+                            )
+                        );
+                    }
+
+                    importEntries = parsed.entries;
+                    importSkipped = parsed.skipped;
 
                     //	We should have enough to validate uplinks
                     if ('bbs' === importType) {
@@ -295,7 +328,7 @@ function importAreas() {
                         uplinks = uplinks || answers.uplinks;
 
                         importEntries.forEach(ie => {
-                            ie.areaTag = ie.ftnTag.toLowerCase();
+                            ie.areaTag = localAreaTagFor(ie.ftnTag);
                         });
 
                         return callback(null);
@@ -338,6 +371,17 @@ function importAreas() {
                 importEntries.forEach(ie => {
                     console.info(`  ${ie.ftnTag} - ${ie.name}`);
                 });
+
+                if (importSkipped.length > 0) {
+                    console.info('');
+                    console.info(
+                        `${importSkipped.length} line(s) skipped and NOT imported:`
+                    );
+                    importSkipped.forEach(sk => {
+                        console.info(`  line ${sk.lineNumber}: ${sk.reason}`);
+                        console.info(`    ${sk.text}`);
+                    });
+                }
 
                 if (networkName) {
                     console.info('');
@@ -386,29 +430,18 @@ function importAreas() {
                 });
             },
             function performImport(config, callback) {
-                const confAreas = { messageConferences: {} };
-                confAreas.messageConferences[confTag] = { areas: {} };
-
-                const msgNetworks = { messageNetworks: { ftn: { areas: {} } } };
-
-                importEntries.forEach(ie => {
-                    const specificUplinks = ie.uplinks || uplinks; //	AREAS.BBS has specific uplinks per area
-
-                    confAreas.messageConferences[confTag].areas[ie.areaTag] = {
-                        name: ie.name,
-                        desc: ie.name,
-                    };
-
-                    if (networkName) {
-                        msgNetworks.messageNetworks.ftn.areas[ie.areaTag] = {
-                            network: networkName,
-                            tag: ie.ftnTag,
-                            uplinks: specificUplinks,
-                        };
-                    }
+                //	AREAS.BBS carries per-area uplinks; everything else uses |uplinks|
+                const records = buildAreaImportRecords(importEntries, {
+                    confTag,
+                    networkName,
+                    uplinks,
                 });
 
-                const newConfig = _.defaultsDeep(config, confAreas, msgNetworks);
+                const newConfig = _.defaultsDeep(
+                    config,
+                    { messageConferences: records.messageConferences },
+                    { messageNetworks: records.messageNetworks }
+                );
                 const configPath = getConfigPath();
 
                 if (!writeConfig(newConfig, configPath)) {
@@ -436,52 +469,113 @@ function importAreas() {
     );
 }
 
-function getImportEntries(importType, importData) {
-    let importEntries = [];
-
-    if ('na' === importType) {
-        //
-        //	parse out
-        //	TAG		DESC
-        //
-        const re = /^([^\s]+)\s+([^\r\n]+)/gm;
-        let m;
-
-        while ((m = re.exec(importData))) {
-            importEntries.push({
-                ftnTag: m[1].trim(),
-                name: m[2].trim(),
-            });
-        }
-    } else if ('bbs' === importType) {
-        //
-        //	Various formats for AREAS.BBS seem to exist. We want to support as much as possible.
-        //
-        //	SBBS http://www.synchro.net/docs/sbbsecho.html#AREAS.BBS
-        //	CODE	TAG		UPLINKS
-        //
-        //	VADV https://www.vadvbbs.com/products/vadv/support/docs/docs_vfido.php#AREAS.BBS
-        //	TAG		UPLINKS
-        //
-        //	Misc
-        //	PATH|OTHER	TAG		UPLINKS
-        //
-        //	Assume the second item is TAG and 1:n UPLINKS (space and/or comma sep) after (at the end)
-        //
-        const re = /^[^\s]+\s+([^\s]+)\s+([^\n]+)$/gm;
-        let m;
-        while ((m = re.exec(importData))) {
-            const tag = m[1].trim();
-
-            importEntries.push({
-                ftnTag: tag,
-                name: `Area: ${tag}`,
-                uplinks: m[2].trim().split(/[\s,]+/),
-            });
-        }
+//
+//	oputil.js mb auto-areas init
+//
+//	Bootstraps automatic area creation.  The order matters: a referenced but
+//	missing include fails the entire config load, so the generated file has to
+//	exist before config.hjson points at it or the board will not start.
+//
+function autoAreas() {
+    const action = argv._[2];
+    if ('init' !== action) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
     }
 
-    return importEntries;
+    const {
+        GeneratedIncludeFileName,
+        emptyGenerated,
+        writeGenerated,
+        addIncludeEntry,
+    } = require('../auto_area_create.js');
+
+    const configPath = getConfigPath();
+    const generatedPath = paths.join(paths.dirname(configPath), GeneratedIncludeFileName);
+
+    async.waterfall(
+        [
+            function createGeneratedFile(callback) {
+                if (fs.existsSync(generatedPath)) {
+                    console.info(`Already present: ${generatedPath}`);
+                    return callback(null);
+                }
+
+                writeGenerated(generatedPath, emptyGenerated(), err => {
+                    if (!err) {
+                        console.info(`Created: ${generatedPath}`);
+                    }
+                    return callback(err);
+                });
+            },
+            function loadConfigHjson(callback) {
+                fs.readFile(configPath, 'utf8', (err, confData) => {
+                    return callback(err, confData);
+                });
+            },
+            function addInclude(confData, callback) {
+                let config;
+                try {
+                    config = hjson.parse(confData);
+                } catch (e) {
+                    return callback(e);
+                }
+
+                const includes = Array.isArray(config.includes) ? config.includes : [];
+                if (
+                    includes.some(inc => paths.basename(inc) === GeneratedIncludeFileName)
+                ) {
+                    console.info(
+                        `Already included from ${configPath}: ${GeneratedIncludeFileName}`
+                    );
+                    return callback(null);
+                }
+
+                const updated = addIncludeEntry(confData, GeneratedIncludeFileName);
+                if (!updated) {
+                    //
+                    //	Refuse rather than fall back to a full rewrite: this is
+                    //	somebody's live configuration and a one line addition is
+                    //	not worth reformatting it.
+                    //
+                    console.info('');
+                    console.info(`Could not safely add the include to ${configPath}.`);
+                    console.info('Please add it by hand:');
+                    console.info('');
+                    console.info('    includes: [');
+                    console.info(`        ${GeneratedIncludeFileName}`);
+                    console.info('    ]');
+                    console.info('');
+                    return callback(Errors.General('Could not update configuration'));
+                }
+
+                try {
+                    fs.writeFileSync(configPath, updated, 'utf8');
+                } catch (e) {
+                    return callback(e);
+                }
+
+                console.info(
+                    `Added to "includes" in ${configPath}: ${GeneratedIncludeFileName}`
+                );
+                return callback(null);
+            },
+        ],
+        err => {
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                return console.error(err.reason ? err.reason : err.message);
+            }
+
+            console.info('');
+            console.info(
+                'Automatic area creation can now be configured per FTN network under'
+            );
+            console.info(
+                'messageNetworks.ftn.networks.<network>.autoAreas -- it stays off until you do.'
+            );
+            console.info('See the Message Networks documentation for details.');
+        }
+    );
 }
 
 function dumpQWKPacket() {
@@ -863,6 +957,7 @@ function handleMessageBaseCommand() {
         {
             areafix: areaFix,
             'import-areas': importAreas,
+            'auto-areas': autoAreas,
             'qwk-dump': dumpQWKPacket,
             'qwk-export': exportQWKPacket,
             'list-confs': listConferences,

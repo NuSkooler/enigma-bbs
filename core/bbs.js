@@ -114,9 +114,32 @@ function main() {
                         console.error(`Configuration error: ${err.message}`); //  eslint-disable-line no-console
 
                         if ('ENOENT' === err.code) {
-                            console.error(
-                                "\nConfiguration file does not exist: '{configFile}'\n\nIf this is a new installation please run './oputil.js config new' from the enigma-bbs directory"
-                            );
+                            //
+                            //  err.configPath names the file that was actually
+                            //  missing, which is not necessarily config.hjson:
+                            //  a file listed in "includes" that is not there
+                            //  fails the whole load in exactly the same way,
+                            //  and telling the operator to run "config new"
+                            //  would be actively wrong advice for that.
+                            //
+                            const missingPath = err.configPath || resolvePath(configFile);
+                            const isBaseConfig =
+                                paths.basename(missingPath).toLowerCase() ===
+                                'config.hjson';
+
+                            if (isBaseConfig) {
+                                console.error(
+                                    `\nConfiguration file does not exist: '${missingPath}'` +
+                                        "\n\nIf this is a new installation please run './oputil.js config new' from the enigma-bbs directory"
+                                );
+                            } else {
+                                console.error(
+                                    `\nA file listed in "includes" does not exist: '${missingPath}'` +
+                                        `\n\nCreate it, or remove it from "includes" in ${resolvePath(
+                                            configFile
+                                        )}.`
+                                );
+                            }
                         }
 
                         if (err.hint) {

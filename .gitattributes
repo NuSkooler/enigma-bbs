@@ -16,3 +16,5 @@ optutil.js text eol=lf
 # The devcontainer is also unix
 .devcontainer/Dockerfile text eol=lf
 .devcontainer/devcontainer.json text eol=lf
+# Real-world FTN area list fixtures - byte exact, never normalize line endings
+test/fixtures/area_lists/** -text

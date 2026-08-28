@@ -1,0 +1,46 @@
+[ADMIN] SpookNet Sysop Net Chat               SN_SYSOP
+Aliens, UFOs & EBEs                           SN_ALIEN
+Computer Security & Hacking                   SN_SECURITY
+Counter-Terrorism                             SN_TERROR
+Covert Communication                          SN_COVERT
+Cryptography & Steganography                  SN_CRYPTO
+Darknets, Network Underground                 SN_DARKNET
+Disease, Pandemics & Disasters                SN_DISASTER
+End Times & The Last Days                     SN_END_TIME
+Truth, Polygraphs, Serums                     SN_TRUTH
+Financial Crisis & Meltdown                   SN_FINANCIAL
+General Conspiracies                          SN_CONSPIRACY
+General Forensics                             SN_FORENSICS
+Intelligence & Espionage                      SN_INTEL
+Intelligence & The Law                        SN_LAW
+Interrogation & Torture                       SN_TORTURE
+Languages & Public Speaking                   SN_LANG
+Middle East Studies                           SN_MID_EAST
+Mind Control & Programming                    SN_MIND
+New World Order                               SN_NWO
+Paranormal Studies                            SN_PARANORMAL
+Predictive Studies                            SN_PREDICT
+Propaganda & Disinformation                   SN_DISINFO
+Politics & People                             SN_POLITICS
+Safe Houses & Sanctuarie                      SN_SAFE_HOUSE
+Secret Societies                              SN_SOCIETY
+Silencers of Information                      SN_SILENCE
+Spooks & Their Weapons                        SN_WEAPONS
+TSCM Bug Detection                            SN_TSCM
+Violent Extremist Religions                   SN_RELIGION
+Whistle Blowers                               SN_WHISTLE
+
+
+
+Filebone Aras:
+--------------
+--------------
+
+
+Private to Sysops                             SN_FSYSOP
+Infopacks                                     SN_FINFOPACK
+Intelligence                                  SN_FINTEL
+Computer Security                             SN_FSECURITY
+Conspiracy                                    SN_FCONSPIRACY
+Religion & Faith                              SN_RELIGION
+Miscellaneos                                  SN_FMISC

@@ -3,7 +3,13 @@
 
 //  ENiGMA½
 const MessageScanTossModule = require('../msg_scan_toss_module.js').MessageScanTossModule;
-const Config = require('../config.js').get;
+const configModule = require('../config.js');
+//  Look up configModule.get on each call rather than capturing it at load
+//  time. It is rebound when the Config bootstrapper runs, and swapped by
+//  tests; a load-time capture freezes whichever getter happened to be
+//  installed when this module was first required. Same reasoning as
+//  message_area.js.
+const Config = (...args) => configModule.get(...args);
 const Events = require('../events.js');
 const ftnMailPacket = require('../ftn_mail_packet.js');
 const ftnUtil = require('../ftn_util.js');
@@ -32,6 +38,9 @@ const {
     legacyOutboundDirName,
     validateOutboundConfig,
 } = require('../bso_util.js');
+const autoAreaCreate = require('../auto_area_create.js');
+const areaInfoPack = require('../area_info_pack.js');
+const { AreaFixStatus, parseAreaFixReply } = require('../areafix_reply.js');
 
 //  deps
 const moment = require('moment');
@@ -1711,6 +1720,27 @@ function FTNMessageScanTossModule() {
                         return callback(err);
                     });
                 },
+                function maybeAreaFixReply(callback) {
+                    //
+                    //  A NetMail from an uplink's AreaFix robot answering a
+                    //  request we sent.  Never fatal to the import: this is
+                    //  reporting, and a failure here must not reject mail
+                    //  that has already been stored.
+                    //
+                    if (Message.WellKnownAreaTags.Private !== config.localAreaTag) {
+                        return callback(null);
+                    }
+
+                    try {
+                        return self.handleAreaFixReply(message, () => callback(null));
+                    } catch (e) {
+                        Log.warn(
+                            { error: e.message },
+                            'Failed handling possible AreaFix reply'
+                        );
+                        return callback(null);
+                    }
+                },
             ],
             err => {
                 cb(err);
@@ -1977,6 +2007,200 @@ function FTNMessageScanTossModule() {
         });
     };
 
+    //
+    //  ── Automatic area creation: pass 1 ──────────────────────────────────
+    //
+    //  Pass 1 finds FTN area tags in inbound mail that we have no local area
+    //  for, so pass 2 can import messages that would otherwise be skipped and
+    //  lost (see the unknown-area branch of importMessagesFromPacketFile).
+    //
+    //  It has to be new, genuinely read-only code.  The import path disposes
+    //  of its input as it goes: every tossed .pkt is archived and then
+    //  unlinked, and bundles are extracted, tossed and unlinked one at a time
+    //  so that a large backlog drains monotonically.  Running the real import
+    //  as pass 1 would destroy the mail before pass 2 could see it.  The cost
+    //  for bundles is a second archive extraction, paid only when the feature
+    //  is switched on.
+    //
+    this.collectUnknownAreaTagsFromPacket = function (packetPath, cb) {
+        let networkName;
+        const unknown = new Set();
+
+        new ftnMailPacket.Packet({ keepTearAndOrigin: false }).read(
+            packetPath,
+            (entryType, entryData, next) => {
+                if ('header' === entryType) {
+                    networkName = self.getNetworkNameByAddress(entryData.destAddress);
+                    if (!_.isString(networkName)) {
+                        //  not addressed to us; the import rejects it too
+                        return next(Errors.Invalid('Packet is not addressed to us'));
+                    }
+
+                    //
+                    //  Apply the same packet password check the import
+                    //  applies.  A packet whose messages will be rejected must
+                    //  not be able to create areas on its way past.
+                    //
+                    const originAddr = new Address(entryData.origAddress);
+                    const nodeConfig = _.find(
+                        self.moduleConfig.nodes,
+                        (node, addrWildcard) => originAddr.isPatternMatch(addrWildcard)
+                    );
+                    if (nodeConfig && nodeConfig.packetPassword) {
+                        const expected = nodeConfig.packetPassword.toUpperCase();
+                        const actual = (entryData.password || '').toUpperCase();
+                        if (expected !== actual) {
+                            return next(Errors.AccessDenied('Packet password mismatch'));
+                        }
+                    }
+
+                    return next(null);
+                }
+
+                if ('message' === entryType) {
+                    const ftnAreaTag = _.get(entryData, 'meta.FtnProperty.ftn_area');
+                    if (ftnAreaTag && !self.getLocalAreaTagByFtnAreaTag(ftnAreaTag)) {
+                        unknown.add(ftnAreaTag.toUpperCase());
+                    }
+                }
+
+                return next(null);
+            },
+            err => {
+                if (err) {
+                    Log.debug(
+                        { path: packetPath, error: err.message },
+                        'Unknown area scan skipped packet'
+                    );
+                    return cb(null, null);
+                }
+                return cb(null, { networkName, ftnTags: Array.from(unknown) });
+            }
+        );
+    };
+
+    this.collectUnknownAreaTagsFromPacketDir = function (dir, collected, cb) {
+        fs.readdir(dir, (err, files) => {
+            if (err) {
+                return cb(null);
+            }
+
+            const packetFiles = files.filter(
+                f => '.pkt' === paths.extname(f).toLowerCase()
+            );
+
+            async.eachSeries(
+                packetFiles,
+                (packetFile, nextFile) => {
+                    self.collectUnknownAreaTagsFromPacket(
+                        paths.join(dir, packetFile),
+                        (scanErr, info) => {
+                            if (info && info.ftnTags.length > 0) {
+                                const set =
+                                    collected[info.networkName] ||
+                                    (collected[info.networkName] = new Set());
+                                info.ftnTags.forEach(t => set.add(t));
+                            }
+                            return nextFile(null);
+                        }
+                    );
+                },
+                () => cb(null)
+            );
+        });
+    };
+
+    //  Remove everything the scan extracted; the source bundles are untouched
+    this.emptyScanTempDir = function (cb) {
+        if (!_.isString(self.scanTempDir)) {
+            return cb(null);
+        }
+
+        fs.readdir(self.scanTempDir, (err, files) => {
+            if (err) {
+                return cb(null);
+            }
+            async.each(
+                files,
+                (f, next) =>
+                    fse.remove(paths.join(self.scanTempDir, f), () => next(null)),
+                () => cb(null)
+            );
+        });
+    };
+
+    this.collectUnknownAreaTagsFromDirectory = function (importDir, collected, cb) {
+        async.series(
+            [
+                callback =>
+                    self.collectUnknownAreaTagsFromPacketDir(
+                        importDir,
+                        collected,
+                        callback
+                    ),
+                callback => {
+                    if (!_.isString(self.scanTempDir)) {
+                        return callback(null);
+                    }
+
+                    fs.readdir(importDir, (err, files) => {
+                        if (err) {
+                            return callback(null);
+                        }
+
+                        const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9a-z]/i;
+                        const bundles = files.filter(f =>
+                            bundleRegExp.test(paths.extname(f))
+                        );
+
+                        async.eachSeries(
+                            bundles,
+                            (file, nextFile) => {
+                                const fullPath = paths.join(importDir, file);
+                                self.archUtil.detectType(fullPath, (err, archName) => {
+                                    if (undefined === archName) {
+                                        return nextFile(null);
+                                    }
+
+                                    self.archUtil.extractTo(
+                                        fullPath,
+                                        self.scanTempDir,
+                                        archName,
+                                        extractErr => {
+                                            if (extractErr) {
+                                                Log.debug(
+                                                    {
+                                                        path: fullPath,
+                                                        error: extractErr.message,
+                                                    },
+                                                    'Unknown area scan could not extract bundle'
+                                                );
+                                                return self.emptyScanTempDir(() =>
+                                                    nextFile(null)
+                                                );
+                                            }
+
+                                            self.collectUnknownAreaTagsFromPacketDir(
+                                                self.scanTempDir,
+                                                collected,
+                                                () =>
+                                                    self.emptyScanTempDir(() =>
+                                                        nextFile(null)
+                                                    )
+                                            );
+                                        }
+                                    );
+                                });
+                            },
+                            () => callback(null)
+                        );
+                    });
+                },
+            ],
+            () => cb(null)
+        );
+    };
+
     this.importPacketFilesFromDirectory = function (importDir, password, cb) {
         async.waterfall(
             [
@@ -2218,8 +2442,19 @@ function FTNMessageScanTossModule() {
 
             temptmp.mkdir({ prefix: 'enigftnimport-' }, (err, tempDir) => {
                 self.importTempDir = tempDir;
+                if (err) {
+                    return cb(err);
+                }
 
-                cb(err);
+                //  Kept separate from importTempDir: the read-only area scan
+                //  extracts bundles here and deletes what it extracted, while
+                //  the import path unlinks packets out of its own directory as
+                //  it tosses them.  Sharing one would have each removing the
+                //  other's work.
+                temptmp.mkdir({ prefix: 'enigftnareascan-' }, (err, tempDir) => {
+                    self.scanTempDir = tempDir;
+                    cb(err);
+                });
             });
         });
     };
@@ -2987,6 +3222,9 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
             this.moduleConfig = config.scannerTossers.ftn_bso;
         }
 
+        //  so a fixed auto-areas include is noticed rather than staying quiet
+        this._autoAreaIncludeWarned = false;
+
         //  ...and re-check what the new config says about the outbound spool:
         //  a reload can introduce a bad defaultNetwork, or move the default
         //  network and leave mail behind in the previous directory.
@@ -3273,6 +3511,518 @@ function sweepOrphanBsyFiles(dirs) {
 const IMPORT_WATCHDOG_MS = 5 * 60 * 1000;
 const EXPORT_WATCHDOG_MS = 10 * 60 * 1000;
 
+//
+//  ── Automatic area creation ──────────────────────────────────────────────
+//
+//  Two-pass toss.  At the unknown-area branch of the import a message is
+//  skipped and the packet then disposed of, so "skipped" means lost.  Rather
+//  than create inline -- which would mean writing config, reloading and
+//  re-resolving inside the packet loop, with everything already iterated past
+//  still lost -- the inbound directories are scanned read-only first, the
+//  areas created, and the import then run normally.
+//
+FTNMessageScanTossModule.prototype.maybeAutoCreateAreas = function (cb) {
+    const self = this;
+
+    const networkNames = autoAreaCreate.onDemandNetworkNames();
+    if (0 === networkNames.length) {
+        return cb(null); //  feature off: no scan, no cost
+    }
+
+    const includeState = autoAreaCreate.getGeneratedIncludeState();
+    if (!includeState.included) {
+        //
+        //  Warn once rather than every cycle.  The flag is cleared on
+        //  ConfigChanged so fixing it is noticed.
+        //
+        if (!self._autoAreaIncludeWarned) {
+            self._autoAreaIncludeWarned = true;
+            Log.warn(
+                {
+                    networks: networkNames,
+                    expected: includeState.path,
+                },
+                `Automatic area creation is enabled but "${autoAreaCreate.GeneratedIncludeFileName}" is not included from config.hjson; run "oputil.js mb auto-areas init"`
+            );
+        }
+        return cb(null);
+    }
+
+    const collected = {};
+
+    async.eachSeries(
+        ['inbound', 'secInbound'],
+        (inboundType, nextDir) => {
+            const importDir = self.moduleConfig.paths[inboundType];
+            if (!_.isString(importDir)) {
+                return nextDir(null);
+            }
+            self.collectUnknownAreaTagsFromDirectory(importDir, collected, () =>
+                nextDir(null)
+            );
+        },
+        () => {
+            const wanted = networkNames.filter(
+                n => collected[n] && collected[n].size > 0
+            );
+            if (0 === wanted.length) {
+                return cb(null);
+            }
+
+            async.eachSeries(
+                wanted,
+                (networkName, nextNetwork) => {
+                    const ftnTags = Array.from(collected[networkName]);
+
+                    autoAreaCreate.createAreas(networkName, ftnTags, (err, result) => {
+                        if (err) {
+                            Log.error(
+                                { networkName, error: err.message },
+                                'Automatic message area creation failed'
+                            );
+                            return nextNetwork(null);
+                        }
+
+                        self.reportAutoCreatedAreas(networkName, result, () =>
+                            nextNetwork(null)
+                        );
+                    });
+                },
+                () => cb(null)
+            );
+        }
+    );
+};
+
+//  Log what happened, tell the operator once per batch, and optionally ask
+//  the uplink to rescan.
+FTNMessageScanTossModule.prototype.reportAutoCreatedAreas = function (
+    networkName,
+    result,
+    cb
+) {
+    const self = this;
+
+    if (result.pruned.length > 0) {
+        Log.info(
+            { networkName, areaTags: result.pruned },
+            `Removed ${result.pruned.length} automatically created area(s) now in the ignore list`
+        );
+    }
+
+    result.rejected.forEach(r => {
+        Log.warn(
+            { networkName, ftnTag: r.ftnTag, areaTag: r.areaTag, reason: r.reason },
+            `Refused to automatically create "${r.ftnTag}": ${r.reason}`
+        );
+    });
+
+    if (0 === result.created.length) {
+        return cb(null);
+    }
+
+    Log.info(
+        { networkName, areas: result.created.map(c => c.areaTag) },
+        `Automatically created ${result.created.length} message area(s) for "${networkName}"`
+    );
+
+    async.series(
+        [
+            callback => self.notifyOpOfAutoCreatedAreas(networkName, result, callback),
+            callback => self.maybeRequestAreaFixRescan(networkName, result, callback),
+        ],
+        () => cb(null)
+    );
+};
+
+//  One netmail to the operator per batch, not per area: a first pull that
+//  creates 300 areas should be one message.
+FTNMessageScanTossModule.prototype.notifyOpOfAutoCreatedAreas = function (
+    networkName,
+    result,
+    cb
+) {
+    const lines = [
+        `${result.created.length} message area(s) were automatically created for the`,
+        `"${networkName}" network after EchoMail arrived for area tags that were not`,
+        'configured:',
+        '',
+    ];
+
+    result.created.forEach(c => {
+        lines.push(`  ${c.ftnTag}  ->  ${c.areaTag}`);
+    });
+
+    lines.push('');
+    lines.push(
+        'These areas are read-only: they have no uplinks, so nothing is exported,'
+    );
+    lines.push(
+        'and they carry a write-deny ACS so nothing can be posted into them either.'
+    );
+    lines.push('');
+    lines.push(
+        `They are defined in ${autoAreaCreate.GeneratedIncludeFileName}. To adopt one,`
+    );
+    lines.push(
+        'define it in config.hjson with your own uplinks and acs -- config.hjson wins'
+    );
+    lines.push('over the generated file. To make one go away, add its FTN tag to the');
+    lines.push(`"autoAreas.ignore" list for "${networkName}".`);
+
+    if (result.rejected.length > 0) {
+        lines.push('');
+        lines.push('The following were NOT created:');
+        result.rejected.forEach(r => {
+            lines.push(`  ${r.ftnTag}: ${r.reason}`);
+        });
+    }
+
+    const message = new Message({
+        toUserName: StatLog.getSystemStat(SysProps.SysOpUsername) || 'SysOp',
+        fromUserName: 'ENiGMA½',
+        subject: `${result.created.length} message area(s) automatically created`,
+        message: lines.join('\r\n'),
+        areaTag: Message.WellKnownAreaTags.Private,
+    });
+    message.setLocalToUserId(User.RootUserID);
+
+    message.persist(err => {
+        if (err) {
+            Log.warn(
+                { error: err.message },
+                'Failed to notify the operator of automatically created areas'
+            );
+        }
+        return cb(null);
+    });
+};
+
+//
+//  ── AreaFix rescan ───────────────────────────────────────────────────────
+//
+//  Off by default, and the command has no default form.
+//
+//  FSC-0057's own "=TAG R=n" is spec correct but not portable: Mystic (what
+//  the fsxNet hubs run) and CrashMail II implement '=', while husky and
+//  SBBSecho do not.  Against husky, "=TAG, R=n" falls through to a subscribe
+//  of a garbage tag and, on a hub with forwardRequests, may be sent upstream
+//  as a *new area* request.  There is no safe universal syntax, so the
+//  operator states the one their uplink speaks or no request is sent.
+//
+FTNMessageScanTossModule.prototype.maybeRequestAreaFixRescan = function (
+    networkName,
+    result,
+    cb
+) {
+    const self = this;
+
+    const autoConfig = autoAreaCreate.getAutoAreasConfig(networkName);
+    const onDemand = _.get(autoConfig, 'onDemand', {});
+
+    if (true !== onDemand.rescan) {
+        return cb(null);
+    }
+
+    const uplink = Address.fromString(onDemand.rescanUplink || '');
+    if (!uplink) {
+        Log.warn(
+            { networkName, rescanUplink: onDemand.rescanUplink },
+            'autoAreas rescan is enabled but "rescanUplink" is missing or not a valid FTN address'
+        );
+        return cb(null);
+    }
+
+    const commandTemplate = onDemand.rescanCommand;
+    if (!_.isString(commandTemplate) || 0 === commandTemplate.length) {
+        Log.warn(
+            { networkName },
+            'autoAreas rescan is enabled but "rescanCommand" is not set; AreaFix rescan syntax differs per uplink and has no safe default'
+        );
+        return cb(null);
+    }
+
+    const days = _.isNumber(onDemand.rescanDays) ? onDemand.rescanDays : 0;
+
+    const body =
+        result.created
+            .map(c =>
+                commandTemplate
+                    .replace(/%TAG%/g, c.ftnTag)
+                    .replace(/%DAYS%/g, String(days))
+            )
+            .join('\r\n') + '\r\n';
+
+    const toUserName = onDemand.rescanTo || 'AreaFix';
+
+    User.getUserName(User.RootUserID, (err, fromName) => {
+        const message = new Message({
+            toUserName,
+            fromUserName: fromName || 'SysOp',
+            subject: onDemand.rescanPassword || '',
+            message: body,
+            areaTag: Message.WellKnownAreaTags.Private,
+            meta: {
+                System: {
+                    [Message.SystemMetaNames.RemoteToUser]: uplink.toString(),
+                    [Message.SystemMetaNames.ExternalFlavor]: Message.AddressFlavor.FTN,
+                },
+            },
+        });
+
+        if (!err) {
+            message.setLocalFromUserId(User.RootUserID);
+        }
+
+        //
+        //  persistMessage() rather than message.persist(): the latter does not
+        //  record the message with the message network modules, which is what
+        //  drives "@immediate" export. A system scheduling export as
+        //  "@immediate" alone would otherwise queue this request and never
+        //  send it.
+        //
+        const { persistMessage } = require('../message_area.js');
+        persistMessage(message, persistErr => {
+            if (persistErr) {
+                Log.warn(
+                    { networkName, error: persistErr.message },
+                    'Failed to queue AreaFix rescan request'
+                );
+                return cb(null);
+            }
+
+            Log.info(
+                {
+                    networkName,
+                    uplink: uplink.toString(),
+                    areas: result.created.map(c => c.ftnTag),
+                },
+                `Queued AreaFix rescan request for ${result.created.length} area(s)`
+            );
+
+            //
+            //  Queued is not sent. NetMail needs a route to reach an uplink,
+            //  and without one the export fails with the request still sitting
+            //  in the message base -- which reads as "we asked and got no
+            //  answer" rather than "we never asked". Check the same way the
+            //  export will, and say so now.
+            //
+            self.getNetMailRouteInfoFromAddress(uplink, routeErr => {
+                if (routeErr) {
+                    Log.warn(
+                        {
+                            networkName,
+                            uplink: uplink.toString(),
+                            error: routeErr.message,
+                        },
+                        'AreaFix rescan request is queued but cannot be routed; it will not be sent until "scannerTossers.ftn_bso.netMail.routes" covers this uplink'
+                    );
+                }
+            });
+
+            self.recordPendingAreaFixRequests(
+                uplink.toString(),
+                networkName,
+                toUserName,
+                result.created.map(c => c.ftnTag)
+            );
+
+            return cb(null);
+        });
+    });
+};
+
+//
+//  ── AreaFix replies ──────────────────────────────────────────────────────
+//
+//  Only replies correlated to a request we actually sent are read, and only
+//  lines naming a tag we asked about are considered.  Nothing parsed here can
+//  reach config.hjson: the parser's return type is a status, so the worst a
+//  mis-parse produces is a wrong log line.
+//
+const AreaFixPendingMaxAgeDays = 14;
+
+FTNMessageScanTossModule.prototype.getPendingAreaFixRequests = function () {
+    const raw = StatLog.getSystemStat(SysProps.FtnAreaFixPending);
+    if (!raw) {
+        return {};
+    }
+
+    let pending;
+    try {
+        pending = _.isString(raw) ? JSON.parse(raw) : raw;
+    } catch (e) {
+        Log.warn({ error: e.message }, 'Could not parse pending AreaFix requests');
+        return {};
+    }
+
+    if (!_.isObject(pending)) {
+        return {};
+    }
+
+    //  drop anything too old to still be an answer to us
+    const cutoff = moment().subtract(AreaFixPendingMaxAgeDays, 'days');
+    _.forEach(pending, (entry, address) => {
+        _.forEach(_.get(entry, 'tags', {}), (info, tag) => {
+            if (!info.timestamp || moment(info.timestamp).isBefore(cutoff)) {
+                delete entry.tags[tag];
+            }
+        });
+        if (0 === Object.keys(_.get(entry, 'tags', {})).length) {
+            delete pending[address];
+        }
+    });
+
+    return pending;
+};
+
+FTNMessageScanTossModule.prototype.setPendingAreaFixRequests = function (pending) {
+    StatLog.setSystemStat(SysProps.FtnAreaFixPending, JSON.stringify(pending));
+};
+
+FTNMessageScanTossModule.prototype.recordPendingAreaFixRequests = function (
+    address,
+    networkName,
+    toUserName,
+    ftnTags
+) {
+    const pending = this.getPendingAreaFixRequests();
+    const entry = pending[address] || (pending[address] = { tags: {} });
+
+    entry.network = networkName;
+    entry.toUserName = toUserName;
+    entry.tags = entry.tags || {};
+
+    const timestamp = moment().toISOString();
+    ftnTags.forEach(tag => {
+        entry.tags[tag.toUpperCase()] = { action: 'rescan', timestamp };
+    });
+
+    this.setPendingAreaFixRequests(pending);
+};
+
+//  Robot usernames these replies arrive from; also reserved in config_default
+const AreaFixRobotNames = [
+    'areafix',
+    'areamgr',
+    'allfix',
+    'filefix',
+    'filemgr',
+    'echomail',
+];
+
+FTNMessageScanTossModule.prototype.handleAreaFixReply = function (message, cb) {
+    const self = this;
+
+    const remoteFrom = _.get(message, [
+        'meta',
+        'System',
+        Message.SystemMetaNames.RemoteFromUser,
+    ]);
+    if (!remoteFrom) {
+        return cb(null);
+    }
+
+    const pending = self.getPendingAreaFixRequests();
+    const entry = pending[remoteFrom];
+    const tags = Object.keys(_.get(entry, 'tags', {}));
+    if (0 === tags.length) {
+        return cb(null);
+    }
+
+    //  ...and from the robot we addressed, not just from that system
+    const expectedNames = new Set(
+        AreaFixRobotNames.concat([String(entry.toUserName || '').toLowerCase()])
+    );
+    const fromName = String(message.fromUserName || '').toLowerCase();
+    if (!expectedNames.has(fromName)) {
+        return cb(null);
+    }
+
+    const { results, unknownCount } = parseAreaFixReply(message.message, {
+        tags,
+        extraPhrases: _.get(Config(), 'messageNetworks.ftn.areaFixStatusPhrases'),
+    });
+
+    if (0 === results.length) {
+        Log.info(
+            { uplink: remoteFrom, pending: tags },
+            'AreaFix reply received but nothing in it matched the areas we asked about; read the NetMail'
+        );
+        return cb(null);
+    }
+
+    results.forEach(r => {
+        const logInfo = {
+            uplink: remoteFrom,
+            network: entry.network,
+            areaTag: r.tag,
+            status: r.status,
+            raw: r.raw,
+        };
+        if (AreaFixStatus.Unknown === r.status) {
+            Log.warn(logInfo, `AreaFix reply for "${r.tag}" was not understood`);
+        } else {
+            Log.info(logInfo, `AreaFix reply for "${r.tag}": ${r.status}`);
+        }
+    });
+
+    //  answered tags stop being pending regardless of the answer
+    results.forEach(r => delete entry.tags[r.tag]);
+    if (0 === Object.keys(entry.tags).length) {
+        delete pending[remoteFrom];
+    }
+    self.setPendingAreaFixRequests(pending);
+
+    return self.notifyOpOfAreaFixReply(remoteFrom, entry, results, unknownCount, cb);
+};
+
+FTNMessageScanTossModule.prototype.notifyOpOfAreaFixReply = function (
+    address,
+    entry,
+    results,
+    unknownCount,
+    cb
+) {
+    const lines = [`The AreaFix robot at ${address} answered a request we sent:`, ''];
+
+    results.forEach(r => {
+        lines.push(`  ${r.tag}: ${r.status}`);
+        if (AreaFixStatus.Unknown === r.status) {
+            lines.push(`    (not understood) ${r.raw}`);
+        }
+    });
+
+    if (unknownCount > 0) {
+        lines.push('');
+        lines.push(
+            `${unknownCount} line(s) were not understood. AreaFix reply wording differs`
+        );
+        lines.push(
+            'between tossers; the raw NetMail from the robot has the full answer.'
+        );
+    }
+
+    const message = new Message({
+        toUserName: StatLog.getSystemStat(SysProps.SysOpUsername) || 'SysOp',
+        fromUserName: 'ENiGMA½',
+        subject: `AreaFix reply from ${address}`,
+        message: lines.join('\r\n'),
+        areaTag: Message.WellKnownAreaTags.Private,
+    });
+    message.setLocalToUserId(User.RootUserID);
+
+    message.persist(err => {
+        if (err) {
+            Log.warn(
+                { error: err.message },
+                'Failed to notify the operator of an AreaFix reply'
+            );
+        }
+        return cb(null);
+    });
+};
+
 FTNMessageScanTossModule.prototype.performImport = function (cb) {
     if (!this.hasValidConfiguration()) {
         return cb(Errors.MissingConfig('Invalid or missing configuration'));
@@ -3284,23 +4034,41 @@ FTNMessageScanTossModule.prototype.performImport = function (cb) {
         IMPORT_WATCHDOG_MS,
         'FTN import',
         done => {
-            async.each(
-                ['inbound', 'secInbound'],
-                (inboundType, nextDir) => {
-                    const importDir = self.moduleConfig.paths[inboundType];
-                    self.importFromDirectory(inboundType, importDir, err => {
-                        if (err) {
-                            Log.trace(
-                                { importDir, error: err.message },
-                                'Cannot perform FTN import for directory'
-                            );
-                        }
+            //
+            //  Pass 1: create areas for unknown FTN tags so pass 2 can import
+            //  their mail instead of skipping it.  A failure here is never
+            //  allowed to stop the import; the worst case is the messages are
+            //  skipped exactly as they were before.
+            //
+            self.maybeAutoCreateAreas(() => {
+                //
+                //  ...and pick up any new info pack, so areas created above
+                //  get their real names in the same cycle.  This queries the
+                //  file area rather than reacting to a TIC arrival, so a pack
+                //  that landed before the feature was enabled still counts and
+                //  a missed trigger is picked up next pass.  An unchanged pack
+                //  costs one file-area query.
+                //
+                areaInfoPack.ingestInfoPacks(() => {
+                    async.each(
+                        ['inbound', 'secInbound'],
+                        (inboundType, nextDir) => {
+                            const importDir = self.moduleConfig.paths[inboundType];
+                            self.importFromDirectory(inboundType, importDir, err => {
+                                if (err) {
+                                    Log.trace(
+                                        { importDir, error: err.message },
+                                        'Cannot perform FTN import for directory'
+                                    );
+                                }
 
-                        return nextDir(null);
-                    });
-                },
-                done
-            );
+                                return nextDir(null);
+                            });
+                        },
+                        done
+                    );
+                });
+            });
         },
         cb
     );
