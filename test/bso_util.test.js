@@ -7,6 +7,7 @@ const {
     canonicalNetworkName,
     resolveDefaultNetworkName,
     resolveNetworkDefaultZone,
+    resolveNetworkNameForZone,
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
@@ -94,6 +95,101 @@ describe('bso_util — outbound spool path resolution', () => {
                 undefined
             );
             assert.equal(resolveNetworkDefaultZone(THREE_NETWORKS, 'nope'), undefined);
+        });
+    });
+
+    //  Which network originates mail to a given zone. The answer has to match
+    //  outboundDirName()'s idea of who owns the directory for that zone, or a
+    //  packet would be sent from one network's address and filed under
+    //  another's -- see issue #739.
+    describe('resolveNetworkNameForZone', () => {
+        it('resolves a zone claimed by exactly one network', () => {
+            const got = resolveNetworkNameForZone(THREE_NETWORKS, undefined, 21);
+            assert.equal(got.name, 'fsxnet');
+            assert.deepEqual(got.candidates, ['fsxnet']);
+        });
+
+        it('resolves each of several networks by its own zone', () => {
+            assert.equal(
+                resolveNetworkNameForZone(THREE_NETWORKS, undefined, 1).name,
+                'fidonet'
+            );
+            assert.equal(
+                resolveNetworkNameForZone(THREE_NETWORKS, undefined, 700).name,
+                'spooknet'
+            );
+        });
+
+        it('returns no name for a zone no network claims', () => {
+            const got = resolveNetworkNameForZone(THREE_NETWORKS, undefined, 2);
+            assert.equal(got.name, undefined);
+            assert.deepEqual(got.candidates, []);
+        });
+
+        it('honours an explicit defaultZone over the localAddress zone', () => {
+            const networks = { odd: { localAddress: '1:1/1', defaultZone: 42 } };
+            assert.equal(resolveNetworkNameForZone(networks, undefined, 42).name, 'odd');
+            assert.equal(
+                resolveNetworkNameForZone(networks, undefined, 1).name,
+                undefined
+            );
+        });
+
+        it('breaks a shared zone with defaultNetwork, and reports the tie', () => {
+            const networks = {
+                fidonet: { localAddress: '1:103/705' },
+                privnet: { localAddress: '1:999/1' },
+            };
+            const got = resolveNetworkNameForZone(networks, 'privnet', 1);
+            assert.equal(got.name, 'privnet');
+            assert.deepEqual(got.candidates.sort(), ['fidonet', 'privnet']);
+        });
+
+        it('agrees with outboundDirName on who owns a shared zone', () => {
+            //  The from-address and the outbound directory must be decided the
+            //  same way; this is the case where they could diverge.
+            const networks = {
+                fidonet: { localAddress: '1:103/705' },
+                privnet: { localAddress: '1:999/1' },
+            };
+            for (const defaultNetwork of [undefined, 'fidonet', 'privnet']) {
+                const { name } = resolveNetworkNameForZone(networks, defaultNetwork, 1);
+                assert.equal(
+                    outboundDirName(networks, defaultNetwork, name, 1),
+                    outboundDirName(
+                        networks,
+                        defaultNetwork,
+                        resolveDefaultNetworkName(networks, defaultNetwork),
+                        1
+                    ),
+                    `defaultNetwork=${defaultNetwork}`
+                );
+            }
+        });
+
+        it('still resolves when defaultNetwork names something unconfigured', () => {
+            const networks = {
+                fidonet: { localAddress: '1:103/705' },
+                privnet: { localAddress: '1:999/1' },
+            };
+            const got = resolveNetworkNameForZone(networks, 'nope', 1);
+            assert.ok(got.candidates.includes(got.name));
+        });
+
+        it('ignores a network whose zone cannot be resolved', () => {
+            const networks = { broken: {}, fsxnet: { localAddress: '21:1/121' } };
+            assert.equal(
+                resolveNetworkNameForZone(networks, undefined, 21).name,
+                'fsxnet'
+            );
+        });
+
+        it('returns no name for an empty or absent network table', () => {
+            assert.equal(resolveNetworkNameForZone({}, undefined, 21).name, undefined);
+            assert.equal(
+                resolveNetworkNameForZone(undefined, undefined, 21).name,
+                undefined
+            );
         });
     });
 

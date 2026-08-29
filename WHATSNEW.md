@@ -3,6 +3,20 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **NetMail could not be sent to a node you had configured, without also adding a route for it** ([#739](https://github.com/NuSkooler/enigma-bbs/issues/739)) — `netMail.routes` is meant to say where mail goes when it is *not* going direct, but in practice it was mandatory for every NetMail destination. A message to an uplink sitting right there in `nodes{}` was refused with `No NetMail route for …`, and the sender got a delivery failure notice.
+
+  The network was being resolved with a helper that compares an address against your own `localAddress` — the right question when *importing* a packet addressed to you, and one a correspondent can never answer yes to. So the unrouted path could only ever succeed for mail addressed to yourself.
+
+  Destinations are now settled as the code always described: a `routes` entry if one matches, otherwise a `nodes` entry for the recipient itself, otherwise refused. Nothing that worked before changes — routes are still consulted first and handled exactly as they were.
+
+  Two smaller things fall out of the same rework:
+
+  * **`network` is now optional on a route.** Omitting it used to produce the same `No NetMail route` error even though a route had matched. It is filled in from the zone of the node being dialed, which is what picks the outbound directory anyway, so the from-address and the spool path cannot disagree. Name a `network` — on a route or on a `nodes` entry — only when two of your networks share a zone.
+
+  * **Bad configuration is reported for what it is.** A route naming a network that does not exist, or carrying an address that will not parse, now says so. The first was reported a step later as a problem with the network rather than the route; the second threw.
+
+  This also means automatic AreaFix rescan requests ([#241](https://github.com/NuSkooler/enigma-bbs/issues/241)) reach an uplink without a `routes` entry having to cover it.
+
 * **Routed cross-zone NetMail was filed where nothing would ever look for it** ([#734](https://github.com/NuSkooler/enigma-bbs/issues/734)) -- NetMail routed through an uplink in a different zone than the recipient (the standard FidoNet zone gate: zone 2 mail leaving through a zone 1 hub) was written to the outbound directory of the *recipient's* zone instead of the *uplink's*. A mailer only looks in the zone of the node it is calling, so the session to the uplink completed cleanly having transferred nothing and the message sat on disk indefinitely.
 
   Nothing surfaced it. The packet's flow file was named for the uplink but filed under the recipient's zone, so the pending-mail scan -- which reads a node's address from the directory's zone plus the flow file's name -- reported a node that does not exist (`2:154/10`, for an uplink of `1:154/10`), which the poller then skipped at `debug` level. Every visible signal said success.

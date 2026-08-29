@@ -22,6 +22,15 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **NetMail no longer needs a `netMail.routes` entry to reach a node you have already configured** ([#739](https://github.com/NuSkooler/enigma-bbs/issues/739)). A destination listed in `scannerTossers.ftn_bso.nodes` is now delivered direct; routes are still consulted first and behave exactly as before, so **no action is required** and every existing configuration resolves identically.
+
+  **Two cases do get stricter**, both of which previously "succeeded" into a dead end:
+
+  * NetMail addressed to **your own** FTN address used to be accepted and filed into your own outbound, where nothing would ever send it. It is now refused unless you list your own address in `nodes`, and the sender is told.
+  * A route whose `network` names something not in `messageNetworks.ftn.networks` is refused when the route is chosen, rather than a step later with an error about the network. The message is the same failure either way; only the wording and timing change.
+
+  Worth a look if you have more than one network in the **same zone**: with no `network` named on the route or the node, the zone alone cannot tell them apart and the tie goes to `defaultNetwork`. Add `network` to the `nodes` entry to be explicit — the wrong choice means mail sent from the wrong address.
+
 * **Cross-zone routed NetMail queued before this release will not have been delivered, and needs moving by hand** ([#734](https://github.com/NuSkooler/enigma-bbs/issues/734)). NetMail routed through an uplink in a zone other than the recipient's was filed in the outbound directory for the *recipient's* zone rather than the uplink's, where no mailer would ever find it. The fix applies to newly exported mail only -- it does not relocate what is already queued.
 
   **Action:** only if you route NetMail across zones. Look for a zone-suffixed outbound directory that should not hold mail for that uplink -- for a `1:154/10` uplink carrying zone 2 mail, that is `outbound.002/009a000a.*` (`009a` = net 154, `000a` = node 10) plus the `.pkt` files its flow file names. Move both the flow file and the packets into the uplink's own outbound directory (`outbound/` when the uplink is in your network's default zone). **The stored paths inside the flow file do not need editing** -- a reference that no longer resolves is now also looked for by name in the flow file's own directory. If you would rather not sort it out, deleting the stray directory's contents loses the affected messages and nothing else.
