@@ -212,10 +212,11 @@ class VerticalMenuView extends MenuView {
     }
 
     setFocusItemIndex(index) {
-        super.setFocusItemIndex(index); //  sets this.focusedItemIndex
+        super.setFocusItemIndex(index); //  sets this.focusedItemIndex, clamped
 
+        //  use the clamped value, not the caller's raw |index|
         const remainAfterFocus = this.focusItemAtTop
-            ? this.items.length - index
+            ? this.items.length - this.focusedItemIndex
             : this.items.length;
 
         if (remainAfterFocus >= this.maxVisibleItems) {
@@ -285,6 +286,13 @@ class VerticalMenuView extends MenuView {
     //  item.row is guaranteed valid from the last full redraw() since this is only
     //  called when the viewWindow has not scrolled.
     _focusRedraw(prevFocusedIndex) {
+        const focusedItem = this.items[this.focusedItemIndex];
+        if (!focusedItem) {
+            //  nothing to focus (e.g. empty list) — a full redraw handles the
+            //  blanking and leaves no stale highlight behind
+            return this.redraw();
+        }
+
         if (this.items[prevFocusedIndex] && this.items[prevFocusedIndex].row == null) {
             //  item.row not yet set — fall back to a full redraw
             return this.redraw();
@@ -293,17 +301,22 @@ class VerticalMenuView extends MenuView {
         if (
             prevFocusedIndex !== this.focusedItemIndex &&
             prevFocusedIndex >= this.viewWindow.top &&
-            prevFocusedIndex <= this.viewWindow.bottom
+            prevFocusedIndex <= this.viewWindow.bottom &&
+            this.items[prevFocusedIndex]
         ) {
             this.items[prevFocusedIndex].focused = false;
             this.drawItem(prevFocusedIndex);
         }
 
-        this.items[this.focusedItemIndex].focused = true;
+        focusedItem.focused = true;
         this.drawItem(this.focusedItemIndex);
     }
 
     focusNext() {
+        if (!this.items.length) {
+            return; //  nothing to move to; don't emit a bogus index update
+        }
+
         if (this.items.length - 1 === this.focusedItemIndex) {
             //  wrap-around: viewWindow changes — full redraw
             this.focusedItemIndex = 0;
@@ -328,6 +341,10 @@ class VerticalMenuView extends MenuView {
     }
 
     focusPrevious() {
+        if (!this.items.length) {
+            return; //  nothing to move to; don't emit a bogus index update
+        }
+
         if (0 === this.focusedItemIndex) {
             //  wrap-around: viewWindow changes — full redraw
             this.focusedItemIndex = this.items.length - 1;
@@ -362,6 +379,10 @@ class VerticalMenuView extends MenuView {
     }
 
     focusPreviousPageItem() {
+        if (!this.items.length) {
+            return;
+        }
+
         //
         //  Jump to current - up to page size or top
         //  If already at the top, jump to bottom
@@ -378,6 +399,10 @@ class VerticalMenuView extends MenuView {
     }
 
     focusNextPageItem() {
+        if (!this.items.length) {
+            return;
+        }
+
         //
         //  Jump to current + up to page size or bottom
         //  If already at the bottom, jump to top
@@ -397,11 +422,19 @@ class VerticalMenuView extends MenuView {
     }
 
     focusFirst() {
+        if (!this.items.length) {
+            return;
+        }
+
         this.setFocusItemIndex(0);
         return super.focusFirst();
     }
 
     focusLast() {
+        if (!this.items.length) {
+            return;
+        }
+
         this.setFocusItemIndex(this.items.length - 1);
         return super.focusLast();
     }

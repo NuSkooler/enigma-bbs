@@ -821,8 +821,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _readLogSnapshot(cb) {
-        const config = Config();
-        const logFilePath = _.get(config, 'logging.rotatingFile.path');
+        //  Note: Log.getRotatingFilePath() rather than reading
+        //  logging.rotatingFile.path off the config -- that key is injected into
+        //  the live config object by Log.init() at startup and is lost the first
+        //  time config.hjson is hot-reloaded, which left this viewer empty.
+        const logFilePath = Log.getRotatingFilePath();
         if (!logFilePath) {
             return cb(null, []);
         }
@@ -1020,6 +1023,20 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                             this._updateFullLogDetail(
                                 detailView,
                                 records[records.length - 1]
+                            );
+                        }
+                    } else {
+                        //  Nothing to navigate or submit: keep the empty list out
+                        //  of the form data path and tell the op why it's blank.
+                        logListView.acceptsInput = false;
+
+                        if (detailView) {
+                            detailView.setAnsi(
+                                pipeToAnsi(
+                                    this.config.fullLogEmptyMessage ||
+                                        '|08No log entries available|00',
+                                    this.client
+                                )
                             );
                         }
                     }
