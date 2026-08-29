@@ -47,6 +47,15 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   Each routed NetMail also logs where it was routed, so the effective route can be confirmed rather than inferred.
 
+* **Outbound could be dropped on the floor while a mail session was running** — ENiGMA½ appended reference records to BSO flow files without taking the flow file's `.bsy` lock, while the BinkP side rewrites those same files as entries are sent: it reads the whole file, marks a line done, and writes it back. An append landing between that read and that write was **silently discarded**. No error, no log — the queued file simply never shipped, and with nothing left referencing it, its packet sat in the outbound indefinitely. The busier the system, the more often it happened.
+
+  [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §5.1 puts the requirement on *software*, not on mailers: "A bsy is a main control file that must be used by any software dealing with flow files in BSO […] If a bsy file exists all changes are prohibited in any corresponding flow files." The tosser queueing outbound is exactly that. Both BinkP session paths already took the lock, so the writer was the only unprotected party.
+
+  Because `NNNNnnnn.bsy` is the standard name, honouring it also interlocks correctly with **external mailers** — Binkd takes the very same lock, so neither side needs to know about the other. (The pre-existing `enigma.bsy` flag could never serve this purpose: it is a non-FTS-5005 name in the outbound *root*, so no external mailer has reason to interpret it.) The protocol now lives in one place and is shared by the writer and the mailer rather than reimplemented on each side.
+
+  When the lock cannot be taken the outbound is **not** queued that pass and says so — not writing is what the spec requires, and the next export cycle picks it up. `scannerTossers.ftn_bso.flowLockTimeoutMs` (default 5 seconds) bounds the wait; see [BinkP](docs/_docs/messageareas/binkp.md#flowlocktimeoutms).
+
+
 * **A wildcard could shadow a more specific entry in `nodes{}` and NetMail `routes{}`** -- where several patterns matched an address, which one applied depended on nothing but the order they were written in `config.hjson`. A `"*"` route above `"21:*"` took every message; a `"21:*"` node block above `"21:1/100"` meant that node's `packetPassword` was never the one checked. The **most specific match now wins** regardless of order, which is what the native BinkP mailer already did for its own `binkp.nodes{}`.
 
   `routes{}` is still consulted before `nodes{}`, so a catch-all `"*"` route claims all NetMail -- AreaFix to your uplinks on other networks included. With ordering no longer deciding the outcome, a more specific route can now reliably send those direct. See [NetMail](docs/_docs/messageareas/netmail.md#which-route-applies).

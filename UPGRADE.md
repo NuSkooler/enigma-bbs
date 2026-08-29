@@ -55,6 +55,14 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   Two related changes are worth knowing about even if none of this applies to you: a flow file entry whose file is missing is now logged rather than silently skipped, and a node whose entries all point at missing files is no longer reported as having pending mail -- so it stops being dialled every poll cycle with nothing to send.
 
+* **Queueing outbound now respects the FTS-5005 `.bsy` lock, as it always should have.** ENiGMA½ appended to BSO flow files without taking the per-node lock, so an append landing while the BinkP side was rewriting the same file was silently lost and that file never shipped. **No action is required** and no configuration changes; the new `scannerTossers.ftn_bso.flowLockTimeoutMs` defaults to 5 seconds.
+
+  **Worth knowing if you run an external mailer** such as Binkd against the same spool. This is the same `NNNNnnnn.bsy` lock your mailer already takes, which is precisely why honouring it makes the two interlock correctly — but it also means ENiGMA½ now *waits* on a lock your mailer holds. Two consequences:
+
+  * A long session with a node briefly defers queueing for **that node only**, logged as `Flow file busy; outbound not queued this pass`. The next export cycle queues it. Seeing this occasionally is normal; seeing it constantly means raising `flowLockTimeoutMs`.
+  * A **stale** `.bsy` left behind by a mailer that crashed mid-session will now hold up queueing for that node until it is reaped by age (`binkp.staleLockMaxAgeMs`, 30 minutes by default). If you find one node's outbound sitting still, check its outbound directory for an orphaned `.bsy` and remove it.
+
+
 * **The most specific `nodes{}` and NetMail `routes{}` pattern now wins, rather than the first one written.** Where only one pattern matched an address nothing changes. Where several matched, the entry that applied used to depend on the order of your `config.hjson`.
 
   **Action:** review your configuration if it mixes a wildcard with more specific entries that also match. Two cases change behaviour, both towards what the specific entry says: a `"21:*"` node block written above `"21:1/100"` no longer shadows that node's own settings -- including `packetPassword`, which means a packet password you configured and believed to be in force may only now start being enforced -- and a `"*"` NetMail route written above `"21:*"` no longer claims mail the narrower route was meant to take.
