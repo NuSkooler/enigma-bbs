@@ -55,6 +55,15 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   Two related changes are worth knowing about even if none of this applies to you: a flow file entry whose file is missing is now logged rather than silently skipped, and a node whose entries all point at missing files is no longer reported as having pending mail -- so it stops being dialled every poll cycle with nothing to send.
 
+* **TIC file echoes can now be forwarded to downlinks** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). Previously ENiGMA½ was always a leaf node for file echoes. **No action is required**: forwarding happens only for a `ticAreas` entry that names `downlinks`, and an area without them behaves exactly as before.
+
+  **If you want to carry an echo for others**, add `downlinks` and `network` to the area and give each downlink a `nodes` entry with its own `tic.password`. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks). Two things to know before you point a downlink at it:
+
+  * **A node with no `tic.password` is never authenticated** — the password check is skipped entirely when none is configured — so files received from such a node are **not** forwarded. This is deliberate: importing affects only your own file base, while forwarding makes other systems receive traffic your `Path` and `Seenby` lines vouch for. Set a password per node, or set `tic.allowUnverifiedForward` if you accept the risk.
+  * **TICs from the unsecure inbound are never forwarded**, even where you have set `tic.secureInOnly` to `false` in order to import from there.
+
+  One behaviour changes whether or not you forward anything: a **TIC addressed to a system that is not you** — one being routed *through* you — is still imported as before, but is now logged as not forwarded. Routing such files onward is not implemented; if you see this, that echo is not reaching whoever is downstream of you and never was.
+
 * **Queueing outbound now respects the FTS-5005 `.bsy` lock, as it always should have.** ENiGMA½ appended to BSO flow files without taking the per-node lock, so an append landing while the BinkP side was rewriting the same file was silently lost and that file never shipped. **No action is required** and no configuration changes; the new `scannerTossers.ftn_bso.flowLockTimeoutMs` defaults to 5 seconds.
 
   **Worth knowing if you run an external mailer** such as Binkd against the same spool. This is the same `NNNNnnnn.bsy` lock your mailer already takes, which is precisely why honouring it makes the two interlock correctly — but it also means ENiGMA½ now *waits* on a lock your mailer holds. Two consequences:

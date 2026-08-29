@@ -47,6 +47,30 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   Each routed NetMail also logs where it was routed, so the effective route can be confirmed rather than inferred.
 
+* **TIC-announced files can now be forwarded to downlinks** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)) — ENiGMA½ could only ever be a **leaf node** for FTN file echoes. A file received from an uplink was imported into the file base and then deleted from the inbound; it was never passed on. There was no way to declare downlinks, no TIC was ever generated, and the `Path` / `Seenby` fields were read but never written. Anyone downstream had to be fed by some other file processor, which in practice meant ENiGMA½ could not be used as a file-echo hub at all — a notable gap for a package that otherwise does full EchoMail and NetMail hubbing.
+
+  Declare downlinks on the TIC area and it forwards, generating a TIC for each:
+
+  ```hjson
+  ticAreas: {
+      fsx_gen: {
+          areaTag:   fsxGeneral
+          network:   fsxnet
+          downlinks: [ "21:1/200", "21:2/150" ]
+      }
+  }
+  ```
+
+  **Off unless you configure it.** An area with no `downlinks` behaves exactly as before. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks).
+
+  * **The loop guard is the part that matters.** A downlink already listed in the TIC's `Seenby` is skipped, as are the sender, the TIC's `To`, the file's `Origin`, and your own addresses on any network. Addresses are compared allowing for the 2D–5D differences that are ordinary in FTN control data — FSC-0087 lets each hop rewrite them — because a strict comparison would fail to notice a system had already seen a file and send it round again.
+
+  * **Forwarding is gated harder than importing.** Importing affects your own file base; forwarding makes other systems receive traffic your `Path` and `Seenby` vouch for. A TIC from the unsecure inbound is never forwarded even if you import from there, and neither is one from a node with no `tic.password` — such a node is never actually authenticated, because the check is simply skipped when no password is configured. A TIC addressed to somebody else is imported but not re-announced.
+
+  * **`Replaces` dequeues.** When a replacement supersedes a file still queued for a downlink that has not collected it, the old file and its TIC are removed from that downlink's outbound. Otherwise a downlink polling weekly would receive both — and the older one has by then been deleted locally, so it would receive neither.
+
+  Problems that would otherwise be silent are reported at startup: an area with downlinks but no resolvable network, a downlink missing from `nodes`, or one with no TIC password.
+
 * **Outbound could be dropped on the floor while a mail session was running** — ENiGMA½ appended reference records to BSO flow files without taking the flow file's `.bsy` lock, while the BinkP side rewrites those same files as entries are sent: it reads the whole file, marks a line done, and writes it back. An append landing between that read and that write was **silently discarded**. No error, no log — the queued file simply never shipped, and with nothing left referencing it, its packet sat in the outbound indefinitely. The busier the system, the more often it happened.
 
   [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §5.1 puts the requirement on *software*, not on mailers: "A bsy is a main control file that must be used by any software dealing with flow files in BSO […] If a bsy file exists all changes are prohibited in any corresponding flow files." The tosser queueing outbound is exactly that. Both BinkP session paths already took the lock, so the writer was the only unprotected party.
