@@ -96,6 +96,12 @@ class BinkpSession extends EventEmitter {
         //  M_GET and are waiting for the sender to re-announce the file.
         this._pendingOffsetReq = null; // { name, size, timestamp, useGZ }
         this._pendingGots = new Map(); // `name\0size\0ts` → { name, path, size, timestamp, disposition }
+        //  Disposition side effects -- the unlink or truncate of a file the
+        //  remote has acknowledged -- still in flight. The session is not done
+        //  until these land: 'session-end' is what callers act on, and what
+        //  the process may exit after. A sent packet still on disk is picked
+        //  up by the next outbound scan and delivered a second time.
+        this._pendingDispositions = new Set();
         //  Files we have already asked to have resent uncompressed, so a
         //  second failure falls through to M_SKIP instead of looping.
         this._nzRequested = new Set();
@@ -805,20 +811,33 @@ class BinkpSession extends EventEmitter {
     }
 
     _applyDisposition(file) {
+        let work;
         if (file.disposition === 'delete') {
-            fsp.unlink(file.path).catch(err =>
-                Log.warn(
-                    { path: file.path, error: err.message },
-                    '[BinkP] Could not delete sent file'
-                )
-            );
+            work = fsp
+                .unlink(file.path)
+                .catch(err =>
+                    Log.warn(
+                        { path: file.path, error: err.message },
+                        '[BinkP] Could not delete sent file'
+                    )
+                );
         } else if (file.disposition === 'truncate') {
-            fsp.truncate(file.path, 0).catch(err =>
-                Log.warn(
-                    { path: file.path, error: err.message },
-                    '[BinkP] Could not truncate sent file'
-                )
-            );
+            work = fsp
+                .truncate(file.path, 0)
+                .catch(err =>
+                    Log.warn(
+                        { path: file.path, error: err.message },
+                        '[BinkP] Could not truncate sent file'
+                    )
+                );
+        }
+
+        //  Not awaited here -- the protocol must keep moving -- but tracked so
+        //  the session can settle it before ending. Already .catch()'d above,
+        //  so it always resolves and can never wedge _finishSession().
+        if (work) {
+            this._pendingDispositions.add(work);
+            work.finally(() => this._pendingDispositions.delete(work));
         }
     }
 
@@ -1274,6 +1293,18 @@ class BinkpSession extends EventEmitter {
         if (this._state === 'done') return;
         this._state = 'done';
         if (this._timeoutHandle) clearTimeout(this._timeoutHandle);
+
+        //  |_state| is already 'done', so nothing re-enters while we wait for
+        //  the sent files to actually be gone (see |_pendingDispositions|).
+        const pending = Array.from(this._pendingDispositions);
+        if (0 === pending.length) {
+            return this._emitSessionEnd();
+        }
+
+        Promise.all(pending).then(() => this._emitSessionEnd());
+    }
+
+    _emitSessionEnd() {
         this.emit('session-end');
         setImmediate(() => this._destroy(true));
     }
