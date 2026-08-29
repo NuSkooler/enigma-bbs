@@ -167,6 +167,76 @@ module.exports = class Address {
         return best;
     }
 
+    //
+    //  Do |this| and |other| name the same system, allowing for the
+    //  dimensionality differences that are ordinary in FTN control data?
+    //
+    //  isEqual() is a strict field-for-field comparison, which is right for
+    //  routing decisions but wrong for reading addresses out of a control file.
+    //  There, the *same* system is routinely written several ways:
+    //
+    //      1/100          2D, zone implied by context
+    //      21:1/100       3D
+    //      21:1/100.0     4D, an explicit point 0 meaning "not a point"
+    //      21:1/100@fsxnet 5D
+    //
+    //  FSC-0087 requires a file forwarder to understand all of these, and
+    //  explicitly permits a forwarder to rewrite the dimensions per downlink --
+    //  so what we receive is whatever the last hop felt like emitting. Comparing
+    //  those strictly answers "was this written identically", not "is this the
+    //  same node", and using it as a loop guard means failing to recognise a
+    //  system that has already seen a file, and forwarding it to them again.
+    //
+    //  Normalization:
+    //    * point   -- absent and 0 are the same thing (FTS-5006's Seenby
+    //                 example lists both "2:280/5555" and "2:280/5555.1")
+    //    * domain  -- ignored unless both sides carry one, since a 3D/4D
+    //                 address is not asserting a different network
+    //    * zone    -- |options.defaultZone| fills in a missing zone on either
+    //                 side. Callers should pass the zone of the network the
+    //                 control file belongs to; without it a zone-less address
+    //                 only matches another zone-less one, which is the safe
+    //                 direction (no false "already seen").
+    //
+    isEquivalent(other, options = {}) {
+        if (_.isString(other)) {
+            other = Address.fromString(other);
+        }
+
+        if (!other) {
+            return false;
+        }
+
+        if (this.net !== other.net || this.node !== other.node) {
+            return false;
+        }
+
+        const zone = a => (_.isNumber(a.zone) ? a.zone : options.defaultZone);
+        const zoneL = zone(this);
+        const zoneR = zone(other);
+        if (zoneL !== zoneR) {
+            return false;
+        }
+
+        if ((this.point || 0) !== (other.point || 0)) {
+            return false;
+        }
+
+        //  Only a disagreement between two *stated* domains is a difference.
+        if (this.domain && other.domain) {
+            return this.domain.toLowerCase() === other.domain.toLowerCase();
+        }
+
+        return true;
+    }
+
+    //  Is this address any of |addresses|, comparing per isEquivalent()?
+    //  Convenience for the common "is this us?" test, which must span every
+    //  local AKA across every configured network rather than one address.
+    isAnyOf(addresses, options = {}) {
+        return (addresses || []).some(a => this.isEquivalent(a, options));
+    }
+
     isPatternMatch(pattern) {
         const addr = this.getMatchAddr(pattern);
         if (addr) {
@@ -248,6 +318,16 @@ module.exports = class Address {
             }
 
             c = (left.node || 0) - (right.node || 0);
+            if (0 !== c) {
+                return c;
+            }
+
+            //  Points sort under their boss node, and an absent point is
+            //  point 0 -- not "unordered". Without this a node and its points
+            //  compare equal and their relative order is whatever the sort
+            //  happened to do, which makes any sorted output (a TIC's Seenby
+            //  list, for one) unstable between runs for no reason.
+            c = (left.point || 0) - (right.point || 0);
             if (0 !== c) {
                 return c;
             }
