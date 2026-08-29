@@ -24,6 +24,14 @@ module.exports = class Log {
                 logPath,
                 Config.logging.rotatingFile.fileName
             );
+
+            //  Remember the path we resolved: the value assigned above lives on
+            //  the *current* config object, which a config.hjson hot-reload
+            //  replaces wholesale -- taking the injected 'path' with it. Bunyan
+            //  keeps writing to the stream created here either way, so this is
+            //  the authoritative location of the active log file.
+            this.rotatingFilePath = Config.logging.rotatingFile.path;
+
             logStreams.push(Config.logging.rotatingFile);
         }
 
@@ -34,6 +42,12 @@ module.exports = class Log {
             streams: logStreams,
             serializers: serializers,
         });
+    }
+
+    //  Path of the active rotating log file, or undefined if not enabled.
+    //  Prefer this over Config().logging.rotatingFile.path; see init().
+    static getRotatingFilePath() {
+        return this.rotatingFilePath;
     }
 
     static standardSerializers() {

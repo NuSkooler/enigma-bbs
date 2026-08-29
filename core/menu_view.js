@@ -199,7 +199,7 @@ class MenuView extends View {
     }
 
     getItem(index) {
-        if (index > this.items.length - 1) {
+        if (index < 0 || index > this.items.length - 1) {
             return null;
         }
 
@@ -234,8 +234,12 @@ class MenuView extends View {
         this.emitIndexUpdate();
     }
 
+    //  Clamp to a valid index; an empty list has none, so park at 0 where
+    //  getItem() and the draw paths already no-op.
     setFocusItemIndex(index) {
-        this.focusedItemIndex = index;
+        this.focusedItemIndex = this.items.length
+            ? Math.min(Math.max(index, 0), this.items.length - 1)
+            : 0;
     }
 
     getFocusItemIndex() {
