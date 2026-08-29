@@ -24,6 +24,22 @@ const crypto = require('crypto');
 module.exports = class TicFileInfo {
     constructor() {
         this.entries = new Map();
+
+        //
+        //  Every line as it arrived, in file order: { key, line }. This is what
+        //  a writer forwards for keywords it does not itself regenerate. See
+        //  createFromFile().
+        //
+        this.rawLines = [];
+
+        //
+        //  Values that could not be parsed and were dropped: { key, value,
+        //  reason }. Recorded rather than logged so this module keeps its very
+        //  small dependency set -- it is pulled in early and by oputil -- and
+        //  so the caller can report them with the context it has (which TIC,
+        //  which node). Never a reason on its own to reject a TIC.
+        //
+        this.parseWarnings = [];
     }
 
     static get requiredFields() {
@@ -96,7 +112,13 @@ module.exports = class TicFileInfo {
             //
             joinWith = joinWith || '';
             if (Array.isArray(value)) {
-                return value.map(v => v.toString()).join(joinWith);
+                //  filter(): belt and braces. createFromFile() no longer stores
+                //  an unparsable value, but this getter is reachable from
+                //  anywhere and must not throw on a peer's malformed input.
+                return value
+                    .filter(v => undefined !== v && null !== v)
+                    .map(v => v.toString())
+                    .join(joinWith);
             }
 
             return value.toString();
@@ -487,14 +509,57 @@ module.exports = class TicFileInfo {
                     value = value.trim();
                 }
 
+                //
+                //  Keep the line exactly as it arrived, in order.
+                //
+                //  Both specs require a forwarding processor to pass keywords
+                //  it does not understand through unchanged -- FTS-5006 2.2:
+                //  "the preferred way of dealing with it is to pass the line
+                //  'as is' to outgoing TIC files" -- and FSC-0087 additionally
+                //  requires grouped keywords (Desc, Ldesc, App) to keep their
+                //  order. Parsing into converted values loses the text a writer
+                //  would need to reproduce, so retain it here rather than
+                //  trying to reconstruct it later.
+                //
+                ticFileInfo.rawLines.push({ key, line });
+
                 //  convert well known keys to a more reasonable format
                 switch (key) {
                     case 'origin':
                     case 'from':
                     case 'seenby':
-                    case 'to':
-                        value = Address.fromString(value);
+                    case 'to': {
+                        const addr = Address.fromString(value);
+
+                        //
+                        //  An address we cannot parse is dropped, not stored.
+                        //
+                        //  Address.fromString() returns undefined on failure,
+                        //  and storing that put an undefined into e.g. the
+                        //  Seenby array -- where getAsString() calls
+                        //  v.toString() on every element and throws. Coming
+                        //  from a remote peer's control file, one malformed
+                        //  "Seenby" line was enough to throw inside an fs
+                        //  callback and hang the whole import pass: the same
+                        //  shape of failure #735 fixed for a missing "File".
+                        //
+                        //  htick does exactly this -- "TIC %s: Illegal value:
+                        //  'Seenby %s', ignored" -- and carries on. Required
+                        //  fields that end up absent are caught by
+                        //  hasRequiredFields() as they always were.
+                        //
+                        if (!addr) {
+                            ticFileInfo.parseWarnings.push({
+                                key,
+                                value,
+                                reason: 'unparsable FTN address',
+                            });
+                            return;
+                        }
+
+                        value = addr;
                         break;
+                    }
 
                     case 'crc':
                         value = parseInt(value, 16);

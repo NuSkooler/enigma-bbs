@@ -3472,6 +3472,26 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                                     'Failed reading TIC file'
                                 );
                             } else {
+                                //
+                                //  Values the parser could not make sense of and
+                                //  dropped -- a malformed "Seenby", say. Not a
+                                //  reason to reject the TIC (htick likewise logs
+                                //  and carries on), but worth saying once with
+                                //  the file in hand, since a peer emitting these
+                                //  is a real interop problem for its downlinks.
+                                //
+                                ticInfo.parseWarnings.forEach(w => {
+                                    Log.warn(
+                                        {
+                                            tic: fullPath,
+                                            key: w.key,
+                                            value: w.value,
+                                            reason: w.reason,
+                                        },
+                                        'Ignoring unusable value in TIC file'
+                                    );
+                                });
+
                                 ticFilesInfo.push(ticInfo);
                             }
 
