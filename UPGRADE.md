@@ -22,6 +22,20 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **A TIC whose file has not arrived yet is now held instead of rejected** ([#735](https://github.com/NuSkooler/enigma-bbs/issues/735)). A `.tic` and the file it announces routinely arrive in *separate* mailer sessions, minutes or hours apart. Until now the announcement was processed the instant it landed, failed because the file was not there, and was archived to `paths.reject` — so when the file did arrive there was nothing left to pair it with, and it sat in the inbound forever. For a large file from a given peer this could fail every single time. Such a TIC is now kept and retried on later import passes, bounded by the new `scannerTossers.ftn_bso.tic.holdMaxAgeMs` (default 48 hours; `0` holds indefinitely). **No action is required.**
+
+  **Check your inbound for files this already stranded.** Anything in `mail/ftn_secin/` (or `mail/ftn_in/`) that is not a `.pkt`, a bundle or a `.tic` is very likely an orphaned TIC payload. The matching announcement is in `mail/reject/` as `reject-tic--<timestamp>-<name>.tic`; the simplest recovery is to move *both* back into the secure inbound and let the next import pass pick them up, now that the pairing works. Re-announcement by the peer is not needed.
+
+  Three related changes ride along, none of which need configuration:
+
+  * **The announced filename is now matched case-insensitively.** A TIC naming `NODELIST.Z34` finds a delivered `nodelist.z34`, which on a case-sensitive filesystem it previously never did. This alone could account for a file that "never once imported".
+  * **A file still being written is no longer destroyed.** A payload shorter than the TIC's `Size`, or one failing its CRC, used to be archived as a reject and unlinked — which, with a mailer that writes straight into the inbound, could delete a transfer in progress. It is now held and re-checked, and only given up on once the hold expires.
+  * **The TIC password is compared without regard to case**, matching what other FTN software does and what ENiGMA½ already did for packet passwords. A TIC previously refused purely over case will now be accepted.
+
+* **`scannerTossers.ftn_bso.tic.secureInOnly` is now enforced** ([#735](https://github.com/NuSkooler/enigma-bbs/issues/735)). It has been documented and defaulted to `true` since TIC support landed, but was never actually read: TIC files in the **unsecure** inbound were imported into the file base on the strength of an unauthenticated `From` line alone. They are now ignored — left in place, neither imported nor deleted — and the fact is logged once.
+
+  **Action:** only if you deliberately accept TICs from the unsecure inbound. Set `tic.secureInOnly` to `false` to keep that behaviour. Note that doing so accepts files from any node matching your `nodes` configuration without the peer having authenticated, so prefer a `tic.password` if you go this route.
+
 * **NetMail no longer needs a `netMail.routes` entry to reach a node you have already configured** ([#739](https://github.com/NuSkooler/enigma-bbs/issues/739)). A destination listed in `scannerTossers.ftn_bso.nodes` is now delivered direct; routes are still consulted first and behave exactly as before, so **no action is required** and every existing configuration resolves identically.
 
   **Two cases do get stricter**, both of which previously "succeeded" into a dead end:

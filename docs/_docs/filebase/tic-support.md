@@ -39,9 +39,34 @@ Valid `tic` members:
 
 | Item | Required | Description |
 |--------|---------------|------------------|
-| `password` | :-1: | TIC packet password, if required |
-| `uploadedBy` | :-1: | Sets the "uploaded by" field for TIC attachments, for example "AgoraNet TIC" |
+| `password` | :-1: | TIC packet password, if required. Compared without regard to case, as other FTN software does |
+| `uploadBy` | :-1: | Sets the "uploaded by" field for TIC attachments, for example "AgoraNet TIC" |
 | `allowReplace` | :-1: | Set to `true` to allow TIC attachments to replace each other. This is especially handy for things like weekly node list attachments |
+| `descPriority` | :-1: | Where the file description comes from: `diz` (default) prefers a `FILE_ID.DIZ` shipped inside the file, `tic` prefers the TIC's own `Ldesc` |
+
+The `password`, `uploadBy`, `allowReplace` and `descPriority` members may also be
+set once for all nodes under `scannerTossers.ftn_bso.tic`, where the following
+system-wide members live as well:
+
+| Item | Required | Description |
+|--------|---------------|------------------|
+| `secureInOnly` | :-1: | Only process TIC files found in the **secure** inbound (`paths.secInbound`). Defaults to `true`. TIC files in the unsecure inbound are left where they are, not imported and not deleted |
+| `holdMaxAgeMs` | :-1: | How long to keep a TIC whose file has not arrived yet. Defaults to 48 hours; set to `0` to hold indefinitely. See [Files arriving after their TIC](#files-arriving-after-their-tic) |
+
+### Files arriving after their TIC
+A `.tic` and the file it announces frequently arrive in **separate mailer
+sessions**, sometimes many minutes apart. ENiGMA½ handles this the way other FTN
+file processors do: a TIC whose file is not present yet — or is still being
+written into the inbound — is **held** and retried on later import passes rather
+than rejected. Nothing is deleted while a TIC is being held.
+
+A held TIC is retried on every import cycle, including the one triggered
+immediately when a BinkP session delivers files, so the file is normally picked
+up within seconds of arriving. If it never arrives, the TIC is given up on after
+`holdMaxAgeMs` and archived to `paths.reject` as before.
+
+The announced name is matched **case-insensitively** against the inbound, so a
+TIC naming `NODELIST.Z34` still finds a `nodelist.z34` on disk.
 
 Next, we need to configure the mapping between TIC areas you want to carry, and the file base area (and, optionally, specific storage tag) for them to be tossed to. You can also add hashtags to the tossed files to assist users in searching for files:
 
