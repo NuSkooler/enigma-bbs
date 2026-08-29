@@ -637,7 +637,7 @@ describe('TIC hold, retry and rejection', () => {
         //  and where the fix lives -- and on success records the import instead of
         //  scanning the file into an area and persisting a DB entry.
         //
-        inst.processSingleTicFile = (ticFileInfo, cb) => {
+        inst.processSingleTicFile = (ticFileInfo, inboundType, cb) => {
             ticFileInfo.validate(
                 {
                     nodes: { [NODE_ADDR]: {} },

@@ -41,6 +41,8 @@ const {
     validateOutboundConfig,
 } = require('../bso_util.js');
 const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
+const TicFileWriter = require('../tic_file_writer.js');
+const ticForward = require('../tic_forward.js');
 const autoAreaCreate = require('../auto_area_create.js');
 const areaInfoPack = require('../area_info_pack.js');
 const { AreaFixStatus, parseAreaFixReply } = require('../areafix_reply.js');
@@ -2721,7 +2723,7 @@ function FTNMessageScanTossModule() {
         ];
     };
 
-    this.processSingleTicFile = function (ticFileInfo, cb) {
+    this.processSingleTicFile = function (ticFileInfo, inboundType, cb) {
         Log.debug(
             { tic: ticFileInfo.path, file: ticFileInfo.getAsString('File') },
             'Processing TIC file'
@@ -2742,6 +2744,13 @@ function FTNMessageScanTossModule() {
                             Log.trace({ reason: err.message }, 'Validation failure');
                             return callback(err);
                         }
+
+                        //  remembered for the forwarding gate, which is stricter
+                        //  than the import gate -- see forwardTicToDownlinks()
+                        localInfo.inboundType = inboundType;
+                        localInfo.externalAreaTag = ticFileInfo
+                            .getAsString('Area')
+                            .toUpperCase();
 
                         //  We may need to map |localAreaTag| back to real areaTag if it's a mapping/alias
                         const mappedLocalAreaTag = _.get(
@@ -2982,7 +2991,17 @@ function FTNMessageScanTossModule() {
                                 localInfo.fileEntry.fileName = paths.basename(finalPath);
                             }
 
-                            localInfo.newPath = dst;
+                            //
+                            //  |finalPath|, not |dst|: copyFileWithCollisionHandling()
+                            //  renames around an existing file, and |dst| then names
+                            //  something else entirely. Only fileEntry.fileName was
+                            //  being corrected. Dormant while cleanupOldFile() was the
+                            //  sole reader -- it returns early on the path where a
+                            //  collision can happen -- but forwarding reads this to
+                            //  decide what to ship.
+                            //
+                            localInfo.newPath = finalPath;
+                            localInfo.wasRenamedOnCollision = dst !== finalPath;
 
                             localInfo.fileEntry.persist(isUpdate, err => {
                                 return callback(err, localInfo);
@@ -2990,7 +3009,23 @@ function FTNMessageScanTossModule() {
                         }
                     );
                 },
-                //  :TODO: from here, we need to re-toss files if needed, before they are removed
+                function forwardToDownlinks(localInfo, callback) {
+                    //
+                    //  Pass the file on to any downlinks for this echo, before
+                    //  the inbound copies are removed. We forward the *file
+                    //  base* copy, not the inbound one -- which is what htick
+                    //  (sendToLinks -> PutFileOnLink) and Synchronet's tickit
+                    //  (do_move, then forward_tic) both do -- so the only real
+                    //  ordering requirement is that |store| has run.
+                    //
+                    //  Never fails the import. A spool hiccup on one downlink
+                    //  must not turn a successful import into a rejection, which
+                    //  would archive the TIC and its payload.
+                    //
+                    self.forwardTicToDownlinks(ticFileInfo, localInfo, () => {
+                        return callback(null, localInfo);
+                    });
+                },
                 function cleanupOldFile(localInfo, callback) {
                     if (!localInfo.existingFileId) {
                         return callback(null, localInfo);
@@ -3070,6 +3105,416 @@ function FTNMessageScanTossModule() {
                 return cb(err);
             }
         );
+    };
+
+    //
+    //  A unique 8.3 name for a generated TIC in |dir|.
+    //
+    //  FTS-5006 2.2: "The name of the TIC file should be unique enough to
+    //  ensure that systems receiving TIC files never have two TIC files with
+    //  the same name in their inbound."
+    //
+    //  A hash of the clock is not enough on its own. A hub forwarding one file
+    //  to forty downlinks generates forty names inside the same millisecond,
+    //  all landing in one zone outbound directory; a collision overwrites, the
+    //  '^' disposition then unlinks the survivor after the first send, and
+    //  every remaining downlink's flow reference resolves to nothing -- which
+    //  the spool warns about once and skips. Silent non-delivery, at exactly
+    //  the scale a hub operates. So: exclusive create, retry on collision, the
+    //  same shape htick's makeUniqueDosFileName() uses.
+    //
+    this.createUniqueTicFile = function (dir, content, cb) {
+        const fileCase = _.get(Config(), 'scannerTossers.ftn_bso.tic.fileCase', 'lower');
+        const MAX_ATTEMPTS = 64;
+
+        fse.mkdirs(dir, () => {
+            let attempt = 0;
+
+            const tryOnce = () => {
+                if (++attempt > MAX_ATTEMPTS) {
+                    return cb(
+                        Errors.General(
+                            `Could not find a free TIC file name in ${dir} after ${MAX_ATTEMPTS} attempts`
+                        )
+                    );
+                }
+
+                //  8 hex chars, as our packet names are built
+                let name = `${ftnUtil.getMessageSerialNumber(
+                    `${Date.now()}-${attempt}-${Math.floor(Math.random() * 0xffffffff)}`
+                )}.tic`;
+                if ('upper' === fileCase) {
+                    name = name.toUpperCase();
+                }
+
+                const fullPath = paths.join(dir, name);
+
+                //  'wx' -- fail rather than overwrite; see above
+                fs.writeFile(fullPath, content, { flag: 'wx' }, err => {
+                    if (err) {
+                        if ('EEXIST' === err.code) {
+                            return tryOnce();
+                        }
+                        return cb(err);
+                    }
+                    return cb(null, fullPath);
+                });
+            };
+
+            tryOnce();
+        });
+    };
+
+    //
+    //  Whether |localInfo| may be forwarded at all, independent of who to.
+    //
+    //  Importing a TIC affects our own file base; forwarding it makes third
+    //  parties receive traffic our Path and Seenby lines vouch for. The bar is
+    //  correspondingly higher, and deliberately not tied to |secureInOnly|:
+    //
+    //    * The TIC must have arrived in the *secure* inbound. Operators may set
+    //      tic.secureInOnly false to import from the open one; that must not
+    //      also let an unauthenticated file be re-announced under our name.
+    //    * The sending node must have actually authenticated. A TIC's "From"
+    //      is not bound to the session that delivered it, and a node with no
+    //      tic.password configured is never checked at all -- validate()
+    //      returns success without asking. |passwordVerified| distinguishes
+    //      "this peer authenticated" from "we never asked".
+    //    * A TIC addressed elsewhere is in transit, not for us.
+    //
+    this.canForwardTic = function (ticFileInfo, localInfo) {
+        const config = Config();
+
+        if ('secInbound' !== localInfo.inboundType) {
+            return {
+                ok: false,
+                reason: 'TIC did not arrive in the secure inbound',
+            };
+        }
+
+        const allowUnverified = _.get(
+            config.scannerTossers.ftn_bso.nodes,
+            [localInfo.node, 'tic', 'allowUnverifiedForward'],
+            _.get(config, 'scannerTossers.ftn_bso.tic.allowUnverifiedForward', false)
+        );
+
+        if (!localInfo.passwordVerified && !allowUnverified) {
+            return {
+                ok: false,
+                reason: `no TIC password configured for ${localInfo.node}, so the sender was never authenticated`,
+            };
+        }
+
+        //
+        //  "To" names where the file is going. FSP-1039: some processors insert
+        //  it only when the file is being routed *through* a third system.
+        //  htick refuses such a TIC outright (TIC_NotForUs) unless it is
+        //  configured to route it onward, which we cannot yet do.
+        //
+        //  We still import it -- refusing would be a regression for anyone
+        //  whose uplink writes an unexpected "To" -- but we must not re-announce
+        //  it to our downlinks under our own name.
+        //
+        const to = ticForward.addressOf(ticFileInfo, 'to');
+        if (to && !to.isAnyOf(self.getLocalAddresses())) {
+            return {
+                ok: false,
+                reason: `TIC is addressed to ${to.toString(
+                    '5D'
+                )}, not to us; transit routing is not implemented`,
+            };
+        }
+
+        return { ok: true };
+    };
+
+    //  Every FTN address this system answers to, across all networks.
+    this.getLocalAddresses = function () {
+        return Object.values(self.getNetworks())
+            .map(n => Address.fromString(n.localAddress))
+            .filter(a => a && a.isValid());
+    };
+
+    //
+    //  Pass a just-imported file on to the downlinks configured for its echo.
+    //
+    //  Never calls back an error: forwarding is best effort per downlink and
+    //  must not turn a successful import into a rejection.
+    //
+    this.forwardTicToDownlinks = function (ticFileInfo, localInfo, cb) {
+        const config = Config();
+        const ticAreaConfig = _.get(config.scannerTossers.ftn_bso, [
+            'ticAreas',
+            localInfo.externalAreaTag.toLowerCase(),
+        ]);
+
+        const downlinks = ticForward.downlinksOf(ticAreaConfig);
+        if (0 === downlinks.length) {
+            //  The ordinary case for a leaf system. Not worth a log line per file.
+            return cb(null);
+        }
+
+        const gate = self.canForwardTic(ticFileInfo, localInfo);
+        if (!gate.ok) {
+            Log.warn(
+                {
+                    tic: ticFileInfo.path,
+                    area: localInfo.externalAreaTag,
+                    downlinks: downlinks.length,
+                    reason: gate.reason,
+                },
+                'Not forwarding TIC to downlinks'
+            );
+            return cb(null);
+        }
+
+        //
+        //  A collision-renamed import is by definition a file we already hold
+        //  under that name. Forwarding it would announce the name we were given
+        //  while shipping the file under the name we stored it as -- BinkP
+        //  offers a file by its actual basename -- and htick resolves a payload
+        //  strictly by name, with no size/CRC fallback. The downlink would be
+        //  left with an orphan it can never pair up.
+        //
+        if (localInfo.wasRenamedOnCollision) {
+            Log.warn(
+                {
+                    tic: ticFileInfo.path,
+                    area: localInfo.externalAreaTag,
+                    storedAs: paths.basename(localInfo.newPath),
+                    announced: ticFileInfo.getAsString('File'),
+                },
+                'Not forwarding TIC; the file collided and was stored under another name'
+            );
+            return cb(null);
+        }
+
+        const networkName =
+            (ticAreaConfig && ticAreaConfig.network) ||
+            self.getNetworkNameForTicArea(localInfo, downlinks);
+
+        const network = networkName ? self.getNetworkConfig(networkName) : undefined;
+        const ourAddress = network && Address.fromString(network.localAddress);
+
+        if (!ourAddress || !ourAddress.isValid()) {
+            Log.warn(
+                {
+                    area: localInfo.externalAreaTag,
+                    network: networkName,
+                },
+                'Cannot forward TIC: no usable local address for this area\'s network; set "network" on the ticAreas entry'
+            );
+            return cb(null);
+        }
+
+        const defaultZone = self.getDefaultZone(networkName) || ourAddress.zone;
+        const ourAddresses = self.getLocalAddresses();
+
+        const { candidates, skipped } = ticForward.selectDownlinks({
+            ticFileInfo,
+            downlinks,
+            ourAddresses,
+            defaultZone,
+        });
+
+        skipped.forEach(s => {
+            Log.debug(
+                {
+                    area: localInfo.externalAreaTag,
+                    downlink: s.address.toString ? s.address.toString('5D') : s.address,
+                    reason: s.reason,
+                },
+                'Downlink skipped for this TIC'
+            );
+        });
+
+        if (0 === candidates.length) {
+            return cb(null);
+        }
+
+        const seenby = ticForward.buildSeenby({
+            ticFileInfo,
+            downlinks,
+            ourAddresses: [ourAddress],
+            defaultZone,
+        });
+
+        const pathEntry = TicFileWriter.pathEntry(
+            ourAddress,
+            new Date(),
+            ftnUtil.getProductIdentifier(),
+            '4D'
+        );
+
+        //
+        //  eachSeries, not each: two downlinks in the same zone share an
+        //  outbound directory, and serialising keeps their flow file appends
+        //  from contending for the same .bsy.
+        //
+        async.eachSeries(
+            candidates,
+            (downlink, nextDownlink) => {
+                self.forwardTicToOneDownlink(
+                    ticFileInfo,
+                    localInfo,
+                    { downlink, ourAddress, seenby, pathEntry, networkName },
+                    err => {
+                        if (err) {
+                            //  log and carry on: disk full at downlink 20 of 40
+                            //  must not cost us the first 19 or the import
+                            Log.warn(
+                                {
+                                    error: err.message,
+                                    reasonCode: err.reasonCode,
+                                    downlink: downlink.toString('5D'),
+                                    area: localInfo.externalAreaTag,
+                                },
+                                'Failed forwarding TIC to downlink'
+                            );
+                        }
+                        return nextDownlink(null);
+                    }
+                );
+            },
+            () => {
+                return cb(null);
+            }
+        );
+    };
+
+    //
+    //  Which network owns this TIC area, when the ticAreas entry does not say.
+    //
+    //  Inferred from the zone of the downlinks, which is the same question
+    //  bso_util answers for the outbound spool -- so the from-address and the
+    //  directory cannot disagree. Advisory only: say so, because an area
+    //  carried on two networks cannot be resolved this way and the operator
+    //  should name it.
+    //
+    this.getNetworkNameForTicArea = function (localInfo, downlinks) {
+        const first = downlinks
+            .map(d => (_.isString(d) ? Address.fromString(d) : d))
+            .find(a => a && a.isValid());
+
+        if (!first) {
+            return undefined;
+        }
+
+        const { name, candidates } = resolveNetworkNameForZone(
+            self.getNetworks(),
+            self.getConfiguredDefaultNetwork(),
+            first.zone
+        );
+
+        if (name) {
+            const level = candidates.length > 1 ? 'warn' : 'debug';
+            Log[level](
+                {
+                    area: localInfo.externalAreaTag,
+                    zone: first.zone,
+                    using: name,
+                    candidates,
+                },
+                candidates.length > 1
+                    ? 'More than one network claims this TIC area\'s zone; set "network" on the ticAreas entry to be explicit'
+                    : 'Inferred network for TIC area from downlink zone'
+            );
+        }
+
+        return name;
+    };
+
+    //  Generate a TIC for |downlink| and queue it, with its payload, for send.
+    this.forwardTicToOneDownlink = function (ticFileInfo, localInfo, opts, cb) {
+        const { downlink, ourAddress, seenby, pathEntry, networkName } = opts;
+        const config = Config();
+
+        const nodeConfig = self.getNodeConfigByAddress(downlink) || {};
+        const ticConfig = nodeConfig.tic || {};
+        const generalTic = _.get(config, 'scannerTossers.ftn_bso.tic', {});
+
+        const pick = (key, fallback) =>
+            undefined !== ticConfig[key]
+                ? ticConfig[key]
+                : undefined !== generalTic[key]
+                  ? generalTic[key]
+                  : fallback;
+
+        const outgoingDir = self.getOutgoingEchoMailPacketDir(networkName, downlink);
+        const exportType = (
+            ticConfig.exportType || self.getExportType(nodeConfig)
+        ).toLowerCase();
+        const fileCase = nodeConfig.fileCase || 'lower';
+
+        const flowFilePath = self.getOutgoingFlowFileName(
+            outgoingDir,
+            downlink,
+            'ref',
+            exportType,
+            fileCase
+        );
+
+        //
+        //  FSC-0087: "The associated file [...] should always be sent FIRST. In
+        //  the case of a failed session, sending the FILE first prevents the
+        //  orphaning of the file." The payload carries no directive -- it lives
+        //  in our file base and is not ours to delete once sent -- while the
+        //  generated TIC is disposable and gets '^'. Both go out in one append
+        //  so the pair stays ordered and adjacent.
+        //
+        const queue = ticPath => {
+            const refs = [{ directive: '', path: localInfo.newPath }];
+            if (ticPath) {
+                refs.push({ directive: '^', path: ticPath });
+            }
+
+            self.flowFileAppendRefs(flowFilePath, refs, undefined, downlink, err => {
+                if (err) {
+                    //  The TIC we just wrote would otherwise sit in the
+                    //  outbound with nothing referencing it.
+                    if (ticPath) {
+                        fs.unlink(ticPath, () => {});
+                    }
+                    return cb(err);
+                }
+
+                Log.info(
+                    {
+                        file: paths.basename(localInfo.newPath),
+                        area: localInfo.externalAreaTag,
+                        downlink: downlink.toString('5D'),
+                    },
+                    'Forwarded TIC file to downlink'
+                );
+                return cb(null);
+            });
+        };
+
+        //  htick's noTIC: ship the file bare, for a link that wants no control file
+        if (true === pick('noTic', false)) {
+            return queue(null);
+        }
+
+        const content = TicFileWriter.build(ticFileInfo, {
+            from: ourAddress,
+            to: downlink,
+            password: ticConfig.password,
+            crc: _.get(localInfo, 'fileEntry.meta.file_crc32') || localInfo.crc32,
+            seenby,
+            pathEntry,
+            createdBy: ftnUtil.getProductIdentifier(),
+            addressDimensions: pick('addressDimensions', '4D'),
+            passUnknownKeywords: pick('passUnknownKeywords', true),
+            longNames: pick('longNames', true),
+            sha256: pick('sha256', false),
+        });
+
+        self.createUniqueTicFile(outgoingDir, content, (err, ticPath) => {
+            if (err) {
+                return cb(err);
+            }
+            return queue(ticPath);
+        });
     };
 
     this.removeAssocTicFiles = function (ticFileInfo, cb) {
@@ -3536,7 +3981,7 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                             );
                         };
 
-                        self.processSingleTicFile(ticFileInfo, err => {
+                        self.processSingleTicFile(ticFileInfo, inboundType, err => {
                             if (!err) {
                                 self.forgetTicHold(ticFileInfo);
                                 return self.removeAssocTicFiles(ticFileInfo, () => {
@@ -3577,6 +4022,109 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
 //  unresolvable, plus any leftovers from the pre-0.5.1-beta layout. Advisory
 //  only -- nothing here fails startup.
 //
+//
+//  Report TIC forwarding configuration that will not do what it looks like it
+//  does. Advisory only -- nothing here fails startup.
+//
+//  Worth saying out loud because every problem below is *silent* at runtime:
+//  an area that imports perfectly but never forwards produces no error, and
+//  the sysop's first hint is a downlink asking where the files went.
+//
+FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
+    const config = Config();
+    const ticAreas = _.get(config, 'scannerTossers.ftn_bso.ticAreas', {});
+    const nodes = _.get(config, 'scannerTossers.ftn_bso.nodes', {});
+    const networks = this.getNetworks();
+
+    Object.entries(ticAreas).forEach(([externalTag, areaConfig]) => {
+        const downlinks = ticForward.downlinksOf(areaConfig);
+        if (0 === downlinks.length) {
+            return; //  a leaf for this area; nothing to check
+        }
+
+        //  A network we cannot resolve means no address to sign Path/Seenby
+        //  with, so nothing is forwarded at all.
+        if (!areaConfig.network) {
+            const first = downlinks
+                .map(d => Address.fromString(d))
+                .find(a => a && a.isValid());
+            const claim = first
+                ? resolveNetworkNameForZone(
+                      networks,
+                      this.getConfiguredDefaultNetwork(),
+                      first.zone
+                  )
+                : { name: undefined, candidates: [] };
+
+            if (!claim.name) {
+                Log.warn(
+                    { ticArea: externalTag },
+                    'TIC area has downlinks but no "network", and none can be inferred from their zone; nothing will be forwarded'
+                );
+            } else if (claim.candidates.length > 1) {
+                Log.warn(
+                    { ticArea: externalTag, candidates: claim.candidates },
+                    'More than one network claims this TIC area\'s zone; set "network" to say which address signs its Path and Seenby'
+                );
+            }
+        } else if (!canonicalNetworkName(networks, areaConfig.network)) {
+            Log.warn(
+                { ticArea: externalTag, network: areaConfig.network },
+                'TIC area names a network that is not configured; nothing will be forwarded'
+            );
+        }
+
+        downlinks.forEach(downlink => {
+            const addr = Address.fromString(downlink);
+            if (!addr || !addr.isValid()) {
+                return Log.warn(
+                    { ticArea: externalTag, downlink },
+                    'TIC area downlink is not a usable FTN address'
+                );
+            }
+
+            const best = Address.findBestPatternMatch(nodes, addr);
+            if (!best) {
+                return Log.warn(
+                    { ticArea: externalTag, downlink },
+                    'TIC area downlink has no entry in scannerTossers.ftn_bso.nodes; it cannot be reached'
+                );
+            }
+
+            //  A downlink with no TIC password gets a TIC with no "Pw" line,
+            //  which most processors on the far end will refuse.
+            if (!_.get(best.value, 'tic.password')) {
+                Log.info(
+                    { ticArea: externalTag, downlink, nodePattern: best.pattern },
+                    'TIC area downlink has no tic.password; its outgoing TICs will carry no "Pw" line'
+                );
+            }
+        });
+    });
+
+    //
+    //  ticAreas is keyed by the *external* area tag, but a TIC also validates
+    //  against a bare local file base area tag (see getLocalAreaTagsForTic).
+    //  Such an area imports fine and forwards to nobody, with no error
+    //  anywhere -- so name the ones that could surprise someone.
+    //
+    const configured = new Set(Object.keys(ticAreas).map(t => t.toUpperCase()));
+    const anyDownlinks = Object.values(ticAreas).some(
+        a => ticForward.downlinksOf(a).length > 0
+    );
+
+    if (anyDownlinks) {
+        Object.keys(_.get(config, 'fileBase.areas', {}))
+            .filter(areaTag => !configured.has(areaTag.toUpperCase()))
+            .forEach(areaTag => {
+                Log.debug(
+                    { areaTag },
+                    'File base area is reachable by TIC but has no ticAreas entry, so it can never forward'
+                );
+            });
+    }
+};
+
 FTNMessageScanTossModule.prototype.logOutboundSpoolDiagnostics = function () {
     const networks = this.getNetworks();
     const defaultNetwork = this.getConfiguredDefaultNetwork();
@@ -3670,6 +4218,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 
     this.hasValidConfiguration({ shouldLog: true }); //  just check and log
     this.logOutboundSpoolDiagnostics();
+    this.logTicForwardingDiagnostics();
 
     //  Refresh cached top-level module config when config.hjson is hot-reloaded
     this._onConfigChanged = () => {
@@ -3688,6 +4237,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
         //  a reload can introduce a bad defaultNetwork, or move the default
         //  network and leave mail behind in the previous directory.
         this.logOutboundSpoolDiagnostics();
+        this.logTicForwardingDiagnostics();
     };
     Events.on(Events.getSystemEvents().ConfigChanged, this._onConfigChanged);
 

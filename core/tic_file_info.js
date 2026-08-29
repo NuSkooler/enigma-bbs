@@ -329,6 +329,16 @@ module.exports = class TicFileInfo {
                         _.get(config.nodes, [localInfo.node, 'tic', 'password']) ||
                         config.defaultPassword;
                     if (!passActual) {
+                        //
+                        //  No password configured for this node, so nothing to
+                        //  check. Importing on that basis has always been
+                        //  allowed, but |passwordVerified| lets a caller tell
+                        //  "this peer authenticated" from "we never asked" --
+                        //  which matters before acting on a TIC's say-so in a
+                        //  way third parties can see. See the forwarding gate
+                        //  in ftn_bso.js.
+                        //
+                        localInfo.passwordVerified = false;
                         return callback(null, localInfo); //  no pw validation
                     }
 
@@ -344,6 +354,7 @@ module.exports = class TicFileInfo {
                         return callback(Errors.Invalid('Bad TIC password'));
                     }
 
+                    localInfo.passwordVerified = true;
                     return callback(null, localInfo);
                 },
                 function resolvePayload(localInfo, callback) {
