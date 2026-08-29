@@ -560,6 +560,146 @@ describe('BsoSpool — getNodesWithPendingMail', () => {
     });
 });
 
+// ── dangling and rescued flow references ──────────────────────────────────────
+//
+//  Flow files carry absolute paths (FTS-5005.003 §3.1), so a file that moves
+//  out from under its reference becomes invisible: the entry is skipped, the
+//  session finds nothing to send, and the call reports success. That is how
+//  misfiled outbound mail hid (see issue #734) -- and hand-repairing it meant
+//  editing flow files, because moving the packet alone left the stored path
+//  stale.
+//
+//  Two behaviours close that off: a reference is also looked for by basename
+//  in the flow file's own directory, and a flow file whose live entries all
+//  resolve to nothing no longer reports its node as pending -- which used to
+//  put the poller in a dial-every-cycle-and-send-nothing loop.
+
+describe('BsoSpool — dangling and rescued flow references', () => {
+    beforeEach(cleanOutbound);
+
+    it('resolves a reference by basename in the flow file directory', async () => {
+        const moved = path.join(outboundDir(tmpDir), 'moved.pkt');
+        await fsp.writeFile(moved, 'MOVED');
+
+        //  The stored path is where the packet used to live
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${path.join(tmpDir, 'old_home', 'moved.pkt')}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1, 'the moved packet must still be found');
+        assert.equal(files[0].path, moved);
+        assert.equal(files[0].disposition, 'delete');
+    });
+
+    it('marks a rescued entry sent using the line as written', async () => {
+        const moved = path.join(outboundDir(tmpDir), 'rescued.pkt');
+        await fsp.writeFile(moved, 'RESCUED');
+
+        const stale = path.join(tmpDir, 'old_home', 'rescued.pkt');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${stale}\nkeepme\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1);
+
+        await files[0].disposeFn();
+
+        const content = await fsp.readFile(flowPath, 'utf8');
+        assert.ok(
+            content.includes(`~${stale}`),
+            `expected the original line marked sent, got:\n${content}`
+        );
+    });
+
+    it('excludes a node whose live entries all resolve to nothing', async () => {
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${path.join(tmpDir, 'gone', 'nope.pkt')}\n`);
+
+        const nodes = await spool.getNodesWithPendingMail();
+        assert.deepEqual(
+            nodes,
+            [],
+            'a node with nothing shippable must not be reported as pending'
+        );
+    });
+
+    it('still reports a node whose only entry needed rescuing', async () => {
+        const moved = path.join(outboundDir(tmpDir), 'pending_moved.pkt');
+        await fsp.writeFile(moved, 'DATA');
+
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(
+            flowPath,
+            `^${path.join(tmpDir, 'old_home', 'pending_moved.pkt')}\n`
+        );
+
+        const nodes = await spool.getNodesWithPendingMail();
+        assert.equal(nodes.length, 1);
+        assert.equal(nodes[0].net, 104);
+        assert.equal(nodes[0].node, 1);
+    });
+
+    it('does not rescue across directories, only the flow file own directory', async () => {
+        //  A same-named file elsewhere in the outbound tree must not be picked
+        //  up; that would ship the wrong packet to the wrong node.
+        const elsewhere = path.join(tmpDir, 'elsewhere');
+        await fsp.mkdir(elsewhere, { recursive: true });
+        await fsp.writeFile(path.join(elsewhere, 'decoy.pkt'), 'DECOY');
+
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${path.join(tmpDir, 'gone', 'decoy.pkt')}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 0);
+    });
+
+    it('skips a reference that names a directory', async () => {
+        //  A directory would queue, then fail to open at send time, and its
+        //  node would stay pending forever.
+        const dir = path.join(outboundDir(tmpDir), 'itsadir');
+        await fsp.mkdir(dir, { recursive: true });
+
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${dir}\n`);
+
+        assert.deepEqual(await spool.getOutboundFilesForNode(TEST_ADDR), []);
+        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+    });
+
+    it('does not collapse a dangling reference onto a directory', async () => {
+        //  The rescue takes the reference's last path segment. For a path
+        //  ending in ".." that segment resolves to the parent of the outbound
+        //  directory -- outside the spool entirely -- and for "." to the
+        //  outbound directory itself. Neither is a file, and neither may be
+        //  offered to a remote.
+        for (const tail of ['..', '.']) {
+            await cleanOutbound();
+            const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+            //  built by hand: path.join() would normalise the tail away
+            await fsp.writeFile(flowPath, `^${tmpDir}/gone/missing/${tail}\n`);
+
+            assert.deepEqual(
+                await spool.getOutboundFilesForNode(TEST_ADDR),
+                [],
+                `a reference ending in "${tail}" must resolve to nothing`
+            );
+            assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+        }
+    });
+
+    it('rescues a reference written with the other platform separators', async () => {
+        const here = path.join(outboundDir(tmpDir), 'aabbccdd.pkt');
+        await fsp.writeFile(here, 'PKT');
+
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, '^C:\\bbs\\out\\aabbccdd.pkt\n');
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 1);
+        assert.equal(files[0].path, here);
+    });
+});
+
 // ── Filename case ─────────────────────────────────────────────────────────────
 //
 //  FTS-5005.003 §2: "Lower case filenames are prefered if supported by the file

@@ -47,24 +47,16 @@ function addressKey(addr) {
 //  shadow the override depending on how the user wrote the HJSON. Scoring
 //  by Address#getMatchScore makes the result deterministic and intuitive.
 //
-//  |addr| can be an Address instance or anything with the same shape; we
-//  wrap it in Address only to call getMatchScore.
+//  |addr| can be an Address instance or anything with the same shape.
+//
+//  The scoring itself lives on Address so the FTN/BSO tosser can apply the
+//  same rule to its own pattern-keyed tables (nodes{}, NetMail routes{})
+//  without reaching into the BinkP module.
 //
 function findBestNodeMatch(nodes, addr) {
     if (_.isEmpty(nodes)) return undefined;
-    const a = addr instanceof Address ? addr : new Address(addr);
-
-    let bestScore = 0;
-    let bestConf;
-    for (const [pattern, conf] of Object.entries(nodes)) {
-        if (!a.isPatternMatch(pattern)) continue;
-        const score = a.getMatchScore(pattern);
-        if (score > bestScore) {
-            bestScore = score;
-            bestConf = conf;
-        }
-    }
-    return bestConf;
+    const best = Address.findBestPatternMatch(nodes, addr);
+    return best ? best.value : undefined;
 }
 
 //

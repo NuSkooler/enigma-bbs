@@ -27,9 +27,14 @@ describe('ftn_bso ↔ BinkP integration', function () {
         await fsp.rm(tmpDir, { recursive: true, force: true });
     });
 
+    //  core/ftn_util.js captures config.js's |get| at require time, so whatever
+    //  config is pushed when this file first pulls ftn_bso in is the one its
+    //  origin-line/tear-line helpers see for the rest of the run. Everything
+    //  those read has to be present here, not just in the per-test configs.
     function makeConfig() {
         return {
             debug: { assertsEnabled: false },
+            general: { boardName: 'Test BBS' },
             scannerTossers: {
                 ftn_bso: {
                     paths: {
@@ -931,6 +936,304 @@ describe('ftn_bso ↔ BinkP integration', function () {
                         })
                         .catch(done);
                 }
+            );
+        });
+    });
+
+    // ── routed NetMail export (issue #734) ───────────────────────────────────
+    //
+    //  NetMail can be routed: the message is addressed to one node but handed
+    //  to a different one for onward delivery. The standard FidoNet zone gate
+    //  is exactly this -- zone 2 mail leaves through a zone 1 uplink.
+    //
+    //  The packet has to be filed for the node we are going to DIAL, not for
+    //  the node the message is ultimately addressed to. The moment those two
+    //  differ by zone they resolve to different outbound directories, and a
+    //  BinkP session only ever looks in the dialed node's zone. Filing by
+    //  destination therefore put the mail somewhere nothing would ever read:
+    //  the call to the uplink completed cleanly having transferred nothing,
+    //  and the message sat on disk indefinitely with no error anywhere.
+    //
+    //  These drive the REAL exportNetMailMessagesToUplinks series and then
+    //  hand the resulting spool to BsoSpool, so writer and reader are checked
+    //  against each other rather than against a restatement of either.
+
+    describe('ftn_bso — routed NetMail export (issue #734)', () => {
+        const UPLINK = '1:154/10'; //  in the network's default zone (1)
+        const ZONE2_UPLINK = '2:280/1'; //  out of zone -> outbound.002
+
+        function makeNetMailConfig(root, routes, nodes) {
+            const config = makeConfig();
+            //  prepareMessage() builds an origin line from the board name
+            config.general = { boardName: 'Test BBS' };
+            config.scannerTossers.ftn_bso.paths = {
+                outbound: root,
+                inbound: path.join(root, 'ftn_in'),
+                secInbound: path.join(root, 'ftn_secin'),
+            };
+            config.scannerTossers.ftn_bso.defaultNetwork = 'testnet';
+            config.scannerTossers.ftn_bso.packetMsgEncoding = 'utf8';
+            config.scannerTossers.ftn_bso.nodes = nodes;
+            config.scannerTossers.ftn_bso.netMail = { routes };
+            return config;
+        }
+
+        //  Export one NetMail addressed to |dest| under |routes|. Yields the
+        //  outbound root for inspection.
+        function runNetMailExport({ label, dest, routes, nodes }, cb) {
+            const root = path.join(tmpDir, `netmail_${label}`);
+            const tempDir = path.join(root, 'export_temp');
+
+            const config = makeNetMailConfig(root, routes, nodes);
+            const prev = configModule._pushTestConfig(config);
+
+            const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+            const Message = require('../core/message.js');
+
+            const mod = new getModule();
+            //  Same reasoning as the EchoMail block above: set the pieces the
+            //  export reaches through |moduleConfig| directly.
+            mod.moduleConfig = config.scannerTossers.ftn_bso;
+            mod.exportTempDir = tempDir;
+
+            const message = new Message({
+                areaTag: Message.WellKnownAreaTags.Private,
+                toUserName: 'Sysop',
+                fromUserName: 'Tester',
+                subject: `routed netmail ${label}`,
+                message: 'Body text.',
+            });
+            message.setExternalFlavor(Message.AddressFlavor.FTN);
+            message.meta.System[Message.SystemMetaNames.RemoteToUser] = dest;
+            //  There is no message database here; the export only writes
+            //  export bookkeeping, which nothing under test reads back.
+            message.persistMetaValue = (sect, name, value, callback) => callback(null);
+
+            fsp.mkdir(tempDir, { recursive: true })
+                .then(() =>
+                    mod.exportNetMailMessagesToUplinks([message], err => {
+                        configModule._popTestConfig(prev);
+                        cb(err, { root, mod });
+                    })
+                )
+                .catch(cb);
+        }
+
+        function spoolFor(root) {
+            const { BsoSpool } = require('../core/binkp/bso_spool.js');
+            return new BsoSpool({
+                paths: {
+                    outbound: root,
+                    inbound: path.join(root, 'ftn_in'),
+                    secInbound: path.join(root, 'ftn_secin'),
+                },
+                networks: { testnet: { localAddress: '1:218/700', defaultZone: 1 } },
+                defaultNetwork: 'testnet',
+            });
+        }
+
+        const CROSS_ZONE = {
+            label: 'crosszone',
+            dest: '2:280/464',
+            routes: { '*': { address: UPLINK, network: 'testnet' } },
+            nodes: { [UPLINK]: { packetType: '2+' } },
+        };
+
+        it('files cross-zone routed mail under the uplink, not the recipient', done => {
+            runNetMailExport(CROSS_ZONE, (err, { root }) => {
+                if (err) return done(err);
+
+                Promise.all([
+                    fsp.readdir(path.join(root, 'outbound')),
+                    fsp.readdir(path.join(root, 'outbound.002')).catch(() => []),
+                ])
+                    .then(([inZone, destZone]) => {
+                        //  009a000a = net 154 (0x9a) / node 10 (0x0a), and the
+                        //  packet is named from a message serial.
+                        assert.ok(
+                            inZone.includes('009a000a.clo'),
+                            `flow file must be in outbound/, saw ${inZone}`
+                        );
+                        assert.equal(
+                            inZone.filter(f => f.endsWith('.pkt')).length,
+                            1,
+                            `packet must be in outbound/, saw ${inZone}`
+                        );
+                        assert.deepEqual(
+                            destZone,
+                            [],
+                            'nothing may be filed under the recipient zone'
+                        );
+                        done();
+                    })
+                    .catch(done);
+            });
+        });
+
+        it('BsoSpool ships the routed packet when the uplink is dialed', done => {
+            runNetMailExport(
+                { ...CROSS_ZONE, label: 'crosszone_ship' },
+                (err, { root }) => {
+                    if (err) return done(err);
+                    const Address = require('../core/ftn_address.js');
+                    spoolFor(root)
+                        .getOutboundFilesForNode(Address.fromString(UPLINK))
+                        .then(files => {
+                            assert.equal(
+                                files.length,
+                                1,
+                                'the call to the uplink must have the packet queued'
+                            );
+                            assert.ok(files[0].path.endsWith('.pkt'));
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('reports the uplink as pending, not a phantom in the recipient zone', done => {
+            //  Filing by destination did not merely hide the mail: the pending
+            //  scan derives a node from directory zone + flow basename, so it
+            //  reported 2:154/10 -- a node that does not exist, and which the
+            //  poller then skipped at debug level.
+            runNetMailExport(
+                { ...CROSS_ZONE, label: 'crosszone_pending' },
+                (err, { root }) => {
+                    if (err) return done(err);
+                    spoolFor(root)
+                        .getNodesWithPendingMail()
+                        .then(addrs => {
+                            assert.deepEqual(
+                                addrs.map(a => a.toString()),
+                                [UPLINK],
+                                'pending mail must be attributed to the uplink'
+                            );
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+
+        it('follows the route into a non-default zone as well', done => {
+            //  The mirror image: an in-zone recipient routed out through an
+            //  out-of-zone uplink belongs in that uplink's zone directory.
+            runNetMailExport(
+                {
+                    label: 'routeoutofzone',
+                    dest: '1:218/701',
+                    routes: { '*': { address: ZONE2_UPLINK, network: 'testnet' } },
+                    nodes: { [ZONE2_UPLINK]: { packetType: '2+' } },
+                },
+                (err, { root }) => {
+                    if (err) return done(err);
+                    const Address = require('../core/ftn_address.js');
+                    fsp.readdir(path.join(root, 'outbound.002'))
+                        .then(entries => {
+                            //  01180001 = net 280 (0x118) / node 1
+                            assert.ok(
+                                entries.includes('01180001.clo'),
+                                `expected the zone 2 flow file, saw ${entries}`
+                            );
+                            return spoolFor(root).getOutboundFilesForNode(
+                                Address.fromString(ZONE2_UPLINK)
+                            );
+                        })
+                        .then(files => {
+                            assert.equal(files.length, 1);
+                            done();
+                        })
+                        .catch(done);
+                }
+            );
+        });
+    });
+
+    // ── NetMail route selection ──────────────────────────────────────────────
+    //
+    //  routes{} keys are FTN patterns and several can match one address. The
+    //  lookup used to take the first match in object iteration order, so a
+    //  catch-all silently shadowed every more specific route written below it
+    //  -- the route that applied depended only on how the sysop happened to
+    //  order config.hjson.
+
+    describe('ftn_bso — NetMail route selection', () => {
+        function routeFor(routes, dest) {
+            const config = makeConfig();
+            config.scannerTossers.ftn_bso.netMail = { routes };
+            const prev = configModule._pushTestConfig(config);
+            try {
+                const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+                const Address = require('../core/ftn_address.js');
+                const mod = new getModule();
+                mod.moduleConfig = config.scannerTossers.ftn_bso;
+                const route = mod.getNetMailRoute(Address.fromString(dest));
+                return route && route.address;
+            } finally {
+                configModule._popTestConfig(prev);
+            }
+        }
+
+        it('prefers a specific route over a catch-all listed first', () => {
+            assert.equal(
+                routeFor(
+                    {
+                        '*': { address: '1:154/10', network: 'testnet' },
+                        '21:*': { address: '21:1/100', network: 'fsxnet' },
+                    },
+                    '21:1/234'
+                ),
+                '21:1/100'
+            );
+        });
+
+        it('gives the same answer when the catch-all is listed last', () => {
+            assert.equal(
+                routeFor(
+                    {
+                        '21:*': { address: '21:1/100', network: 'fsxnet' },
+                        '*': { address: '1:154/10', network: 'testnet' },
+                    },
+                    '21:1/234'
+                ),
+                '21:1/100'
+            );
+        });
+
+        it('prefers an exact node route over a zone wildcard', () => {
+            assert.equal(
+                routeFor(
+                    {
+                        '21:*': { address: '21:1/100', network: 'fsxnet' },
+                        '21:1/234': { address: '21:1/999', network: 'fsxnet' },
+                    },
+                    '21:1/234'
+                ),
+                '21:1/999'
+            );
+        });
+
+        it('still falls back to the catch-all when nothing specific matches', () => {
+            assert.equal(
+                routeFor(
+                    {
+                        '21:*': { address: '21:1/100', network: 'fsxnet' },
+                        '*': { address: '1:154/10', network: 'testnet' },
+                    },
+                    '2:280/464'
+                ),
+                '1:154/10'
+            );
+        });
+
+        it('returns undefined when no route matches and none is a catch-all', () => {
+            assert.equal(
+                routeFor(
+                    { '21:*': { address: '21:1/100', network: 'fsxnet' } },
+                    '2:280/464'
+                ),
+                undefined
             );
         });
     });

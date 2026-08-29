@@ -142,6 +142,8 @@ scannerTossers: {
 
     defaultNetwork: fsxnet
 
+    //  Node keys are address patterns; where several match an address, the
+    //  most specific one wins regardless of the order written here.
     nodes: {
       "21:1/100" : {            //  May also contain wildcards, ie: "21:1/*"
         archiveType: ZIP        //  By-ext archive type: ZIP, ARJ, ..., optional.
