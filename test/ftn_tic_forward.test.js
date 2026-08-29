@@ -55,7 +55,7 @@ describe('TIC forwarding to downlinks', function () {
         return {
             debug: { assertsEnabled: false },
             general: { boardName: 'Test BBS' },
-            fileBase: { areas: {} },
+            fileBase: overrides.fileBase || { areas: {}, storageTags: {} },
             scannerTossers: {
                 ftn_bso: {
                     defaultNetwork: 'fsxnet',
@@ -369,6 +369,100 @@ describe('TIC forwarding to downlinks', function () {
             });
             await forward(localInfo());
             await assertNothingQueued();
+        });
+    });
+
+    describe('Replaces dequeues what the downlink has not yet received', () => {
+        //
+        //  FSC-0087: "File Forwarders should always delete and dequeue unsent
+        //  TIC files when re-hatching the same or updated version of an
+        //  associated file." Without it a downlink that has not polled in a
+        //  week receives NODELIST.246 and then NODELIST.253 -- and worse,
+        //  cleanupOldFile() unlinks the old payload, so the reference dangles
+        //  and the downlink silently receives neither.
+        //
+
+        const OLD_NAME = 'NODELIST.Z20';
+
+        //  Queue an old file plus its TIC the way forwarding writes them:
+        //  payload with no directive, its TIC with '^', adjacent.
+        async function queueOld() {
+            const dir = paths.join(outboundDir, 'outbound');
+            await fsp.mkdir(dir, { recursive: true });
+
+            const oldPayload = storedPayload(OLD_NAME);
+            const oldTic = paths.join(dir, 'aaaaaaaa.tic');
+            await fsp.writeFile(oldTic, 'Area FSX_GEN\r\n');
+
+            const flowPath = paths.join(dir, `${FLOW_BASE}.clo`);
+            await fsp.writeFile(flowPath, `${oldPayload}\n^${oldTic}\n`);
+
+            return { oldPayload, oldTic, flowPath, dir };
+        }
+
+        function replacing(oldPayload) {
+            //  as |store| leaves it after findExistingItem matched
+            return localInfo({
+                existingFileId: 42,
+                oldFileName: paths.basename(oldPayload),
+                oldStorageTag: 'testStorage',
+                oldPath: oldPayload,
+            });
+        }
+
+        it('removes the superseded payload and its TIC from the flow file', async () => {
+            const { oldPayload, oldTic, flowPath } = await queueOld();
+
+            await forward(replacing(oldPayload));
+
+            const flow = await fsp.readFile(flowPath, 'utf8');
+            assert.ok(!flow.includes(oldPayload), 'old payload dequeued');
+            assert.ok(!flow.includes(oldTic), 'its TIC dequeued too');
+            assert.ok(!fs.existsSync(oldTic), 'and the orphan TIC removed');
+        });
+
+        it('queues the replacement in its place', async () => {
+            const { oldPayload, flowPath } = await queueOld();
+            const info = replacing(oldPayload);
+
+            await forward(info);
+
+            const flow = await fsp.readFile(flowPath, 'utf8');
+            assert.ok(flow.includes(info.newPath), 'the new file is queued');
+        });
+
+        it('leaves a reference that has already been sent alone', async () => {
+            //  '~' means delivered. Rewriting history helps nobody.
+            const { oldPayload, flowPath } = await queueOld();
+            await fsp.writeFile(flowPath, `~${oldPayload}\n`);
+
+            await forward(replacing(oldPayload));
+
+            const flow = await fsp.readFile(flowPath, 'utf8');
+            assert.ok(flow.includes(`~${oldPayload}`), 'a sent entry survives');
+        });
+
+        it('leaves other queued files alone', async () => {
+            const { oldPayload, flowPath, dir } = await queueOld();
+            const unrelated = paths.join(dir, 'other.pkt');
+            await fsp.appendFile(flowPath, `^${unrelated}\n`);
+
+            await forward(replacing(oldPayload));
+
+            const flow = await fsp.readFile(flowPath, 'utf8');
+            assert.ok(flow.includes(unrelated), 'unrelated mail is untouched');
+        });
+
+        it('does nothing when the file was replaced in place', async () => {
+            //  Same path in and out: the queued reference is still correct.
+            const { flowPath } = await queueOld();
+            const info = localInfo({ existingFileId: 42 });
+            info.oldPath = info.newPath; //  replaced in place
+
+            await forward(info);
+
+            const flow = await fsp.readFile(flowPath, 'utf8');
+            assert.ok(flow.includes('aaaaaaaa.tic'), 'nothing dequeued');
         });
     });
 

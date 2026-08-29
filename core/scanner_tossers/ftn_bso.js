@@ -2834,6 +2834,25 @@ function FTNMessageScanTossModule() {
 
                                             localInfo.oldFileName = info.fileName;
                                             localInfo.oldStorageTag = info.storageTag;
+
+                                            //
+                                            //  Resolved once, here, where the
+                                            //  storage tag is learned: both the
+                                            //  downlink dequeue and the physical
+                                            //  cleanup need it, and computing it
+                                            //  twice invites the two to disagree
+                                            //  about which file is being replaced.
+                                            //
+                                            const oldStorageDir =
+                                                getAreaStorageDirectoryByTag(
+                                                    info.storageTag
+                                                );
+                                            if (oldStorageDir) {
+                                                localInfo.oldPath = paths.join(
+                                                    oldStorageDir,
+                                                    info.fileName
+                                                );
+                                            }
                                         }
                                         return callback(null, localInfo); //  continue even if we couldn't find an old match
                                     }
@@ -3031,10 +3050,10 @@ function FTNMessageScanTossModule() {
                         return callback(null, localInfo);
                     }
 
-                    const oldStorageDir = getAreaStorageDirectoryByTag(
-                        localInfo.oldStorageTag
-                    );
-                    const oldPath = paths.join(oldStorageDir, localInfo.oldFileName);
+                    const oldPath = localInfo.oldPath;
+                    if (!oldPath) {
+                        return callback(null, localInfo);
+                    }
 
                     //  if we updated a file in place, don't delete it!
                     if (localInfo.newPath === oldPath) {
@@ -3163,6 +3182,164 @@ function FTNMessageScanTossModule() {
 
             tryOnce();
         });
+    };
+
+    //
+    //  Remove any *unsent* references to |targetPath| from |flowFilePath|,
+    //  along with the generated TIC that accompanies each.
+    //
+    //  FSC-0087: "File Forwarders should always delete and dequeue unsent TIC
+    //  files when re-hatching the same or updated version of an associated
+    //  file." Without this a downlink that has not polled in a week receives
+    //  NODELIST.246 and then NODELIST.253 -- and worse, cleanupOldFile()
+    //  unlinks the old payload, so those references dangle and the downlink
+    //  silently receives neither.
+    //
+    //  A reference already marked '~' is left alone: it has been sent, and
+    //  rewriting history helps nobody. We queue a payload and its TIC in one
+    //  append, adjacent and in that order, so a '^...tic' line immediately
+    //  following a matched payload belongs to it and goes too -- otherwise it
+    //  would sit in the outbound forever with nothing referencing it.
+    //
+    this.scrubFlowFileRefs = function (flowFilePath, targetPath, cb) {
+        const isSent = line => line.trim().startsWith('~');
+        const bodyOf = line => line.trim().replace(/^[\^#~!-]/, '');
+
+        withFlowFileLock(
+            flowFilePath,
+            {
+                staleMaxAgeMs: _.get(
+                    Config(),
+                    'scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs'
+                ),
+                timeoutMs: _.get(Config(), 'scannerTossers.ftn_bso.flowLockTimeoutMs'),
+                log: Log,
+            },
+            done => {
+                fs.readFile(flowFilePath, 'utf8', (err, content) => {
+                    if (err) {
+                        //  no flow file for this node is the ordinary case
+                        return done('ENOENT' === err.code ? null : err);
+                    }
+
+                    const lines = content.split('\n');
+                    const keep = [];
+                    const orphanedTics = [];
+                    let removed = 0;
+
+                    for (let i = 0; i < lines.length; ++i) {
+                        const line = lines[i];
+
+                        if (isSent(line) || bodyOf(line) !== targetPath) {
+                            keep.push(line);
+                            continue;
+                        }
+
+                        removed++;
+
+                        //  its companion TIC, if we wrote one
+                        const next = lines[i + 1];
+                        if (
+                            next &&
+                            !isSent(next) &&
+                            next.trim().startsWith('^') &&
+                            '.tic' === paths.extname(bodyOf(next)).toLowerCase()
+                        ) {
+                            orphanedTics.push(bodyOf(next));
+                            i++;
+                        }
+                    }
+
+                    if (0 === removed) {
+                        return done(null);
+                    }
+
+                    async.each(
+                        orphanedTics,
+                        (ticPath, nextTic) => fs.unlink(ticPath, () => nextTic(null)),
+                        () => {
+                            Log.debug(
+                                {
+                                    flowFile: flowFilePath,
+                                    file: paths.basename(targetPath),
+                                    removed,
+                                },
+                                'Dequeued superseded file from downlink outbound'
+                            );
+
+                            const remaining = keep.join('\n');
+                            if (!remaining.trim()) {
+                                return fs.unlink(flowFilePath, () => done(null));
+                            }
+                            return fs.writeFile(flowFilePath, remaining, done);
+                        }
+                    );
+                });
+            },
+            err => {
+                if (err && !isBusyError(err)) {
+                    Log.warn(
+                        { path: flowFilePath, error: err.message },
+                        'Failed dequeuing superseded file'
+                    );
+                }
+                return cb(null); //  never fatal
+            }
+        );
+    };
+
+    //
+    //  Dequeue a file this TIC replaces from every downlink that has not yet
+    //  received it. See scrubFlowFileRefs().
+    //
+    //  The name we scrub is |oldFileName| from our own database, found by
+    //  findExistingItem() under the allowReplace flag and constrained to the
+    //  same area and the same tic_origin. The remote "Replaces" pattern never
+    //  reaches the filesystem: it is matched against stored metadata, and more
+    //  than one hit is already refused. So a hostile "Replaces *" cannot
+    //  dequeue an area's worth of pending traffic.
+    //
+    this.dequeueReplacedForDownlinks = function (localInfo, downlinks, networkName, cb) {
+        if (!localInfo.existingFileId || !localInfo.oldPath) {
+            return cb(null);
+        }
+
+        const oldPath = localInfo.oldPath;
+        if (!oldPath) {
+            return cb(null);
+        }
+
+        if (oldPath === localInfo.newPath) {
+            return cb(null); //  replaced in place; the reference is still good
+        }
+
+        async.eachSeries(
+            downlinks,
+            (downlink, nextDownlink) => {
+                const addr = _.isString(downlink)
+                    ? Address.fromString(downlink)
+                    : downlink;
+                if (!addr || !addr.isValid()) {
+                    return nextDownlink(null);
+                }
+
+                const nodeConfig = self.getNodeConfigByAddress(addr) || {};
+                const exportType = (
+                    _.get(nodeConfig, 'tic.exportType') || self.getExportType(nodeConfig)
+                ).toLowerCase();
+
+                const flowFilePath = self.getOutgoingFlowFileName(
+                    self.getOutgoingEchoMailPacketDir(networkName, addr),
+                    addr,
+                    'ref',
+                    exportType,
+                    nodeConfig.fileCase || 'lower'
+                );
+
+                self.scrubFlowFileRefs(flowFilePath, oldPath, () => nextDownlink(null));
+            },
+            () => cb(null)
+        );
     };
 
     //
@@ -3331,6 +3508,31 @@ function FTNMessageScanTossModule() {
         if (0 === candidates.length) {
             return cb(null);
         }
+
+        //
+        //  A replacement supersedes whatever is still queued for the old file.
+        //  Do this before queueing the new one so a downlink cannot end up
+        //  holding both, and so the reference cleanupOldFile() is about to
+        //  invalidate does not dangle.
+        //
+        self.dequeueReplacedForDownlinks(localInfo, downlinks, networkName, () => {
+            self.queueTicForDownlinks(
+                ticFileInfo,
+                localInfo,
+                {
+                    candidates,
+                    downlinks,
+                    ourAddress,
+                    defaultZone,
+                    networkName,
+                },
+                cb
+            );
+        });
+    };
+
+    this.queueTicForDownlinks = function (ticFileInfo, localInfo, opts, cb) {
+        const { candidates, downlinks, ourAddress, defaultZone, networkName } = opts;
 
         const seenby = ticForward.buildSeenby({
             ticFileInfo,
