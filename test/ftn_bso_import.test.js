@@ -115,7 +115,7 @@ function makeHarness(overrides = {}) {
             return cb(null);
         });
 
-    inst.processTicFilesInDirectory = (dir, cb) => cb(null);
+    inst.processTicFilesInDirectory = (inboundType, dir, cb) => cb(null);
 
     return {
         inst,

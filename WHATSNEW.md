@@ -3,6 +3,24 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **TIC-announced files were lost whenever the file arrived after its announcement** ([#735](https://github.com/NuSkooler/enigma-bbs/issues/735)) — a `.tic` control file and the file it announces routinely arrive in *separate* mailer sessions; a peer running HTick was observed announcing a full Zone 1 nodelist 15–20 minutes ahead of the payload. ENiGMA½ processed the `.tic` the moment it landed, could not find the file, archived the announcement to `reject/` and unlinked it. The file then arrived with nothing left to pair it with and sat in the secure inbound indefinitely. For that peer and that file it failed every single time, and recovery meant finding the orphan by hand and forcing a rescan.
+
+  A TIC whose file is not here yet is now **held** and retried on later import passes — the same disposition HTick uses (`TIC_NotRecvd`, "has not been received, waiting") — rather than rejected. Because an import pass already runs the instant a BinkP session delivers files, the pairing normally completes within seconds of the file landing. A TIC that is never satisfied is given up on after `tic.holdMaxAgeMs` (48 hours by default) and rejected as before, so nothing accumulates forever.
+
+  Four more defects in the same code path came out with it:
+
+  * **The announced name was matched case-sensitively.** A TIC naming `NODELIST.Z34` never found a delivered `nodelist.z34`. Other FTN software normalises this (HTick calls `adaptcase()`); ENiGMA½ now resolves the name case-insensitively against the inbound.
+
+  * **A file still being written could be deleted.** A payload shorter than the TIC's `Size`, or one failing its CRC, was archived as a reject and unlinked — which, with a mailer that writes directly into the inbound, could destroy a transfer in progress. Short and mismatched payloads are now held and re-checked instead.
+
+  * **A `.tic` with no `File` field crashed the import pass.** Building the payload path threw a `TypeError` that escaped into a filesystem callback, leaving the pass hung until the five-minute watchdog fired — so every remaining TIC, and the other inbound directory, were skipped. Such a TIC is now simply rejected and the pass continues.
+
+  * **`tic.secureInOnly` did nothing.** Documented and defaulted to `true` since TIC support landed, it was never read, so TIC files in the *unsecure* inbound were imported on the strength of an unauthenticated `From` line. It is now enforced. See [UPGRADE](UPGRADE.md) if you relied on the old behaviour.
+
+* **A TIC could write its file anywhere the BBS user could write** ([#735](https://github.com/NuSkooler/enigma-bbs/issues/735)) — the `File` field was checked for path traversal, but `Lfile`/`Fullname` were not, and it is the *long* name a file is stored under: `paths.join(areaStorageDir, ticFileInfo.longFileName)`. A peer whose TIC otherwise validated could therefore send `Lfile ../../../somewhere/evil` and place arbitrary content outside the file base. All three fields are now checked, and `longFileName` discards an unsafe candidate rather than returning it. Found by a security review of the work above and confirmed against a live instance.
+
+  Two smaller things fall out of the same work: the TIC password is now compared without regard to case, as other FTN software does and as ENiGMA½ already did for packet passwords; and the packet and bundle import stages, which run over the same directory first, no longer consume a TIC-announced file whose name happens to match their patterns.
+
 * **NetMail could not be sent to a node you had configured, without also adding a route for it** ([#739](https://github.com/NuSkooler/enigma-bbs/issues/739)) — `netMail.routes` is meant to say where mail goes when it is *not* going direct, but in practice it was mandatory for every NetMail destination. A message to an uplink sitting right there in `nodes{}` was refused with `No NetMail route for …`, and the sender got a delivery failure notice.
 
   The network was being resolved with a helper that compares an address against your own `localAddress` — the right question when *importing* a packet addressed to you, and one a correspondent can never answer yes to. So the unrouted path could only ever succeed for mail addressed to yourself.

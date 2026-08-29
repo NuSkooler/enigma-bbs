@@ -1053,6 +1053,18 @@ module.exports = () => {
                     uploadBy: 'ENiGMA TIC', //  default upload by username (override @ network)
                     allowReplace: false, //  use "Replaces" TIC field
                     descPriority: 'diz', //  May be diz=.DIZ/etc., or tic=from TIC Ldesc
+
+                    //
+                    //  A TIC and the file it announces often arrive in separate
+                    //  mailer sessions, minutes or hours apart. A TIC whose file
+                    //  is not here yet -- or is still being written -- is kept and
+                    //  retried on later import passes instead of being rejected,
+                    //  for at most this long. Age is measured from the TIC's own
+                    //  mtime, i.e. when the mailer delivered it.
+                    //
+                    //  Set to 0 to hold indefinitely.
+                    //
+                    holdMaxAgeMs: 48 * 60 * 60 * 1000, //  48 hours
                 },
 
                 //

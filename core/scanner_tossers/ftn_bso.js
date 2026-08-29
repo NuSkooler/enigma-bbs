@@ -2098,7 +2098,10 @@ function FTNMessageScanTossModule() {
         );
 
         safeCopyFile(origPath, archivePath, err => {
-            if (err) {
+            //  ENOENT is ordinary here: rejecting a TIC archives both the
+            //  control file and the file it announced, and the whole reason for
+            //  the rejection may be that the latter never arrived
+            if (err && 'ENOENT' !== err.code) {
                 Log.warn(
                     {
                         error: err.message,
@@ -2253,7 +2256,7 @@ function FTNMessageScanTossModule() {
                             return callback(null);
                         }
 
-                        const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9a-z]/i;
+                        const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9a-z]$/i;
                         const bundles = files.filter(f =>
                             bundleRegExp.test(paths.extname(f))
                         );
@@ -2306,7 +2309,14 @@ function FTNMessageScanTossModule() {
         );
     };
 
-    this.importPacketFilesFromDirectory = function (importDir, password, cb) {
+    //  |claimedNames| (optional): lowercased names announced by a TIC in this
+    //  same directory, which must not be treated as mail. See getTicClaimedNames.
+    this.importPacketFilesFromDirectory = function (
+        importDir,
+        password,
+        claimedNames,
+        cb
+    ) {
         async.waterfall(
             [
                 function getPacketFiles(callback) {
@@ -2316,7 +2326,11 @@ function FTNMessageScanTossModule() {
                         }
                         callback(
                             null,
-                            files.filter(f => '.pkt' === paths.extname(f).toLowerCase())
+                            files.filter(
+                                f =>
+                                    '.pkt' === paths.extname(f).toLowerCase() &&
+                                    !(claimedNames && claimedNames.has(f.toLowerCase()))
+                            )
                         );
                     });
                 },
@@ -2384,19 +2398,60 @@ function FTNMessageScanTossModule() {
     this.importFromDirectory = function (inboundType, importDir, cb) {
         async.waterfall(
             [
-                //  start with .pkt files
-                function importPacketFiles(callback) {
-                    self.importPacketFilesFromDirectory(importDir, '', err => {
-                        callback(err);
+                //
+                //  Work out which files a TIC in this directory has already
+                //  spoken for, before any stage that consumes files runs.
+                //
+                function findTicClaimedNames(callback) {
+                    //
+                    //  Only a TIC we would actually process may reserve a name.
+                    //  A .tic in the *unsecure* inbound is left unprocessed by
+                    //  secureInOnly and therefore never removed, so honouring its
+                    //  claim would let an unauthenticated peer permanently shield
+                    //  any file it names from the packet and bundle stages.
+                    //
+                    if (!self.ticProcessingAllowed(inboundType)) {
+                        return callback(null, new Set());
+                    }
+
+                    fs.readdir(importDir, (err, files) => {
+                        if (err) {
+                            //  the packet stage reports the real error
+                            return callback(null, new Set());
+                        }
+
+                        self.getTicClaimedNames(importDir, files, claimed => {
+                            return callback(null, claimed);
+                        });
                     });
                 },
-                function discoverBundles(callback) {
+                //  ...then .pkt files
+                function importPacketFiles(claimedNames, callback) {
+                    self.importPacketFilesFromDirectory(
+                        importDir,
+                        '',
+                        claimedNames,
+                        err => {
+                            callback(err, claimedNames);
+                        }
+                    );
+                },
+                function discoverBundles(claimedNames, callback) {
                     fs.readdir(importDir, (err, files) => {
+                        if (err) {
+                            return callback(null, []);
+                        }
+
                         //  :TODO: if we do much more of this, probably just use the glob module
-                        const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9a-z]/i;
+                        //  anchored: only a *trailing* day-of-week pair plus one
+                        //  character is a bundle, so ".sa1x" is not one
+                        const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9a-z]$/i;
                         files = files.filter(f => {
                             const fext = paths.extname(f);
-                            return bundleRegExp.test(fext);
+                            return (
+                                bundleRegExp.test(fext) &&
+                                !claimedNames.has(f.toLowerCase())
+                            );
                         });
 
                         async.map(
@@ -2499,6 +2554,7 @@ function FTNMessageScanTossModule() {
                                     self.importPacketFilesFromDirectory(
                                         self.importTempDir,
                                         '',
+                                        null, //  bundle contents are never TIC payloads
                                         importErr => {
                                             if (importErr) {
                                                 Log.warn(
@@ -2526,7 +2582,7 @@ function FTNMessageScanTossModule() {
                     );
                 },
                 function importTicFiles(callback) {
-                    self.processTicFilesInDirectory(importDir, err => {
+                    self.processTicFilesInDirectory(inboundType, importDir, err => {
                         return callback(err);
                     });
                 },
@@ -2912,15 +2968,32 @@ function FTNMessageScanTossModule() {
             ],
             (err, localInfo) => {
                 if (err) {
-                    Log.error(
+                    //  a TIC missing "File" has no payload path at all; name it
+                    //  by the announcement, or failing that by the TIC itself
+                    const fileName =
+                        ticFileInfo.getAsString('File') ||
+                        paths.basename(ticFileInfo.path);
+
+                    //
+                    //  A payload that simply has not landed yet is the expected
+                    //  state of a TIC announced ahead of its file, and it repeats
+                    //  every pass until the file shows up. The caller decides
+                    //  whether to hold or reject and says so at a useful level;
+                    //  logging it as a failure here would only be noise.
+                    //
+                    const level = TicFileInfo.isPayloadPendingError(err)
+                        ? 'debug'
+                        : 'error';
+
+                    Log[level](
                         {
                             error: err.message,
                             reason: err.reason,
-                            tic: ticFileInfo.filePath,
+                            reasonCode: err.reasonCode,
+                            tic: ticFileInfo.path,
+                            file: ticFileInfo.filePath,
                         },
-                        `Failed to import/update TIC for "${paths.basename(
-                            ticFileInfo.filePath
-                        )}"`
+                        `Failed to import/update TIC for "${fileName}"`
                     );
                 } else {
                     Log.info(
@@ -2940,8 +3013,10 @@ function FTNMessageScanTossModule() {
     };
 
     this.removeAssocTicFiles = function (ticFileInfo, cb) {
+        //  |filePath| is undefined when the TIC has no usable "File" field --
+        //  filter before unlinking rather than handing undefined to fs
         async.each(
-            [ticFileInfo.path, ticFileInfo.filePath],
+            [ticFileInfo.path, ticFileInfo.filePath].filter(p => _.isString(p)),
             (path, nextPath) => {
                 fs.unlink(path, err => {
                     if (err && 'ENOENT' !== err.code) {
@@ -3126,9 +3201,161 @@ require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
 
 //  :TODO: *scheduled* portion of this stuff should probably use event_scheduler - @immediate would still use record().
 
-FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (importDir, cb) {
-    //  :TODO: pass in 'inbound' vs 'secInbound' -- pass along to processSingleTicFile() where password will be checked
+//
+//  How long a TIC whose payload has not arrived is kept before being given up on.
+//  Announcement and file routinely land in *different* mailer sessions, minutes
+//  or hours apart, so the window has to be generous. Set |tic.holdMaxAgeMs| to 0
+//  to hold indefinitely, which is htick's behaviour with delNotReceivedTIC off.
+//
+const TIC_HOLD_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
+//
+//  Whether TIC files arriving in |inboundType| are processed at all.
+//
+//  Single source of truth for tic.secureInOnly: the name-reservation pass and
+//  the import pass must agree, or a TIC we refuse to process could still reserve
+//  a filename against the stages that would have consumed it.
+//
+FTNMessageScanTossModule.prototype.ticProcessingAllowed = function (inboundType) {
+    const secureInOnly = _.get(Config(), 'scannerTossers.ftn_bso.tic.secureInOnly', true);
+
+    return !secureInOnly || 'secInbound' === inboundType;
+};
+
+//
+//  Lowercased names announced by a TIC sitting in |importDir|.
+//
+//  Those files are payloads waiting on their announcement, not mail. The packet
+//  and bundle stages run first and would otherwise consume one whose name happens
+//  to match their patterns -- a bundle extension is any day-of-week pair plus a
+//  character, so an announced FOO.SA1 collides -- archiving it as a reject and
+//  unlinking it while the TIC that needs it is still being held.
+//
+//  Names are compared lowercased, matching how TicFileInfo resolves a payload.
+//
+FTNMessageScanTossModule.prototype.getTicClaimedNames = function (importDir, files, cb) {
+    const ticFiles = files.filter(f => '.tic' === paths.extname(f).toLowerCase());
+    const claimed = new Set();
+
+    if (0 === ticFiles.length) {
+        return cb(claimed);
+    }
+
+    async.each(
+        ticFiles,
+        (fileName, nextFile) => {
+            TicFileInfo.createFromFile(
+                paths.join(importDir, fileName),
+                (err, ticInfo) => {
+                    const announced = err ? null : ticInfo.getAsString('File');
+                    if (announced && TicFileInfo.isSafeFileName(announced)) {
+                        claimed.add(announced.toLowerCase());
+                    }
+                    return nextFile(null);
+                }
+            );
+        },
+        () => {
+            return cb(claimed);
+        }
+    );
+};
+
+//
+//  Decide whether a TIC whose payload is not (yet) usable should be kept around
+//  for another pass. Calls back with true to hold, false to reject it.
+//
+//  The TIC's own mtime is the "held since" stamp: it is the moment the mailer
+//  finished writing it into the inbound, it costs no state of our own, and it
+//  survives a restart. A TIC hand-copied in with its timestamp preserved expires
+//  immediately -- which is precisely what every TIC did before this existed, so
+//  nothing regresses.
+//
+FTNMessageScanTossModule.prototype.maybeHoldTicFile = function (ticFileInfo, err, cb) {
+    const self = this;
+
+    const hold = ageMs => {
+        //
+        //  Announce the hold once, then drop to debug: a weekly nodelist can sit
+        //  here across many poll cycles and should not fill the log with it.
+        //
+        self._ticHolds = self._ticHolds || new Set();
+        const level = self._ticHolds.has(ticFileInfo.path) ? 'debug' : 'info';
+        self._ticHolds.add(ticFileInfo.path);
+
+        Log[level](
+            {
+                tic: ticFileInfo.path,
+                file: ticFileInfo.getAsString('File'),
+                reason: err.message,
+                reasonCode: err.reasonCode,
+                heldForMs: ageMs,
+            },
+            `Holding TIC for "${ticFileInfo.getAsString(
+                'File'
+            )}"; payload not yet available`
+        );
+
+        return cb(true);
+    };
+
+    let maxAgeMs = _.get(
+        Config(),
+        'scannerTossers.ftn_bso.tic.holdMaxAgeMs',
+        TIC_HOLD_MAX_AGE_MS
+    );
+
+    if (!_.isFinite(maxAgeMs)) {
+        maxAgeMs = TIC_HOLD_MAX_AGE_MS;
+    }
+
+    if (maxAgeMs <= 0) {
+        return hold(null); //  hold indefinitely
+    }
+
+    fs.stat(ticFileInfo.path, (statErr, stats) => {
+        if (statErr) {
+            //  no way to tell how long we have had it; expire rather than let a
+            //  TIC we cannot stat wedge the directory forever
+            return cb(false);
+        }
+
+        //  clamp: a timestamp in the future must not expire the hold instantly
+        const ageMs = Math.max(0, Date.now() - stats.mtimeMs);
+        if (ageMs <= maxAgeMs) {
+            return hold(ageMs);
+        }
+
+        Log.warn(
+            {
+                tic: ticFileInfo.path,
+                file: ticFileInfo.getAsString('File'),
+                reason: err.message,
+                reasonCode: err.reasonCode,
+                heldForMs: ageMs,
+                holdMaxAgeMs: maxAgeMs,
+            },
+            `Giving up on TIC for "${ticFileInfo.getAsString(
+                'File'
+            )}"; payload never arrived`
+        );
+
+        return cb(false);
+    });
+};
+
+//  Drop the "already announced this hold" marker once a TIC is finally resolved.
+FTNMessageScanTossModule.prototype.forgetTicHold = function (ticFileInfo) {
+    if (this._ticHolds) {
+        this._ticHolds.delete(ticFileInfo.path);
+    }
+};
+
+FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
+    inboundType,
+    importDir,
+    cb
+) {
     const self = this;
     async.waterfall(
         [
@@ -3138,10 +3365,36 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (import
                         return callback(err);
                     }
 
-                    return callback(
-                        null,
-                        files.filter(f => '.tic' === paths.extname(f).toLowerCase())
+                    const ticFiles = files.filter(
+                        f => '.tic' === paths.extname(f).toLowerCase()
                     );
+
+                    //
+                    //  |secureInOnly| has been documented and defaulted to true
+                    //  since TIC support landed, but was never enforced: TICs in
+                    //  the *unsecure* inbound were imported on the strength of an
+                    //  unauthenticated "From" line alone. Honour it now.
+                    //
+                    if (!self.ticProcessingAllowed(inboundType)) {
+                        if (ticFiles.length > 0) {
+                            //  say it once, then stay quiet: this repeats on
+                            //  every import pass until the sysop acts on it
+                            const level = self._ticUnsecureWarned ? 'debug' : 'warn';
+                            self._ticUnsecureWarned = true;
+
+                            Log[level](
+                                {
+                                    importDir,
+                                    inboundType,
+                                    count: ticFiles.length,
+                                },
+                                'Ignoring TIC file(s) in the unsecure inbound; set scannerTossers.ftn_bso.tic.secureInOnly to false to process them'
+                            );
+                        }
+                        return callback(null, []);
+                    }
+
+                    return callback(null, ticFiles);
                 });
             },
             function gatherInfo(ticFiles, callback) {
@@ -3174,39 +3427,57 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (import
                 async.eachSeries(
                     ticFilesInfo,
                     (ticFileInfo, nextTicInfo) => {
-                        self.processSingleTicFile(ticFileInfo, err => {
-                            if (err) {
-                                //  :TODO: If ENOENT -OR- failed due to CRC mismatch: create a pending state & try again later; the "attached" file may not yet be ready.
+                        //  archive rejected TIC stuff (.TIC + attach), then remove
+                        const reject = () => {
+                            self.forgetTicHold(ticFileInfo);
 
-                                //  archive rejected TIC stuff (.TIC + attach)
-                                async.each(
-                                    [ticFileInfo.path, ticFileInfo.filePath],
-                                    (path, nextPath) => {
-                                        if (!path) {
-                                            //  possibly rejected due to "File" not existing/etc.
+                            async.each(
+                                [ticFileInfo.path, ticFileInfo.filePath],
+                                (path, nextPath) => {
+                                    if (!path) {
+                                        //  no "File" field, so no payload path
+                                        return nextPath(null);
+                                    }
+
+                                    self.maybeArchiveImportFile(
+                                        path,
+                                        'tic',
+                                        'reject',
+                                        () => {
                                             return nextPath(null);
                                         }
+                                    );
+                                },
+                                () => {
+                                    self.removeAssocTicFiles(ticFileInfo, () => {
+                                        return nextTicInfo(null);
+                                    });
+                                }
+                            );
+                        };
 
-                                        self.maybeArchiveImportFile(
-                                            path,
-                                            'tic',
-                                            'reject',
-                                            () => {
-                                                return nextPath(null);
-                                            }
-                                        );
-                                    },
-                                    () => {
-                                        self.removeAssocTicFiles(ticFileInfo, () => {
-                                            return nextTicInfo(null);
-                                        });
-                                    }
-                                );
-                            } else {
-                                self.removeAssocTicFiles(ticFileInfo, () => {
+                        self.processSingleTicFile(ticFileInfo, err => {
+                            if (!err) {
+                                self.forgetTicHold(ticFileInfo);
+                                return self.removeAssocTicFiles(ticFileInfo, () => {
                                     return nextTicInfo(null);
                                 });
                             }
+
+                            //
+                            //  The announced file may simply not be here yet: a
+                            //  TIC and its payload routinely arrive in separate
+                            //  mailer sessions. Leave both in place and try again
+                            //  next pass rather than rejecting the announcement
+                            //  and orphaning the file that follows it.
+                            //
+                            if (!TicFileInfo.isPayloadPendingError(err)) {
+                                return reject();
+                            }
+
+                            self.maybeHoldTicFile(ticFileInfo, err, held => {
+                                return held ? nextTicInfo(null) : reject();
+                            });
                         });
                     },
                     err => {
@@ -3330,6 +3601,9 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
         //  so a fixed auto-areas include is noticed rather than staying quiet
         this._autoAreaIncludeWarned = false;
 
+        //  ...likewise for a secureInOnly that has just been changed
+        this._ticUnsecureWarned = false;
+
         //  ...and re-check what the new config says about the outbound spool:
         //  a reload can introduce a bad defaultNetwork, or move the default
         //  network and leave mail behind in the previous directory.
@@ -3364,7 +3638,7 @@ FTNMessageScanTossModule.prototype.startup = function (cb) {
 
     this.createTempDirectories(err => {
         if (err) {
-            Log.warn({ error: err.toStrong() }, 'Failed creating temporary directories!');
+            Log.warn({ error: err.message }, 'Failed creating temporary directories!');
             return cb(err);
         }
 
