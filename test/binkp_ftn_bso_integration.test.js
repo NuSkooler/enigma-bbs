@@ -1237,4 +1237,256 @@ describe('ftn_bso ↔ BinkP integration', function () {
             );
         });
     });
+
+    // ── NetMail destination resolution (issue #739) ──────────────────────────
+    //
+    //  Deciding where NetMail goes settles two things at once: the node to
+    //  dial, and the network -- which is the address we send *from* and the
+    //  outbound directory we file under.
+    //
+    //  The network used to be looked up with getNetworkNameByAddress(), which
+    //  compares against our own localAddress and so answers "is this me?".
+    //  That is the right question on import, where the packet is addressed to
+    //  us, and the only question this path could never use: a correspondent is
+    //  by definition not us. Every unrouted destination therefore failed, even
+    //  one explicitly listed in nodes{}, and netMail.routes{} became mandatory
+    //  for all NetMail rather than for routing.
+
+    describe('ftn_bso — NetMail destination resolution (issue #739)', () => {
+        const NETWORKS = {
+            fsxnet: { localAddress: '21:1/234' },
+            fidonet: { localAddress: '1:103/705' },
+        };
+
+        //  Resolve one destination under a given nodes{}/routes{} shape.
+        function resolve({ nodes, routes, networks, defaultNetwork }, dest) {
+            const config = makeConfig();
+            config.messageNetworks.ftn.networks = networks || NETWORKS;
+            config.scannerTossers.ftn_bso.defaultNetwork = defaultNetwork;
+            config.scannerTossers.ftn_bso.nodes = nodes || {};
+            if (routes) {
+                config.scannerTossers.ftn_bso.netMail = { routes };
+            }
+
+            const prev = configModule._pushTestConfig(config);
+            try {
+                const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+                const Address = require('../core/ftn_address.js');
+                const mod = new getModule();
+                mod.moduleConfig = config.scannerTossers.ftn_bso;
+
+                let out;
+                mod.getNetMailRouteInfoFromAddress(
+                    Address.fromString(dest),
+                    (err, info) => {
+                        out = err
+                            ? { refused: err.message }
+                            : {
+                                  route: info.routeAddress.toString(),
+                                  network: info.networkName,
+                                  isRouted: info.isRouted,
+                              };
+                    }
+                );
+                return out;
+            } finally {
+                configModule._popTestConfig(prev);
+            }
+        }
+
+        it('sends direct to a node listed in nodes{}, with no route at all', () => {
+            const nodes = { '21:1/100': {}, '1:154/10': {} };
+            assert.deepEqual(resolve({ nodes }, '21:1/100'), {
+                route: '21:1/100',
+                network: 'fsxnet',
+                isRouted: false,
+            });
+            assert.deepEqual(resolve({ nodes }, '1:154/10'), {
+                route: '1:154/10',
+                network: 'fidonet',
+                isRouted: false,
+            });
+        });
+
+        it('picks the network by the zone of the node being dialed', () => {
+            //  Not by our own address, and not by defaultNetwork: mail to a
+            //  zone 1 node must go out as our zone 1 identity even when the
+            //  default network is the zone 21 one.
+            assert.equal(
+                resolve(
+                    { nodes: { '1:154/10': {} }, defaultNetwork: 'fsxnet' },
+                    '1:154/10'
+                ).network,
+                'fidonet'
+            );
+        });
+
+        it('refuses a destination that is neither routed nor a configured node', () => {
+            const got = resolve({ nodes: { '21:1/100': {} } }, '21:5/99');
+            assert.ok(got.refused, 'must not silently queue mail with nowhere to go');
+            assert.match(got.refused, /not a configured node/);
+        });
+
+        it('refuses when no configured network claims the destination zone', () => {
+            const got = resolve({ nodes: { '2:280/464': {} } }, '2:280/464');
+            assert.match(got.refused, /No network configured for zone 2/);
+        });
+
+        it('makes network optional on a route, falling back to the route zone', () => {
+            assert.deepEqual(
+                resolve({ routes: { '21:*': { address: '21:1/100' } } }, '21:5/99'),
+                { route: '21:1/100', network: 'fsxnet', isRouted: true }
+            );
+        });
+
+        it('refuses a route naming a network that is not configured', () => {
+            //  Previously accepted here and failed a step later, in the export,
+            //  with an error about the network rather than about the route.
+            const got = resolve(
+                { routes: { '21:*': { address: '21:1/100', network: 'nope' } } },
+                '21:5/99'
+            );
+            assert.match(got.refused, /names network "nope"/);
+        });
+
+        it('refuses a route whose address cannot be parsed', () => {
+            const got = resolve(
+                { routes: { '21:*': { address: 'not-an-address' } } },
+                '21:5/99'
+            );
+            assert.match(got.refused, /unusable address/);
+        });
+
+        it('lets a node name its own network when two share a zone', () => {
+            const networks = {
+                fidonet: { localAddress: '1:103/705' },
+                privnet: { localAddress: '1:999/1' },
+            };
+            //  defaultNetwork would otherwise win the tie
+            assert.equal(
+                resolve(
+                    {
+                        networks,
+                        defaultNetwork: 'privnet',
+                        nodes: { '1:154/10': { network: 'fidonet' } },
+                    },
+                    '1:154/10'
+                ).network,
+                'fidonet'
+            );
+        });
+
+        it('still prefers a route over a nodes{} entry for the same address', () => {
+            const got = resolve(
+                {
+                    nodes: { '21:1/100': {} },
+                    routes: { '*': { address: '1:154/10', network: 'fidonet' } },
+                },
+                '21:1/100'
+            );
+            assert.deepEqual(got, {
+                route: '1:154/10',
+                network: 'fidonet',
+                isRouted: true,
+            });
+        });
+
+        it('leaves routed cross-zone delivery (issue #734) alone', () => {
+            assert.deepEqual(
+                resolve(
+                    {
+                        networks: { fidonet: { localAddress: '1:103/705' } },
+                        routes: { '*': { address: '1:154/10', network: 'fidonet' } },
+                    },
+                    '2:280/464'
+                ),
+                { route: '1:154/10', network: 'fidonet', isRouted: true }
+            );
+        });
+
+        it('exports direct NetMail where the mailer will look for it', done => {
+            //  End to end: the real export series, then the real spool reader.
+            //  Resolution agreeing with itself is not enough -- the packet has
+            //  to land in the directory a BinkP call to that node scans.
+            const root = path.join(tmpDir, 'netmail_direct');
+            const tempDir = path.join(root, 'export_temp');
+
+            const config = makeConfig();
+            config.general = { boardName: 'Test BBS' };
+            config.messageNetworks.ftn.networks = NETWORKS;
+            config.scannerTossers.ftn_bso.defaultNetwork = 'fsxnet';
+            config.scannerTossers.ftn_bso.packetMsgEncoding = 'utf8';
+            config.scannerTossers.ftn_bso.nodes = { '1:154/10': { packetType: '2+' } };
+            config.scannerTossers.ftn_bso.paths = {
+                outbound: root,
+                inbound: path.join(root, 'ftn_in'),
+                secInbound: path.join(root, 'ftn_secin'),
+            };
+            //  deliberately no netMail.routes at all
+
+            const prev = configModule._pushTestConfig(config);
+            const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+            const { BsoSpool } = require('../core/binkp/bso_spool.js');
+            const Address = require('../core/ftn_address.js');
+            const Message = require('../core/message.js');
+
+            const mod = new getModule();
+            mod.moduleConfig = config.scannerTossers.ftn_bso;
+            mod.exportTempDir = tempDir;
+
+            const message = new Message({
+                areaTag: Message.WellKnownAreaTags.Private,
+                toUserName: 'Sysop',
+                fromUserName: 'Tester',
+                subject: 'direct netmail',
+                message: 'Body text.',
+            });
+            message.setExternalFlavor(Message.AddressFlavor.FTN);
+            message.meta.System[Message.SystemMetaNames.RemoteToUser] = '1:154/10';
+            message.persistMetaValue = (sect, name, value, callback) => callback(null);
+
+            fsp.mkdir(tempDir, { recursive: true })
+                .then(() =>
+                    mod.exportNetMailMessagesToUplinks([message], err => {
+                        configModule._popTestConfig(prev);
+                        if (err) return done(err);
+
+                        const spool = new BsoSpool({
+                            paths: config.scannerTossers.ftn_bso.paths,
+                            networks: NETWORKS,
+                            defaultNetwork: 'fsxnet',
+                        });
+
+                        spool
+                            .getOutboundFilesForNode(Address.fromString('1:154/10'))
+                            .then(files => {
+                                assert.equal(
+                                    files.length,
+                                    1,
+                                    'a call to 1:154/10 must find the packet'
+                                );
+                                assert.ok(files[0].path.endsWith('.pkt'));
+                                //  fidonet is not the default network, so its
+                                //  own directory -- not outbound/
+                                assert.ok(
+                                    files[0].path.includes(
+                                        `${path.sep}fidonet${path.sep}`
+                                    ),
+                                    `expected the fidonet outbound tree, got ${files[0].path}`
+                                );
+                                return spool.getNodesWithPendingMail();
+                            })
+                            .then(addrs => {
+                                assert.deepEqual(
+                                    addrs.map(a => a.toString()),
+                                    ['1:154/10']
+                                );
+                                done();
+                            })
+                            .catch(done);
+                    })
+                )
+                .catch(done);
+        });
+    });
 }); // describe('ftn_bso ↔ BinkP integration')

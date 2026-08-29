@@ -32,8 +32,10 @@ const User = require('../user.js');
 const StatLog = require('../stat_log.js');
 const SysProps = require('../system_property.js');
 const {
+    canonicalNetworkName,
     resolveDefaultNetworkName,
     resolveNetworkDefaultZone,
+    resolveNetworkNameForZone,
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
@@ -1025,46 +1027,110 @@ function FTNMessageScanTossModule() {
         return best ? best.value : undefined;
     };
 
+    //
+    //  Where to send NetMail for |destAddress|, and as whom.
+    //
+    //  1) A netMail.routes{} entry hands the message to another node for
+    //     onward delivery: where we send is not where it is addressed.
+    //  2) Otherwise, if |destAddress| is itself a node we are configured for,
+    //     we deliver direct.
+    //  3) Otherwise there is nowhere to send it. The export fails, and the
+    //     sender is told rather than the message sitting unexplained.
+    //
+    //  Either way the *network* has to be settled, since it decides both the
+    //  address we send from and the outbound directory we file under. A route
+    //  may name one outright. Failing that it comes from the zone of the node
+    //  being dialed, which is what picks the outbound directory anyway -- so
+    //  the two cannot disagree. A nodes{} entry may also carry its own
+    //  |network|, which is only needed when two networks share a zone.
+    //
     this.getNetMailRouteInfoFromAddress = function (destAddress, cb) {
-        //
-        //  Attempt to find route information for |destAddress|:
-        //
-        //  1) Routes: scannerTossers.ftn_bso.netMail.routes{} -> scannerTossers.ftn_bso.nodes{} -> config
-        //      - Where we send may not be where destAddress is (it's routed!)
-        //  2) Direct to nodes: scannerTossers.ftn_bso.nodes{} -> config
-        //      - Where we send is direct to destAddress
-        //
-        //  In both cases, attempt to look up Zone:Net/* to discover local "from" network/address
-        //  falling back to Config.scannerTossers.ftn_bso.defaultNetwork
-        //
         const route = this.getNetMailRoute(destAddress);
 
         let routeAddress;
         let networkName;
+        let nodeConfig;
         let isRouted;
+
         if (route) {
             routeAddress = Address.fromString(route.address);
+            if (!routeAddress) {
+                return cb(
+                    Errors.Invalid(
+                        `NetMail route for ${destAddress.toString()} has an unusable address: "${
+                            route.address
+                        }"`
+                    )
+                );
+            }
             networkName = route.network;
+            nodeConfig = this.getNodeConfigByAddress(routeAddress);
             isRouted = true;
         } else {
+            //
+            //  Direct delivery, but only to a node we actually carry
+            //  configuration for. Anything else has nowhere to go: filing a
+            //  packet for a node we know nothing about would leave it in the
+            //  spool indefinitely instead of telling the sender.
+            //
+            nodeConfig = this.getNodeConfigByAddress(destAddress);
+            if (!nodeConfig) {
+                return cb(
+                    Errors.DoesNotExist(
+                        `No NetMail route for ${destAddress.toString()}, and it is not a configured node`
+                    )
+                );
+            }
             routeAddress = destAddress;
             isRouted = false;
         }
 
-        networkName = networkName || this.getNetworkNameByAddress(routeAddress);
+        networkName = networkName || _.get(nodeConfig, 'network');
 
-        const config = this.getNodeConfigByAddress(routeAddress) || {
+        if (networkName) {
+            const canonical = canonicalNetworkName(this.getNetworks(), networkName);
+            if (!canonical) {
+                return cb(
+                    Errors.DoesNotExist(
+                        `NetMail for ${destAddress.toString()} names network "${networkName}", which is not configured`
+                    )
+                );
+            }
+            networkName = canonical;
+        } else {
+            const { name, candidates } = resolveNetworkNameForZone(
+                this.getNetworks(),
+                this.getConfiguredDefaultNetwork(),
+                routeAddress.zone
+            );
+
+            if (!name) {
+                return cb(
+                    Errors.DoesNotExist(
+                        `No network configured for zone ${routeAddress.zone}, needed to reach ${routeAddress.toString()}`
+                    )
+                );
+            }
+
+            if (candidates.length > 1) {
+                //  Resolvable, but only by falling back on defaultNetwork --
+                //  say so, since the cost of guessing wrong is mail sent from
+                //  the wrong address.
+                Log.debug(
+                    { zone: routeAddress.zone, candidates, using: name },
+                    'More than one network claims this zone; set a "network" on the node to be explicit'
+                );
+            }
+
+            networkName = name;
+        }
+
+        const config = nodeConfig || {
             packetType: '2+',
             encoding: Config().scannerTossers.ftn_bso.packetMsgEncoding,
         };
 
-        //  we should never be failing here; we may just be using defaults.
-        return cb(
-            networkName
-                ? null
-                : Errors.DoesNotExist(`No NetMail route for ${destAddress.toString()}`),
-            { destAddress, routeAddress, networkName, config, isRouted }
-        );
+        return cb(null, { destAddress, routeAddress, networkName, config, isRouted });
     };
 
     this.exportNetMailMessagesToUplinks = function (messagesOrMessageUuids, cb) {

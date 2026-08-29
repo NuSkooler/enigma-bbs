@@ -117,6 +117,38 @@ function resolveNetworkDefaultZone(networks, networkName) {
 }
 
 //
+//  Which of our networks should originate mail to a node in |zone|.
+//
+//  Zone is what identifies a network in practice, and it already decides which
+//  outbound directory a packet lands in (see outboundDirName below). Sending
+//  from the wrong network's localAddress while filing under that network's
+//  directory would be incoherent, so both answers come from here.
+//
+//  Returns { name, candidates }: |candidates| is every network claiming the
+//  zone, and |name| the one to use -- undefined when no network claims it.
+//  More than one can, and there is no way to tell them apart from the zone
+//  alone; the tie goes to |defaultNetwork|, which is the same network that
+//  owns the bare "outbound" directory, so the from-address and the spool path
+//  stay consistent. Callers with better information (a node's own |network|
+//  key) should not be asking in the first place.
+//
+function resolveNetworkNameForZone(networks, defaultNetwork, zone) {
+    const candidates = networkNames(networks).filter(
+        name => resolveNetworkDefaultZone(networks, name) === zone
+    );
+
+    if (candidates.length < 2) {
+        return { name: candidates[0], candidates };
+    }
+
+    const preferred = resolveDefaultNetworkName(networks, defaultNetwork);
+    return {
+        name: preferred && candidates.includes(preferred) ? preferred : candidates[0],
+        candidates,
+    };
+}
+
+//
 //  ".<zzz>" suffix for |zone| within |networkName|, or "" when |zone| is that
 //  network's default zone. A network whose default zone can't be resolved is
 //  treated as matching nothing, so every zone gets an explicit suffix.
@@ -211,6 +243,7 @@ module.exports = {
     canonicalNetworkName,
     resolveDefaultNetworkName,
     resolveNetworkDefaultZone,
+    resolveNetworkNameForZone,
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,

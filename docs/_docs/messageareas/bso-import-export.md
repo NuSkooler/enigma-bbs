@@ -149,6 +149,7 @@ scannerTossers: {
         archiveType: ZIP        //  By-ext archive type: ZIP, ARJ, ..., optional.
         encoding: utf8          //  Encoding for exported messages
         packetPassword: MUHPA55 //  FTN .PKT password, optional
+        //  network: fsxnet     //  Only needed if two networks share this zone
 
         tic: {
           //  See TIC docs
