@@ -17,11 +17,11 @@
 <meta property="og:description" content="TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-29T05:16:27+00:00" />
+<meta property="article:published_time" content="2026-08-29T20:26:38+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="TIC Support" />
 <script type="application/ld+json">
-{"description":"TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.","headline":"TIC Support","dateModified":"2026-08-29T05:16:27+00:00","datePublished":"2026-08-29T05:16:27+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/tic-support.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/filebase/tic-support.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.","headline":"TIC Support","dateModified":"2026-08-29T20:26:38+00:00","datePublished":"2026-08-29T20:26:38+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/tic-support.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/filebase/tic-support.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2927,10 +2927,10 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">password</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
-      <td>TIC packet password, if required</td>
+      <td>TIC packet password, if required. Compared without regard to case, as other FTN software does</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">uploadedBy</code></td>
+      <td><code class="language-plaintext highlighter-rouge">uploadBy</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
       <td>Sets the “uploaded by” field for TIC attachments, for example “AgoraNet TIC”</td>
     </tr>
@@ -2939,8 +2939,56 @@
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
       <td>Set to <code class="language-plaintext highlighter-rouge">true</code> to allow TIC attachments to replace each other. This is especially handy for things like weekly node list attachments</td>
     </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">descPriority</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Where the file description comes from: <code class="language-plaintext highlighter-rouge">diz</code> (default) prefers a <code class="language-plaintext highlighter-rouge">FILE_ID.DIZ</code> shipped inside the file, <code class="language-plaintext highlighter-rouge">tic</code> prefers the TIC’s own <code class="language-plaintext highlighter-rouge">Ldesc</code>
+</td>
+    </tr>
   </tbody>
 </table>
+
+<p>The <code class="language-plaintext highlighter-rouge">password</code>, <code class="language-plaintext highlighter-rouge">uploadBy</code>, <code class="language-plaintext highlighter-rouge">allowReplace</code> and <code class="language-plaintext highlighter-rouge">descPriority</code> members may also be
+set once for all nodes under <code class="language-plaintext highlighter-rouge">scannerTossers.ftn_bso.tic</code>, where the following
+system-wide members live as well:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">secureInOnly</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Only process TIC files found in the <strong>secure</strong> inbound (<code class="language-plaintext highlighter-rouge">paths.secInbound</code>). Defaults to <code class="language-plaintext highlighter-rouge">true</code>. TIC files in the unsecure inbound are left where they are, not imported and not deleted</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">holdMaxAgeMs</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>How long to keep a TIC whose file has not arrived yet. Defaults to 48 hours; set to <code class="language-plaintext highlighter-rouge">0</code> to hold indefinitely. See <a href="#files-arriving-after-their-tic">Files arriving after their TIC</a>
+</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="files-arriving-after-their-tic">Files arriving after their TIC</h3>
+<p>A <code class="language-plaintext highlighter-rouge">.tic</code> and the file it announces frequently arrive in <strong>separate mailer
+sessions</strong>, sometimes many minutes apart. ENiGMA½ handles this the way other FTN
+file processors do: a TIC whose file is not present yet — or is still being
+written into the inbound — is <strong>held</strong> and retried on later import passes rather
+than rejected. Nothing is deleted while a TIC is being held.</p>
+
+<p>A held TIC is retried on every import cycle, including the one triggered
+immediately when a BinkP session delivers files, so the file is normally picked
+up within seconds of arriving. If it never arrives, the TIC is given up on after
+<code class="language-plaintext highlighter-rouge">holdMaxAgeMs</code> and archived to <code class="language-plaintext highlighter-rouge">paths.reject</code> as before.</p>
+
+<p>The announced name is matched <strong>case-insensitively</strong> against the inbound, so a
+TIC naming <code class="language-plaintext highlighter-rouge">NODELIST.Z34</code> still finds a <code class="language-plaintext highlighter-rouge">nodelist.z34</code> on disk.</p>
 
 <p>Next, we need to configure the mapping between TIC areas you want to carry, and the file base area (and, optionally, specific storage tag) for them to be tossed to. You can also add hashtags to the tossed files to assist users in searching for files:</p>
 
