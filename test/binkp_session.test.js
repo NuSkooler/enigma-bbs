@@ -415,12 +415,41 @@ describe('BinkpSession — file transfer', () => {
 
         await runToEnd(clientSess, serverSess);
 
-        // File should have been deleted after M_GOT
+        //  'session-end' must not fire until the unlink has landed. It used to
+        //  be started and forgotten, so this assertion raced it and failed
+        //  roughly one full-suite run in fourteen -- and, worse, a process
+        //  exiting on 'session-end' could leave a sent packet on disk for the
+        //  next outbound scan to deliver a second time.
         await assert.rejects(
             fsp.access(tmpFile.filePath),
             { code: 'ENOENT' },
             'sent file should be deleted'
         );
+    });
+
+    it('truncates the outbound file when disposition is truncate', async () => {
+        const tmpFile = await makeTempFile('TRUNCATE_ME');
+        const { clientSess, serverSess } = await makeSessionPair();
+
+        serverSess.on('file-received', (name, size, ts, tempPath) => {
+            fsp.unlink(tempPath).catch(() => {});
+        });
+
+        clientSess.queueFile(
+            tmpFile.filePath,
+            'truncate_me.pkt',
+            tmpFile.size,
+            tmpFile.timestamp,
+            'truncate'
+        );
+
+        await runToEnd(clientSess, serverSess);
+
+        //  Same guarantee as above for the other disposition.
+        const { size } = await fsp.stat(tmpFile.filePath);
+        assert.equal(size, 0, 'sent file should be truncated by session-end');
+
+        await fsp.unlink(tmpFile.filePath).catch(() => {});
     });
 });
 

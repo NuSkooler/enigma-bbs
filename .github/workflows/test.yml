@@ -1,0 +1,35 @@
+name: Test
+
+on:
+  push:
+    branches: [ master ]
+
+  pull_request:
+
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          #  package.json requires >=22
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        #  ci rather than install so the lockfile is honoured, and
+        #  --include=dev because mocha is a devDependency
+        run: npm ci --include=dev
+
+      - name: Test
+        #  Runs the unit suite and then test:live, which drives real
+        #  databases and real files rather than mocks. Neither needs any
+        #  setup beyond the checkout -- no config.hjson, no seeded
+        #  directories -- so there is nothing to prepare here.
+        run: npm test
