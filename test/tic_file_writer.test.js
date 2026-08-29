@@ -337,6 +337,178 @@ describe('TIC file writer', () => {
                 to: Address.fromString('21:1/200@fsxnet'),
             });
             assert.ok(out.includes('From 21:1/151@fsxnet'));
+            assert.ok(out.includes('To 21:1/200@fsxnet'));
+        });
+
+        it('keeps Seenby 4D even when 5D is requested', async () => {
+            //
+            //  Verified against Synchronet's tickit directly.
+            //
+            //  Seenby is the loop guard, not a routing field, and it only works
+            //  if the far end can match it against its own link list. tickit
+            //  does that by raw string equality -- it keys a map on the literal
+            //  Seenby text, then looks up the configured link address -- so
+            //  "Seenby 21:1/200@fsxnet" does not match a link written as
+            //  "21:1/200", and it forwards the file back to a node that already
+            //  has it. Its only other guard, the circular-Path check, never
+            //  fires on a well-formed TIC.
+            //
+            //  htick writes 4D here regardless, and a 5D-aware processor reads
+            //  4D fine. 4D is universally safe; 5D buys nothing and can loop.
+            //
+            const out = await build({
+                addressDimensions: '5D',
+                from: Address.fromString('21:1/151@fsxnet'),
+                to: Address.fromString('21:1/200@fsxnet'),
+                seenby: [
+                    Address.fromString('21:1/100@fsxnet'),
+                    Address.fromString('21:1/200@fsxnet'),
+                ],
+            });
+
+            assert.deepEqual(
+                out.split('\r\n').filter(l => l.startsWith('Seenby ')),
+                ['Seenby 21:1/100', 'Seenby 21:1/200'],
+                'a domain here can loop a file with a real peer'
+            );
+            //  ...while From and To still honour the request
+            assert.ok(out.includes('From 21:1/151@fsxnet'));
+        });
+
+        it('keeps a point in Seenby, which is not the domain', async () => {
+            //  4D means dropping the domain, not flattening points -- a point
+            //  and its boss node are different subscribers.
+            const out = await build({
+                addressDimensions: '5D',
+                seenby: [Address.fromString('21:1/200.4@fsxnet')],
+            });
+            assert.ok(out.includes('Seenby 21:1/200.4'));
+            assert.ok(!out.includes('Seenby 21:1/200.4@'));
+        });
+    });
+
+    describe('field order is load bearing for strict htick links', () => {
+        //
+        //  Verified against htick 1.9 built from source, not inferred.
+        //
+        //  htick has a per-link "FileFixFSC87Subset" setting. With it OFF, an
+        //  unknown keyword makes htick abandon the entire TIC -- the file is
+        //  renamed .bad and the payload is left orphaned in the inbound.
+        //
+        //  htick's known-keyword set (src/toss.c:96-114) contains no LFILE, no
+        //  FULLNAME and no SHA256. So on the face of it every long-named file
+        //  we forward should bounce off a strict-mode htick downlink.
+        //
+        //  It does not, and the reason is positional. |ticSourceLink| is a
+        //  local in parseTic(), initialised to NULL (toss.c:486) and assigned
+        //  only when the *From* line is parsed (:659). The unknown-keyword
+        //  check is "if(ticSourceLink && !ticSourceLink->FileFixFSC87Subset)"
+        //  (:737). Keywords appearing *before* From are therefore ignored
+        //  unconditionally, in both modes.
+        //
+        //  Our writer emits everything passed through -- Lfile and any unknown
+        //  keyword included -- in one block ahead of From, so we land on the
+        //  safe side of that line. Confirmed empirically: strict-mode htick
+        //  tossed our output cleanly, and hoisting From to the top of the very
+        //  same file made it reject with "Unknown Keyword LFILE in Tic File".
+        //
+        //  That makes the order an interop requirement rather than a matter of
+        //  taste, and it is not obvious from either specification. Hence this
+        //  test: move From earlier and it fails here rather than silently
+        //  bouncing every file off every strict downlink in the network.
+        //
+
+        //  src/toss.c:96-114, htick 1.9
+        const HTICK_KNOWS = new Set([
+            'created',
+            'file',
+            'altfile',
+            'areadesc',
+            'desc',
+            'area',
+            'crc',
+            'replaces',
+            'origin',
+            'from',
+            'to',
+            'path',
+            'seenby',
+            'pw',
+            'size',
+            'date',
+            'destination',
+            'magic',
+            'ldesc',
+        ]);
+
+        function keywordsOf(out) {
+            return out
+                .split('\r\n')
+                .filter(l => l.length)
+                .map(l => l.split(/\s/)[0].toLowerCase());
+        }
+
+        it('emits every keyword htick does not know before From', async () => {
+            const out = await build(
+                {},
+                [
+                    'Area FSX_GEN',
+                    'File A.ZIP',
+                    'Lfile a-long-name.zip',
+                    'Sha256 abc123',
+                    'X-Future-Thing whatever',
+                    'Origin 21:1/100',
+                    'From 21:1/100',
+                ].join('\n')
+            );
+
+            const keywords = keywordsOf(out);
+            const fromIdx = keywords.indexOf('from');
+            assert.ok(fromIdx > 0, 'From must be present');
+
+            keywords.forEach((kw, i) => {
+                if (!HTICK_KNOWS.has(kw)) {
+                    assert.ok(
+                        i < fromIdx,
+                        `"${kw}" is emitted at ${i}, after From at ${fromIdx}; a ` +
+                            `strict-mode htick downlink will reject the whole TIC`
+                    );
+                }
+            });
+        });
+
+        it('keeps Lfile ahead of From even when it arrived after it', async () => {
+            //  The inbound order is not ours to rely on: our pass-through block
+            //  is emitted as a unit and From is regenerated after it, so this
+            //  holds regardless of how the uplink laid its TIC out.
+            const out = await build(
+                {},
+                [
+                    'Area FSX_GEN',
+                    'From 21:1/100',
+                    'File A.ZIP',
+                    'Lfile a-long-name.zip',
+                ].join('\n')
+            );
+
+            const keywords = keywordsOf(out);
+            assert.ok(
+                keywords.indexOf('lfile') < keywords.indexOf('from'),
+                'Lfile must precede From however the inbound TIC was ordered'
+            );
+        });
+
+        it('emits only keywords htick knows from From onward', async () => {
+            //  The other half of the same invariant: nothing exotic may be
+            //  appended to the tail.
+            const out = await build();
+            const keywords = keywordsOf(out);
+            keywords.slice(keywords.indexOf('from')).forEach(kw => {
+                assert.ok(
+                    HTICK_KNOWS.has(kw),
+                    `"${kw}" appears after From and htick does not know it`
+                );
+            });
         });
     });
 

@@ -3541,6 +3541,9 @@ function FTNMessageScanTossModule() {
             defaultZone,
         });
 
+        //  4D is deliberate and not the link's |addressDimensions| -- see
+        //  TicFileWriter.pathEntry(). Both reference implementations keep the
+        //  domain off their own Path line on purpose.
         const pathEntry = TicFileWriter.pathEntry(
             ourAddress,
             new Date(),
