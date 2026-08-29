@@ -126,12 +126,22 @@ module.exports = class TicFileInfo {
         return paths.join(paths.dirname(this.path), fileName);
     }
 
+    //
+    //  The name the file is stored under locally, preferring the long form.
+    //
+    //  "Lfile"/"Fullname" carry a *filename*, never a path, but nothing in the
+    //  format stops a peer from sending one anyway -- and the scanner/tosser
+    //  feeds this straight into paths.join(areaStorageDir, ...), where a
+    //  traversal writes the payload outside the file base entirely. validate()
+    //  rejects such a TIC outright; discarding unsafe candidates here as well
+    //  keeps the getter safe for any other caller.
+    //
     get longFileName() {
-        return (
-            this.getAsString('Lfile') ||
-            this.getAsString('Fullname') ||
-            this.getAsString('File')
-        );
+        return [
+            this.getAsString('Lfile'),
+            this.getAsString('Fullname'),
+            this.getAsString('File'),
+        ].find(name => TicFileInfo.isSafeFileName(name));
     }
 
     hasRequiredFields() {
@@ -234,10 +244,29 @@ module.exports = class TicFileInfo {
                         );
                     }
 
-                    //  Reject path traversal attempts in the File field
+                    //
+                    //  Reject path traversal in any field that names the payload.
+                    //  "File" locates it in the inbound; "Lfile"/"Fullname" name
+                    //  it in file base storage and are just as dangerous -- they
+                    //  reach paths.join(areaStorageDir, ...) unchanged.
+                    //
                     if (!TicFileInfo.isSafeFileName(self.getAsString('File'))) {
                         return callback(
                             Errors.Invalid('Invalid or unsafe File field in TIC')
+                        );
+                    }
+
+                    //  ...these two are optional, so only checked when present
+                    const unsafeLongName = ['Lfile', 'Fullname'].find(field => {
+                        const value = self.getAsString(field);
+                        return undefined !== value && !TicFileInfo.isSafeFileName(value);
+                    });
+
+                    if (unsafeLongName) {
+                        return callback(
+                            Errors.Invalid(
+                                `Invalid or unsafe ${unsafeLongName} field in TIC`
+                            )
                         );
                     }
 

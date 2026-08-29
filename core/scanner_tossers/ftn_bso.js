@@ -2403,6 +2403,17 @@ function FTNMessageScanTossModule() {
                 //  spoken for, before any stage that consumes files runs.
                 //
                 function findTicClaimedNames(callback) {
+                    //
+                    //  Only a TIC we would actually process may reserve a name.
+                    //  A .tic in the *unsecure* inbound is left unprocessed by
+                    //  secureInOnly and therefore never removed, so honouring its
+                    //  claim would let an unauthenticated peer permanently shield
+                    //  any file it names from the packet and bundle stages.
+                    //
+                    if (!self.ticProcessingAllowed(inboundType)) {
+                        return callback(null, new Set());
+                    }
+
                     fs.readdir(importDir, (err, files) => {
                         if (err) {
                             //  the packet stage reports the real error
@@ -3199,6 +3210,19 @@ require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
 const TIC_HOLD_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 //
+//  Whether TIC files arriving in |inboundType| are processed at all.
+//
+//  Single source of truth for tic.secureInOnly: the name-reservation pass and
+//  the import pass must agree, or a TIC we refuse to process could still reserve
+//  a filename against the stages that would have consumed it.
+//
+FTNMessageScanTossModule.prototype.ticProcessingAllowed = function (inboundType) {
+    const secureInOnly = _.get(Config(), 'scannerTossers.ftn_bso.tic.secureInOnly', true);
+
+    return !secureInOnly || 'secInbound' === inboundType;
+};
+
+//
 //  Lowercased names announced by a TIC sitting in |importDir|.
 //
 //  Those files are payloads waiting on their announcement, not mail. The packet
@@ -3351,13 +3375,7 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                     //  the *unsecure* inbound were imported on the strength of an
                     //  unauthenticated "From" line alone. Honour it now.
                     //
-                    const secureInOnly = _.get(
-                        Config(),
-                        'scannerTossers.ftn_bso.tic.secureInOnly',
-                        true
-                    );
-
-                    if (secureInOnly && 'secInbound' !== inboundType) {
+                    if (!self.ticProcessingAllowed(inboundType)) {
                         if (ticFiles.length > 0) {
                             //  say it once, then stay quiet: this repeats on
                             //  every import pass until the sysop acts on it

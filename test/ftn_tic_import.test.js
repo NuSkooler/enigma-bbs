@@ -360,6 +360,84 @@ describe('TIC payload resolution and validation', () => {
     });
 
     //
+    //  Security regression. "File" was traversal-checked, but the long-name
+    //  fields were not -- and it is the *long* name the file is stored under:
+    //  processSingleTicFile does
+    //      fileEntry.fileName = ticFileInfo.longFileName
+    //      dst = paths.join(areaStorageDir, fileEntry.fileName)
+    //  and copies the payload there. An "Lfile ../../x" therefore wrote
+    //  peer-controlled content anywhere the BBS user could write, which is a
+    //  path to code execution. Verified against a live instance before the fix.
+    //
+    it('rejects path traversal in the Lfile and Fullname fields', async () => {
+        for (const field of ['Lfile', 'Fullname']) {
+            for (const bad of [
+                '../../ESCAPED.txt',
+                '/etc/cron.d/evil',
+                'sub/dir.zip',
+                '..\\..\\win.txt',
+            ]) {
+                const ticPath = writeTicPair(dir, {
+                    ticName: `long-${field}.tic`,
+                    ticOverrides: { [field]: bad },
+                });
+
+                const { err } = await validate(await readTic(ticPath));
+                assert.ok(err, `${field}=${bad} must be rejected`);
+                assert.ok(
+                    new RegExp(`unsafe ${field}`, 'i').test(err.message),
+                    `expected an unsafe-${field} rejection, got: ${err.message}`
+                );
+                assert.strictEqual(
+                    TicFileInfo.isPayloadPendingError(err),
+                    false,
+                    'a traversal attempt is never held for retry'
+                );
+            }
+        }
+    });
+
+    //
+    //  Backstop for the same hole: even if a caller reaches longFileName without
+    //  going through validate(), it must never hand back something that escapes
+    //  the directory it is joined onto.
+    //
+    it('never returns an unsafe longFileName, falling back to a safe candidate', async () => {
+        const ticPath = writeTicPair(dir, {
+            ticOverrides: { Lfile: '../../ESCAPED.txt' },
+        });
+        const ticInfo = await readTic(ticPath);
+
+        //  Lfile is discarded; the safe File value is used instead
+        assert.strictEqual(ticInfo.longFileName, 'NODELIST.Z34');
+
+        //  ...and with every candidate unsafe, nothing is returned at all
+        const allBad = await readTic(
+            writeTicPair(dir, {
+                ticName: 'allbad.tic',
+                writePayload: false,
+                ticOverrides: {
+                    File: '../a',
+                    Lfile: '../b',
+                    Fullname: '/c',
+                },
+            })
+        );
+        assert.strictEqual(allBad.longFileName, undefined);
+    });
+
+    it('still accepts a legitimate long file name', async () => {
+        const ticPath = writeTicPair(dir, {
+            ticOverrides: { Lfile: 'nodelist-week-34.zip' },
+        });
+        const ticInfo = await readTic(ticPath);
+
+        assert.strictEqual(ticInfo.longFileName, 'nodelist-week-34.zip');
+        const { err } = await validate(ticInfo);
+        assert.strictEqual(err, null, err && err.message);
+    });
+
+    //
     //  Regression: filePath used to be paths.join(dirname, undefined), which
     //  throws. Every error path in the scanner/tosser reads this property, so the
     //  throw escaped into an fs callback and stalled the entire import pass.
@@ -802,6 +880,54 @@ describe('TIC payloads are not consumed by the packet or bundle stages', () => {
 
         assert.deepStrictEqual(extracted, []);
         assert.ok(fs.existsSync(paths.join(inboundDir, 'pkgstuff.sa1')));
+    });
+
+    //
+    //  Name reservation must not outlive the decision to process a TIC. A .tic
+    //  in the unsecure inbound is never processed (secureInOnly) and therefore
+    //  never removed, so honouring its claim would let an unauthenticated peer
+    //  permanently shield any file it names -- including real inbound mail --
+    //  from being tossed.
+    //
+    it('ignores name claims from TICs it will not process', async () => {
+        //  a hostile .tic in the unsecure inbound, claiming real inbound mail
+        writeTicPair(inboundDir, {
+            ticName: 'squatter.tic',
+            fileName: 'realmail.pkt',
+            writePayload: false,
+        });
+        fs.writeFileSync(paths.join(inboundDir, 'realmail.pkt'), 'PKT');
+        fs.writeFileSync(paths.join(inboundDir, 'realmail.mo0'), 'bundle');
+
+        //  'inbound' is the unsecure side, and secureInOnly defaults to true
+        await new Promise((resolve, reject) => {
+            inst.importFromDirectory('inbound', inboundDir, err =>
+                err ? reject(err) : resolve()
+            );
+        });
+
+        assert.deepStrictEqual(
+            tossed,
+            ['realmail.pkt'],
+            'the claim must not stop real mail from being tossed'
+        );
+        assert.ok(
+            !fs.existsSync(paths.join(inboundDir, 'realmail.pkt')),
+            'the packet was consumed normally'
+        );
+    });
+
+    it('still honours claims from TICs it will process', async () => {
+        writeTicPair(inboundDir, {
+            ticName: 'legit.tic',
+            fileName: 'PAYLOAD.PKT',
+            content: 'a file being distributed, not mail',
+        });
+
+        await importOnce(); //  secInbound
+
+        assert.deepStrictEqual(tossed, []);
+        assert.ok(fs.existsSync(paths.join(inboundDir, 'PAYLOAD.PKT')));
     });
 
     //
