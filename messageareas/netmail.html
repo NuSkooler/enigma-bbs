@@ -17,11 +17,11 @@
 <meta property="og:description" content="ENiGMA supports import and export of Netmail from the Private Mail area. RiPuk @ 21:1/136 and RiPuk &lt;21:1/136&gt; ‘To’ address formats are supported." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-29T01:16:09+00:00" />
+<meta property="article:published_time" content="2026-08-29T05:16:27+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Netmail" />
 <script type="application/ld+json">
-{"description":"ENiGMA supports import and export of Netmail from the Private Mail area. RiPuk @ 21:1/136 and RiPuk &lt;21:1/136&gt; ‘To’ address formats are supported.","headline":"Netmail","dateModified":"2026-08-29T01:16:09+00:00","datePublished":"2026-08-29T01:16:09+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/netmail.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/netmail.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"ENiGMA supports import and export of Netmail from the Private Mail area. RiPuk @ 21:1/136 and RiPuk &lt;21:1/136&gt; ‘To’ address formats are supported.","headline":"Netmail","dateModified":"2026-08-29T05:16:27+00:00","datePublished":"2026-08-29T05:16:27+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/netmail.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/netmail.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2882,6 +2882,19 @@
     <h1 class="page-title">Netmail</h1>
     <p>ENiGMA supports import and export of Netmail from the Private Mail area. <code class="language-plaintext highlighter-rouge">RiPuk @ 21:1/136</code> and <code class="language-plaintext highlighter-rouge">RiPuk &lt;21:1/136&gt;</code> ‘To’ address formats are supported.</p>
 
+<h2 id="where-netmail-goes">Where NetMail Goes</h2>
+
+<p>A NetMail message reaches its destination one of two ways:</p>
+
+<ul>
+  <li><strong>Direct</strong> — the recipient is a node you have configured in <code class="language-plaintext highlighter-rouge">scannerTossers::ftn_bso::nodes</code>, and ENiGMA½ files the packet for that node. Nothing beyond the <code class="language-plaintext highlighter-rouge">nodes</code> entry is required.</li>
+  <li><strong>Routed</strong> — the recipient is handed to a <em>different</em> node for onward delivery, per a <code class="language-plaintext highlighter-rouge">netMail::routes</code> entry. This is how you reach anything outside the nodes you talk to directly.</li>
+</ul>
+
+<p>Routes are consulted first, so a route always wins over a direct <code class="language-plaintext highlighter-rouge">nodes</code> match for the same address.</p>
+
+<p>A destination that is neither routed nor a configured node is refused: the export is marked failed and the sender is sent a notice, rather than the message sitting in the spool unexplained.</p>
+
 <h2 id="netmail-routing">Netmail Routing</h2>
 
 <p>A configuration block must be added to the <code class="language-plaintext highlighter-rouge">scannerTossers::ftn_bso</code> section in <code class="language-plaintext highlighter-rouge">config.hjson</code> to tell the ENiGMA½ tosser where to route NetMail.</p>
@@ -2935,7 +2948,7 @@ scannerTossers: {
 
 <p>Route keys are address patterns, and more than one can match a given recipient. The <strong>most specific match wins</strong>, regardless of the order entries appear in <code class="language-plaintext highlighter-rouge">config.hjson</code> — <code class="language-plaintext highlighter-rouge">"21:1/100"</code> beats <code class="language-plaintext highlighter-rouge">"21:*"</code>, which in turn beats <code class="language-plaintext highlighter-rouge">"*"</code>.</p>
 
-<p>Note that <code class="language-plaintext highlighter-rouge">routes</code> is consulted <em>before</em> <code class="language-plaintext highlighter-rouge">nodes</code>, so a catch-all <code class="language-plaintext highlighter-rouge">"*"</code> route claims <strong>all</strong> NetMail — including AreaFix messages addressed to your uplinks on other networks. Prefer a pattern per zone. Where you do want a catch-all, you can send specific addresses direct by pointing a more specific route at them:</p>
+<p>Note that <code class="language-plaintext highlighter-rouge">routes</code> is consulted <em>before</em> <code class="language-plaintext highlighter-rouge">nodes</code>, so a catch-all <code class="language-plaintext highlighter-rouge">"*"</code> route claims <strong>all</strong> NetMail — including AreaFix messages addressed to your uplinks on other networks, which would otherwise go direct. Prefer a pattern per zone. Where you do want a catch-all, you can send specific addresses direct by pointing a more specific route at them:</p>
 
 <pre><code class="language-hjson">routes: {
     "21:1/100" : { address: "21:1/100", network: fsxnet }   //  direct
@@ -2944,6 +2957,27 @@ scannerTossers: {
 </code></pre>
 
 <p>Each routed NetMail logs the address it was routed to at <code class="language-plaintext highlighter-rouge">debug</code> level, so the effective route can be confirmed from <code class="language-plaintext highlighter-rouge">logs/enigma-bbs.log</code>.</p>
+
+<h3 id="which-network-it-is-sent-as">Which Network It Is Sent As</h3>
+
+<p>The network decides two things: the address the message is sent <strong>from</strong>, and the outbound directory the packet is filed in. It is settled in this order:</p>
+
+<ol>
+  <li>The <code class="language-plaintext highlighter-rouge">network</code> named on the matching <code class="language-plaintext highlighter-rouge">routes</code> entry.</li>
+  <li>The <code class="language-plaintext highlighter-rouge">network</code> named on the matching <code class="language-plaintext highlighter-rouge">nodes</code> entry.</li>
+  <li>Otherwise, the network whose zone matches the node being dialed — mail to <code class="language-plaintext highlighter-rouge">1:154/10</code> goes out as your zone 1 identity, mail to <code class="language-plaintext highlighter-rouge">21:1/100</code> as your zone 21 one.</li>
+</ol>
+
+<p><code class="language-plaintext highlighter-rouge">network</code> is therefore optional in both places; the zone answers it for any ordinary setup. Name one only when two of your networks share a zone, which is the single case the zone cannot distinguish:</p>
+
+<pre><code class="language-hjson">nodes: {
+    "1:154/10" : {
+        network: fidonet   //  and not the other zone 1 network
+    }
+}
+</code></pre>
+
+<p>If no configured network claims the destination’s zone, the message is refused rather than sent from an unrelated address.</p>
 
 </div>
 
