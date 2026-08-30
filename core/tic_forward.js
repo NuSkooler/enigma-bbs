@@ -57,6 +57,55 @@ function containsAddress(list, addr, options) {
 }
 
 //
+//  |entry| as an Address, or undefined when it is not one.
+//
+//  Config is hand-written hjson, so a downlink can arrive as a number
+//  ("downlinks: [21]"), a boolean, a nested array or an address-shaped plain
+//  object. Address.fromString() only accepts a string, and calling isValid()
+//  on whatever came back threw TypeError straight into the forwarding
+//  waterfall -- the same shape of failure #735 fixed, from a typo in config.
+//
+function toAddress(entry) {
+    if (entry instanceof Address) {
+        return entry.isValid() ? entry : undefined;
+    }
+
+    if (_.isString(entry)) {
+        const addr = Address.fromString(entry);
+        return addr && addr.isValid() ? addr : undefined;
+    }
+
+    return undefined;
+}
+
+//
+//  A key identifying the *system* an address names, for O(1) dedup.
+//
+//  Must agree with Address.isEquivalent(): point absent and 0 are one system,
+//  domain is ignored, and a missing zone is filled from the area's network.
+//
+function addressKey(addr, options = {}) {
+    const zone = _.isNumber(addr.zone) ? addr.zone : options.defaultZone;
+    return `${zone}:${addr.net}/${addr.node}.${addr.point || 0}`;
+}
+
+//
+//  |addr| with a missing zone filled in from the area's network.
+//
+//  A 2D "Seenby 1/50" -- legal, and the ordinary 2D form -- parses to an
+//  Address with no zone, and toString() interpolates it anyway: we wrote
+//  "Seenby undefined:1/50" into the TIC sent to *every* downlink. Downstream
+//  tossers either drop it as an illegal value, losing a loop-guard entry, or
+//  refuse the whole TIC.
+//
+function withZone(addr, options = {}) {
+    if (_.isNumber(addr.zone) || !_.isNumber(options.defaultZone)) {
+        return addr;
+    }
+    return new Address(Object.assign({}, addr, { zone: options.defaultZone }));
+}
+
+//
 //  Which of |downlinks| should receive this file?
 //
 //  This is htick's rule (src/toss.c, sendToLinks), which is the one that
@@ -90,9 +139,9 @@ function selectDownlinks({ ticFileInfo, downlinks, ourAddresses, defaultZone }) 
     const skipped = [];
 
     (downlinks || []).forEach(entry => {
-        const addr = _.isString(entry) ? Address.fromString(entry) : entry;
+        const addr = toAddress(entry);
 
-        if (!addr || !addr.isValid()) {
+        if (!addr) {
             skipped.push({ address: entry, reason: SkipReasons.Unparsable });
             return;
         }
@@ -141,14 +190,28 @@ function buildSeenby({ ticFileInfo, downlinks, ourAddresses, defaultZone }) {
     const options = { defaultZone };
     const result = [];
 
+    //
+    //  Set, not a linear scan per insert. The old form was quadratic in the
+    //  size of the list, and the list comes straight off the wire: a peer's
+    //  Seenby of 10,000 entries took ~2.6s of frozen event loop per forwarded
+    //  file, and a large echo reaches those lengths honestly.
+    //
+    const seen = new Set();
+
     const add = entry => {
-        const addr = _.isString(entry) ? Address.fromString(entry) : entry;
-        if (!addr || !addr.isValid()) {
+        const addr = toAddress(entry);
+        if (!addr) {
             return;
         }
-        if (!containsAddress(result, addr, options)) {
-            result.push(addr);
+
+        const normalized = withZone(addr, options);
+        const key = addressKey(normalized, options);
+        if (seen.has(key)) {
+            return;
         }
+
+        seen.add(key);
+        result.push(normalized);
     };
 
     seenbyOf(ticFileInfo).forEach(add);

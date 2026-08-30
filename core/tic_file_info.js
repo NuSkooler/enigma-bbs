@@ -145,6 +145,26 @@ module.exports = class TicFileInfo {
             return undefined;
         }
 
+        //
+        //  Refuse to build a path from an unsafe name, rather than leaving that
+        //  to the caller.
+        //
+        //  validate() rejects such a TIC -- but *rejecting it is the dangerous
+        //  path*, not the safe one. ftn_bso's reject() hands this very getter's
+        //  value to maybeArchiveImportFile(), which copies it into the reject
+        //  directory, and then to removeAssocTicFiles(), which unlinks it. So
+        //  "File ../../../etc/passwd" resolved to /etc/passwd and got copied and
+        //  then deleted, and none of that needed the TIC to name an area we
+        //  carry or come from a node we know: the File field is read several
+        //  steps ahead of those checks.
+        //
+        //  resolveFilePath() already guards itself this way; the getter must
+        //  too, since it is what every error path reaches for.
+        //
+        if (!TicFileInfo.isSafeFileName(fileName)) {
+            return undefined;
+        }
+
         return paths.join(paths.dirname(this.path), fileName);
     }
 
@@ -167,14 +187,33 @@ module.exports = class TicFileInfo {
     }
 
     hasRequiredFields() {
+        //
+        //  Presence, not truthiness. "Crc 00000000" parses to the number 0, and
+        //  testing the value itself reported a perfectly well-formed TIC as
+        //  "One or more required fields missing" -- then rejected and unlinked
+        //  it. Zero is the CRC-32 of an empty file, so this was reachable.
+        //
         const req = TicFileInfo.requiredFields;
-        return req.every(f => this.get(f));
+        return req.every(f => undefined !== this.get(f));
     }
 
     //  A "File" value we are willing to look for: a bare name, no traversal.
     static isSafeFileName(fileName) {
         return !(
             !fileName ||
+            //
+            //  Control characters, and a NUL above all. A name like
+            //  "NODE\0LIST.Z21" is not a separator, is not "..", and is not
+            //  absolute, so every other check here passes it -- and then
+            //  fs.stat() throws ERR_INVALID_ARG_VALUE *synchronously* out of
+            //  resolveFilePath(), escaping the async waterfall so validate()
+            //  never calls back at all. That hangs the whole import pass until
+            //  the watchdog fires, skipping every remaining TIC: precisely the
+            //  failure #735 fixed for a missing "File", reachable again for the
+            //  cost of one byte from any peer.
+            //
+            // eslint-disable-next-line no-control-regex
+            /[\u0000-\u001f]/.test(fileName) ||
             fileName.includes('/') ||
             fileName.includes('\\') ||
             fileName.includes('..') ||
@@ -491,10 +530,20 @@ module.exports = class TicFileInfo {
             ticFileInfo.path = path;
 
             //
-            //  Lines in a TIC file should be separated by CRLF (DOS)
-            //  may be separated by LF (UNIX)
+            //  Lines in a TIC file should be separated by CRLF (DOS) but
+            //  FTS-5006 2.2 asks readers to cope with "only a LF or CR" -- so a
+            //  lone CR ends a line here too.
             //
-            const lines = ticData.split(/\r\n|\n/g);
+            //  That is not just leniency, it closes an injection. Splitting on
+            //  CRLF and LF alone left a bare CR *inside a value*, and the writer
+            //  passes values through verbatim: an uplink sending
+            //  "Ldesc harmless\rPw SOMETHING" got a literal "Pw SOMETHING" line
+            //  into the TIC we then signed with our own From and Path, for any
+            //  downstream tosser that breaks lines on CR -- which every C
+            //  implementation splitting on "\r\n" does. Treating CR as a
+            //  terminator means no value can contain one.
+            //
+            const lines = ticData.split(/\r\n|\r|\n/g);
             let keyEnd;
             let key;
             let value;
