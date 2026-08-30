@@ -716,6 +716,20 @@ function FTNMessageScanTossModule() {
         return true;
     };
 
+    //
+    //  Is this system configured to receive file echoes, regardless of whether
+    //  it carries any *message* areas?
+    //
+    //  TIC processing needs nodes{} and ticAreas{} and nothing else. It has no
+    //  relationship to messageNetworks.ftn.areas, which describes EchoMail.
+    //
+    this.hasTicConfiguration = function () {
+        return (
+            _.has(this, 'moduleConfig.nodes') &&
+            !_.isEmpty(_.get(Config(), 'scannerTossers.ftn_bso.ticAreas'))
+        );
+    };
+
     this.parseScheduleString = function (schedStr) {
         if (!schedStr) {
             return; //  nothing to parse!
@@ -5238,7 +5252,19 @@ FTNMessageScanTossModule.prototype.notifyOpOfAreaFixReply = function (
 };
 
 FTNMessageScanTossModule.prototype.performImport = function (cb) {
-    if (!this.hasValidConfiguration()) {
+    //
+    //  An import pass tosses packets and bundles -- which need message areas --
+    //  *and* processes TIC file announcements, which do not: those need only
+    //  nodes{} and ticAreas{}.
+    //
+    //  Gating the whole pass on hasValidConfiguration() meant a system carrying
+    //  file echoes and no EchoMail could never import a TIC at all. It logged
+    //  "EchoMail export disabled" at startup, which is true and sounds harmless,
+    //  and then silently did nothing with every file its uplink sent. Found by
+    //  running two live instances; every unit test drives the TIC path directly
+    //  and so never went through this gate.
+    //
+    if (!this.hasValidConfiguration() && !this.hasTicConfiguration()) {
         return cb(Errors.MissingConfig('Invalid or missing configuration'));
     }
 
