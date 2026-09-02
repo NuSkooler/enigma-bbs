@@ -589,7 +589,34 @@ module.exports = class TicFileInfo {
                     case 'from':
                     case 'seenby':
                     case 'to': {
-                        const addr = Address.fromString(value);
+                        //
+                        //  Only the address part. FSC-0087 defines the From
+                        //  line as "FROM [Address] [Pwd]" -- an optional
+                        //  password after the address -- and our anchored
+                        //  FTN_ADDRESS_REGEXP rejected the whole thing, so
+                        //  "From 2:280/5555 SECRET" yielded no From at all and
+                        //  the TIC died as "required fields missing".
+                        //
+                        //  The spec calls that password "rarely used, IF AT
+                        //  ALL", and none of 1,769 real TICs from a live system
+                        //  carried one -- so this is conformance rather than a
+                        //  live problem. Taking the first token is also simply
+                        //  more tolerant for the other address keywords, which
+                        //  is the right posture for a reader.
+                        //
+                        //  Nothing leaks: FSC-0087 says the From password is
+                        //  never passed through, and "from" is in the writer's
+                        //  regeneratedKeywords, so the inbound line is dropped
+                        //  and rebuilt per downlink rather than forwarded.
+                        //
+                        //  Only "From". The spec allows a trailing token there
+                        //  and nowhere else, so a second token on Origin, To or
+                        //  Seenby is malformed -- taking the first silently
+                        //  would accept a broken TIC as though it were fine.
+                        //
+                        const addr = Address.fromString(
+                            'from' === key ? value.split(/\s+/)[0] : value
+                        );
 
                         //
                         //  An address we cannot parse is dropped, not stored.

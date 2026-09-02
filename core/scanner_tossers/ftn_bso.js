@@ -2732,7 +2732,10 @@ function FTNMessageScanTossModule() {
         return [
             ...new Set([
                 ...Object.keys(config.scannerTossers.ftn_bso.ticAreas || {}),
-                ...Object.keys(config.fileBase.areas),
+                //  A configuration without a fileBase block at all is valid --
+                //  and reaches here from the startup diagnostics, which must
+                //  never be the thing that stops a system booting.
+                ...Object.keys(_.get(config, 'fileBase.areas') || {}),
             ]),
         ];
     };
@@ -2745,6 +2748,13 @@ function FTNMessageScanTossModule() {
 
         async.waterfall(
             [
+                function authorizeSenderForArea(callback) {
+                    const auth = self.authorizeTicSenderForArea(ticFileInfo);
+                    if (!auth.ok) {
+                        return callback(Errors.AccessDenied(auth.reason));
+                    }
+                    return callback(null);
+                },
                 function generalValidation(callback) {
                     const sysConfig = Config();
                     const config = {
@@ -4296,6 +4306,79 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
 //  an area that imports perfectly but never forwards produces no error, and
 //  the sysop's first hint is a downlink asking where the files went.
 //
+//
+//  Opt-in: may this sender publish into the area this TIC announces?
+//
+//  Shaped like canForwardTic() and sitting beside it deliberately: the two
+//  answer the same question for the two directions, and both are decisions
+//  over a TIC and configuration alone, so both can be tested without a
+//  database.
+//
+//  Needs only the announced Area and the From line, which is why the
+//  waterfall runs it first: authorization does not depend on the payload,
+//  and refusing before hashing matters when the size of that hash is
+//  chosen by the sender.
+//
+//  Authentication is not area-scoped. validate() checks the "From" against
+//  *any* entry in nodes{}, and separately that the Area is one we carry;
+//  nothing correlates them. So any configured node -- a downlink of an
+//  unrelated echo, an EchoMail-only link -- can announce a file into any
+//  area we carry. #743 closed that for *forwarding*, where the config is
+//  new and could be strict from day one. Import is older and permissive,
+//  and tightening it unconditionally would break every existing TIC user:
+//  no current configuration contains per-area sender information to derive
+//  authorization from.
+//
+//  Hence a flag, off by default. htick has no equivalent switch -- it
+//  simply refuses (e_writeCheck -> "Link %s not subscribed to File Area
+//  %s") -- and that is where this should end up, but only after operators
+//  have had a release's notice. logTicForwardingDiagnostics() reports at
+//  startup what enabling it would cost.
+//
+FTNMessageScanTossModule.prototype.authorizeTicSenderForArea = function (ticFileInfo) {
+    if (
+        true !==
+        _.get(Config(), 'scannerTossers.ftn_bso.tic.requireAreaAuthorization', false)
+    ) {
+        return { ok: true };
+    }
+
+    const externalAreaTag = (ticFileInfo.getAsString('Area') || '').toUpperCase();
+
+    const ticAreaConfig = _.get(Config().scannerTossers.ftn_bso, [
+        'ticAreas',
+        externalAreaTag.toLowerCase(),
+    ]);
+
+    const uplinks = ticForward.uplinksOf(ticAreaConfig);
+
+    //  Fail closed. "Enforcement on, but this area names nobody" must not
+    //  quietly mean "anyone", which is the outcome the flag exists to
+    //  prevent.
+    if (0 === uplinks.length) {
+        return {
+            ok: false,
+            reason: `requireAreaAuthorization is set and "${externalAreaTag}" names no uplinks`,
+        };
+    }
+
+    const from = ticForward.addressOf(ticFileInfo, 'from');
+    const defaultZone =
+        this.getDefaultZone((ticAreaConfig && ticAreaConfig.network) || undefined) ||
+        undefined;
+
+    if (!ticForward.isAuthorizedSender(from, uplinks, { defaultZone })) {
+        return {
+            ok: false,
+            reason: `${
+                from ? from.toString('5D') : 'sender'
+            } is not an uplink of "${externalAreaTag}"`,
+        };
+    }
+
+    return { ok: true };
+};
+
 FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
     const config = Config();
     const ticAreas = _.get(config, 'scannerTossers.ftn_bso.ticAreas', {});
@@ -4391,6 +4474,40 @@ FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
             }
         });
     });
+
+    //
+    //  Import-side authorization: say what enabling it would cost, or what it
+    //  is currently costing.
+    //
+    //  A flag that fails closed is only safe if an operator can see the
+    //  consequence before flipping it. While it is off we list the areas that
+    //  would stop importing; while it is on we report any that name no uplinks,
+    //  because those are refusing everything right now.
+    //
+    const requireAuth = _.get(
+        config,
+        'scannerTossers.ftn_bso.tic.requireAreaAuthorization',
+        false
+    );
+
+    const unauthorized = this.getLocalAreaTagsForTic().filter(areaTag => {
+        const entry = _.get(ticAreas, areaTag.toLowerCase()) || ticAreas[areaTag];
+        return 0 === ticForward.uplinksOf(entry).length;
+    });
+
+    if (unauthorized.length > 0) {
+        if (true === requireAuth) {
+            Log.warn(
+                { areas: unauthorized },
+                'scannerTossers.ftn_bso.tic.requireAreaAuthorization is set, but these areas name no "uplinks" and are refusing every TIC'
+            );
+        } else {
+            Log.info(
+                { areas: unauthorized, count: unauthorized.length },
+                'If scannerTossers.ftn_bso.tic.requireAreaAuthorization were enabled, these areas would stop importing until given an "uplinks" list'
+            );
+        }
+    }
 
     //
     //  ticAreas is keyed by the *external* area tag, but a TIC also validates

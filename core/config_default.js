@@ -1118,6 +1118,24 @@ module.exports = () => {
                     //  unconditionally for this reason.
                     addressDimensions: '4D',
 
+                    //
+                    //  Require the sending node to be an |uplinks| entry of the
+                    //  area it announces into, on *import* as well as when
+                    //  forwarding.
+                    //
+                    //  Off by default because it changes existing behaviour:
+                    //  authentication is not area-scoped, so today any node in
+                    //  nodes{} may announce a file into any area you carry, and
+                    //  no existing configuration says who is entitled to what.
+                    //  Turning it on requires an |uplinks| list on every area
+                    //  you import -- which a forwarding hub already has.
+                    //
+                    //  While it is off, startup reports which areas would stop
+                    //  importing if you enabled it, so the change can be
+                    //  planned rather than discovered.
+                    //
+                    requireAreaAuthorization: false,
+
                     //  Forward even when the sending node has no |password|
                     //  configured, i.e. was never actually authenticated.
                     //  Importing such a TIC only affects your own file base;

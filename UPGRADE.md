@@ -61,6 +61,12 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   **Worth a look** if you carry TIC areas: check `paths.reject` for archived entries whose names you do not recognise, which is where anything affected would have landed.
 
+* **Who may import into a TIC area can now be restricted** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). **No action is required** — `scannerTossers.ftn_bso.tic.requireAreaAuthorization` defaults to `false`, which is exactly today's behaviour.
+
+  Worth knowing what today's behaviour is, though: authentication is **not** per-area. Any node in `nodes` may announce a file into any area you carry, because the sender is checked against your node list and the area against the areas you carry, with nothing correlating them. With the setting enabled, the sender must be listed in that area's `uplinks`.
+
+  It is off by default because no existing configuration contains the information the check needs. While it is off, **startup tells you which areas would stop importing if you enabled it**, so the change can be planned rather than discovered. A forwarding hub already has the `uplinks` lists and can usually turn it on for free.
+
 * **TIC file echoes can now be forwarded to downlinks** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). Previously ENiGMA½ was always a leaf node for file echoes. **No action is required**: forwarding happens only for a `ticAreas` entry that names `downlinks`, and an area without them behaves exactly as before.
 
   **If you want to carry an echo for others**, add `uplinks`, `downlinks` and `network` to the area and give each downlink a `nodes` entry with its own `tic.password`. `uplinks` names who is allowed to publish into the echo and is **required for forwarding** — an area with downlinks and no uplinks forwards nothing, and says so at startup. It exists because authentication is not per-area: without it, any node you have configured for any reason could announce into that echo and have you relay it under your own address. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks). Two things to know before you point a downlink at it:

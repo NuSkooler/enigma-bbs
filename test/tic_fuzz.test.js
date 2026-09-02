@@ -592,9 +592,46 @@ describe('TIC reader fuzzing', () => {
             '21::1/100',
         ];
 
+        it('accepts a trailing token on From, and only on From', async () => {
+            //  FSC-0087: "FROM [Address] [Pwd]  Pwd is optional and rarely
+            //  used, IF AT ALL." No such allowance exists for the other address
+            //  keywords, so a second token there is malformed and must still be
+            //  refused rather than silently truncated to the first address.
+            const withTrailing = '21:1/100 SECRET';
+
+            const from = await parse(
+                `Area FSX_GEN\r\nFile A.ZIP\r\nFrom ${withTrailing}\r\n`
+            );
+            assert.equal(from.getAsString('From'), '21:1/100');
+            assert.equal(from.parseWarnings.length, 0);
+
+            for (const key of ['Origin', 'To', 'Seenby']) {
+                const info = await parse(
+                    `Area FSX_GEN\r\nFile A.ZIP\r\n${key} ${withTrailing}\r\n`
+                );
+                assert.equal(
+                    info.get(key),
+                    undefined,
+                    `${key} must not accept a trailing token`
+                );
+            }
+        });
+
         UNPARSABLE.forEach(value => {
             it(`drops "${value}" from every address keyword`, async () => {
-                for (const key of ['Origin', 'From', 'To', 'Seenby']) {
+                //
+                //  "From" takes a trailing token that the others do not:
+                //  FSC-0087 defines the line as "FROM [Address] [Pwd]", so
+                //  "21:1/100 21:1/101" is a valid From with an odd password,
+                //  while the same text on Origin/To/Seenby is malformed. The
+                //  distinction is asserted on its own below.
+                //
+                const keys =
+                    '21:1/100 21:1/101' === value
+                        ? ['Origin', 'To', 'Seenby']
+                        : ['Origin', 'From', 'To', 'Seenby'];
+
+                for (const key of keys) {
                     const info = await parse(
                         `Area FSX_GEN\r\nFile A.ZIP\r\n${key} ${value}\r\n`
                     );

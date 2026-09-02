@@ -597,6 +597,88 @@ describe('TIC forwarding to downlinks', function () {
         });
     });
 
+    describe('requireAreaAuthorization gates import, opt-in', () => {
+        //
+        //  The forwarding gate above protects third parties; this one protects
+        //  the local file base. Off by default because authentication has
+        //  never been area-scoped: any node in nodes{} may announce into any
+        //  area you carry, and no existing config says who is entitled to
+        //  what. Tightening that unconditionally would break every existing
+        //  TIC user, so it is a flag with a startup dry-run rather than a
+        //  silent behaviour change.
+        //
+        //  Driven through authorizeTicSenderForArea() rather than a whole
+        //  import: the decision is a pure function of the TIC and the config,
+        //  and running the file base half needs a live database.
+        //
+
+        const AREA_CFG = {
+            fsx_gen: {
+                areaTag: 'fsxGeneral',
+                network: 'fsxnet',
+                uplinks: [UPLINK],
+                downlinks: [DOWNLINK],
+            },
+        };
+
+        async function decide(from, { enabled = true, ticAreas = AREA_CFG } = {}) {
+            push({ ticAreas });
+            configModule.get().scannerTossers.ftn_bso.tic.requireAreaAuthorization =
+                enabled;
+            const tic = await parseTic([
+                'Area FSX_GEN',
+                'File A.ZIP',
+                `Origin ${from}`,
+                `From ${from}`,
+                'Crc DEADBEEF',
+            ]);
+            return inst.authorizeTicSenderForArea(tic);
+        }
+
+        it('is off by default, so an unlisted sender is admitted', async () => {
+            const r = await decide('21:1/250', { enabled: false });
+            assert.equal(r.ok, true);
+        });
+
+        it('refuses an unlisted sender when enabled', async () => {
+            const r = await decide('21:1/250');
+            assert.equal(r.ok, false);
+            assert.match(r.reason, /not an uplink/);
+        });
+
+        it('still admits a listed sender when enabled', async () => {
+            const r = await decide(UPLINK);
+            assert.equal(r.ok, true);
+        });
+
+        it('matches an uplink written in another dimension', async () => {
+            const r = await decide('21:1/100', {
+                ticAreas: {
+                    fsx_gen: { network: 'fsxnet', uplinks: ['21:1/100@fsxnet'] },
+                },
+            });
+            assert.equal(r.ok, true);
+        });
+
+        it('fails closed for an area naming no uplinks', async () => {
+            //  "enforcement on but nobody listed" must not mean "anyone".
+            const r = await decide(UPLINK, {
+                ticAreas: { fsx_gen: { areaTag: 'fsxGeneral', network: 'fsxnet' } },
+            });
+            assert.equal(r.ok, false);
+            assert.match(r.reason, /names no uplinks/);
+        });
+
+        it('fails closed for an area with no ticAreas entry at all', async () => {
+            //  A TIC can match a bare fileBase area tag, which has nowhere to
+            //  put uplinks -- so enforcement requires a ticAreas entry, and
+            //  says so rather than silently admitting.
+            const r = await decide(UPLINK, { ticAreas: {} });
+            assert.equal(r.ok, false);
+            assert.match(r.reason, /names no uplinks/);
+        });
+    });
+
     describe('failure of one downlink does not cost the others', () => {
         it('keeps going after a downlink that cannot be queued', async () => {
             push({

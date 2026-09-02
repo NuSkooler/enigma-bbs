@@ -266,16 +266,28 @@ function getAreaStorageLocations(areaInfo) {
 function getExistingFileEntriesBySha256(sha256, cb) {
     const entries = [];
 
+    //
+    //  The callback is deliberately outside the try.
+    //
+    //  It used to sit inside it, alongside the query. Everything downstream of
+    //  this callback runs synchronously from here -- the rest of scanFile()'s
+    //  waterfall and its completion handler -- so a throw anywhere in that
+    //  chain unwound back into this try and the catch invoked |cb| a *second*
+    //  time. async then aborts the waterfall with "Callback was already
+    //  called", and the real error is replaced by that one, which is a poor
+    //  trade when you are trying to find out what actually went wrong.
+    //
     try {
         for (const fileRow of FileDb.prepare(
             `SELECT file_id, area_tag FROM file WHERE file_sha256=?;`
         ).iterate(sha256)) {
             entries.push({ fileId: fileRow.file_id, areaTag: fileRow.area_tag });
         }
-        return cb(null, entries);
     } catch (err) {
         return cb(err);
     }
+
+    return cb(null, entries);
 }
 
 //  :TODO: This is basically sliceAtEOF() from art.js .... DRY!

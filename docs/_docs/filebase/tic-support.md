@@ -61,6 +61,7 @@ system-wide members live as well:
 | Item | Required | Description |
 |--------|---------------|------------------|
 | `secureInOnly` | :-1: | Only process TIC files found in the **secure** inbound (`paths.secInbound`). Defaults to `true`. TIC files in the unsecure inbound are left where they are, not imported and not deleted |
+| `requireAreaAuthorization` | :-1: | Also require the sender to be an `uplinks` entry of the area when **importing**, not only when forwarding. Defaults to `false`. See [Restricting who may import](#restricting-who-may-import) |
 | `holdMaxAgeMs` | :-1: | How long to keep a TIC whose file has not arrived yet. Defaults to 48 hours; set to `0` to hold indefinitely. See [Files arriving after their TIC](#files-arriving-after-their-tic) |
 
 ### Files arriving after their TIC
@@ -162,6 +163,23 @@ scannerTossers: {
 
 
 ```
+
+### Restricting who may import
+By default, **any** node in `nodes` may announce a file into **any** area you carry. Authentication is not per-area: `From` is checked against your node list and the `Area` is checked against the areas you carry, but nothing correlates the two.
+
+Setting `tic.requireAreaAuthorization` to `true` requires the sender to be listed in that area's `uplinks` before the file is imported — the same check that already governs forwarding.
+
+```hjson
+tic: {
+    requireAreaAuthorization: true
+}
+```
+
+> :warning: This needs an `uplinks` list on **every** area you import, and it fails closed: an area naming no uplinks refuses everything. It also requires a `ticAreas` entry per area, since an area matched only by its file base tag has nowhere to put `uplinks`.
+>
+> While the setting is off, startup logs exactly which areas would stop importing if you turned it on — so you can see the cost before paying it. Look for *"If … requireAreaAuthorization were enabled, these areas would stop importing"*.
+
+It is off by default only for compatibility; nothing in an existing configuration says who is entitled to which echo. A forwarding hub already has the `uplinks` lists this needs, so for one it usually costs nothing to enable.
 
 ## Forwarding to Downlinks
 By default ENiGMA½ is a **leaf node**: files arrive from an uplink, are imported, and go no further. Add `downlinks` to a `ticAreas` entry and it will also pass them on, generating a TIC for each downlink.

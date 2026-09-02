@@ -554,6 +554,37 @@ describe('TIC parsing robustness and pass-through retention', () => {
         assert.equal(info.get('origin'), undefined);
     });
 
+    it('accepts a password after the address on the From line', async () => {
+        //  FSC-0087: "FROM [Address] [Pwd]". The anchored address regexp
+        //  rejected the whole value, so such a TIC lost its From entirely and
+        //  was refused as "required fields missing".
+        const info = await parse(
+            ['Area A', 'File A.ZIP', 'From 2:280/5555 SECRET', 'Origin 2:280/5555'].join(
+                '\n'
+            )
+        );
+        assert.equal(info.getAsString('From'), '2:280/5555');
+        assert.equal(info.parseWarnings.length, 0);
+    });
+
+    it('does not carry that password into a forwarded TIC', async () => {
+        //  FSC-0087: the From line's password is never passed through. It is
+        //  safe because "from" is regenerated per downlink, not forwarded.
+        const TicFileWriter = require('../core/tic_file_writer.js');
+        const Address = require('../core/ftn_address.js');
+        const info = await parse(
+            ['Area A', 'File A.ZIP', 'From 2:280/5555 SECRET'].join('\n')
+        );
+        const out = TicFileWriter.build(info, {
+            from: Address.fromString('21:1/151'),
+            to: Address.fromString('21:1/200'),
+            crc: 'deadbeef',
+            seenby: [],
+            createdBy: 'x',
+        });
+        assert.ok(!out.includes('SECRET'), out);
+    });
+
     it('retains every line verbatim, in order, for pass-through', async () => {
         const body = [
             'Area FSX_GEN',
