@@ -225,9 +225,28 @@ module.exports = class TicFileWriter {
                 return;
             }
 
+            //
             //  FSC-0087: "Known Keywords that are blank should not be passed
-            //  though."
-            if (known.has(key) && !TicFileWriter.lineValue(line).trim()) {
+            //  though. For example, an empty AREADESC..."
+            //
+            //  ...but not Ldesc, which FTS-5006 defines as repeatable and
+            //  explicitly multi-line: "This Keyword may occur more than once.
+            //  [...] Together they form a long description." A blank Ldesc is
+            //  therefore *content* -- a blank line in that description -- and
+            //  the rule above is about single-valued keywords where a blank
+            //  says nothing.
+            //
+            //  Not a hypothetical. In a corpus of 1,769 real TICs, 269 carried
+            //  a blank Ldesc and 88 of those were interior: vertical spacing
+            //  inside ANSI art descriptions, where dropping the line closes the
+            //  gap and mangles the art. One had eight consecutive blank Ldesc
+            //  lines forming the space inside a logo.
+            //
+            if (
+                'ldesc' !== key &&
+                known.has(key) &&
+                !TicFileWriter.lineValue(line).trim()
+            ) {
                 return;
             }
 

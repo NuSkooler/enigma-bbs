@@ -263,6 +263,57 @@ describe('TIC file writer', () => {
         });
     });
 
+    describe('blank Ldesc lines are content, not noise', () => {
+        //
+        //  FSC-0087 says "Known Keywords that are blank should not be passed
+        //  though. For example, an empty AREADESC..." -- a rule about
+        //  single-valued keywords, where a blank says nothing.
+        //
+        //  Ldesc is not one of those. FTS-5006: "This Keyword may occur more
+        //  than once. [...] Together they form a long description." A blank
+        //  Ldesc is a blank *line* in that description.
+        //
+        //  Found against 1,769 real TICs from a live system: 269 carried a
+        //  blank Ldesc and 88 of those were interior -- vertical spacing inside
+        //  ANSI art descriptions. Dropping them closes the gap and mangles the
+        //  art. The shape below is taken from one of them.
+        //
+        const ART = [
+            'Area FSX_ARTS',
+            'File ANSIPACK.ZIP',
+            'Ldesc      N i G h T m a R e',
+            'Ldesc ',
+            'Ldesc        Liars n Traitors Pack',
+            'Ldesc ',
+            'Ldesc ',
+            'Ldesc              H i J a C k',
+        ].join('\n');
+
+        it('keeps an interior blank Ldesc, and its position', async () => {
+            const out = await build({}, ART);
+            assert.deepEqual(
+                out.split('\r\n').filter(l => l.startsWith('Ldesc')),
+                [
+                    'Ldesc      N i G h T m a R e',
+                    'Ldesc ',
+                    'Ldesc        Liars n Traitors Pack',
+                    'Ldesc ',
+                    'Ldesc ',
+                    'Ldesc              H i J a C k',
+                ]
+            );
+        });
+
+        it('still drops a blank single-valued keyword', async () => {
+            //  The FSC-0087 rule itself is unchanged for the keywords it means.
+            const out = await build(
+                {},
+                ['Area FSX_GEN', 'File A.ZIP', 'Areadesc ', 'Magic '].join('\n')
+            );
+            assert.ok(!/^Areadesc/m.test(out));
+        });
+    });
+
     describe('Path', () => {
         it('keeps existing lines in order and appends ours last', async () => {
             //  FTS-5006: "Path lines should be grouped and in order of

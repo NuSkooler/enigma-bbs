@@ -1153,9 +1153,16 @@ describe('TIC reader fuzzing', () => {
                 if (!known.has(key) && false === opts.passUnknownKeywords) {
                     return;
                 }
+                //
                 //  FSC-0087: "Known Keywords that are blank should not be
-                //  passed though."
-                if (known.has(key) && '' === valueOfLine(line)) {
+                //  passed though. For example, an empty AREADESC..."
+                //
+                //  Ldesc is exempt: FTS-5006 makes it repeatable and
+                //  explicitly multi-line, so a blank one is a blank *line* in
+                //  the description rather than an absent value. Real TICs use
+                //  them as vertical spacing inside ANSI art.
+                //
+                if ('ldesc' !== key && known.has(key) && '' === valueOfLine(line)) {
                     return;
                 }
                 //  FTS-5006: "always use Lfile when writing TIC files but
