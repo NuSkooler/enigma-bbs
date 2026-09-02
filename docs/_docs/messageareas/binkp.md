@@ -154,6 +154,28 @@ When ENiGMA½ acquires a node lock (`.bsy` file in the outbound directory), it e
 
 The default is 6× the internal session timeout (5 minutes), giving a generous safety margin without making post-crash recovery slow. If you ever raise the session timeout, raise this in proportion.
 
+The same `.bsy` files are honoured by external mailers such as Binkd, and by the ENiGMA½ *tosser* when it queues outbound — see [`flowLockTimeoutMs`](#flowlocktimeoutms) below.
+
+#### `flowLockTimeoutMs`
+
+> :information_source: This one lives at `scannerTossers.ftn_bso.flowLockTimeoutMs`, **not** under `binkp` — it governs the tosser (the writer), not the mailer.
+
+[FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §5.1 requires that *any* software touching a BSO flow file first take that file's `.bsy` lock, and prohibits changes entirely while the lock is held:
+
+> A bsy is a main control file that must be used by any software dealing with flow files in BSO. […] Any software must check this file before doing any changes in flow files. If a bsy file exists all changes are prohibited in any corresponding flow files.
+
+That applies to ENiGMA½ queueing outbound just as much as to a mailer sending it. Because the lock is a standard, per-node `NNNNnnnn.bsy` in the node's own outbound directory, honouring it interlocks correctly with the **native BinkP mailer and external mailers alike** — Binkd takes the very same lock, so neither side needs to know about the other.
+
+`flowLockTimeoutMs` (default `5000`, i.e. 5 seconds) is how long the tosser waits for a busy node's lock before giving up. Contention is normally momentary — a session finishing an entry — but the lock is held for the length of a whole session, and during that time the spec says the flow file must not be modified.
+
+If the wait expires the outbound is **not** queued this pass, and you'll see:
+
+```
+Flow file busy; outbound not queued this pass
+```
+
+Nothing is lost or corrupted — the write simply did not happen, which is what the spec requires. Raise this on a busy hub with long sessions.
+
 #### `binkp.inboundTempMaxAgeMs`
 
 Inbound files are buffered in `tempDir` (defaults to the OS temp dir) under names like `binkp_in_*.dt`, then renamed into the inbound spool on successful receipt. Two layers protect against leaks if a peer drops mid-transfer:
@@ -278,6 +300,7 @@ Both sides decide this the same way, by counting the command frames sent and rec
 | `freq` | next inbound session | Immediately |
 | `crashmailDebounceMs` | next crashmail burst | Immediately |
 | `tempDir`, `staleLockMaxAgeMs` | next session | Immediately |
+| `flowLockTimeoutMs` (under `ftn_bso`) | next outbound queue | Immediately |
 | `ftn_bso` `paths` and `messageNetworks.ftn.networks` | next session or poll | Immediately |
 | `pullSchedule` | the pull timer | On reload — the timer is rebuilt |
 | `inbound.enabled`, `inbound.port`, `inbound.address`, `inbound.tls.*` | the listening socket | **Restart required** |

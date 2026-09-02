@@ -14,6 +14,7 @@ const {
     legacyOutboundDirName,
     DEFAULT_NETWORK_DIR_NAME,
 } = require('../bso_util');
+const bsoLock = require('../bso_lock');
 
 // In priority order (highest first)
 const FLOW_EXTS = ['ilo', 'clo', 'dlo', 'flo', 'hlo'];
@@ -35,7 +36,11 @@ const POINT_DIR_RE = /^([0-9a-f]{8})\.pnt$/i;
 // (BBS crashed mid-session). 6× the BinkP session timeout (5 min) gives a
 // generous safety margin without making post-crash recovery slow. Tunable
 // via scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs.
-const DEFAULT_STALE_LOCK_MAX_AGE_MS = 30 * 60 * 1000;
+//
+// Defined in core/bso_lock.js, which owns the FTS-5005 §5.1 .bsy protocol for
+// both this reader and the ftn_bso writer -- see the note there on why the two
+// must not carry separate implementations (issue #719).
+const DEFAULT_STALE_LOCK_MAX_AGE_MS = bsoLock.DEFAULT_STALE_LOCK_MAX_AGE_MS;
 
 // Networks we've already complained about. Module scope rather than per
 // instance: a spool is rebuilt for every poll and every inbound session, but
@@ -83,48 +88,18 @@ class BsoSpool {
     // ── Lock management ──────────────────────────────────────────────────────
 
     // Acquire the per-node .bsy lock. Returns false if already locked by another
-    // process; throws on unexpected errors.
+    // process (ours or an external mailer's); throws on unexpected errors.
+    // The protocol itself lives in core/bso_lock.js.
     async acquireLock(addr) {
-        const bsyPath = this._bsyPath(addr);
-        await fsp.mkdir(path.dirname(bsyPath), { recursive: true });
-
-        const tryCreate = async () => {
-            // 'wx' = exclusive create; fails with EEXIST if file is present
-            const fh = await fsp.open(bsyPath, 'wx');
-            await fh.writeFile(String(process.pid));
-            await fh.close();
-        };
-
-        //  Another mailer sharing this spool may have written the lock under a
-        //  different case (FTS-5005.003 §2); an exclusive create on our own
-        //  spelling would not collide with it, and we would both believe we
-        //  held the lock.
-        const existing = await this._resolveExistingBsy(bsyPath);
-        if (existing && existing !== bsyPath && !(await this._reapIfStale(existing))) {
-            return false;
-        }
-
-        try {
-            await tryCreate();
-            return true;
-        } catch (err) {
-            if (err.code !== 'EEXIST') throw err;
-        }
-
-        //  EEXIST: lock present. Reap if it looks orphaned and retry once.
-        if (!(await this._reapIfStale(bsyPath))) return false;
-
-        try {
-            await tryCreate();
-            return true;
-        } catch (err) {
-            if (err.code === 'EEXIST') return false;
-            throw err;
-        }
+        return bsoLock.acquire(this._bsyPath(addr), this._lockOpts());
     }
 
     async releaseLock(addr) {
-        await fsp.unlink(this._bsyPath(addr)).catch(() => {});
+        await bsoLock.release(this._bsyPath(addr));
+    }
+
+    _lockOpts() {
+        return { staleMaxAgeMs: this._staleLockMaxAgeMs, log: Log };
     }
 
     // Sweep every outbound directory for orphaned .bsy lock files. Returns the
@@ -163,28 +138,7 @@ class BsoSpool {
     // and has been removed (or was already gone). Returns false when the file
     // is still fresh, or when stat/unlink errors prevent a confident reap.
     async _reapIfStale(bsyPath) {
-        let stat;
-        try {
-            stat = await fsp.stat(bsyPath);
-        } catch (err) {
-            //  Already gone — caller should treat that as a successful reap
-            //  (the slot is now free).
-            return err.code === 'ENOENT';
-        }
-        const ageMs = Date.now() - stat.mtimeMs;
-        if (ageMs <= this._staleLockMaxAgeMs) return false;
-        try {
-            await fsp.unlink(bsyPath);
-            Log.info({ path: bsyPath, ageMs }, '[BinkP/BSO] Reaped stale .bsy lock');
-            return true;
-        } catch (err) {
-            if (err.code === 'ENOENT') return true;
-            Log.warn(
-                { path: bsyPath, error: err.message },
-                '[BinkP/BSO] Could not reap stale .bsy lock'
-            );
-            return false;
-        }
+        return bsoLock.reapIfStale(bsyPath, this._staleLockMaxAgeMs, Log);
     }
 
     // ── Outbound file enumeration ────────────────────────────────────────────
@@ -442,16 +396,6 @@ class BsoSpool {
             );
         }
         return path.join(dir, `${nodeBaseName(addr)}.bsy`);
-    }
-
-    //  The lock file for |bsyPath|'s node as it actually exists on disk, in
-    //  whatever case it was written, or null when there is none.
-    async _resolveExistingBsy(bsyPath) {
-        const dir = path.dirname(bsyPath);
-        const actual = (await readDirCaseMap(dir)).get(
-            path.basename(bsyPath).toLowerCase()
-        );
-        return actual ? path.join(dir, actual) : null;
     }
 
     async _parseFlowFile(flowPath) {
@@ -796,9 +740,34 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
             }
         }
     } else {
-        // Answering side: learn remote addresses from the session handshake
+        //
+        //  Answering side: learn remote addresses from the session handshake,
+        //  then resolve what we have queued for them.
+        //
+        //  holdEOB(), not holdSend(). The two are not interchangeable and the
+        //  difference decides whether the peer gets its mail at all.
+        //
+        //  |_sendHeld| is consulted in exactly one place -- _enterTransfer()'s
+        //  initial _sendNext(). It does not gate _sendNext() itself, and the
+        //  peer's own M_EOB reaches _sendNext() by another route entirely:
+        //  _onEob() sets _remoteEOB and calls it directly. That commonly beats
+        //  this asynchronous lookup. _sendNext() then finds an empty queue,
+        //  sees the answering-side "wait for _remoteEOB" condition already
+        //  satisfied, and sends our M_EOB -- after which releaseSend()'s
+        //  |!this._localEOBSent| guard makes it a no-op and the files we just
+        //  queued are never offered.
+        //
+        //  |_eobHold| is tested inside _sendNext() at the point M_EOB would go
+        //  out, so it holds however _sendNext() was reached. That is what this
+        //  needs. The FREQ resolver already uses it for the same reason.
+        //
+        //  Reported as #747, and it is not TIC-specific: it affects any
+        //  answering session with something queued for the caller. It matters
+        //  especially for file echoes, because a downlink normally polls its
+        //  hub rather than being dialled.
+        //
         session.on('addresses', async addrStrings => {
-            session.holdSend();
+            session.holdEOB();
             try {
                 for (const addrStr of addrStrings) {
                     const addr = Address.fromString(addrStr);
@@ -816,7 +785,7 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
                     }
                 }
             } finally {
-                session.releaseSend();
+                session.releaseEOB();
             }
         });
     }

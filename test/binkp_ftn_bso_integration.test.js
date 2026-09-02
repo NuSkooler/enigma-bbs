@@ -1489,4 +1489,216 @@ describe('ftn_bso ↔ BinkP integration', function () {
                 .catch(done);
         });
     });
+
+    //  ── flow file .bsy interlock (FTS-5005.003 §5.1) ─────────────────────────
+    //
+    //  ftn_bso appends refs to flow files; BsoSpool rewrites those same files as
+    //  entries are sent (_applyFlowDisposition reads the whole file, marks a
+    //  line '~' and writes it back). The writer used to take no lock, so an
+    //  append landing between that read and its write was silently discarded --
+    //  the queued file simply never shipped.
+    //
+    //  The race itself is timing-dependent and would make a flaky test. What is
+    //  pinned here is the invariant that removes it, which the spec states
+    //  directly: "If a bsy file exists all changes are prohibited in any
+    //  corresponding flow files."
+
+    describe('ftn_bso — flow file .bsy interlock', () => {
+        const bsoLock = require('../core/bso_lock.js');
+        let modConfig;
+
+        beforeEach(() => {
+            //  The production default waits 5s for a busy node, which is longer
+            //  than mocha's per-test budget. The behaviour under test is the
+            //  refusal, not the patience.
+            const cfg = makeConfig();
+            cfg.scannerTossers.ftn_bso.flowLockTimeoutMs = 200;
+            modConfig = configModule._pushTestConfig(cfg);
+        });
+
+        afterEach(() => {
+            configModule._popTestConfig(modConfig);
+        });
+
+        function newMod() {
+            const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+            return new getModule();
+        }
+
+        it('refuses to touch a flow file while its .bsy is held', done => {
+            const mod = newMod();
+            const flowPath = path.join(tmpDir, 'outbound', '00da0100.flo');
+            const bsyPath = bsoLock.bsyPathForFlowFile(flowPath);
+
+            fsp.writeFile(flowPath, '^/spool/first.pkt\n')
+                .then(() => fsp.writeFile(bsyPath, '4242')) //  a session holds it
+                .then(() => {
+                    mod.flowFileAppendRefs(
+                        flowPath,
+                        [{ directive: '^', path: '/spool/second.pkt' }],
+                        undefined,
+                        null,
+                        err => {
+                            assert.ok(err, 'a locked node must surface an error');
+                            assert.ok(
+                                bsoLock.isBusyError(err),
+                                'and it must be reported as busy, not as corruption'
+                            );
+                            fsp.readFile(flowPath, 'utf8')
+                                .then(content => {
+                                    assert.equal(
+                                        content,
+                                        '^/spool/first.pkt\n',
+                                        'the flow file must be untouched'
+                                    );
+                                    return fsp.unlink(bsyPath);
+                                })
+                                .then(() => done())
+                                .catch(done);
+                        }
+                    );
+                })
+                .catch(done);
+        });
+
+        it('appends once the holder releases, losing nothing', done => {
+            const mod = newMod();
+            const flowPath = path.join(tmpDir, 'outbound', '00da0101.flo');
+            const bsyPath = bsoLock.bsyPathForFlowFile(flowPath);
+
+            fsp.writeFile(flowPath, '^/spool/first.pkt\n')
+                .then(() => fsp.writeFile(bsyPath, '4242'))
+                .then(() => {
+                    //  Release while the writer is still retrying.
+                    setTimeout(() => fsp.unlink(bsyPath).catch(() => {}), 150);
+
+                    mod.flowFileAppendRefs(
+                        flowPath,
+                        [{ directive: '^', path: '/spool/second.pkt' }],
+                        undefined,
+                        null,
+                        err => {
+                            if (err) return done(err);
+                            fsp.readFile(flowPath, 'utf8')
+                                .then(content => {
+                                    assert.equal(
+                                        content,
+                                        '^/spool/first.pkt\n^/spool/second.pkt\n'
+                                    );
+                                    done();
+                                })
+                                .catch(done);
+                        }
+                    );
+                })
+                .catch(done);
+        });
+
+        it('leaves no .bsy behind after a successful append', done => {
+            const mod = newMod();
+            const flowPath = path.join(tmpDir, 'outbound', '00da0102.flo');
+
+            mod.flowFileAppendRefs(flowPath, ['/spool/x.pkt'], '^', null, err => {
+                if (err) return done(err);
+                assert.ok(
+                    !require('fs').existsSync(bsoLock.bsyPathForFlowFile(flowPath)),
+                    'the lock must be released'
+                );
+                done();
+            });
+        });
+
+        it('takes the same lock a BinkP session would', async () => {
+            //  If these two disagreed the interlock would be decorative. The
+            //  writer derives the lock from the flow file (§5.1); the spool
+            //  derives it from the address.
+            const { BsoSpool } = require('../core/binkp/bso_spool.js');
+            const Address = require('../core/ftn_address.js');
+
+            const spool = new BsoSpool({
+                paths: { outbound: tmpDir },
+                networks: { testnet: { localAddress: '1:218/700', defaultZone: 1 } },
+            });
+
+            const mod = newMod();
+
+            for (const addrStr of ['1:218/750', '1:218/750.4']) {
+                const addr = Address.fromString(addrStr);
+                const flowPath = mod.getOutgoingFlowFileName(
+                    mod.getOutgoingEchoMailPacketDir('testnet', addr),
+                    addr,
+                    'ref',
+                    'crash',
+                    'lower'
+                );
+                assert.equal(
+                    bsoLock.bsyPathForFlowFile(flowPath),
+                    spool._bsyPath(addr),
+                    `writer and spool must agree on the lock for ${addrStr}`
+                );
+            }
+        });
+    });
+
+    //  ── per-ref flow file directives ─────────────────────────────────────────
+    //
+    //  Forwarding a file echo queues two refs that must travel together and in
+    //  order: the payload with no prefix ("send and keep" -- it lives in the
+    //  file base and is not ours to delete) immediately followed by its
+    //  generated TIC with '^'. FSC-0087 requires the payload to precede its
+    //  TIC, and adjacency only holds within a single write.
+
+    describe('ftn_bso — per-ref flow file directives', () => {
+        let modConfig;
+
+        beforeEach(() => {
+            modConfig = configModule._pushTestConfig(makeConfig());
+        });
+
+        afterEach(() => {
+            configModule._popTestConfig(modConfig);
+        });
+
+        function appendRefs(name, refs, directive) {
+            const { getModule } = require('../core/scanner_tossers/ftn_bso.js');
+            const mod = new getModule();
+            const flowPath = path.join(tmpDir, 'outbound', name);
+            return new Promise((resolve, reject) => {
+                mod.flowFileAppendRefs(flowPath, refs, directive, null, err => {
+                    if (err) return reject(err);
+                    fsp.readFile(flowPath, 'utf8').then(resolve, reject);
+                });
+            });
+        }
+
+        it('writes a mixed-disposition pair in order, in one append', async () => {
+            const content = await appendRefs('00da0200.flo', [
+                { directive: '', path: '/files/fsxnet/NODELIST.Z21' },
+                { directive: '^', path: '/outbound/a1b2c3d4.tic' },
+            ]);
+
+            assert.equal(
+                content,
+                '/files/fsxnet/NODELIST.Z21\n^/outbound/a1b2c3d4.tic\n',
+                'payload first with no prefix, then its TIC with ^'
+            );
+        });
+
+        it('treats a missing per-ref directive as no prefix', async () => {
+            const content = await appendRefs('00da0201.flo', [
+                { path: '/files/keep-me.zip' },
+            ]);
+            assert.equal(content, '/files/keep-me.zip\n');
+        });
+
+        it('still honours the shared directive for plain string refs', async () => {
+            //  The long-standing mail path passes strings plus one directive.
+            const content = await appendRefs(
+                '00da0202.flo',
+                ['/outbound/a.pkt', '/outbound/b.pkt'],
+                '^'
+            );
+            assert.equal(content, '^/outbound/a.pkt\n^/outbound/b.pkt\n');
+        });
+    });
 }); // describe('ftn_bso ↔ BinkP integration')

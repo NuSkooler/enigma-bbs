@@ -40,6 +40,7 @@ const {
     legacyOutboundDirName,
     validateOutboundConfig,
 } = require('../bso_util.js');
+const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
 const autoAreaCreate = require('../auto_area_create.js');
 const areaInfoPack = require('../area_info_pack.js');
 const { AreaFixStatus, parseAreaFixReply } = require('../areafix_reply.js');
@@ -312,7 +313,30 @@ function FTNMessageScanTossModule() {
         return paths.join(basePath, pointDir, `${controlFileBaseName}.${ext}`);
     };
 
+    //
+    //  Append reference records to a BSO flow file.
+    //
+    //  |fileRefs| entries may be a plain path -- taking |directive| as their
+    //  disposition prefix, the long-standing behaviour -- or an object
+    //  { directive, path } carrying its own. A single call may therefore mix
+    //  dispositions, which matters because some pairings must be written
+    //  *together*: forwarding a file echo queues the payload with no prefix
+    //  ("send and keep", it lives in the file base) immediately followed by
+    //  its generated TIC with '^' ("delete after send"). FSC-0087 requires the
+    //  payload to precede its TIC, and adjacency only holds within one write,
+    //  since the exporter appends to these same files on its own schedule.
+    //
+    //  The whole append is done under the flow file's FTS-5005 .bsy lock. See
+    //  core/bso_lock.js for why that is mandatory rather than defensive, and
+    //  why it is the same lock BinkP sessions and external mailers take.
+    //
     this.flowFileAppendRefs = function (filePath, fileRefs, directive, destAddress, cb) {
+        const appendLines = fileRefs.reduce((content, ref) => {
+            const refDirective = _.isObject(ref) ? ref.directive || '' : directive;
+            const refPath = _.isObject(ref) ? ref.path : ref;
+            return content + `${refDirective}${refPath}\n`;
+        }, '');
+
         //
         //  We have to ensure the *directory* of |filePath| exists here esp.
         //  for cases such as point destinations where a subdir may be
@@ -320,24 +344,60 @@ function FTNMessageScanTossModule() {
         //
         const flowFileDir = paths.dirname(filePath);
         fse.mkdirs(flowFileDir, () => {
-            //  note not checking err; let's try appendFile
-            const appendLines = fileRefs.reduce((content, ref) => {
-                return content + `${directive}${ref}\n`;
-            }, '');
+            //  note not checking err; let's try to take the lock anyway
+            withFlowFileLock(
+                filePath,
+                {
+                    staleMaxAgeMs: _.get(
+                        Config(),
+                        'scannerTossers.ftn_bso.binkp.staleLockMaxAgeMs'
+                    ),
+                    timeoutMs: _.get(
+                        Config(),
+                        'scannerTossers.ftn_bso.flowLockTimeoutMs'
+                    ),
+                    log: Log,
+                },
+                done => {
+                    fs.appendFile(filePath, appendLines, done);
+                },
+                err => {
+                    if (err) {
+                        //
+                        //  A busy node is a deferral, not a failure: FTS-5005
+                        //  §5.1 prohibits touching a flow file while its .bsy
+                        //  exists, so *not* writing was the correct outcome.
+                        //  Say so distinctly -- the refs did not get queued and
+                        //  the caller may want to retry.
+                        //
+                        if (isBusyError(err)) {
+                            Log.warn(
+                                {
+                                    path: filePath,
+                                    refs: fileRefs.length,
+                                    address: destAddress
+                                        ? destAddress.toString()
+                                        : undefined,
+                                },
+                                'Flow file busy; outbound not queued this pass'
+                            );
+                        }
+                        return cb(err);
+                    }
 
-            fs.appendFile(filePath, appendLines, err => {
-                //  Successful append == new outbound is queued and ready to
-                //  ship. Emit so the native BinkP module can dial |destAddress|
-                //  immediately (crashmail) instead of waiting for the next
-                //  pull cycle. External mailers (binkd) are unaffected — they
-                //  poll the spool directly.
-                if (!err && destAddress) {
-                    Events.emit(Events.getSystemEvents().NewOutboundBSO, {
-                        address: destAddress,
-                    });
+                    //  Successful append == new outbound is queued and ready to
+                    //  ship. Emit so the native BinkP module can dial |destAddress|
+                    //  immediately (crashmail) instead of waiting for the next
+                    //  pull cycle. External mailers (binkd) are unaffected — they
+                    //  poll the spool directly.
+                    if (destAddress) {
+                        Events.emit(Events.getSystemEvents().NewOutboundBSO, {
+                            address: destAddress,
+                        });
+                    }
+                    return cb(null);
                 }
-                return cb(err);
-            });
+            );
         });
     };
 

@@ -1043,6 +1043,20 @@ module.exports = () => {
                 //  Actual sizes may be slightly larger when we must place a full
                 //  PKT contents *somewhere*
                 //
+                //
+                //  How long to wait for a flow file's FTS-5005 .bsy lock
+                //  before giving up and deferring the queue to a later pass.
+                //
+                //  A flow file must not be modified while its .bsy exists
+                //  (FTS-5005.003 §5.1), and that lock is held for the length of
+                //  a mail session -- by our own BinkP mailer and by external
+                //  ones such as binkd alike. Contention is normally momentary;
+                //  raise this on a busy hub with long sessions, where the
+                //  alternative is a "Flow file busy" warning and the outbound
+                //  waiting for the next export cycle.
+                //
+                flowLockTimeoutMs: 5000,
+
                 packetTargetByteSize: 512000, //  512k, before placing messages in a new pkt
                 bundleTargetByteSize: 2048000, //  2M, before creating another archive
                 packetMsgEncoding: 'cp437', //  default packet encoding. Override per node if desired.
