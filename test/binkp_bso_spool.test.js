@@ -1028,6 +1028,93 @@ describe('attachSpoolToSession', () => {
         });
     });
 
+    it("offers queued files even when the peer's M_EOB wins the race (#747)", done => {
+        //
+        //  An answering session resolves what it has for the caller
+        //  asynchronously, after M_ADR. If the caller's own M_EOB arrives
+        //  first -- which it routinely does, since the lookup touches the
+        //  filesystem -- the session must still offer what that lookup finds.
+        //
+        //  It did not. attachSpoolToSession used holdSend()/releaseSend(), and
+        //  |_sendHeld| is consulted in exactly one place: _enterTransfer()'s
+        //  initial _sendNext(). It does not gate _sendNext() itself, and
+        //  _onEob() calls _sendNext() directly once _remoteEOB is set. That
+        //  found an empty queue, saw the answering-side "wait for the remote's
+        //  M_EOB" condition already satisfied, and sent our M_EOB -- after
+        //  which releaseSend()'s |!_localEOBSent| guard made it a no-op and the
+        //  files were never offered.
+        //
+        //  |_eobHold| is tested inside _sendNext() where M_EOB would go out, so
+        //  it holds however _sendNext() was reached. The delay below just makes
+        //  the race deterministic; without the fix this fails every time.
+        //
+        //  Not TIC-specific -- it affects any answering session with mail
+        //  queued for the caller -- but it matters most for file echoes,
+        //  because a downlink polls its hub rather than being dialled.
+        //
+        //  Its own payload, not the shared |refFile|: a sibling test queues
+        //  that one with '^' (delete after send), so reusing it here makes this
+        //  test pass alone and fail in the suite.
+        const ownFile = path.join(tmpDir, 'eob_race.pkt');
+        const flowPath = path.join(outboundDir(tmpDir), '00020002.flo'); // net=2,node=2
+        fsp.writeFile(ownFile, 'EOB_RACE_DATA').then(() => {
+            fsp.writeFile(flowPath, `^${ownFile}\n`).then(() => {
+                //  Lose the race on purpose: make the spool lookup slower than the
+                //  client's M_EOB.
+                const slowSpool = Object.create(spool);
+                slowSpool.getOutboundFilesForNode = async addr => {
+                    await new Promise(r => setTimeout(r, 120));
+                    return spool.getOutboundFilesForNode(addr);
+                };
+
+                const server = net.createServer(serverSocket => {
+                    const serverSess = new BinkpSession(serverSocket, {
+                        role: 'answering',
+                        addresses: ['1:1/1@testnet'],
+                        getPassword: () => null,
+                        tempDir: os.tmpdir(),
+                    });
+                    attachSpoolToSession(serverSess, slowSpool, null).then(() => {
+                        serverSess.start();
+                    });
+                });
+
+                server.listen(0, '127.0.0.1', () => {
+                    const { port } = server.address();
+                    const clientSocket = net.createConnection(port, '127.0.0.1');
+                    const clientSess = new BinkpSession(clientSocket, {
+                        role: 'originating',
+                        addresses: ['1:2/2@testnet'],
+                        getPassword: () => null,
+                        tempDir: os.tmpdir(),
+                    });
+
+                    let received = false;
+                    clientSess.on('file-received', (name, size, ts, tmpPath) => {
+                        received = true;
+                        fsp.unlink(tmpPath).catch(() => {});
+                    });
+
+                    clientSess.on('session-end', () => {
+                        server.close();
+                        try {
+                            assert.ok(
+                                received,
+                                'the caller must be offered its mail even though its M_EOB arrived first'
+                            );
+                            done();
+                        } catch (e) {
+                            done(e);
+                        }
+                    });
+
+                    clientSess.on('error', done);
+                    clientSess.start();
+                });
+            });
+        });
+    });
+
     it('holdSend/releaseSend gates sending until async spool load completes', done => {
         const server = net.createServer(serverSocket => {
             const serverSess = new BinkpSession(serverSocket, {

@@ -740,9 +740,34 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
             }
         }
     } else {
-        // Answering side: learn remote addresses from the session handshake
+        //
+        //  Answering side: learn remote addresses from the session handshake,
+        //  then resolve what we have queued for them.
+        //
+        //  holdEOB(), not holdSend(). The two are not interchangeable and the
+        //  difference decides whether the peer gets its mail at all.
+        //
+        //  |_sendHeld| is consulted in exactly one place -- _enterTransfer()'s
+        //  initial _sendNext(). It does not gate _sendNext() itself, and the
+        //  peer's own M_EOB reaches _sendNext() by another route entirely:
+        //  _onEob() sets _remoteEOB and calls it directly. That commonly beats
+        //  this asynchronous lookup. _sendNext() then finds an empty queue,
+        //  sees the answering-side "wait for _remoteEOB" condition already
+        //  satisfied, and sends our M_EOB -- after which releaseSend()'s
+        //  |!this._localEOBSent| guard makes it a no-op and the files we just
+        //  queued are never offered.
+        //
+        //  |_eobHold| is tested inside _sendNext() at the point M_EOB would go
+        //  out, so it holds however _sendNext() was reached. That is what this
+        //  needs. The FREQ resolver already uses it for the same reason.
+        //
+        //  Reported as #747, and it is not TIC-specific: it affects any
+        //  answering session with something queued for the caller. It matters
+        //  especially for file echoes, because a downlink normally polls its
+        //  hub rather than being dialled.
+        //
         session.on('addresses', async addrStrings => {
-            session.holdSend();
+            session.holdEOB();
             try {
                 for (const addrStr of addrStrings) {
                     const addr = Address.fromString(addrStr);
@@ -760,7 +785,7 @@ async function attachSpoolToSession(session, spool, remoteAddrs) {
                     }
                 }
             } finally {
-                session.releaseSend();
+                session.releaseEOB();
             }
         });
     }
