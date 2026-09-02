@@ -43,6 +43,7 @@ describe('TIC forwarding to downlinks', function () {
             fsx_gen: {
                 areaTag: 'fsxGeneral',
                 network: 'fsxnet',
+                uplinks: [UPLINK],
                 downlinks: [DOWNLINK],
             },
         };
@@ -244,7 +245,11 @@ describe('TIC forwarding to downlinks', function () {
         it('gives each downlink its own TIC and its own password', async () => {
             push({
                 ticAreas: {
-                    fsx_gen: { network: 'fsxnet', downlinks: [DOWNLINK, '21:1/300'] },
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: [UPLINK],
+                        downlinks: [DOWNLINK, '21:1/300'],
+                    },
                 },
                 nodes: {
                     [UPLINK]: { tic: { password: 'UPPASS' } },
@@ -271,7 +276,13 @@ describe('TIC forwarding to downlinks', function () {
         it("ships bare when the link's noTic is set", async () => {
             //  HTick's noTIC.
             push({
-                ticAreas: { fsx_gen: { network: 'fsxnet', downlinks: [DOWNLINK] } },
+                ticAreas: {
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: [UPLINK],
+                        downlinks: [DOWNLINK],
+                    },
+                },
                 nodes: {
                     [UPLINK]: { tic: { password: 'UPPASS' } },
                     [DOWNLINK]: { tic: { noTic: true } },
@@ -323,7 +334,13 @@ describe('TIC forwarding to downlinks', function () {
 
         it('forwards unverified only when explicitly allowed', async () => {
             push({
-                ticAreas: { fsx_gen: { network: 'fsxnet', downlinks: [DOWNLINK] } },
+                ticAreas: {
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: [UPLINK],
+                        downlinks: [DOWNLINK],
+                    },
+                },
                 nodes: {
                     [UPLINK]: { tic: { allowUnverifiedForward: true } },
                     [DOWNLINK]: { tic: { password: 'DOWNPASS' } },
@@ -364,7 +381,7 @@ describe('TIC forwarding to downlinks', function () {
 
         it('refuses when no network can be resolved for the area', async () => {
             push({
-                ticAreas: { fsx_gen: { downlinks: ['99:1/1'] } },
+                ticAreas: { fsx_gen: { uplinks: [UPLINK], downlinks: ['99:1/1'] } },
                 nodes: { [UPLINK]: { tic: { password: 'UPPASS' } } },
             });
             await forward(localInfo());
@@ -466,11 +483,129 @@ describe('TIC forwarding to downlinks', function () {
         });
     });
 
+    describe('only an authorized sender may publish into an area', () => {
+        //
+        //  Everything else in the gate authenticates the sender; this is the
+        //  only thing that authorizes it for the *echo* it is announcing into.
+        //
+        //  Without it, any node in nodes{} -- a downlink of an unrelated echo,
+        //  an EchoMail-only link -- could announce a file into any area we
+        //  carry and have us relay it to that area's subscribers under our own
+        //  From, our own Path and a Seenby containing us. A read-only consumer
+        //  of one echo would gain publish rights to every echo we carry.
+        //
+        //  htick runs the equivalent check (e_writeCheck) immediately before
+        //  sendToLinks(), refusing with "Link %s not subscribed to File Area %s".
+        //
+
+        async function assertNothingQueued() {
+            const { flow, tics } = await spoolState();
+            assert.equal(flow, null, 'no flow file');
+            assert.equal(tics.length, 0, 'no TIC');
+        }
+
+        it('refuses a sender that is not an uplink of the area', async () => {
+            //  21:1/250 is a perfectly good configured node with its own TIC
+            //  password -- it simply has no rights to this echo.
+            push({
+                nodes: {
+                    [UPLINK]: { tic: { password: 'UPPASS' } },
+                    [DOWNLINK]: { tic: { password: 'DOWNPASS' } },
+                    '21:1/250': { tic: { password: 'INTRUDER' } },
+                },
+            });
+
+            await forward(localInfo({ node: '21:1/250' }), [
+                'Area FSX_GEN',
+                'File NODELIST.Z21',
+                'Origin 21:1/250',
+                'From 21:1/250',
+                'Crc DEADBEEF',
+                'Pw INTRUDER',
+                'Seenby 21:1/250',
+            ]);
+
+            await assertNothingQueued();
+        });
+
+        it('forwards for a sender that is an uplink', async () => {
+            await forward(localInfo());
+            const { tics } = await spoolState();
+            assert.equal(tics.length, 1);
+        });
+
+        it('fails closed when the area names no uplinks at all', async () => {
+            //  Silently relaying for an unspecified sender set is the outcome
+            //  this exists to prevent, so "not configured" must mean "forward
+            //  nothing" rather than "forward anything".
+            push({
+                ticAreas: {
+                    fsx_gen: { network: 'fsxnet', downlinks: [DOWNLINK] },
+                },
+            });
+            await forward(localInfo());
+            await assertNothingQueued();
+        });
+
+        it('matches an uplink written in another dimension', async () => {
+            //  FSC-0087 lets each hop rewrite address dimensions, so the From
+            //  we receive need not be shaped like the config entry. A strict
+            //  compare here would lock out a legitimate uplink.
+            push({
+                ticAreas: {
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: ['21:1/100@fsxnet'],
+                        downlinks: [DOWNLINK],
+                    },
+                },
+            });
+            await forward(localInfo());
+            const { tics } = await spoolState();
+            assert.equal(tics.length, 1, 'a 5D uplink must match a 3D From');
+        });
+
+        it('honours a wildcard uplink, for consistency with nodes{}', async () => {
+            push({
+                ticAreas: {
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: ['21:1/*'],
+                        downlinks: [DOWNLINK],
+                    },
+                },
+            });
+            await forward(localInfo());
+            const { tics } = await spoolState();
+            assert.equal(tics.length, 1);
+        });
+
+        it('accepts uplinks written as a space separated string', async () => {
+            //  EchoMail uplinks may be written that way; be consistent.
+            push({
+                ticAreas: {
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: `${UPLINK} 21:1/101`,
+                        downlinks: [DOWNLINK],
+                    },
+                },
+            });
+            await forward(localInfo());
+            const { tics } = await spoolState();
+            assert.equal(tics.length, 1);
+        });
+    });
+
     describe('failure of one downlink does not cost the others', () => {
         it('keeps going after a downlink that cannot be queued', async () => {
             push({
                 ticAreas: {
-                    fsx_gen: { network: 'fsxnet', downlinks: ['21:1/300', DOWNLINK] },
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: [UPLINK],
+                        downlinks: ['21:1/300', DOWNLINK],
+                    },
                 },
                 nodes: {
                     [UPLINK]: { tic: { password: 'UPPASS' } },
@@ -498,7 +633,13 @@ describe('TIC forwarding to downlinks', function () {
 
         it('does not leave a TIC behind when its queueing failed', async () => {
             push({
-                ticAreas: { fsx_gen: { network: 'fsxnet', downlinks: [DOWNLINK] } },
+                ticAreas: {
+                    fsx_gen: {
+                        network: 'fsxnet',
+                        uplinks: [UPLINK],
+                        downlinks: [DOWNLINK],
+                    },
+                },
                 nodes: {
                     [UPLINK]: { tic: { password: 'UPPASS' } },
                     [DOWNLINK]: { tic: { password: 'DOWNPASS' } },

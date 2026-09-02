@@ -64,12 +64,15 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
       fsx_gen: {
           areaTag:   fsxGeneral
           network:   fsxnet
-          downlinks: [ "21:1/200", "21:2/150" ]
+          uplinks:   [ "21:1/100" ]                // who may publish into it
+          downlinks: [ "21:1/200", "21:2/150" ]    // who receives it
       }
   }
   ```
 
   **Off unless you configure it.** An area with no `downlinks` behaves exactly as before. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks).
+
+  * **`uplinks` is an access control, not a formality.** Authentication is not per-area: every node in `nodes` is equally able to send you a TIC for any area you carry. Without `uplinks`, a node configured for some entirely unrelated reason could announce a file into an echo it has no rights to and have you relay it to that echo's subscribers under your own address, `Path` and `Seenby`. An area with `downlinks` and no `uplinks` forwards nothing and says so at startup. HTick performs the same check before forwarding.
 
   * **The loop guard is the part that matters.** A downlink already listed in the TIC's `Seenby` is skipped, as are the sender, the TIC's `To`, the file's `Origin`, and your own addresses on any network. Addresses are compared allowing for the 2D–5D differences that are ordinary in FTN control data — FSC-0087 lets each hop rewrite them — because a strict comparison would fail to notice a system had already seen a file and send it round again.
 

@@ -67,6 +67,7 @@ describe('TIC forwarding across a simulated network', function () {
     //
     class SimNode {
         constructor(addr, downlinks, allAddrs) {
+            this.allAddrs = allAddrs;
             this.addr = addr;
             this.downlinks = downlinks;
             this.dir = paths.join(root, addr.replace(/[:/.]/g, '_'));
@@ -100,6 +101,10 @@ describe('TIC forwarding across a simulated network', function () {
                             fsx_gen: {
                                 areaTag: 'simArea',
                                 network: 'simnet',
+                                //  every node may publish to every other; the
+                                //  topology under test is the downlink graph,
+                                //  not the authorization one
+                                uplinks: this.allAddrs,
                                 downlinks: this.downlinks,
                             },
                         },

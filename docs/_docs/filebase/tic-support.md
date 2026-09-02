@@ -101,6 +101,7 @@ Valid `ticAreas` members under a given node mapping are as follows:
 | `storageTag` | :-1: | Optionally, set a specific storageTag. If not set, the default for this area will be used. |
 | `hashTags` | :-1: | One or more optional hash tags to assign TIC attachments in this area. |
 | `downlinks` | :-1: | Addresses to forward this area's files on to. See [Forwarding to Downlinks](#forwarding-to-downlinks) |
+| `uplinks` | :-1: | Addresses permitted to **publish** into this area. **Required if `downlinks` is set** — an area with downlinks and no uplinks forwards nothing |
 | `network` | :-1: | Which network in `messageNetworks.ftn.networks` this area belongs to. Only needed when forwarding, and only strictly required if the downlinks' zone is claimed by more than one of your networks |
 
 
@@ -174,10 +175,23 @@ ticAreas: {
         //  which of your networks signs the outgoing Path and Seenby
         network: fsxnet
 
+        //  who may publish into this echo — required when forwarding
+        uplinks: [ "21:1/100" ]
+
         downlinks: [ "21:1/200", "21:2/150" ]
     }
 }
 ```
+
+> :warning: `uplinks` is what stops a node you have configured for some *other*
+> reason from announcing a file into this echo and having you relay it to its
+> subscribers under your own address. Every node in `nodes` is otherwise equally
+> able to send you a TIC for any area you carry — authentication is not
+> per-area. Name the system that actually feeds you this echo.
+>
+> An area with `downlinks` and no `uplinks` **forwards nothing**, and says so at
+> startup. That is deliberate: relaying on behalf of an unspecified set of
+> senders is the outcome this prevents.
 
 Each downlink also needs an entry in `nodes` — that is where its TIC password and any per-link options live:
 
@@ -201,6 +215,11 @@ The outgoing TIC carries your address in `From` and a new `Path` line, the downl
 ### Who gets skipped
 A configured downlink is **not** sent the file when it is already listed in the TIC's `Seenby` (this is the loop guard), is the node that sent you the file, is the TIC's `To`, is the file's `Origin`, or is one of your own addresses. Skips are logged at `debug`.
 
+### Who may publish
+Only an address listed in that area's `uplinks` may cause a file to be forwarded. A sender is matched allowing for the address-dimension differences that are normal in FTN control data, so an uplink written `21:1/100` still matches a TIC saying `21:1/100@fsxnet`. An entry containing `*` is treated as a wildcard pattern, as in `nodes` — convenient, but naming a concrete address is the point of the list.
+
+This is a **forwarding** control. Importing a TIC into your own file base is unchanged and is not area-scoped; see [Forwarding to Downlinks](#forwarding-to-downlinks) above for why the two differ.
+
 ### When nothing is forwarded at all
 Forwarding is gated more tightly than importing, because importing affects only your own file base while forwarding makes other systems receive traffic your `Path` and `Seenby` lines vouch for. Nothing is forwarded when:
 
@@ -208,6 +227,7 @@ Forwarding is gated more tightly than importing, because importing affects only 
 * The sending node has **no `tic.password`** configured, so it was never actually authenticated. Set one, or set `allowUnverifiedForward` on that node.
 * The TIC's `To` names a system that is not you — the file is in transit through you. It is still imported, but re-announcing it under your name would be wrong. Routing such files onward is not implemented.
 * The file collided with one you already hold and was stored under a different name. Announcing one name while sending another leaves the downlink with a file it cannot pair up.
+* The sender is not listed in the area's `uplinks`, or the area names no `uplinks` at all.
 
 Each of these is logged at `warn` with the reason.
 
@@ -215,7 +235,7 @@ Each of these is logged at `warn` with the reason.
 When a TIC's `Replaces` supersedes a file you have already queued for a downlink that has not yet collected it, the old file **and** its TIC are removed from that downlink's outbound. Anything already sent is left alone. Without this a downlink that polls infrequently would receive both, and the older one would in any case have been deleted locally by then.
 
 ### Checking your configuration
-Problems that would otherwise be silent are reported at startup — an area with downlinks but no resolvable `network`, a downlink missing from `nodes`, a downlink with no `tic.password` (its TICs will carry no `Pw` line), or an area whose zone more than one of your networks claims. If an area imports fine but never forwards, look there first.
+Problems that would otherwise be silent are reported at startup — an area with `downlinks` but no `uplinks` (which forwards nothing), an area with no resolvable `network`, a downlink missing from `nodes`, a downlink with no `tic.password` (its TICs will carry no `Pw` line), or an area whose zone more than one of your networks claims. If an area imports fine but never forwards, look there first.
 
 ## See Also
 [Message Networks](../messageareas/message-networks.md)

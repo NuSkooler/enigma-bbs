@@ -232,21 +232,72 @@ function buildSeenby({ ticFileInfo, downlinks, ourAddresses, defaultZone }) {
 //  Accepts a space separated string as well as an array, matching how
 //  isAreaConfigValid() has always treated EchoMail |uplinks|.
 //
-function downlinksOf(ticAreaConfig) {
+//
+//  Addresses permitted to *publish* into an area, as written.
+//
+//  The counterpart to |downlinks|, and the reason it exists: without it, the
+//  only sender check anywhere is "is this From any entry in nodes{}", which is
+//  not area-scoped. Any node configured for any reason -- a downlink of some
+//  other echo, an EchoMail-only link -- could announce a file into an echo it
+//  has no rights to, and we would relay it to that echo's subscribers under our
+//  own From, our own Path and a Seenby that includes us.
+//
+//  htick has exactly this control: e_writeCheck() runs immediately before
+//  sendToLinks(), and refuses with "Link %s not subscribed to File Area %s" or
+//  "No import (or read only) from link %s" -- checking both subscription and
+//  direction. Mirroring it is what a hub operator will expect.
+//
+function uplinksOf(ticAreaConfig) {
+    return addressListOf(ticAreaConfig, 'uplinks');
+}
+
+//
+//  Is |from| permitted to publish into an area whose senders are |uplinks|?
+//
+//  A concrete entry is compared with isEquivalent(), so the dimensional
+//  differences FSC-0087 permits do not defeat it -- an uplink written
+//  "21:1/100" still matches a TIC saying "21:1/100@fsxnet". An entry containing
+//  a wildcard is matched as a pattern, for consistency with nodes{}; that is a
+//  deliberate loosening and naming a concrete address is the point of the list.
+//
+//  Never true for an empty list. The caller must treat "no uplinks configured"
+//  as "forward nothing", not as "forward anything".
+//
+function isAuthorizedSender(from, uplinks, options = {}) {
+    if (!from || !from.isValid()) {
+        return false;
+    }
+
+    return (uplinks || []).some(entry => {
+        if (_.isString(entry) && entry.includes('*')) {
+            return from.isPatternMatch(entry);
+        }
+        const addr = toAddress(entry);
+        return addr ? from.isEquivalent(addr, options) : false;
+    });
+}
+
+function addressListOf(ticAreaConfig, key) {
     if (!ticAreaConfig || !_.isObject(ticAreaConfig)) {
         return [];
     }
 
-    const downlinks = ticAreaConfig.downlinks;
-    if (_.isString(downlinks)) {
-        return downlinks.split(/\s+/).filter(s => s.length > 0);
+    const value = ticAreaConfig[key];
+    if (_.isString(value)) {
+        return value.split(/\s+/).filter(s => s.length > 0);
     }
 
-    return Array.isArray(downlinks) ? downlinks : [];
+    return Array.isArray(value) ? value : [];
+}
+
+function downlinksOf(ticAreaConfig) {
+    return addressListOf(ticAreaConfig, 'downlinks');
 }
 
 module.exports = {
     SkipReasons,
+    uplinksOf,
+    isAuthorizedSender,
     seenbyOf,
     addressOf,
     selectDownlinks,

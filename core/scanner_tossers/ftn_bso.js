@@ -3373,7 +3373,7 @@ function FTNMessageScanTossModule() {
     //      "this peer authenticated" from "we never asked".
     //    * A TIC addressed elsewhere is in transit, not for us.
     //
-    this.canForwardTic = function (ticFileInfo, localInfo) {
+    this.canForwardTic = function (ticFileInfo, localInfo, ticAreaConfig) {
         const config = Config();
 
         if ('secInbound' !== localInfo.inboundType) {
@@ -3416,6 +3416,53 @@ function FTNMessageScanTossModule() {
             };
         }
 
+        //
+        //  Is this sender allowed to publish into *this area*?
+        //
+        //  Everything above authenticates the sender; nothing above authorizes
+        //  it for the echo it is announcing into. Without this, any node in
+        //  nodes{} -- a downlink of an unrelated echo, an EchoMail-only link --
+        //  could announce a file into any area we carry and have us relay it to
+        //  that area's subscribers under our own From, our own Path, and a
+        //  Seenby containing us. A read-only consumer of one echo would gain
+        //  publish rights to every echo we carry, and we would be the laundering
+        //  hop. With tic.allowReplace on, it also lets them *supersede* a
+        //  genuine file: "Replaces" matches on tic_origin, which is
+        //  attacker-supplied and visible in every legitimate TIC, and
+        //  dequeueReplacedForDownlinks() would then pull the real file out of
+        //  our downlinks' queues before substituting theirs.
+        //
+        //  htick performs the equivalent check (e_writeCheck) immediately
+        //  before sendToLinks().
+        //
+        //  Fail closed. An area with downlinks and no uplinks forwards nothing,
+        //  and logTicForwardingDiagnostics() says so at startup: silently
+        //  relaying for an unspecified sender set is the outcome this exists to
+        //  prevent. Costs no existing installation anything, because forwarding
+        //  only happens for a ticAreas entry naming downlinks, and that is new.
+        //
+        const uplinks = ticForward.uplinksOf(ticAreaConfig);
+        if (0 === uplinks.length) {
+            return {
+                ok: false,
+                reason: `TIC area has downlinks but no "uplinks"; nobody is authorized to publish into it`,
+            };
+        }
+
+        const from = ticForward.addressOf(ticFileInfo, 'from');
+        const defaultZone =
+            self.getDefaultZone((ticAreaConfig && ticAreaConfig.network) || undefined) ||
+            undefined;
+
+        if (!ticForward.isAuthorizedSender(from, uplinks, { defaultZone })) {
+            return {
+                ok: false,
+                reason: `${
+                    from ? from.toString('5D') : 'sender'
+                } is not an "uplinks" entry for this area, so may not publish into it`,
+            };
+        }
+
         return { ok: true };
     };
 
@@ -3445,7 +3492,7 @@ function FTNMessageScanTossModule() {
             return cb(null);
         }
 
-        const gate = self.canForwardTic(ticFileInfo, localInfo);
+        const gate = self.canForwardTic(ticFileInfo, localInfo, ticAreaConfig);
         if (!gate.ok) {
             Log.warn(
                 {
@@ -4259,6 +4306,30 @@ FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
         const downlinks = ticForward.downlinksOf(areaConfig);
         if (0 === downlinks.length) {
             return; //  a leaf for this area; nothing to check
+        }
+
+        //
+        //  Downlinks but no uplinks: the area forwards nothing, because nobody
+        //  is authorized to publish into it. Loud, because the symptom is a
+        //  downlink quietly never receiving an echo.
+        //
+        if (0 === ticForward.uplinksOf(areaConfig).length) {
+            Log.warn(
+                { ticArea: externalTag, downlinks: downlinks.length },
+                'TIC area has downlinks but no "uplinks"; nothing will be forwarded until you name who may publish into it'
+            );
+        } else {
+            ticForward.uplinksOf(areaConfig).forEach(uplink => {
+                if (!_.isString(uplink) || !uplink.includes('*')) {
+                    const addr = Address.fromString(uplink);
+                    if (!addr || !addr.isValid()) {
+                        Log.warn(
+                            { ticArea: externalTag, uplink },
+                            'TIC area uplink is not a usable FTN address'
+                        );
+                    }
+                }
+            });
         }
 
         //  A network we cannot resolve means no address to sign Path/Seenby
