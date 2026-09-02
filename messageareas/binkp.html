@@ -17,11 +17,11 @@
 <meta property="og:description" content="BinkP Native Mailer" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-08-29T23:34:04+00:00" />
+<meta property="article:published_time" content="2026-09-02T23:28:25+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="BinkP Native Mailer" />
 <script type="application/ld+json">
-{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-08-29T23:34:04+00:00","datePublished":"2026-08-29T23:34:04+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-09-02T23:28:25+00:00","datePublished":"2026-09-02T23:28:25+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -3078,6 +3078,31 @@
 
 <p>The default is 6× the internal session timeout (5 minutes), giving a generous safety margin without making post-crash recovery slow. If you ever raise the session timeout, raise this in proportion.</p>
 
+<p>The same <code class="language-plaintext highlighter-rouge">.bsy</code> files are honoured by external mailers such as Binkd, and by the ENiGMA½ <em>tosser</em> when it queues outbound — see <a href="#flowlocktimeoutms"><code class="language-plaintext highlighter-rouge">flowLockTimeoutMs</code></a> below.</p>
+
+<h4 id="flowlocktimeoutms"><code class="language-plaintext highlighter-rouge">flowLockTimeoutMs</code></h4>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> This one lives at <code class="language-plaintext highlighter-rouge">scannerTossers.ftn_bso.flowLockTimeoutMs</code>, <strong>not</strong> under <code class="language-plaintext highlighter-rouge">binkp</code> — it governs the tosser (the writer), not the mailer.</p>
+</blockquote>
+
+<p><a href="http://ftsc.org/docs/fts-5005.003">FTS-5005.003</a> §5.1 requires that <em>any</em> software touching a BSO flow file first take that file’s <code class="language-plaintext highlighter-rouge">.bsy</code> lock, and prohibits changes entirely while the lock is held:</p>
+
+<blockquote>
+  <p>A bsy is a main control file that must be used by any software dealing with flow files in BSO. […] Any software must check this file before doing any changes in flow files. If a bsy file exists all changes are prohibited in any corresponding flow files.</p>
+</blockquote>
+
+<p>That applies to ENiGMA½ queueing outbound just as much as to a mailer sending it. Because the lock is a standard, per-node <code class="language-plaintext highlighter-rouge">NNNNnnnn.bsy</code> in the node’s own outbound directory, honouring it interlocks correctly with the <strong>native BinkP mailer and external mailers alike</strong> — Binkd takes the very same lock, so neither side needs to know about the other.</p>
+
+<p><code class="language-plaintext highlighter-rouge">flowLockTimeoutMs</code> (default <code class="language-plaintext highlighter-rouge">5000</code>, i.e. 5 seconds) is how long the tosser waits for a busy node’s lock before giving up. Contention is normally momentary — a session finishing an entry — but the lock is held for the length of a whole session, and during that time the spec says the flow file must not be modified.</p>
+
+<p>If the wait expires the outbound is <strong>not</strong> queued this pass, and you’ll see:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Flow file busy; outbound not queued this pass
+</code></pre></div></div>
+
+<p>Nothing is lost or corrupted — the write simply did not happen, which is what the spec requires. Raise this on a busy hub with long sessions.</p>
+
 <h4 id="binkpinboundtempmaxagems"><code class="language-plaintext highlighter-rouge">binkp.inboundTempMaxAgeMs</code></h4>
 
 <p>Inbound files are buffered in <code class="language-plaintext highlighter-rouge">tempDir</code> (defaults to the OS temp dir) under names like <code class="language-plaintext highlighter-rouge">binkp_in_*.dt</code>, then renamed into the inbound spool on successful receipt. Two layers protect against leaks if a peer drops mid-transfer:</p>
@@ -3354,6 +3379,12 @@ freq: {
 <code class="language-plaintext highlighter-rouge">tempDir</code>, <code class="language-plaintext highlighter-rouge">staleLockMaxAgeMs</code>
 </td>
       <td>next session</td>
+      <td>Immediately</td>
+    </tr>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">flowLockTimeoutMs</code> (under <code class="language-plaintext highlighter-rouge">ftn_bso</code>)</td>
+      <td>next outbound queue</td>
       <td>Immediately</td>
     </tr>
     <tr>
