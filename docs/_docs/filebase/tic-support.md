@@ -50,7 +50,8 @@ Valid `tic` members:
 | `longNames` | :-1: | Emit `Lfile` (long file names). Defaults to `true` |
 | `passUnknownKeywords` | :-1: | Pass keywords we do not recognise through unchanged. Defaults to `true`; set `false` for a peer in FSC-87 subset mode |
 | `sha256` | :-1: | Pass a `Sha256` line through. Defaults to `false` |
-| `addressDimensions` | :-1: | Dimensions to write addresses in — `3D`, `4D` (default) or `5D` |
+| `addressDimensions` | :-1: | Dimensions to write `From` and `To` in — `3D`, `4D` (default) or `5D`. **`Seenby` is always written 4D** regardless: it is the loop guard, and some processors match it by exact string, so a `@domain` there can cause a downlink to send a file back to a system that already has it |
+| `fileCase` | :-1: | Case of generated `.tic` filenames — `lower` (default) or `upper` |
 | `allowUnverifiedForward` | :-1: | Forward files received from this node even though it has no `password`, i.e. was never authenticated. Defaults to `false` |
 
 The `password`, `uploadBy`, `allowReplace` and `descPriority` members may also be

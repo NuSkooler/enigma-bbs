@@ -55,6 +55,12 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   Two related changes are worth knowing about even if none of this applies to you: a flow file entry whose file is missing is now logged rather than silently skipped, and a node whose entries all point at missing files is no longer reported as having pending mail -- so it stops being dialled every poll cycle with nothing to send.
 
+* **Two TIC parsing defects with real consequences are fixed** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). **No action is required** beyond upgrading, and no configuration changes.
+
+  A NUL byte in a TIC's `File` field stalled the whole import pass until the watchdog fired, skipping every other TIC in that run; and the path of an announced file was built without a safety check, so a TIC naming `../../../some/file` caused that file to be archived to `paths.reject` and then deleted when the TIC was rejected. Neither needed the TIC to come from a node you have configured.
+
+  **Worth a look** if you carry TIC areas: check `paths.reject` for archived entries whose names you do not recognise, which is where anything affected would have landed.
+
 * **TIC file echoes can now be forwarded to downlinks** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). Previously ENiGMA½ was always a leaf node for file echoes. **No action is required**: forwarding happens only for a `ticAreas` entry that names `downlinks`, and an area without them behaves exactly as before.
 
   **If you want to carry an echo for others**, add `downlinks` and `network` to the area and give each downlink a `nodes` entry with its own `tic.password`. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks). Two things to know before you point a downlink at it:
