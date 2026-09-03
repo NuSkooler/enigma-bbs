@@ -17,11 +17,11 @@
 <meta property="og:description" content="TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-09-02T23:28:25+00:00" />
+<meta property="article:published_time" content="2026-09-03T00:06:55+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="TIC Support" />
 <script type="application/ld+json">
-{"description":"TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.","headline":"TIC Support","dateModified":"2026-09-02T23:28:25+00:00","datePublished":"2026-09-02T23:28:25+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/tic-support.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/filebase/tic-support.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"TIC Support ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.","headline":"TIC Support","dateModified":"2026-09-03T00:06:55+00:00","datePublished":"2026-09-03T00:06:55+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/filebase/tic-support.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/filebase/tic-support.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2883,6 +2883,8 @@
     <h2 id="tic-support">TIC Support</h2>
 <p>ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.</p>
 
+<p>Files can be <strong>received</strong> from an uplink and, if you declare downlinks, <strong>passed on</strong> to them — see <a href="#forwarding-to-downlinks">Forwarding to Downlinks</a>.</p>
+
 <p>Under a given node defined in the <code class="language-plaintext highlighter-rouge">ftn_bso</code> config section in <code class="language-plaintext highlighter-rouge">config.hjson</code> (see
 <a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import/Export</a>), TIC configuration may be supplied:</p>
 
@@ -2945,6 +2947,52 @@
       <td>Where the file description comes from: <code class="language-plaintext highlighter-rouge">diz</code> (default) prefers a <code class="language-plaintext highlighter-rouge">FILE_ID.DIZ</code> shipped inside the file, <code class="language-plaintext highlighter-rouge">tic</code> prefers the TIC’s own <code class="language-plaintext highlighter-rouge">Ldesc</code>
 </td>
     </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">exportType</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Flavour of the outbound queued for this downlink: <code class="language-plaintext highlighter-rouge">crash</code> (default), <code class="language-plaintext highlighter-rouge">hold</code>, <code class="language-plaintext highlighter-rouge">direct</code> or <code class="language-plaintext highlighter-rouge">normal</code>. HTick calls this <code class="language-plaintext highlighter-rouge">fileEchoFlavour</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">noTic</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Send the file with <strong>no</strong> companion TIC. HTick’s <code class="language-plaintext highlighter-rouge">noTIC</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">longNames</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Emit <code class="language-plaintext highlighter-rouge">Lfile</code> (long file names). Defaults to <code class="language-plaintext highlighter-rouge">true</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">passUnknownKeywords</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Pass keywords we do not recognise through unchanged. Defaults to <code class="language-plaintext highlighter-rouge">true</code>; set <code class="language-plaintext highlighter-rouge">false</code> for a peer in FSC-87 subset mode</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sha256</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Pass a <code class="language-plaintext highlighter-rouge">Sha256</code> line through. Defaults to <code class="language-plaintext highlighter-rouge">false</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">addressDimensions</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Dimensions to write <code class="language-plaintext highlighter-rouge">From</code> and <code class="language-plaintext highlighter-rouge">To</code> in — <code class="language-plaintext highlighter-rouge">3D</code>, <code class="language-plaintext highlighter-rouge">4D</code> (default) or <code class="language-plaintext highlighter-rouge">5D</code>. <strong><code class="language-plaintext highlighter-rouge">Seenby</code> is always written 4D</strong> regardless: it is the loop guard, and some processors match it by exact string, so a <code class="language-plaintext highlighter-rouge">@domain</code> there can cause a downlink to send a file back to a system that already has it</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fileCase</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Case of generated <code class="language-plaintext highlighter-rouge">.tic</code> filenames — <code class="language-plaintext highlighter-rouge">lower</code> (default) or <code class="language-plaintext highlighter-rouge">upper</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">allowUnverifiedForward</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Forward files received from this node even though it has no <code class="language-plaintext highlighter-rouge">password</code>, i.e. was never authenticated. Defaults to <code class="language-plaintext highlighter-rouge">false</code>
+</td>
+    </tr>
   </tbody>
 </table>
 
@@ -2965,6 +3013,12 @@ system-wide members live as well:</p>
       <td><code class="language-plaintext highlighter-rouge">secureInOnly</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
       <td>Only process TIC files found in the <strong>secure</strong> inbound (<code class="language-plaintext highlighter-rouge">paths.secInbound</code>). Defaults to <code class="language-plaintext highlighter-rouge">true</code>. TIC files in the unsecure inbound are left where they are, not imported and not deleted</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">requireAreaAuthorization</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Also require the sender to be an <code class="language-plaintext highlighter-rouge">uplinks</code> entry of the area when <strong>importing</strong>, not only when forwarding. Defaults to <code class="language-plaintext highlighter-rouge">false</code>. See <a href="#restricting-who-may-import">Restricting who may import</a>
+</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">holdMaxAgeMs</code></td>
@@ -3032,6 +3086,22 @@ TIC naming <code class="language-plaintext highlighter-rouge">NODELIST.Z34</code
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
       <td>One or more optional hash tags to assign TIC attachments in this area.</td>
     </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">downlinks</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Addresses to forward this area’s files on to. See <a href="#forwarding-to-downlinks">Forwarding to Downlinks</a>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">uplinks</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Addresses permitted to <strong>publish</strong> into this area. <strong>Required if <code class="language-plaintext highlighter-rouge">downlinks</code> is set</strong> — an area with downlinks and no uplinks forwards nothing</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">network</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Which network in <code class="language-plaintext highlighter-rouge">messageNetworks.ftn.networks</code> this area belongs to. Only needed when forwarding, and only strictly required if the downlinks’ zone is claimed by more than one of your networks</td>
+    </tr>
   </tbody>
 </table>
 
@@ -3091,6 +3161,102 @@ scannerTossers: {
 
 
 </code></pre>
+
+<h3 id="restricting-who-may-import">Restricting who may import</h3>
+<p>By default, <strong>any</strong> node in <code class="language-plaintext highlighter-rouge">nodes</code> may announce a file into <strong>any</strong> area you carry. Authentication is not per-area: <code class="language-plaintext highlighter-rouge">From</code> is checked against your node list and the <code class="language-plaintext highlighter-rouge">Area</code> is checked against the areas you carry, but nothing correlates the two.</p>
+
+<p>Setting <code class="language-plaintext highlighter-rouge">tic.requireAreaAuthorization</code> to <code class="language-plaintext highlighter-rouge">true</code> requires the sender to be listed in that area’s <code class="language-plaintext highlighter-rouge">uplinks</code> before the file is imported — the same check that already governs forwarding.</p>
+
+<pre><code class="language-hjson">tic: {
+    requireAreaAuthorization: true
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> This needs an <code class="language-plaintext highlighter-rouge">uplinks</code> list on <strong>every</strong> area you import, and it fails closed: an area naming no uplinks refuses everything. It also requires a <code class="language-plaintext highlighter-rouge">ticAreas</code> entry per area, since an area matched only by its file base tag has nowhere to put <code class="language-plaintext highlighter-rouge">uplinks</code>.</p>
+
+  <p>While the setting is off, startup logs exactly which areas would stop importing if you turned it on — so you can see the cost before paying it. Look for <em>“If … requireAreaAuthorization were enabled, these areas would stop importing”</em>.</p>
+</blockquote>
+
+<p>It is off by default only for compatibility; nothing in an existing configuration says who is entitled to which echo. A forwarding hub already has the <code class="language-plaintext highlighter-rouge">uplinks</code> lists this needs, so for one it usually costs nothing to enable.</p>
+
+<h2 id="forwarding-to-downlinks">Forwarding to Downlinks</h2>
+<p>By default ENiGMA½ is a <strong>leaf node</strong>: files arrive from an uplink, are imported, and go no further. Add <code class="language-plaintext highlighter-rouge">downlinks</code> to a <code class="language-plaintext highlighter-rouge">ticAreas</code> entry and it will also pass them on, generating a TIC for each downlink.</p>
+
+<pre><code class="language-hjson">ticAreas: {
+    fsx_gen: {
+        areaTag: fsxGeneral
+        storageTag: fsx_gen
+
+        //  which of your networks signs the outgoing Path and Seenby
+        network: fsxnet
+
+        //  who may publish into this echo — required when forwarding
+        uplinks: [ "21:1/100" ]
+
+        downlinks: [ "21:1/200", "21:2/150" ]
+    }
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> <code class="language-plaintext highlighter-rouge">uplinks</code> is what stops a node you have configured for some <em>other</em>
+reason from announcing a file into this echo and having you relay it to its
+subscribers under your own address. Every node in <code class="language-plaintext highlighter-rouge">nodes</code> is otherwise equally
+able to send you a TIC for any area you carry — authentication is not
+per-area. Name the system that actually feeds you this echo.</p>
+
+  <p>An area with <code class="language-plaintext highlighter-rouge">downlinks</code> and no <code class="language-plaintext highlighter-rouge">uplinks</code> <strong>forwards nothing</strong>, and says so at
+startup. That is deliberate: relaying on behalf of an unspecified set of
+senders is the outcome this prevents.</p>
+</blockquote>
+
+<p>Each downlink also needs an entry in <code class="language-plaintext highlighter-rouge">nodes</code> — that is where its TIC password and any per-link options live:</p>
+
+<pre><code class="language-hjson">nodes: {
+    "21:1/200": {
+        tic: {
+            password: THEIRPASS  // written as "Pw" in the TIC we send them
+        }
+    }
+}
+</code></pre>
+
+<blockquote>
+  <p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> <code class="language-plaintext highlighter-rouge">downlinks</code> belongs to the <strong>external</strong> area tag, not to the local file base area. A file echo is the thing with subscribers, and one local area may carry several echoes.</p>
+</blockquote>
+
+<h3 id="what-gets-sent">What gets sent</h3>
+<p>For each downlink that should receive the file, ENiGMA½ queues <strong>the file itself followed by a generated <code class="language-plaintext highlighter-rouge">.tic</code></strong>, in that order — <a href="http://ftsc.org/docs/fsc-0087.001">FSC-0087</a> requires the file to be sent first so a failed session cannot orphan a TIC. The file is sent from your file base and left there; the generated TIC is deleted once sent.</p>
+
+<p>The outgoing TIC carries your address in <code class="language-plaintext highlighter-rouge">From</code> and a new <code class="language-plaintext highlighter-rouge">Path</code> line, the downlink in <code class="language-plaintext highlighter-rouge">To</code>, that downlink’s <code class="language-plaintext highlighter-rouge">password</code> in <code class="language-plaintext highlighter-rouge">Pw</code>, and the full <code class="language-plaintext highlighter-rouge">Seenby</code> list. Keywords ENiGMA½ does not recognise are passed through unchanged, as both <a href="http://ftsc.org/docs/fts-5006.001">FTS-5006</a> and FSC-0087 require.</p>
+
+<h3 id="who-gets-skipped">Who gets skipped</h3>
+<p>A configured downlink is <strong>not</strong> sent the file when it is already listed in the TIC’s <code class="language-plaintext highlighter-rouge">Seenby</code> (this is the loop guard), is the node that sent you the file, is the TIC’s <code class="language-plaintext highlighter-rouge">To</code>, is the file’s <code class="language-plaintext highlighter-rouge">Origin</code>, or is one of your own addresses. Skips are logged at <code class="language-plaintext highlighter-rouge">debug</code>.</p>
+
+<h3 id="who-may-publish">Who may publish</h3>
+<p>Only an address listed in that area’s <code class="language-plaintext highlighter-rouge">uplinks</code> may cause a file to be forwarded. A sender is matched allowing for the address-dimension differences that are normal in FTN control data, so an uplink written <code class="language-plaintext highlighter-rouge">21:1/100</code> still matches a TIC saying <code class="language-plaintext highlighter-rouge">21:1/100@fsxnet</code>. An entry containing <code class="language-plaintext highlighter-rouge">*</code> is treated as a wildcard pattern, as in <code class="language-plaintext highlighter-rouge">nodes</code> — convenient, but naming a concrete address is the point of the list.</p>
+
+<p>This is a <strong>forwarding</strong> control. Importing a TIC into your own file base is unchanged and is not area-scoped; see <a href="#forwarding-to-downlinks">Forwarding to Downlinks</a> above for why the two differ.</p>
+
+<h3 id="when-nothing-is-forwarded-at-all">When nothing is forwarded at all</h3>
+<p>Forwarding is gated more tightly than importing, because importing affects only your own file base while forwarding makes other systems receive traffic your <code class="language-plaintext highlighter-rouge">Path</code> and <code class="language-plaintext highlighter-rouge">Seenby</code> lines vouch for. Nothing is forwarded when:</p>
+
+<ul>
+  <li>The TIC arrived in the <strong>unsecure</strong> inbound. This holds even if you set <code class="language-plaintext highlighter-rouge">tic.secureInOnly</code> to <code class="language-plaintext highlighter-rouge">false</code> to import from there.</li>
+  <li>The sending node has <strong>no <code class="language-plaintext highlighter-rouge">tic.password</code></strong> configured, so it was never actually authenticated. Set one, or set <code class="language-plaintext highlighter-rouge">allowUnverifiedForward</code> on that node.</li>
+  <li>The TIC’s <code class="language-plaintext highlighter-rouge">To</code> names a system that is not you — the file is in transit through you. It is still imported, but re-announcing it under your name would be wrong. Routing such files onward is not implemented.</li>
+  <li>The file collided with one you already hold and was stored under a different name. Announcing one name while sending another leaves the downlink with a file it cannot pair up.</li>
+  <li>The sender is not listed in the area’s <code class="language-plaintext highlighter-rouge">uplinks</code>, or the area names no <code class="language-plaintext highlighter-rouge">uplinks</code> at all.</li>
+</ul>
+
+<p>Each of these is logged at <code class="language-plaintext highlighter-rouge">warn</code> with the reason.</p>
+
+<h3 id="replaced-files">Replaced files</h3>
+<p>When a TIC’s <code class="language-plaintext highlighter-rouge">Replaces</code> supersedes a file you have already queued for a downlink that has not yet collected it, the old file <strong>and</strong> its TIC are removed from that downlink’s outbound. Anything already sent is left alone. Without this a downlink that polls infrequently would receive both, and the older one would in any case have been deleted locally by then.</p>
+
+<h3 id="checking-your-configuration">Checking your configuration</h3>
+<p>Problems that would otherwise be silent are reported at startup — an area with <code class="language-plaintext highlighter-rouge">downlinks</code> but no <code class="language-plaintext highlighter-rouge">uplinks</code> (which forwards nothing), an area with no resolvable <code class="language-plaintext highlighter-rouge">network</code>, a downlink missing from <code class="language-plaintext highlighter-rouge">nodes</code>, a downlink with no <code class="language-plaintext highlighter-rouge">tic.password</code> (its TICs will carry no <code class="language-plaintext highlighter-rouge">Pw</code> line), or an area whose zone more than one of your networks claims. If an area imports fine but never forwards, look there first.</p>
 
 <h2 id="see-also">See Also</h2>
 <p><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></p>
