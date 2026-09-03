@@ -55,6 +55,35 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   Two related changes are worth knowing about even if none of this applies to you: a flow file entry whose file is missing is now logged rather than silently skipped, and a node whose entries all point at missing files is no longer reported as having pending mail -- so it stops being dialled every poll cycle with nothing to send.
 
+* **Two TIC parsing defects with real consequences are fixed** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). **No action is required** beyond upgrading, and no configuration changes.
+
+  A NUL byte in a TIC's `File` field stalled the whole import pass until the watchdog fired, skipping every other TIC in that run; and the path of an announced file was built without a safety check, so a TIC naming `../../../some/file` caused that file to be archived to `paths.reject` and then deleted when the TIC was rejected. Neither needed the TIC to come from a node you have configured.
+
+  **Worth a look** if you carry TIC areas: check `paths.reject` for archived entries whose names you do not recognise, which is where anything affected would have landed.
+
+* **Who may import into a TIC area can now be restricted** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). **No action is required** — `scannerTossers.ftn_bso.tic.requireAreaAuthorization` defaults to `false`, which is exactly today's behaviour.
+
+  Worth knowing what today's behaviour is, though: authentication is **not** per-area. Any node in `nodes` may announce a file into any area you carry, because the sender is checked against your node list and the area against the areas you carry, with nothing correlating them. With the setting enabled, the sender must be listed in that area's `uplinks`.
+
+  It is off by default because no existing configuration contains the information the check needs. While it is off, **startup tells you which areas would stop importing if you enabled it**, so the change can be planned rather than discovered. A forwarding hub already has the `uplinks` lists and can usually turn it on for free.
+
+* **TIC file echoes can now be forwarded to downlinks** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). Previously ENiGMA½ was always a leaf node for file echoes. **No action is required**: forwarding happens only for a `ticAreas` entry that names `downlinks`, and an area without them behaves exactly as before.
+
+  **If you want to carry an echo for others**, add `uplinks`, `downlinks` and `network` to the area and give each downlink a `nodes` entry with its own `tic.password`. `uplinks` names who is allowed to publish into the echo and is **required for forwarding** — an area with downlinks and no uplinks forwards nothing, and says so at startup. It exists because authentication is not per-area: without it, any node you have configured for any reason could announce into that echo and have you relay it under your own address. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks). Two things to know before you point a downlink at it:
+
+  * **A node with no `tic.password` is never authenticated** — the password check is skipped entirely when none is configured — so files received from such a node are **not** forwarded. This is deliberate: importing affects only your own file base, while forwarding makes other systems receive traffic your `Path` and `Seenby` lines vouch for. Set a password per node, or set `tic.allowUnverifiedForward` if you accept the risk.
+  * **TICs from the unsecure inbound are never forwarded**, even where you have set `tic.secureInOnly` to `false` in order to import from there.
+
+  One behaviour changes whether or not you forward anything: a **TIC addressed to a system that is not you** — one being routed *through* you — is still imported as before, but is now logged as not forwarded. Routing such files onward is not implemented; if you see this, that echo is not reaching whoever is downstream of you and never was.
+
+* **Queueing outbound now respects the FTS-5005 `.bsy` lock, as it always should have.** ENiGMA½ appended to BSO flow files without taking the per-node lock, so an append landing while the BinkP side was rewriting the same file was silently lost and that file never shipped. **No action is required** and no configuration changes; the new `scannerTossers.ftn_bso.flowLockTimeoutMs` defaults to 5 seconds.
+
+  **Worth knowing if you run an external mailer** such as Binkd against the same spool. This is the same `NNNNnnnn.bsy` lock your mailer already takes, which is precisely why honouring it makes the two interlock correctly — but it also means ENiGMA½ now *waits* on a lock your mailer holds. Two consequences:
+
+  * A long session with a node briefly defers queueing for **that node only**, logged as `Flow file busy; outbound not queued this pass`. The next export cycle queues it. Seeing this occasionally is normal; seeing it constantly means raising `flowLockTimeoutMs`.
+  * A **stale** `.bsy` left behind by a mailer that crashed mid-session will now hold up queueing for that node until it is reaped by age (`binkp.staleLockMaxAgeMs`, 30 minutes by default). If you find one node's outbound sitting still, check its outbound directory for an orphaned `.bsy` and remove it.
+
+
 * **The most specific `nodes{}` and NetMail `routes{}` pattern now wins, rather than the first one written.** Where only one pattern matched an address nothing changes. Where several matched, the entry that applied used to depend on the order of your `config.hjson`.
 
   **Action:** review your configuration if it mixes a wildcard with more specific entries that also match. Two cases change behaviour, both towards what the specific entry says: a `"21:*"` node block written above `"21:1/100"` no longer shadows that node's own settings -- including `packetPassword`, which means a packet password you configured and believed to be in force may only now start being enforced -- and a `"*"` NetMail route written above `"21:*"` no longer claims mail the narrower route was meant to take.

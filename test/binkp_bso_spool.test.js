@@ -102,6 +102,68 @@ describe('BsoSpool — lock management', () => {
         );
     });
 
+    it('marks every entry sent when one session ships several files', async () => {
+        //
+        //  _applyFlowDisposition() is a whole-file read-modify-write and a
+        //  session runs one per file it ships, concurrently. Each used to read
+        //  the file with every line still unmarked, mark its own and write its
+        //  own copy back, so the last writer won and the other lines silently
+        //  lost their '~'.
+        //
+        //  Forwarding a file echo made that immediately harmful: the payload is
+        //  queued 'keep' because it lives in the file base, so losing its mark
+        //  left it looking unsent and it went out again on every session --
+        //  the downlink receiving the same file forever, with no TIC. Caught
+        //  between two live instances, not by any unit test, because it needs
+        //  two real dispositions racing inside one session.
+        //
+        const dir = path.join(tmpDir, 'outbound');
+        await fsp.mkdir(dir, { recursive: true });
+
+        const payload = path.join(dir, 'PAYLOAD.ZIP');
+        const tic = path.join(dir, 'aaaaaaaa.tic');
+        await fsp.writeFile(payload, 'payload');
+        await fsp.writeFile(tic, 'tic');
+
+        const flowPath = path.join(dir, `${nodeBaseName(TEST_ADDR)}.clo`);
+        await fsp.writeFile(flowPath, `${payload}\n^${tic}\n`);
+
+        const files = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(files.length, 2, 'both entries queued');
+
+        //  Concurrently, as a session does -- not one after the other.
+        await Promise.all(files.map(f => f.disposeFn()));
+
+        //
+        //  The flow file is removed once nothing live remains in it, so its
+        //  absence is the strongest possible evidence: it can only have been
+        //  unlinked if *both* entries were marked. When it does survive, every
+        //  entry in it must carry '~'.
+        //
+        let content = null;
+        try {
+            content = await fsp.readFile(flowPath, 'utf8');
+        } catch (err) {
+            assert.equal(err.code, 'ENOENT', err.message);
+        }
+
+        if (null !== content) {
+            content
+                .split('\n')
+                .filter(l => l.trim().length)
+                .forEach(l =>
+                    assert.ok(
+                        l.trim().startsWith('~'),
+                        `entry left unmarked and so will be re-sent: ${l}`
+                    )
+                );
+        }
+
+        //  ...and the node therefore has nothing further pending
+        const again = await spool.getOutboundFilesForNode(TEST_ADDR);
+        assert.equal(again.length, 0, 'nothing may be queued a second time');
+    });
+
     it('releaseLock is idempotent when lock does not exist', async () => {
         await assert.doesNotReject(spool.releaseLock(TEST_ADDR));
     });

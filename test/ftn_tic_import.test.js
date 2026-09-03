@@ -470,6 +470,162 @@ describe('TIC payload resolution and validation', () => {
     });
 });
 
+describe('TIC parsing robustness and pass-through retention', () => {
+    //
+    //  Address.fromString() returns undefined for anything it cannot parse, and
+    //  that undefined used to be stored. For a repeatable keyword like Seenby
+    //  it landed in an array whose elements getAsString() calls .toString() on,
+    //  so a single malformed line from a remote peer threw inside an fs
+    //  callback and hung the entire import pass -- the same shape of failure
+    //  #735 fixed for a missing "File" field.
+    //
+    //  The raw lines are retained because both specs require a forwarding
+    //  processor to pass unrecognised keywords through unchanged, and parsing
+    //  into converted values loses the text a writer needs (#743).
+    //
+
+    function writeTic(dir, name, body) {
+        const p = paths.join(dir, name);
+        fs.writeFileSync(p, body.replace(/\n/g, '\r\n'));
+        return p;
+    }
+
+    let dir;
+
+    beforeEach(() => {
+        dir = makeTempDir('enigma_ticparse_');
+    });
+
+    afterEach(() => {
+        rmrf(dir);
+    });
+
+    function parse(body) {
+        const p = writeTic(dir, 'PARSE.TIC', body);
+        return new Promise((resolve, reject) => {
+            TicFileInfo.createFromFile(p, (err, info) =>
+                err ? reject(err) : resolve(info)
+            );
+        });
+    }
+
+    it('drops an unparsable Seenby instead of storing undefined', async () => {
+        const info = await parse(
+            [
+                'Area FSX_GEN',
+                'File TEST.ZIP',
+                'Seenby 21:1/100',
+                'Seenby not-an-address',
+                'Seenby 21:1/200',
+            ].join('\n')
+        );
+
+        const seenby = info.get('seenby');
+        assert.strictEqual(seenby.length, 2, 'the bad line must not be stored');
+        seenby.forEach(a => assert.ok(a && a.isValid()));
+    });
+
+    it('does not throw when serializing a list that had a bad entry', () => {
+        //  This is the hang: getAsString() -> v.toString() on undefined.
+        return parse(['Seenby 21:1/100', 'Seenby ???'].join('\n')).then(info => {
+            assert.doesNotThrow(() => info.getAsString('Seenby', ' '));
+            assert.equal(info.getAsString('Seenby', ' '), '21:1/100');
+        });
+    });
+
+    it('records why a value was dropped, without failing the parse', async () => {
+        const info = await parse(['Area FSX_GEN', 'Seenby garbage!!'].join('\n'));
+        assert.equal(info.parseWarnings.length, 1);
+        assert.equal(info.parseWarnings[0].key, 'seenby');
+        assert.equal(info.parseWarnings[0].value, 'garbage!!');
+        //  everything else still parsed
+        assert.equal(info.getAsString('Area'), 'FSX_GEN');
+    });
+
+    it('lets hasRequiredFields catch a required address that would not parse', async () => {
+        const info = await parse(
+            ['Area A', 'Origin nope', 'From 21:1/100', 'File F.ZIP', 'Crc 1234'].join(
+                '\n'
+            )
+        );
+        //  Origin was dropped rather than stored as undefined; the existing
+        //  required-field check is what rejects it, exactly as before.
+        assert.ok(!info.hasRequiredFields());
+        assert.equal(info.get('origin'), undefined);
+    });
+
+    it('accepts a password after the address on the From line', async () => {
+        //  FSC-0087: "FROM [Address] [Pwd]". The anchored address regexp
+        //  rejected the whole value, so such a TIC lost its From entirely and
+        //  was refused as "required fields missing".
+        const info = await parse(
+            ['Area A', 'File A.ZIP', 'From 2:280/5555 SECRET', 'Origin 2:280/5555'].join(
+                '\n'
+            )
+        );
+        assert.equal(info.getAsString('From'), '2:280/5555');
+        assert.equal(info.parseWarnings.length, 0);
+    });
+
+    it('does not carry that password into a forwarded TIC', async () => {
+        //  FSC-0087: the From line's password is never passed through. It is
+        //  safe because "from" is regenerated per downlink, not forwarded.
+        const TicFileWriter = require('../core/tic_file_writer.js');
+        const Address = require('../core/ftn_address.js');
+        const info = await parse(
+            ['Area A', 'File A.ZIP', 'From 2:280/5555 SECRET'].join('\n')
+        );
+        const out = TicFileWriter.build(info, {
+            from: Address.fromString('21:1/151'),
+            to: Address.fromString('21:1/200'),
+            crc: 'deadbeef',
+            seenby: [],
+            createdBy: 'x',
+        });
+        assert.ok(!out.includes('SECRET'), out);
+    });
+
+    it('retains every line verbatim, in order, for pass-through', async () => {
+        const body = [
+            'Area FSX_GEN',
+            'File TEST.ZIP',
+            'Desc A test file',
+            'Ldesc line one',
+            'Ldesc line two',
+            'SomeFutureKeyword with a value',
+            'Seenby 21:1/100',
+        ].join('\n');
+
+        const info = await parse(body);
+
+        assert.deepEqual(
+            info.rawLines.map(r => r.line),
+            body.split('\n'),
+            'raw lines must survive parsing, in file order'
+        );
+        //  keys are normalized for lookup even though the text is not
+        assert.deepEqual(
+            info.rawLines.map(r => r.key),
+            ['area', 'file', 'desc', 'ldesc', 'ldesc', 'somefuturekeyword', 'seenby']
+        );
+    });
+
+    it('retains an unknown keyword exactly as written, casing included', async () => {
+        const info = await parse('X-Weird-Thing  Value   With  Spaces');
+        assert.equal(info.rawLines.length, 1);
+        assert.equal(info.rawLines[0].line, 'X-Weird-Thing  Value   With  Spaces');
+        assert.equal(info.rawLines[0].key, 'x-weird-thing');
+    });
+
+    it('skips blank lines entirely', async () => {
+        const info = await parse(['Area A', '', '   ', 'File B.ZIP'].join('\n'));
+        assert.deepEqual(
+            info.rawLines.map(r => r.key),
+            ['area', 'file']
+        );
+    });
+});
+
 describe('TIC hold, retry and rejection', () => {
     let inboundDir;
     let rejectDir;
@@ -512,7 +668,7 @@ describe('TIC hold, retry and rejection', () => {
         //  and where the fix lives -- and on success records the import instead of
         //  scanning the file into an area and persisting a DB entry.
         //
-        inst.processSingleTicFile = (ticFileInfo, cb) => {
+        inst.processSingleTicFile = (ticFileInfo, inboundType, cb) => {
             ticFileInfo.validate(
                 {
                     nodes: { [NODE_ADDR]: {} },

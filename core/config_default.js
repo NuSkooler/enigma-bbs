@@ -1079,6 +1079,70 @@ module.exports = () => {
                     //  Set to 0 to hold indefinitely.
                     //
                     holdMaxAgeMs: 48 * 60 * 60 * 1000, //  48 hours
+
+                    //
+                    //  ── Forwarding to downlinks ──────────────────────────
+                    //
+                    //  Declare downlinks per area under |ticAreas|; these are
+                    //  the defaults for how the outgoing TIC is written. Each
+                    //  may be overridden per node under nodes.<addr>.tic.
+                    //
+
+                    //  Case of generated .tic filenames, to match |fileCase|
+                    //  conventions elsewhere in the outbound.
+                    fileCase: 'lower',
+
+                    //  Emit "Lfile" (long file names). FSC-0087 marks the
+                    //  equivalent "Fullname" as not-passed-through and HTick
+                    //  emits neither, so an HTick hub silently drops long
+                    //  names; Mystic and Synchronet keep them. Turn off only
+                    //  for a peer you know cannot cope.
+                    longNames: true,
+
+                    //  Pass keywords we do not recognise through unchanged.
+                    //  Both FTS-5006 and FSC-0087 require this. HTick links
+                    //  running "FileFixFSC87Subset off" abandon a whole TIC
+                    //  over an unknown keyword -- set false for such a peer.
+                    passUnknownKeywords: true,
+
+                    //  Pass a "Sha256" line through. Off by default: it is in
+                    //  neither specification and in no other implementation,
+                    //  so to every other peer it is an unknown keyword.
+                    sha256: false,
+
+                    //  Ship the file with no companion TIC (HTick's "noTIC").
+                    noTic: false,
+
+                    //  Dimensions to write addresses in. Some older processors
+                    //  are not 5D aware; Synchronet's TickIT strips the domain
+                    //  unconditionally for this reason.
+                    addressDimensions: '4D',
+
+                    //
+                    //  Require the sending node to be an |uplinks| entry of the
+                    //  area it announces into, on *import* as well as when
+                    //  forwarding.
+                    //
+                    //  Off by default because it changes existing behaviour:
+                    //  authentication is not area-scoped, so today any node in
+                    //  nodes{} may announce a file into any area you carry, and
+                    //  no existing configuration says who is entitled to what.
+                    //  Turning it on requires an |uplinks| list on every area
+                    //  you import -- which a forwarding hub already has.
+                    //
+                    //  While it is off, startup reports which areas would stop
+                    //  importing if you enabled it, so the change can be
+                    //  planned rather than discovered.
+                    //
+                    requireAreaAuthorization: false,
+
+                    //  Forward even when the sending node has no |password|
+                    //  configured, i.e. was never actually authenticated.
+                    //  Importing such a TIC only affects your own file base;
+                    //  forwarding makes third parties receive traffic your
+                    //  Path and Seenby lines vouch for. Leave this off and
+                    //  configure a password per node.
+                    allowUnverifiedForward: false,
                 },
 
                 //

@@ -24,6 +24,22 @@ const crypto = require('crypto');
 module.exports = class TicFileInfo {
     constructor() {
         this.entries = new Map();
+
+        //
+        //  Every line as it arrived, in file order: { key, line }. This is what
+        //  a writer forwards for keywords it does not itself regenerate. See
+        //  createFromFile().
+        //
+        this.rawLines = [];
+
+        //
+        //  Values that could not be parsed and were dropped: { key, value,
+        //  reason }. Recorded rather than logged so this module keeps its very
+        //  small dependency set -- it is pulled in early and by oputil -- and
+        //  so the caller can report them with the context it has (which TIC,
+        //  which node). Never a reason on its own to reject a TIC.
+        //
+        this.parseWarnings = [];
     }
 
     static get requiredFields() {
@@ -96,7 +112,13 @@ module.exports = class TicFileInfo {
             //
             joinWith = joinWith || '';
             if (Array.isArray(value)) {
-                return value.map(v => v.toString()).join(joinWith);
+                //  filter(): belt and braces. createFromFile() no longer stores
+                //  an unparsable value, but this getter is reachable from
+                //  anywhere and must not throw on a peer's malformed input.
+                return value
+                    .filter(v => undefined !== v && null !== v)
+                    .map(v => v.toString())
+                    .join(joinWith);
             }
 
             return value.toString();
@@ -123,6 +145,26 @@ module.exports = class TicFileInfo {
             return undefined;
         }
 
+        //
+        //  Refuse to build a path from an unsafe name, rather than leaving that
+        //  to the caller.
+        //
+        //  validate() rejects such a TIC -- but *rejecting it is the dangerous
+        //  path*, not the safe one. ftn_bso's reject() hands this very getter's
+        //  value to maybeArchiveImportFile(), which copies it into the reject
+        //  directory, and then to removeAssocTicFiles(), which unlinks it. So
+        //  "File ../../../etc/passwd" resolved to /etc/passwd and got copied and
+        //  then deleted, and none of that needed the TIC to name an area we
+        //  carry or come from a node we know: the File field is read several
+        //  steps ahead of those checks.
+        //
+        //  resolveFilePath() already guards itself this way; the getter must
+        //  too, since it is what every error path reaches for.
+        //
+        if (!TicFileInfo.isSafeFileName(fileName)) {
+            return undefined;
+        }
+
         return paths.join(paths.dirname(this.path), fileName);
     }
 
@@ -145,14 +187,33 @@ module.exports = class TicFileInfo {
     }
 
     hasRequiredFields() {
+        //
+        //  Presence, not truthiness. "Crc 00000000" parses to the number 0, and
+        //  testing the value itself reported a perfectly well-formed TIC as
+        //  "One or more required fields missing" -- then rejected and unlinked
+        //  it. Zero is the CRC-32 of an empty file, so this was reachable.
+        //
         const req = TicFileInfo.requiredFields;
-        return req.every(f => this.get(f));
+        return req.every(f => undefined !== this.get(f));
     }
 
     //  A "File" value we are willing to look for: a bare name, no traversal.
     static isSafeFileName(fileName) {
         return !(
             !fileName ||
+            //
+            //  Control characters, and a NUL above all. A name like
+            //  "NODE\0LIST.Z21" is not a separator, is not "..", and is not
+            //  absolute, so every other check here passes it -- and then
+            //  fs.stat() throws ERR_INVALID_ARG_VALUE *synchronously* out of
+            //  resolveFilePath(), escaping the async waterfall so validate()
+            //  never calls back at all. That hangs the whole import pass until
+            //  the watchdog fires, skipping every remaining TIC: precisely the
+            //  failure #735 fixed for a missing "File", reachable again for the
+            //  cost of one byte from any peer.
+            //
+            // eslint-disable-next-line no-control-regex
+            /[\u0000-\u001f]/.test(fileName) ||
             fileName.includes('/') ||
             fileName.includes('\\') ||
             fileName.includes('..') ||
@@ -307,6 +368,16 @@ module.exports = class TicFileInfo {
                         _.get(config.nodes, [localInfo.node, 'tic', 'password']) ||
                         config.defaultPassword;
                     if (!passActual) {
+                        //
+                        //  No password configured for this node, so nothing to
+                        //  check. Importing on that basis has always been
+                        //  allowed, but |passwordVerified| lets a caller tell
+                        //  "this peer authenticated" from "we never asked" --
+                        //  which matters before acting on a TIC's say-so in a
+                        //  way third parties can see. See the forwarding gate
+                        //  in ftn_bso.js.
+                        //
+                        localInfo.passwordVerified = false;
                         return callback(null, localInfo); //  no pw validation
                     }
 
@@ -322,6 +393,7 @@ module.exports = class TicFileInfo {
                         return callback(Errors.Invalid('Bad TIC password'));
                     }
 
+                    localInfo.passwordVerified = true;
                     return callback(null, localInfo);
                 },
                 function resolvePayload(localInfo, callback) {
@@ -458,10 +530,20 @@ module.exports = class TicFileInfo {
             ticFileInfo.path = path;
 
             //
-            //  Lines in a TIC file should be separated by CRLF (DOS)
-            //  may be separated by LF (UNIX)
+            //  Lines in a TIC file should be separated by CRLF (DOS) but
+            //  FTS-5006 2.2 asks readers to cope with "only a LF or CR" -- so a
+            //  lone CR ends a line here too.
             //
-            const lines = ticData.split(/\r\n|\n/g);
+            //  That is not just leniency, it closes an injection. Splitting on
+            //  CRLF and LF alone left a bare CR *inside a value*, and the writer
+            //  passes values through verbatim: an uplink sending
+            //  "Ldesc harmless\rPw SOMETHING" got a literal "Pw SOMETHING" line
+            //  into the TIC we then signed with our own From and Path, for any
+            //  downstream tosser that breaks lines on CR -- which every C
+            //  implementation splitting on "\r\n" does. Treating CR as a
+            //  terminator means no value can contain one.
+            //
+            const lines = ticData.split(/\r\n|\r|\n/g);
             let keyEnd;
             let key;
             let value;
@@ -487,14 +569,84 @@ module.exports = class TicFileInfo {
                     value = value.trim();
                 }
 
+                //
+                //  Keep the line exactly as it arrived, in order.
+                //
+                //  Both specs require a forwarding processor to pass keywords
+                //  it does not understand through unchanged -- FTS-5006 2.2:
+                //  "the preferred way of dealing with it is to pass the line
+                //  'as is' to outgoing TIC files" -- and FSC-0087 additionally
+                //  requires grouped keywords (Desc, Ldesc, App) to keep their
+                //  order. Parsing into converted values loses the text a writer
+                //  would need to reproduce, so retain it here rather than
+                //  trying to reconstruct it later.
+                //
+                ticFileInfo.rawLines.push({ key, line });
+
                 //  convert well known keys to a more reasonable format
                 switch (key) {
                     case 'origin':
                     case 'from':
                     case 'seenby':
-                    case 'to':
-                        value = Address.fromString(value);
+                    case 'to': {
+                        //
+                        //  Only the address part. FSC-0087 defines the From
+                        //  line as "FROM [Address] [Pwd]" -- an optional
+                        //  password after the address -- and our anchored
+                        //  FTN_ADDRESS_REGEXP rejected the whole thing, so
+                        //  "From 2:280/5555 SECRET" yielded no From at all and
+                        //  the TIC died as "required fields missing".
+                        //
+                        //  The spec calls that password "rarely used, IF AT
+                        //  ALL", and none of 1,769 real TICs from a live system
+                        //  carried one -- so this is conformance rather than a
+                        //  live problem. Taking the first token is also simply
+                        //  more tolerant for the other address keywords, which
+                        //  is the right posture for a reader.
+                        //
+                        //  Nothing leaks: FSC-0087 says the From password is
+                        //  never passed through, and "from" is in the writer's
+                        //  regeneratedKeywords, so the inbound line is dropped
+                        //  and rebuilt per downlink rather than forwarded.
+                        //
+                        //  Only "From". The spec allows a trailing token there
+                        //  and nowhere else, so a second token on Origin, To or
+                        //  Seenby is malformed -- taking the first silently
+                        //  would accept a broken TIC as though it were fine.
+                        //
+                        const addr = Address.fromString(
+                            'from' === key ? value.split(/\s+/)[0] : value
+                        );
+
+                        //
+                        //  An address we cannot parse is dropped, not stored.
+                        //
+                        //  Address.fromString() returns undefined on failure,
+                        //  and storing that put an undefined into e.g. the
+                        //  Seenby array -- where getAsString() calls
+                        //  v.toString() on every element and throws. Coming
+                        //  from a remote peer's control file, one malformed
+                        //  "Seenby" line was enough to throw inside an fs
+                        //  callback and hang the whole import pass: the same
+                        //  shape of failure #735 fixed for a missing "File".
+                        //
+                        //  htick does exactly this -- "TIC %s: Illegal value:
+                        //  'Seenby %s', ignored" -- and carries on. Required
+                        //  fields that end up absent are caught by
+                        //  hasRequiredFields() as they always were.
+                        //
+                        if (!addr) {
+                            ticFileInfo.parseWarnings.push({
+                                key,
+                                value,
+                                reason: 'unparsable FTN address',
+                            });
+                            return;
+                        }
+
+                        value = addr;
                         break;
+                    }
 
                     case 'crc':
                         value = parseInt(value, 16);

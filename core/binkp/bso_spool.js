@@ -75,6 +75,10 @@ const warnedFlowRefs = new Set();
 //                       owns the bare outbound/ dir; see core/bso_util.js)
 //
 class BsoSpool {
+    //  flow file path -> tail of the in-flight rewrite chain for it.
+    //  Static: two spool instances in one process still share the files.
+    static _flowWrites = new Map();
+
     constructor(config) {
         this._paths = config.paths || {};
         this._networks = config.networks || {};
@@ -443,7 +447,51 @@ class BsoSpool {
         return results;
     }
 
+    //
+    //  Serialize flow file rewrites per file.
+    //
+    //  _applyFlowDisposition() is a whole-file read-modify-write, and a session
+    //  that ships more than one file for a node runs one per file --
+    //  concurrently. Each read the file with every line still unmarked, marked
+    //  its own, and wrote its own copy back, so the last writer won and every
+    //  other line silently lost its '~'.
+    //
+    //  Forwarding a file echo makes that immediately harmful: the payload and
+    //  its TIC go out together, and the payload is queued 'keep' because it
+    //  lives in the file base. Losing its mark left it looking unsent, so it
+    //  was re-sent on every session from then on -- the downlink receiving the
+    //  same file forever, with no TIC. Observed end to end between two live
+    //  instances; for mail the same race merely leaves dangling references,
+    //  since those entries carry '^' and the file is gone by the next pass.
+    //
+    //  The per-node .bsy cannot help here: the session holds it for its whole
+    //  duration, so both rewrites are inside it. This is in-process contention
+    //  and wants an in-process lock.
+    //
+    _withFlowFileWrite(flowPath, work) {
+        const prev = BsoSpool._flowWrites.get(flowPath) || Promise.resolve();
+        const next = prev.then(work, work);
+
+        BsoSpool._flowWrites.set(flowPath, next);
+
+        //  Drop the chain once it drains so a long-lived process does not
+        //  accumulate an entry per flow file ever written.
+        next.finally(() => {
+            if (BsoSpool._flowWrites.get(flowPath) === next) {
+                BsoSpool._flowWrites.delete(flowPath);
+            }
+        });
+
+        return next;
+    }
+
     async _applyFlowDisposition(flowPath, lineIdx, originalTrimmed) {
+        return this._withFlowFileWrite(flowPath, () =>
+            this._applyFlowDispositionLocked(flowPath, lineIdx, originalTrimmed)
+        );
+    }
+
+    async _applyFlowDispositionLocked(flowPath, lineIdx, originalTrimmed) {
         //  The file-side action (unlink for 'delete', truncate for 'truncate')
         //  is already performed by BinkpSession._applyDisposition before the
         //  'file-sent' event fires; session.js owns file lifecycle. This
