@@ -559,6 +559,116 @@ describe('BinkpSession — inbound with no terminator frame', function () {
         );
     });
 
+    it('tearing one receive down does not cancel the next', async () => {
+        //  Ending a receive is asynchronous for a compressed file, so the
+        //  teardown lands after the batch has already opened the file behind
+        //  it. _abandonReceive used to clear _currentRecv unconditionally,
+        //  cancelling that one -- every frame still arriving for it was then
+        //  discarded and the batch hung.
+        //
+        //  Whether any frames are actually stranded depends on how the
+        //  sender's writes happen to be split, so the assertion is on the
+        //  invariant rather than on the fallout: tearing down one file may
+        //  never cancel a different one.
+        const short = Buffer.alloc(20000, 0x41);
+        const rest = Buffer.alloc(256 * 1024, 0x42);
+
+        const stolen = [];
+        const filesToSend = [
+            {
+                name: 'short.pkt',
+                size: short.length + 4096, //  more than it will send
+                timestamp: 1700000000,
+                data: short,
+                gzContainer: 'zlib',
+            },
+            {
+                name: 'rest.pkt',
+                size: rest.length,
+                timestamp: 1700000001,
+                data: rest,
+                gzContainer: 'zlib',
+            },
+        ];
+
+        const paths = [];
+        const { session, peer } = await makeScriptedPair({
+            opts: ['EXTCMD', 'GZ'],
+            noEofFrame: true,
+            pipeline: true,
+            filesToSend,
+        });
+
+        const abandon = session._abandonReceive.bind(session);
+        session._abandonReceive = cr => {
+            const before = session._currentRecv;
+            abandon(cr);
+            if (before && before !== cr && null === session._currentRecv) {
+                stolen.push({ dropped: cr.name, cancelled: before.name });
+            }
+        };
+
+        session.on('file-received', (name, size, ts, p) => paths.push({ name, p }));
+        await runSession(session);
+
+        const files = {};
+        for (const { name, p } of paths) {
+            files[name] = await fsp.readFile(p);
+            await fsp.unlink(p).catch(() => {});
+        }
+
+        assert.deepEqual(stolen, [], 'a teardown cancelled an unrelated receive');
+        assert.ok(files['rest.pkt'], 'the file behind it was never received');
+        assert.equal(files['rest.pkt'].length, rest.length);
+        assert.equal(files['short.pkt'], undefined, 'the short one is not handed on');
+        assert.deepEqual(
+            peer.framesIn
+                .filter(f => f.cmd === Commands.M_GOT)
+                .map(f => f.arg.split(' ')[0]),
+            ['rest.pkt']
+        );
+    });
+
+    it('still asks for a clear retransmit once the batch has moved on', async () => {
+        //  Decompression fails asynchronously, so by the time it does the
+        //  sender is already several files further along. Answering only for
+        //  the file that happens to be current drops this one on the floor:
+        //  no M_GET, no M_SKIP, and a sender left waiting on an M_GOT that is
+        //  never coming. FTS-1029's NZ recovery has to work here too.
+        const bad = Buffer.alloc(20000, 0x41);
+        const good = Buffer.alloc(20000, 0x42);
+
+        const { files, peer } = await receiveFrom(
+            [
+                {
+                    name: 'bad.pkt',
+                    size: bad.length,
+                    timestamp: 1700000000,
+                    data: bad,
+                    gzContainer: 'corrupt',
+                },
+                {
+                    name: 'good.pkt',
+                    size: good.length,
+                    timestamp: 1700000001,
+                    data: good,
+                    gzContainer: 'zlib',
+                },
+            ],
+            { pipeline: true }
+        );
+
+        const nz = peer.framesIn.filter(
+            f => f.cmd === Commands.M_GET && f.arg.endsWith(' NZ')
+        );
+        assert.equal(nz.length, 1, 'the uncompressed retransmit was never asked for');
+        assert.ok(nz[0].arg.startsWith('bad.pkt '), 'and must name the file that failed');
+
+        //  The retransmit arrives in the clear, so both files land.
+        assert.deepEqual(files['bad.pkt'], bad, 'the retransmit was not recovered');
+        assert.deepEqual(files['good.pkt'], good);
+    });
+
     it('cuts a file that runs past its announced size back to it', async () => {
         //  The clear path caps every chunk against the declared size, but a
         //  compressed one cannot be measured until it is decompressed, so

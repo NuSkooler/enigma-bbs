@@ -410,7 +410,17 @@ class ScriptedPeer {
     _onGet(arg) {
         const parts = arg.split(' ');
         const [name, , , offsetStr] = parts;
-        const cs = this.currentSend;
+        let cs = this.currentSend;
+        //  FTS-1026 requires a sender to honour an M_GET naming a file it has
+        //  already put on the wire and is still waiting to have acknowledged.
+        //  A pipelining peer is always in that position -- it holds nothing
+        //  in currentSend -- and binkd answers from its sent list.
+        if (this.opts.pipeline && (!cs || cs.name !== name)) {
+            cs = (this.opts.filesToSend || []).find(f => f.name === name);
+            if (cs) {
+                this.currentSend = cs;
+            }
+        }
         if (!cs || cs.name !== name) {
             return;
         }

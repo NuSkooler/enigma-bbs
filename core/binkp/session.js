@@ -1087,8 +1087,16 @@ class BinkpSession extends EventEmitter {
     //  comes back on every poll from then on with nothing to show why.
     //
     _onInflateError(cr, err) {
-        if (this._currentRecv !== cr) {
-            return; //  already torn down
+        //  Settled means acknowledged, postponed or already torn down --
+        //  there is nothing left to answer for. What this must NOT do is
+        //  bail because |cr| is no longer the current receive: decompression
+        //  is asynchronous, so a batch moves on to the next file long before
+        //  a failure on this one surfaces, and returning here would leave the
+        //  sender waiting on an M_GOT that is never coming. Nor may it bail
+        //  on _finalizing -- a corrupt stream raises its error during
+        //  inflate.end(), which is exactly when the NZ recovery is needed.
+        if (cr._settled) {
+            return;
         }
 
         Log.warn(
@@ -1119,6 +1127,7 @@ class BinkpSession extends EventEmitter {
 
     //  Drop a partial receive and everything holding on to it.
     _abandonReceive(cr) {
+        cr._settled = true;
         for (const key of ['inflate', 'writeStream']) {
             const stream = cr[key];
             if (!stream) continue;
@@ -1127,7 +1136,12 @@ class BinkpSession extends EventEmitter {
             stream.destroy();
             cr[key] = null;
         }
-        this._currentRecv = null;
+        //  Only if it is still ours to clear. Tearing one receive down says
+        //  nothing about whichever file the batch has moved on to, and
+        //  clearing that one strands every frame still arriving for it.
+        if (this._currentRecv === cr) {
+            this._currentRecv = null;
+        }
         this._inboundTempPaths.delete(cr.tempPath);
         fsp.unlink(cr.tempPath).catch(err => {
             if ('ENOENT' !== err.code) {
@@ -1153,6 +1167,7 @@ class BinkpSession extends EventEmitter {
         //  tracking entry so _destroy() doesn't unlink it from under
         //  the consumer.
         const handOff = () => {
+            cr._settled = true;
             this._inboundTempPaths.delete(cr.tempPath);
             this._sendCmd(Commands.M_GOT, `${cr.name} ${cr.size} ${cr.timestamp}`);
             this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
