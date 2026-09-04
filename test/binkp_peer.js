@@ -58,6 +58,11 @@ class ScriptedPeer {
     //    onComplete : (peer, file) => 'got'|'get'|'skip'|'none'
     //                             — what to answer a fully received file with
     //    filesToSend: [{ name, size, timestamp, data, nr, reannounce }]
+    //    noEofFrame : boolean   — end a file with its last data frame and
+    //                             nothing else, the way binkd does (issue #745)
+    //    pipeline   : boolean   — offer every file back to back without
+    //                             waiting for M_GOT, the way binkd does
+    //                             whenever ND mode is not in play
     constructor(socket, opts = {}) {
         this.opts = opts;
         this.socket = socket;
@@ -81,6 +86,10 @@ class ScriptedPeer {
         this.closed = false;
         this.nzRequests = []; //  files we were asked to resend in the clear
         this.skipsReceived = [];
+        //  binkd's sent_fls: files offered but not yet acknowledged. It holds
+        //  M_EOB until this drains (protocol.c:3234), so the last file of a
+        //  pipelined batch has to complete on its own.
+        this.awaitingGot = 0;
 
         socket.on('error', () => {});
         socket.on('data', chunk => this.parser.push(chunk));
@@ -358,6 +367,16 @@ class ScriptedPeer {
         const { body, gz } = this._encode(file, 0);
         this._sendFileHeader(file, 0, gz);
         this._pump(body);
+
+        //  binkd only parks on M_GOT in ND mode, which it enters on the bare
+        //  "ND" token -- and ENiGMA offers NDA only. So against us binkd
+        //  starts the next M_FILE the moment the last block is queued, and
+        //  the whole batch can land in one read. |pipeline| models that.
+        if (this.opts.pipeline) {
+            ++this.awaitingGot;
+            this.currentSend = null;
+            this._sendNext();
+        }
     }
 
     _sendFileHeader(file, offset, gz) {
@@ -391,7 +410,17 @@ class ScriptedPeer {
     _onGet(arg) {
         const parts = arg.split(' ');
         const [name, , , offsetStr] = parts;
-        const cs = this.currentSend;
+        let cs = this.currentSend;
+        //  FTS-1026 requires a sender to honour an M_GET naming a file it has
+        //  already put on the wire and is still waiting to have acknowledged.
+        //  A pipelining peer is always in that position -- it holds nothing
+        //  in currentSend -- and binkd answers from its sent list.
+        if (this.opts.pipeline && (!cs || cs.name !== name)) {
+            cs = (this.opts.filesToSend || []).find(f => f.name === name);
+            if (cs) {
+                this.currentSend = cs;
+            }
+        }
         if (!cs || cs.name !== name) {
             return;
         }
@@ -416,10 +445,19 @@ class ScriptedPeer {
         for (let i = 0; i < body.length; i += 0x4000) {
             this.socket.write(buildDataFrame(body.slice(i, i + 0x4000)));
         }
-        this.socket.write(EOF_FRAME);
+        //  binkd has no terminator frame: send_block() marks the file sent
+        //  once the last block is queued, and the receiver is expected to
+        //  count bytes against the size M_FILE announced. |noEofFrame|
+        //  models that; ENiGMA's own sender always writes one.
+        if (!this.opts.noEofFrame) {
+            this.socket.write(EOF_FRAME);
+        }
     }
 
     _onGot() {
+        if (this.awaitingGot > 0) {
+            --this.awaitingGot;
+        }
         this.currentSend = null;
         this._sendNext();
     }
@@ -429,6 +467,11 @@ class ScriptedPeer {
     _onSkip(arg) {
         const [name] = arg.split(' ');
         this.skipsReceived.push(name);
+        //  Postponed, so it is no longer outstanding -- binkd drops it from
+        //  sent_fls the same way an M_GOT would, and can then send M_EOB.
+        if (this.awaitingGot > 0) {
+            --this.awaitingGot;
+        }
         if (this.currentSend && this.currentSend.name === name) {
             this.currentSend = null;
         }
@@ -437,6 +480,10 @@ class ScriptedPeer {
 
     _maybeEob() {
         if (this.eobSent || this.currentSend || this.sendQueue.length) {
+            return;
+        }
+        //  Nothing may be outstanding either -- see |awaitingGot|.
+        if (this.awaitingGot > 0) {
             return;
         }
         //  The answering side holds its M_EOB until the caller's arrives;

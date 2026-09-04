@@ -863,6 +863,15 @@ class BinkpSession extends EventEmitter {
         //  is the re-announcement we asked for or the sender moving on.
         this._pendingOffsetReq = null;
 
+        //  ...and ends whatever file was being received, before we decide
+        //  anything about this one. It has to happen on every path out of
+        //  here, not just the one that starts a new receive: a duplicate we
+        //  answer with M_GOT, or an offset request we answer with M_GET,
+        //  would otherwise leave the previous file open, and a sender that
+        //  pipelines has this file's data frames already on the wire behind
+        //  the M_FILE. They would be fed to the previous file's stream.
+        this._closeOutstandingReceive();
+
         const [name, sizeStr, tsStr, offsetStr] = parts;
         const size = parseInt(sizeStr, 10);
         const timestamp = parseInt(tsStr, 10);
@@ -935,6 +944,44 @@ class BinkpSession extends EventEmitter {
         this.emit('incoming-file', name, size, timestamp);
     }
 
+    //
+    //  FTS-1026: "Until the next M_FILE command is received, all data frames
+    //  must carry data from this file". So an M_FILE -- or an M_EOB -- is the
+    //  sender telling us the previous file is over, whether or not it also
+    //  sent a zero-length data frame. binkd never sends one.
+    //
+    _closeOutstandingReceive() {
+        const cr = this._currentRecv;
+        if (!cr || cr._finalizing) return;
+        if (cr.inflate) {
+            //  Decompression is async, so the byte count is not final yet;
+            //  ending the inflate stream settles it and finish() checks.
+            return this._finalizeReceive(cr);
+        }
+        if (cr.bytesReceived >= cr.size) {
+            return this._finalizeReceive(cr);
+        }
+        this._postponeReceive(
+            cr,
+            '[BinkP] Inbound file ended short; leaving it with the sender'
+        );
+    }
+
+    //
+    //  Give up on an inbound file without claiming it. Silence would strand
+    //  the sender: it is waiting on an M_GOT that is never coming and will
+    //  sit there to its own timeout. M_SKIP is the FTS-1026 answer -- a
+    //  non-destructive postpone that leaves the file with the sender for
+    //  another session and lets this batch finish -- and is what
+    //  _onInflateError already does when it gives up on a file.
+    //
+    _postponeReceive(cr, why) {
+        Log.warn({ name: cr.name, got: cr.bytesReceived, want: cr.size }, why);
+        this._abandonReceive(cr);
+        this._sendCmd(Commands.M_SKIP, `${cr.name} ${cr.size} ${cr.timestamp}`);
+        this._checkDone();
+    }
+
     _onDataFrame(data) {
         //  A sender that answers our M_GET with data but no fresh M_FILE is
         //  not following FTS-1026, but the bytes are on the wire and
@@ -949,6 +996,17 @@ class BinkpSession extends EventEmitter {
         if (!cr) {
             // Zero-length frame with no active receive can happen if sender
             // is in NR mode and we already sent M_GOT for this file
+            return;
+        }
+
+        //  Already over: an M_FILE ended it and we are only waiting on the
+        //  flush, which for a compressed file is asynchronous. Anything still
+        //  arriving belongs to a file we are not receiving -- a duplicate we
+        //  answered with M_GOT, say, whose data a pipelining sender had
+        //  already put on the wire. Writing it here would append one file's
+        //  bytes to another's stream. binkd discards data blocks that arrive
+        //  with no file open in exactly the same way.
+        if (cr._finalizing) {
             return;
         }
 
@@ -983,16 +1041,29 @@ class BinkpSession extends EventEmitter {
                 cr.inflate = zlib.createUnzip();
                 cr.inflate.on('error', err => this._onInflateError(cr, err));
                 cr.inflate.pipe(cr.writeStream);
+
+                //  Count what comes *out* of the decompressor, so the GZ path
+                //  finishes on the declared size the same way the clear one
+                //  does. |cr| is captured rather than read back off the
+                //  session: zlib is async, so by the time these land the
+                //  batch may already have moved on to another file.
+                cr.inflate.on('data', chunk => {
+                    cr.bytesReceived += chunk.length;
+                    if (cr.bytesReceived >= cr.size) {
+                        this._finalizeReceive(cr);
+                    }
+                });
             }
 
             this._inboundTempPaths.add(cr.tempPath);
         }
 
         if (cr.useGZ) {
-            //  GZ: wire carries compressed bytes whose count differs from the
-            //  declared (uncompressed) file size. Pass the full chunk through
-            //  to gunzip — do NOT cap against cr.size — and rely solely on the
-            //  EOF frame (data.length === 0 path above) to trigger finalize.
+            //  GZ: the wire carries compressed bytes whose count has nothing
+            //  to do with the declared (uncompressed) size, so the chunk goes
+            //  through whole — capping it here would truncate the stream.
+            //  Finalizing is driven by the decompressed count instead; see
+            //  the 'data' handler above.
             cr.inflate.write(data);
         } else {
             //  Non-GZ: cap to declared size and finalize early if we've
@@ -1016,8 +1087,16 @@ class BinkpSession extends EventEmitter {
     //  comes back on every poll from then on with nothing to show why.
     //
     _onInflateError(cr, err) {
-        if (this._currentRecv !== cr) {
-            return; //  already torn down
+        //  Settled means acknowledged, postponed or already torn down --
+        //  there is nothing left to answer for. What this must NOT do is
+        //  bail because |cr| is no longer the current receive: decompression
+        //  is asynchronous, so a batch moves on to the next file long before
+        //  a failure on this one surfaces, and returning here would leave the
+        //  sender waiting on an M_GOT that is never coming. Nor may it bail
+        //  on _finalizing -- a corrupt stream raises its error during
+        //  inflate.end(), which is exactly when the NZ recovery is needed.
+        if (cr._settled) {
+            return;
         }
 
         Log.warn(
@@ -1048,6 +1127,7 @@ class BinkpSession extends EventEmitter {
 
     //  Drop a partial receive and everything holding on to it.
     _abandonReceive(cr) {
+        cr._settled = true;
         for (const key of ['inflate', 'writeStream']) {
             const stream = cr[key];
             if (!stream) continue;
@@ -1056,7 +1136,12 @@ class BinkpSession extends EventEmitter {
             stream.destroy();
             cr[key] = null;
         }
-        this._currentRecv = null;
+        //  Only if it is still ours to clear. Tearing one receive down says
+        //  nothing about whichever file the batch has moved on to, and
+        //  clearing that one strands every frame still arriving for it.
+        if (this._currentRecv === cr) {
+            this._currentRecv = null;
+        }
         this._inboundTempPaths.delete(cr.tempPath);
         fsp.unlink(cr.tempPath).catch(err => {
             if ('ENOENT' !== err.code) {
@@ -1068,8 +1153,7 @@ class BinkpSession extends EventEmitter {
         });
     }
 
-    _finalizeReceive() {
-        const cr = this._currentRecv;
+    _finalizeReceive(cr = this._currentRecv) {
         if (!cr || cr._finalizing) return;
         cr._finalizing = true;
         //  Do NOT clear this._currentRecv yet. _checkDone must not consider
@@ -1078,16 +1162,61 @@ class BinkpSession extends EventEmitter {
         //  premature _checkDone would close the session before M_GOT is sent
         //  and the client would wait forever.
 
-        const finish = () => {
-            this._currentRecv = null;
-            //  File handed off to the listener; ownership of the temp file
-            //  passes to whatever moves it into the inbound spool. Drop our
-            //  tracking entry so _destroy() doesn't unlink it from under
-            //  the consumer.
+        //  File handed off to the listener; ownership of the temp file
+        //  passes to whatever moves it into the inbound spool. Drop our
+        //  tracking entry so _destroy() doesn't unlink it from under
+        //  the consumer.
+        const handOff = () => {
+            cr._settled = true;
             this._inboundTempPaths.delete(cr.tempPath);
             this._sendCmd(Commands.M_GOT, `${cr.name} ${cr.size} ${cr.timestamp}`);
             this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
             this._checkDone();
+        };
+
+        const finish = () => {
+            if (this._currentRecv === cr) {
+                this._currentRecv = null;
+            }
+            //  Short of the size the sender announced: something ended the
+            //  transfer early. M_GOT would tell the sender we hold a good
+            //  copy and let it apply its disposition, so stay quiet and let
+            //  it offer the file again next session.
+            if (cr.bytesReceived < cr.size) {
+                this._postponeReceive(
+                    cr,
+                    '[BinkP] Inbound file ended short; leaving it with the sender'
+                );
+                return;
+            }
+
+            //  Longer than announced. The clear path never gets here -- it
+            //  caps each chunk against the declared size -- but a compressed
+            //  stream is only measurable once decompressed, by which point
+            //  the surplus is already on disk. Cut it back so both paths
+            //  hand on exactly the file the sender described. (binkd instead
+            //  treats a surplus as fatal and drops the session.)
+            if (cr.bytesReceived > cr.size) {
+                Log.warn(
+                    { name: cr.name, got: cr.bytesReceived, want: cr.size },
+                    '[BinkP] Inbound file longer than announced; truncating'
+                );
+                return fsp
+                    .truncate(cr.tempPath, cr.size)
+                    .then(handOff)
+                    .catch(err => {
+                        Log.warn(
+                            { name: cr.name, error: err.message },
+                            '[BinkP] Could not truncate oversized inbound file'
+                        );
+                        this._postponeReceive(
+                            cr,
+                            '[BinkP] Oversized inbound file left with the sender'
+                        );
+                    });
+            }
+
+            handOff();
         };
 
         if (cr.inflate) {
@@ -1117,6 +1246,7 @@ class BinkpSession extends EventEmitter {
 
     _onEob() {
         this._remoteEOB = true;
+        this._closeOutstandingReceive();
         //  The remote is done sending; anything we asked an offset for is
         //  not coming this session.
         this._pendingOffsetReq = null;
