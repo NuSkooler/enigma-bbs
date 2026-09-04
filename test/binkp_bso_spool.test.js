@@ -774,6 +774,245 @@ describe('BsoSpool — dangling and rescued flow references', () => {
 //  case name, so such a node was reported as pending and then had nothing
 //  queued for it: a poll loop that dialled every cycle and never shipped.
 
+//
+//  The operator-facing view of the outbound — issue #754.
+//
+//  A flow file stores an absolute path, so a file that is deleted or moved
+//  leaves an entry that can never be sent. The spool skips it, and
+//  getNodesWithPendingMail deliberately hides a node whose entries have all
+//  gone that way, so the poller does not dial someone it has nothing to give.
+//  That is right for the poller and wrong for the operator: the node it hides
+//  is precisely the one somebody needs to be told about.
+//
+describe('BsoSpool — inspecting the outbound', () => {
+    beforeEach(cleanOutbound);
+
+    const OTHER_ADDR = { zone: 1, net: 104, node: 2 }; //  00680002
+
+    function nodeIn(report, addr) {
+        return report.find(
+            n => n.address.net === addr.net && n.address.node === addr.node
+        );
+    }
+
+    it('shows a node the poller hides because everything it has is missing', async () => {
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${path.join(tmpDir, 'gone', 'nope.pkt')}\n`);
+
+        //  The poller is right to skip it...
+        assert.deepEqual(await spool.getNodesWithPendingMail(), []);
+
+        //  ...and the operator still has to be able to see it.
+        const node = nodeIn(await spool.inspectOutbound(), TEST_ADDR);
+        assert.ok(node, 'the node must appear in the report');
+        assert.equal(node.entries.length, 1);
+        assert.equal(node.entries[0].status, 'missing');
+    });
+
+    it('separates what is sendable, missing, and already sent', async () => {
+        const real = path.join(outboundDir(tmpDir), 'real.pkt');
+        await fsp.writeFile(real, 'PKTDATA');
+
+        const missing = path.join(tmpDir, 'gone', 'vanished.zip');
+        const done = path.join(tmpDir, 'gone', 'already.pkt');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${real}\n^${missing}\n~${done}\n`);
+
+        const node = nodeIn(await spool.inspectOutbound(), TEST_ADDR);
+        const byStatus = Object.fromEntries(node.entries.map(e => [e.status, e]));
+
+        assert.equal(byStatus.pending.path, real);
+        assert.equal(byStatus.pending.size, 'PKTDATA'.length);
+        assert.equal(byStatus.pending.disposition, 'delete');
+        assert.equal(byStatus.missing.path, missing);
+        assert.equal(byStatus.missing.size, null, 'a missing file has no size');
+        assert.equal(byStatus.sent.path, done);
+    });
+
+    it('reports each node separately', async () => {
+        const real = path.join(outboundDir(tmpDir), 'one.pkt');
+        await fsp.writeFile(real, 'A');
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.flo'), `^${real}\n`);
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680002.flo'),
+            `^${path.join(tmpDir, 'gone', 'other.zip')}\n`
+        );
+
+        const report = await spool.inspectOutbound();
+        assert.equal(nodeIn(report, TEST_ADDR).entries[0].status, 'pending');
+        assert.equal(nodeIn(report, OTHER_ADDR).entries[0].status, 'missing');
+    });
+});
+
+describe('BsoSpool — reporting a missing reference', () => {
+    beforeEach(cleanOutbound);
+
+    const loggerModule = require('../core/logger.js');
+
+    //  bso_spool captures logger.js's |log| object at require time, so the
+    //  stub has to be installed onto that same object rather than replacing
+    //  it wholesale.
+    function captureWarnings(work) {
+        const warnings = [];
+        const original = loggerModule.log.warn;
+        loggerModule.log.warn = (fields, message) => warnings.push({ fields, message });
+        return work()
+            .then(() => warnings)
+            .finally(() => {
+                loggerModule.log.warn = original;
+            });
+    }
+
+    it('names the node and the file, not just the stored path', async () => {
+        //  The operator's question is "who is missing what". A bare absolute
+        //  path answers neither, and was all this used to say.
+        const missing = path.join(tmpDir, 'gone', 'payload.zip');
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.flo'),
+            `^${missing}\n`
+        );
+
+        const warnings = await captureWarnings(() =>
+            spool.getOutboundFilesForNode(TEST_ADDR)
+        );
+
+        const warned = warnings.find(w => w.fields && w.fields.ref === missing);
+        assert.ok(warned, `expected a warning about ${missing}`);
+        assert.equal(warned.fields.file, 'payload.zip');
+        assert.match(String(warned.fields.node), /104\/1/);
+        assert.match(
+            warned.message,
+            /never receive/,
+            'it should say the file is not coming, not that a step was skipped'
+        );
+    });
+
+    it('derives the node from the flow file when sweeping the outbound', async () => {
+        //  getNodesWithPendingMail has no address in hand — it is working out
+        //  which nodes exist — so the label comes from the file name.
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.flo'),
+            `^${path.join(tmpDir, 'gone', 'swept.zip')}\n`
+        );
+
+        const warnings = await captureWarnings(() => spool.getNodesWithPendingMail());
+
+        const warned = warnings.find(w => w.fields && 'swept.zip' === w.fields.file);
+        assert.ok(warned, 'the sweep must report it too');
+        assert.match(String(warned.fields.node), /104\/1/);
+    });
+
+    it('reports each missing file, not just the first one seen', async () => {
+        const one = path.join(tmpDir, 'gone', 'one.zip');
+        const two = path.join(tmpDir, 'gone', 'two.zip');
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.flo'),
+            `^${one}\n^${two}\n`
+        );
+
+        const warnings = await captureWarnings(() =>
+            spool.getOutboundFilesForNode(TEST_ADDR)
+        );
+
+        const files = warnings
+            .filter(w => w.fields && w.fields.file)
+            .map(w => w.fields.file);
+        assert.deepEqual(files.sort(), ['one.zip', 'two.zip']);
+    });
+});
+
+describe('BsoSpool — pruning missing references', () => {
+    beforeEach(cleanOutbound);
+
+    async function seed() {
+        const real = path.join(outboundDir(tmpDir), 'keep.pkt');
+        await fsp.writeFile(real, 'KEEP');
+        const missing = path.join(tmpDir, 'gone', 'vanished.zip');
+        const done = path.join(tmpDir, 'gone', 'already.pkt');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${real}\n^${missing}\n~${done}\n`);
+        return { real, missing, done, flowPath };
+    }
+
+    it('changes nothing on a dry run', async () => {
+        const { missing, flowPath } = await seed();
+        const before = await fsp.readFile(flowPath, 'utf8');
+
+        const removed = await spool.pruneMissingRefs(TEST_ADDR);
+
+        assert.deepEqual(
+            removed.map(e => e.path),
+            [missing],
+            'it should still say what it would remove'
+        );
+        assert.equal(await fsp.readFile(flowPath, 'utf8'), before);
+    });
+
+    it('defaults to a dry run when asked for nothing in particular', async () => {
+        //  Removing queue entries is the one destructive thing here, and an
+        //  unreachable file store looks exactly like a deleted one, so the
+        //  caller has to say so explicitly.
+        const { flowPath } = await seed();
+        const before = await fsp.readFile(flowPath, 'utf8');
+        await spool.pruneMissingRefs(TEST_ADDR, {});
+        assert.equal(await fsp.readFile(flowPath, 'utf8'), before);
+    });
+
+    it('removes only the missing entries when told to', async () => {
+        const { real, missing, done, flowPath } = await seed();
+
+        const removed = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        assert.deepEqual(
+            removed.map(e => e.path),
+            [missing]
+        );
+
+        const content = await fsp.readFile(flowPath, 'utf8');
+        assert.ok(content.includes(real), 'the sendable entry must survive');
+        assert.ok(content.includes(`~${done}`), 'the sent marker must survive');
+        assert.ok(!content.includes(missing), 'the missing entry must be gone');
+    });
+
+    it('removes the flow file when nothing sendable is left', async () => {
+        //  Same as a normal drain: ftn_bso recreates it next time it queues
+        //  something, and leaving an all-dead file behind is what the
+        //  disposition path already avoids.
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${path.join(tmpDir, 'gone', 'only.zip')}\n`);
+
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.equal(
+            await fsp
+                .access(flowPath)
+                .then(() => true)
+                .catch(() => false),
+            false
+        );
+    });
+
+    it('leaves other nodes alone', async () => {
+        const otherFlow = path.join(outboundDir(tmpDir), '00680002.flo');
+        await fsp.writeFile(otherFlow, `^${path.join(tmpDir, 'gone', 'theirs.zip')}\n`);
+        await seed();
+
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.ok(
+            (await fsp.readFile(otherFlow, 'utf8')).includes('theirs.zip'),
+            "another node's queue must not be touched"
+        );
+    });
+
+    it('says there is nothing to do for a node with no missing entries', async () => {
+        const real = path.join(outboundDir(tmpDir), 'fine.pkt');
+        await fsp.writeFile(real, 'FINE');
+        await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.flo'), `^${real}\n`);
+
+        assert.deepEqual(await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false }), []);
+    });
+});
+
 describe('BsoSpool — upper case outbound (FTS-5005.003 §2)', () => {
     beforeEach(cleanOutbound);
 

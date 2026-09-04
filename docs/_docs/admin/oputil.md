@@ -21,6 +21,7 @@ Commands:
   config                    Configuration management
   fb                        File base management
   mb                        Message base management
+  bso                       FTN/BSO outbound spool inspection
 ```
 
 Commands break up operations by groups:
@@ -31,6 +32,7 @@ Commands break up operations by groups:
 | `config`  | System configuration and maintenance |
 | `fb`      | File base configuration and management    |
 | `mb`      | Message base configuration and management |
+| `bso`     | FTN/BSO outbound spool inspection and queue hygiene |
 | `fat`     | FAT disk image inspection and modification |
 | `v86`     | Boot disk images in the v86 x86 emulator |
 
@@ -346,6 +348,78 @@ qwk-export arguments:
 When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".
 
 The format of the supplied file is determined by its **content**, not its extension: several networks ship a FILEBONE *file* echo list named `*.na`, and at least one ships its list with the columns reversed. `import-areas` skips `;`, `%` and `#` comment lines, tells you which lines it could not use, and declines a file it does not recognise rather than importing nonsense. A FILEBONE list is recognised as such and pointed at [`fb import-areas`](#importing-filegate-raid-style-areas). `AREAS.BBS` cannot be told from a plain area list by shape, so it is only assumed when the file is named `.bbs` or `--type bbs` is given.
+
+## BSO Outbound Inspection
+The `bso` command reports on the FidoNet-style (BSO) outbound spool: who is waiting on
+mail, how long it has been waiting, and whether any of it is queued against a file that
+no longer exists.
+
+```
+usage: oputil.js bso <action> [<arguments>]
+
+Actions:
+  status                      Every node with outbound, and what is wrong
+  list ADDRESS                Every queued entry for one node
+  prune ADDRESS               Drop entries whose file is gone
+
+prune arguments:
+  --yes                       Actually remove them; without this, prune only
+                              reports what it would do
+```
+
+### Missing files
+A flow file stores an **absolute path** to each file queued for a node
+([FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §3.1). If that file is later deleted or
+moved — a file base tidied up, an area reorganised, a forwarded TIC payload removed — the
+entry can never be sent. The node simply never receives it.
+
+ENiGMA½ logs this periodically, naming the node and the file, but it cannot fix it for
+you: nothing else on the system knows whether the file is gone for good or merely
+offline. `bso status` is how you find them:
+
+```bash
+oputil.js bso status
+```
+```
+Node                    Queued  Missing  Oldest
+-----------------------------------------------
+1:218/701                    2        1     36s
+1:218/702                    1        1       -
+```
+
+Note that a node whose queued entries have *all* gone missing still appears here, even
+though the mailer correctly stops polling it — that node is exactly the one you need to
+know about.
+
+`bso list` shows the individual entries:
+
+```bash
+oputil.js bso list 1:218/701
+```
+```
+1:218/701
+  ok              4 B     36s  /enigma-bbs/mail/out/real.pkt
+  MISSING           -       -  /enigma-bbs/file_base/misc/vanished.zip
+```
+
+### Pruning
+Once you have established that a file really is gone — and is not simply on a volume that
+is not mounted, or mid-copy — `prune` removes its reference so the queue stops carrying
+it:
+
+```bash
+oputil.js bso prune 1:218/701          # reports what it would do; changes nothing
+oputil.js bso prune 1:218/701 --yes    # actually removes them
+```
+
+Pruning is never automatic and never happens without `--yes`. A temporarily unreachable
+file is indistinguishable from a deleted one at this level, and dropping the reference
+would discard mail that would otherwise have gone out once the file came back. If the
+file can be restored to the path the flow file names, do that instead — nothing needs
+pruning and the next poll ships it.
+
+Entries already sent are left alone, and a flow file with nothing left to send is removed
+entirely, exactly as it would be after a normal successful transfer.
 
 ## FAT Disk Image Management
 The `fat` command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the `v86_door` module.
