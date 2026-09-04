@@ -992,7 +992,7 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function storeStateFlags0Meta(callback) {
-                            message.persistMetaValue(
+                            message.updateMetaValue(
                                 'System',
                                 'state_flags0',
                                 Message.StateFlags0.Exported.toString(),
@@ -1007,7 +1007,7 @@ function FTNMessageScanTossModule() {
                             //  this message for later reference
                             //
                             if (message.meta.FtnKludge.MSGID) {
-                                message.persistMetaValue(
+                                message.updateMetaValue(
                                     'FtnKludge',
                                     'MSGID',
                                     message.meta.FtnKludge.MSGID,
@@ -1357,7 +1357,7 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function storeStateFlags0Meta(callback) {
-                            return message.persistMetaValue(
+                            return message.updateMetaValue(
                                 'System',
                                 'state_flags0',
                                 Message.StateFlags0.Exported.toString(),
@@ -1367,7 +1367,7 @@ function FTNMessageScanTossModule() {
                         function storeMsgIdMeta(callback) {
                             //  Store meta as if we had imported this message -- for later reference
                             if (message.meta.FtnKludge.MSGID) {
-                                return message.persistMetaValue(
+                                return message.updateMetaValue(
                                     'FtnKludge',
                                     'MSGID',
                                     message.meta.FtnKludge.MSGID,
@@ -1415,7 +1415,7 @@ function FTNMessageScanTossModule() {
                                 async.series(
                                     [
                                         function markExportFailed(callback) {
-                                            return message.persistMetaValue(
+                                            return message.updateMetaValue(
                                                 'System',
                                                 Message.SystemMetaNames.StateFlags0,
                                                 Message.StateFlags0.ExportFailed.toString(),
@@ -1474,7 +1474,20 @@ function FTNMessageScanTossModule() {
     };
 
     this.exportEchoMailMessagesToUplinks = function (messageUuids, areaConfig, cb) {
-        async.each(
+        //  One uplink failing must not abandon the rest, but it must not pass
+        //  for success either: the caller advances the area's last scan ID on
+        //  a clean return, and doing that after a failed uplink is what turns
+        //  a recoverable error into mail nobody ever sees again.
+        const failedUplinks = [];
+
+        //  One uplink at a time. An outgoing packet is named from a serial
+        //  number that is a hash of the current millisecond and the message
+        //  ID -- nothing about the destination -- and every uplink of an area
+        //  packetises the same messages into the same temp directory and then
+        //  moves them into the same outbound directory. Run in parallel, two
+        //  uplinks landing in one millisecond therefore choose the same file
+        //  name, and one silently overwrites or loses the other's mail.
+        async.eachSeries(
             areaConfig.uplinks,
             (uplink, nextUplink) => {
                 const nodeConfig = self.getNodeConfigByAddress(uplink);
@@ -1639,15 +1652,39 @@ function FTNMessageScanTossModule() {
                         },
                     ],
                     err => {
-                        //  :TODO: do something with |err| ?
                         if (err) {
-                            Log.warn(err.message);
+                            //  This uplink got nothing. Say so, with enough to
+                            //  act on -- a bare err.message here read as an
+                            //  unattributed SQL or fs complaint with no hint
+                            //  that mail had gone missing, and the run still
+                            //  logged "Export complete" afterwards.
+                            Log.error(
+                                {
+                                    uplink: uplink.toString(),
+                                    areaTag: areaConfig.tag,
+                                    network: areaConfig.network,
+                                    error: err.message,
+                                },
+                                'Failed exporting EchoMail to uplink!'
+                            );
+                            failedUplinks.push(uplink.toString());
                         }
                         nextUplink();
                     }
                 );
             },
-            cb
+            () => {
+                if (failedUplinks.length > 0) {
+                    return cb(
+                        Errors.General(
+                            `Failed exporting to ${failedUplinks.join(
+                                ', '
+                            )}; messages will be retried`
+                        )
+                    );
+                }
+                return cb(null);
+            }
         ); //  complete
     };
 
@@ -3879,14 +3916,30 @@ function FTNMessageScanTossModule() {
                                     const newLastScanId =
                                         msgRows[msgRows.length - 1].message_id;
 
-                                    Log.info(
-                                        {
-                                            areaTag: areaTag,
-                                            messagesExported: msgRows.length,
-                                            newLastScanId: newLastScanId,
-                                        },
-                                        'Export complete'
-                                    );
+                                    if (err) {
+                                        //  The scan ID is deliberately not
+                                        //  advanced: |callback| is about to
+                                        //  short-circuit the waterfall past
+                                        //  updateLastScanId so these messages
+                                        //  come round again next scan.
+                                        Log.warn(
+                                            {
+                                                areaTag: areaTag,
+                                                messages: msgRows.length,
+                                                error: err.message,
+                                            },
+                                            'Export incomplete; will retry'
+                                        );
+                                    } else {
+                                        Log.info(
+                                            {
+                                                areaTag: areaTag,
+                                                messagesExported: msgRows.length,
+                                                newLastScanId: newLastScanId,
+                                            },
+                                            'Export complete'
+                                        );
+                                    }
 
                                     callback(err, newLastScanId);
                                 }
