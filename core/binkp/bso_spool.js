@@ -442,6 +442,7 @@ class BsoSpool {
         }
 
         const skipped = [];
+        const actuallyRemoved = [];
 
         for (const [flowPath, entries] of byFlow) {
             //  The in-process chain is not enough here. oputil runs as its own
@@ -464,7 +465,10 @@ class BsoSpool {
                         this._withFlowFileWrite(flowPath, () =>
                             this._pruneFromFlowFile(flowPath, entries)
                         )
-                            .then(() => done(null))
+                            .then(spliced => {
+                                actuallyRemoved.push(...spliced);
+                                done(null);
+                            })
                             .catch(err => done(err));
                     },
                     err => {
@@ -490,12 +494,13 @@ class BsoSpool {
             }
         }
 
-        //  Anything we could not take the lock for is still queued, so it
-        //  must not be reported as removed -- and the caller has to be able
-        //  to say why, or an operator sees "nothing removed" and concludes
-        //  the entry was already gone.
+        //  Report what went, not what we set out to remove. A node we could
+        //  not lock is still queued, and so is an entry whose line had moved
+        //  on by the time we held the lock -- the caller has to be able to
+        //  say why, or an operator sees "nothing removed" and concludes the
+        //  entry was already gone.
         return {
-            removed: removed.filter(e => !skipped.includes(e)),
+            removed: actuallyRemoved,
             busy: Array.from(new Set(skipped.map(e => e.flowFile))),
         };
     }
@@ -508,10 +513,11 @@ class BsoSpool {
     async _pruneFromFlowFile(flowPath, entries) {
         const content = await fsp.readFile(flowPath, 'utf8').catch(() => null);
         if (null === content) {
-            return;
+            return [];
         }
 
         const lines = content.split('\n');
+        const spliced = [];
 
         //  Descending, so removing one cannot shift the index of the next.
         for (const entry of entries.slice().sort((a, b) => b.lineIdx - a.lineIdx)) {
@@ -523,6 +529,7 @@ class BsoSpool {
                 lines[entry.lineIdx].trim() === entry.line
             ) {
                 lines.splice(entry.lineIdx, 1);
+                spliced.push(entry);
             }
         }
 
@@ -538,6 +545,11 @@ class BsoSpool {
             //  time it queues something, same as a normal drain.
             await fsp.unlink(flowPath).catch(() => {});
         }
+
+        //  Only what actually went. Reporting an entry we decided not to
+        //  touch would tell the operator a file had been dealt with while it
+        //  is still sitting in the node's queue.
+        return spliced;
     }
 
     // ── Inbound file handling ────────────────────────────────────────────────

@@ -1103,6 +1103,47 @@ describe('BsoSpool — pruning missing references', () => {
         }
     });
 
+    it('does not claim to have removed an entry that had moved on', async () => {
+        //  The listing is taken before the lock, so a session can mark an
+        //  entry sent in between. The rewrite correctly leaves that line
+        //  alone -- but saying "removed" about it would tell the operator a
+        //  file had been dealt with while it is still in the node's queue.
+        const missing = path.join(tmpDir, 'gone', 'moved_on.zip');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${missing}\nkeepme\n`);
+
+        //  A listing whose line no longer matches what is on disk.
+        const stale = {
+            kind: 'flow',
+            status: 'missing',
+            path: missing,
+            flowFile: flowPath,
+            lineIdx: 0,
+            line: `^${path.join(tmpDir, 'gone', 'something_else.zip')}`,
+        };
+        const realInspect = spool.inspectOutbound.bind(spool);
+        spool.inspectOutbound = async () => [
+            {
+                address: new (require('../core/ftn_address'))(TEST_ADDR),
+                entries: [stale],
+            },
+        ];
+
+        try {
+            const { removed } = await spool.pruneMissingRefs(TEST_ADDR, {
+                dryRun: false,
+            });
+            assert.deepEqual(removed, [], 'nothing was actually removed, so say so');
+        } finally {
+            spool.inspectOutbound = realInspect;
+        }
+
+        assert.ok(
+            (await fsp.readFile(flowPath, 'utf8')).includes(missing),
+            'and the entry must still be there'
+        );
+    });
+
     it('says there is nothing to do for a node with no missing entries', async () => {
         const real = path.join(outboundDir(tmpDir), 'fine.pkt');
         await fsp.writeFile(real, 'FINE');
