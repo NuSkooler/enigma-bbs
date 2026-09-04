@@ -863,6 +863,15 @@ class BinkpSession extends EventEmitter {
         //  is the re-announcement we asked for or the sender moving on.
         this._pendingOffsetReq = null;
 
+        //  ...and ends whatever file was being received, before we decide
+        //  anything about this one. It has to happen on every path out of
+        //  here, not just the one that starts a new receive: a duplicate we
+        //  answer with M_GOT, or an offset request we answer with M_GET,
+        //  would otherwise leave the previous file open, and a sender that
+        //  pipelines has this file's data frames already on the wire behind
+        //  the M_FILE. They would be fed to the previous file's stream.
+        this._closeOutstandingReceive();
+
         const [name, sizeStr, tsStr, offsetStr] = parts;
         const size = parseInt(sizeStr, 10);
         const timestamp = parseInt(tsStr, 10);
@@ -911,7 +920,6 @@ class BinkpSession extends EventEmitter {
     //
     _beginReceive({ name, size, timestamp, useGZ }) {
         this._pendingOffsetReq = null;
-        this._closeOutstandingReceive();
 
         const tempPath = path.join(
             this._opts.tempDir || os.tmpdir(),
@@ -988,6 +996,17 @@ class BinkpSession extends EventEmitter {
         if (!cr) {
             // Zero-length frame with no active receive can happen if sender
             // is in NR mode and we already sent M_GOT for this file
+            return;
+        }
+
+        //  Already over: an M_FILE ended it and we are only waiting on the
+        //  flush, which for a compressed file is asynchronous. Anything still
+        //  arriving belongs to a file we are not receiving -- a duplicate we
+        //  answered with M_GOT, say, whose data a pipelining sender had
+        //  already put on the wire. Writing it here would append one file's
+        //  bytes to another's stream. binkd discards data blocks that arrive
+        //  with no file open in exactly the same way.
+        if (cr._finalizing) {
             return;
         }
 

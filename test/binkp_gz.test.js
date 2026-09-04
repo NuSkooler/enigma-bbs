@@ -350,14 +350,17 @@ describe('BinkpSession — inbound with no terminator frame', function () {
 
     //  Receive |filesToSend| from a binkd-shaped peer and hand back what
     //  arrived, keyed by name, along with the peer for M_GOT assertions.
-    async function receiveFrom(filesToSend, peerOpts = {}) {
+    async function receiveFrom(filesToSend, peerOpts = {}, sessionOpts = {}) {
         const paths = [];
-        const { session, peer } = await makeScriptedPair({
-            opts: ['EXTCMD', 'GZ'],
-            noEofFrame: true,
-            filesToSend,
-            ...peerOpts,
-        });
+        const { session, peer } = await makeScriptedPair(
+            {
+                opts: ['EXTCMD', 'GZ'],
+                noEofFrame: true,
+                filesToSend,
+                ...peerOpts,
+            },
+            sessionOpts
+        );
         session.on('file-received', (name, size, ts, p) => paths.push({ name, p }));
 
         await runSession(session);
@@ -467,6 +470,93 @@ describe('BinkpSession — inbound with no terminator frame', function () {
         assert.equal(files['short.pkt'], undefined, 'the partial is not handed on');
         assert.deepEqual(peer.skipsReceived, ['short.pkt'], 'and is postponed');
         assert.equal(files['good.pkt'].toString(), COMPRESSIBLE);
+    });
+
+    it('does not feed a file we refuse into the one before it', async () => {
+        //  A pipelining sender has a file's data on the wire behind its
+        //  M_FILE, so a duplicate we answer with M_GOT still arrives. The
+        //  M_FILE has to end the previous receive on that path too -- it
+        //  returns before _beginReceive -- or those bytes are appended to
+        //  the previous file's decompressor, one file's contents decoded as
+        //  part of another's.
+        //
+        //  Asserted on where each data frame lands rather than on the bytes
+        //  that come out: whether the damage surfaces depends on how zlib
+        //  happens to be scheduled, and the size cap hides it whenever the
+        //  surplus lands past the declared size. The routing is what is
+        //  actually wrong, and it is deterministic.
+        const wanted = Buffer.alloc(20000, 0x41);
+        const dupe = Buffer.alloc(20000, 0x5a);
+
+        const stray = [];
+        const filesToSend = [
+            {
+                name: 'wanted.pkt',
+                size: wanted.length,
+                timestamp: 1700000000,
+                data: wanted,
+                gzContainer: 'zlib',
+            },
+            {
+                name: 'dupe.pkt',
+                size: dupe.length,
+                timestamp: 1700000001,
+                data: dupe,
+                gzContainer: 'zlib',
+            },
+        ];
+
+        const paths = [];
+        const { session, peer } = await makeScriptedPair(
+            {
+                opts: ['EXTCMD', 'GZ'],
+                noEofFrame: true,
+                pipeline: true,
+                filesToSend,
+            },
+            { hasFile: name => 'dupe.pkt' === name }
+        );
+
+        //  Every data frame that reaches an open receive belonging to some
+        //  other file is a frame written into the wrong stream.
+        let sawDupeHeader = false;
+        const onData = session._onDataFrame.bind(session);
+        session._onDataFrame = data => {
+            const cr = session._currentRecv;
+            if (sawDupeHeader && data.length && cr && !cr._finalizing) {
+                stray.push(cr.name);
+            }
+            return onData(data);
+        };
+        const onFile = session._onFile.bind(session);
+        session._onFile = arg => {
+            if (arg.startsWith('dupe.pkt ')) {
+                sawDupeHeader = true;
+            }
+            return onFile(arg);
+        };
+
+        session.on('file-received', (name, size, ts, p) => paths.push({ name, p }));
+        await runSession(session);
+
+        const files = {};
+        for (const { name, p } of paths) {
+            files[name] = await fsp.readFile(p);
+            await fsp.unlink(p).catch(() => {});
+        }
+
+        assert.deepEqual(stray, [], "the dupe's frames went into an open receive");
+        assert.ok(files['wanted.pkt'], 'the file we wanted was never received');
+        assert.deepEqual(files['wanted.pkt'], wanted, 'and must not carry the dupe');
+        assert.equal(files['dupe.pkt'], undefined, 'the dupe is not handed on');
+        //  Both are acknowledged: the dupe because we already hold it.
+        assert.deepEqual(
+            peer.framesIn
+                .filter(f => f.cmd === Commands.M_GOT)
+                .map(f => f.arg.split(' ')[0])
+                .sort(),
+            ['dupe.pkt', 'wanted.pkt']
+        );
     });
 
     it('cuts a file that runs past its announced size back to it', async () => {
