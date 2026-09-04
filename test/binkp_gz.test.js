@@ -334,6 +334,142 @@ describe('BinkpSession — GZ opt-out', function () {
     });
 });
 
+// ── Finishing without a terminator frame — issue #745 ─────────────────
+
+//
+//  ENiGMA ends every file it sends with a zero-length data frame, and until
+//  #745 the GZ receive path treated that frame as the only thing that could
+//  finish a file. It is not part of the protocol: FTS-1026 gives the size in
+//  M_FILE and binkd's receive loop finishes on that count alone
+//  (`ftello(state->in.f) == state->in.size`), never sending a terminator of
+//  its own. Both halves of this describe run against |noEofFrame|, so a
+//  regression here is the five-minute hang the issue reported.
+//
+describe('BinkpSession — inbound with no terminator frame', function () {
+    this.timeout(10000);
+
+    //  Receive |filesToSend| from a binkd-shaped peer and hand back what
+    //  arrived, keyed by name, along with the peer for M_GOT assertions.
+    async function receiveFrom(filesToSend, peerOpts = {}) {
+        const paths = [];
+        const { session, peer } = await makeScriptedPair({
+            opts: ['EXTCMD', 'GZ'],
+            noEofFrame: true,
+            filesToSend,
+            ...peerOpts,
+        });
+        session.on('file-received', (name, size, ts, p) => paths.push({ name, p }));
+
+        await runSession(session);
+
+        const files = {};
+        for (const { name, p } of paths) {
+            files[name] = await fsp.readFile(p);
+            await fsp.unlink(p).catch(() => {});
+        }
+        return { files, peer };
+    }
+
+    function gotNames(peer) {
+        return peer.framesIn
+            .filter(f => f.cmd === Commands.M_GOT)
+            .map(f => f.arg.split(' ')[0]);
+    }
+
+    it('finishes a GZ file on the size M_FILE declared', async () => {
+        const body = Buffer.from(COMPRESSIBLE);
+        const { files, peer } = await receiveFrom([
+            {
+                name: 'noeof.pkt',
+                size: body.length,
+                timestamp: 1700000000,
+                data: body,
+                gzContainer: 'zlib',
+            },
+        ]);
+
+        assert.equal(files['noeof.pkt'].toString(), COMPRESSIBLE);
+        assert.deepEqual(gotNames(peer), ['noeof.pkt']);
+    });
+
+    it('still finishes an uncompressed one', async () => {
+        const body = Buffer.from(COMPRESSIBLE);
+        const { files, peer } = await receiveFrom([
+            { name: 'clear.pkt', size: body.length, timestamp: 1700000000, data: body },
+        ]);
+
+        assert.equal(files['clear.pkt'].toString(), COMPRESSIBLE);
+        assert.deepEqual(gotNames(peer), ['clear.pkt']);
+    });
+
+    //
+    //  The one that the obvious fix gets wrong. Counting decompressed bytes
+    //  is necessary but not sufficient: zlib is asynchronous, so in a
+    //  pipelined batch every M_FILE is parsed before a single byte comes
+    //  back out of the decompressor. Finishing has to key off the file the
+    //  bytes belong to, and a fresh M_FILE has to close the one before it,
+    //  or files are quietly dropped while the session still reports success.
+    //
+    it('keeps every file of a pipelined batch apart', async () => {
+        const bodies = {};
+        const filesToSend = [0, 1, 2, 3].map(i => {
+            const name = `batch${i}.pkt`;
+            //  Sizes either side of a frame boundary, and distinct contents
+            //  so a mix-up cannot pass as a coincidence.
+            const data = Buffer.alloc(1 + i * 30000, 0x41 + i);
+            bodies[name] = data;
+            return {
+                name,
+                size: data.length,
+                timestamp: 1700000000 + i,
+                data,
+                gzContainer: 'zlib',
+            };
+        });
+
+        const { files, peer } = await receiveFrom(filesToSend, { pipeline: true });
+
+        for (const name of Object.keys(bodies)) {
+            assert.ok(files[name], `${name} was never received`);
+            assert.deepEqual(files[name], bodies[name], `${name} came back wrong`);
+        }
+        assert.deepEqual(gotNames(peer).sort(), Object.keys(bodies).sort());
+    });
+
+    it('does not acknowledge a file that stops short', async () => {
+        //  The peer announces more than it sends and then moves on to the
+        //  next file. M_GOT would tell it we hold a good copy and let it
+        //  apply its disposition, so the truncated one has to go
+        //  unacknowledged -- postponed with M_SKIP -- while the batch
+        //  carries on and the good file still arrives.
+        const good = Buffer.from(COMPRESSIBLE);
+        const { files, peer } = await receiveFrom(
+            [
+                {
+                    name: 'short.pkt',
+                    size: good.length + 4096,
+                    timestamp: 1700000000,
+                    data: good,
+                    gzContainer: 'zlib',
+                },
+                {
+                    name: 'good.pkt',
+                    size: good.length,
+                    timestamp: 1700000001,
+                    data: good,
+                    gzContainer: 'zlib',
+                },
+            ],
+            { pipeline: true }
+        );
+
+        assert.deepEqual(gotNames(peer), ['good.pkt'], 'only the whole file');
+        assert.equal(files['short.pkt'], undefined, 'the partial is not handed on');
+        assert.deepEqual(peer.skipsReceived, ['short.pkt'], 'and is postponed');
+        assert.equal(files['good.pkt'].toString(), COMPRESSIBLE);
+    });
+});
+
 // ── Sanity: the fixture really is asymmetric ──────────────────────────────────
 
 describe('zlib containers are not interchangeable', () => {
