@@ -15,6 +15,7 @@ const {
     DEFAULT_NETWORK_DIR_NAME,
 } = require('../bso_util');
 const bsoLock = require('../bso_lock');
+const { withFlowFileLock, isBusyError } = require('../bso_lock');
 
 // In priority order (highest first)
 const FLOW_EXTS = ['ilo', 'clo', 'dlo', 'flo', 'hlo'];
@@ -294,7 +295,7 @@ class BsoSpool {
             if (seen.has(key)) return;
 
             if (isFlow) {
-                if (!(await flowHasPending(filePath))) return;
+                if (!(await flowHasPending(filePath, addr))) return;
             } else {
                 // Direct-attach: zero-byte = poll flag, not mail
                 const stat = await fsp.stat(filePath).catch(() => null);
@@ -379,9 +380,19 @@ class BsoSpool {
                 //  warning that actually marks a change of state.
                 const resolved = await resolveFlowRefQuiet(filePath, ref);
 
+                //  Absent is not the same as unreadable, and only the first
+                //  is safe to prune. A file behind a permissions problem, a
+                //  dead NFS mount or an exhausted descriptor table is still
+                //  there and still owed to the node; dropping its reference
+                //  would discard mail over a transient fault.
+                let status = 'pending';
+                if (!resolved) {
+                    status = (await isGenuinelyAbsent(ref)) ? 'missing' : 'unreadable';
+                }
+
                 add(addr, {
                     kind: 'flow',
-                    status: resolved ? 'pending' : 'missing',
+                    status,
                     path: resolved ? resolved.path : ref,
                     size: resolved ? resolved.stat.size : null,
                     timestamp: resolved ? Math.floor(resolved.stat.mtimeMs / 1000) : null,
@@ -407,7 +418,7 @@ class BsoSpool {
     //  nobody asked us to discard. With |dryRun| nothing is written and the
     //  caller is told what would go.
     //
-    async pruneMissingRefs(addr, { dryRun = true } = {}) {
+    async pruneMissingRefs(addr, { dryRun = true, lockTimeoutMs } = {}) {
         const target = (await this.inspectOutbound()).find(n =>
             sameAddress(n.address, addr)
         );
@@ -417,7 +428,7 @@ class BsoSpool {
         );
 
         if (dryRun || 0 === removed.length) {
-            return removed;
+            return { removed, busy: [] };
         }
 
         //  Group by flow file so each is rewritten once, and go bottom-up so
@@ -430,42 +441,103 @@ class BsoSpool {
             byFlow.get(entry.flowFile).push(entry);
         }
 
+        const skipped = [];
+
         for (const [flowPath, entries] of byFlow) {
-            await this._withFlowFileWrite(flowPath, async () => {
-                const content = await fsp.readFile(flowPath, 'utf8').catch(() => null);
-                if (null === content) {
-                    return;
-                }
-                const lines = content.split('\n');
-
-                for (const entry of entries.sort((a, b) => b.lineIdx - a.lineIdx)) {
-                    //  Only if the line is still the one we reported on --
-                    //  ftn_bso may have appended, or a session marked
-                    //  something, since the listing was taken.
-                    if (
-                        entry.lineIdx < lines.length &&
-                        lines[entry.lineIdx].trim() === entry.line
-                    ) {
-                        lines.splice(entry.lineIdx, 1);
+            //  The in-process chain is not enough here. oputil runs as its own
+            //  process, so it shares no state with the running BBS -- and
+            //  ftn_bso appends refs, and a session marks them sent, under the
+            //  FTS-5005 .bsy lock (see #749). Rewriting outside it means a
+            //  ref queued between our read and our write is dropped on the
+            //  floor, which is precisely the outbound loss that lock exists
+            //  to prevent. Both guards: .bsy against other processes, the
+            //  chain against ourselves.
+            const gotLock = await new Promise(resolve => {
+                withFlowFileLock(
+                    flowPath,
+                    {
+                        staleMaxAgeMs: this._staleLockMaxAgeMs,
+                        timeoutMs: lockTimeoutMs,
+                        log: Log,
+                    },
+                    done => {
+                        this._withFlowFileWrite(flowPath, () =>
+                            this._pruneFromFlowFile(flowPath, entries)
+                        )
+                            .then(() => done(null))
+                            .catch(err => done(err));
+                    },
+                    err => {
+                        if (err && isBusyError(err)) {
+                            return resolve(false);
+                        }
+                        if (err) {
+                            Log.warn(
+                                { path: flowPath, error: err.message },
+                                '[BinkP/BSO] Could not prune flow file'
+                            );
+                            return resolve(false);
+                        }
+                        resolve(true);
                     }
-                }
-
-                const hasLive = lines.some(l => {
-                    const t = l.trim();
-                    return t.length > 0 && '~' !== t[0];
-                });
-
-                if (hasLive) {
-                    await fsp.writeFile(flowPath, lines.join('\n'), 'utf8');
-                } else {
-                    //  Nothing left to send; ftn_bso recreates the flow file
-                    //  next time it queues something, same as a normal drain.
-                    await fsp.unlink(flowPath).catch(() => {});
-                }
+                );
             });
+
+            if (!gotLock) {
+                for (const entry of entries) {
+                    skipped.push(entry);
+                }
+            }
         }
 
-        return removed;
+        //  Anything we could not take the lock for is still queued, so it
+        //  must not be reported as removed -- and the caller has to be able
+        //  to say why, or an operator sees "nothing removed" and concludes
+        //  the entry was already gone.
+        return {
+            removed: removed.filter(e => !skipped.includes(e)),
+            busy: Array.from(new Set(skipped.map(e => e.flowFile))),
+        };
+    }
+
+    //
+    //  Remove |entries| from |flowPath|. Called with the flow file's .bsy
+    //  lock held, so the read below is the file as it stands and nothing can
+    //  append between it and the write.
+    //
+    async _pruneFromFlowFile(flowPath, entries) {
+        const content = await fsp.readFile(flowPath, 'utf8').catch(() => null);
+        if (null === content) {
+            return;
+        }
+
+        const lines = content.split('\n');
+
+        //  Descending, so removing one cannot shift the index of the next.
+        for (const entry of entries.slice().sort((a, b) => b.lineIdx - a.lineIdx)) {
+            //  Only if the line is still the one we reported on -- the
+            //  listing was taken before the lock, so ftn_bso may have
+            //  appended or a session may have marked something since.
+            if (
+                entry.lineIdx < lines.length &&
+                lines[entry.lineIdx].trim() === entry.line
+            ) {
+                lines.splice(entry.lineIdx, 1);
+            }
+        }
+
+        const hasLive = lines.some(l => {
+            const t = l.trim();
+            return t.length > 0 && '~' !== t[0];
+        });
+
+        if (hasLive) {
+            await fsp.writeFile(flowPath, lines.join('\n'), 'utf8');
+        } else {
+            //  Nothing left to send; ftn_bso recreates the flow file next
+            //  time it queues something, same as a normal drain.
+            await fsp.unlink(flowPath).catch(() => {});
+        }
     }
 
     // ── Inbound file handling ────────────────────────────────────────────────
@@ -860,14 +932,14 @@ function uniquePacketName(filePath) {
 //  poller would dial it every cycle only to transfer nothing and log a clean
 //  "Session complete".
 //
-async function flowHasPending(flowPath) {
+async function flowHasPending(flowPath, addr) {
     const content = await fsp.readFile(flowPath, 'utf8').catch(() => '');
     for (const line of content.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed || trimmed[0] === '~') continue;
 
         const ref = /^[\^#-]/.test(trimmed) ? trimmed.slice(1) : trimmed;
-        if (await resolveFlowRef(flowPath, ref)) return true;
+        if (await resolveFlowRef(flowPath, ref, addr)) return true;
     }
     return false;
 }
@@ -893,7 +965,16 @@ async function resolveFlowRef(flowPath, ref, addr, { quiet = false } = {}) {
         const now = Date.now();
         const last = warnedFlowRefs.get(key);
         if (last && now - last < FLOW_REF_WARN_REPEAT_MS) return;
-        if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) warnedFlowRefs.clear();
+        if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) {
+            //  Drop what has aged out first. Clearing wholesale would throw
+            //  away entries warned seconds ago and let them repeat straight
+            //  away, which on a spool with many dangling refs turns the
+            //  throttle into a firehose.
+            for (const [k, when] of warnedFlowRefs) {
+                if (now - when >= FLOW_REF_WARN_REPEAT_MS) warnedFlowRefs.delete(k);
+            }
+            if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) warnedFlowRefs.clear();
+        }
         warnedFlowRefs.set(key, now);
         Log.warn(fields, message);
     };
@@ -964,6 +1045,20 @@ function sameAddress(a, b) {
         a.node === b.node &&
         (a.point || 0) === (b.point || 0)
     );
+}
+
+//  True when the path is absent rather than merely unreachable. ENOENT is
+//  "no such file"; ENOTDIR is a component of the path not being a directory,
+//  which for a stored absolute path means the same thing. Anything else --
+//  EACCES, EIO, ESTALE, EMFILE -- says the file may well exist and we simply
+//  could not look.
+async function isGenuinelyAbsent(p) {
+    try {
+        await fsp.stat(p);
+        return false;
+    } catch (err) {
+        return 'ENOENT' === err.code || 'ENOTDIR' === err.code;
+    }
 }
 
 //  Resolve without logging. The operator's listing asks about every entry

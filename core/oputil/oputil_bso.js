@@ -40,6 +40,14 @@ function makeSpool() {
     const config = Config();
     const bsoConfig = config.scannerTossers?.ftn_bso || {};
 
+    if (!bsoConfig.paths?.outbound) {
+        //  Without this every command dies in the directory walk with a bare
+        //  TypeError, which says nothing about what is actually missing.
+        throw new Error(
+            'scannerTossers.ftn_bso.paths.outbound is not configured; there is no outbound spool to inspect'
+        );
+    }
+
     return new BsoSpool({
         paths: bsoConfig.paths || {},
         networks: config.messageNetworks?.ftn?.networks || {},
@@ -157,10 +165,12 @@ function cmdStatus() {
         console.info('-'.repeat(47));
 
         let missingTotal = 0;
+        let unreadableTotal = 0;
         for (const node of interesting) {
             const live = liveEntries(node);
             const missing = live.filter(e => 'missing' === e.status);
             missingTotal += missing.length;
+            unreadableTotal += live.filter(e => 'unreadable' === e.status).length;
 
             console.info(
                 `${pad(node.address.toString(), 22)}${padLeft(
@@ -185,6 +195,18 @@ function cmdStatus() {
             );
             console.info('satisfied the files are really gone and not merely offline —');
             console.info('"oputil bso prune <address> --yes" to drop them.');
+        }
+
+        if (unreadableTotal > 0) {
+            console.info('');
+            console.info(
+                `${unreadableTotal} queued ${
+                    1 === unreadableTotal ? 'entry could' : 'entries could'
+                } not be read — a permissions problem, or a`
+            );
+            console.info(
+                'volume that is not mounted. Those are never pruned; see "bso list".'
+            );
         }
     });
 }
@@ -211,13 +233,29 @@ function cmdList(addressArg) {
 
         console.info(`${addr.toString()}`);
         for (const entry of live) {
-            const flag = 'missing' === entry.status ? 'MISSING' : 'ok';
+            const flag =
+                {
+                    missing: 'MISSING',
+                    unreadable: 'UNREADABLE',
+                }[entry.status] || 'ok';
             console.info(
                 `  ${pad(flag, 9)}${padLeft(friendlySize(entry.size), 10)}${padLeft(
                     friendlyAge(entry.timestamp),
                     8
                 )}  ${entry.path}`
             );
+        }
+
+        const unreadable = live.filter(e => 'unreadable' === e.status);
+        if (unreadable.length > 0) {
+            console.info('');
+            console.info(
+                `${unreadable.length} could not be read at all — a permissions problem, or`
+            );
+            console.info(
+                'a volume that is not mounted. Those are not pruned: the file may well'
+            );
+            console.info('still be there. Fix the access and they will send.');
         }
 
         const missing = live.filter(e => 'missing' === e.status);
@@ -249,7 +287,21 @@ function cmdPrune(addressArg) {
     const write = true === argv.yes;
 
     withSpool(async spool => {
-        const removed = await spool.pruneMissingRefs(addr, { dryRun: !write });
+        const { removed, busy } = await spool.pruneMissingRefs(addr, {
+            dryRun: !write,
+        });
+
+        if (busy.length > 0) {
+            //  Not the same as "nothing to do": the entries are still there,
+            //  we simply were not allowed to touch the file.
+            console.info(
+                `${addr.toString()} is busy — a mail session or the tosser holds its`
+            );
+            console.info('lock. Nothing was changed; try again in a moment.');
+            if (0 === removed.length) {
+                return;
+            }
+        }
 
         if (0 === removed.length) {
             console.info(`Nothing to prune for ${addr.toString()}.`);

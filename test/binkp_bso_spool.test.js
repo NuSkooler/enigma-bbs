@@ -938,7 +938,7 @@ describe('BsoSpool — pruning missing references', () => {
         const { missing, flowPath } = await seed();
         const before = await fsp.readFile(flowPath, 'utf8');
 
-        const removed = await spool.pruneMissingRefs(TEST_ADDR);
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR);
 
         assert.deepEqual(
             removed.map(e => e.path),
@@ -961,7 +961,7 @@ describe('BsoSpool — pruning missing references', () => {
     it('removes only the missing entries when told to', async () => {
         const { real, missing, done, flowPath } = await seed();
 
-        const removed = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
         assert.deepEqual(
             removed.map(e => e.path),
             [missing]
@@ -1004,12 +1004,114 @@ describe('BsoSpool — pruning missing references', () => {
         );
     });
 
+    it('removes several missing entries from one flow file', async () => {
+        //  Splicing shifts every later index, so the removals have to run
+        //  bottom-up. With one entry that is invisible.
+        const real = path.join(outboundDir(tmpDir), 'survivor.pkt');
+        await fsp.writeFile(real, 'KEEP');
+        const a = path.join(tmpDir, 'gone', 'a.zip');
+        const b = path.join(tmpDir, 'gone', 'b.zip');
+        const c = path.join(tmpDir, 'gone', 'c.zip');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${a}\n^${real}\n^${b}\n^${c}\n`);
+
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        assert.deepEqual(removed.map(e => e.path).sort(), [a, b, c].sort());
+
+        const remaining = (await fsp.readFile(flowPath, 'utf8'))
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean);
+        assert.deepEqual(remaining, [`^${real}`], 'only the real file may remain');
+    });
+
+    it('leaves the flow file alone when another process holds the lock', async () => {
+        //  oputil runs as its own process, so the in-process write chain says
+        //  nothing about what the running BBS is doing. ftn_bso appends refs
+        //  and sessions mark them sent under the FTS-5005 .bsy lock; rewriting
+        //  outside it drops whatever was queued in between (see #749).
+        const bsoLock = require('../core/bso_lock');
+
+        const missing = path.join(tmpDir, 'gone', 'locked.zip');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${missing}\n`);
+
+        const bsyPath = bsoLock.bsyPathForFlowFile(flowPath);
+        assert.equal(
+            await bsoLock.acquire(bsyPath, { staleMaxAgeMs: 600000 }),
+            true,
+            'test could not take the lock it means to hold'
+        );
+
+        try {
+            const result = await spool.pruneMissingRefs(TEST_ADDR, {
+                dryRun: false,
+                lockTimeoutMs: 50,
+            });
+            assert.deepEqual(result.removed, [], 'nothing may be reported as removed');
+            assert.deepEqual(result.busy, [flowPath], 'and the caller must be told why');
+            assert.ok(
+                (await fsp.readFile(flowPath, 'utf8')).includes(missing),
+                'the flow file must be left exactly as it was'
+            );
+        } finally {
+            await bsoLock.release(bsyPath);
+        }
+
+        //  ...and once the holder is done, it prunes normally.
+        assert.equal(
+            (await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false })).removed.length,
+            1
+        );
+    });
+
+    it('will not prune a file it merely could not read', async () => {
+        //  ENOENT means gone. EACCES means still there and still owed to the
+        //  node -- pruning on that would discard mail over a transient fault.
+        const unreadableDir = path.join(tmpDir, 'noaccess');
+        await fsp.mkdir(unreadableDir, { recursive: true });
+        const hidden = path.join(unreadableDir, 'secret.zip');
+        await fsp.writeFile(hidden, 'DATA');
+
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+        await fsp.writeFile(flowPath, `^${hidden}\n`);
+
+        await fsp.chmod(unreadableDir, 0o000);
+        try {
+            //  Running as root defeats the permission bits entirely; skip
+            //  rather than assert something the platform will not honour.
+            const denied = await fsp
+                .stat(hidden)
+                .then(() => false)
+                .catch(err => 'EACCES' === err.code);
+            if (!denied) {
+                return;
+            }
+
+            const node = (await spool.inspectOutbound()).find(
+                n => n.address.net === TEST_ADDR.net && n.address.node === TEST_ADDR.node
+            );
+            assert.equal(node.entries[0].status, 'unreadable');
+
+            assert.deepEqual(
+                (await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false })).removed,
+                [],
+                'an unreadable file must never be pruned'
+            );
+        } finally {
+            await fsp.chmod(unreadableDir, 0o755);
+        }
+    });
+
     it('says there is nothing to do for a node with no missing entries', async () => {
         const real = path.join(outboundDir(tmpDir), 'fine.pkt');
         await fsp.writeFile(real, 'FINE');
         await fsp.writeFile(path.join(outboundDir(tmpDir), '00680001.flo'), `^${real}\n`);
 
-        assert.deepEqual(await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false }), []);
+        assert.deepEqual(
+            (await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false })).removed,
+            []
+        );
     });
 });
 

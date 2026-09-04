@@ -421,6 +421,14 @@ pruning and the next poll ships it.
 Entries already sent are left alone, and a flow file with nothing left to send is removed
 entirely, exactly as it would be after a normal successful transfer.
 
+Pruning takes the node's FTS-5005 `.bsy` lock first, so it is safe to run against a live
+system: if a mail session or the tosser is working on that node, prune says so and changes
+nothing rather than writing over what they are doing.
+
+A file that exists but cannot be read — a permissions problem, or a volume that is not
+mounted — is reported as `UNREADABLE` rather than `MISSING`, and is never pruned. That
+file is still there and still owed to the node; fix the access and it will send.
+
 ## FAT Disk Image Management
 The `fat` command lets you inspect and modify raw FAT disk images directly — no running ENiGMA instance or database required. Useful for preparing and maintaining FreeDOS images used by the `v86_door` module.
 
