@@ -62,7 +62,7 @@ const MAX_WARNED_FLOW_REFS = 1024;
 //  once per process meant a busy system said it once at boot and then never
 //  again, so the condition was invisible by the time anyone looked. Repeating
 //  keeps it in the log without turning every poll into noise.
-const FLOW_REF_WARN_REPEAT_MS = 60 * 60 * 1000; //  1 hour
+const DEFAULT_FLOW_REF_WARN_REPEAT_MS = 60 * 60 * 1000; //  1 hour
 const warnedFlowRefs = new Map();
 
 //
@@ -96,6 +96,10 @@ class BsoSpool {
             typeof config.staleLockMaxAgeMs === 'number'
                 ? config.staleLockMaxAgeMs
                 : DEFAULT_STALE_LOCK_MAX_AGE_MS;
+        this._flowRefWarnRepeatMs =
+            typeof config.flowRefWarnRepeatMs === 'number'
+                ? config.flowRefWarnRepeatMs
+                : DEFAULT_FLOW_REF_WARN_REPEAT_MS;
     }
 
     // ── Lock management ──────────────────────────────────────────────────────
@@ -295,7 +299,8 @@ class BsoSpool {
             if (seen.has(key)) return;
 
             if (isFlow) {
-                if (!(await flowHasPending(filePath, addr))) return;
+                if (!(await flowHasPending(filePath, addr, this._flowRefWarnRepeatMs)))
+                    return;
             } else {
                 // Direct-attach: zero-byte = poll flag, not mail
                 const stat = await fsp.stat(filePath).catch(() => null);
@@ -697,7 +702,9 @@ class BsoSpool {
                 filePath = trimmed;
             }
 
-            const resolved = await resolveFlowRef(flowPath, filePath, addr);
+            const resolved = await resolveFlowRef(flowPath, filePath, addr, {
+                repeatMs: this._flowRefWarnRepeatMs,
+            });
             if (!resolved) continue;
 
             const lineIdx = i;
@@ -944,14 +951,14 @@ function uniquePacketName(filePath) {
 //  poller would dial it every cycle only to transfer nothing and log a clean
 //  "Session complete".
 //
-async function flowHasPending(flowPath, addr) {
+async function flowHasPending(flowPath, addr, repeatMs) {
     const content = await fsp.readFile(flowPath, 'utf8').catch(() => '');
     for (const line of content.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed || trimmed[0] === '~') continue;
 
         const ref = /^[\^#-]/.test(trimmed) ? trimmed.slice(1) : trimmed;
-        if (await resolveFlowRef(flowPath, ref, addr)) return true;
+        if (await resolveFlowRef(flowPath, ref, addr, { repeatMs })) return true;
     }
     return false;
 }
@@ -971,19 +978,24 @@ async function flowHasPending(flowPath, addr) {
 //  is how misfiled outbound mail hides: the session finds nothing to send and
 //  reports success.
 //
-async function resolveFlowRef(flowPath, ref, addr, { quiet = false } = {}) {
+async function resolveFlowRef(
+    flowPath,
+    ref,
+    addr,
+    { quiet = false, repeatMs = DEFAULT_FLOW_REF_WARN_REPEAT_MS } = {}
+) {
     const warnEvery = (key, fields, message) => {
         if (quiet) return;
         const now = Date.now();
         const last = warnedFlowRefs.get(key);
-        if (last && now - last < FLOW_REF_WARN_REPEAT_MS) return;
+        if (last && now - last < repeatMs) return;
         if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) {
             //  Drop what has aged out first. Clearing wholesale would throw
             //  away entries warned seconds ago and let them repeat straight
             //  away, which on a spool with many dangling refs turns the
             //  throttle into a firehose.
             for (const [k, when] of warnedFlowRefs) {
-                if (now - when >= FLOW_REF_WARN_REPEAT_MS) warnedFlowRefs.delete(k);
+                if (now - when >= repeatMs) warnedFlowRefs.delete(k);
             }
             if (warnedFlowRefs.size >= MAX_WARNED_FLOW_REFS) warnedFlowRefs.clear();
         }

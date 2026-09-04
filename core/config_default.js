@@ -1202,6 +1202,19 @@ module.exports = () => {
                     staleLockMaxAgeMs: 30 * 60 * 1000,
 
                     //
+                    //  How often to repeat the warning about a queued file
+                    //  that no longer exists on disk. The reference cannot be
+                    //  sent and will not fix itself, so this is a standing
+                    //  fault rather than an event -- saying it once per
+                    //  process meant it scrolled away and the node quietly
+                    //  never got its file. See "oputil bso status".
+                    //
+                    //  Default: 1 hour. Raise it if a known-dangling
+                    //  reference you have not dealt with yet is noisy.
+                    //
+                    flowRefWarnRepeatMs: 60 * 60 * 1000,
+
+                    //
                     //  Inbound temp file sweep. Inbound files are buffered as
                     //  binkp_in_*.dt under |tempDir| (defaults to OS temp) and
                     //  renamed into the inbound spool on successful receipt.

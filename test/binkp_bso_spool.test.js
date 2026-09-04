@@ -902,6 +902,57 @@ describe('BsoSpool — reporting a missing reference', () => {
         assert.match(String(warned.fields.node), /104\/1/);
     });
 
+    it('says it once while the repeat window is open', async () => {
+        //  A poll every minute must not put a line in the log every minute.
+        //  |flowRefWarnRepeatMs| is a real operator knob (see config_default);
+        //  a short one here keeps the test honest without stubbing the clock,
+        //  which would shift time for everything else in the process too --
+        //  .bsy staleness is clock-based, so that coupling is not hypothetical.
+        const quiet = new BsoSpool(
+            Object.assign(makeConfig(tmpDir), { flowRefWarnRepeatMs: 60000 })
+        );
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.flo'),
+            `^${path.join(tmpDir, 'gone', 'repeat.zip')}\n`
+        );
+
+        const warnings = await captureWarnings(async () => {
+            await quiet.getOutboundFilesForNode(TEST_ADDR);
+            await quiet.getOutboundFilesForNode(TEST_ADDR);
+            await quiet.getOutboundFilesForNode(TEST_ADDR);
+        });
+
+        assert.equal(
+            warnings.filter(w => w.fields && 'repeat.zip' === w.fields.file).length,
+            1,
+            'three passes inside the window is still one warning'
+        );
+    });
+
+    it('says it again once the window has passed', async () => {
+        //  The regression that matters: a throttle stuck shut is the silence
+        //  this whole change exists to remove.
+        const chatty = new BsoSpool(
+            Object.assign(makeConfig(tmpDir), { flowRefWarnRepeatMs: 20 })
+        );
+        await fsp.writeFile(
+            path.join(outboundDir(tmpDir), '00680001.flo'),
+            `^${path.join(tmpDir, 'gone', 'again.zip')}\n`
+        );
+
+        const warnings = await captureWarnings(async () => {
+            await chatty.getOutboundFilesForNode(TEST_ADDR);
+            await new Promise(r => setTimeout(r, 60)); //  3x the window
+            await chatty.getOutboundFilesForNode(TEST_ADDR);
+        });
+
+        assert.equal(
+            warnings.filter(w => w.fields && 'again.zip' === w.fields.file).length,
+            2,
+            'a standing fault has to keep saying so'
+        );
+    });
+
     it('reports each missing file, not just the first one seen', async () => {
         const one = path.join(tmpDir, 'gone', 'one.zip');
         const two = path.join(tmpDir, 'gone', 'two.zip');

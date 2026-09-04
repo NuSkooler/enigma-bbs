@@ -76,6 +76,7 @@ function buildSpool(config) {
         networks: _.get(config, 'messageNetworks.ftn.networks', {}),
         defaultNetwork: ftnBsoCfg.defaultNetwork,
         staleLockMaxAgeMs: _.get(ftnBsoCfg, 'binkp.staleLockMaxAgeMs'),
+        flowRefWarnRepeatMs: _.get(ftnBsoCfg, 'binkp.flowRefWarnRepeatMs'),
     });
 }
 
