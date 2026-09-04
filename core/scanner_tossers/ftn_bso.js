@@ -1357,7 +1357,7 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function storeStateFlags0Meta(callback) {
-                            return message.persistMetaValue(
+                            return message.updateMetaValue(
                                 'System',
                                 'state_flags0',
                                 Message.StateFlags0.Exported.toString(),
@@ -1367,7 +1367,7 @@ function FTNMessageScanTossModule() {
                         function storeMsgIdMeta(callback) {
                             //  Store meta as if we had imported this message -- for later reference
                             if (message.meta.FtnKludge.MSGID) {
-                                return message.persistMetaValue(
+                                return message.updateMetaValue(
                                     'FtnKludge',
                                     'MSGID',
                                     message.meta.FtnKludge.MSGID,
@@ -1415,7 +1415,7 @@ function FTNMessageScanTossModule() {
                                 async.series(
                                     [
                                         function markExportFailed(callback) {
-                                            return message.persistMetaValue(
+                                            return message.updateMetaValue(
                                                 'System',
                                                 Message.SystemMetaNames.StateFlags0,
                                                 Message.StateFlags0.ExportFailed.toString(),
