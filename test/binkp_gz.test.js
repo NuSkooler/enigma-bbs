@@ -468,6 +468,28 @@ describe('BinkpSession — inbound with no terminator frame', function () {
         assert.deepEqual(peer.skipsReceived, ['short.pkt'], 'and is postponed');
         assert.equal(files['good.pkt'].toString(), COMPRESSIBLE);
     });
+
+    it('cuts a file that runs past its announced size back to it', async () => {
+        //  The clear path caps every chunk against the declared size, but a
+        //  compressed one cannot be measured until it is decompressed, so
+        //  the surplus reaches the disk before anyone can object. Both paths
+        //  have to hand on the file the sender described, no more.
+        const body = Buffer.from(COMPRESSIBLE);
+        const declared = body.length - 100;
+        const { files, peer } = await receiveFrom([
+            {
+                name: 'over.pkt',
+                size: declared,
+                timestamp: 1700000000,
+                data: body,
+                gzContainer: 'zlib',
+            },
+        ]);
+
+        assert.deepEqual(gotNames(peer), ['over.pkt']);
+        assert.equal(files['over.pkt'].length, declared, 'trimmed to the declared size');
+        assert.deepEqual(files['over.pkt'], body.slice(0, declared));
+    });
 });
 
 // ── Sanity: the fixture really is asymmetric ──────────────────────────────────

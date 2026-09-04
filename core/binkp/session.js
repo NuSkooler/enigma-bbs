@@ -953,22 +953,22 @@ class BinkpSession extends EventEmitter {
         if (cr.bytesReceived >= cr.size) {
             return this._finalizeReceive(cr);
         }
-        this._abandonShortReceive(cr);
+        this._postponeReceive(
+            cr,
+            '[BinkP] Inbound file ended short; leaving it with the sender'
+        );
     }
 
     //
-    //  A file the sender walked away from mid-transfer. Silence would strand
-    //  it: the sender is waiting on an M_GOT that is never coming and will
+    //  Give up on an inbound file without claiming it. Silence would strand
+    //  the sender: it is waiting on an M_GOT that is never coming and will
     //  sit there to its own timeout. M_SKIP is the FTS-1026 answer -- a
     //  non-destructive postpone that leaves the file with the sender for
     //  another session and lets this batch finish -- and is what
     //  _onInflateError already does when it gives up on a file.
     //
-    _abandonShortReceive(cr) {
-        Log.warn(
-            { name: cr.name, got: cr.bytesReceived, want: cr.size },
-            '[BinkP] Inbound file ended short; leaving it with the sender'
-        );
+    _postponeReceive(cr, why) {
+        Log.warn({ name: cr.name, got: cr.bytesReceived, want: cr.size }, why);
         this._abandonReceive(cr);
         this._sendCmd(Commands.M_SKIP, `${cr.name} ${cr.size} ${cr.timestamp}`);
         this._checkDone();
@@ -1129,6 +1129,17 @@ class BinkpSession extends EventEmitter {
         //  premature _checkDone would close the session before M_GOT is sent
         //  and the client would wait forever.
 
+        //  File handed off to the listener; ownership of the temp file
+        //  passes to whatever moves it into the inbound spool. Drop our
+        //  tracking entry so _destroy() doesn't unlink it from under
+        //  the consumer.
+        const handOff = () => {
+            this._inboundTempPaths.delete(cr.tempPath);
+            this._sendCmd(Commands.M_GOT, `${cr.name} ${cr.size} ${cr.timestamp}`);
+            this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
+            this._checkDone();
+        };
+
         const finish = () => {
             if (this._currentRecv === cr) {
                 this._currentRecv = null;
@@ -1138,18 +1149,40 @@ class BinkpSession extends EventEmitter {
             //  copy and let it apply its disposition, so stay quiet and let
             //  it offer the file again next session.
             if (cr.bytesReceived < cr.size) {
-                this._abandonShortReceive(cr);
+                this._postponeReceive(
+                    cr,
+                    '[BinkP] Inbound file ended short; leaving it with the sender'
+                );
                 return;
             }
 
-            //  File handed off to the listener; ownership of the temp file
-            //  passes to whatever moves it into the inbound spool. Drop our
-            //  tracking entry so _destroy() doesn't unlink it from under
-            //  the consumer.
-            this._inboundTempPaths.delete(cr.tempPath);
-            this._sendCmd(Commands.M_GOT, `${cr.name} ${cr.size} ${cr.timestamp}`);
-            this.emit('file-received', cr.name, cr.size, cr.timestamp, cr.tempPath);
-            this._checkDone();
+            //  Longer than announced. The clear path never gets here -- it
+            //  caps each chunk against the declared size -- but a compressed
+            //  stream is only measurable once decompressed, by which point
+            //  the surplus is already on disk. Cut it back so both paths
+            //  hand on exactly the file the sender described. (binkd instead
+            //  treats a surplus as fatal and drops the session.)
+            if (cr.bytesReceived > cr.size) {
+                Log.warn(
+                    { name: cr.name, got: cr.bytesReceived, want: cr.size },
+                    '[BinkP] Inbound file longer than announced; truncating'
+                );
+                return fsp
+                    .truncate(cr.tempPath, cr.size)
+                    .then(handOff)
+                    .catch(err => {
+                        Log.warn(
+                            { name: cr.name, error: err.message },
+                            '[BinkP] Could not truncate oversized inbound file'
+                        );
+                        this._postponeReceive(
+                            cr,
+                            '[BinkP] Oversized inbound file left with the sender'
+                        );
+                    });
+            }
+
+            handOff();
         };
 
         if (cr.inflate) {
