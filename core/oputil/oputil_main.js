@@ -10,6 +10,7 @@ const handleFileBaseCommand = require('./oputil_file_base.js').handleFileBaseCom
 const handleMessageBaseCommand =
     require('./oputil_message_base.js').handleMessageBaseCommand;
 const handleConfigCommand = require('./oputil_config.js').handleConfigCommand;
+const handleBsoCommand = require('./oputil_bso.js').handleBsoCommand;
 const handleApCommand = require('./activitypub').handleUserCommand;
 const handleSSHKeyCommand = require('./oputil_ssh_key.js').handleSSHKeyCommand;
 const handleFatCommand = require('./oputil_fat.js').handleFatCommand;
@@ -37,6 +38,8 @@ module.exports = function () {
             return handleFileBaseCommand();
         case 'mb':
             return handleMessageBaseCommand();
+        case 'bso':
+            return handleBsoCommand();
         case 'ap':
             return handleApCommand();
         case 'ssh':

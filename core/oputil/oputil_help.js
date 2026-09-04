@@ -20,6 +20,7 @@ Commands:
   config                    Configuration management
   fb                        File base management
   mb                        Message base management
+  bso                       FTN/BSO outbound spool inspection
   ap                        ActivityPub management
   ssh                       SSH key management
   fat                       FAT disk image management
@@ -249,6 +250,37 @@ Actions:
 
 condition arguments:
   --force                     Force condition; overrides any existing settings`,
+    Bso: `usage: oputil.js bso <action> [<arguments>]
+
+Inspect the FTN/BSO outbound spool: who is waiting on mail, how long it has
+been waiting, and whether any of it is queued against a file that no longer
+exists.
+
+A flow file stores an absolute path. If the file it names is deleted or moved,
+that entry can never be sent -- the node simply never receives it. Those show
+as "MISSING" below.
+
+Actions:
+  status                      Every node with outbound, and what is wrong
+  list ADDRESS                Every queued entry for one node
+  prune ADDRESS               Drop entries whose file is gone
+
+prune arguments:
+  --yes                       Actually remove them; without this, prune only
+                              reports what it would do
+
+Pruning is never automatic and never happens without --yes: a file that is
+merely offline -- an unmounted store, a half-finished copy -- is
+indistinguishable from a deleted one here, and dropping the entry would
+discard mail that would otherwise have gone out once the file returned.
+Check that the file is really gone before pruning its reference.
+
+Examples:
+  oputil.js bso status
+  oputil.js bso list 1:218/701
+  oputil.js bso prune 1:218/701
+  oputil.js bso prune 1:218/701 --yes
+`,
     SSH: `usage: oputil.js ssh <action>
 
 Actions:

@@ -156,6 +156,14 @@ The default is 6× the internal session timeout (5 minutes), giving a generous s
 
 The same `.bsy` files are honoured by external mailers such as Binkd, and by the ENiGMA½ *tosser* when it queues outbound — see [`flowLockTimeoutMs`](#flowlocktimeoutms) below.
 
+#### `binkp.flowRefWarnRepeatMs`
+
+A BSO flow file stores an **absolute path** to each file queued for a node. If that file is later deleted or moved, the entry can never be sent — the node simply never receives it. ENiGMA½ warns about this, naming the node and the file.
+
+`flowRefWarnRepeatMs` (default `60 * 60 * 1000`, i.e. 1 hour) is how often that warning repeats for the same reference. It repeats because the condition is a standing fault rather than an event: nothing fixes it on its own, and saying it once per process meant it scrolled away long before anyone looked.
+
+Raise it if you have a dangling reference you already know about and have not dealt with yet. To see what is affected and act on it, use [`oputil bso status`]({{ site.baseurl }}/docs/admin/oputil.html) — and note that a node whose queued entries have *all* gone missing is deliberately not polled, so that command is the only place it shows up.
+
 #### `flowLockTimeoutMs`
 
 > :information_source: This one lives at `scannerTossers.ftn_bso.flowLockTimeoutMs`, **not** under `binkp` — it governs the tosser (the writer), not the mailer.
@@ -299,7 +307,7 @@ Both sides decide this the same way, by counting the command frames sent and rec
 | `nodes` (hosts, ports, passwords, `pull`, TLS) | next session, inbound or outbound | Immediately |
 | `freq` | next inbound session | Immediately |
 | `crashmailDebounceMs` | next crashmail burst | Immediately |
-| `tempDir`, `staleLockMaxAgeMs` | next session | Immediately |
+| `tempDir`, `staleLockMaxAgeMs`, `flowRefWarnRepeatMs` | next session | Immediately |
 | `flowLockTimeoutMs` (under `ftn_bso`) | next outbound queue | Immediately |
 | `ftn_bso` `paths` and `messageNetworks.ftn.networks` | next session or poll | Immediately |
 | `pullSchedule` | the pull timer | On reload — the timer is rebuilt |
