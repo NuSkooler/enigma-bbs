@@ -17,11 +17,11 @@
 <meta property="og:description" content="BinkP Native Mailer" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-09-04T16:56:25+00:00" />
+<meta property="article:published_time" content="2026-09-04T20:25:42+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="BinkP Native Mailer" />
 <script type="application/ld+json">
-{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-09-04T16:56:25+00:00","datePublished":"2026-09-04T16:56:25+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"BinkP Native Mailer","headline":"BinkP Native Mailer","dateModified":"2026-09-04T20:25:42+00:00","datePublished":"2026-09-04T20:25:42+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/binkp.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/messageareas/binkp.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -3080,6 +3080,14 @@
 
 <p>The same <code class="language-plaintext highlighter-rouge">.bsy</code> files are honoured by external mailers such as Binkd, and by the ENiGMA½ <em>tosser</em> when it queues outbound — see <a href="#flowlocktimeoutms"><code class="language-plaintext highlighter-rouge">flowLockTimeoutMs</code></a> below.</p>
 
+<h4 id="binkpflowrefwarnrepeatms"><code class="language-plaintext highlighter-rouge">binkp.flowRefWarnRepeatMs</code></h4>
+
+<p>A BSO flow file stores an <strong>absolute path</strong> to each file queued for a node. If that file is later deleted or moved, the entry can never be sent — the node simply never receives it. ENiGMA½ warns about this, naming the node and the file.</p>
+
+<p><code class="language-plaintext highlighter-rouge">flowRefWarnRepeatMs</code> (default <code class="language-plaintext highlighter-rouge">60 * 60 * 1000</code>, i.e. 1 hour) is how often that warning repeats for the same reference. It repeats because the condition is a standing fault rather than an event: nothing fixes it on its own, and saying it once per process meant it scrolled away long before anyone looked.</p>
+
+<p>Raise it if you have a dangling reference you already know about and have not dealt with yet. To see what is affected and act on it, use <a href="/enigma-bbs/docs/admin/oputil.html"><code class="language-plaintext highlighter-rouge">oputil bso status</code></a> — and note that a node whose queued entries have <em>all</em> gone missing is deliberately not polled, so that command is the only place it shows up.</p>
+
 <h4 id="flowlocktimeoutms"><code class="language-plaintext highlighter-rouge">flowLockTimeoutMs</code></h4>
 
 <blockquote>
@@ -3376,7 +3384,7 @@ freq: {
     </tr>
     <tr>
       <td>
-<code class="language-plaintext highlighter-rouge">tempDir</code>, <code class="language-plaintext highlighter-rouge">staleLockMaxAgeMs</code>
+<code class="language-plaintext highlighter-rouge">tempDir</code>, <code class="language-plaintext highlighter-rouge">staleLockMaxAgeMs</code>, <code class="language-plaintext highlighter-rouge">flowRefWarnRepeatMs</code>
 </td>
       <td>next session</td>
       <td>Immediately</td>
