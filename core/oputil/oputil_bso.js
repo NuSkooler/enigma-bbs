@@ -29,6 +29,7 @@ const {
     initConfigAndDatabases,
 } = require('./oputil_common.js');
 const { getHelpFor } = require('./oputil_help.js');
+const { formatByteSize, pad } = require('../string_util.js');
 
 exports.handleBsoCommand = handleBsoCommand;
 
@@ -66,18 +67,13 @@ function parseAddress(s) {
     return addr;
 }
 
+//  A missing or unreadable entry has no size to show; anything else goes
+//  through the shared formatter, which knows the units this does not.
 function friendlySize(bytes) {
     if (null === bytes || undefined === bytes) {
         return '-';
     }
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let n = bytes;
-    let u = 0;
-    while (n >= 1024 && u < units.length - 1) {
-        n /= 1024;
-        ++u;
-    }
-    return `${0 === u ? n : n.toFixed(1)} ${units[u]}`;
+    return formatByteSize(bytes, true, 1);
 }
 
 //  Compact enough to keep a column: "3d", "4h", "12m". moment's fromNow()
@@ -105,14 +101,12 @@ function oldestTimestamp(entries) {
     return stamps.length ? Math.min(...stamps) : null;
 }
 
-function pad(s, width) {
-    s = String(s);
-    return s.length >= width ? s : s + ' '.repeat(width - s.length);
+function padLeft(s, width) {
+    return pad(String(s), width, ' ', 'right');
 }
 
-function padLeft(s, width) {
-    s = String(s);
-    return s.length >= width ? s : ' '.repeat(width - s.length) + s;
+function padRight(s, width) {
+    return pad(String(s), width, ' ', 'left');
 }
 
 //  Entries an operator is waiting on, i.e. not the ones already sent.
@@ -157,7 +151,7 @@ function cmdStatus() {
         }
 
         console.info(
-            `${pad('Node', 22)}${padLeft('Queued', 8)}${padLeft(
+            `${padRight('Node', 22)}${padLeft('Queued', 8)}${padLeft(
                 'Missing',
                 9
             )}${padLeft('Oldest', 8)}`
@@ -173,7 +167,7 @@ function cmdStatus() {
             unreadableTotal += live.filter(e => 'unreadable' === e.status).length;
 
             console.info(
-                `${pad(node.address.toString(), 22)}${padLeft(
+                `${padRight(node.address.toString(), 22)}${padLeft(
                     live.length,
                     8
                 )}${padLeft(missing.length || '', 9)}${padLeft(
@@ -239,7 +233,7 @@ function cmdList(addressArg) {
                     unreadable: 'UNREADABLE',
                 }[entry.status] || 'ok';
             console.info(
-                `  ${pad(flag, 9)}${padLeft(friendlySize(entry.size), 10)}${padLeft(
+                `  ${padRight(flag, 9)}${padLeft(friendlySize(entry.size), 10)}${padLeft(
                     friendlyAge(entry.timestamp),
                     8
                 )}  ${entry.path}`
@@ -287,8 +281,12 @@ function cmdPrune(addressArg) {
     const write = true === argv.yes;
 
     withSpool(async spool => {
+        const Config = require('../config.js').get;
         const { removed, busy } = await spool.pruneMissingRefs(addr, {
             dryRun: !write,
+            //  Same knob ftn_bso waits on, so an operator and the tosser
+            //  agree about how long a busy node is worth waiting for.
+            lockTimeoutMs: Config().scannerTossers?.ftn_bso?.flowLockTimeoutMs,
         });
 
         if (busy.length > 0) {
