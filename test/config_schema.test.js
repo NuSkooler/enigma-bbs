@@ -4,6 +4,7 @@ const { strict: assert } = require('assert');
 const paths = require('path');
 const fs = require('fs');
 const hjson = require('hjson');
+const _ = require('lodash');
 
 //  No load-time Config() dependency here -- require directly.
 const {
@@ -147,6 +148,53 @@ describe('config schema open maps', () => {
         assert.equal(r.tolerated, true);
     });
 
+    it('leaves a nested block open too, not just the outermost one', () => {
+        //
+        //  The real case: config_default.js ships several archivers and only
+        //  Arj's "list" block carries entryGroupOrder. Taking the first
+        //  example's block wholesale and leaving it closed reported that key
+        //  as a typo in anybody else's archiver.
+        //
+        const s = buildSchema(
+            {
+                archivers: {
+                    one: { list: { cmd: 'a' } },
+                    two: { list: { cmd: 'b', entryGroupOrder: { byteSize: 1 } } },
+                },
+            },
+            { archivers: { openMap: true } }
+        );
+
+        //  unioned, so the key only one example carries is still typed
+        assert.equal(
+            resolvePath(s, 'archivers.mine.list.entryGroupOrder').type,
+            NodeType.Object
+        );
+
+        //  and open, so a key no example carries is tolerated rather than
+        //  reported
+        assert.equal(resolvePath(s, 'archivers.mine.list').closedKeys, false);
+        const r = lookupPath(s, 'archivers.mine.list.somethingElse');
+        assert.equal(r.known, false);
+        assert.equal(r.tolerated, true);
+    });
+
+    it('keeps an open map nested inside an example an open map', () => {
+        //  messageConferences.*.areas: the areas of the one shipped
+        //  conference are not a key list either
+        const s = buildSchema(
+            { confs: { one: { areas: { a: { name: 'A' } } } } },
+            { confs: { openMap: true }, 'confs.*.areas': { openMap: true } }
+        );
+
+        const areas = resolvePath(s, 'confs.whatever.areas');
+        assert.equal(areas.openMap, true);
+        assert.equal(
+            resolvePath(s, 'confs.whatever.areas.anything.name').type,
+            NodeType.String
+        );
+    });
+
     it('prefers an explicit meta value shape over the examples', () => {
         const s = buildSchema(
             { tags: { sample: { unexpected: true } } },
@@ -288,6 +336,48 @@ describe('config schema against config_default.js', () => {
         })(schema, '', false);
 
         assert.deepEqual(orphans, [], `untyped nodes missing from meta: ${orphans}`);
+    });
+
+    it('still finds every meta path the defaults are supposed to declare', () => {
+        //
+        //  Guard 3, and the only one that catches a *rename*. Most meta paths
+        //  are deliberately absent from config_default.js -- messageNetworks
+        //  is not there at all -- and insertDeclaredPaths grafts those on, so
+        //  "it resolves" proves nothing: a renamed fileBase.areas would be
+        //  grafted right back as an open map while the real, renamed block sat
+        //  next to it as a closed object, quietly reporting every area tag a
+        //  sysop wrote as an unknown key.
+        //
+        //  So pin the partition itself. Either half changing means a setting
+        //  moved, and that is worth a look rather than a silent pass.
+        //
+        const DECLARED_IN_DEFAULTS = [
+            'archives.archivers',
+            'contentServers.nntp.publicMessageConferences',
+            'contentServers.web.handlers',
+            'email.outbound.fromDomain',
+            'eventScheduler.events',
+            'fileBase.areas',
+            'fileBase.storageTags',
+            'fileTransferProtocols',
+            'fileTypes',
+            'general.configValidation',
+            'infoExtractUtils',
+            'messageConferences',
+            'term.forceOutputEncoding',
+        ];
+
+        const defaults = require('../core/config_default')();
+        const present = Object.keys(Meta)
+            .filter(p => !p.includes('*'))
+            .filter(p => _.has(defaults, p))
+            .sort();
+
+        assert.deepEqual(
+            present,
+            DECLARED_IN_DEFAULTS,
+            'a meta path moved into or out of config_default.js; check it is still annotated correctly'
+        );
     });
 
     it('knows or tolerates every path in the shipped config template', () => {

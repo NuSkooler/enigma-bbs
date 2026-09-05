@@ -27,6 +27,13 @@ const sanatizeFilename = require('sanitize-filename');
 
 exports.handleConfigCommand = handleConfigCommand;
 
+//
+//  Settings taken verbatim from config_default.js rather than left as a
+//  XXXXX placeholder in misc/config_template.in.hjson. Exported so a test can
+//  reproduce what "config new" writes without duplicating the list -- a copy
+//  would drift, and the config it produces is the one thing the validator is
+//  required never to complain about.
+//
 const ConfigIncludeKeys = [
     'theme',
     'users.preAuthIdleLogoutSeconds',
@@ -40,6 +47,8 @@ const ConfigIncludeKeys = [
     'fileBase.areaStoragePrefix',
     'logging.rotatingFile',
 ];
+
+exports.ConfigIncludeKeys = ConfigIncludeKeys;
 
 const QUESTIONS = {
     Intro: [
