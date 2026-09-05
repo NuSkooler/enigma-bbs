@@ -75,7 +75,12 @@ exports.Config = class Config extends ConfigLoader {
                 }
 
                 const { validateConfig } = require('./config/validate.js');
-                return validateConfig(userConfig, mergedConfig, getSchema());
+                const { validateReferences } = require('./config/refs.js');
+
+                return [
+                    ...validateConfig(userConfig, mergedConfig, getSchema()),
+                    ...validateReferences(mergedConfig),
+                ];
             },
             onValidation: reportValidation
                 ? (issues, context) => {
