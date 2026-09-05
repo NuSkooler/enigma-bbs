@@ -328,6 +328,29 @@ function catCurrentConfig() {
 //  broken configuration is exactly when the databases are least likely to be
 //  reachable, and validation needs none of them.
 //
+//
+//  Colour, unless something says otherwise: --no-colors (as "config cat"
+//  spells it) or the --no-color everyone reaches for anyway, the NO_COLOR
+//  convention, or output that is not a terminal -- piping to a file or to
+//  |tee| should not fill it with escape sequences.
+//
+function colorPainter() {
+    const enabled =
+        false !== argv.colors &&
+        false !== argv.color &&
+        !process.env.NO_COLOR &&
+        Boolean(process.stdout.isTTY);
+
+    const wrap = code => text => (enabled ? `\x1b[${code}m${text}\x1b[0m` : text);
+
+    return {
+        red: wrap('31'),
+        yellow: wrap('33'),
+        cyan: wrap('36'),
+        bold: wrap('1'),
+    };
+}
+
 function validateCurrentConfig() {
     const { initConfig } = require('./oputil_common.js');
     const conf = require('../../core/config.js');
@@ -390,9 +413,16 @@ function validateCurrentConfig() {
             return Severity.Error === a.severity ? -1 : 1;
         });
 
+        const paint = colorPainter();
+
         ordered.forEach(issue => {
             const described = describeIssue(issue);
-            console.info(`  ${described.severity.padEnd(8)} ${described.path}`);
+            const label =
+                Severity.Error === described.severity
+                    ? paint.red(described.severity.padEnd(8))
+                    : paint.yellow(described.severity.padEnd(8));
+
+            console.info(`  ${label} ${paint.cyan(described.path)}`);
             described.message.split('\n').forEach(line => {
                 console.info(`           ${line}`);
             });
