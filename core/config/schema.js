@@ -140,10 +140,36 @@ function isScalar(value) {
     );
 }
 
+//  What meta may say about a node that a union of examples must not discard.
+//  Types and defaults are per-example; these are statements about the setting
+//  itself, so the first example to carry one carries it for all of them.
+const MergeableAnnotations = [
+    'description',
+    'enum',
+    'min',
+    'max',
+    'nullable',
+    'scalarShorthand',
+];
+
+function carryAnnotations(merged, usable) {
+    MergeableAnnotations.forEach(field => {
+        const carrier = usable.find(node => undefined !== node[field]);
+        if (carrier) {
+            merged[field] = carrier[field];
+        }
+    });
+
+    return merged;
+}
+
 //
 //  Union several node shapes into one permissive node. Used for the values of
 //  an open map, where config_default.js ships a couple of example entries
 //  that are emphatically not an exhaustive key list.
+//
+//  No 'default' survives this. A value taken from one example entry is that
+//  entry's data, not a default for the entry a sysop goes on to write.
 //
 function mergeShapes(nodes) {
     const usable = nodes.filter(Boolean);
@@ -165,7 +191,25 @@ function mergeShapes(nodes) {
         if (items.length === usable.length) {
             merged.items = mergeShapes(items);
         }
-        return merged;
+        return carryAnnotations(merged, usable);
+    }
+
+    //
+    //  An open map nested inside an exemplar -- messageConferences.*.areas --
+    //  is still an open map. Its keys are the sysop's, so union what the
+    //  examples say about the *values* and leave the key set alone; merging
+    //  the keys would turn one board's area tags into a key list.
+    //
+    if (usable.some(node => true === node.openMap)) {
+        return carryAnnotations(
+            {
+                type: NodeType.Object,
+                openMap: true,
+                closedKeys: false,
+                value: mergeShapes(usable.map(node => node.value)),
+            },
+            usable
+        );
     }
 
     //
@@ -174,16 +218,34 @@ function mergeShapes(nodes) {
     //  legitimate and appear in neither example -- so this shape types what
     //  it recognises and tolerates the rest.
     //
-    const children = {};
+    //  That has to hold all the way down, not just at the top. A nested block
+    //  is exemplar-derived too: the archivers shipped in config_default.js
+    //  disagree about the keys of their own 'list' blocks -- only Arj carries
+    //  entryGroupOrder -- so taking the first example's block wholesale and
+    //  leaving it closed reports a legitimate key as a typo. Recursing here
+    //  unions the examples and opens every level of the result.
+    //
+    const groups = new Map();
     usable.forEach(node => {
         Object.entries(node.children || {}).forEach(([key, child]) => {
-            if (!Object.prototype.hasOwnProperty.call(children, key)) {
-                children[key] = child;
+            const group = groups.get(key);
+            if (group) {
+                group.push(child);
+            } else {
+                groups.set(key, [child]);
             }
         });
     });
 
-    return { type: NodeType.Object, closedKeys: false, children };
+    const children = {};
+    groups.forEach((group, key) => {
+        children[key] = mergeShapes(group);
+    });
+
+    return carryAnnotations(
+        { type: NodeType.Object, closedKeys: false, children },
+        usable
+    );
 }
 
 function overlay(node, meta) {
