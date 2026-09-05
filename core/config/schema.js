@@ -58,6 +58,19 @@ const MetaFields = [
     'variants',
 ];
 
+//
+//  Look a child up by name without Object.prototype getting a vote.
+//  "constructor", "toString" and friends are present on every plain object,
+//  so a bare children[key] answers yes for keys nothing ever declared -- and
+//  an operator who writes one would be told their configuration is fine.
+//
+function childOf(node, key) {
+    const children = node && node.children;
+    return children && Object.prototype.hasOwnProperty.call(children, key)
+        ? children[key]
+        : undefined;
+}
+
 function childPath(path, key) {
     return path ? `${path}.${key}` : key;
 }
@@ -164,7 +177,7 @@ function mergeShapes(nodes) {
     const children = {};
     usable.forEach(node => {
         Object.entries(node.children || {}).forEach(([key, child]) => {
-            if (!children[key]) {
+            if (!Object.prototype.hasOwnProperty.call(children, key)) {
                 children[key] = child;
             }
         });
@@ -321,7 +334,7 @@ function insertDeclaredPaths(root, meta, compiled) {
                 const segment = segments[i];
                 node.children = node.children || {};
 
-                if (!node.children[segment]) {
+                if (!childOf(node, segment)) {
                     const isLeaf = i === segments.length - 1;
                     const entry = isLeaf ? metaFor(compiled, path) : undefined;
 
@@ -331,7 +344,7 @@ function insertDeclaredPaths(root, meta, compiled) {
                     );
                 }
 
-                node = node.children[segment];
+                node = childOf(node, segment);
             }
         });
 
@@ -357,11 +370,12 @@ function resolvePath(schema, path) {
             continue;
         }
 
-        if (!node.children || !node.children[segment]) {
+        const child = childOf(node, segment);
+        if (!child) {
             return undefined;
         }
 
-        node = node.children[segment];
+        node = child;
     }
 
     return node;
@@ -399,7 +413,7 @@ function lookupPath(schema, path) {
             continue;
         }
 
-        const child = node.children && node.children[segments[i]];
+        const child = childOf(node, segments[i]);
         if (!child) {
             return { known: false, tolerated: false === node.closedKeys };
         }
@@ -430,6 +444,7 @@ function buildSchema(defaultConfig, meta) {
 
 module.exports = {
     buildSchema,
+    childOf,
     resolvePath,
     lookupPath,
     NodeType,

@@ -4,7 +4,7 @@
 //  ENiGMA½
 const { IssueCodes, makeIssue } = require('./issue.js');
 const { canonicalNetworkName, validateOutboundConfig } = require('../bso_util.js');
-const { suggestKey } = require('./validate.js');
+const { suggestKey, keyDistance } = require('./validate.js');
 const DefaultConfig = require('../config_default.js');
 
 //  deps
@@ -89,7 +89,7 @@ function suggestableCandidates(candidates, refPath) {
     return own.length ? own : candidates || [];
 }
 
-function unresolved(issues, { path, value, kind, refPath, candidates }) {
+function unresolved(issues, { path, value, kind, refPath, candidates, hint }) {
     const suggestable = suggestableCandidates(candidates, refPath);
     const suggestion = suggestKey(value, suggestable);
 
@@ -97,26 +97,76 @@ function unresolved(issues, { path, value, kind, refPath, candidates }) {
         value,
         refKind: kind,
         refPath,
-        candidates: suggestable,
+        //  closest first: with forty file areas, the first ten in declaration
+        //  order are arbitrary, and arbitrary is not help
+        candidates: suggestable
+            .slice()
+            .sort((a, b) => keyDistance(value, a) - keyDistance(value, b)),
     };
 
     if (suggestion) {
         detail.suggestion = suggestion;
     }
 
+    if (hint) {
+        detail.hint = hint;
+    }
+
     issues.push(makeIssue(IssueCodes.UnresolvedRef, path, detail));
+}
+
+//
+//  File areas and storage tags are two separate namespaces that look alike,
+//  live beside each other, and are routinely named after the same thing. Using
+//  one where the other belongs is an easy mistake and a completely silent one,
+//  so when the name *is* valid -- just in the wrong namespace -- say so, and
+//  name the area that actually owns it. That is the answer, not a word list.
+//
+function crossNamespaceHint(config, kind, value) {
+    if (RefKind.FileArea === kind) {
+        if (!keysAt(config, 'fileBase.storageTags').includes(value)) {
+            return undefined;
+        }
+
+        const owners = entriesAt(config, 'fileBase.areas')
+            .filter(
+                ([, area]) =>
+                    _.isPlainObject(area) && asArray(area.storageTags).includes(value)
+            )
+            .map(([areaTag]) => areaTag);
+
+        if (owners.length) {
+            return `that is a storage tag; the file area using it is ${owners
+                .map(o => `"${o}"`)
+                .join(' or ')}`;
+        }
+
+        return 'that is a storage tag, not a file area';
+    }
+
+    if (RefKind.StorageTag === kind) {
+        if (keysAt(config, 'fileBase.areas').includes(value)) {
+            return 'that is a file area, not a storage tag';
+        }
+    }
+
+    return undefined;
 }
 
 //  A name that is missing or not a string is a shape problem, which the type
 //  walk already covers; saying so twice helps nobody.
-function checkExact(issues, spec) {
+function checkExact(issues, config, spec) {
     if (!_.isString(spec.value) || 0 === spec.value.length) {
         return;
     }
     if (spec.candidates.includes(spec.value)) {
         return;
     }
-    unresolved(issues, spec);
+
+    unresolved(
+        issues,
+        Object.assign({ hint: crossNamespaceHint(config, spec.kind, spec.value) }, spec)
+    );
 }
 
 function checkNetwork(issues, config, path, value) {
@@ -153,7 +203,7 @@ function checkFileAreaStorageTags(issues, config) {
         }
 
         asArray(area.storageTags).forEach((tag, i) => {
-            checkExact(issues, {
+            checkExact(issues, config, {
                 path: `fileBase.areas.${areaTag}.storageTags[${i}]`,
                 value: tag,
                 kind: RefKind.StorageTag,
@@ -179,7 +229,7 @@ function checkTicAreas(issues, config) {
         const path = `${base}.${externalTag}`;
 
         if (_.isString(entry)) {
-            return checkExact(issues, {
+            return checkExact(issues, config, {
                 path,
                 value: entry,
                 kind: RefKind.FileArea,
@@ -192,7 +242,7 @@ function checkTicAreas(issues, config) {
             return;
         }
 
-        checkExact(issues, {
+        checkExact(issues, config, {
             path: `${path}.areaTag`,
             value: entry.areaTag,
             kind: RefKind.FileArea,
@@ -200,7 +250,7 @@ function checkTicAreas(issues, config) {
             candidates: fileAreas,
         });
 
-        checkExact(issues, {
+        checkExact(issues, config, {
             path: `${path}.storageTag`,
             value: entry.storageTag,
             kind: RefKind.StorageTag,
@@ -271,7 +321,7 @@ function checkPublicMessageConferences(issues, config) {
         const areas = keysAt(config, `messageConferences.${confTag}.areas`);
 
         asArray(areaTags).forEach((areaTag, i) => {
-            checkExact(issues, {
+            checkExact(issues, config, {
                 path: `${path}[${i}]`,
                 value: areaTag,
                 kind: RefKind.MessageArea,

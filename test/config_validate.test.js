@@ -166,6 +166,83 @@ describe('config validation: false positives', () => {
         assert.deepEqual(issues, []);
     });
 
+    it('leaves an underscore-prefixed block alone', () => {
+        //  "_snips" is a long standing convention for fragments that
+        //  @reference: points at -- scratch space, not configuration
+        const issues = validate({
+            _snips: { someArt: 'shared', nested: { more: true } },
+            _scratch: 1,
+        });
+
+        assert.deepEqual(issues, []);
+    });
+
+    it('recognises settings that are read but never defaulted', () => {
+        //
+        //  Every one of these was reported as an unknown key against a real,
+        //  long-lived configuration, and every one is a genuine setting the
+        //  code reads. They are declared in meta because config_default.js
+        //  does not carry them.
+        //
+        const issues = validate({
+            general: {},
+            messageNetworks: { originLine: 'Somewhere in Utah' },
+            email: {
+                transport: { host: 'smtp.example.net' },
+                defaultFrom: 'bbs@example.net',
+                inbound: {
+                    imap: {
+                        host: 'imap.example.net',
+                        user: 'bbs',
+                        password: 'secret',
+                        processedFolder: 'Processed',
+                        failedFolder: 'Failed',
+                    },
+                },
+            },
+            loginServers: {
+                telnet: { address: '10.0.0.1' },
+                ssh: { address: '10.0.0.1' },
+                webSocket: { ws: { address: '10.0.0.1' }, wss: { address: '10.0.0.1' } },
+            },
+            contentServers: {
+                web: {
+                    http: { address: '10.0.0.1' },
+                    https: { address: '10.0.0.1' },
+                    overrideUrlPrefix: 'https://bbs.example.net',
+                    restApi: { corsAllowedOrigins: ['https://example.net'] },
+                },
+                gopher: { address: '10.0.0.1' },
+            },
+            scannerTossers: {
+                ftn_bso: {
+                    defaultNetwork: 'agoranet',
+                    schedule: { import: 'every 1 hours' },
+                    paths: { retain: '/tmp/retain' },
+                },
+            },
+        });
+
+        assert.deepEqual(
+            issues.map(i => i.path),
+            []
+        );
+    });
+
+    it('still reports an address where nothing reads one', () => {
+        //  NNTP listens via a URI and MRC does not bind, so these really are
+        //  inert and saying so is the useful answer
+        const issues = validate({
+            contentServers: { nntp: { nntp: { address: '10.0.0.1' } } },
+            chatServers: { mrc: { address: '10.0.0.1' } },
+        });
+
+        assert.deepEqual(issues.map(i => i.path).sort(), [
+            'chatServers.mrc.address',
+            'contentServers.nntp.nntp.address',
+        ]);
+    });
+
     it('reports a mod section once, not once per key inside it', () => {
         const issues = validate({
             my_fancy_mod: { one: 1, two: 2, three: { four: 4, five: 5 } },
@@ -307,5 +384,112 @@ describe('config validation: issue helpers', () => {
 
     it('returns nothing when there is no schema', () => {
         assert.deepEqual(validateConfig({ a: 1 }, { a: 1 }, undefined), []);
+    });
+});
+
+// ─── Open maps whose values do have a known key set ──────────────────────────
+
+describe('config validation: ticAreas entries', () => {
+    //
+    //  Most open map values cannot be closed -- a file area carries whatever
+    //  keys the operator needs. A ticAreas entry is the exception: its key set
+    //  is short, documented, and fully enumerable, so a near miss there is a
+    //  typo rather than content. Six of these were sitting unreported in a
+    //  real configuration, silently dropping the override they meant to make.
+    //
+    const ticAreas = entries =>
+        validate({ scannerTossers: { ftn_bso: { ticAreas: entries } } });
+
+    it('catches storageTags where storageTag was meant', () => {
+        //  the importer reads .storageTag (ftn_bso.js:2826); the plural is
+        //  simply ignored and the area's first storage tag used instead
+        const [issue] = ticAreas({
+            fsx_myst: { areaTag: 'bbs', storageTags: 'bbs_software' },
+        });
+
+        assert.equal(issue.code, IssueCodes.UnknownKey);
+        assert.equal(issue.suggestion, 'storageTag');
+    });
+
+    it('catches hashTag where hashTags was meant', () => {
+        //  .hashTags is what is read (ftn_bso.js:2825), so the singular means
+        //  no hash tags are applied at all
+        const [issue] = ticAreas({
+            fsx_arts: { areaTag: 'artscene', hashTag: 'artscene' },
+        });
+
+        assert.equal(issue.suggestion, 'hashTags');
+    });
+
+    it('accepts every documented member', () => {
+        assert.deepEqual(
+            ticAreas({
+                full: {
+                    areaTag: 'bbs',
+                    storageTag: 'bbs_software',
+                    hashTags: ['a', 'b'],
+                    network: 'fsxnet',
+                    downlinks: ['21:1/2'],
+                    uplinks: ['21:1/100'],
+                },
+            }),
+            []
+        );
+    });
+
+    it('accepts hashTags as a comma separated string or an array', () => {
+        assert.deepEqual(
+            ticAreas({
+                a: { areaTag: 'bbs', hashTags: 'one,two' },
+                b: { areaTag: 'bbs', hashTags: ['one', 'two'] },
+            }),
+            []
+        );
+    });
+
+    it('accepts the bare string shorthand for an entry', () => {
+        assert.deepEqual(ticAreas({ fsx_node: 'msgNetworks' }), []);
+    });
+});
+
+// ─── Keys that every object already has ──────────────────────────────────────
+
+describe('config validation: inherited property names', () => {
+    //
+    //  A schema node's children live in a plain object, so a bare
+    //  children[key] lookup answers yes for "constructor", "toString" and the
+    //  rest of Object.prototype -- names nothing ever declared. Left alone,
+    //  the validator would tell an operator those keys were perfectly fine,
+    //  and lookupPath() would report them as known.
+    //
+    const inherited = [
+        'constructor',
+        'toString',
+        'hasOwnProperty',
+        'valueOf',
+        'isPrototypeOf',
+        'propertyIsEnumerable',
+        'toLocaleString',
+    ];
+
+    inherited.forEach(key => {
+        it(`reports "${key}" as an unknown key`, () => {
+            const issues = validate({ general: { [key]: 'x' } });
+            assert.deepEqual(
+                issues.map(i => i.path),
+                [`general.${key}`]
+            );
+        });
+    });
+
+    it('does not claim to know such a path', () => {
+        const { lookupPath, buildSchema: build } = require('../core/config/schema');
+        const result = lookupPath(build(), 'general.constructor');
+        assert.equal(result.known, false);
+        assert.equal(result.tolerated, false);
+    });
+
+    it('still resolves a genuinely declared key', () => {
+        assert.deepEqual(validate({ general: { boardName: 'ok' } }), []);
     });
 });

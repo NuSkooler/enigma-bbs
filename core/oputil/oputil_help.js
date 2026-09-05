@@ -120,6 +120,7 @@ cat arguments:
 validate arguments:
   --check-env              Also report @environment:, @file: and @reference:
                            specs that do not resolve in this environment
+  --no-colors              Disable color
 `,
     FileBase: `usage: oputil.js fb <action> [<arguments>]
 
