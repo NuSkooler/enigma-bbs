@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { NodeType } = require('./schema.js');
+const { NodeType, childOf } = require('./schema.js');
 const { IssueCodes, makeIssue } = require('./issue.js');
 
 //  deps
@@ -140,7 +140,7 @@ function collectUnknownKeys(userConfig, schema, issues) {
         const children = node.children || {};
 
         Object.entries(value).forEach(([key, child]) => {
-            const childNode = children[key];
+            const childNode = childOf(node, key);
 
             if (childNode) {
                 return walk(child, childNode, childPath(path, key));
@@ -307,10 +307,10 @@ function collectValueIssues(mergedConfig, schema, issues, options) {
                 return;
             }
 
-            const children = node.children || {};
             Object.entries(value).forEach(([key, child]) => {
-                if (children[key]) {
-                    walk(child, children[key], childPath(path, key));
+                const childNode = childOf(node, key);
+                if (childNode) {
+                    walk(child, childNode, childPath(path, key));
                 }
             });
             return;

@@ -451,3 +451,45 @@ describe('config validation: ticAreas entries', () => {
         assert.deepEqual(ticAreas({ fsx_node: 'msgNetworks' }), []);
     });
 });
+
+// ─── Keys that every object already has ──────────────────────────────────────
+
+describe('config validation: inherited property names', () => {
+    //
+    //  A schema node's children live in a plain object, so a bare
+    //  children[key] lookup answers yes for "constructor", "toString" and the
+    //  rest of Object.prototype -- names nothing ever declared. Left alone,
+    //  the validator would tell an operator those keys were perfectly fine,
+    //  and lookupPath() would report them as known.
+    //
+    const inherited = [
+        'constructor',
+        'toString',
+        'hasOwnProperty',
+        'valueOf',
+        'isPrototypeOf',
+        'propertyIsEnumerable',
+        'toLocaleString',
+    ];
+
+    inherited.forEach(key => {
+        it(`reports "${key}" as an unknown key`, () => {
+            const issues = validate({ general: { [key]: 'x' } });
+            assert.deepEqual(
+                issues.map(i => i.path),
+                [`general.${key}`]
+            );
+        });
+    });
+
+    it('does not claim to know such a path', () => {
+        const { lookupPath, buildSchema: build } = require('../core/config/schema');
+        const result = lookupPath(build(), 'general.constructor');
+        assert.equal(result.known, false);
+        assert.equal(result.tolerated, false);
+    });
+
+    it('still resolves a genuinely declared key', () => {
+        assert.deepEqual(validate({ general: { boardName: 'ok' } }), []);
+    });
+});
