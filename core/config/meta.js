@@ -31,6 +31,13 @@
 //  the schema to build.
 //
 
+//  Every server that binds reads this the same way; unset means all
+//  interfaces.
+const BIND_ADDRESS = {
+    type: 'string',
+    description: 'Interface to bind to. Unset binds every interface.',
+};
+
 module.exports = {
     //  ── Message conferences and areas ────────────────────────────────────
     //  Conference tags and area tags are chosen by the sysop.
@@ -60,6 +67,10 @@ module.exports = {
     //  to catch.
     //
     messageNetworks: { type: 'object', closedKeys: true },
+    'messageNetworks.originLine': {
+        type: 'string',
+        description: 'Origin line appended to exported FTN messages.',
+    },
     'messageNetworks.ftn': { type: 'object', closedKeys: true },
     'messageNetworks.ftn.networks': { openMap: true },
     'messageNetworks.ftn.areas': { openMap: true },
@@ -76,6 +87,15 @@ module.exports = {
     'scannerTossers.ftn_bso.netMail.routes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.nodes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.tempDir': { type: 'string' },
+    'scannerTossers.ftn_bso.defaultNetwork': {
+        type: 'string',
+        description: 'Network whose outbound goes in the unsuffixed directory.',
+    },
+    'scannerTossers.ftn_bso.schedule': { type: 'object' },
+    'scannerTossers.ftn_bso.paths.retain': {
+        type: 'string',
+        description: 'Copy processed packets here; debugging aid.',
+    },
 
     //  ── Content servers ──────────────────────────────────────────────────
     //
@@ -103,12 +123,49 @@ module.exports = {
         description: 'Deprecated; use exposedConfAreas.',
     },
 
+    'contentServers.web.overrideUrlPrefix': {
+        type: 'string',
+        description: 'Replaces the derived scheme://host prefix in generated URLs.',
+    },
+    //  The handler toggle lives under handlers.restApi; its settings live here
+    'contentServers.web.restApi': { type: 'object' },
+
     //  ── Login servers ────────────────────────────────────────────────────
     'loginServers.webSocket.proxied': {
         type: 'boolean',
         description: 'Trust X-Forwarded-For when behind a reverse proxy.',
     },
     'loginServers.ssh.privateKeyPass': { type: 'string' },
+
+    //
+    //  ── Bind addresses ───────────────────────────────────────────────────
+    //
+    //  Undefaulted because unset means "every interface", which is what most
+    //  boards want. Only the servers below actually read it: NNTP listens via
+    //  a URI and MRC does not bind at all, so an "address" under either of
+    //  those really is inert and should keep being reported.
+    //
+    'loginServers.telnet.address': BIND_ADDRESS,
+    'loginServers.ssh.address': BIND_ADDRESS,
+    'loginServers.webSocket.ws.address': BIND_ADDRESS,
+    'loginServers.webSocket.wss.address': BIND_ADDRESS,
+    'contentServers.web.http.address': BIND_ADDRESS,
+    'contentServers.web.https.address': BIND_ADDRESS,
+    'contentServers.gopher.address': BIND_ADDRESS,
+
+    //  ── Email ────────────────────────────────────────────────────────────
+    //  Read but never defaulted; see core/email.js:17-23 and
+    //  core/scanner_tossers/email.js:258-309.
+    'email.transport': {
+        type: 'object',
+        description: 'nodemailer transport options.',
+    },
+    'email.defaultFrom': { type: 'string' },
+    'email.inbound.imap.host': { type: 'string' },
+    'email.inbound.imap.user': { type: 'string' },
+    'email.inbound.imap.password': { type: 'string' },
+    'email.inbound.imap.processedFolder': { type: 'string' },
+    'email.inbound.imap.failedFolder': { type: 'string' },
 
     //  ── Chat servers ─────────────────────────────────────────────────────
     //  Present in the config template but not in the defaults.

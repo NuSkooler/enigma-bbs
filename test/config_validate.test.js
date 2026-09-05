@@ -166,6 +166,83 @@ describe('config validation: false positives', () => {
         assert.deepEqual(issues, []);
     });
 
+    it('leaves an underscore-prefixed block alone', () => {
+        //  "_snips" is a long standing convention for fragments that
+        //  @reference: points at -- scratch space, not configuration
+        const issues = validate({
+            _snips: { someArt: 'shared', nested: { more: true } },
+            _scratch: 1,
+        });
+
+        assert.deepEqual(issues, []);
+    });
+
+    it('recognises settings that are read but never defaulted', () => {
+        //
+        //  Every one of these was reported as an unknown key against a real,
+        //  long-lived configuration, and every one is a genuine setting the
+        //  code reads. They are declared in meta because config_default.js
+        //  does not carry them.
+        //
+        const issues = validate({
+            general: {},
+            messageNetworks: { originLine: 'Somewhere in Utah' },
+            email: {
+                transport: { host: 'smtp.example.net' },
+                defaultFrom: 'bbs@example.net',
+                inbound: {
+                    imap: {
+                        host: 'imap.example.net',
+                        user: 'bbs',
+                        password: 'secret',
+                        processedFolder: 'Processed',
+                        failedFolder: 'Failed',
+                    },
+                },
+            },
+            loginServers: {
+                telnet: { address: '10.0.0.1' },
+                ssh: { address: '10.0.0.1' },
+                webSocket: { ws: { address: '10.0.0.1' }, wss: { address: '10.0.0.1' } },
+            },
+            contentServers: {
+                web: {
+                    http: { address: '10.0.0.1' },
+                    https: { address: '10.0.0.1' },
+                    overrideUrlPrefix: 'https://bbs.example.net',
+                    restApi: { corsAllowedOrigins: ['https://example.net'] },
+                },
+                gopher: { address: '10.0.0.1' },
+            },
+            scannerTossers: {
+                ftn_bso: {
+                    defaultNetwork: 'agoranet',
+                    schedule: { import: 'every 1 hours' },
+                    paths: { retain: '/tmp/retain' },
+                },
+            },
+        });
+
+        assert.deepEqual(
+            issues.map(i => i.path),
+            []
+        );
+    });
+
+    it('still reports an address where nothing reads one', () => {
+        //  NNTP listens via a URI and MRC does not bind, so these really are
+        //  inert and saying so is the useful answer
+        const issues = validate({
+            contentServers: { nntp: { nntp: { address: '10.0.0.1' } } },
+            chatServers: { mrc: { address: '10.0.0.1' } },
+        });
+
+        assert.deepEqual(issues.map(i => i.path).sort(), [
+            'chatServers.mrc.address',
+            'contentServers.nntp.nntp.address',
+        ]);
+    });
+
     it('reports a mod section once, not once per key inside it', () => {
         const issues = validate({
             my_fancy_mod: { one: 1, two: 2, three: { four: 4, five: 5 } },

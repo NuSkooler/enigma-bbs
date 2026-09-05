@@ -112,6 +112,27 @@ describe('config cross-references: file base', () => {
         assert.ok(describeIssue(issue).message.endsWith('known: nodelists'));
     });
 
+    it('sorts what it lists by closeness, not by declaration order', () => {
+        const issues = withChange(c => {
+            c.fileBase.storageTags = {
+                zulu: '/z',
+                nodelists: '/n',
+                nodelist_archive: '/na',
+            };
+            c.fileBase.areas.nodelists.storageTags = ['nodelist_arkive'];
+            //  keep the TIC area pointing somewhere real
+            c.scannerTossers.ftn_bso.ticAreas.fidonet_nodelist.storageTag = 'zulu';
+        });
+
+        const issue = issues.find(
+            i => 'fileBase.areas.nodelists.storageTags[0]' === i.path
+        );
+
+        //  "nodelist_arkive" is nearest "nodelist_archive"; "zulu" is furthest
+        assert.equal(issue.candidates[0], 'nodelist_archive');
+        assert.equal(issue.candidates[issue.candidates.length - 1], 'zulu');
+    });
+
     it('still accepts a reference to an internal tag', () => {
         assert.deepEqual(
             withChange(c => {
@@ -294,5 +315,83 @@ describe('config cross-references: public NNTP conferences', () => {
         );
         assert.equal(issue.refKind, 'message area');
         assert.equal(issue.path, 'contentServers.nntp.publicMessageConferences.local[0]');
+    });
+});
+
+// ─── Names valid in the wrong namespace ──────────────────────────────────────
+
+describe('config cross-references: storage tags used as file areas', () => {
+    //
+    //  File areas and storage tags look alike, sit beside each other, and are
+    //  routinely named after the same thing, so using one where the other
+    //  belongs is easy and completely silent. Seen on a real board: three TIC
+    //  areas whose areaTag named a storage tag.
+    //
+    it('says which namespace the name really belongs to, and who owns it', () => {
+        const issue = onlyIssue(
+            withChange(c => {
+                //  "nodelists" is a storage tag; the area using it is also
+                //  called "nodelists", so point at something unambiguous
+                c.fileBase.storageTags.phenom_files = '/tmp/phenom';
+                c.fileBase.areas.phenom = {
+                    name: 'Phenom',
+                    storageTags: ['phenom_files'],
+                };
+                c.scannerTossers.ftn_bso.ticAreas.fidonet_nodelist.areaTag =
+                    'phenom_files';
+            })
+        );
+
+        assert.equal(issue.code, IssueCodes.UnresolvedRef);
+        assert.equal(
+            describeIssue(issue).message,
+            'file area "phenom_files" is not defined in fileBase.areas -- that is a storage tag; the file area using it is "phenom"'
+        );
+    });
+
+    it('names every area when more than one uses that storage tag', () => {
+        const issue = onlyIssue(
+            withChange(c => {
+                c.fileBase.storageTags.shared = '/tmp/shared';
+                c.fileBase.areas.one = { name: 'One', storageTags: ['shared'] };
+                c.fileBase.areas.two = { name: 'Two', storageTags: ['shared'] };
+                c.scannerTossers.ftn_bso.ticAreas.fidonet_nodelist.areaTag = 'shared';
+            })
+        );
+
+        assert.ok(describeIssue(issue).message.includes('"one" or "two"'));
+    });
+
+    it('still says so when no area uses that storage tag', () => {
+        const issue = onlyIssue(
+            withChange(c => {
+                c.fileBase.storageTags.orphan = '/tmp/orphan';
+                c.scannerTossers.ftn_bso.ticAreas.fidonet_nodelist.areaTag = 'orphan';
+            })
+        );
+
+        assert.ok(
+            describeIssue(issue).message.endsWith(
+                'that is a storage tag, not a file area'
+            )
+        );
+    });
+
+    it('catches the mistake the other way round too', () => {
+        const issue = onlyIssue(
+            withChange(c => {
+                //  a file area tag used where a storage tag belongs
+                c.scannerTossers.ftn_bso.ticAreas.fidonet_nodelist.storageTag =
+                    'nodelists';
+                delete c.fileBase.storageTags.nodelists;
+                c.fileBase.areas.nodelists.storageTags = [];
+            })
+        );
+
+        assert.ok(
+            describeIssue(issue).message.endsWith(
+                'that is a file area, not a storage tag'
+            )
+        );
     });
 });

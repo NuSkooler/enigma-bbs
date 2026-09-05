@@ -147,6 +147,16 @@ function collectUnknownKeys(userConfig, schema, issues) {
             }
 
             //
+            //  A leading underscore is a long standing convention here for a
+            //  block that is not configuration at all: "_snips" holding
+            //  fragments for @reference to point at, for instance. It is
+            //  scratch space the operator keeps on purpose, so leave it be.
+            //
+            if (key.startsWith('_')) {
+                return;
+            }
+
+            //
             //  Only complain where the schema claims to know every key. A
             //  shape derived from a couple of example entries does not, and
             //  neither does a section we only know about because meta
@@ -318,7 +328,14 @@ function validateConfig(userConfig, mergedConfig, schema, options = {}) {
     return issues;
 }
 
+//  Unbounded enough for ordering a candidate list by closeness; the cap
+//  only stops the matrix growing without limit on absurd input.
+function keyDistance(a, b) {
+    return editDistance(String(a).toLowerCase(), String(b).toLowerCase(), 64);
+}
+
 module.exports = {
     validateConfig,
     suggestKey,
+    keyDistance,
 };
