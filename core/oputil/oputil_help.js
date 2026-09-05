@@ -111,9 +111,15 @@ Actions:
 
   cat                      Write current configuration to stdout
 
+  validate                 Check the configuration for problems
+
 cat arguments:
   --no-colors              Disable color
   --no-comments            Strip any comments
+
+validate arguments:
+  --check-env              Also report @environment:, @file: and @reference:
+                           specs that do not resolve in this environment
 `,
     FileBase: `usage: oputil.js fb <action> [<arguments>]
 
