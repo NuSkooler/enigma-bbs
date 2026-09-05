@@ -386,3 +386,68 @@ describe('config validation: issue helpers', () => {
         assert.deepEqual(validateConfig({ a: 1 }, { a: 1 }, undefined), []);
     });
 });
+
+// ─── Open maps whose values do have a known key set ──────────────────────────
+
+describe('config validation: ticAreas entries', () => {
+    //
+    //  Most open map values cannot be closed -- a file area carries whatever
+    //  keys the operator needs. A ticAreas entry is the exception: its key set
+    //  is short, documented, and fully enumerable, so a near miss there is a
+    //  typo rather than content. Six of these were sitting unreported in a
+    //  real configuration, silently dropping the override they meant to make.
+    //
+    const ticAreas = entries =>
+        validate({ scannerTossers: { ftn_bso: { ticAreas: entries } } });
+
+    it('catches storageTags where storageTag was meant', () => {
+        //  the importer reads .storageTag (ftn_bso.js:2826); the plural is
+        //  simply ignored and the area's first storage tag used instead
+        const [issue] = ticAreas({
+            fsx_myst: { areaTag: 'bbs', storageTags: 'bbs_software' },
+        });
+
+        assert.equal(issue.code, IssueCodes.UnknownKey);
+        assert.equal(issue.suggestion, 'storageTag');
+    });
+
+    it('catches hashTag where hashTags was meant', () => {
+        //  .hashTags is what is read (ftn_bso.js:2825), so the singular means
+        //  no hash tags are applied at all
+        const [issue] = ticAreas({
+            fsx_arts: { areaTag: 'artscene', hashTag: 'artscene' },
+        });
+
+        assert.equal(issue.suggestion, 'hashTags');
+    });
+
+    it('accepts every documented member', () => {
+        assert.deepEqual(
+            ticAreas({
+                full: {
+                    areaTag: 'bbs',
+                    storageTag: 'bbs_software',
+                    hashTags: ['a', 'b'],
+                    network: 'fsxnet',
+                    downlinks: ['21:1/2'],
+                    uplinks: ['21:1/100'],
+                },
+            }),
+            []
+        );
+    });
+
+    it('accepts hashTags as a comma separated string or an array', () => {
+        assert.deepEqual(
+            ticAreas({
+                a: { areaTag: 'bbs', hashTags: 'one,two' },
+                b: { areaTag: 'bbs', hashTags: ['one', 'two'] },
+            }),
+            []
+        );
+    });
+
+    it('accepts the bare string shorthand for an entry', () => {
+        assert.deepEqual(ticAreas({ fsx_node: 'msgNetworks' }), []);
+    });
+});

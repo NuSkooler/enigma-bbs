@@ -83,7 +83,31 @@ module.exports = {
 
     //  ── FTN BSO scanner/tosser ───────────────────────────────────────────
     'scannerTossers.ftn_bso.nodes': { openMap: true },
-    'scannerTossers.ftn_bso.ticAreas': { openMap: true },
+    //
+    //  Unlike a file area, a ticAreas entry has a short, documented and
+    //  fully enumerable key set -- docs/_docs/filebase/tic-support.md lists
+    //  it -- so this one really can be closed. That matters: 'storageTags'
+    //  for 'storageTag', or 'hashTag' for 'hashTags', is silently ignored by
+    //  the importer and the override simply never happens.
+    //
+    'scannerTossers.ftn_bso.ticAreas': {
+        openMap: true,
+        value: {
+            type: 'object',
+            closedKeys: true,
+            //  a bare string is shorthand for { areaTag: <it> }
+            scalarShorthand: true,
+            children: {
+                areaTag: { type: 'string' },
+                storageTag: { type: 'string' },
+                //  one or more; a comma separated string or an array
+                hashTags: {},
+                network: { type: 'string' },
+                downlinks: {},
+                uplinks: {},
+            },
+        },
+    },
     'scannerTossers.ftn_bso.netMail.routes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.nodes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.tempDir': { type: 'string' },

@@ -264,7 +264,17 @@ function checkLeaf(value, node, path, issues, options) {
 //
 function collectValueIssues(mergedConfig, schema, issues, options) {
     (function walk(value, node, path) {
-        if (!node || NodeType.Unknown === node.type || undefined === value) {
+        //
+        //  A node with no type at all is one meta declared for its existence
+        //  rather than its shape -- "hashTags" is legitimately either a comma
+        //  separated string or an array. Knowing the key is real is the point;
+        //  guessing at its type is not.
+        //
+        if (!node || !node.type || NodeType.Unknown === node.type) {
+            return;
+        }
+
+        if (undefined === value) {
             return;
         }
 
@@ -279,6 +289,15 @@ function collectValueIssues(mergedConfig, schema, issues, options) {
 
         if (NodeType.Object === node.type) {
             if (!_.isPlainObject(value)) {
+                //
+                //  Some blocks accept a bare scalar as documented shorthand
+                //  for their commonest field -- a ticAreas entry given as a
+                //  plain string means { areaTag: <it> }.
+                //
+                if (true === node.scalarShorthand && !Array.isArray(value)) {
+                    return;
+                }
+
                 issues.push(
                     makeIssue(IssueCodes.TypeMismatch, path, {
                         expected: NodeType.Object,
