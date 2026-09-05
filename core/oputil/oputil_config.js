@@ -350,9 +350,14 @@ function validateCurrentConfig() {
             Severity,
         } = require('../../core/config/issue.js');
 
-        const issues = validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
-            checkEnv: true === argv['check-env'],
-        });
+        const { validateReferences } = require('../../core/config/refs.js');
+
+        const issues = [
+            ...validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
+                checkEnv: true === argv['check-env'],
+            }),
+            ...validateReferences(conf.get()),
+        ];
 
         const configPath = getConfigPath();
 
