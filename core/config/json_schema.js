@@ -4,6 +4,9 @@
 //  ENiGMA½
 const { NodeType } = require('./schema.js');
 
+//  deps
+const paths = require('path');
+
 //
 //  Projects the internal configuration schema into a JSON Schema document
 //  (draft 2020-12).
@@ -35,6 +38,12 @@ const { NodeType } = require('./schema.js');
 //    * An unrecognised key is an *error* to a JSON Schema validator and only
 //      a *warning* to ENiGMA, which boots regardless.
 //
+//  The output has to be byte-identical wherever it is generated, or the
+//  staleness guard reports a difference between two checkouts as a stale
+//  artifact. Roughly thirty defaults in config_default.js are built from
+//  __dirname and so embed the installation directory; those are described
+//  rather than quoted. See installDerived() below.
+//
 
 const JSON_SCHEMA_DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 
@@ -59,6 +68,58 @@ const ROOT_COMMENT = [
     'Where this says "additionalProperties": false, ENiGMA itself only warns.',
     'It never refuses to boot over a key it does not recognise.',
 ].join('\n');
+
+//
+//  Where this checkout happens to live. Nothing carrying it may reach the
+//  artifact: a default of "/home/someone/enigma-bbs/misc/bad_passwords.txt"
+//  is not a default of ENiGMA½, it is a property of one machine, and quoting
+//  it would both mislead a consumer and make the file differ between the
+//  developer who generated it and the CI that checks it.
+//
+const INSTALL_ROOT = paths.resolve(__dirname, '..', '..');
+
+const posix = value => String(value).split(paths.sep).join('/');
+
+function underInstallRoot(value) {
+    if ('string' === typeof value) {
+        return value.startsWith(INSTALL_ROOT + paths.sep);
+    }
+    if (Array.isArray(value)) {
+        return value.some(underInstallRoot);
+    }
+    if (value && 'object' === typeof value) {
+        return Object.values(value).some(underInstallRoot);
+    }
+    return false;
+}
+
+//
+//  Say what the default is without quoting it. A consumer that wrote a
+//  relative path back into config.hjson would be wrong -- the real value is
+//  absolute -- so this deliberately goes in $comment rather than "default".
+//
+function installDerived(value) {
+    if ('string' !== typeof value) {
+        return 'Default is derived from the installation directory.';
+    }
+
+    const relative = posix(value.slice(INSTALL_ROOT.length + 1));
+    return `Default: <installation directory>/${relative}`;
+}
+
+function withDefault(out, node) {
+    if (undefined === node.default) {
+        return out;
+    }
+
+    if (underInstallRoot(node.default)) {
+        out.$comment = installDerived(node.default);
+        return out;
+    }
+
+    out.default = node.default;
+    return out;
+}
 
 //
 //  Only ever emit "additionalProperties": false where the schema claims to
@@ -89,11 +150,7 @@ function scalarSchema(node) {
     if (undefined !== node.max) {
         out.maximum = node.max;
     }
-    if (undefined !== node.default) {
-        out.default = node.default;
-    }
-
-    return out;
+    return withDefault(out, node);
 }
 
 function arraySchema(node) {
@@ -106,11 +163,7 @@ function arraySchema(node) {
         out.items = convert(node.items);
     }
 
-    if (undefined !== node.default) {
-        out.default = node.default;
-    }
-
-    return out;
+    return withDefault(out, node);
 }
 
 function openMapSchema(node) {
@@ -233,6 +286,7 @@ function serialize(jsonSchema) {
 module.exports = {
     toJsonSchema,
     serialize,
+    INSTALL_ROOT,
     JSON_SCHEMA_DRAFT,
     SCHEMA_ID,
 };

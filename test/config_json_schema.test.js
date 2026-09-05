@@ -10,6 +10,7 @@ const {
     toJsonSchema,
     serialize,
     JSON_SCHEMA_DRAFT,
+    INSTALL_ROOT,
 } = require('../core/config/json_schema');
 
 const ARTIFACT_PATH = paths.join(__dirname, '../misc/config.schema.json');
@@ -172,6 +173,30 @@ describe('config JSON Schema artifact', () => {
             checkedIn,
             'misc/config.schema.json is stale -- run "npm run build:schema" and commit the result'
         );
+    });
+
+    it('says nothing about where this checkout happens to live', () => {
+        //
+        //  Roughly forty defaults in config_default.js are built from
+        //  __dirname, so quoting them puts the developer's home directory in a
+        //  published artifact -- and makes the staleness guard above report
+        //  the difference between two checkouts as a stale file. It failed in
+        //  CI for exactly that reason before this existed.
+        //
+        const text = fs.readFileSync(ARTIFACT_PATH, 'utf8');
+
+        assert.ok(
+            !text.includes(INSTALL_ROOT),
+            `artifact quotes the installation directory (${INSTALL_ROOT}); a path default is being emitted verbatim`
+        );
+    });
+
+    it('describes an installation-derived default instead of quoting it', () => {
+        const logs = JSON.parse(fs.readFileSync(ARTIFACT_PATH, 'utf8')).properties.paths
+            .properties.logs;
+
+        assert.equal(logs.default, undefined);
+        assert.equal(logs.$comment, 'Default: <installation directory>/logs/');
     });
 
     it('is valid JSON and parses back to the same document', () => {

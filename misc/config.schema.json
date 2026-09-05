@@ -149,7 +149,7 @@
                 },
                 "badPassFile": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/misc/bad_passwords.txt"
+                    "$comment": "Default: <installation directory>/misc/bad_passwords.txt"
                 },
                 "realNameMax": {
                     "type": "number",
@@ -271,15 +271,15 @@
                             "properties": {
                                 "registerEmailText": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/misc/otp_register_email.template.txt"
+                                    "$comment": "Default: <installation directory>/misc/otp_register_email.template.txt"
                                 },
                                 "registerEmailHtml": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/misc/otp_register_email.template.html"
+                                    "$comment": "Default: <installation directory>/misc/otp_register_email.template.html"
                                 },
                                 "registerPageTemplate": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/www/otp_register.template.html"
+                                    "$comment": "Default: <installation directory>/www/otp_register.template.html"
                                 }
                             },
                             "patternProperties": {
@@ -298,11 +298,11 @@
                     "properties": {
                         "storagePath": {
                             "type": "string",
-                            "default": "/home/bryan/dev/enigma-bbs/userdata/avatars/"
+                            "$comment": "Default: <installation directory>/userdata/avatars/"
                         },
                         "spritesPath": {
                             "type": "string",
-                            "default": "/home/bryan/dev/enigma-bbs/misc/avatar-sprites/"
+                            "$comment": "Default: <installation directory>/misc/avatar-sprites/"
                         }
                     },
                     "patternProperties": {
@@ -427,71 +427,71 @@
             "properties": {
                 "config": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/config/"
+                    "$comment": "Default: <installation directory>/config/"
                 },
                 "security": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/config/security"
+                    "$comment": "Default: <installation directory>/config/security"
                 },
                 "mods": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/mods/"
+                    "$comment": "Default: <installation directory>/mods/"
                 },
                 "loginServers": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/core/servers/login/"
+                    "$comment": "Default: <installation directory>/core/servers/login/"
                 },
                 "contentServers": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/core/servers/content/"
+                    "$comment": "Default: <installation directory>/core/servers/content/"
                 },
                 "webHandlers": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/core/servers/content/web_handlers"
+                    "$comment": "Default: <installation directory>/core/servers/content/web_handlers"
                 },
                 "chatServers": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/core/servers/chat/"
+                    "$comment": "Default: <installation directory>/core/servers/chat/"
                 },
                 "scannerTossers": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/core/scanner_tossers/"
+                    "$comment": "Default: <installation directory>/core/scanner_tossers/"
                 },
                 "mailers": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/core/mailers/"
+                    "$comment": "Default: <installation directory>/core/mailers/"
                 },
                 "art": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/art/general/"
+                    "$comment": "Default: <installation directory>/art/general/"
                 },
                 "themes": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/art/themes/"
+                    "$comment": "Default: <installation directory>/art/themes/"
                 },
                 "logs": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/logs/"
+                    "$comment": "Default: <installation directory>/logs/"
                 },
                 "db": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/db/"
+                    "$comment": "Default: <installation directory>/db/"
                 },
                 "modsDb": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/db/mods/"
+                    "$comment": "Default: <installation directory>/db/mods/"
                 },
                 "dropFiles": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/drop/"
+                    "$comment": "Default: <installation directory>/drop/"
                 },
                 "misc": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/misc/"
+                    "$comment": "Default: <installation directory>/misc/"
                 },
                 "emailInbound": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/mail/email/"
+                    "$comment": "Default: <installation directory>/mail/email/"
                 }
             },
             "patternProperties": {
@@ -540,7 +540,7 @@
                         },
                         "privateKeyPem": {
                             "type": "string",
-                            "default": "/home/bryan/dev/enigma-bbs/config/security/ssh_private_key.pem"
+                            "$comment": "Default: <installation directory>/config/security/ssh_private_key.pem"
                         },
                         "firstMenu": {
                             "type": "string",
@@ -683,11 +683,11 @@
                                 },
                                 "certPem": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/config/https_cert.pem"
+                                    "$comment": "Default: <installation directory>/config/https_cert.pem"
                                 },
                                 "keyPem": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/config/https_cert_key.pem"
+                                    "$comment": "Default: <installation directory>/config/https_cert_key.pem"
                                 },
                                 "address": {
                                     "description": "Interface to bind to. Unset binds every interface.",
@@ -727,7 +727,7 @@
                         },
                         "staticRoot": {
                             "type": "string",
-                            "default": "/home/bryan/dev/enigma-bbs/www"
+                            "$comment": "Default: <installation directory>/www"
                         },
                         "logging": {
                             "type": "object",
@@ -798,15 +798,15 @@
                             "properties": {
                                 "resetPassEmailText": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/misc/reset_password_email.template.txt"
+                                    "$comment": "Default: <installation directory>/misc/reset_password_email.template.txt"
                                 },
                                 "resetPassEmailHtml": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/misc/reset_password_email.template.html"
+                                    "$comment": "Default: <installation directory>/misc/reset_password_email.template.html"
                                 },
                                 "resetPageTemplate": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/www/reset_password.template.html"
+                                    "$comment": "Default: <installation directory>/www/reset_password.template.html"
                                 },
                                 "tokenTtlMinutes": {
                                     "type": "number",
@@ -929,11 +929,11 @@
                                 },
                                 "certPem": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/config/https_cert.pem"
+                                    "$comment": "Default: <installation directory>/config/https_cert.pem"
                                 },
                                 "keyPem": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/config/https_cert_key.pem"
+                                    "$comment": "Default: <installation directory>/config/https_cert_key.pem"
                                 },
                                 "address": {
                                     "description": "Interface to bind to. Unset binds every interface.",
@@ -979,7 +979,7 @@
                         },
                         "staticRoot": {
                             "type": "string",
-                            "default": "/home/bryan/dev/enigma-bbs/gopher"
+                            "$comment": "Default: <installation directory>/gopher"
                         },
                         "address": {
                             "description": "Interface to bind to. Unset binds every interface.",
@@ -1060,11 +1060,11 @@
                                 },
                                 "certPem": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/config/nntps_cert.pem"
+                                    "$comment": "Default: <installation directory>/config/nntps_cert.pem"
                                 },
                                 "keyPem": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/config/nntps_key.pem"
+                                    "$comment": "Default: <installation directory>/config/nntps_key.pem"
                                 }
                             },
                             "patternProperties": {
@@ -1534,19 +1534,19 @@
                             "properties": {
                                 "outbound": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/mail/ftn_out/"
+                                    "$comment": "Default: <installation directory>/mail/ftn_out/"
                                 },
                                 "inbound": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/mail/ftn_in/"
+                                    "$comment": "Default: <installation directory>/mail/ftn_in/"
                                 },
                                 "secInbound": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/mail/ftn_secin/"
+                                    "$comment": "Default: <installation directory>/mail/ftn_secin/"
                                 },
                                 "reject": {
                                     "type": "string",
-                                    "default": "/home/bryan/dev/enigma-bbs/mail/reject/"
+                                    "$comment": "Default: <installation directory>/mail/reject/"
                                 },
                                 "retain": {
                                     "description": "Copy processed packets here; debugging aid.",
@@ -1769,7 +1769,7 @@
             "properties": {
                 "areaStoragePrefix": {
                     "type": "string",
-                    "default": "/home/bryan/dev/enigma-bbs/file_base/"
+                    "$comment": "Default: <installation directory>/file_base/"
                 },
                 "maxDescFileByteSize": {
                     "type": "number",
