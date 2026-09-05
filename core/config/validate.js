@@ -147,6 +147,16 @@ function collectUnknownKeys(userConfig, schema, issues) {
             }
 
             //
+            //  A leading underscore is a long standing convention here for a
+            //  block that is not configuration at all: "_snips" holding
+            //  fragments for @reference to point at, for instance. It is
+            //  scratch space the operator keeps on purpose, so leave it be.
+            //
+            if (key.startsWith('_')) {
+                return;
+            }
+
+            //
             //  Only complain where the schema claims to know every key. A
             //  shape derived from a couple of example entries does not, and
             //  neither does a section we only know about because meta
