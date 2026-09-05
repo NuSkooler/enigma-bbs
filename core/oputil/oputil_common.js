@@ -16,6 +16,7 @@ const packageJson = require('../../package.json');
 exports.printUsageAndSetExitCode = printUsageAndSetExitCode;
 exports.getDefaultConfigPath = getDefaultConfigPath;
 exports.getConfigPath = getConfigPath;
+exports.initConfig = initConfig;
 exports.initConfigAndDatabases = initConfigAndDatabases;
 exports.getAreaAndStorage = getAreaAndStorage;
 exports.looksLikePattern = looksLikePattern;
@@ -45,7 +46,7 @@ const argv = (exports.argv = require('minimist')(process.argv.slice(2), {
         c: 'config',
         n: 'no-prompt',
     },
-    boolean: ['quick', 'full', 'verbose', 'update', 'yes'],
+    boolean: ['quick', 'full', 'verbose', 'update', 'yes', 'check-env'],
 }));
 
 function printUsageAndSetExitCode(errMsg, exitCode) {

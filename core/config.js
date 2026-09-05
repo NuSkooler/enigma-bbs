@@ -58,6 +58,8 @@ exports.Config = class Config extends ConfigLoader {
             //  instance we just created
             exports.get = systemConfigInstance.get.bind(systemConfigInstance);
             exports.reload = systemConfigInstance.reload.bind(systemConfigInstance);
+            exports.getUserConfig =
+                systemConfigInstance.getUserConfig.bind(systemConfigInstance);
 
             return cb(null);
         });
