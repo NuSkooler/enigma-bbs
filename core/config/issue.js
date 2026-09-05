@@ -71,8 +71,16 @@ function makeIssue(code, path, extra = {}) {
     return Object.assign({ code, severity: severityOf(code), path }, extra);
 }
 
+//  A board may have a great many areas; listing them all turns a useful
+//  message into a wall of text.
+const MAX_LISTED = 10;
+
 function listOf(values) {
-    return (values || []).join(', ');
+    const all = values || [];
+    if (all.length <= MAX_LISTED) {
+        return all.join(', ');
+    }
+    return `${all.slice(0, MAX_LISTED).join(', ')}, ... (${all.length - MAX_LISTED} more)`;
 }
 
 function describeIssue(issue) {
@@ -103,7 +111,11 @@ function describeIssue(issue) {
 
         case IssueCodes.UnresolvedRef:
             message = `${issue.refKind} "${issue.value}" is not defined in ${issue.refPath}`;
-            if (issue.candidates && issue.candidates.length) {
+            //  A near miss is the answer, so say it and stop. The full list is
+            //  only worth printing when there is nothing close to point at.
+            if (issue.suggestion) {
+                message += ` -- did you mean "${issue.suggestion}"?`;
+            } else if (issue.candidates && issue.candidates.length) {
                 message += `\nknown: ${listOf(issue.candidates)}`;
             }
             break;
