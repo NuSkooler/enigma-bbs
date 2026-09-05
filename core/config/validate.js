@@ -328,7 +328,14 @@ function validateConfig(userConfig, mergedConfig, schema, options = {}) {
     return issues;
 }
 
+//  Unbounded enough for ordering a candidate list by closeness; the cap
+//  only stops the matrix growing without limit on absurd input.
+function keyDistance(a, b) {
+    return editDistance(String(a).toLowerCase(), String(b).toLowerCase(), 64);
+}
+
 module.exports = {
     validateConfig,
     suggestKey,
+    keyDistance,
 };
