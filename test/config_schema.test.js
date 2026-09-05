@@ -325,3 +325,83 @@ describe('config schema against config_default.js', () => {
         );
     });
 });
+
+// ─── Drift guard: settings the code reads must be declared ───────────────────
+
+describe('config schema read-path coverage', () => {
+    //
+    //  The guard that makes the schema self-maintaining. Every config path the
+    //  code reads has to resolve, or a legitimate setting shows up as an
+    //  unknown key to whoever configures it -- which is exactly what happened
+    //  to twenty of them, found only by running against a real board rather
+    //  than by any test.
+    //
+    //  Only string-literal _.get() reads are visible to this. Array-form,
+    //  template-literal and computed paths are not, and neither are direct
+    //  Config().a.b dereferences; those remain a manually curated set.
+    //
+    const SOURCE_DIRS = ['core'];
+
+    //
+    //  These are read from a *sub-config* rather than from the root -- e.g.
+    //  websocket.js is handed loginServers.webSocket and reads "ws.port" from
+    //  it -- so they are not root paths and cannot resolve. Verified by hand;
+    //  keep the list short and justify anything added to it.
+    //
+    const RELATIVE_TO_A_SUB_CONFIG = [
+        'inbound.enabled', //  core/scanner_tossers/email.js, given email{}
+        'ws.enabled', //  core/servers/login/websocket.js, given
+        'ws.port', //    loginServers.webSocket{}
+        'wss.enabled',
+        'wss.port',
+    ];
+
+    it('resolves every config path the code reads', () => {
+        const { execFileSync } = require('child_process');
+        const schema = buildSchema();
+
+        const out = execFileSync(
+            'grep',
+            [
+                '-rhno',
+                '_\\.get(\\s*\\(config\\|Config()\\)\\s*,\\s*[\'"][^\'"]*[\'"]',
+                ...SOURCE_DIRS.map(d => paths.join(__dirname, '..', d)),
+            ],
+            { encoding: 'utf8' }
+        );
+
+        const readPaths = [
+            ...new Set(
+                out
+                    .split('\n')
+                    .map(line => {
+                        const m = line.match(/,\s*['"]([^'"]+)['"]/);
+                        return m ? m[1] : undefined;
+                    })
+                    .filter(Boolean)
+            ),
+        ];
+
+        //  a sanity check on the grep itself: if this ever collapses to a
+        //  handful, the pattern has stopped matching and the guard is asleep
+        assert.ok(
+            readPaths.length > 50,
+            `expected to find many read paths, found ${readPaths.length}`
+        );
+
+        const undeclared = readPaths
+            .filter(p => !RELATIVE_TO_A_SUB_CONFIG.includes(p))
+            .filter(p => {
+                const r = lookupPath(schema, p);
+                return !r.known && !r.tolerated;
+            });
+
+        assert.deepEqual(
+            undeclared,
+            [],
+            `config paths the code reads but the schema does not know: ${undeclared.join(
+                ', '
+            )}. Declare them in core/config/meta.js.`
+        );
+    });
+});
