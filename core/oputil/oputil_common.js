@@ -73,7 +73,14 @@ function getConfigPath() {
 function initConfig(cb) {
     const configPath = getConfigPath();
 
-    config.Config.create(configPath, { keepWsc: true, hotReload: false }, cb);
+    //  reportValidation: 'config validate' runs the validator itself, with
+    //  its own formatting and exit code; without this it would say everything
+    //  twice.
+    config.Config.create(
+        configPath,
+        { keepWsc: true, hotReload: false, reportValidation: false },
+        cb
+    );
 }
 
 function initConfigAndDatabases(cb) {

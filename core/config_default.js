@@ -16,6 +16,15 @@ module.exports = () => {
             menuFile: 'menu.hjson', //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
             achievementFile: 'achievements.hjson',
             maxConnections: 0, //  0 or less means 'unlimited'
+
+            //
+            //  Report configuration problems -- unrecognised keys, values of
+            //  the wrong type -- at startup and on hot reload. Set to 'off'
+            //  to stay silent; './oputil.js config validate' still works
+            //  either way. Nothing here ever refuses to boot, so there is
+            //  deliberately no 'strict'.
+            //
+            configValidation: 'warn', //  'warn' | 'off'
         },
 
         term: {
