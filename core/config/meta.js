@@ -142,6 +142,15 @@ module.exports = {
         description: 'Domain used for generated From addresses; null falls back to defaultFrom.',
     },
 
+    //  ── Validation's own knob ────────────────────────────────────────────
+    //  Two valued on purpose: nothing ever refuses to boot, so no 'strict'.
+    'general.configValidation': {
+        type: 'string',
+        enum: ['warn', 'off'],
+        description:
+            'Report configuration problems at startup and on reload, or stay silent.',
+    },
+
     //  ── Root ─────────────────────────────────────────────────────────────
     includes: {
         type: 'array',

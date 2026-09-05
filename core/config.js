@@ -7,6 +7,20 @@ const _ = require('lodash');
 //  Global system configuration instance; see Config.create()
 let systemConfigInstance;
 
+//
+//  Built from config_default.js and config/meta.js, both static for the life
+//  of the process: a hot reload changes the operator's data, never the shape
+//  it is checked against. Built lazily so that merely requiring this module
+//  costs nothing.
+//
+let schemaInstance;
+function getSchema() {
+    if (!schemaInstance) {
+        schemaInstance = require('./config/schema.js').buildSchema();
+    }
+    return schemaInstance;
+}
+
 exports.Config = class Config extends ConfigLoader {
     constructor(options) {
         super(options);
@@ -27,7 +41,16 @@ exports.Config = class Config extends ConfigLoader {
 
         const replaceKeys = ['args', 'sendArgs', 'recvArgs', 'recvArgsNonBatch'];
 
-        const configOptions = Object.assign({}, options, {
+        options = options || {};
+
+        //
+        //  oputil's "config validate" runs the validator itself so it can
+        //  choose its own formatting and exit code; without this it would also
+        //  get the boot time report and say everything twice.
+        //
+        const reportValidation = false !== options.reportValidation;
+
+        const configOptions = Object.assign({}, _.omit(options, 'reportValidation'), {
             defaultConfig: DefaultConfig,
             defaultsCustomizer: (defaultVal, configVal, key, path) => {
                 if (Array.isArray(defaultVal) && Array.isArray(configVal)) {
@@ -40,6 +63,25 @@ exports.Config = class Config extends ConfigLoader {
                     }
                 }
             },
+            //
+            //  Advisory only: nothing here can stop a boot or fail a reload.
+            //  ConfigLoader guards both calls, so a bug in any of this cannot
+            //  take the board down.
+            //
+            validator: (userConfig, mergedConfig) => {
+                const { isEnabled } = require('./config/report.js');
+                if (!isEnabled(mergedConfig)) {
+                    return [];
+                }
+
+                const { validateConfig } = require('./config/validate.js');
+                return validateConfig(userConfig, mergedConfig, getSchema());
+            },
+            onValidation: reportValidation
+                ? (issues, context) => {
+                      require('./config/report.js').reportIssues(issues, context);
+                  }
+                : null,
             onReload: err => {
                 if (!err) {
                     const Events = require('./events.js');
