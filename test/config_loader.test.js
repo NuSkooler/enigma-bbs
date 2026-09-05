@@ -313,3 +313,163 @@ describe('ConfigLoader debounce (_scheduleReload)', () => {
         });
     });
 });
+
+// ─── Pre-merge capture and validation hook ───────────────────────────────────
+
+describe('ConfigLoader.getUserConfig()', () => {
+    //
+    //  Once the defaults are merged in there is no way to tell a deliberate
+    //  setting from a default, so a misspelled key -- which lands beside the
+    //  correct default rather than replacing it -- becomes invisible. This is
+    //  the copy that still knows the difference.
+    //
+    const stubbedLoader = (baseConfig, includes = {}) => {
+        const loader = new ConfigLoader({
+            hotReload: false,
+            defaultConfig: { general: { boardName: 'Default BBS', port: 23 } },
+        });
+        loader.baseConfigPath = '/fake/config.hjson';
+
+        loader._loadConfigFile = (filePath, cb) => {
+            if (filePath === loader.baseConfigPath) {
+                return cb(null, JSON.parse(JSON.stringify(baseConfig)));
+            }
+            return cb(null, JSON.parse(JSON.stringify(includes[filePath] || {})));
+        };
+
+        return loader;
+    };
+
+    it('keeps what the operator wrote, without the defaults merged over it', done => {
+        const loader = stubbedLoader({ general: { boardName: 'Mine' } });
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            //  the merged view has the default port; the operator's copy does not
+            assert.equal(loader.get().general.port, 23);
+            assert.deepEqual(loader.getUserConfig(), { general: { boardName: 'Mine' } });
+            done();
+        });
+    });
+
+    it('keeps a misspelled key distinguishable from the default it shadows', done => {
+        const loader = stubbedLoader({ general: { prot: 8888 } });
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            //  both present after the merge -- which is the whole problem
+            assert.equal(loader.get().general.port, 23);
+            assert.equal(loader.get().general.prot, 8888);
+            //  but only the typo is in what the operator wrote
+            assert.deepEqual(Object.keys(loader.getUserConfig().general), ['prot']);
+            done();
+        });
+    });
+
+    it('includes are operator content too', done => {
+        const loader = stubbedLoader(
+            { general: { boardName: 'Mine' }, includes: ['areas.hjson'] },
+            { '/fake/areas.hjson': { messageConferences: { local: { name: 'Local' } } } }
+        );
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            assert.equal(loader.getUserConfig().messageConferences.local.name, 'Local');
+            assert.equal(loader.getUserConfig().general.boardName, 'Mine');
+            done();
+        });
+    });
+});
+
+describe('ConfigLoader validation hook', () => {
+    const loaderWith = options => {
+        const loader = new ConfigLoader(Object.assign({ hotReload: false }, options));
+        loader.baseConfigPath = '/fake/config.hjson';
+        loader._loadConfigFile = (filePath, cb) => cb(null, { a: 1 });
+        return loader;
+    };
+
+    it('passes the operator config and the merged config to the validator', done => {
+        let seen;
+        const loader = loaderWith({
+            defaultConfig: { b: 2 },
+            validator: (userConfig, merged) => {
+                seen = { userConfig, merged };
+                return [{ code: 'test', severity: 'warning', path: 'a' }];
+            },
+        });
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            assert.deepEqual(seen.userConfig, { a: 1 });
+            assert.deepEqual(seen.merged, { a: 1, b: 2 });
+            assert.equal(loader.getIssues().length, 1);
+            done();
+        });
+    });
+
+    it('tells onValidation whether this is the first load', done => {
+        const seen = [];
+        const loader = loaderWith({
+            validator: () => [],
+            onValidation: (issues, { initialLoad }) => seen.push(initialLoad),
+        });
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            loader._reload(loader.baseConfigPath, err2 => {
+                assert.ifError(err2);
+                assert.deepEqual(seen, [true, false]);
+                done();
+            });
+        });
+    });
+
+    it('survives a validator that throws, rather than taking the board down', done => {
+        //
+        //  A *synchronous* throw inside an async.waterfall task propagates
+        //  straight out and the waterfall's callback never fires. _reload()
+        //  runs from the file watcher, so unguarded that is an uncaught
+        //  exception on nothing worse than a bad config edit. Asserted
+        //  against the real async, not a stub, because the stub is exactly
+        //  what would hide it.
+        //
+        const loader = loaderWith({
+            validator: () => {
+                throw new Error('validator is broken');
+            },
+        });
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            assert.deepEqual(loader.get(), { a: 1 });
+            assert.deepEqual(loader.getIssues(), []);
+            done();
+        });
+    });
+
+    it('survives a reporter that throws', done => {
+        const loader = loaderWith({
+            validator: () => [{ code: 'test', severity: 'warning', path: 'a' }],
+            onValidation: () => {
+                throw new Error('reporter is broken');
+            },
+        });
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            assert.deepEqual(loader.get(), { a: 1 });
+            done();
+        });
+    });
+
+    it('does nothing at all when no validator is supplied', done => {
+        const loader = loaderWith({});
+
+        loader._reload(loader.baseConfigPath, err => {
+            assert.ifError(err);
+            assert.deepEqual(loader.getIssues(), []);
+            done();
+        });
+    });
+});

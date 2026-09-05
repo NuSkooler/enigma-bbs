@@ -3,6 +3,24 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **`oputil.js config validate` checks your configuration before you restart** ([#281](https://github.com/NuSkooler/enigma-bbs/issues/281)) — a mistyped key in `config.hjson` has never been reported. Because your file is merged *into* the defaults, a typo does not replace anything: `outbund` lands quietly beside `outbound`, the setting you wrote is never read, and the board goes on using the default. Nothing is logged, and the file looks correct.
+
+  The new command reports those, along with values whose type disagrees with the default they override:
+
+  ```
+  config.hjson: 2 issues (1 error, 1 warning)
+
+    error    general.maxConnections
+             expected number, got string
+
+    warning  scannerTossers.ftn_bso.paths.outbund
+             unknown key "outbund" -- did you mean "outbound"?
+  ```
+
+  It exits non-zero when there are errors, so it can be used from a script or a systemd `ExecStartPre`. Warnings alone are not a failure: an unrecognised key may perfectly well belong to a mod. Sections you add yourself, and the tags and names you choose for areas, networks and nodes, are never reported.
+
+  `--check-env` additionally reports `@environment:`, `@file:` and `@reference:` specs that do not resolve. That one is opt-in because resolution depends on the shell it runs in: checked by default, a perfectly good configuration would look broken purely because it was validated from the wrong place.
+
 * **TIC-announced files were lost whenever the file arrived after its announcement** ([#735](https://github.com/NuSkooler/enigma-bbs/issues/735)) — a `.tic` control file and the file it announces routinely arrive in *separate* mailer sessions; a peer running HTick was observed announcing a full Zone 1 nodelist 15–20 minutes ahead of the payload. ENiGMA½ processed the `.tic` the moment it landed, could not find the file, archived the announcement to `reject/` and unlinked it. The file then arrived with nothing left to pair it with and sat in the secure inbound indefinitely. For that peer and that file it failed every single time, and recovery meant finding the orphan by hand and forcing a rescan.
 
   A TIC whose file is not here yet is now **held** and retried on later import passes — the same disposition HTick uses (`TIC_NotRecvd`, "has not been received, waiting") — rather than rejected. Because an import pass already runs the instant a BinkP session delivers files, the pairing normally completes within seconds of the file landing. A TIC that is never satisfied is given up on after `tic.holdMaxAgeMs` (48 hours by default) and rejected as before, so nothing accumulates forever.

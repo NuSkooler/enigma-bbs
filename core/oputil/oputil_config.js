@@ -318,6 +318,90 @@ function catCurrentConfig() {
     }
 }
 
+//
+//  Check the configuration and say what is wrong with it, without starting
+//  anything. A sysop wants to know *before* a restart, not from a log line
+//  afterwards -- and unlike the boot time report, this one sets an exit code
+//  so it is usable from a script or a systemd ExecStartPre.
+//
+//  Deliberately uses initConfig() rather than initConfigAndDatabases(): a
+//  broken configuration is exactly when the databases are least likely to be
+//  reachable, and validation needs none of them.
+//
+function validateCurrentConfig() {
+    const { initConfig } = require('./oputil_common.js');
+    const conf = require('../../core/config.js');
+
+    initConfig(err => {
+        if (err) {
+            console.error(`Failed to load configuration: ${err.message}`);
+            if (err.configPath) {
+                console.error(`Note: ${err.configPath}`);
+            }
+            process.exitCode = ExitCodes.ERROR;
+            return;
+        }
+
+        const { buildSchema } = require('../../core/config/schema.js');
+        const { validateConfig } = require('../../core/config/validate.js');
+        const {
+            describeIssue,
+            countBySeverity,
+            Severity,
+        } = require('../../core/config/issue.js');
+
+        const issues = validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
+            checkEnv: true === argv['check-env'],
+        });
+
+        const configPath = getConfigPath();
+
+        if (0 === issues.length) {
+            console.info(`${configPath}: no problems found`);
+            process.exitCode = ExitCodes.SUCCESS;
+            return;
+        }
+
+        const { errors, warnings } = countBySeverity(issues);
+        const parts = [];
+        if (errors) {
+            parts.push(`${errors} error${1 === errors ? '' : 's'}`);
+        }
+        if (warnings) {
+            parts.push(`${warnings} warning${1 === warnings ? '' : 's'}`);
+        }
+
+        console.info(
+            `${configPath}: ${issues.length} issue${
+                1 === issues.length ? '' : 's'
+            } (${parts.join(', ')})\n`
+        );
+
+        //  errors first; they are the ones that will actually misbehave
+        const ordered = issues.slice().sort((a, b) => {
+            if (a.severity === b.severity) {
+                return a.path.localeCompare(b.path);
+            }
+            return Severity.Error === a.severity ? -1 : 1;
+        });
+
+        ordered.forEach(issue => {
+            const described = describeIssue(issue);
+            console.info(`  ${described.severity.padEnd(8)} ${described.path}`);
+            described.message.split('\n').forEach(line => {
+                console.info(`           ${line}`);
+            });
+            console.info('');
+        });
+
+        //
+        //  Warnings alone are not a failure: an unknown key may well be a
+        //  mod's own configuration block.
+        //
+        process.exitCode = errors > 0 ? ExitCodes.ERROR : ExitCodes.SUCCESS;
+    });
+}
+
 function handleConfigCommand() {
     if (true === argv.help) {
         return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
@@ -330,6 +414,8 @@ function handleConfigCommand() {
             return buildNewConfig();
         case 'cat':
             return catCurrentConfig();
+        case 'validate':
+            return validateCurrentConfig();
 
         default:
             return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
