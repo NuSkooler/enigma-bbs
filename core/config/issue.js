@@ -111,9 +111,14 @@ function describeIssue(issue) {
 
         case IssueCodes.UnresolvedRef:
             message = `${issue.refKind} "${issue.value}" is not defined in ${issue.refPath}`;
-            //  A near miss is the answer, so say it and stop. The full list is
-            //  only worth printing when there is nothing close to point at.
-            if (issue.suggestion) {
+            //
+            //  In order of how much it helps: the name is valid but in the
+            //  wrong namespace, then a near miss, then -- having nothing
+            //  better to offer -- what is actually defined.
+            //
+            if (issue.hint) {
+                message += ` -- ${issue.hint}`;
+            } else if (issue.suggestion) {
                 message += ` -- did you mean "${issue.suggestion}"?`;
             } else if (issue.candidates && issue.candidates.length) {
                 message += `\nknown: ${listOf(issue.candidates)}`;
