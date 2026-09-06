@@ -396,6 +396,30 @@ describe('config cross-references: storage tags used as file areas', () => {
     });
 });
 
+describe('config references and unresolved "@" specs', () => {
+    it('does not read a literal spec string as a broken reference', () => {
+        //
+        //  The same defect as above, in the checks that shipped first: a
+        //  storage tag configured as "@environment:..." reads as a storage tag
+        //  that was never defined when the variable is not set here. Both go
+        //  through checkExact(), so both are fixed by the one exemption.
+        //
+        const config = _.merge(soundConfig(), {
+            fileBase: {
+                storageTags: { mine: '/tmp/x' },
+                areas: {
+                    spec_area: {
+                        name: 'Spec',
+                        storageTags: ['@environment:ENIGMA_STORAGE'],
+                    },
+                },
+            },
+        });
+
+        assert.deepEqual(validateReferences(config), []);
+    });
+});
+
 // ─── Deferred: names that live outside the configuration ─────────────────────
 
 describe('config deferred references', () => {
@@ -473,6 +497,22 @@ describe('config deferred references', () => {
 
         assert.equal(issues.length, 1);
         assert.equal(issues[0].path, 'loginServers.someMod.firstMenu');
+    });
+
+    it('leaves an unresolved "@" spec alone', () => {
+        //
+        //  _resolveAtSpecs() leaves the literal spec string in place when it
+        //  cannot resolve one, so it arrives here looking like a name that
+        //  does not exist. The variable may simply not be set in whatever
+        //  shell is running the check -- reporting it would flag a correct
+        //  production configuration. validateConfig() reports these under
+        //  --check-env, which is where they belong.
+        //
+        const config = sound();
+        config.theme.default = '@environment:ENIGMA_THEME';
+        config.loginServers.telnet.firstMenu = '@reference:menus.firstMenu';
+
+        assert.deepEqual(check(config), []);
     });
 
     it('says nothing when the caller could not gather the themes', () => {

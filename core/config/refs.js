@@ -4,7 +4,7 @@
 //  ENiGMA½
 const { IssueCodes, makeIssue } = require('./issue.js');
 const { canonicalNetworkName, validateOutboundConfig } = require('../bso_util.js');
-const { suggestKey, keyDistance } = require('./validate.js');
+const { suggestKey, keyDistance, UNRESOLVED_SPEC } = require('./validate.js');
 const DefaultConfig = require('../config_default.js');
 
 //  deps
@@ -163,6 +163,18 @@ function crossNamespaceHint(config, kind, value) {
 //  walk already covers; saying so twice helps nobody.
 function checkExact(issues, config, spec) {
     if (!_.isString(spec.value) || 0 === spec.value.length) {
+        return;
+    }
+    //
+    //  An "@environment:", "@file:" or "@reference:" spec that did not resolve
+    //  is left in the configuration as its literal spec string, so it arrives
+    //  here looking like a name that does not exist. It is a resolution
+    //  problem, not a broken reference: the variable may simply not be set in
+    //  whatever shell is doing the checking, and reporting it would flag a
+    //  correct production configuration. validateConfig() already reports
+    //  these under --check-env, which is where they belong.
+    //
+    if (UNRESOLVED_SPEC.test(spec.value)) {
         return;
     }
     if (spec.candidates.includes(spec.value)) {
