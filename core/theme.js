@@ -24,6 +24,7 @@ const assert = require('assert');
 
 exports.getThemeArt = getThemeArt;
 exports.getAvailableThemes = getAvailableThemes;
+exports.getMenuNames = getMenuNames;
 exports.getRandomTheme = getRandomTheme;
 exports.setClientTheme = setClientTheme;
 exports.displayPreparedArt = displayPreparedArt;
@@ -418,6 +419,25 @@ exports.ThemeManager = class ThemeManager {
 
 function getAvailableThemes() {
     return themeManagerInstance.getAvailableThemes();
+}
+
+//
+//  Every menu name the system knows, as menu.hjson declares them.
+//
+//  A theme may customise a menu but never add one: _finalizeTheme() starts
+//  from menu.hjson and iterates the keys already there, so this is the whole
+//  set regardless of which theme is in play.
+//
+//  Returns undefined before ThemeManager.create() has run -- an unknown set is
+//  a reason to check nothing rather than to report everything as missing.
+//
+function getMenuNames() {
+    if (!themeManagerInstance || !themeManagerInstance.menuConfig) {
+        return undefined;
+    }
+
+    const menus = _.get(themeManagerInstance.menuConfig.get(), 'menus');
+    return _.isPlainObject(menus) ? Object.keys(menus) : undefined;
 }
 
 function getRandomTheme() {

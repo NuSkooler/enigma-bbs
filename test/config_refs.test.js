@@ -395,3 +395,152 @@ describe('config cross-references: storage tags used as file areas', () => {
         );
     });
 });
+
+// ─── Deferred: names that live outside the configuration ─────────────────────
+
+describe('config deferred references', () => {
+    const { validateDeferredReferences } = require('../core/config/refs');
+
+    const THEMES = ['luciano_blocktronics', 'mystery_skull'];
+    const MENUS = ['telnetConnected', 'sshConnected', 'sshConnectedNewUser'];
+
+    const sound = () => ({
+        theme: { default: 'luciano_blocktronics', preLogin: 'mystery_skull' },
+        loginServers: {
+            telnet: { firstMenu: 'telnetConnected' },
+            ssh: {
+                firstMenu: 'sshConnected',
+                firstMenuNewUser: 'sshConnectedNewUser',
+            },
+        },
+    });
+
+    const check = config =>
+        validateDeferredReferences(config, { themeIds: THEMES, menuNames: MENUS });
+
+    it('says nothing about a configuration that lines up', () => {
+        assert.deepEqual(check(sound()), []);
+    });
+
+    it('catches a theme that is not installed', () => {
+        const config = sound();
+        config.theme.default = 'lucian_blocktronics';
+
+        const issues = check(config);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].code, IssueCodes.UnresolvedRef);
+        assert.equal(issues[0].severity, Severity.Error);
+        assert.equal(issues[0].path, 'theme.default');
+        assert.match(
+            describeIssue(issues[0]).message,
+            /theme "lucian_blocktronics" is not defined in paths\.themes -- did you mean "luciano_blocktronics"\?/
+        );
+    });
+
+    it('leaves "*" alone, since it means pick one at random', () => {
+        //  core/nua.js and core/servers/login/login_server_module.js both
+        //  special-case it; treating it as a theme id would report every board
+        //  that uses it
+        const config = sound();
+        config.theme.default = '*';
+        config.theme.preLogin = '*';
+
+        assert.deepEqual(check(config), []);
+    });
+
+    it('catches a first menu that menu.hjson does not define', () => {
+        const config = sound();
+        config.loginServers.ssh.firstMenuNewUser = 'sshConnectdNewUser';
+
+        const issues = check(config);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].path, 'loginServers.ssh.firstMenuNewUser');
+        assert.match(
+            describeIssue(issues[0]).message,
+            /menu "sshConnectdNewUser" is not defined in general\.menuFile/
+        );
+        assert.equal(issues[0].suggestion, 'sshConnectedNewUser');
+    });
+
+    it('checks a login server it has never heard of', () => {
+        //  walked rather than listed, so a mod's own login server is covered
+        const config = sound();
+        config.loginServers.someMod = { firstMenu: 'nowhere' };
+
+        const issues = check(config);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].path, 'loginServers.someMod.firstMenu');
+    });
+
+    it('says nothing when the caller could not gather the themes', () => {
+        //
+        //  Fail open. An unknown candidate set is a reason to check nothing:
+        //  reporting every theme as missing because a directory could not be
+        //  read would be far worse than checking neither.
+        //
+        const config = sound();
+        config.theme.default = 'not_installed';
+
+        assert.deepEqual(validateDeferredReferences(config, { menuNames: MENUS }), []);
+        assert.deepEqual(validateDeferredReferences(config, {}), []);
+        assert.deepEqual(validateDeferredReferences(config), []);
+    });
+
+    it('says nothing when the gathered sets are empty', () => {
+        const config = sound();
+        config.theme.default = 'not_installed';
+        config.loginServers.telnet.firstMenu = 'not_a_menu';
+
+        assert.deepEqual(
+            validateDeferredReferences(config, { themeIds: [], menuNames: [] }),
+            []
+        );
+    });
+
+    it('ignores a login server that is switched off', () => {
+        //
+        //  A board with SSH off still carries the defaulted "sshConnected",
+        //  and a custom menu.hjson has no reason to define a menu for a server
+        //  nobody can reach. Reporting it would be a false alarm on a
+        //  perfectly good configuration -- and SSH ships disabled, so this
+        //  would have fired on most boards.
+        //
+        const config = sound();
+        config.loginServers.ssh = {
+            enabled: false,
+            firstMenu: 'sshConnected',
+            firstMenuNewUser: 'nowhere_at_all',
+        };
+
+        assert.deepEqual(check(config), []);
+    });
+
+    it('checks a login server that is switched on', () => {
+        const config = sound();
+        config.loginServers.ssh.enabled = true;
+        config.loginServers.ssh.firstMenu = 'nowhere_at_all';
+
+        const issues = check(config);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].path, 'loginServers.ssh.firstMenu');
+    });
+
+    it('checks a login server that says nothing about being enabled', () => {
+        //  matching core/module_util.js: only an explicit false disables one
+        const config = sound();
+        config.loginServers.someMod = { firstMenu: 'nowhere_at_all' };
+
+        assert.equal(check(config).length, 1);
+    });
+
+    it('says nothing about a login server with no first menu', () => {
+        const config = sound();
+        delete config.loginServers.telnet.firstMenu;
+
+        assert.deepEqual(check(config), []);
+    });
+});
