@@ -86,11 +86,16 @@ exports.ThemeManager = class ThemeManager {
 
                 const { validateConfig } = require('./config/validate.js');
                 const { buildMenuSchema } = require('./config/menu_schema.js');
-                const { validateMenuReferences } = require('./config/refs.js');
+                const {
+                    validateMenuReferences,
+                    validateMenuModules,
+                } = require('./config/refs.js');
+                const { defaultModuleResolver } = require('./config/module_resolver.js');
 
                 return [
                     ...validateConfig(userConfig, mergedConfig, buildMenuSchema()),
                     ...validateMenuReferences(mergedConfig),
+                    ...validateMenuModules(mergedConfig, defaultModuleResolver(Config())),
                 ];
             },
             onValidation: issues => {

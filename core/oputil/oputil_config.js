@@ -569,7 +569,13 @@ function validateCurrentConfig() {
             //  menu.hjson, then each theme
             if (menu) {
                 const { buildMenuSchema } = require('../../core/config/menu_schema.js');
-                const { validateMenuReferences } = require('../../core/config/refs.js');
+                const {
+                    validateMenuReferences,
+                    validateMenuModules,
+                } = require('../../core/config/refs.js');
+                const {
+                    defaultModuleResolver,
+                } = require('../../core/config/module_resolver.js');
 
                 console.info('');
                 errorCount += printReport(
@@ -582,6 +588,10 @@ function validateCurrentConfig() {
                             { checkEnv }
                         ),
                         ...validateMenuReferences(menuConfig),
+                        ...validateMenuModules(
+                            menuConfig,
+                            defaultModuleResolver(conf.get())
+                        ),
                     ],
                     paint
                 );

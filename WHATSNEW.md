@@ -40,6 +40,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   **`menu.hjson` and your themes are checked too.** They carry the same silent failure as `config.hjson`, and one of them is worse: `ThemeManager` starts from your menu file and looks each menu up in the theme, so a `customization` naming a menu that does not exist is **never consulted** — the theming simply does not happen, with nothing logged. The theme ENiGMA½ ships had eight such blocks; they are fixed, and a check now reports any that remain as a warning.
 
+  **A menu naming a module that cannot be loaded is reported too**, for both built-in modules and your own under `paths.mods`. That found the sysop `!BINKP` command pointing at `binkp_poll`, which has never existed — the module is `binkp/binkp_poll_module` — so the command has failed since native BinkP support landed.
+
   Menu files get their structure checked — a misspelled `modul` for `module`, an `acs` where only `config.acs` is read — along with every menu name they reference, wherever it appears: `next`, a submit handler, an action key. That last one immediately found the `S` command in the ActivityPub menu pointing at a menu that has never existed.
 
   `config{}`, `form{}` and MCI blocks are deliberately **not** checked: those belong to the modules that read them and to the art they position, and claiming to know them would report most menus on most boards.

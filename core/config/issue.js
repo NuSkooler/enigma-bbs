@@ -139,6 +139,13 @@ function describeIssue(issue) {
             break;
 
         case IssueCodes.DeadCustomization:
+            if (undefined !== issue.count) {
+                message =
+                    `${issue.count} of ${issue.total} ${issue.refKind} customizations name something this system does not define, ` +
+                    'so they are never applied -- this theme looks written for a different menu file';
+                break;
+            }
+
             message = `no ${issue.refKind} named "${issue.value}" -- this customization is never applied`;
             if (issue.suggestion) {
                 message += `; did you mean "${issue.suggestion}"?`;

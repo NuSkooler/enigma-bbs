@@ -350,7 +350,7 @@
 
         sysopBinkpPollNow: {
             desc: "BinkP Poll"
-            module: binkp_poll
+            module: binkp/binkp_poll_module
         }
 
         mrc: {
