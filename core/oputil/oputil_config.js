@@ -452,76 +452,64 @@ function loadAchievementsConfig(cb) {
 //  correct board would be far worse than checking neither.
 //
 
+function loadMenuConfig(cb) {
+    const conf = require('../../core/config.js');
+
+    const menuFile = _.get(conf.get(), 'general.menuFile');
+    if (!menuFile) {
+        return cb(null);
+    }
+
+    const { getConfigPath: qualify } = require('../../core/config_util.js');
+    const ConfigLoader = require('../../core/config_loader.js');
+
+    const path = qualify(menuFile);
+    const loader = new ConfigLoader({ hotReload: false });
+
+    loader.init(path, err => {
+        //  a menu.hjson that will not load is the board's problem to announce,
+        //  not this command's; say nothing rather than guess at why
+        return cb(err ? null : { path, loader });
+    });
+}
+
 //
-//  A theme is a directory under paths.themes holding a theme.hjson.
+//  Every theme, parsed straight from disk. ThemeManager cannot be used here --
+//  it logs through a Log that only exists once the BBS has started -- so this
+//  reads the files itself, and skips any it cannot parse rather than reporting
+//  them as broken: the real loader resolves includes and "@reference:" specs
+//  that a bare parse does not.
 //
-//  ThemeManager also requires info.name and info.author and honours
-//  info.enabled; only the last is applied here. A theme with a malformed info
-//  block is skipped by the real loader with a warning, and counting it as
-//  present merely means a theme.default pointing at it is not reported --
-//  a miss, where the alternative is a false alarm.
-//
-function gatherThemeIds() {
+function gatherThemes() {
     const conf = require('../../core/config.js');
     const themeDir = _.get(conf.get(), 'paths.themes');
 
     if (!themeDir) {
-        return undefined;
+        return [];
     }
 
     let entries;
     try {
         entries = fs.readdirSync(themeDir, { withFileTypes: true });
     } catch (e) {
-        return undefined; //  no themes directory at all; say nothing
+        return [];
     }
 
-    const ids = entries
+    return entries
         .filter(entry => entry.isDirectory())
-        .map(entry => entry.name)
-        .filter(id => {
-            const themePath = paths.join(themeDir, id, 'theme.hjson');
+        .map(entry => {
+            const path = paths.join(themeDir, entry.name, 'theme.hjson');
             try {
-                const theme = hjson.parse(fs.readFileSync(themePath, 'utf8'));
-                return false !== _.get(theme, 'info.enabled');
+                return {
+                    themeId: entry.name,
+                    path,
+                    theme: hjson.parse(fs.readFileSync(path, 'utf8')),
+                };
             } catch (e) {
-                //  unreadable or unparseable: the real loader may still manage
-                //  it -- includes and @reference specs are not handled here --
-                //  so keep it as a candidate
-                return fs.existsSync(themePath);
+                return undefined;
             }
-        });
-
-    return ids.length ? ids : undefined;
-}
-
-//
-//  Menu names, through the same ConfigLoader the board uses, so includes and
-//  "@reference:" specs behave identically.
-//
-function gatherMenuNames(cb) {
-    const conf = require('../../core/config.js');
-
-    const menuFile = _.get(conf.get(), 'general.menuFile');
-    if (!menuFile) {
-        return cb(undefined);
-    }
-
-    const { getConfigPath: qualify } = require('../../core/config_util.js');
-    const ConfigLoader = require('../../core/config_loader.js');
-
-    const loader = new ConfigLoader({ hotReload: false });
-
-    loader.init(qualify(menuFile), err => {
-        if (err) {
-            //  menu.hjson itself is not this command's business; the board
-            //  will complain loudly enough on its own
-            return cb(undefined);
-        }
-
-        const menus = _.get(loader.get(), 'menus');
-        return cb(_.isPlainObject(menus) ? Object.keys(menus) : undefined);
-    });
+        })
+        .filter(Boolean);
 }
 
 function validateCurrentConfig() {
@@ -548,7 +536,18 @@ function validateCurrentConfig() {
         const checkEnv = true === argv['check-env'];
         const paint = colorPainter();
 
-        gatherMenuNames(menuNames => {
+        loadMenuConfig(menu => {
+            const themes = gatherThemes();
+            const themeIds = themes.map(t => t.themeId);
+
+            const menuConfig = menu ? menu.loader.get() : undefined;
+            const menuNames = _.isPlainObject(_.get(menuConfig, 'menus'))
+                ? Object.keys(menuConfig.menus)
+                : undefined;
+            const menuPromptNames = _.isPlainObject(_.get(menuConfig, 'prompts'))
+                ? Object.keys(menuConfig.prompts)
+                : undefined;
+
             const issues = [
                 ...validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
                     checkEnv,
@@ -560,12 +559,55 @@ function validateCurrentConfig() {
                 //  the only one that can do it before a restart.
                 //
                 ...validateDeferredReferences(conf.get(), {
-                    themeIds: gatherThemeIds(),
+                    themeIds: themeIds.length ? themeIds : undefined,
                     menuNames,
                 }),
             ];
 
             let errorCount = printReport(getConfigPath(), issues, paint);
+
+            //  menu.hjson, then each theme
+            if (menu) {
+                const { buildMenuSchema } = require('../../core/config/menu_schema.js');
+                const { validateMenuReferences } = require('../../core/config/refs.js');
+
+                console.info('');
+                errorCount += printReport(
+                    menu.path,
+                    [
+                        ...validateConfig(
+                            menu.loader.getUserConfig(),
+                            menuConfig,
+                            buildMenuSchema(),
+                            { checkEnv }
+                        ),
+                        ...validateMenuReferences(menuConfig),
+                    ],
+                    paint
+                );
+            }
+
+            if (themes.length) {
+                const { buildThemeSchema } = require('../../core/config/theme_schema.js');
+                const { validateThemeReferences } = require('../../core/config/refs.js');
+
+                const themeSchema = buildThemeSchema();
+
+                themes.forEach(({ path, theme }) => {
+                    console.info('');
+                    errorCount += printReport(
+                        path,
+                        [
+                            ...validateConfig(theme, theme, themeSchema, { checkEnv }),
+                            ...validateThemeReferences(theme, {
+                                menuNames,
+                                menuPromptNames,
+                            }),
+                        ],
+                        paint
+                    );
+                });
+            }
 
             loadAchievementsConfig((achErr, achPath, achLoader) => {
                 if (achErr) {
