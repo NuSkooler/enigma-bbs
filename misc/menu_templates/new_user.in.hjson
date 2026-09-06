@@ -125,13 +125,10 @@
 
         //
         //  SSH specialization of NUA
-        //  Canceling this form logs off vs falling back to matrix
-        //
         newUserApplicationSsh: {
             desc: Applying
             module: nua
             art: NUA
-            fallback: logoff
             next: newUserFeedbackToSysOpPreamble
             form: {
                 0: {
