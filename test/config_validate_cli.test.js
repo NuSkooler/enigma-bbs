@@ -275,6 +275,97 @@ describe('oputil config validate', () => {
         assert.ok(!output.includes('whatever_this_is'), output);
     });
 
+    it('checks menu.hjson and each theme, naming every file', () => {
+        //
+        //  Four files can be reported now -- config.hjson, menu.hjson, a
+        //  theme, achievements.hjson -- so each report has to say which one it
+        //  is talking about.
+        //
+        const { code, output } = runValidate(dir => {
+            fs.writeFileSync(
+                paths.join(dir, 'menu.hjson'),
+                JSON.stringify({
+                    menus: {
+                        //  loginServers.telnet.firstMenu defaults to this; a
+                        //  menu file without it fails the deferred check for
+                        //  an unrelated reason
+                        telnetConnected: { desc: 'Connected' },
+                        mainMenu: { desc: 'Main', modul: 'show_art' },
+                        other: { desc: 'Other', next: 'nowhereAtAll' },
+                    },
+                }),
+                'utf8'
+            );
+
+            fs.mkdirSync(paths.join(dir, 'themes', 'a_theme'), { recursive: true });
+            fs.writeFileSync(
+                paths.join(dir, 'themes', 'a_theme', 'theme.hjson'),
+                JSON.stringify({
+                    info: { name: 'A', author: 'B' },
+                    customization: { menus: { noSuchMenu: {} } },
+                }),
+                'utf8'
+            );
+
+            return {
+                general: { boardName: 'Test', menuFile: paths.join(dir, 'menu.hjson') },
+                paths: { themes: paths.join(dir, 'themes') },
+                theme: { default: 'a_theme', preLogin: 'a_theme' },
+            };
+        });
+
+        assert.match(output, /menu\.hjson: /);
+        assert.match(output, /unknown key "modul" -- did you mean "module"\?/);
+        assert.match(output, /menu "nowhereAtAll" is not defined in menus/);
+
+        assert.match(output, /a_theme[/\\]theme\.hjson: /);
+        assert.match(
+            output,
+            /no menu named "noSuchMenu" -- this customization is never applied/
+        );
+
+        //  the dangling "next" is an error, so the command fails
+        assert.notEqual(code, 0);
+    });
+
+    it('treats a dead theme customization as a warning, not a failure', () => {
+        //
+        //  A board running a menu file older than its theme gets these
+        //  legitimately; failing its ExecStartPre over cosmetics would be
+        //  wrong.
+        //
+        const { code, output } = runValidate(dir => {
+            fs.writeFileSync(
+                paths.join(dir, 'menu.hjson'),
+                JSON.stringify({
+                    menus: {
+                        telnetConnected: { desc: 'Connected' },
+                        mainMenu: { desc: 'Main' },
+                    },
+                }),
+                'utf8'
+            );
+            fs.mkdirSync(paths.join(dir, 'themes', 'a_theme'), { recursive: true });
+            fs.writeFileSync(
+                paths.join(dir, 'themes', 'a_theme', 'theme.hjson'),
+                JSON.stringify({
+                    info: { name: 'A', author: 'B' },
+                    customization: { menus: { mainMenuu: {} } },
+                }),
+                'utf8'
+            );
+
+            return {
+                general: { boardName: 'Test', menuFile: paths.join(dir, 'menu.hjson') },
+                paths: { themes: paths.join(dir, 'themes') },
+                theme: { default: 'a_theme', preLogin: 'a_theme' },
+            };
+        });
+
+        assert.equal(code, 0);
+        assert.match(output, /did you mean "mainMenu"\?/);
+    });
+
     it('says everything exactly once', () => {
         //  Config.create() also runs the validator through the loader hook;
         //  oputil opts out of that report so it does not say it all twice
