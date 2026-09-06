@@ -24,7 +24,6 @@ const _ = require('lodash');
 //  * Hint, e.g. YYYY/MM/DD
 //  * Return values with literals in place
 //  * Tab in/out results in oddities such as cursor placement & ability to type in non-pattern chars
-//  * There exists some sort of condition that allows pattern position to get out of sync
 
 class MaskEditTextView extends TextView {
     constructor(options) {
@@ -41,11 +40,12 @@ class MaskEditTextView extends TextView {
         this.initDefaultWidth();
 
         this.cursorPos = { x: 0 };
-        this.patternArrayPos = 0;
         this.maskPattern = options.maskPattern || '';
 
         //  buildPattern sets this.maxLength (number of input slots)
         this.buildPattern();
+
+        this.patternArrayPos = this._patternPosForLength(0);
 
         //  LineBuffer initialized after buildPattern so maxLength is correct
         this.lineBuffer = new LineBuffer({ width: this.maxLength });
@@ -121,14 +121,26 @@ class MaskEditTextView extends TextView {
         return this.position.col + this.patternArrayPos;
     }
 
+    //  Pattern position holding |len| filled slots, past any trailing literals.
+    _patternPosForLength(len) {
+        let pos = 0;
+        let remain = len;
+        while (pos < this.patternArray.length) {
+            if (_.isRegExp(this.patternArray[pos])) {
+                if (0 === remain) {
+                    break;
+                }
+                --remain;
+            }
+            ++pos;
+        }
+        return pos;
+    }
+
     //  ── Overrides ────────────────────────────────────────────────────────────
 
     setText(text, redraw) {
         super.setText(text, redraw); //  pass through redraw; TextView ctor calls with false
-
-        if (this.patternArray) {
-            this.patternArrayPos = this.patternArray.length;
-        }
 
         if (this.lineBuffer) {
             const raw = (text == null ? '' : String(text)).slice(0, this.maxLength);
@@ -140,6 +152,14 @@ class MaskEditTextView extends TextView {
             };
             this.text = raw;
         }
+
+        //  Must follow the text actually stored: clearText() would otherwise
+        //  leave an empty buffer with the cursor parked at the end of the field.
+        if (this.patternArray) {
+            this.patternArrayPos = this._patternPosForLength(
+                this.lineBuffer ? this.lineBuffer.lines[0].chars.length : 0
+            );
+        }
     }
 
     setMaskPattern(pattern) {
@@ -148,6 +168,7 @@ class MaskEditTextView extends TextView {
         this.buildPattern();
         //  Reinitialize lineBuffer now that maxLength is updated
         this.lineBuffer = new LineBuffer({ width: this.maxLength });
+        this.patternArrayPos = this._patternPosForLength(0);
     }
 
     getData() {
@@ -190,35 +211,17 @@ class MaskEditTextView extends TextView {
             if (this.isKeyMapped('backspace', key.name)) {
                 const textLen = this.lineBuffer.lines[0].chars.length;
                 if (textLen > 0) {
-                    this.patternArrayPos--;
-                    assert(this.patternArrayPos >= 0);
+                    this.lineBuffer.deleteChar(0, textLen - 1);
+                    this._syncFromBuffer();
+                    this.patternArrayPos = this._patternPosForLength(textLen - 1);
 
-                    if (_.isRegExp(this.patternArray[this.patternArrayPos])) {
-                        //  Cursor is directly on an input slot — delete its char
-                        this.lineBuffer.deleteChar(0, textLen - 1);
-                        this._syncFromBuffer();
-                        this.clientBackspace();
-                    } else {
-                        //  Cursor is on a literal — walk back to the preceding input slot
-                        while (this.patternArrayPos >= 0) {
-                            if (_.isRegExp(this.patternArray[this.patternArrayPos])) {
-                                this.lineBuffer.deleteChar(
-                                    0,
-                                    this.lineBuffer.lines[0].chars.length - 1
-                                );
-                                this._syncFromBuffer();
-                                this.client.term.write(
-                                    ansi.goto(
-                                        this.position.row,
-                                        this.getEndOfTextColumn() + 1
-                                    )
-                                );
-                                this.clientBackspace();
-                                break;
-                            }
-                            this.patternArrayPos--;
-                        }
-                    }
+                    //  The goto is a no-op when the cursor already sits on the
+                    //  slot being cleared; it matters when the deletion walks
+                    //  back over one or more literals.
+                    this.client.term.write(
+                        ansi.goto(this.position.row, this.getEndOfTextColumn() + 1)
+                    );
+                    this.clientBackspace();
                 }
 
                 return;
@@ -230,7 +233,7 @@ class MaskEditTextView extends TextView {
                     initialAttr: 0,
                 };
                 this._syncFromBuffer();
-                this.patternArrayPos = 0;
+                this.patternArrayPos = this._patternPosForLength(0);
                 this.setFocus(true); //  redraw + adjust cursor
 
                 return;
@@ -248,15 +251,9 @@ class MaskEditTextView extends TextView {
 
                 this.lineBuffer.insertChar(0, textLen, ch, 0);
                 this._syncFromBuffer();
-                this.patternArrayPos++;
-
-                //  Skip over any literal characters in the pattern
-                while (
-                    this.patternArrayPos < this.patternArray.length &&
-                    !_.isRegExp(this.patternArray[this.patternArrayPos])
-                ) {
-                    this.patternArrayPos++;
-                }
+                this.patternArrayPos = this._patternPosForLength(
+                    this.lineBuffer.lines[0].chars.length
+                );
 
                 this.redraw();
                 this.client.term.write(

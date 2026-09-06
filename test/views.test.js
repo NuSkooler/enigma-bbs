@@ -526,6 +526,140 @@ describe('MaskEditTextView', () => {
             assert.equal(view.getData(), '1234');
         });
     });
+
+    // ── cursor position vs. buffer contents ──────────────────────────────────
+
+    describe('cursor position tracking', () => {
+        //  Renders into a column-addressed screen so placement can be checked
+        //  independently of the view's own patternArrayPos bookkeeping.
+        const COL = 10;
+
+        function makeTrackingView(maskPattern) {
+            const screen = {};
+            const cursor = { col: COL };
+            const term = {
+                termWidth: 80,
+                termHeight: 25,
+                rawWrite: () => {},
+                write: str => {
+                    let i = 0;
+                    while (i < str.length) {
+                        if ('\x1b' === str[i]) {
+                            const goto = /^\x1b\[(\d+);(\d+)H/.exec(str.slice(i));
+                            if (goto) {
+                                cursor.col = parseInt(goto[2], 10);
+                                i += goto[0].length;
+                                continue;
+                            }
+                            const other = /^\x1b\[[0-9;?]*[a-zA-Z]/.exec(str.slice(i));
+                            i += other ? other[0].length : 1;
+                            continue;
+                        }
+                        if ('\b' === str[i]) {
+                            cursor.col--;
+                            i++;
+                            continue;
+                        }
+                        screen[cursor.col] = str[i];
+                        cursor.col++;
+                        i++;
+                    }
+                },
+            };
+
+            const view = makeMaskView({
+                client: { term },
+                position: { row: 5, col: COL },
+                dimens: { width: maskPattern.length, height: 1 },
+                maskPattern,
+            });
+            view.specialKeyMap = { backspace: ['backspace'], clearLine: ['ctrl + y'] };
+            view.acceptsInput = true;
+            view.hasFocus = true;
+
+            return { view, screen, cursor };
+        }
+
+        function fieldText(h, len) {
+            let out = '';
+            for (let i = 0; i < len; ++i) {
+                out += h.screen[COL + i] || ' ';
+            }
+            return out;
+        }
+
+        it('clearText() resets the pattern position to the start of the field', () => {
+            const view = makeMaskView({ maskPattern: '####/##/##' });
+            '1990'.split('').forEach((ch, i) => view.lineBuffer.insertChar(0, i, ch, 0));
+            view.patternArrayPos = 5;
+
+            view.clearText();
+
+            assert.equal(view.patternArrayPos, 0);
+        });
+
+        it('setText("") resets the pattern position to the start of the field', () => {
+            const view = makeMaskView({ maskPattern: '####/##/##' });
+            view.setText('');
+
+            assert.equal(view.patternArrayPos, 0);
+        });
+
+        it('a mask starting with a literal opens on the first input slot', () => {
+            const view = makeMaskView({ maskPattern: '(###) ###-####' });
+
+            //  Index 0 is the '(' -- input belongs at index 1.
+            assert.equal(view.patternArrayPos, 1);
+
+            view.setText('');
+            assert.equal(view.patternArrayPos, 1);
+        });
+
+        it('setText() positions past filled slots and skips trailing literals', () => {
+            const view = makeMaskView({ maskPattern: '####/##/##' });
+            view.setText('1990');
+
+            //  Four slots filled; the separator at index 4 is skipped so the
+            //  next input lands on index 5.
+            assert.equal(view.patternArrayPos, 5);
+        });
+
+        it('typing after clearText() keeps the cursor on the character just typed', () => {
+            const h = makeTrackingView('####/##/##');
+            h.view.setFocus(true);
+            '1990'.split('').forEach(ch => h.view.onKeyPress(ch, null));
+
+            h.view.clearText();
+            h.view.setFocus(true);
+            assert.equal(h.cursor.col, COL, 'cursor should return to the first slot');
+
+            '1990'.split('').forEach(ch => h.view.onKeyPress(ch, null));
+
+            assert.equal(fieldText(h, 10), '1990/  /  ');
+            //  Four digits typed: cursor sits on index 5, just past the separator.
+            assert.equal(h.cursor.col, COL + 5);
+        });
+
+        it('backspace after clearText() stays aligned with the text', () => {
+            const h = makeTrackingView('####/##/##');
+            h.view.setFocus(true);
+            h.view.clearText();
+            h.view.setFocus(true);
+
+            '1990'.split('').forEach(ch => h.view.onKeyPress(ch, null));
+            h.view.onKeyPress(null, { name: 'backspace' });
+
+            assert.equal(h.view.lineBuffer.lines[0].chars, '199');
+            assert.equal(h.cursor.col, COL + 3);
+
+            //  The second backspace clears a slot the cursor is already on,
+            //  rather than walking back over the '/'.
+            h.view.onKeyPress(null, { name: 'backspace' });
+
+            assert.equal(h.view.lineBuffer.lines[0].chars, '19');
+            assert.equal(h.cursor.col, COL + 2);
+        });
+    });
 });
 
 // ─── VerticalMenuView ─────────────────────────────────────────────────────────
