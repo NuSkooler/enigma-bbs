@@ -156,6 +156,8 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
                     self.dropFile = new DropFile(self.client, {
                         fileType: self.config.dropFileType,
+                        commType:
+                            'socket' === (self.config.io || 'stdio') ? 'socket' : 'local',
                     });
 
                     return self.dropFile.createFile(callback);
