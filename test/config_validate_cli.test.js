@@ -23,8 +23,28 @@ const REPO_ROOT = paths.join(__dirname, '..');
 //  Written as JSON, which HJSON accepts. Quoteless HJSON values run to the
 //  end of the line, so a one-line fixture would swallow its own closing
 //  braces -- and this is not the place to test the parser.
-function runValidate(config, args = []) {
+function runValidate(config, args = [], achievements) {
     const dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigma-validate-'));
+
+    if (achievements) {
+        //
+        //  general.achievementFile is resolved against paths.config, not
+        //  against wherever config.hjson happens to live -- that is what the
+        //  running board does, and oputil has to agree with it. So a temporary
+        //  achievements file needs paths.config pointed here too, exactly as a
+        //  sysop with a relocated config directory would.
+        //
+        config = Object.assign({}, config, {
+            paths: Object.assign({}, config.paths, { config: dir }),
+        });
+
+        fs.writeFileSync(
+            paths.join(dir, 'achievements.hjson'),
+            JSON.stringify(achievements, null, 4),
+            'utf8'
+        );
+    }
+
     fs.writeFileSync(
         paths.join(dir, 'config.hjson'),
         JSON.stringify(config, null, 4),
@@ -110,6 +130,67 @@ describe('oputil config validate', () => {
             output,
             /storage tag "nope" is not defined in fileBase\.storageTags/
         );
+    });
+
+    it('checks achievements.hjson as well, and names the file it means', () => {
+        //
+        //  The board will not start on a broken achievements.hjson either, so
+        //  "check before you restart" has to cover it. Both reports name their
+        //  own file, since there is now more than one.
+        //
+        const { code, output } = runValidate(
+            { general: { boardName: 'Test', achievementFile: 'achievements.hjson' } },
+            [],
+            {
+                enabled: true,
+                achievements: {
+                    a: { type: 'userStatSet', statname: 'login_count', match: {} },
+                },
+            }
+        );
+
+        assert.equal(code, 0); //  a warning alone is not a failure
+        assert.match(output, /config\.hjson: no problems found/);
+        assert.match(output, /achievements\.hjson: 1 issue \(1 warning\)/);
+        assert.match(output, /did you mean "statName"\?/);
+    });
+
+    it('fails the command when only achievements.hjson has an error', () => {
+        const { code, output } = runValidate(
+            { general: { boardName: 'Test', achievementFile: 'achievements.hjson' } },
+            [],
+            {
+                enabled: true,
+                achievements: {
+                    a: {
+                        type: 'userStatSet',
+                        statName: 'login_count',
+                        match: { 5: { title: 'T', text: 'x', points: 'ten' } },
+                    },
+                },
+            }
+        );
+
+        assert.notEqual(code, 0);
+        assert.match(output, /config\.hjson: no problems found/);
+        assert.match(output, /expected number, got string/);
+    });
+
+    it('warns, rather than fails, when achievements.hjson cannot be read', () => {
+        //
+        //  module_util.js logs a warning and carries on when a system module
+        //  fails to initialise, so a board with an unreadable
+        //  achievements.hjson still starts -- it simply has no achievements.
+        //  Failing the command here would break a systemd ExecStartPre over
+        //  something the board itself shrugs off.
+        //
+        const { code, output } = runValidate({
+            general: { boardName: 'Test', achievementFile: 'not-here.hjson' },
+        });
+
+        assert.equal(code, 0);
+        assert.match(output, /not-here\.hjson/);
+        assert.match(output, /achievements will be unavailable/);
     });
 
     it('says everything exactly once', () => {

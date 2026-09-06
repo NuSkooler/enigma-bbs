@@ -9,18 +9,22 @@
             "type": "object",
             "properties": {
                 "boardName": {
+                    "description": "Name of the board. Also what FTN packets and NNTP responses identify this system as.",
                     "type": "string",
                     "default": "Another Fine ENiGMA½ BBS"
                 },
                 "prettyBoardName": {
+                    "description": "Board name for display; may contain pipe colour codes.",
                     "type": "string",
                     "default": "|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS"
                 },
                 "telnetHostname": {
+                    "description": "Hostname shown to users for telnet. Advertised only -- it does not affect what the server binds.",
                     "type": "string",
                     "default": ""
                 },
                 "sshHostname": {
+                    "description": "Hostname shown to users for SSH. Advertised only -- it does not affect what the server binds.",
                     "type": "string",
                     "default": ""
                 },
@@ -29,23 +33,29 @@
                     "default": "https://enigma-bbs.github.io"
                 },
                 "description": {
+                    "description": "One line describing the board, used where a summary is wanted.",
                     "type": "string",
                     "default": "An ENiGMA½ BBS"
                 },
                 "closedSystem": {
+                    "description": "Refuse new user applications.",
                     "type": "boolean",
                     "default": false
                 },
                 "menuFile": {
+                    "description": "Menu configuration file. Relative names resolve against the config directory.",
                     "type": "string",
                     "default": "menu.hjson"
                 },
                 "achievementFile": {
+                    "description": "Achievement configuration file. Relative names resolve against the config directory.",
                     "type": "string",
                     "default": "achievements.hjson"
                 },
                 "maxConnections": {
+                    "description": "Simultaneous connections allowed across every login server. 0 for unlimited.",
                     "type": "number",
+                    "minimum": 0,
                     "default": 0
                 },
                 "configValidation": {
@@ -67,14 +77,17 @@
             "type": "object",
             "properties": {
                 "checkUtf8Encoding": {
+                    "description": "Detect UTF-8 by cursor position report. Costs a 2 second connect delay on terminals that do not answer.",
                     "type": "boolean",
                     "default": true
                 },
                 "checkAnsiHomePosition": {
+                    "description": "Detect non-standard positioning by cursor position report. Costs a 3 second connect delay on terminals that do not answer.",
                     "type": "boolean",
                     "default": true
                 },
                 "cp437TermList": {
+                    "description": "Terminal types assumed to be CP437 without probing.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -92,6 +105,7 @@
                     ]
                 },
                 "utf8TermList": {
+                    "description": "Terminal types assumed to be UTF-8 without probing.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -129,22 +143,27 @@
             "properties": {
                 "usernameMin": {
                     "type": "number",
+                    "minimum": 1,
                     "default": 2
                 },
                 "usernameMax": {
                     "type": "number",
+                    "minimum": 1,
                     "default": 16
                 },
                 "usernamePattern": {
+                    "description": "Regular expression, as a string, that a new user name must match.",
                     "type": "string",
                     "default": "^[A-Za-z0-9~!@#$%^&*()\\-\\_+ .]+$"
                 },
                 "passwordMin": {
                     "type": "number",
+                    "minimum": 1,
                     "default": 6
                 },
                 "passwordMax": {
                     "type": "number",
+                    "minimum": 1,
                     "default": 128
                 },
                 "badPassFile": {
@@ -172,6 +191,7 @@
                     "default": 255
                 },
                 "requireActivation": {
+                    "description": "New accounts stay inactive until the sysop activates them.",
                     "type": "boolean",
                     "default": false
                 },
@@ -195,6 +215,7 @@
                     ]
                 },
                 "newUserNames": {
+                    "description": "Names that start the new user application instead of a login.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -205,6 +226,7 @@
                     ]
                 },
                 "badUserNames": {
+                    "description": "Names nobody may apply for.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -227,26 +249,36 @@
                     ]
                 },
                 "preAuthIdleLogoutSeconds": {
+                    "description": "Idle timeout before login. 0 never disconnects.",
                     "type": "number",
+                    "minimum": 0,
                     "default": 180
                 },
                 "idleLogoutSeconds": {
+                    "description": "Idle timeout once logged in. 0 never disconnects.",
                     "type": "number",
+                    "minimum": 0,
                     "default": 360
                 },
                 "failedLogin": {
                     "type": "object",
                     "properties": {
                         "disconnect": {
+                            "description": "Failed attempts in one session before the connection is dropped. 0 never drops.",
                             "type": "number",
+                            "minimum": 0,
                             "default": 3
                         },
                         "lockAccount": {
+                            "description": "Failed attempts before the account is locked. 0 never locks.",
                             "type": "number",
+                            "minimum": 0,
                             "default": 9
                         },
                         "autoUnlockMinutes": {
+                            "description": "Unlock a locked account after this long. 0 requires the sysop to unlock it.",
                             "type": "number",
+                            "minimum": 0,
                             "default": 360
                         }
                     },
@@ -256,6 +288,7 @@
                     "additionalProperties": false
                 },
                 "unlockAtEmailPwReset": {
+                    "description": "A successful password reset by email also unlocks a locked account.",
                     "type": "boolean",
                     "default": true
                 },
@@ -263,7 +296,13 @@
                     "type": "object",
                     "properties": {
                         "method": {
+                            "description": "One time password scheme offered for two factor authentication.",
                             "type": "string",
+                            "enum": [
+                                "googleAuth",
+                                "rfc6238_TOTP",
+                                "rfc4266_HOTP"
+                            ],
                             "default": "googleAuth"
                         },
                         "otp": {
@@ -345,14 +384,17 @@
             "type": "object",
             "properties": {
                 "default": {
+                    "description": "Theme for logged in users: a directory name under paths.themes, or \"*\" to pick one at random.",
                     "type": "string",
                     "default": "luciano_blocktronics"
                 },
                 "preLogin": {
+                    "description": "Theme used before login: a directory name under paths.themes, or \"*\" to pick one at random.",
                     "type": "string",
                     "default": "luciano_blocktronics"
                 },
                 "passwordChar": {
+                    "description": "Character echoed in place of a password.",
                     "type": "string",
                     "default": "*"
                 },
@@ -507,6 +549,8 @@
                     "properties": {
                         "port": {
                             "type": "number",
+                            "minimum": 1,
+                            "maximum": 65535,
                             "default": 8888
                         },
                         "enabled": {
@@ -514,6 +558,7 @@
                             "default": true
                         },
                         "firstMenu": {
+                            "description": "Menu entered on connect; must name an entry in menu.hjson.",
                             "type": "string",
                             "default": "telnetConnected"
                         },
@@ -532,6 +577,8 @@
                     "properties": {
                         "port": {
                             "type": "number",
+                            "minimum": 1,
+                            "maximum": 65535,
                             "default": 8889
                         },
                         "enabled": {
@@ -539,14 +586,17 @@
                             "default": false
                         },
                         "privateKeyPem": {
+                            "description": "Host key in traditional PEM form; a modern OpenSSH key will not load.",
                             "type": "string",
                             "$comment": "Default: <installation directory>/config/security/ssh_private_key.pem"
                         },
                         "firstMenu": {
+                            "description": "Menu entered on connect; must name an entry in menu.hjson.",
                             "type": "string",
                             "default": "sshConnected"
                         },
                         "firstMenuNewUser": {
+                            "description": "Menu entered when connecting as one of users.newUserNames; must name an entry in menu.hjson.",
                             "type": "string",
                             "default": "sshConnectedNewUser"
                         },
@@ -658,6 +708,8 @@
                                 },
                                 "port": {
                                     "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 65535,
                                     "default": 8810
                                 },
                                 "address": {
@@ -679,6 +731,8 @@
                                 },
                                 "port": {
                                     "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 65535,
                                     "default": 8811
                                 },
                                 "certPem": {
@@ -722,6 +776,7 @@
                     "type": "object",
                     "properties": {
                         "domain": {
+                            "description": "Domain this board is reached at; used to build links in email and on the web.",
                             "type": "string",
                             "default": "another-fine-enigma-bbs.org"
                         },
@@ -736,7 +791,16 @@
                                     "type": "object",
                                     "properties": {
                                         "level": {
+                                            "description": "Lowest severity written to the web server log.",
                                             "type": "string",
+                                            "enum": [
+                                                "trace",
+                                                "debug",
+                                                "info",
+                                                "warn",
+                                                "error",
+                                                "fatal"
+                                            ],
                                             "default": "info"
                                         },
                                         "type": {
@@ -904,6 +968,8 @@
                                 },
                                 "port": {
                                     "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 65535,
                                     "default": 8080
                                 },
                                 "address": {
@@ -925,6 +991,8 @@
                                 },
                                 "port": {
                                     "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 65535,
                                     "default": 8443
                                 },
                                 "certPem": {
@@ -967,14 +1035,20 @@
                         },
                         "port": {
                             "type": "number",
+                            "minimum": 1,
+                            "maximum": 65535,
                             "default": 8070
                         },
                         "publicHostname": {
+                            "description": "Hostname advertised in Gopher selectors.",
                             "type": "string",
                             "default": "another-fine-enigma-bbs.org"
                         },
                         "publicPort": {
+                            "description": "Port advertised in Gopher selectors, for when the board is reached through a forward.",
                             "type": "number",
+                            "minimum": 1,
+                            "maximum": 65535,
                             "default": 8070
                         },
                         "staticRoot": {
@@ -1039,6 +1113,8 @@
                                 },
                                 "port": {
                                     "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 65535,
                                     "default": 8119
                                 }
                             },
@@ -1056,6 +1132,8 @@
                                 },
                                 "port": {
                                     "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 65535,
                                     "default": 8563
                                 },
                                 "certPem": {
@@ -1103,10 +1181,14 @@
                         },
                         "serverPort": {
                             "type": "number",
+                            "minimum": 1,
+                            "maximum": 65535,
                             "default": 5000
                         },
                         "serverSslPort": {
                             "type": "number",
+                            "minimum": 1,
+                            "maximum": 65535,
                             "default": 5001
                         },
                         "useSsl": {
@@ -1118,7 +1200,10 @@
                             "default": 10000
                         },
                         "multiplexerPort": {
+                            "description": "Local port the MRC multiplexer listens on for this board.",
                             "type": "number",
+                            "minimum": 1,
+                            "maximum": 65535,
                             "default": 5000
                         },
                         "infoDesc": {
@@ -1364,11 +1449,15 @@
             "type": "object",
             "properties": {
                 "maxMessages": {
+                    "description": "Messages kept per area before the oldest are trimmed. 0 keeps everything.",
                     "type": "number",
+                    "minimum": 0,
                     "default": 1024
                 },
                 "maxAgeDays": {
+                    "description": "Age at which messages are trimmed. 0 keeps everything.",
                     "type": "number",
+                    "minimum": 0,
                     "default": 0
                 }
             },
@@ -1469,18 +1558,25 @@
                             "properties": {
                                 "port": {
                                     "type": "number",
+                                    "minimum": 1,
+                                    "maximum": 65535,
                                     "default": 993
                                 },
                                 "secure": {
+                                    "description": "Connect with TLS from the start, as port 993 expects.",
                                     "type": "boolean",
                                     "default": true
                                 },
                                 "pollIntervalMs": {
+                                    "description": "How often to poll for new mail. 0 uses IMAP IDLE instead of polling.",
                                     "type": "number",
+                                    "minimum": 0,
                                     "default": 300000
                                 },
                                 "maxMessagesPerRun": {
+                                    "description": "Messages processed per pass, so a large backlog cannot stall a run.",
                                     "type": "number",
+                                    "minimum": 1,
                                     "default": 50
                                 },
                                 "failedFolder": {
@@ -1563,18 +1659,24 @@
                             "default": 5000
                         },
                         "packetTargetByteSize": {
+                            "description": "Start a new packet once the current one passes this size.",
                             "type": "number",
+                            "minimum": 1,
                             "default": 512000
                         },
                         "bundleTargetByteSize": {
+                            "description": "Start a new bundle once the current one passes this size.",
                             "type": "number",
+                            "minimum": 1,
                             "default": 2048000
                         },
                         "packetMsgEncoding": {
+                            "description": "Encoding for exported message text, e.g. \"cp437\" or \"utf8\".",
                             "type": "string",
                             "default": "cp437"
                         },
                         "packetAnsiMsgEncoding": {
+                            "description": "Encoding for exported messages containing ANSI art.",
                             "type": "string",
                             "default": "cp437"
                         },
@@ -1582,27 +1684,42 @@
                             "type": "object",
                             "properties": {
                                 "secureInOnly": {
+                                    "description": "Import only from the secure inbound, never the unsecure one.",
                                     "type": "boolean",
                                     "default": true
                                 },
                                 "uploadBy": {
+                                    "description": "Uploader name recorded against files imported from a TIC.",
                                     "type": "string",
                                     "default": "ENiGMA TIC"
                                 },
                                 "allowReplace": {
+                                    "description": "Honour a TIC's Replaces field and remove the file it names.",
                                     "type": "boolean",
                                     "default": false
                                 },
                                 "descPriority": {
+                                    "description": "Where a file description comes from: \"diz\" prefers a FILE_ID.DIZ inside the file, \"tic\" prefers the TIC's own Ldesc.",
                                     "type": "string",
+                                    "enum": [
+                                        "diz",
+                                        "tic"
+                                    ],
                                     "default": "diz"
                                 },
                                 "holdMaxAgeMs": {
+                                    "description": "How long a TIC whose file has not arrived is held before being rejected.",
                                     "type": "number",
+                                    "minimum": 0,
                                     "default": 172800000
                                 },
                                 "fileCase": {
+                                    "description": "Case of generated packet and bundle file names.",
                                     "type": "string",
+                                    "enum": [
+                                        "lower",
+                                        "upper"
+                                    ],
                                     "default": "lower"
                                 },
                                 "longNames": {
@@ -1622,7 +1739,13 @@
                                     "default": false
                                 },
                                 "addressDimensions": {
+                                    "description": "Address form written into generated TICs. Seenby is always 4D regardless.",
                                     "type": "string",
+                                    "enum": [
+                                        "3D",
+                                        "4D",
+                                        "5D"
+                                    ],
                                     "default": "4D"
                                 },
                                 "requireAreaAuthorization": {
@@ -1646,11 +1769,14 @@
                                     "type": "object",
                                     "properties": {
                                         "enabled": {
+                                            "description": "Listen for inbound BinkP sessions.",
                                             "type": "boolean",
                                             "default": false
                                         },
                                         "port": {
                                             "type": "number",
+                                            "minimum": 1,
+                                            "maximum": 65535,
                                             "default": 24554
                                         },
                                         "address": {
@@ -1664,6 +1790,7 @@
                                     "additionalProperties": false
                                 },
                                 "pullSchedule": {
+                                    "description": "When to poll uplinks for waiting mail, in the same syntax as eventScheduler.",
                                     "type": "string",
                                     "default": "every 15 minutes"
                                 },
@@ -1768,6 +1895,7 @@
             "type": "object",
             "properties": {
                 "areaStoragePrefix": {
+                    "description": "Directory a relative storage tag path is resolved against.",
                     "type": "string",
                     "$comment": "Default: <installation directory>/file_base/"
                 },
@@ -1848,7 +1976,9 @@
                             "default": "^/_f/[a-zA-Z0-9]+$"
                         },
                         "expireMinutes": {
+                            "description": "How long a generated web download link stays valid.",
                             "type": "number",
+                            "minimum": 1,
                             "default": 1440
                         }
                     },
@@ -1930,19 +2060,32 @@
                             "default": "rotating-file"
                         },
                         "fileName": {
+                            "description": "Log file name, created under paths.logs.",
                             "type": "string",
                             "default": "enigma-bbs.log"
                         },
                         "period": {
+                            "description": "Rotation period, e.g. \"1d\" or \"1w\".",
                             "type": "string",
                             "default": "1d"
                         },
                         "count": {
+                            "description": "Rotated files to keep.",
                             "type": "number",
+                            "minimum": 0,
                             "default": 3
                         },
                         "level": {
+                            "description": "Lowest severity written to the log.",
                             "type": "string",
+                            "enum": [
+                                "trace",
+                                "debug",
+                                "info",
+                                "warn",
+                                "error",
+                                "fatal"
+                            ],
                             "default": "debug"
                         }
                     },
@@ -1977,7 +2120,9 @@
                     "type": "object",
                     "properties": {
                         "loginHistoryMax": {
+                            "description": "Login history entries kept. -1 keeps everything.",
                             "type": "number",
+                            "minimum": -1,
                             "default": -1
                         }
                     },

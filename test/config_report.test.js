@@ -164,6 +164,46 @@ describe('config validation reporting', () => {
         }
     });
 
+    it('names the file it is talking about', () => {
+        //  there is more than one now: config.hjson and achievements.hjson
+        const lines = captureConsole(() =>
+            reportIssues(issues, { initialLoad: true, source: 'achievements.hjson' })
+        );
+
+        assert.match(lines[0], /^achievements\.hjson: /);
+    });
+
+    it('goes to the log even on a first load when asked', () => {
+        //
+        //  config.hjson is the only file read before Log.init(), which is the
+        //  whole reason the console path exists. Anything loaded later has a
+        //  logger and should use it rather than interleave with the startup
+        //  banner.
+        //
+        const calls = [];
+        const previous = Logger.log;
+        Logger.log = {
+            warn: (detail, msg) => calls.push({ level: 'warn', detail, msg }),
+            error: (detail, msg) => calls.push({ level: 'error', detail, msg }),
+        };
+
+        try {
+            const lines = captureConsole(() =>
+                reportIssues(issues, {
+                    initialLoad: true,
+                    logOnly: true,
+                    source: 'achievements.hjson',
+                })
+            );
+
+            assert.deepEqual(lines, []);
+            assert.equal(calls.length, issues.length);
+            assert.match(calls[0].msg, /^achievements\.hjson: /);
+        } finally {
+            Logger.log = previous;
+        }
+    });
+
     it('pluralises its summary properly', () => {
         assert.equal(summaryOf([issues[0]]), '1 issue (1 warning)');
         assert.equal(summaryOf(issues), '2 issues (1 error, 1 warning)');

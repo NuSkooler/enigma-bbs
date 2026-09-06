@@ -67,19 +67,19 @@ function oneLine(issue) {
         .join(' ')}`;
 }
 
-function reportToConsole(issues) {
+function reportToConsole(issues, source) {
     /* eslint-disable no-console */
-    console.info(`Configuration: ${summaryOf(issues)}`);
+    console.info(`${source}: ${summaryOf(issues)}`);
     issues.forEach(issue => console.info(oneLine(issue)));
     console.info("  Run './oputil.js config validate' for details.\n");
     /* eslint-enable no-console */
 }
 
-function reportToLog(issues) {
+function reportToLog(issues, source) {
     //  Log.log is only set once Log.init() has run, so this cannot be hoisted
     const Log = require('../logger.js').log;
     if (!Log) {
-        return reportToConsole(issues);
+        return reportToConsole(issues, source);
     }
 
     issues.forEach(issue => {
@@ -94,16 +94,26 @@ function reportToLog(issues) {
         }
 
         const log = Severity.Error === issue.severity ? Log.error : Log.warn;
-        log.call(Log, detail, `Configuration: ${described.message}`);
+        log.call(Log, detail, `${source}: ${described.message}`);
     });
 }
 
-function reportIssues(issues, { initialLoad = false } = {}) {
+//
+//  |source| names the file, since there is now more than one. |logOnly| is for
+//  a file loaded after Log.init(): config.hjson is the only one read before the
+//  logger exists, and that is the whole reason the console path is here at all.
+//
+function reportIssues(
+    issues,
+    { initialLoad = false, source = 'Configuration', logOnly = false } = {}
+) {
     if (!issues || 0 === issues.length) {
         return;
     }
 
-    return initialLoad ? reportToConsole(issues) : reportToLog(issues);
+    return initialLoad && !logOnly
+        ? reportToConsole(issues, source)
+        : reportToLog(issues, source);
 }
 
 module.exports = {
