@@ -4,7 +4,7 @@
 //  ENiGMA½
 const { IssueCodes, makeIssue } = require('./issue.js');
 const { canonicalNetworkName, validateOutboundConfig } = require('../bso_util.js');
-const { suggestKey, keyDistance } = require('./validate.js');
+const { suggestKey, keyDistance, UNRESOLVED_SPEC } = require('./validate.js');
 const DefaultConfig = require('../config_default.js');
 
 //  deps
@@ -40,7 +40,13 @@ const RefKind = {
     Network: 'FTN network',
     Conference: 'message conference',
     MessageArea: 'message area',
+    Theme: 'theme',
+    Menu: 'menu',
 };
+
+//  theme.default and theme.preLogin take this instead of a theme id, and pick
+//  one per user; see core/nua.js and core/servers/login/login_server_module.js
+const RANDOM_THEME = '*';
 
 function keysAt(config, path) {
     const value = _.get(config, path);
@@ -157,6 +163,18 @@ function crossNamespaceHint(config, kind, value) {
 //  walk already covers; saying so twice helps nobody.
 function checkExact(issues, config, spec) {
     if (!_.isString(spec.value) || 0 === spec.value.length) {
+        return;
+    }
+    //
+    //  An "@environment:", "@file:" or "@reference:" spec that did not resolve
+    //  is left in the configuration as its literal spec string, so it arrives
+    //  here looking like a name that does not exist. It is a resolution
+    //  problem, not a broken reference: the variable may simply not be set in
+    //  whatever shell is doing the checking, and reporting it would flag a
+    //  correct production configuration. validateConfig() already reports
+    //  these under --check-env, which is where they belong.
+    //
+    if (UNRESOLVED_SPEC.test(spec.value)) {
         return;
     }
     if (spec.candidates.includes(spec.value)) {
@@ -408,7 +426,107 @@ function validateReferences(mergedConfig) {
     return issues;
 }
 
+//
+//  ── Deferred references ─────────────────────────────────────────────────
+//
+//  Two couplings that cannot be checked from the configuration alone: a theme
+//  id names a directory under paths.themes, and a first menu names an entry in
+//  menu.hjson. Neither exists yet when config.hjson loads -- ThemeManager runs
+//  well after it -- so these are a second pass.
+//
+//  Both fail open. |themeIds| or |menuNames| being undefined means the caller
+//  could not gather that set reliably, and an unknown candidate list is a
+//  reason to say nothing rather than to report everything as missing.
+//
+
+function checkThemeReferences(issues, config, themeIds) {
+    if (!Array.isArray(themeIds) || 0 === themeIds.length) {
+        return;
+    }
+
+    ['theme.default', 'theme.preLogin'].forEach(path => {
+        const value = _.get(config, path);
+        if (RANDOM_THEME === value) {
+            return;
+        }
+
+        checkExact(issues, config, {
+            path,
+            value,
+            kind: RefKind.Theme,
+            //  the config knob that says where to look, not the directory
+            //  itself: it is the thing an operator would change
+            refPath: 'paths.themes',
+            candidates: themeIds,
+        });
+    });
+}
+
+function checkFirstMenus(issues, config, menuNames) {
+    if (!Array.isArray(menuNames) || 0 === menuNames.length) {
+        return;
+    }
+
+    //
+    //  Walked rather than listed, so a login server a mod adds is covered
+    //  without this having to know about it.
+    //
+    const servers = _.get(config, 'loginServers');
+    if (!_.isPlainObject(servers)) {
+        return;
+    }
+
+    Object.entries(servers).forEach(([serverName, server]) => {
+        if (!_.isPlainObject(server)) {
+            return;
+        }
+
+        //
+        //  Only a server that will actually run. A board with SSH switched
+        //  off still carries the defaulted firstMenu of "sshConnected", and
+        //  a custom menu.hjson has no reason to define a menu for a server
+        //  nobody can reach -- reporting that would be a false alarm on a
+        //  perfectly good configuration.
+        //
+        //  "false === enabled" rather than "true !== enabled", matching how a
+        //  login server module is skipped in core/module_util.js: an absent
+        //  key means enabled.
+        //
+        if (false === server.enabled) {
+            return;
+        }
+
+        ['firstMenu', 'firstMenuNewUser'].forEach(key => {
+            checkExact(issues, config, {
+                path: `loginServers.${serverName}.${key}`,
+                value: server[key],
+                kind: RefKind.Menu,
+                refPath: 'general.menuFile',
+                candidates: menuNames,
+            });
+        });
+    });
+}
+
+//
+//  |themeIds|  ids ThemeManager would consider available, or undefined
+//  |menuNames| top level keys of menu.hjson's "menus", or undefined
+//
+function validateDeferredReferences(mergedConfig, { themeIds, menuNames } = {}) {
+    const issues = [];
+
+    if (!_.isPlainObject(mergedConfig)) {
+        return issues;
+    }
+
+    checkThemeReferences(issues, mergedConfig, themeIds);
+    checkFirstMenus(issues, mergedConfig, menuNames);
+
+    return issues;
+}
+
 module.exports = {
     validateReferences,
+    validateDeferredReferences,
     RefKind,
 };

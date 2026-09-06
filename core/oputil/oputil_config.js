@@ -442,6 +442,88 @@ function loadAchievementsConfig(cb) {
     });
 }
 
+//
+//  The two sets the deferred reference checks need. The running board gets
+//  these from ThemeManager, which is not usable here: it logs through a Log
+//  that only exists once the BBS has started.
+//
+//  Both are gathered leniently and hand back undefined when they cannot be
+//  gathered at all, because reporting every theme and menu as missing on a
+//  correct board would be far worse than checking neither.
+//
+
+//
+//  A theme is a directory under paths.themes holding a theme.hjson.
+//
+//  ThemeManager also requires info.name and info.author and honours
+//  info.enabled; only the last is applied here. A theme with a malformed info
+//  block is skipped by the real loader with a warning, and counting it as
+//  present merely means a theme.default pointing at it is not reported --
+//  a miss, where the alternative is a false alarm.
+//
+function gatherThemeIds() {
+    const conf = require('../../core/config.js');
+    const themeDir = _.get(conf.get(), 'paths.themes');
+
+    if (!themeDir) {
+        return undefined;
+    }
+
+    let entries;
+    try {
+        entries = fs.readdirSync(themeDir, { withFileTypes: true });
+    } catch (e) {
+        return undefined; //  no themes directory at all; say nothing
+    }
+
+    const ids = entries
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name)
+        .filter(id => {
+            const themePath = paths.join(themeDir, id, 'theme.hjson');
+            try {
+                const theme = hjson.parse(fs.readFileSync(themePath, 'utf8'));
+                return false !== _.get(theme, 'info.enabled');
+            } catch (e) {
+                //  unreadable or unparseable: the real loader may still manage
+                //  it -- includes and @reference specs are not handled here --
+                //  so keep it as a candidate
+                return fs.existsSync(themePath);
+            }
+        });
+
+    return ids.length ? ids : undefined;
+}
+
+//
+//  Menu names, through the same ConfigLoader the board uses, so includes and
+//  "@reference:" specs behave identically.
+//
+function gatherMenuNames(cb) {
+    const conf = require('../../core/config.js');
+
+    const menuFile = _.get(conf.get(), 'general.menuFile');
+    if (!menuFile) {
+        return cb(undefined);
+    }
+
+    const { getConfigPath: qualify } = require('../../core/config_util.js');
+    const ConfigLoader = require('../../core/config_loader.js');
+
+    const loader = new ConfigLoader({ hotReload: false });
+
+    loader.init(qualify(menuFile), err => {
+        if (err) {
+            //  menu.hjson itself is not this command's business; the board
+            //  will complain loudly enough on its own
+            return cb(undefined);
+        }
+
+        const menus = _.get(loader.get(), 'menus');
+        return cb(_.isPlainObject(menus) ? Object.keys(menus) : undefined);
+    });
+}
+
 function validateCurrentConfig() {
     const { initConfig } = require('./oputil_common.js');
     const conf = require('../../core/config.js');
@@ -458,58 +540,72 @@ function validateCurrentConfig() {
 
         const { buildSchema } = require('../../core/config/schema.js');
         const { validateConfig } = require('../../core/config/validate.js');
-        const { validateReferences } = require('../../core/config/refs.js');
+        const {
+            validateReferences,
+            validateDeferredReferences,
+        } = require('../../core/config/refs.js');
 
         const checkEnv = true === argv['check-env'];
         const paint = colorPainter();
 
-        const issues = [
-            ...validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
-                checkEnv,
-            }),
-            ...validateReferences(conf.get()),
-        ];
-
-        let errorCount = printReport(getConfigPath(), issues, paint);
-
-        loadAchievementsConfig((achErr, achPath, achLoader) => {
-            if (achErr) {
+        gatherMenuNames(menuNames => {
+            const issues = [
+                ...validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
+                    checkEnv,
+                }),
+                ...validateReferences(conf.get()),
                 //
-                //  Not an error: module_util.js logs a warning and carries on
-                //  when a system module fails to initialise, so a board with an
-                //  unreadable achievements.hjson still starts -- it simply has
-                //  no achievements. Saying otherwise here would fail a systemd
-                //  ExecStartPre for something the board itself shrugs off.
+                //  Themes and menus are not in the configuration, so this is
+                //  the only surface besides startup that can check them -- and
+                //  the only one that can do it before a restart.
                 //
-                console.info('');
-                console.info(
-                    `${paint.yellow('warning ')} ${paint.cyan(achPath)}\n` +
-                        `           cannot be loaded, so achievements will be unavailable\n` +
-                        `           ${achErr.message}`
-                );
-            } else if (achLoader) {
-                const {
-                    buildAchievementSchema,
-                } = require('../../core/config/achievement_schema.js');
+                ...validateDeferredReferences(conf.get(), {
+                    themeIds: gatherThemeIds(),
+                    menuNames,
+                }),
+            ];
 
-                console.info('');
-                errorCount += printReport(
-                    achPath,
-                    validateConfig(
-                        achLoader.getUserConfig(),
-                        achLoader.get(),
-                        buildAchievementSchema(),
-                        { checkEnv }
-                    ),
-                    paint
-                );
-            }
+            let errorCount = printReport(getConfigPath(), issues, paint);
 
-            //
-            //  Warnings alone are not a failure: an unknown key may well be a
-            //  mod's own configuration block.
-            //
-            process.exitCode = errorCount > 0 ? ExitCodes.ERROR : ExitCodes.SUCCESS;
+            loadAchievementsConfig((achErr, achPath, achLoader) => {
+                if (achErr) {
+                    //
+                    //  Not an error: module_util.js logs a warning and carries on
+                    //  when a system module fails to initialise, so a board with an
+                    //  unreadable achievements.hjson still starts -- it simply has
+                    //  no achievements. Saying otherwise here would fail a systemd
+                    //  ExecStartPre for something the board itself shrugs off.
+                    //
+                    console.info('');
+                    console.info(
+                        `${paint.yellow('warning ')} ${paint.cyan(achPath)}\n` +
+                            `           cannot be loaded, so achievements will be unavailable\n` +
+                            `           ${achErr.message}`
+                    );
+                } else if (achLoader) {
+                    const {
+                        buildAchievementSchema,
+                    } = require('../../core/config/achievement_schema.js');
+
+                    console.info('');
+                    errorCount += printReport(
+                        achPath,
+                        validateConfig(
+                            achLoader.getUserConfig(),
+                            achLoader.get(),
+                            buildAchievementSchema(),
+                            { checkEnv }
+                        ),
+                        paint
+                    );
+                }
+
+                //
+                //  Warnings alone are not a failure: an unknown key may well be a
+                //  mod's own configuration block.
+                //
+                process.exitCode = errorCount > 0 ? ExitCodes.ERROR : ExitCodes.SUCCESS;
+            });
         });
     });
 }

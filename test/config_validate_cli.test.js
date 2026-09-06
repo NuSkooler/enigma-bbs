@@ -23,8 +23,14 @@ const REPO_ROOT = paths.join(__dirname, '..');
 //  Written as JSON, which HJSON accepts. Quoteless HJSON values run to the
 //  end of the line, so a one-line fixture would swallow its own closing
 //  braces -- and this is not the place to test the parser.
+//  |config| may be a function, called with the temporary directory, for a case
+//  that needs to point at files inside it.
 function runValidate(config, args = [], achievements) {
     const dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigma-validate-'));
+
+    if ('function' === typeof config) {
+        config = config(dir);
+    }
 
     if (achievements) {
         //
@@ -191,6 +197,82 @@ describe('oputil config validate', () => {
         assert.equal(code, 0);
         assert.match(output, /not-here\.hjson/);
         assert.match(output, /achievements will be unavailable/);
+    });
+
+    it('checks themes and first menus, which are not in the configuration', () => {
+        //
+        //  The whole point of the deferred pass: neither a theme id nor a menu
+        //  name can be checked when config.hjson loads, so before this the only
+        //  way to find out was to restart and watch what happened.
+        //
+        const { code, output } = runValidate(dir => {
+            fs.mkdirSync(paths.join(dir, 'themes', 'nice_theme'), { recursive: true });
+            fs.writeFileSync(
+                paths.join(dir, 'themes', 'nice_theme', 'theme.hjson'),
+                JSON.stringify({ info: { name: 'Nice', author: 'Someone' } }),
+                'utf8'
+            );
+            fs.writeFileSync(
+                paths.join(dir, 'menu.hjson'),
+                JSON.stringify({ menus: { telnetConnected: {} } }),
+                'utf8'
+            );
+
+            return {
+                general: { boardName: 'Test', menuFile: paths.join(dir, 'menu.hjson') },
+                paths: { themes: paths.join(dir, 'themes') },
+                theme: { default: 'nice_them', preLogin: 'nice_theme' },
+                loginServers: { telnet: { firstMenu: 'telnetConnectd' } },
+            };
+        });
+
+        assert.notEqual(code, 0);
+        assert.match(output, /theme "nice_them" is not defined in paths\.themes/);
+        assert.match(output, /did you mean "nice_theme"\?/);
+        assert.match(output, /menu "telnetConnectd" is not defined in general\.menuFile/);
+        assert.match(output, /did you mean "telnetConnected"\?/);
+    });
+
+    it('says nothing when the theme and menu both line up', () => {
+        const { code, output } = runValidate(dir => {
+            fs.mkdirSync(paths.join(dir, 'themes', 'nice_theme'), { recursive: true });
+            fs.writeFileSync(
+                paths.join(dir, 'themes', 'nice_theme', 'theme.hjson'),
+                JSON.stringify({ info: { name: 'Nice', author: 'Someone' } }),
+                'utf8'
+            );
+            fs.writeFileSync(
+                paths.join(dir, 'menu.hjson'),
+                JSON.stringify({ menus: { telnetConnected: {} } }),
+                'utf8'
+            );
+
+            return {
+                general: { boardName: 'Test', menuFile: paths.join(dir, 'menu.hjson') },
+                paths: { themes: paths.join(dir, 'themes') },
+                theme: { default: 'nice_theme', preLogin: '*' },
+                loginServers: { telnet: { firstMenu: 'telnetConnected' } },
+            };
+        });
+
+        assert.equal(code, 0);
+        assert.match(output, /config\.hjson: no problems found/);
+    });
+
+    it('checks no themes at all rather than reporting them all missing', () => {
+        //
+        //  Fail open: paths.themes pointing somewhere unreadable means the
+        //  candidate set is unknown, and an unknown set is a reason to say
+        //  nothing. Reporting a correct theme as missing would be far worse.
+        //
+        const { code, output } = runValidate(dir => ({
+            general: { boardName: 'Test' },
+            paths: { themes: paths.join(dir, 'no-such-directory') },
+            theme: { default: 'whatever_this_is' },
+        }));
+
+        assert.equal(code, 0);
+        assert.ok(!output.includes('whatever_this_is'), output);
     });
 
     it('says everything exactly once', () => {

@@ -23,6 +23,15 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   It also checks names that have to line up across sections — a file area naming a storage tag that was renamed, a `ticAreas` entry pointing at a file area that does not exist, an echo or a NetMail route naming a network spelled differently where it is defined, an NNTP conference or area exposed publicly that is not there. None of those produce an error today: the file quietly never lands, the echo is quietly never exported, and nothing in the log says why.
 
+  **A theme or a first menu that is not there is now reported too.** `theme.default`, `theme.preLogin` and each login server's `firstMenu` name things that live outside `config.hjson` — a directory under `paths.themes`, an entry in `menu.hjson` — so until now the only way to find a typo in one was to restart and watch what happened. A misnamed theme quietly falls back to whichever theme loads first; a misnamed first menu breaks that login server for everyone using it.
+
+  ```
+    error    theme.default
+             theme "lucian_blocktronics" is not defined in paths.themes -- did you mean "luciano_blocktronics"?
+  ```
+
+  Checked at startup, once the themes and menus are loaded, and by `oputil.js config validate` — which gathers both sets itself, so it can tell you before the restart rather than after. `*` still means "pick one at random" and is left alone, and a login server you have switched off is not checked at all, since a menu for a server nobody can reach is not a problem. If either set cannot be read, nothing is reported rather than everything.
+
   **Values are now checked, not just key names.** A port outside 1-65535, a `logging.rotatingFile.level` bunyan has never heard of, a negative idle timeout, a two factor method that is not implemented, a TIC `fileCase` that is neither `lower` nor `upper` — each of these is reported with the values that would have worked. Every one of them was taken from the code that reads the setting, and a test asserts that no constraint excludes the value ENiGMA½ itself ships, because a validator that fails a correct board is worse than none.
 
   **`achievements.hjson` is checked too** — at startup, on reload, and by `oputil.js config validate`, which now reports on both files and names each one. A `statname` written for `statName` has always meant the achievement is silently discarded at load and simply never fires, with nothing logged either way. The same goes for a `type` that is not one of the three the code implements, or a tier whose `points` are a string. An `achievements.hjson` that cannot be read at all is reported as a warning rather than a failure, because that is what the board itself does: it logs and carries on without achievements.

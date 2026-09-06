@@ -357,4 +357,5 @@ module.exports = {
     validateConfig,
     suggestKey,
     keyDistance,
+    UNRESOLVED_SPEC,
 };

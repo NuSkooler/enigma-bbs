@@ -313,6 +313,46 @@ function initialize(cb) {
                 const { ThemeManager } = require('./theme');
                 return ThemeManager.create(callback);
             },
+            function validateDeferredReferences(callback) {
+                //
+                //  theme.default and loginServers.*.firstMenu name things that
+                //  do not exist when config.hjson loads, so they are checked
+                //  here, once the themes and menu.hjson are in.
+                //
+                //  Advisory, like every other configuration check: a theme
+                //  that is not there falls back to another one and a bad first
+                //  menu breaks that login server, but neither is a reason to
+                //  refuse to start. Wrapped because a throw in an async.series
+                //  task propagates straight out and the callback never fires.
+                //
+                try {
+                    const Config = require('./config.js').get;
+                    const { isEnabled } = require('./config/report.js');
+
+                    if (isEnabled(Config())) {
+                        const theme = require('./theme.js');
+                        const {
+                            validateDeferredReferences,
+                        } = require('./config/refs.js');
+
+                        const issues = validateDeferredReferences(Config(), {
+                            themeIds: [...theme.getAvailableThemes().keys()],
+                            menuNames: theme.getMenuNames(),
+                        });
+
+                        require('./config/report.js').reportIssues(issues, {
+                            logOnly: true,
+                        });
+                    }
+                } catch (e) {
+                    logger.log.warn(
+                        { error: e.message },
+                        'Deferred configuration validation failed'
+                    );
+                }
+
+                return callback(null);
+            },
             function loadSysOpInformation(callback) {
                 //
                 //  Copy over some +op information from the user DB -> system properties.
