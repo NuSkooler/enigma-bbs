@@ -360,6 +360,88 @@ function colorPainter() {
     };
 }
 
+//
+//  One file's worth of report. Returns how many of its issues were errors,
+//  since only those decide the exit code.
+//
+function printReport(label, issues, paint) {
+    const {
+        describeIssue,
+        countBySeverity,
+        Severity,
+    } = require('../../core/config/issue.js');
+
+    if (0 === issues.length) {
+        console.info(`${label}: no problems found`);
+        return 0;
+    }
+
+    const { errors, warnings } = countBySeverity(issues);
+    const parts = [];
+    if (errors) {
+        parts.push(`${errors} error${1 === errors ? '' : 's'}`);
+    }
+    if (warnings) {
+        parts.push(`${warnings} warning${1 === warnings ? '' : 's'}`);
+    }
+
+    console.info(
+        `${label}: ${issues.length} issue${1 === issues.length ? '' : 's'} (${parts.join(
+            ', '
+        )})\n`
+    );
+
+    //  errors first; they are the ones that will actually misbehave
+    const ordered = issues.slice().sort((a, b) => {
+        if (a.severity === b.severity) {
+            return a.path.localeCompare(b.path);
+        }
+        return Severity.Error === a.severity ? -1 : 1;
+    });
+
+    ordered.forEach(issue => {
+        const described = describeIssue(issue);
+        const paintSeverity =
+            Severity.Error === described.severity ? paint.red : paint.yellow;
+
+        console.info(
+            `  ${paintSeverity(described.severity.padEnd(8))} ${paint.cyan(
+                described.path
+            )}`
+        );
+        described.message.split('\n').forEach(line => {
+            console.info(`           ${line}`);
+        });
+        console.info('');
+    });
+
+    return errors;
+}
+
+//
+//  achievements.hjson, if the system is configured for one. It goes through
+//  the same ConfigLoader the running board uses, so an @reference or an
+//  include behaves identically here.
+//
+function loadAchievementsConfig(cb) {
+    const conf = require('../../core/config.js');
+
+    const achievementFile = _.get(conf.get(), 'general.achievementFile');
+    if (!achievementFile) {
+        return cb(null); //  not configured, which is legal
+    }
+
+    const { getConfigPath: qualify } = require('../../core/config_util.js');
+    const ConfigLoader = require('../../core/config_loader.js');
+
+    const path = qualify(achievementFile);
+    const loader = new ConfigLoader({ hotReload: false });
+
+    loader.init(path, err => {
+        return cb(err, path, loader);
+    });
+}
+
 function validateCurrentConfig() {
     const { initConfig } = require('./oputil_common.js');
     const conf = require('../../core/config.js');
@@ -376,73 +458,59 @@ function validateCurrentConfig() {
 
         const { buildSchema } = require('../../core/config/schema.js');
         const { validateConfig } = require('../../core/config/validate.js');
-        const {
-            describeIssue,
-            countBySeverity,
-            Severity,
-        } = require('../../core/config/issue.js');
-
         const { validateReferences } = require('../../core/config/refs.js');
+
+        const checkEnv = true === argv['check-env'];
+        const paint = colorPainter();
 
         const issues = [
             ...validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
-                checkEnv: true === argv['check-env'],
+                checkEnv,
             }),
             ...validateReferences(conf.get()),
         ];
 
-        const configPath = getConfigPath();
+        let errorCount = printReport(getConfigPath(), issues, paint);
 
-        if (0 === issues.length) {
-            console.info(`${configPath}: no problems found`);
-            process.exitCode = ExitCodes.SUCCESS;
-            return;
-        }
+        loadAchievementsConfig((achErr, achPath, achLoader) => {
+            if (achErr) {
+                //
+                //  Not an error: module_util.js logs a warning and carries on
+                //  when a system module fails to initialise, so a board with an
+                //  unreadable achievements.hjson still starts -- it simply has
+                //  no achievements. Saying otherwise here would fail a systemd
+                //  ExecStartPre for something the board itself shrugs off.
+                //
+                console.info('');
+                console.info(
+                    `${paint.yellow('warning ')} ${paint.cyan(achPath)}\n` +
+                        `           cannot be loaded, so achievements will be unavailable\n` +
+                        `           ${achErr.message}`
+                );
+            } else if (achLoader) {
+                const {
+                    buildAchievementSchema,
+                } = require('../../core/config/achievement_schema.js');
 
-        const { errors, warnings } = countBySeverity(issues);
-        const parts = [];
-        if (errors) {
-            parts.push(`${errors} error${1 === errors ? '' : 's'}`);
-        }
-        if (warnings) {
-            parts.push(`${warnings} warning${1 === warnings ? '' : 's'}`);
-        }
-
-        console.info(
-            `${configPath}: ${issues.length} issue${
-                1 === issues.length ? '' : 's'
-            } (${parts.join(', ')})\n`
-        );
-
-        //  errors first; they are the ones that will actually misbehave
-        const ordered = issues.slice().sort((a, b) => {
-            if (a.severity === b.severity) {
-                return a.path.localeCompare(b.path);
+                console.info('');
+                errorCount += printReport(
+                    achPath,
+                    validateConfig(
+                        achLoader.getUserConfig(),
+                        achLoader.get(),
+                        buildAchievementSchema(),
+                        { checkEnv }
+                    ),
+                    paint
+                );
             }
-            return Severity.Error === a.severity ? -1 : 1;
+
+            //
+            //  Warnings alone are not a failure: an unknown key may well be a
+            //  mod's own configuration block.
+            //
+            process.exitCode = errorCount > 0 ? ExitCodes.ERROR : ExitCodes.SUCCESS;
         });
-
-        const paint = colorPainter();
-
-        ordered.forEach(issue => {
-            const described = describeIssue(issue);
-            const label =
-                Severity.Error === described.severity
-                    ? paint.red(described.severity.padEnd(8))
-                    : paint.yellow(described.severity.padEnd(8));
-
-            console.info(`  ${label} ${paint.cyan(described.path)}`);
-            described.message.split('\n').forEach(line => {
-                console.info(`           ${line}`);
-            });
-            console.info('');
-        });
-
-        //
-        //  Warnings alone are not a failure: an unknown key may well be a
-        //  mod's own configuration block.
-        //
-        process.exitCode = errors > 0 ? ExitCodes.ERROR : ExitCodes.SUCCESS;
     });
 }
 

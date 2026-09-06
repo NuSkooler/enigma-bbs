@@ -111,7 +111,8 @@ Actions:
 
   cat                      Write current configuration to stdout
 
-  validate                 Check the configuration for problems
+  validate                 Check config.hjson and achievements.hjson for
+                           problems
 
 cat arguments:
   --no-colors              Disable color

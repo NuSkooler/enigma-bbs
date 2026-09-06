@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const Events = require('./events.js');
+const AchievementTypes = require('./achievement_types.js');
 const Config = require('./config.js').get;
 const ConfigLoader = require('./config_loader');
 const { getConfigPath } = require('./config_util');
@@ -75,11 +76,7 @@ class Achievement {
     }
 
     static get Types() {
-        return {
-            UserStatSet: 'userStatSet',
-            UserStatInc: 'userStatInc',
-            UserStatIncNewVal: 'userStatIncNewVal',
-        };
+        return AchievementTypes;
     }
 
     isValid() {
@@ -183,6 +180,36 @@ class Achievements {
         };
 
         this.config = new ConfigLoader({
+            //
+            //  Advisory only, exactly as for config.hjson: a problem here is
+            //  reported and the file is still applied. ConfigLoader guards
+            //  both calls, so nothing in this can stop a load or a reload.
+            //
+            validator: (userConfig, mergedConfig) => {
+                const { isEnabled } = require('./config/report.js');
+                //  general.configValidation governs every file, not just its own
+                if (!isEnabled(Config())) {
+                    return [];
+                }
+
+                const { validateConfig } = require('./config/validate.js');
+                const {
+                    buildAchievementSchema,
+                } = require('./config/achievement_schema.js');
+
+                return validateConfig(userConfig, mergedConfig, buildAchievementSchema());
+            },
+            //
+            //  Always the log: unlike config.hjson this is read well after
+            //  Log.init(), so there is no reason to interleave with the
+            //  startup banner.
+            //
+            onValidation: issues => {
+                require('./config/report.js').reportIssues(issues, {
+                    source: 'achievements.hjson',
+                    logOnly: true,
+                });
+            },
             onReload: err => {
                 if (!err) {
                     configLoaded();
@@ -614,7 +641,7 @@ class Achievements {
     createAchievementInterruptItems(info, cb) {
         info.dateTimeFormat =
             info.details.dateTimeFormat ||
-            info.achievement.dateTimeFormat ||
+            info.achievement.data.dateTimeFormat ||
             info.client.currentTheme.helpers.getDateTimeFormat();
 
         //  Compute once; pass through to avoid redundant property reads.
@@ -629,9 +656,15 @@ class Achievements {
         }
 
         const getArt = (name, callback) => {
+            //
+            //  Most specific first: the tier, then the achievement, then the
+            //  file's own top level. |info.achievement| is an Achievement, so
+            //  its configuration is under .data -- reading the instance itself
+            //  meant the middle tier silently never matched.
+            //
             const spec =
                 _.get(info.details, `art.${name}`) ||
-                _.get(info.achievement, `art.${name}`) ||
+                _.get(info.achievement, `data.art.${name}`) ||
                 _.get(this.config.get(), `art.${name}`);
             if (!spec) {
                 return callback(null);
