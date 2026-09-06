@@ -90,6 +90,43 @@ describe('menu module resolution', () => {
         assert.equal(resolver()({ type: 'systemModule', asset: '../package' }), false);
     });
 
+    it('refuses one where only the nested candidate escapes', () => {
+        //
+        //  Found by review: the containment check looked at "<name>.js" and
+        //  not at "<name>/<basename>.js". Given "..", appending ".js" makes a
+        //  filename inside the root -- so that candidate looks contained --
+        //  while the nested form climbs out of it. The test above never
+        //  covered this, because "../package" escapes on the first candidate.
+        //
+        const escaping = paths.resolve(CORE, '..', '...js');
+        fs.writeFileSync(escaping, 'module.exports = {};');
+
+        try {
+            ['..', './..', 'foo/../..'].forEach(asset => {
+                assert.equal(
+                    resolver()({ type: 'systemModule', asset }),
+                    false,
+                    `accepted "${asset}", which resolves outside core/`
+                );
+            });
+        } finally {
+            fs.unlinkSync(escaping);
+        }
+    });
+
+    it('does not choke on a boxed String', () => {
+        //
+        //  _.isString() -- the gate in refs.js -- is true for one, and
+        //  path.basename() then refuses it outright. Unreachable through
+        //  hjson, which yields primitives, but it is the mechanism that made
+        //  the unguarded oputil path a crash rather than a report.
+        //
+        assert.equal(
+            resolver()({ type: 'systemModule', asset: new String('show_art') }),
+            true
+        );
+    });
+
     it('checks nothing when it has nowhere to look', () => {
         assert.equal(makeModuleResolver({}), undefined);
         assert.equal(makeModuleResolver(), undefined);

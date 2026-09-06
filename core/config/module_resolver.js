@@ -47,19 +47,28 @@ function makeModuleResolver({ systemPath, userPath } = {}) {
         }
 
         //
-        //  A name may contain path separators, so resolve and confirm the
-        //  result is still under its base: "../../etc/passwd" is not a module
-        //  name, and neither is anything else that escapes.
+        //  Coerced because _.isString() -- the gate in refs.js -- is true for
+        //  a boxed String, which path.basename() then refuses outright.
         //
+        const name = String(asset.asset);
+
         const root = paths.resolve(base);
-        const direct = paths.resolve(root, `${asset.asset}.js`);
-        const contained = paths.resolve(root, asset.asset, `${paths.basename(asset.asset)}.js`);
+        const direct = paths.resolve(root, `${name}.js`);
+        const contained = paths.resolve(root, name, `${paths.basename(name)}.js`);
 
-        if (!direct.startsWith(root + paths.sep)) {
-            return false;
-        }
+        //
+        //  A name may contain path separators, so *each* candidate has to be
+        //  confirmed still under the base. Checking only the first is not
+        //  enough: given "..", appending ".js" makes a filename inside the
+        //  root while the nested form climbs out of it, so the escape happens
+        //  on the candidate that was not being looked at.
+        //
+        const under = candidate => candidate.startsWith(root + paths.sep);
 
-        return exists(direct) || exists(contained);
+        return (
+            (under(direct) && exists(direct)) ||
+            (under(contained) && exists(contained))
+        );
     };
 }
 

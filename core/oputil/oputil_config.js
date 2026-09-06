@@ -361,6 +361,25 @@ function colorPainter() {
 }
 
 //
+//  A bug in a validator is not the operator's problem, and it must not stop
+//  the other files being checked.
+//
+//  The boot and hot reload paths are covered by ConfigLoader._validate()'s own
+//  try/catch, but this command calls the validators directly -- so without
+//  this a single throw kills the process with a raw stack trace, skips every
+//  remaining file, and leaves process.exitCode as Node's uncaught-exception
+//  code rather than the one the command meant to set.
+//
+function collectIssues(label, produce) {
+    try {
+        return produce();
+    } catch (e) {
+        console.error(`  (could not check ${label}: ${e.message})`);
+        return [];
+    }
+}
+
+//
 //  One file's worth of report. Returns how many of its issues were errors,
 //  since only those decide the exit code.
 //
@@ -548,7 +567,7 @@ function validateCurrentConfig() {
                 ? Object.keys(menuConfig.prompts)
                 : undefined;
 
-            const issues = [
+            const issues = collectIssues('config.hjson', () => [
                 ...validateConfig(conf.getUserConfig(), conf.get(), buildSchema(), {
                     checkEnv,
                 }),
@@ -562,7 +581,7 @@ function validateCurrentConfig() {
                     themeIds: themeIds.length ? themeIds : undefined,
                     menuNames,
                 }),
-            ];
+            ]);
 
             let errorCount = printReport(getConfigPath(), issues, paint);
 
@@ -580,7 +599,7 @@ function validateCurrentConfig() {
                 console.info('');
                 errorCount += printReport(
                     menu.path,
-                    [
+                    collectIssues(menu.path, () => [
                         ...validateConfig(
                             menu.loader.getUserConfig(),
                             menuConfig,
@@ -592,7 +611,7 @@ function validateCurrentConfig() {
                             menuConfig,
                             defaultModuleResolver(conf.get())
                         ),
-                    ],
+                    ]),
                     paint
                 );
             }
@@ -607,13 +626,13 @@ function validateCurrentConfig() {
                     console.info('');
                     errorCount += printReport(
                         path,
-                        [
+                        collectIssues(path, () => [
                             ...validateConfig(theme, theme, themeSchema, { checkEnv }),
                             ...validateThemeReferences(theme, {
                                 menuNames,
                                 menuPromptNames,
                             }),
-                        ],
+                        ]),
                         paint
                     );
                 });
@@ -642,11 +661,13 @@ function validateCurrentConfig() {
                     console.info('');
                     errorCount += printReport(
                         achPath,
-                        validateConfig(
-                            achLoader.getUserConfig(),
-                            achLoader.get(),
-                            buildAchievementSchema(),
-                            { checkEnv }
+                        collectIssues(achPath, () =>
+                            validateConfig(
+                                achLoader.getUserConfig(),
+                                achLoader.get(),
+                                buildAchievementSchema(),
+                                { checkEnv }
+                            )
                         ),
                         paint
                     );
