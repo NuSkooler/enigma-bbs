@@ -22,6 +22,27 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **Eight customizations in the `luciano_blocktronics` theme were named wrongly and have been corrected.** `ThemeManager` starts from your `menu.hjson` and looks each menu up in the theme, so a customization naming a menu that does not exist is never consulted — it silently does nothing. Seven menu blocks and one prompt block in the theme we ship named nothing at all. Three were renamed to the menus they were meant for and four were removed.
+
+  **This only affects you if you use `luciano_blocktronics` unmodified *and* your `menu.hjson` predates the menu renames.** If so, these blocks stop applying to your board:
+
+  | Was | Now | If your menu.hjson still has the old name |
+  |---|---|---|
+  | `messageSearch` | `messageBaseSearch` | rename the menu, or copy the block into your own theme |
+  | `messageBaseReplyPost` | `messageAreaReplyPost` | same |
+  | `messageMenuCommand` (prompt) | `messageBaseMenuPrompt` | same |
+  | `qwkExportPacketCurrentConfig`, `fileBase`, `irc`, `activityPubPostPublicMessage` | *removed* | copy the block into your own theme if you have such a menu |
+
+  The safest check is to compare the theme's menu names against your own: anything in `customization.menus` that is not a key under `menus` in your `menu.hjson` was already doing nothing, before or after this change.
+
+  One correction is a **fix rather than a removal**: `MSGPMPT.ANS` contains a `%TL1` placeholder and the theme supplies its text, but under the wrong name — so the message area command prompt has been missing its hint line. It now renders. If you have themed `messageBaseMenuPrompt` yourself, check it still looks right.
+
+  **If you maintain your own theme, nothing here affects you.**
+
+* **Configuration problems are now reported at startup** ([#281](https://github.com/NuSkooler/enigma-bbs/issues/281)). A mistyped key in `config.hjson` has never been reported — because your file is merged *into* the defaults, a typo lands quietly beside the correct key and the setting you wrote is simply never read. Those are now listed on the console at startup and to the log on a hot reload.
+
+  **Expect to see output you have not seen before**, possibly naming real mistakes that have been silently inert for years. **Nothing blocks**: a configuration with problems is applied exactly as before, and the board starts. Run `./oputil.js config validate` for the full report, and set `general.configValidation` to `off` to silence the startup output — the command keeps working either way. There is deliberately no strict mode.
+
 * **A TIC whose file has not arrived yet is now held instead of rejected** ([#735](https://github.com/NuSkooler/enigma-bbs/issues/735)). A `.tic` and the file it announces routinely arrive in *separate* mailer sessions, minutes or hours apart. Until now the announcement was processed the instant it landed, failed because the file was not there, and was archived to `paths.reject` — so when the file did arrive there was nothing left to pair it with, and it sat in the inbound forever. For a large file from a given peer this could fail every single time. Such a TIC is now kept and retried on later import passes, bounded by the new `scannerTossers.ftn_bso.tic.holdMaxAgeMs` (default 48 hours; `0` holds indefinitely). **No action is required.**
 
   **Check your inbound for files this already stranded.** Anything in `mail/ftn_secin/` (or `mail/ftn_in/`) that is not a `.pkt`, a bundle or a `.tic` is very likely an orphaned TIC payload. The matching announcement is in `mail/reject/` as `reject-tic--<timestamp>-<name>.tic`; the simplest recovery is to move *both* back into the secure inbound and let the next import pass pick them up, now that the pairing works. Re-announcement by the peer is not needed.
