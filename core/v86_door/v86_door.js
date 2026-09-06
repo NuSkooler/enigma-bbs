@@ -209,6 +209,7 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     if (hasDropFile) {
                         const dropFile = new DropFile(self.client, {
                             fileType: dropFileType,
+                            commType: 'serial',
                         });
                         if (!dropFile.isSupported()) {
                             return callback(

@@ -27,11 +27,18 @@ const { mkdirs } = require('fs-extra');
 module.exports = class DropFile {
     constructor(
         client,
-        { fileType = 'DORINFO', baseDir = Config().paths.dropFiles } = {}
+        {
+            fileType = 'DORINFO',
+            baseDir = Config().paths.dropFiles,
+            commType = 'local',
+        } = {}
     ) {
         this.client = client;
         this.fileType = fileType.toUpperCase();
         this.baseDir = baseDir;
+        //  'local', 'serial', or 'socket' -- what the dropfile reports, which
+        //  is not ENiGMA's |io| type: Door accepts only stdio and socket
+        this.commType = commType;
     }
 
     static dropFileDirectory(baseDir, client) {
@@ -178,19 +185,24 @@ module.exports = class DropFile {
         //  * http://wiki.bbses.info/index.php/DOOR32.SYS
         //  * https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
         //
-        //  :TODO: local/serial/telnet need to be configurable -- which also changes socket handle!
         const Door32CommTypes = {
             Local: 0,
             Serial: 1,
             Telnet: 2,
         };
 
-        const commType = Door32CommTypes.Telnet;
+        const commType =
+            {
+                socket: Door32CommTypes.Telnet,
+                serial: Door32CommTypes.Serial,
+            }[this.commType] ?? Door32CommTypes.Local;
+        //  ENiGMA shares a socket server, not a descriptor; bivrost bridges it
+        const commHandle = 'socket' === this.commType ? '-1' : '0';
 
         return iconv.encode(
             [
                 commType.toString(),
-                '-1',
+                commHandle,
                 '115200',
                 Config().general.boardName,
                 this.client.user.userId.toString(),
