@@ -78,10 +78,11 @@ describe('menu schema', () => {
 
     it('accepts the keys the code reads but no documentation lists', () => {
         //
-        //  font, runtime and youSubmittedFormat are read at
-        //  menu_module.js:906, menu_module.js:644 and bbs_list.js:213. Closing
-        //  the key set on menu-hjson.md alone would report three working
-        //  menus as containing typos.
+        //  font, runtime, youSubmittedFormat and action are read at
+        //  menu_module.js:906, menu_module.js:644, bbs_list.js:213 and
+        //  view_controller.js:653. Closing the key set on menu-hjson.md alone
+        //  would report four working menus as containing typos -- "action"
+        //  was missed on the first pass and found by review.
         //
         assert.deepEqual(
             validate(
@@ -90,6 +91,24 @@ describe('menu schema', () => {
                     font: 'cp437',
                     runtime: { autoNext: true },
                     youSubmittedFormat: '{submitter} (You!)',
+                })
+            ),
+            []
+        );
+    });
+
+    it('accepts an "action" on a prompt-driven menu', () => {
+        //
+        //  core/view_controller.js:653 reads menuConfig.action directly: a
+        //  menu that uses a "prompt" may carry its action there instead of a
+        //  by-form-id submit block.
+        //
+        assert.deepEqual(
+            validate(
+                withMenu({
+                    desc: 'Confirm Logoff',
+                    prompt: 'confirmLogoffPrompt',
+                    action: '@systemMethod:logoff',
                 })
             ),
             []

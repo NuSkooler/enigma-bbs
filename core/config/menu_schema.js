@@ -26,8 +26,8 @@ const NodeType = require('./schema.js').NodeType;
 //  is both likely and silent.
 //
 //  The key sets below come from the code that reads them rather than from the
-//  files that ship. Three keys no documentation lists are legal --
-//  |font|, |runtime| and |youSubmittedFormat| -- and two keys that appear in
+//  files that ship. Four keys no documentation lists are legal -- |font|,
+//  |runtime|, |youSubmittedFormat| and |action| -- and two keys that appear in
 //  real menu files are not: a menu level |acs| is never consulted (only
 //  config.acs is, at core/acs.js:84) and |fallback| has done nothing since the
 //  menu stack replaced it.
@@ -55,6 +55,13 @@ function menuEntryNode() {
                 description: 'Name of an entry in the "prompts" section.',
             },
             submit: ANY,
+            //
+            //  A menu driven by a "prompt" may carry an action directly
+            //  instead of a by-form-id submit block; core/view_controller.js
+            //  :653 reads it off the menu entry and says as much in the else
+            //  branch right below.
+            //
+            action: ANY,
             form: {
                 type: NodeType.Object,
                 //  form and MCI validation is deliberately out of scope
