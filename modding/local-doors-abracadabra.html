@@ -17,11 +17,11 @@
 <meta property="og:description" content="Scripts &amp; Native Binaries (abracadabra)" />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2026-09-07T01:49:09+00:00" />
+<meta property="article:published_time" content="2026-09-07T17:55:14+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Local Doors — Scripts &amp; Native Binaries" />
 <script type="application/ld+json">
-{"description":"Scripts &amp; Native Binaries (abracadabra)","headline":"Local Doors — Scripts &amp; Native Binaries","dateModified":"2026-09-07T01:49:09+00:00","datePublished":"2026-09-07T01:49:09+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors-abracadabra.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors-abracadabra.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
+{"description":"Scripts &amp; Native Binaries (abracadabra)","headline":"Local Doors — Scripts &amp; Native Binaries","dateModified":"2026-09-07T17:55:14+00:00","datePublished":"2026-09-07T17:55:14+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors-abracadabra.html"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"url":"/enigma-bbs/modding/local-doors-abracadabra.html","@type":"BlogPosting","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2960,12 +2960,61 @@
       <td>I/O mode: <code class="language-plaintext highlighter-rouge">stdio</code> (default) or <code class="language-plaintext highlighter-rouge">socket</code>. When <code class="language-plaintext highlighter-rouge">socket</code>, ENiGMA½ spawns a temporary TCP server on <code class="language-plaintext highlighter-rouge">{srvPort}</code> that the door process connects back to.</td>
     </tr>
     <tr>
+      <td><code class="language-plaintext highlighter-rouge">commType</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>What the drop file tells the door it is talking to: <code class="language-plaintext highlighter-rouge">local</code>, <code class="language-plaintext highlighter-rouge">serial</code>, or <code class="language-plaintext highlighter-rouge">socket</code>. Defaults to <code class="language-plaintext highlighter-rouge">socket</code> when <code class="language-plaintext highlighter-rouge">io: socket</code>, otherwise <code class="language-plaintext highlighter-rouge">local</code>. See <a href="#comm-type">Comm Type</a> below.</td>
+    </tr>
+    <tr>
       <td><code class="language-plaintext highlighter-rouge">encoding</code></td>
       <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
       <td>The door process’s text encoding. Defaults to <code class="language-plaintext highlighter-rouge">cp437</code>. Linux-native binaries often use <code class="language-plaintext highlighter-rouge">utf8</code>.</td>
     </tr>
   </tbody>
 </table>
+
+<h4 id="comm-type">Comm Type</h4>
+
+<p><code class="language-plaintext highlighter-rouge">io</code> says how ENiGMA½ talks to the process it spawns; <code class="language-plaintext highlighter-rouge">commType</code> says how the <em>door</em> talks to the caller. They are the same thing only when the process ENiGMA½ spawns <strong>is</strong> the door, which is why the default is derived from <code class="language-plaintext highlighter-rouge">io</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th><code class="language-plaintext highlighter-rouge">commType</code></th>
+      <th>Reported as</th>
+      <th>Use when</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<code class="language-plaintext highlighter-rouge">local</code> (default)</td>
+      <td>
+<code class="language-plaintext highlighter-rouge">DOOR32.SYS</code> comm type <code class="language-plaintext highlighter-rouge">0</code>, <code class="language-plaintext highlighter-rouge">DOOR.SYS</code> <code class="language-plaintext highlighter-rouge">COM0:</code>, <code class="language-plaintext highlighter-rouge">DORINFO</code> <code class="language-plaintext highlighter-rouge">0</code>
+</td>
+      <td>The door reads stdin and writes stdout. This covers <code class="language-plaintext highlighter-rouge">io: stdio</code>, which is nearly every native or scripted door.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">serial</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">DOOR32.SYS</code> comm type <code class="language-plaintext highlighter-rouge">1</code>, <code class="language-plaintext highlighter-rouge">DOOR.SYS</code> <code class="language-plaintext highlighter-rouge">COM1:</code>, <code class="language-plaintext highlighter-rouge">DORINFO</code> <code class="language-plaintext highlighter-rouge">COM1</code>
+</td>
+      <td>An emulator sits between ENiGMA½ and the door and presents it a COM port — QEMU bridging <code class="language-plaintext highlighter-rouge">{srvPort}</code> onto <code class="language-plaintext highlighter-rouge">isa-serial</code>, for example.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">socket</code></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">DOOR32.SYS</code> comm type <code class="language-plaintext highlighter-rouge">2</code>, <code class="language-plaintext highlighter-rouge">DOOR.SYS</code> <code class="language-plaintext highlighter-rouge">COM1:</code>, <code class="language-plaintext highlighter-rouge">DORINFO</code> <code class="language-plaintext highlighter-rouge">COM1</code>
+</td>
+      <td>Descriptor sharing by way of <a href="#door32sys-socket-descriptor-sharing">bivrost!</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+  <p><img class="emoji" title=":warning:" alt=":warning:" src="https://github.githubassets.com/images/icons/emoji/unicode/26a0.png" height="20" width="20"> Setting <code class="language-plaintext highlighter-rouge">commType: socket</code> does <strong>not</strong> give the door a socket. ENiGMA½ shares a socket <em>server</em>, not a descriptor, so <code class="language-plaintext highlighter-rouge">DOOR32.SYS</code> line 2 is written as <code class="language-plaintext highlighter-rouge">-1</code> and bivrost! replaces both lines with the real handle. A door handed <code class="language-plaintext highlighter-rouge">2</code> and <code class="language-plaintext highlighter-rouge">-1</code> with nothing in between is entitled to refuse to start, and some do.</p>
+</blockquote>
+
+<p>Doors that ignore these fields entirely — most DOS-era games under an emulator — are unaffected by any of this.</p>
 
 <h4 id="argument-variables">Argument Variables</h4>
 
