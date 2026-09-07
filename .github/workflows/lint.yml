@@ -29,3 +29,8 @@ jobs:
 
       - name: ESLint
         run: npm run lint
+
+      - name: Prettier
+        #  --check is the read-only half of `npm run pretty`; it reports the
+        #  files that differ and exits non-zero rather than rewriting them.
+        run: npm run pretty:check

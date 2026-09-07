@@ -12,6 +12,7 @@
         "start": "node main.js",
         "oputil": "node ./oputil.js",
         "pretty": "prettier --write .",
+        "pretty:check": "prettier --check .",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "build:acs": "peggy --format commonjs -o core/acs_parser.js misc/acs_parser.pegjs",
