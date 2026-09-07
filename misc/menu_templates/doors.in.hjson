@@ -70,6 +70,15 @@
                 nodeMax: 1
                 tooManyArt: DOORMANY
                 io: socket
+
+                //
+                //  What the drop file tells the door it is talking to:
+                //  local, serial, or socket. Defaults to socket here because
+                //  of io above; set it to serial if an emulator bridges the
+                //  port to a COM port in a guest. See
+                //  docs/_docs/modding/local-doors-abracadabra.md
+                //
+                //commType: serial
             }
         }
 

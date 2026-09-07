@@ -36,9 +36,23 @@ module.exports = class DropFile {
         this.client = client;
         this.fileType = fileType.toUpperCase();
         this.baseDir = baseDir;
-        //  'local', 'serial', or 'socket' -- what the dropfile reports, which
+        //  'local', 'serial', or 'socket' -- what the *door* is handed, which
         //  is not ENiGMA's |io| type: Door accepts only stdio and socket
-        this.commType = commType;
+        this.commType = DropFile.normalizeCommType(commType);
+    }
+
+    static get ValidCommTypes() {
+        return ['local', 'serial', 'socket'];
+    }
+
+    //
+    //  Anything unrecognized reports as 'local' -- the one mode that asks
+    //  nothing of us, and so cannot promise a door something we are unable
+    //  to hand over.
+    //
+    static normalizeCommType(commType) {
+        commType = _.isString(commType) ? commType.toLowerCase() : '';
+        return DropFile.ValidCommTypes.includes(commType) ? commType : 'local';
     }
 
     static dropFileDirectory(baseDir, client) {
@@ -68,6 +82,16 @@ module.exports = class DropFile {
             SXDOOR: 'SXDOOR.' + _.pad(this.client.node.toString(), 3, '0'), //  System/X, dESiRE
             INFO: 'INFO.BBS', //  Phoenix BBS
         }[this.fileType];
+    }
+
+    //  DOOR.SYS line 1: "Comm Port - COM0: = LOCAL MODE"
+    get doorSysCommPort() {
+        return 'local' === this.commType ? 'COM0:' : 'COM1:';
+    }
+
+    //  DORINFO line 4: the serial port, or 0 when the caller is on the console
+    get dorInfoCommPort() {
+        return 'local' === this.commType ? '0' : 'COM1';
     }
 
     isSupported() {
@@ -120,7 +144,7 @@ module.exports = class DropFile {
         //  :TODO: fix default protocol -- user prop: transfer_protocol
         return iconv.encode(
             [
-                'COM1:', //  "Comm Port - COM0: = LOCAL MODE"
+                this.doorSysCommPort, //  "Comm Port - COM0: = LOCAL MODE"
                 '57600', //  "Baud Rate - 300 to 38400" (Note: set as 57600 instead!)
                 '8', //  "Parity - 7 or 8"
                 this.client.node.toString(), //  "Node Number - 1 to 99"
@@ -185,18 +209,20 @@ module.exports = class DropFile {
         //  * http://wiki.bbses.info/index.php/DOOR32.SYS
         //  * https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
         //
-        const Door32CommTypes = {
-            Local: 0,
-            Serial: 1,
-            Telnet: 2,
-        };
+        const commType = {
+            local: 0,
+            serial: 1,
+            socket: 2, //  the spec's name for a shared socket is "telnet"
+        }[this.commType];
 
-        const commType =
-            {
-                socket: Door32CommTypes.Telnet,
-                serial: Door32CommTypes.Serial,
-            }[this.commType] ?? Door32CommTypes.Local;
-        //  ENiGMA shares a socket server, not a descriptor; bivrost bridges it
+        //
+        //  Line 2 is the comm or socket handle. ENiGMA shares a socket
+        //  server, not a descriptor, so 'socket' reports -1 and leaves the
+        //  pair to bivrost!, which rewrites both lines with the real fd
+        //  before the door ever reads them. 'serial' reports 0, which door
+        //  libraries take as the first port -- COM1, what our emulators
+        //  bridge the user to.
+        //
         const commHandle = 'socket' === this.commType ? '-1' : '0';
 
         return iconv.encode(
@@ -238,7 +264,7 @@ module.exports = class DropFile {
                 Config().general.boardName, //  "The name of the system."
                 opUserName, //  "The sysop's name up to the first space."
                 opUserName, //  "The sysop's name following the first space."
-                'COM1', //  "The serial port the modem is connected to, or 0 if logged in on console."
+                this.dorInfoCommPort, //  "The serial port the modem is connected to, or 0 if logged in on console."
                 '57600', //  "The current port (DTE) rate."
                 '0', //  "The number "0""
                 userName, //  "The current user's name, up to the first space."

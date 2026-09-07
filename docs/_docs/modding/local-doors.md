@@ -42,6 +42,8 @@ All local door approaches in ENiGMA½ support the same drop file types:
 | `DOOR32` | [DOOR32.SYS](https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt) |
 | `DORINFO` | [DORINFOx.DEF](https://web.archive.org/web/20160321190038/http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm) |
 
+Each of these carries a field naming the connection the door has been handed — `DOOR32.SYS` comm type and socket handle, `DOOR.SYS` comm port, `DORINFO` serial port. ENiGMA½ writes them to match how the door is actually launched, defaulting to local (stdin/stdout). Only [abracadabra](local-doors-abracadabra.md#comm-type) setups where an emulator or bridge sits in between need to say otherwise; [v86](local-doors-v86.md) reports serial on its own, since it bridges the caller to the guest's COM1.
+
 ---
 
 ## See Also

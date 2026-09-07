@@ -209,6 +209,8 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     if (hasDropFile) {
                         const dropFile = new DropFile(self.client, {
                             fileType: dropFileType,
+                            //  the guest sees COM1; v86_worker bridges the
+                            //  user's connection to serial0
                             commType: 'serial',
                         });
                         if (!dropFile.isSupported()) {
