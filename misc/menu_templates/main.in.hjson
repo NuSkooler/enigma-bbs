@@ -350,7 +350,7 @@
 
         sysopBinkpPollNow: {
             desc: "BinkP Poll"
-            module: binkp_poll
+            module: binkp/binkp_poll_module
         }
 
         mrc: {
@@ -605,7 +605,11 @@
             desc: SSH Public Keys
             module: user_ssh_key_config
             art: SSHKEYCFG
-            acs: SC
+            config: {
+                //  Only core/acs.js hasMenuModuleAccess() gates a menu, and it
+                //  reads config.acs -- a menu level "acs" is never consulted.
+                acs: SC
+            }
             form: {
                 0: {
                     mci: {

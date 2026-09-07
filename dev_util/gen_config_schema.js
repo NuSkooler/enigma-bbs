@@ -3,7 +3,10 @@
 'use strict';
 
 //
-//  Regenerates misc/config.schema.json.
+//  Regenerates the published JSON Schema artifacts:
+//
+//      misc/config.schema.json    from config_default.js + config/meta.js
+//      misc/menu.schema.json      from config/menu_schema.js
 //
 //      npm run build:schema
 //
@@ -20,43 +23,62 @@ const fs = require('fs');
 const paths = require('path');
 
 const { buildSchema } = require('../core/config/schema.js');
+const { buildMenuSchema } = require('../core/config/menu_schema.js');
 const { toJsonSchema, serialize } = require('../core/config/json_schema.js');
 
-const OUTPUT_PATH = paths.join(__dirname, '../misc/config.schema.json');
+const ARTIFACTS = [
+    {
+        path: paths.join(__dirname, '../misc/config.schema.json'),
+        build: () => buildSchema(),
+        title: 'ENiGMA½ BBS configuration',
+    },
+    {
+        path: paths.join(__dirname, '../misc/menu.schema.json'),
+        build: () => buildMenuSchema(),
+        title: 'ENiGMA½ BBS menus',
+        source: 'core/config/menu_schema.js',
+    },
+];
 
-function main() {
-    const generated = serialize(toJsonSchema(buildSchema()));
+function generateOne({ path, build, title, source }, check) {
+    const generated = serialize(
+        toJsonSchema(build(), { title, id: paths.basename(path), source })
+    );
 
     let existing;
     try {
-        existing = fs.readFileSync(OUTPUT_PATH, 'utf8');
+        existing = fs.readFileSync(path, 'utf8');
     } catch (e) {
         if ('ENOENT' !== e.code) {
             throw e;
         }
     }
 
-    //  --check: for anyone who wants the guard outside of mocha
-    if (process.argv.includes('--check')) {
-        if (generated === existing) {
-            console.info(`${OUTPUT_PATH}: up to date`);
-            return;
-        }
-
-        console.error(
-            `${OUTPUT_PATH} is out of date; run "npm run build:schema" and commit the result`
-        );
-        process.exitCode = 1;
-        return;
-    }
-
     if (generated === existing) {
-        console.info(`${OUTPUT_PATH}: unchanged`);
-        return;
+        console.info(`${path}: ${check ? 'up to date' : 'unchanged'}`);
+        return true;
     }
 
-    fs.writeFileSync(OUTPUT_PATH, generated, 'utf8');
-    console.info(`${OUTPUT_PATH}: written (${generated.length} bytes)`);
+    if (check) {
+        console.error(
+            `${path} is out of date; run "npm run build:schema" and commit the result`
+        );
+        return false;
+    }
+
+    fs.writeFileSync(path, generated, 'utf8');
+    console.info(`${path}: written (${generated.length} bytes)`);
+    return true;
+}
+
+function main() {
+    //  --check: for anyone who wants the guard outside of mocha
+    const check = process.argv.includes('--check');
+    const ok = ARTIFACTS.map(artifact => generateOne(artifact, check)).every(Boolean);
+
+    if (!ok) {
+        process.exitCode = 1;
+    }
 }
 
 main();

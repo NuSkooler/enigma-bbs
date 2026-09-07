@@ -39,6 +39,9 @@ let themeManagerInstance;
 exports.ThemeManager = class ThemeManager {
     constructor() {
         this.availableThemes = new Map();
+        //  every theme.hjson that loaded, including ones _themeLoaded()
+        //  went on to reject; validation has more to say about those, not less
+        this.loadedThemeConfigs = new Map();
     }
 
     static create(cb) {
@@ -65,7 +68,42 @@ exports.ThemeManager = class ThemeManager {
     }
 
     init(cb) {
+        const menuPath = getConfigPath(Config().general.menuFile);
+
         this.menuConfig = new ConfigLoader({
+            //
+            //  Advisory, exactly as for config.hjson and achievements.hjson:
+            //  ConfigLoader guards both calls, so nothing here can stop a load
+            //  or a reload. Reported to the log rather than the console --
+            //  menus load well after Log.init().
+            //
+            validator: (userConfig, mergedConfig) => {
+                const { isEnabled } = require('./config/report.js');
+                //  general.configValidation governs every file
+                if (!isEnabled(Config())) {
+                    return [];
+                }
+
+                const { validateConfig } = require('./config/validate.js');
+                const { buildMenuSchema } = require('./config/menu_schema.js');
+                const {
+                    validateMenuReferences,
+                    validateMenuModules,
+                } = require('./config/refs.js');
+                const { defaultModuleResolver } = require('./config/module_resolver.js');
+
+                return [
+                    ...validateConfig(userConfig, mergedConfig, buildMenuSchema()),
+                    ...validateMenuReferences(mergedConfig),
+                    ...validateMenuModules(mergedConfig, defaultModuleResolver(Config())),
+                ];
+            },
+            onValidation: issues => {
+                require('./config/report.js').reportIssues(issues, {
+                    source: paths.basename(menuPath),
+                    logOnly: true,
+                });
+            },
             onReload: err => {
                 if (!err) {
                     //  menu.hjson/includes have changed; this could affect
@@ -84,7 +122,7 @@ exports.ThemeManager = class ThemeManager {
             },
         });
 
-        this.menuConfig.init(getConfigPath(Config().general.menuFile), err => {
+        this.menuConfig.init(menuPath, err => {
             if (err) {
                 return cb(err);
             }
@@ -124,12 +162,64 @@ exports.ThemeManager = class ThemeManager {
                             return this._loadTheme(themeId, nextThemeId);
                         },
                         err => {
+                            if (!err) {
+                                this._validateThemes();
+                            }
                             return cb(err);
                         }
                     );
                 }
             );
         });
+    }
+
+    //
+    //  Checked once, after every theme is in, rather than per theme as each
+    //  loads: the interesting problem is cross-file -- a customization naming
+    //  a menu that does not exist is never consulted by _finalizeTheme(), so
+    //  it silently does nothing -- and that needs menu.hjson, which a
+    //  per-theme ConfigLoader hook cannot see.
+    //
+    //  Advisory and self-contained: a throw here would otherwise escape into
+    //  the startup series, whose callback would then never fire.
+    //
+    _validateThemes() {
+        try {
+            const { isEnabled } = require('./config/report.js');
+            if (!isEnabled(Config())) {
+                return;
+            }
+
+            const { validateConfig } = require('./config/validate.js');
+            const { buildThemeSchema } = require('./config/theme_schema.js');
+            const { validateThemeReferences } = require('./config/refs.js');
+            const { reportIssues } = require('./config/report.js');
+
+            const menuConfig = this.menuConfig.get();
+            const names = {
+                menuNames: Object.keys(_.get(menuConfig, 'menus') || {}),
+                menuPromptNames: Object.keys(_.get(menuConfig, 'prompts') || {}),
+            };
+
+            const schema = buildThemeSchema();
+
+            this.loadedThemeConfigs.forEach((themeConfig, themeId) => {
+                //  the raw file, not the menu-merged overlay _finalizeTheme builds
+                const theme = themeConfig.getRaw();
+
+                const issues = [
+                    ...validateConfig(theme, theme, schema),
+                    ...validateThemeReferences(theme, names),
+                ];
+
+                reportIssues(issues, {
+                    source: `${themeId}/theme.hjson`,
+                    logOnly: true,
+                });
+            });
+        } catch (e) {
+            Log.warn({ error: e.message }, 'Theme validation failed');
+        }
     }
 
     _loadTheme(themeId, cb) {
@@ -149,6 +239,7 @@ exports.ThemeManager = class ThemeManager {
                 return cb(err);
             }
 
+            this.loadedThemeConfigs.set(themeId, themeConfig);
             this._themeLoaded(themeId, themeConfig);
             return cb(null);
         });

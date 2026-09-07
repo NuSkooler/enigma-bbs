@@ -42,11 +42,18 @@ const RefKind = {
     MessageArea: 'message area',
     Theme: 'theme',
     Menu: 'menu',
+    Prompt: 'prompt',
+    Module: 'menu module',
 };
 
 //  theme.default and theme.preLogin take this instead of a theme id, and pick
 //  one per user; see core/nua.js and core/servers/login/login_server_module.js
 const RANDOM_THEME = '*';
+
+//  Above this proportion dead, a theme is reported once as mismatched rather
+//  than entry by entry; below it, each one is likely a typo worth naming.
+const AGGREGATE_ABOVE = 0.5;
+const AGGREGATE_MIN = 4;
 
 function keysAt(config, path) {
     const value = _.get(config, path);
@@ -525,8 +532,308 @@ function validateDeferredReferences(mergedConfig, { themeIds, menuNames } = {}) 
     return issues;
 }
 
+//
+//  ── menu.hjson and theme.hjson ──────────────────────────────────────────
+//
+//  Two files, three edges. The theme one is the reason this exists: a
+//  customization naming a menu that does not exist is never consulted by
+//  _finalizeTheme(), so it silently does nothing. The menu-internal ones fail
+//  loudly, but only when a user walks into that menu -- possibly months later
+//  and possibly only down one ACS branch.
+//
+
+//
+//  A value in a position that takes a menu name may instead be an asset spec:
+//  handleNext() runs it through asset.getAssetWithShorthand(spec, 'menu'), so
+//  a leading "@" means "@<type>:[<location>:]<asset>" with the types listed at
+//  core/asset.js:20-34. Only a bare name, or an explicit "@menu:", names a
+//  menu -- "@systemMethod:logoff" emphatically does not, and reporting it
+//  would flag correct configuration on any board that logs off from a menu.
+//
+const MENU_ASSET_SPEC = /^@menu:(?:[^:]+:)?([A-Za-z0-9_\-./]+)$/;
+
+function menuNameFrom(value) {
+    if (!_.isString(value) || 0 === value.length) {
+        return undefined;
+    }
+
+    if ('@' !== value[0]) {
+        return value; //  a bare menu name
+    }
+
+    const match = MENU_ASSET_SPEC.exec(value);
+    return match ? match[1] : undefined; //  some other asset type; not ours
+}
+
+//
+//  Every "@menu:" anywhere beneath a menu entry, found by walking rather than
+//  by modelling the shapes. "next" alone would miss the ones inside submit
+//  handlers and actionKeys, and those shapes vary enough -- a string, an array
+//  of ACS alternatives, an array of blocks each with their own action -- that
+//  enumerating them would be its own source of misses.
+//
+function collectMenuSpecs(value, path, out) {
+    if (_.isString(value)) {
+        if (value.startsWith('@menu:')) {
+            out.push({ path, value });
+        }
+        return;
+    }
+
+    if (Array.isArray(value)) {
+        return value.forEach((entry, i) => collectMenuSpecs(entry, `${path}[${i}]`, out));
+    }
+
+    if (_.isPlainObject(value)) {
+        Object.entries(value).forEach(([key, child]) =>
+            collectMenuSpecs(child, `${path}.${key}`, out)
+        );
+    }
+}
+
+//
+//  |menuConfig| is a loaded menu.hjson. Returns issues for names it declares
+//  that it does not also define.
+//
+function validateMenuReferences(menuConfig) {
+    const issues = [];
+
+    if (!_.isPlainObject(menuConfig)) {
+        return issues;
+    }
+
+    const menus = _.isPlainObject(menuConfig.menus) ? menuConfig.menus : {};
+    const prompts = _.isPlainObject(menuConfig.prompts) ? menuConfig.prompts : {};
+    const menuNames = Object.keys(menus);
+    const promptNames = Object.keys(prompts);
+
+    if (0 === menuNames.length) {
+        return issues; //  nothing loaded; nothing to say
+    }
+
+    Object.entries(menus).forEach(([name, menu]) => {
+        if (!_.isPlainObject(menu)) {
+            return;
+        }
+
+        //  next: a bare name, an "@" spec, or an array of ACS alternatives
+        const nextValues = Array.isArray(menu.next)
+            ? menu.next.map(entry => (_.isPlainObject(entry) ? entry.next : entry))
+            : [menu.next];
+
+        nextValues.forEach((value, i) => {
+            const target = menuNameFrom(value);
+            if (undefined === target) {
+                return;
+            }
+            checkExact(issues, menuConfig, {
+                path: Array.isArray(menu.next)
+                    ? `menus.${name}.next[${i}]`
+                    : `menus.${name}.next`,
+                value: target,
+                kind: RefKind.Menu,
+                refPath: 'menus',
+                candidates: menuNames,
+            });
+        });
+
+        //  prompt: a plain name, looked up directly at core/menu_util.js:36
+        checkExact(issues, menuConfig, {
+            path: `menus.${name}.prompt`,
+            value: menu.prompt,
+            kind: RefKind.Prompt,
+            refPath: 'prompts',
+            candidates: promptNames,
+        });
+
+        //  every "@menu:" beneath this entry, wherever it sits
+        const specs = [];
+        collectMenuSpecs(_.omit(menu, 'next'), `menus.${name}`, specs);
+        specs.forEach(({ path, value }) => {
+            checkExact(issues, menuConfig, {
+                path,
+                value: menuNameFrom(value),
+                kind: RefKind.Menu,
+                refPath: 'menus',
+                candidates: menuNames,
+            });
+        });
+    });
+
+    return issues;
+}
+
+//
+//  A menu's "module". core/menu_util.js:79 runs it through
+//  asset.getAssetWithShorthand(spec, 'systemModule'), so a bare name is a
+//  system module and "@userModule:" names one under paths.mods.
+//
+//  Parsed here rather than by requiring core/asset.js, which pulls in
+//  stat_log.js -- and that captures a database handle at load time, which has
+//  no business happening because somebody validated a configuration.
+//  test/config_menu_modules.test.js asserts this stays in step with
+//  core/asset.js.
+//
+const MODULE_ASSET_SPEC = /^@([A-Za-z]+):(?:([^:]+):)?([A-Za-z0-9_\-./]+)$/;
+const MODULE_ASSET_TYPES = ['systemModule', 'userModule'];
+
+//
+//  Never returns undefined: every caller reads .type off the result, and an
+//  empty or unparseable value is a thing to report rather than a reason to
+//  crash. "module: ''" is exactly the sort of half-finished edit this is
+//  meant to catch.
+//
+function moduleAssetFrom(spec) {
+    if (!_.isString(spec) || 0 === spec.length) {
+        return { type: 'malformed', asset: spec };
+    }
+
+    if ('@' !== spec[0]) {
+        return { type: 'systemModule', asset: spec };
+    }
+
+    const match = MODULE_ASSET_SPEC.exec(spec);
+    if (!match) {
+        return { type: 'malformed', asset: spec };
+    }
+
+    return { type: match[1], asset: match[3] };
+}
+
+//
+//  |moduleExists| is a predicate over a parsed asset; see
+//  core/config/module_resolver.js. Undefined means the caller could not build
+//  one, and an unknown answer is a reason to say nothing.
+//
+function validateMenuModules(menuConfig, moduleExists) {
+    const issues = [];
+
+    if (!_.isPlainObject(menuConfig) || !_.isFunction(moduleExists)) {
+        return issues;
+    }
+
+    const menus = _.isPlainObject(menuConfig.menus) ? menuConfig.menus : {};
+
+    Object.entries(menus).forEach(([name, menu]) => {
+        if (!_.isPlainObject(menu) || !_.isString(menu.module)) {
+            return;
+        }
+
+        const path = `menus.${name}.module`;
+        const asset = moduleAssetFrom(menu.module);
+
+        //
+        //  getModuleAsset() asserts the type is one of these, and an assert
+        //  throws straight out of the waterfall that loads the menu -- so this
+        //  is worse than a module that is merely missing.
+        //
+        if (!MODULE_ASSET_TYPES.includes(asset.type)) {
+            issues.push(
+                makeIssue(IssueCodes.UnresolvedRef, path, {
+                    value: menu.module,
+                    refKind: RefKind.Module,
+                    refPath: 'the core modules',
+                    candidates: [],
+                    hint:
+                        'malformed' === asset.type
+                            ? 'a menu module must be a bare name or "@userModule:"'
+                            : `"@${asset.type}:" does not name a module; use a bare name or "@userModule:"`,
+                })
+            );
+            return;
+        }
+
+        if (moduleExists(asset)) {
+            return;
+        }
+
+        issues.push(
+            makeIssue(IssueCodes.UnresolvedRef, path, {
+                value: menu.module,
+                refKind: RefKind.Module,
+                refPath:
+                    'userModule' === asset.type ? 'paths.mods' : 'the core modules',
+                candidates: [],
+                hint: `no "${asset.asset}.js" there, nor "${asset.asset}/${asset.asset.split('/').pop()}.js"`,
+            })
+        );
+    });
+
+    return issues;
+}
+
+//
+//  |theme| is a loaded theme.hjson. |menuNames| and |promptNames| come from
+//  menu.hjson. Both undefined means check nothing -- the usual fail-open rule.
+//
+function validateThemeReferences(theme, { menuNames, menuPromptNames } = {}) {
+    const issues = [];
+
+    if (!_.isPlainObject(theme)) {
+        return issues;
+    }
+
+    const dead = (section, names, kind) => {
+        if (!Array.isArray(names) || 0 === names.length) {
+            return;
+        }
+
+        const customized = _.get(theme, ['customization', section]);
+        if (!_.isPlainObject(customized)) {
+            return;
+        }
+
+        const all = Object.keys(customized);
+        const orphans = all.filter(name => !names.includes(name));
+
+        if (0 === orphans.length) {
+            return;
+        }
+
+        //
+        //  A handful of these are typos or a menu that was renamed, and naming
+        //  each one is the useful thing. Most of them being dead is a
+        //  different fact: the theme was written against another menu file
+        //  entirely, and listing seventy of them buries every other finding
+        //  and gets the whole check switched off.
+        //
+        if (all.length >= AGGREGATE_MIN && orphans.length / all.length > AGGREGATE_ABOVE) {
+            issues.push(
+                makeIssue(IssueCodes.DeadCustomization, `customization.${section}`, {
+                    refKind: kind,
+                    count: orphans.length,
+                    total: all.length,
+                })
+            );
+            return;
+        }
+
+        orphans.forEach(name => {
+            issues.push(
+                makeIssue(
+                    IssueCodes.DeadCustomization,
+                    `customization.${section}.${name}`,
+                    {
+                        value: name,
+                        refKind: kind,
+                        suggestion: suggestKey(name, names),
+                    }
+                )
+            );
+        });
+    };
+
+    dead('menus', menuNames, RefKind.Menu);
+    dead('prompts', menuPromptNames, RefKind.Prompt);
+
+    return issues;
+}
+
 module.exports = {
     validateReferences,
     validateDeferredReferences,
+    validateMenuReferences,
+    validateMenuModules,
+    validateThemeReferences,
     RefKind,
 };

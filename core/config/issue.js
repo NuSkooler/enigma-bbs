@@ -42,6 +42,18 @@ const IssueCodes = {
     //  good configurations as broken.
     UnresolvedSpec: 'unresolvedSpec',
 
+    //
+    //  A theme customization naming a menu or prompt that does not exist.
+    //  _finalizeTheme() iterates the *menu's* keys and looks each up in the
+    //  theme, so such a block is never consulted and the theming silently
+    //  does not happen.
+    //
+    //  A warning rather than an error, unlike unresolvedRef: a board running
+    //  a menu file older than the shipped theme gets these legitimately, and
+    //  failing its "config validate" over cosmetics would be wrong.
+    //
+    DeadCustomization: 'deadCustomization',
+
     //  Reserved for later use
     DeprecatedKey: 'deprecatedKey',
 };
@@ -53,6 +65,7 @@ const Severity = {
 
 const SeverityByCode = {
     [IssueCodes.UnknownKey]: Severity.Warning,
+    [IssueCodes.DeadCustomization]: Severity.Warning,
     [IssueCodes.DeprecatedKey]: Severity.Warning,
     [IssueCodes.TypeMismatch]: Severity.Error,
     [IssueCodes.InvalidEnum]: Severity.Error,
@@ -122,6 +135,20 @@ function describeIssue(issue) {
                 message += ` -- did you mean "${issue.suggestion}"?`;
             } else if (issue.candidates && issue.candidates.length) {
                 message += `\nknown: ${listOf(issue.candidates)}`;
+            }
+            break;
+
+        case IssueCodes.DeadCustomization:
+            if (undefined !== issue.count) {
+                message =
+                    `${issue.count} of ${issue.total} ${issue.refKind} customizations name something this system does not define, ` +
+                    'so they are never applied -- this theme looks written for a different menu file';
+                break;
+            }
+
+            message = `no ${issue.refKind} named "${issue.value}" -- this customization is never applied`;
+            if (issue.suggestion) {
+                message += `; did you mean "${issue.suggestion}"?`;
             }
             break;
 

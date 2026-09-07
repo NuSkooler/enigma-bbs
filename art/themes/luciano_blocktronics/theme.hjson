@@ -428,16 +428,6 @@
 				}
 			}
 
-			qwkExportPacketCurrentConfig: {
-				mci: {
-					TL1: {
-						width: 70
-					}
-					TL2: {
-						width: 70
-					}
-				}
-			}
 
 			privateMailMenuCreateMessage: {
 				0: {
@@ -673,7 +663,7 @@
 				}
 			}
 
-			messageSearch: {
+			messageBaseSearch: {
 				0: {
 					mci: {
 						ET1: {
@@ -802,7 +792,7 @@
 				}
 			}
 
-			messageBaseReplyPost: {
+			messageAreaReplyPost: {
 				0: {
 					mci: {
 						TL1: { width: 19, textOverflow: "..." }
@@ -900,14 +890,6 @@
 
 			//////////////////// file base ////////////////////////////////
 
-			fileBase: {
-				mci: {
-					FN4: {
-						width: 18
-						textOverflow: ...
-					}
-				}
-			}
 
 			fileBaseListEntries: {
 				config: {
@@ -1512,22 +1494,6 @@
 				}
 			}
 
-			activityPubPostPublicMessage: {
-				0: {
-					mci: {
-						TL1: { width: 19, textOverflow: "..." }
-						ET2: { width: 19, textOverflow: "..." }
-						ET3: { width: 19, textOverflow: "..." }
-						ET4: { width: 21, textOverflow: "..." }
-						//TL4: { width: 25 }
-					}
-				}
-				1: {
-					mci: {
-						MT1: { height: 14 }
-					}
-				}
-			}
 
 			activityPubMsgBrowser: {
 				config: {
@@ -1773,40 +1739,10 @@
 				}
 			}
 
-			irc: {
-				config: {
-					messageFormat: "|00|10<|02{fromUserName}|10>|00 |03{message}|00"
-					privateMessageFormat: "|00|10<|02{fromUserName}|15->{toUserName}|10>|00 |03{message}|00"
-				}
-				0: {
-					mci: {
-						MT1: {
-							width: 72
-							height: 17
-						}
-                        ET2: {
-                            width: 69 // fnarr!
-                            maxLength: 140
-                        }
-                        TL3: {
-                            width: 20
-                        }
-                        TL4: {
-                            width: 20
-                        }
-						TL5: {
-                            width: 2
-                        }
-                        TL6: {
-                            width: 2
-                        }
-					}
-				}
-			}
 		}
 
 		prompts: {
-			messageMenuCommand: {
+			messageBaseMenuPrompt: {
 				mci: {
 					TL1: {
 						text: "|00|15|MD|08: |03|MC|08>>|11|MA"

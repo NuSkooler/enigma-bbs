@@ -14,6 +14,7 @@ const {
 } = require('../core/config/json_schema');
 
 const ARTIFACT_PATH = paths.join(__dirname, '../misc/config.schema.json');
+const MENU_ARTIFACT_PATH = paths.join(__dirname, '../misc/menu.schema.json');
 
 // ─── The projection itself ───────────────────────────────────────────────────
 
@@ -136,6 +137,7 @@ describe('config JSON Schema projection', () => {
         assert.ok(doc.$id.endsWith('/misc/config.schema.json'));
         assert.equal(doc.type, 'object');
         assert.ok(doc.$comment.includes('npm run build:schema'));
+        assert.ok(doc.$comment.includes('core/config_default.js'));
     });
 
     it('never marks anything required', () => {
@@ -183,7 +185,9 @@ describe('config JSON Schema artifact', () => {
         //  the difference between two checkouts as a stale file. It failed in
         //  CI for exactly that reason before this existed.
         //
-        const text = fs.readFileSync(ARTIFACT_PATH, 'utf8');
+        const text =
+            fs.readFileSync(ARTIFACT_PATH, 'utf8') +
+            fs.readFileSync(MENU_ARTIFACT_PATH, 'utf8');
 
         assert.ok(
             !text.includes(INSTALL_ROOT),
@@ -197,6 +201,34 @@ describe('config JSON Schema artifact', () => {
 
         assert.equal(logs.default, undefined);
         assert.equal(logs.$comment, 'Default: <installation directory>/logs/');
+    });
+
+    it('publishes the menu schema too, and keeps it current', () => {
+        //  same guard, second artifact; the emitter is generic
+        const { buildMenuSchema } = require('../core/config/menu_schema');
+
+        const generated = serialize(
+            toJsonSchema(buildMenuSchema(), {
+                title: 'ENiGMA½ BBS menus',
+                id: 'menu.schema.json',
+                source: 'core/config/menu_schema.js',
+            })
+        );
+
+        assert.equal(
+            generated,
+            fs.readFileSync(MENU_ARTIFACT_PATH, 'utf8'),
+            'misc/menu.schema.json is stale -- run "npm run build:schema" and commit the result'
+        );
+    });
+
+    it('gives each artifact its own id and title', () => {
+        const config = JSON.parse(fs.readFileSync(ARTIFACT_PATH, 'utf8'));
+        const menu = JSON.parse(fs.readFileSync(MENU_ARTIFACT_PATH, 'utf8'));
+
+        assert.notEqual(config.$id, menu.$id);
+        assert.ok(menu.$id.endsWith('/misc/menu.schema.json'));
+        assert.match(menu.title, /menus/i);
     });
 
     it('is valid JSON and parses back to the same document', () => {

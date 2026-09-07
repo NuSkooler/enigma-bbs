@@ -14,7 +14,7 @@
           action: [
             {
               acs: "AE1"
-              action: @menu:activityPubActorSearch
+              action: @menu:activityPubSearch
             }
             {
               action: @menu:activityPubNotEnabled
