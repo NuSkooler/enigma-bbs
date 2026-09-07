@@ -60,10 +60,10 @@ describe('theme schema against the shipped themes', () => {
 
     it('finds no customization naming a menu the templates do not define', () => {
         //
-        //  This is the check the whole effort exists for. It went 7 menu and 1
-        //  prompt orphans to one, and the one that remains is a missing menu
-        //  *template* rather than a stale theme entry -- see #779. Should that
-        //  land, this asserts zero.
+        //  The check the whole effort exists for, and the acceptance criterion
+        //  for it: a shipped theme against the shipped menus reports nothing.
+        //  It started at 7 menu and 1 prompt orphans; #778 corrected the
+        //  theme, #779 supplied the one menu that was genuinely missing.
         //
         const names = stockMenuNames();
         const orphans = themes.flatMap(({ path, theme }) =>
@@ -72,9 +72,7 @@ describe('theme schema against the shipped themes', () => {
             )
         );
 
-        assert.deepEqual(orphans, [
-            'luciano_blocktronics: customization.menus.preAuthFeedback',
-        ]);
+        assert.deepEqual(orphans, []);
     });
 });
 

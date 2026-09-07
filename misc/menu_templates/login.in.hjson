@@ -77,6 +77,21 @@
                                         data: forgot
                                     }
                                     */
+
+                                    //
+                                    //  Lets visitors send the sysop a message before logging
+                                    //  in. The menu below is ready to go; uncomment this to
+                                    //  offer it, and check your theme has the
+                                    //  "msg_op_feedback_header" art.
+                                    //
+                                    //  See docs for more information
+                                    //
+                                    /*
+                                    {
+                                        text: feedback
+                                        data: feedback
+                                    }
+                                    */
                                     {
                                         text: log off
                                         data: logoff
@@ -97,6 +112,10 @@
                                 {
                                     value: { navSelect: "forgot" }
                                     action: @menu:forgotPassword
+                                }
+                                {
+                                    value: { navSelect: "feedback" }
+                                    action: @menu:preAuthFeedback
                                 }
                                 {
                                     value: { navSelect: "logoff" }
@@ -598,6 +617,123 @@
             }
         }
 
+
+        //
+        //  Lets an unauthenticated visitor send the sysop a private message
+        //  from the login matrix. The From field is free text and is never
+        //  resolved to a user account, so nobody can impersonate one; the To
+        //  field is locked to the sysop.
+        //
+        //  Reachable once the "feedback" item is uncommented in the matrix
+        //  above. See docs/_docs/modding/pre-auth-feedback.md.
+        //
+        preAuthFeedback: {
+            desc: Pre-Auth Feedback
+            module: pre_auth_feedback
+            config: {
+                art: {
+                    header: msg_op_feedback_header
+                    body: MSGBODY
+                    footerEditor: MSGEFTR
+                    footerEditorMenu: MSGEMFT
+                    help: MSGEHLP
+                }
+                cls: true
+                editorType: email
+                editorMode: edit
+            }
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: from
+                            maxLength: 36
+                            focus: true
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET2: {
+                            argName: to
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            validate: @systemMethod:validateMessageSubject
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: @reference:common.escToPrev
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            width: 79
+                            argName: message
+                            mode: edit
+                        }
+                    }
+                    submit: {
+                        *: [ { value: "message", action: "@method:editModeEscPressed" } ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                    ]
+                }
+                2: {
+                    TLTL: {
+                        mci: {
+                            TL1: { width: 5 }
+                            TL2: { width: 4 }
+                        }
+                    }
+                }
+                3: {
+                    HM: {
+                        mci: {
+                            HM1: {
+                                items: [ "save", "discard", "help" ]
+                            }
+                        }
+                        submit: {
+                            *: [
+                                {
+                                    value: { 1: 0 }
+                                    action: @method:editModeMenuSave
+                                }
+                                {
+                                    value: { 1: 1 }
+                                    action: @systemMethod:prevMenu
+                                }
+                                {
+                                    value: { 1: 2 }
+                                    action: @method:editModeMenuHelp
+                                }
+                            ]
+                        }
+                        actionKeys: [
+                            {
+                                keys: [ "escape" ]
+                                action: @method:editModeEscPressed
+                            }
+                            {
+                                keys: [ "?" ]
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                }
+            }
+        }
 	}
 
 	prompts: {
