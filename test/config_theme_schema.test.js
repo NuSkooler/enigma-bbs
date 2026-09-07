@@ -195,6 +195,41 @@ describe('theme references', () => {
         assert.equal(issues[0].suggestion, 'menuCommand');
     });
 
+    it('reports a wholly mismatched theme once, not entry by entry', () => {
+        //
+        //  A handful of dead entries are typos worth naming. Most of them
+        //  being dead is a different fact -- the theme was written against
+        //  another menu file -- and listing seventy of them buries every other
+        //  finding and gets the whole check switched off.
+        //
+        const customization = { menus: {} };
+        for (let i = 0; i < 20; ++i) {
+            customization.menus[`someOtherMenu${i}`] = {};
+        }
+        customization.menus.mainMenu = {};
+
+        const issues = validateThemeReferences(themeWith(customization), names);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].path, 'customization.menus');
+        assert.equal(
+            describeIssue(issues[0]).message,
+            '20 of 21 menu customizations name something this system does not define, ' +
+                'so they are never applied -- this theme looks written for a different menu file'
+        );
+    });
+
+    it('still names them individually when only a few are dead', () => {
+        const customization = {
+            menus: { mainMenu: {}, fileBaseSearch: {}, mainMenuu: {} },
+        };
+
+        const issues = validateThemeReferences(themeWith(customization), names);
+
+        assert.equal(issues.length, 1);
+        assert.equal(issues[0].path, 'customization.menus.mainMenuu');
+    });
+
     it('says nothing when the menu names could not be gathered', () => {
         const theme = themeWith({ menus: { nothingLikeThis: {} } });
 
