@@ -76,6 +76,37 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         this.config.args = this.config.args || [];
     }
 
+    get doorIo() {
+        return this.config.io || 'stdio';
+    }
+
+    //
+    //  What the *door* is handed, which only follows |io| when the process we
+    //  spawn IS the door. Put an emulator in between -- QEMU bridging
+    //  {srvPort} to a guest COM port, say -- and the door sees a serial line
+    //  rather than a socket; those setups say so with |commType|.
+    //
+    getDropFileCommType() {
+        const defaultCommType = 'socket' === this.doorIo ? 'socket' : 'local';
+        const commType = _.isString(this.config.commType)
+            ? this.config.commType.toLowerCase()
+            : '';
+
+        if (!commType) {
+            return defaultCommType;
+        }
+
+        if (!DropFile.ValidCommTypes.includes(commType)) {
+            this.client.log.warn(
+                { name: this.config.name, commType: this.config.commType },
+                `Invalid door "commType"; using "${defaultCommType}"`
+            );
+            return defaultCommType;
+        }
+
+        return commType;
+    }
+
     incrementActiveDoorNodeInstances() {
         if (activeDoorNodeInstances[this.config.name]) {
             activeDoorNodeInstances[this.config.name] += 1;
@@ -144,7 +175,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                 },
                 function prepareDoor(callback) {
                     self.doorInstance = new Door(self.client);
-                    return self.doorInstance.prepare(self.config.io || 'stdio', callback);
+                    return self.doorInstance.prepare(self.doorIo, callback);
                 },
                 function generateDropfile(callback) {
                     if (
@@ -156,6 +187,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
                     self.dropFile = new DropFile(self.client, {
                         fileType: self.config.dropFileType,
+                        commType: self.getDropFileCommType(),
                     });
 
                     return self.dropFile.createFile(callback);
@@ -186,7 +218,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             preCmdArgs: this.config.preCmdArgs,
             cwd: this.config.cwd || paths.dirname(this.config.cmd),
             args: this.config.args,
-            io: this.config.io || 'stdio',
+            io: this.doorIo,
             encoding: this.config.encoding || 'cp437',
             node: this.client.node,
             env: this.config.env,

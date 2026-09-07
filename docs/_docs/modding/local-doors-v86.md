@@ -46,7 +46,7 @@ You need a raw FreeDOS disk image (`.img`) with your door game pre-installed. Ra
 |------|----------|-------------|
 | `name` | :+1: | Door name. Used as a key for tracking concurrent sessions. |
 | `image` | :+1: | Path to the raw FreeDOS disk image (`.img`). |
-| `dropFileType` | :-1: | Drop file to generate and inject onto the `A:` floppy: `DORINFO`, `DOOR`, or `DOOR32`. Omit if the door needs no drop file. |
+| `dropFileType` | :-1: | Drop file to generate and inject onto the `A:` floppy: `DORINFO`, `DOOR`, or `DOOR32`. Omit if the door needs no drop file. The connection is always reported as serial — the guest sees COM1. |
 | `runBatch` | :-1: | Multi-line batch script written to `A:\RUN.BAT` at runtime. Supports [variable substitution](#runbatch-variables). See [One Image, Multiple Doors](#one-image-multiple-doors). |
 | `nodeMax` | :-1: | Max concurrent sessions. `0` = unlimited. |
 | `tooManyArt` | :-1: | Art spec to display when `nodeMax` is exceeded. |

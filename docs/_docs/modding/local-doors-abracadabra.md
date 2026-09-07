@@ -27,7 +27,22 @@ The `abracadabra` `config` block supports the following fields:
 | `nodeMax` | :-1: | Max concurrent sessions for this door. Uses `name` as the tracking key. |
 | `tooManyArt` | :-1: | Art spec to display when `nodeMax` is exceeded. |
 | `io` | :-1: | I/O mode: `stdio` (default) or `socket`. When `socket`, ENiGMA½ spawns a temporary TCP server on `{srvPort}` that the door process connects back to. |
+| `commType` | :-1: | What the drop file tells the door it is talking to: `local`, `serial`, or `socket`. Defaults to `socket` when `io: socket`, otherwise `local`. See [Comm Type](#comm-type) below. |
 | `encoding` | :-1: | The door process's text encoding. Defaults to `cp437`. Linux-native binaries often use `utf8`. |
+
+#### Comm Type
+
+`io` says how ENiGMA½ talks to the process it spawns; `commType` says how the *door* talks to the caller. They are the same thing only when the process ENiGMA½ spawns **is** the door, which is why the default is derived from `io`:
+
+| `commType` | Reported as | Use when |
+|------------|-------------|----------|
+| `local` (default) | `DOOR32.SYS` comm type `0`, `DOOR.SYS` `COM0:`, `DORINFO` `0` | The door reads stdin and writes stdout. This covers `io: stdio`, which is nearly every native or scripted door. |
+| `serial` | `DOOR32.SYS` comm type `1`, `DOOR.SYS` `COM1:`, `DORINFO` `COM1` | An emulator sits between ENiGMA½ and the door and presents it a COM port — QEMU bridging `{srvPort}` onto `isa-serial`, for example. |
+| `socket` | `DOOR32.SYS` comm type `2`, `DOOR.SYS` `COM1:`, `DORINFO` `COM1` | Descriptor sharing by way of [bivrost!](#door32sys-socket-descriptor-sharing). |
+
+> :warning: Setting `commType: socket` does **not** give the door a socket. ENiGMA½ shares a socket *server*, not a descriptor, so `DOOR32.SYS` line 2 is written as `-1` and bivrost! replaces both lines with the real handle. A door handed `2` and `-1` with nothing in between is entitled to refuse to start, and some do.
+
+Doors that ignore these fields entirely — most DOS-era games under an emulator — are unaffected by any of this.
 
 #### Argument Variables
 
