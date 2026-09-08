@@ -22,8 +22,8 @@ const _ = require('lodash');
 //
 //  :TODO:
 //  * Hint, e.g. YYYY/MM/DD
-//  * Return values with literals in place
-//  * Tab in/out results in oddities such as cursor placement & ability to type in non-pattern chars
+//  * Editing within the field: arrow keys, insert/overwrite at a slot other
+//    than the last. Input is currently append/truncate only.
 
 class MaskEditTextView extends TextView {
     constructor(options) {
@@ -45,10 +45,14 @@ class MaskEditTextView extends TextView {
         //  buildPattern sets this.maxLength (number of input slots)
         this.buildPattern();
 
-        this.patternArrayPos = this._patternPosForLength(0);
-
         //  LineBuffer initialized after buildPattern so maxLength is correct
         this.lineBuffer = new LineBuffer({ width: this.maxLength });
+
+        //  TextView's constructor already called setText(), but that ran before
+        //  buildPattern() and before lineBuffer existed, so both guards in our
+        //  override skipped and any initial text never reached the buffer.
+        //  Replay it now; this establishes patternArrayPos as well.
+        this.setText(options.text || '', false); //  false=do not redraw now
     }
 
     //  ── Internal helpers ─────────────────────────────────────────────────────
@@ -140,6 +144,8 @@ class MaskEditTextView extends TextView {
     //  ── Overrides ────────────────────────────────────────────────────────────
 
     setText(text, redraw) {
+        redraw = _.isBoolean(redraw) ? redraw : true; //  match TextView's default
+
         super.setText(text, redraw); //  pass through redraw; TextView ctor calls with false
 
         if (this.lineBuffer) {
@@ -160,6 +166,14 @@ class MaskEditTextView extends TextView {
                 this.lineBuffer ? this.lineBuffer.lines[0].chars.length : 0
             );
         }
+
+        //  A redraw leaves the terminal cursor past the end of the field, which
+        //  is only where the next keypress lands if the field is full. Callers
+        //  that follow with setFocus() get this anyway; those that don't would
+        //  otherwise type at one column and echo at another.
+        if (redraw && this.hasFocus) {
+            this._positionCursor(true);
+        }
     }
 
     setMaskPattern(pattern) {
@@ -168,7 +182,12 @@ class MaskEditTextView extends TextView {
         this.buildPattern();
         //  Reinitialize lineBuffer now that maxLength is updated
         this.lineBuffer = new LineBuffer({ width: this.maxLength });
-        this.patternArrayPos = this._patternPosForLength(0);
+
+        //  Drop any text carried over from the old pattern: its characters no
+        //  longer line up with the new slots, getData() would not return it,
+        //  and drawing it against a shorter pattern trips the assert in
+        //  drawText(). setText() resets patternArrayPos along with it.
+        this.setText('', false); //  false=caller redraws when it is ready
     }
 
     getData() {
@@ -215,8 +234,9 @@ class MaskEditTextView extends TextView {
                     this._syncFromBuffer();
                     this.patternArrayPos = this._patternPosForLength(textLen - 1);
 
-                    //  The goto is a no-op when the cursor already sits on the
-                    //  slot being cleared; it matters when the deletion walks
+                    //  clientBackspace() steps left before it writes, so this
+                    //  targets one column past the slot being cleared. That is
+                    //  where the cursor already sits unless the deletion walked
                     //  back over one or more literals.
                     this.client.term.write(
                         ansi.goto(this.position.row, this.getEndOfTextColumn() + 1)
