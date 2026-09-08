@@ -194,5 +194,22 @@
             }
         }
 
+        //
+        //  Shown when the sysop tries to reply to a pre-auth feedback message.
+        //  Its sender has no user account, so a reply cannot be delivered and
+        //  would be silently discarded; see
+        //  docs/_docs/modding/pre-auth-feedback.md.
+        //
+        preAuthFeedbackNoReply: {
+            desc: No Reply - Ghost Sender
+            art: PREAFNRPLY
+            config: { nextTimeout: 3000 }
+            //
+            //  A bare "prevMenu" would be looked up as a menu of that name and
+            //  fail; going back is a system method.
+            //
+            next: @systemMethod:prevMenu
+        }
+
     }
 }
