@@ -486,6 +486,161 @@ describe('MaskEditTextView', () => {
             assert.equal(view.maxLength, 3);
             assert.equal(view.patternArray.length, 3);
         });
+
+        it('setMaskPattern() drops text belonging to the previous pattern', () => {
+            const view = makeMaskView({ maskPattern: '####' });
+            view.setText('1234');
+            assert.equal(view.getData(), '1234');
+
+            view.setMaskPattern('##');
+
+            //  Those characters no longer line up with the new slots.
+            assert.equal(view.text, '');
+            assert.equal(view.lineBuffer.lines[0].chars, '');
+            assert.equal(view.getData(), '');
+            assert.equal(view.patternArrayPos, 0);
+        });
+
+        it('setMaskPattern() to a shorter pattern leaves the view drawable', () => {
+            const view = makeMaskView({ maskPattern: '####' });
+            view.setText('1234');
+
+            //  Text left over from the wider pattern would trip the length
+            //  assert in drawText().
+            view.setMaskPattern('##');
+
+            assert.doesNotThrow(() => view.redraw());
+        });
+    });
+
+    // ── initial text ─────────────────────────────────────────────────────────
+
+    describe('initial text', () => {
+        it('text: option reaches the lineBuffer', () => {
+            //  TextView's constructor calls setText() before buildPattern() has
+            //  run and before lineBuffer exists, so the view has to replay it.
+            const view = makeMaskView({ maskPattern: '####/##/##', text: '1990' });
+
+            assert.equal(view.lineBuffer.lines[0].chars, '1990');
+            assert.equal(view.text, '1990');
+            //  Four slots filled; the separator at index 4 is skipped.
+            assert.equal(view.patternArrayPos, 5);
+        });
+
+        it('text: option is truncated to the input slot count', () => {
+            const view = makeMaskView({ maskPattern: '####', text: '123456' });
+
+            assert.equal(view.lineBuffer.lines[0].chars, '1234');
+            assert.equal(view.getData(), '1234');
+        });
+    });
+
+    // ── setText() input handling ─────────────────────────────────────────────
+
+    describe('setText() input handling', () => {
+        //  A value reaches setText() either as bare slot characters (a form
+        //  restoring '19900101') or with the mask's literals already in place
+        //  (getData() returns '1990/01/01'). Both must land the same way.
+        const cases = [
+            ['####/##/##', '19900101', '19900101', 'bare slot characters'],
+            ['####/##/##', '1990/01/01', '19900101', 'literals in place'],
+            ['####/##/##', '1990/0/', '19900', 'partial value, dangling literals'],
+            ['####/##/##', '1990', '1990', 'partial value, bare'],
+            ['####/##/##', 'Invalid date', '', "moment()'s invalid-date string"],
+            ['####/##/##', '', '', 'empty'],
+            ['####/##/##', '199001011234', '19900101', 'over-long, bounded by pattern'],
+            ['####', 'ABCD', '', 'letters into a numeric mask'],
+            ['####', '12AB', '12', 'stops at the first character that does not fit'],
+            ['####', '    ', '', "clearText()'s fillChar pass"],
+            ['A', '7', '', 'digit into an alpha mask'],
+            ['A', 'M', 'M', 'alpha into an alpha mask'],
+            ['##', '9', '9', 'single digit into a two-slot mask'],
+            ['@@-@@', 'AB-CD', 'ABCD', 'literal supplied'],
+            ['@@-@@', 'ABCD', 'ABCD', 'same value, literal omitted'],
+            [
+                '(###) ###-####',
+                '(555) 867-5309',
+                '5558675309',
+                'leading literal, formatted',
+            ],
+            ['(###) ###-####', '5558675309', '5558675309', 'leading literal, bare'],
+        ];
+
+        cases.forEach(([maskPattern, input, expected, note]) => {
+            it(`${maskPattern} <- ${JSON.stringify(input)}: ${note}`, () => {
+                const view = makeMaskView({ maskPattern });
+                view.setText(input);
+
+                assert.equal(view.lineBuffer.lines[0].chars, expected);
+                assert.equal(view.text, expected);
+            });
+        });
+
+        it('setText(getData()) round trips a full field', () => {
+            const view = makeMaskView({ maskPattern: '####/##/##' });
+            view.setText('19900101');
+            const formatted = view.getData();
+            assert.equal(formatted, '1990/01/01');
+
+            view.setText(formatted);
+
+            assert.equal(view.getData(), formatted);
+            assert.equal(view.lineBuffer.lines[0].chars, '19900101');
+        });
+
+        it('setText(getData()) round trips a partly filled field', () => {
+            const view = makeMaskView({ maskPattern: '####/##/##' });
+            view.setText('19900');
+            const formatted = view.getData();
+
+            view.setText(formatted);
+
+            assert.equal(view.getData(), formatted);
+            assert.equal(view.lineBuffer.lines[0].chars, '19900');
+            //  Five slots filled; the separator at index 7 is not reached.
+            assert.equal(view.patternArrayPos, 6);
+        });
+
+        it('setText() applies textStyle, as typing does', () => {
+            const view = makeMaskView({ maskPattern: 'A', textStyle: 'upper' });
+            view.setText('m');
+
+            assert.equal(view.getData(), 'M');
+        });
+
+        it('setText() and typing agree on a styled field', () => {
+            const set = makeMaskView({ maskPattern: 'AAA', textStyle: 'upper' });
+            set.setText('abc');
+
+            const typed = makeMaskView({ maskPattern: 'AAA', textStyle: 'upper' });
+            typed.specialKeyMap = {};
+            typed.acceptsInput = true;
+            typed.hasFocus = true;
+            'abc'.split('').forEach(ch => typed.onKeyPress(ch, null));
+
+            assert.equal(set.getData(), typed.getData());
+            assert.equal(set.getData(), 'ABC');
+        });
+
+        it('styling is applied before the slot is checked', () => {
+            //  'upper' cannot turn a letter into a digit, so the numeric slot
+            //  still rejects it.
+            const view = makeMaskView({ maskPattern: '#', textStyle: 'upper' });
+            view.setText('a');
+
+            assert.equal(view.getData(), '');
+        });
+
+        it('setText() holds characters to the mask, as typing does', () => {
+            //  The keyboard path checks every character against its slot; a
+            //  programmatic set used to bypass the mask entirely.
+            const view = makeMaskView({ maskPattern: '####' });
+
+            view.setText('<*!>');
+
+            assert.equal(view.getData(), '');
+            assert.equal(view.patternArrayPos, 0);
+        });
     });
 
     // ── getData() ────────────────────────────────────────────────────────────
@@ -622,6 +777,35 @@ describe('MaskEditTextView', () => {
             //  Four slots filled; the separator at index 4 is skipped so the
             //  next input lands on index 5.
             assert.equal(view.patternArrayPos, 5);
+        });
+
+        it('a mask starting with a literal accepts input', () => {
+            const h = makeTrackingView('(###) ###-####');
+            h.view.setFocus(true);
+
+            //  Index 0 is the '(': matching a keypress against it means
+            //  building a RegExp out of '(', which throws.
+            assert.doesNotThrow(() => h.view.onKeyPress('5', null));
+
+            assert.equal(h.view.lineBuffer.lines[0].chars, '5');
+            assert.equal(h.cursor.col, COL + 2);
+        });
+
+        it('setText() moves the visible cursor without waiting for a refocus', () => {
+            const h = makeTrackingView('####/##/##');
+            h.view.setFocus(true);
+            '1990'.split('').forEach(ch => h.view.onKeyPress(ch, null));
+            assert.equal(h.cursor.col, COL + 5);
+
+            //  No setFocus() here: the redraw alone leaves the cursor past the
+            //  end of the field, which is not where the next keypress lands.
+            h.view.setText('');
+
+            assert.equal(h.cursor.col, COL);
+
+            h.view.onKeyPress('2', null);
+            assert.equal(fieldText(h, 10), '2   /  /  ');
+            assert.equal(h.cursor.col, COL + 1);
         });
 
         it('typing after clearText() keeps the cursor on the character just typed', () => {
