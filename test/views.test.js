@@ -535,6 +535,84 @@ describe('MaskEditTextView', () => {
         });
     });
 
+    // ── setText() input handling ─────────────────────────────────────────────
+
+    describe('setText() input handling', () => {
+        //  A value reaches setText() either as bare slot characters (a form
+        //  restoring '19900101') or with the mask's literals already in place
+        //  (getData() returns '1990/01/01'). Both must land the same way.
+        const cases = [
+            ['####/##/##', '19900101', '19900101', 'bare slot characters'],
+            ['####/##/##', '1990/01/01', '19900101', 'literals in place'],
+            ['####/##/##', '1990/0/', '19900', 'partial value, dangling literals'],
+            ['####/##/##', '1990', '1990', 'partial value, bare'],
+            ['####/##/##', 'Invalid date', '', "moment()'s invalid-date string"],
+            ['####/##/##', '', '', 'empty'],
+            ['####/##/##', '199001011234', '19900101', 'over-long, bounded by pattern'],
+            ['####', 'ABCD', '', 'letters into a numeric mask'],
+            ['####', '12AB', '12', 'stops at the first character that does not fit'],
+            ['####', '    ', '', "clearText()'s fillChar pass"],
+            ['A', '7', '', 'digit into an alpha mask'],
+            ['A', 'M', 'M', 'alpha into an alpha mask'],
+            ['##', '9', '9', 'single digit into a two-slot mask'],
+            ['@@-@@', 'AB-CD', 'ABCD', 'literal supplied'],
+            ['@@-@@', 'ABCD', 'ABCD', 'same value, literal omitted'],
+            [
+                '(###) ###-####',
+                '(555) 867-5309',
+                '5558675309',
+                'leading literal, formatted',
+            ],
+            ['(###) ###-####', '5558675309', '5558675309', 'leading literal, bare'],
+        ];
+
+        cases.forEach(([maskPattern, input, expected, note]) => {
+            it(`${maskPattern} <- ${JSON.stringify(input)}: ${note}`, () => {
+                const view = makeMaskView({ maskPattern });
+                view.setText(input);
+
+                assert.equal(view.lineBuffer.lines[0].chars, expected);
+                assert.equal(view.text, expected);
+            });
+        });
+
+        it('setText(getData()) round trips a full field', () => {
+            const view = makeMaskView({ maskPattern: '####/##/##' });
+            view.setText('19900101');
+            const formatted = view.getData();
+            assert.equal(formatted, '1990/01/01');
+
+            view.setText(formatted);
+
+            assert.equal(view.getData(), formatted);
+            assert.equal(view.lineBuffer.lines[0].chars, '19900101');
+        });
+
+        it('setText(getData()) round trips a partly filled field', () => {
+            const view = makeMaskView({ maskPattern: '####/##/##' });
+            view.setText('19900');
+            const formatted = view.getData();
+
+            view.setText(formatted);
+
+            assert.equal(view.getData(), formatted);
+            assert.equal(view.lineBuffer.lines[0].chars, '19900');
+            //  Five slots filled; the separator at index 7 is not reached.
+            assert.equal(view.patternArrayPos, 6);
+        });
+
+        it('setText() holds characters to the mask, as typing does', () => {
+            //  The keyboard path checks every character against its slot; a
+            //  programmatic set used to bypass the mask entirely.
+            const view = makeMaskView({ maskPattern: '####' });
+
+            view.setText('<*!>');
+
+            assert.equal(view.getData(), '');
+            assert.equal(view.patternArrayPos, 0);
+        });
+    });
+
     // ── getData() ────────────────────────────────────────────────────────────
 
     describe('getData()', () => {

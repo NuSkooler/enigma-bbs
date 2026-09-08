@@ -141,6 +141,43 @@ class MaskEditTextView extends TextView {
         return pos;
     }
 
+    //  Slot characters from |text|, which reaches us in either of two shapes:
+    //  bare slot characters, as a form restoring "19900101" supplies, or with
+    //  the mask's literals already in place, as getData() returns them
+    //  ("1990/01/01"). Walking the pattern and the text together accepts both
+    //  -- a literal is consumed when the caller supplied it and skipped when
+    //  they did not -- so setText(getData()) round trips.
+    //
+    //  Characters are held to the same regex the keyboard path applies. The
+    //  walk stops at the first one that does not fit rather than skipping past
+    //  it, so a value that does not belong in this field is dropped instead of
+    //  being reassembled out of whichever parts happened to match. Rejection is
+    //  silent, as it is when the same character is typed.
+    //
+    //  A literal that is also a legal slot character is ambiguous: for '&&/&&',
+    //  "ab/cd" is either a supplied '/' or four data characters. The supplied
+    //  literal wins. No mask that ships is shaped that way.
+    _slotCharsFromText(text) {
+        let raw = '';
+        let i = 0;
+
+        for (let pos = 0; pos < this.patternArray.length && i < text.length; ++pos) {
+            const pat = this.patternArray[pos];
+
+            if (_.isRegExp(pat)) {
+                if (!text[i].match(pat)) {
+                    break;
+                }
+                raw += text[i++];
+            } else if (text[i] === pat) {
+                ++i; //  literal supplied by the caller
+            }
+            //  literal not supplied: skip it and keep reading slot characters
+        }
+
+        return raw;
+    }
+
     //  ── Overrides ────────────────────────────────────────────────────────────
 
     setText(text, redraw) {
@@ -149,7 +186,8 @@ class MaskEditTextView extends TextView {
         super.setText(text, redraw); //  pass through redraw; TextView ctor calls with false
 
         if (this.lineBuffer) {
-            const raw = (text == null ? '' : String(text)).slice(0, this.maxLength);
+            //  Bounded by the pattern, so no separate maxLength truncation.
+            const raw = this._slotCharsFromText(text == null ? '' : String(text));
             this.lineBuffer.lines[0] = {
                 chars: raw,
                 attrs: new Uint32Array(raw.length),
