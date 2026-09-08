@@ -148,11 +148,13 @@ class MaskEditTextView extends TextView {
     //  -- a literal is consumed when the caller supplied it and skipped when
     //  they did not -- so setText(getData()) round trips.
     //
-    //  Characters are held to the same regex the keyboard path applies. The
-    //  walk stops at the first one that does not fit rather than skipping past
-    //  it, so a value that does not belong in this field is dropped instead of
-    //  being reassembled out of whichever parts happened to match. Rejection is
-    //  silent, as it is when the same character is typed.
+    //  Characters get the same treatment the keyboard path gives them: styled
+    //  by |textStyle| first, then held to their slot's regex. The walk stops at
+    //  the first one that does not fit rather than skipping past it, so a value
+    //  that does not belong in this field is dropped instead of being
+    //  reassembled out of whichever parts happened to match. Rejection is
+    //  silent, as it is when the same character is typed. Literals are matched
+    //  unstyled: they come from the mask, not from the caller's data.
     //
     //  A literal that is also a legal slot character is ambiguous: for '&&/&&',
     //  "ab/cd" is either a supplied '/' or four data characters. The supplied
@@ -165,10 +167,12 @@ class MaskEditTextView extends TextView {
             const pat = this.patternArray[pos];
 
             if (_.isRegExp(pat)) {
-                if (!text[i].match(pat)) {
+                const ch = strUtil.stylizeString(text[i], this.textStyle);
+                if (!ch.match(pat)) {
                     break;
                 }
-                raw += text[i++];
+                raw += ch;
+                ++i;
             } else if (text[i] === pat) {
                 ++i; //  literal supplied by the caller
             }

@@ -601,6 +601,36 @@ describe('MaskEditTextView', () => {
             assert.equal(view.patternArrayPos, 6);
         });
 
+        it('setText() applies textStyle, as typing does', () => {
+            const view = makeMaskView({ maskPattern: 'A', textStyle: 'upper' });
+            view.setText('m');
+
+            assert.equal(view.getData(), 'M');
+        });
+
+        it('setText() and typing agree on a styled field', () => {
+            const set = makeMaskView({ maskPattern: 'AAA', textStyle: 'upper' });
+            set.setText('abc');
+
+            const typed = makeMaskView({ maskPattern: 'AAA', textStyle: 'upper' });
+            typed.specialKeyMap = {};
+            typed.acceptsInput = true;
+            typed.hasFocus = true;
+            'abc'.split('').forEach(ch => typed.onKeyPress(ch, null));
+
+            assert.equal(set.getData(), typed.getData());
+            assert.equal(set.getData(), 'ABC');
+        });
+
+        it('styling is applied before the slot is checked', () => {
+            //  'upper' cannot turn a letter into a digit, so the numeric slot
+            //  still rejects it.
+            const view = makeMaskView({ maskPattern: '#', textStyle: 'upper' });
+            view.setText('a');
+
+            assert.equal(view.getData(), '');
+        });
+
         it('setText() holds characters to the mask, as typing does', () => {
             //  The keyboard path checks every character against its slot; a
             //  programmatic set used to bypass the mask entirely.
