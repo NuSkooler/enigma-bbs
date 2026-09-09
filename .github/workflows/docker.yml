@@ -63,4 +63,11 @@ jobs:
           #  not compile -- so building only amd64 would check the half that
           #  rarely fails.
           push: ${{ github.event_name != 'pull_request' }}
+          #  The arm legs rebuild node-pty, cpu-features and dtrace-provider
+          #  under QEMU every run. A pull request reads master's cache but
+          #  writes none of its own: master cannot read a branch cache back,
+          #  so the write would only evict from the shared 10 GB that every
+          #  pull request's `cache: npm` comes out of.
+          cache-from: type=gha
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=min' || '' }}
 
