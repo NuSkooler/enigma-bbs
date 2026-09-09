@@ -490,7 +490,7 @@ Read a file from the image (can be piped):
 ## v86 Emulation Tools
 The `v86` command boots raw FreeDOS disk images using the [v86](https://github.com/copy/v86) x86 emulator. Does not require a running ENiGMA instance.
 
-BIOS files default to `misc/v86_bios/seabios.bin` and `misc/v86_bios/vgabios.bin`. Run `misc/install.sh` to download them, or see [Local Doors — v86](../modding/local-doors-v86.md) for details.
+BIOS files default to `misc/v86_bios/seabios.bin` and `misc/v86_bios/vgabios.bin`. Run `misc/install.sh` to download them, or see [Local Doors — v86](../doors/v86.md) for details.
 
 ```
 usage: oputil.js v86 <action> <image.img> [arguments]

@@ -11,7 +11,7 @@ Remember that ENiGMA does not impose any stucture to your system! The "flow" of 
 :::
 
 :::tip
-If the `module` entry is not present in a `menu.hjson` entry, the system automatically uses [standard_menu.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/standard_menu.js).
+If the `module` entry is not present in a `menu.hjson` entry, the system automatically uses [standard_menu.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/standard_menu.js). For the modules ENiGMA½ already ships with, see [Built-in Modules](../modules/index.md).
 :::
 
 ## Creating a New Module

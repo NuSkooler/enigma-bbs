@@ -16,7 +16,7 @@ Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each en
 
 * Classical navigation and menus such as Main, Messages, and Files.
 * Art file display.
-* Module driven menus such as [door launchers](../modding/local-doors.md), [Onelinerz](../modding/onelinerz.md), and other custom mods.
+* Module driven menus such as [door launchers](../doors/index.md), [Onelinerz](../modules/onelinerz.md), and other custom mods.
 
 Menu entries live under the `menus` section of `menu.hjson`. The *key* for a menu is it's name that can be referenced by other menus and areas of the system.
 

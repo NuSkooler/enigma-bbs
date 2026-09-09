@@ -9,7 +9,7 @@ sidebar:
 See [Upgrading](upgrading.md).
 
 ## Viewing Activity
-Monitor your system via the [Waiting For Caller (WFC)](../modding/wfc.md) screen and learn how to [monitoring logs](../troubleshooting/monitoring-logs.md).
+Monitor your system via the [Waiting For Caller (WFC)](../modules/wfc.md) screen and learn how to [monitoring logs](../troubleshooting/monitoring-logs.md).
 
 ## Managing Users
 User management is currently handled via the [oputil CLI](oputil.md).

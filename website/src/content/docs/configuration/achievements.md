@@ -176,7 +176,7 @@ See [MCI](../art/mci.md) for general MCI documentation.
 
 ## Leaderboards
 
-Achievement totals can be surfaced in [Top-X](../modding/top-x.md) leaderboards using the User Event Log:
+Achievement totals can be surfaced in [Top-X](../modules/top-x.md) leaderboards using the User Event Log:
 
 ```hjson
 mciMap: {

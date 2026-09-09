@@ -35,7 +35,7 @@ https://xibalba.vip:44512/f/h7JK
 ```
 
 The queue users build these links from is the
-[File Base Web Download Manager](../modding/file-base-web-download-manager.md).
+[File Base Web Download Manager](../modules/download-managers.md).
 
 ## Modding
 The default ENiGMA½ approach for file areas may not be for everyone. Remember that you can mod everything your setup! Some inspirational examples:

@@ -206,4 +206,4 @@ fullLogoffSequenceRandomBoardAd: {
 ```
 
 ## See Also
-See also the [Show Art Module](../modding/show-art.md) for more advanced art display!
+See also the [Show Art Module](../modules/show-art.md) for more advanced art display!
