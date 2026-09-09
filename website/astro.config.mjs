@@ -44,6 +44,16 @@ export default defineConfig({
                 baseUrl: 'https://github.com/NuSkooler/enigma-bbs/edit/master/website/',
             },
             lastUpdated: true,
+            //  The .ico is the project's real favicon, carried over from the
+            //  Jekyll site; the SVG is the scalable modern one. Both, because
+            //  the .ico still covers browsers that ignore SVG icons.
+            favicon: '/favicon.svg',
+            head: [
+                {
+                    tag: 'link',
+                    attrs: { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
+                },
+            ],
             social: [
                 {
                     icon: 'github',
