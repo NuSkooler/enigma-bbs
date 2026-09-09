@@ -1,0 +1,169 @@
+/*  ENiGMA½ — A+B hybrid: ANSI-16 palette, DOS bitmap display type, CRT
+    rationed to the chrome. Body prose stays proportional; the reading
+    column is deliberately left clean.
+
+    Web437/WebPlus IBM VGA — The Ultimate Oldschool PC Font Pack by VileR,
+    https://int10h.org/oldschool-pc-fonts/ — CC BY-SA 4.0. See
+    /fonts/LICENSE-int10h.txt. */
+
+@font-face {
+    font-family: 'IBM VGA';
+    src: url('/fonts/WebPlus_IBM_VGA_8x16.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: block;
+}
+
+:root {
+    --enigma-cyan: oklch(0.78 0.13 210);
+    --enigma-cyan-bright: oklch(0.88 0.11 210);
+    --enigma-magenta: oklch(0.78 0.13 335);
+
+    --font-dos: 'IBM VGA', 'IBM Plex Mono', ui-monospace, monospace;
+
+    /*  Starlight tokens, retuned to the cool near-black of the design. */
+    --sl-font: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+    --sl-color-accent-low: #101827;
+    --sl-color-accent: oklch(0.62 0.11 210);
+    --sl-color-accent-high: var(--enigma-cyan-bright);
+    --sl-color-white: #f2f5fa;
+    --sl-color-gray-1: #dde3ee;
+    --sl-color-gray-2: #a8b2c4;
+    --sl-color-gray-3: #8994a6;
+    --sl-color-gray-4: #4e5768;
+    --sl-color-gray-5: #1e2637;
+    --sl-color-gray-6: #10161f;
+    --sl-color-black: #05070b;
+}
+
+/*  A bitmap face only lands on whole pixels at whole multiples of 16px, so
+    every DOS-font size in this stylesheet is 16px or 32px — never 14, never
+    1.2em. Anything else interpolates and goes soft. */
+.dos,
+.site-title,
+.sl-markdown-content pre,
+.sl-markdown-content pre code {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    letter-spacing: 0;
+    font-variant-ligatures: none;
+    font-kerning: none;
+}
+
+/*  Code blocks: the real VGA cell at native size. One weight, no italic —
+    highlighting is colour-only, the way a DOS editor did it. */
+.sl-markdown-content pre,
+.sl-markdown-content pre code {
+    font-size: 16px;
+    line-height: 16px;
+}
+.sl-markdown-content pre {
+    padding-block: 14px;
+}
+
+/*  Inline code stays proportional-friendly: at 16px it would tower over the
+    surrounding prose. */
+.sl-markdown-content :not(pre) > code {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.875em;
+    color: var(--enigma-cyan-bright);
+    background: #10182a;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0;
+}
+
+/*  Site chrome: the header is the one place the CRT treatment lives on a
+    docs page. The reading column gets none of it. */
+.header {
+    background: #080b12;
+    position: relative;
+}
+.header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgb(0 0 0 / 0.3) 0px,
+        rgb(0 0 0 / 0.3) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+    opacity: 0.45;
+}
+.site-title {
+    font-size: 16px;
+    line-height: 16px;
+    color: var(--sl-color-gray-1);
+}
+
+/*  Sidebar group headings in the DOS face, magenta — the ANSI-16 accent. */
+.sidebar-content summary .large,
+.sidebar-content > ul > li > details > summary,
+.sidebar-content .top-level > li > span {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    font-size: 16px;
+    line-height: 16px;
+    letter-spacing: 0;
+    color: var(--enigma-magenta);
+    text-transform: uppercase;
+}
+
+/*  Square everything off. Rounded corners are not a BBS idiom. */
+.sl-markdown-content pre,
+.sl-markdown-content blockquote,
+.starlight-aside,
+.sl-markdown-content table,
+.sl-markdown-content img {
+    border-radius: 0 !important;
+}
+
+/*  Callouts: square, DOS-face label, ANSI accent per kind. */
+.starlight-aside {
+    border-inline-start-width: 1px;
+    border: 1px solid var(--sl-color-gray-5);
+    padding: 13px 17px;
+}
+.starlight-aside__title {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    font-size: 16px;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+.starlight-aside--note {
+    border-color: #1b3340;
+    background: #071318;
+}
+.starlight-aside--note .starlight-aside__title { color: var(--enigma-cyan); }
+.starlight-aside--tip {
+    border-color: #33253a;
+    background: #120c17;
+}
+.starlight-aside--tip .starlight-aside__title { color: var(--enigma-magenta); }
+
+/*  Tables: the config reference is the most-read shape in these docs. */
+.sl-markdown-content table {
+    border: 1px solid var(--sl-color-gray-5);
+    border-collapse: collapse;
+    width: 100%;
+}
+.sl-markdown-content th {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    font-size: 16px;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    color: var(--enigma-cyan);
+    background: #0e1626;
+    text-align: start;
+}
+.sl-markdown-content th,
+.sl-markdown-content td {
+    border: 1px solid #141a28;
+    padding: 10px 14px;
+}

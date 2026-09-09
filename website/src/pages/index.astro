@@ -1,0 +1,175 @@
+---
+import AnsiArt from '../components/AnsiArt.astro';
+import '../styles/enigma.css';
+
+const install =
+    'curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash';
+
+const features = [
+    ['THREE WAYS IN', 'Telnet, SSH and secure WebSocket listeners built into one process. Add your own server module if you need another.'],
+    ['FIDONET, NATIVELY', 'A built-in BinkP mailer with CRAM-MD5, NR mode and GZ compression. No binkd, no cron, no external tosser.'],
+    ['DOORS THAT RUN', 'x86 emulation via v86 — LORD, TradeWars and friends, with no DOSBox, DOSEMU or QEMU to install.'],
+    ['INDEXED FILE BASES', 'Full-text search, #tags, FILE_ID.DIZ extraction and expiring HTTP download links. X/Y/Z modem still works.'],
+    ['ART AS DRAWN', 'CP437 and UTF-8, full SAUCE support, SyncTERM-style font and baud emulation. PC and Amiga art both land right.'],
+    ['YOURS TO SHAPE', 'Menus, themes and prompts are HJSON you edit by hand. Drop in a JavaScript mod when config runs out.'],
+];
+---
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>ENiGMA½ BBS — modern BBS software with a nostalgic flair</title>
+        <meta
+            name="description"
+            content="Modern bulletin board software with a nostalgic flair. Telnet, SSH and WebSocket in one Node.js process, plus FidoNet mail, indexed file bases, and DOS doors that actually run."
+        />
+        <link rel="sitemap" href="/sitemap-index.xml" />
+    </head>
+    <body>
+        <header class="nav">
+            <a class="brand dos" href="/"><span class="brand__mark">█▄</span> ENiGMA½</a>
+            <nav>
+                <a href="/installation/installation-methods/">Docs</a>
+                <a href="#features">Features</a>
+                <a href="https://github.com/NuSkooler/enigma-bbs" class="dos nav__cta">GITHUB</a>
+            </nav>
+        </header>
+
+        <section class="hero">
+            <div class="hero__text">
+                <p class="dos kicker">▀▀ BULLETIN BOARD SOFTWARE</p>
+                <h1 class="dos wordmark">ENiGMA½<br /><span class="wordmark__b">BBS</span></h1>
+                <p class="lede">
+                    Modern bulletin board software with a nostalgic flair. Telnet, SSH and
+                    WebSocket in one Node.js process — plus FidoNet mail, indexed file
+                    bases, and DOS doors that actually run.
+                </p>
+                <p class="install"><span class="dos install__sigil">&gt;</span><code>{install}</code></p>
+                <p class="cta">
+                    <a class="dos cta__primary" href="/installation/installation-methods/">GET STARTED</a>
+                    <a class="dos cta__secondary" href="/configuration/creating-config/">READ THE DOCS</a>
+                </p>
+            </div>
+            <div class="hero__screen">
+                <AnsiArt src="MMENU.ANS" alt="The ENiGMA½ main menu in the luciano_blocktronics theme" max="16px" />
+                <p class="dos screen__caption">luciano_blocktronics — shipped theme</p>
+            </div>
+        </section>
+
+        <section class="features" id="features">
+            <h2 class="dos section-head">WHAT YOU GET</h2>
+            <ul class="grid">
+                {features.map(([title, body]) => (
+                    <li class="card">
+                        <h3 class="dos card__title">█▄ {title}</h3>
+                        <p class="card__body">{body}</p>
+                    </li>
+                ))}
+            </ul>
+        </section>
+
+        <footer class="foot">
+            <p class="dos">TELNET · SSH · WEBSOCKET · GOPHER · NNTP</p>
+            <p class="dos">v0.5.1-beta · BSD-2-Clause</p>
+            <p class="attrib">
+                Type is <a href="https://int10h.org/oldschool-pc-fonts/">The Ultimate Oldschool
+                PC Font Pack</a> by VileR, licensed
+                <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+            </p>
+        </footer>
+    </body>
+</html>
+
+<style>
+    body {
+        margin: 0;
+        background: #05070b;
+        color: #dde3ee;
+        font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+    }
+    a { color: oklch(0.78 0.13 210); text-decoration: none; }
+    a:hover { color: oklch(0.88 0.11 210); }
+
+    .nav {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1rem; padding: 0 2.5rem; height: 62px;
+        border-bottom: 1px solid #1a2130; background: #080b12;
+    }
+    .brand { font-size: 16px; line-height: 16px; color: #dde3ee; }
+    .brand__mark { color: oklch(0.78 0.13 335); }
+    .nav nav { display: flex; align-items: center; gap: 1.6rem; }
+    .nav__cta {
+        font-size: 16px; line-height: 16px;
+        background: oklch(0.78 0.13 210); color: #05070b; padding: 8px 14px;
+    }
+    .nav__cta:hover { color: #05070b; }
+
+    .hero {
+        display: flex; flex-wrap: wrap; gap: 3.5rem; align-items: center;
+        padding: 3.5rem 2.5rem 4rem;
+        border-bottom: 1px solid #1a2130;
+        background:
+            radial-gradient(ellipse 640px 380px at 74% 46%, rgb(90 220 240 / 0.13), transparent 68%),
+            radial-gradient(ellipse 520px 300px at 16% 30%, rgb(232 111 208 / 0.09), transparent 70%);
+        position: relative;
+    }
+    /* Scanlines live on the hero only. The reading column gets none. */
+    .hero::after {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background: repeating-linear-gradient(
+            to bottom, rgb(0 0 0 / 0.3) 0, rgb(0 0 0 / 0.3) 1px, transparent 1px, transparent 3px);
+        opacity: 0.5;
+    }
+    .hero__text { flex: 1 1 480px; min-width: 0; position: relative; z-index: 1; }
+    .hero__screen { flex: 0 1 auto; min-width: 0; position: relative; z-index: 1; }
+
+    .kicker { font-size: 16px; line-height: 16px; color: oklch(0.78 0.13 335); margin: 0 0 1.4rem; }
+    .wordmark {
+        font-size: 80px; line-height: 80px; font-weight: normal; margin: 0 0 1.2rem;
+        color: oklch(0.80 0.13 210);
+        text-shadow: 0 0 26px rgb(90 220 240 / 0.55), 3px 3px 0 rgb(232 111 208 / 0.30);
+    }
+    .wordmark__b { color: #f2f5fa; text-shadow: 0 0 22px rgb(255 255 255 / 0.28); }
+    .lede { font-size: 19px; line-height: 1.58; color: #a8b2c4; max-width: 34rem; margin: 0 0 1.6rem; text-wrap: pretty; }
+
+    .install {
+        display: flex; align-items: stretch; margin: 0 0 1.4rem; max-width: 40rem;
+        border: 1px solid #263048; background: #04060a; overflow-x: auto;
+    }
+    .install__sigil { font-size: 16px; line-height: 16px; color: oklch(0.78 0.13 335); padding: 13px 0 13px 14px; }
+    .install code {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12.5px;
+        color: #c3ccdb; padding: 12px 14px; white-space: nowrap;
+    }
+
+    .cta { display: flex; gap: 0.75rem; margin: 0; flex-wrap: wrap; }
+    .cta__primary {
+        font-size: 16px; line-height: 16px; background: oklch(0.78 0.13 210);
+        color: #05070b; padding: 14px 24px; box-shadow: 0 0 22px rgb(90 220 240 / 0.30);
+    }
+    .cta__primary:hover { color: #05070b; }
+    .cta__secondary { font-size: 16px; line-height: 16px; border: 1px solid #263048; color: #dde3ee; padding: 13px 24px; }
+    .screen__caption { font-size: 16px; line-height: 16px; color: #3b4557; margin: 0.7rem 0 0; text-align: right; }
+
+    .features { padding: 3.5rem 2.5rem; }
+    .section-head { font-size: 16px; line-height: 16px; font-weight: normal; color: oklch(0.78 0.13 335); margin: 0 0 1.6rem; }
+    .grid {
+        list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    }
+    .card { border: 1px solid #1a2130; background: #0b0f17; padding: 1.4rem; }
+    .card__title { font-size: 16px; line-height: 16px; font-weight: normal; color: oklch(0.78 0.13 210); margin: 0 0 0.75rem; }
+    .card__body { font-size: 14.5px; line-height: 1.62; color: #8994a6; margin: 0; }
+
+    .foot {
+        display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; align-items: baseline;
+        justify-content: space-between; padding: 1.5rem 2.5rem 2.2rem;
+        border-top: 1px solid #1a2130; background: #080b12;
+    }
+    .foot p { margin: 0; font-size: 16px; line-height: 16px; color: #3b4557; }
+    .foot .attrib {
+        flex-basis: 100%; font-family: 'Source Sans 3', system-ui, sans-serif;
+        font-size: 12px; line-height: 1.5; color: #4e5768; margin-top: 0.6rem;
+    }
+</style>

@@ -30,6 +30,8 @@ export default [
             '.venv/**', //  local Python virtualenv
             'dev_util/gotosocial/web/**', //  fetched GoToSocial assets
             '.vscode/**', //  editor-local, and JSONC rather than JSON
+            'website/dist/**', //  Astro build output
+            'website/.astro/**', //  Astro's generated types and content store
         ],
     },
 
@@ -99,6 +101,16 @@ export default [
 
     {
         files: ['**/*.mjs'],
+        languageOptions: {
+            sourceType: 'module',
+        },
+    },
+
+    {
+        //  The docs site is an ESM package ("type": "module"), so its .js is
+        //  modules rather than the CommonJS the BBS itself uses. Without this
+        //  the parser rejects every import in website/src/lib.
+        files: ['website/**/*.js'],
         languageOptions: {
             sourceType: 'module',
         },

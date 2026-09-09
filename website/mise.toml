@@ -1,0 +1,5 @@
+#  The repo root sets NODE_ENV=production for the BBS itself. Astro and
+#  Starlight are devDependencies, so `npm install` would skip them and
+#  `astro dev` would build in the wrong mode. Scope it back for this directory.
+[env]
+NODE_ENV = 'development'
