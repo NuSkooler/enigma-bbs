@@ -91,7 +91,10 @@ const features = [
                     </div>
                     <div class="dial__row">
                         <dt class="dos">SSH</dt>
-                        <dd><code>ssh://xibalba.l33t.codes:44511</code></dd>
+                        <dd>
+                            <code>ssh://xibalba.l33t.codes:44511</code>
+                            <span class="dial__hint">log in as <code>new</code> / <code>new</code></span>
+                        </dd>
                     </div>
                     <div class="dial__row">
                         <dt class="dos">WEB</dt>
@@ -110,11 +113,10 @@ const features = [
             </div>
             <div class="try__screen">
                 <AnsiArt
-                    src="MATRIX.ANS"
-                    alt="The Xibalba login matrix, drawn in the luciano_blocktronics theme"
+                    src="XIBALBA3.ANS"
+                    alt="Xibalba BBS login art"
                     max="16px"
                 />
-                <p class="dos screen__caption">MATRIX.ANS · the login screen you will land on</p>
             </div>
         </section>
 
@@ -210,6 +212,9 @@ const features = [
     .install {
         position: relative; z-index: 1;
         display: flex; align-items: stretch; margin: 2.25rem 0 0;
+        /*  Wide enough for the ~95-character command plus the sigil and the
+            copy button, and no wider -- full-bleed made it read as a banner. */
+        max-width: 54rem;
         border: 1px solid #2a332a; background: #000000; overflow: hidden;
     }
     .install__sigil { flex-shrink: 0; font-size: 16px; line-height: 16px; color: #55ff55; padding: 13px 0 13px 14px; }
@@ -239,7 +244,9 @@ const features = [
     .dial { margin: 0; display: grid; gap: 0.55rem; }
     .dial__row { display: flex; gap: 0.9rem; align-items: baseline; }
     .dial dt { flex: 0 0 5.5rem; font-size: 16px; line-height: 16px; color: #00aaaa; }
-    .dial dd { margin: 0; min-width: 0; }
+    .dial dd { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.75rem; }
+    .dial__hint { font-size: 13.5px; color: #8a928a; }
+    .dial__hint code { color: #55ff55; }
     .dial code {
         font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
         color: #d9ded9; background: #101810; border: 1px solid #1f261f; padding: 2px 7px;
