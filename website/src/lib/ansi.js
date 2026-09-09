@@ -11,6 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { decodeByte } from './cp437.js';
+import { substituteMci } from './mci.js';
 
 // Art is read from disk at build time and resolved against the project root
 // rather than import.meta.url, because the bundler rewrites module URLs to
@@ -97,10 +98,10 @@ function artBody(buf) {
  * Parse ANSI art into a grid of cells.
  *
  * @param {Buffer} buf raw file contents
- * @param {{cols?: number, iceColors?: boolean}} opts
+ * @param {{cols?: number, iceColors?: boolean, mci?: boolean}} opts
  * @returns {{grid: Array<Array<{ch: string, fg: number, bg: number}>>, cols: number, rows: number, unsupported: string[]}}
  */
-export function parseAnsi(buf, { cols = 80, iceColors = false } = {}) {
+export function parseAnsi(buf, { cols = 80, iceColors = false, mci = true } = {}) {
     const body = artBody(buf);
 
     const grid = [];
@@ -203,6 +204,19 @@ export function parseAnsi(buf, { cols = 80, iceColors = false } = {}) {
         put(decodeByte(b, true));
     }
 
+    // MCI substitution runs on the decoded grid rather than the raw bytes,
+    // because a code can be split by an SGR sequence mid-token. Working row by
+    // row keeps each cell's colour attached to its character: the replacement
+    // inherits the attributes of the cell it overwrites.
+    if (mci) {
+        for (const line of grid) {
+            const text = line.map(c => c.ch).join('');
+            const out = substituteMci(text);
+            if (out === text) continue;
+            for (let i = 0; i < line.length; i++) line[i].ch = out[i] ?? ' ';
+        }
+    }
+
     // Normalise: pad every row to the widest, so background colours form clean
     // rectangles rather than ragged edges.
     const width = Math.min(
@@ -227,7 +241,7 @@ const escapeHtml = s => s.replace(/[&<>]/g, c => ESCAPES[c]);
  * @param {URL|string} path
  * @returns {{html: string, sauce: object|null, cols: number, rows: number, unsupported: string[]}}
  */
-export function renderAnsiFile(name) {
+export function renderAnsiFile(name, { mci = true } = {}) {
     const full = artPath(name);
     let buf;
     try {
@@ -244,6 +258,7 @@ export function renderAnsiFile(name) {
     const { grid, cols, rows, unsupported } = parseAnsi(buf, {
         cols: sauce?.cols || 80,
         iceColors: sauce?.iceColors ?? false,
+        mci,
     });
 
     const out = [];

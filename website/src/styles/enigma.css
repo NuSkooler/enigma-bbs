@@ -14,26 +14,47 @@
     font-display: block;
 }
 
-:root {
-    --enigma-cyan: oklch(0.78 0.13 210);
-    --enigma-cyan-bright: oklch(0.88 0.11 210);
-    --enigma-magenta: oklch(0.78 0.13 335);
+/*  :root:root, not :root.
+ *
+ *  Astro inlines this file into the page head BEFORE Starlight's linked
+ *  stylesheet, so an equal-specificity :root block loses the cascade and every
+ *  token below silently does nothing. Doubling the selector (0,2,0) beats
+ *  Starlight's dark defaults on plain :root (0,1,0), while still losing to its
+ *  :root[data-theme=light] rules (0,2,0, and later) -- so light mode keeps
+ *  working instead of being half-overridden. */
+:root:root {
+    /*  Straight from the 16-colour hardware palette, chosen by what the
+        luciano_blocktronics theme actually uses. Across its 121 art files and
+        8,510 colour changes: dark grey 22%, cyan 22%, bright green 17%, green
+        13%, light grey 10%, white 6%. Bright magenta is 3 uses in 8,510 — which
+        is why the site is green and grey, not magenta. */
+    --e-green: #55ff55; /*  bright green — primary accent   */
+    --e-green-dim: #00aa00; /*  green                           */
+    --e-cyan: #00aaaa; /*  cyan — secondary                */
+    --e-cyan-bright: #55ffff; /*  bright cyan — links             */
+    --e-grey: #aaaaaa; /*  light grey                      */
+    --e-grey-dim: #555555; /*  dark grey — rules, captions     */
 
     --font-dos: 'IBM VGA', 'IBM Plex Mono', ui-monospace, monospace;
 
-    /*  Starlight tokens, retuned to the cool near-black of the design. */
+    /*  Starlight tokens. Greys carry a slight green cast so the chrome sits
+        with the art rather than against it. */
     --sl-font: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
-    --sl-color-accent-low: #101827;
-    --sl-color-accent: oklch(0.62 0.11 210);
-    --sl-color-accent-high: var(--enigma-cyan-bright);
-    --sl-color-white: #f2f5fa;
-    --sl-color-gray-1: #dde3ee;
-    --sl-color-gray-2: #a8b2c4;
-    --sl-color-gray-3: #8994a6;
-    --sl-color-gray-4: #4e5768;
-    --sl-color-gray-5: #1e2637;
-    --sl-color-gray-6: #10161f;
-    --sl-color-black: #05070b;
+    --sl-color-accent-low: #0f1a0f;
+    --sl-color-accent: #1f7a1f;
+    --sl-color-accent-high: var(--e-green);
+    --sl-color-white: #f2f6f2;
+    --sl-color-gray-1: #d9ded9;
+    --sl-color-gray-2: #a8b0a8;
+    --sl-color-gray-3: #8a928a;
+    --sl-color-gray-4: #4d554d;
+    --sl-color-gray-5: #1f261f;
+    --sl-color-gray-6: #131813;
+    --sl-color-black: #060806;
+
+    /*  The reading column was leaving a third of a 1440px window empty. */
+    --sl-content-width: 58rem;
+    --sl-sidebar-width: 17.5rem;
 }
 
 /*  A bitmap face only lands on whole pixels at whole multiples of 16px, so
@@ -66,8 +87,8 @@
 .sl-markdown-content :not(pre) > code {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 0.875em;
-    color: var(--enigma-cyan-bright);
-    background: #10182a;
+    color: var(--e-cyan-bright);
+    background: #101810;
     border: 1px solid var(--sl-color-gray-5);
     border-radius: 0;
 }
@@ -75,7 +96,7 @@
 /*  Site chrome: the header is the one place the CRT treatment lives on a
     docs page. The reading column gets none of it. */
 .header {
-    background: #080b12;
+    background: #0a0d0a;
     position: relative;
 }
 .header::after {
@@ -107,7 +128,7 @@
     font-size: 16px;
     line-height: 16px;
     letter-spacing: 0;
-    color: var(--enigma-magenta);
+    color: var(--e-green);
     text-transform: uppercase;
 }
 
@@ -135,15 +156,15 @@
     text-transform: uppercase;
 }
 .starlight-aside--note {
-    border-color: #1b3340;
-    background: #071318;
+    border-color: #1c3a1c;
+    background: #0a140a;
 }
-.starlight-aside--note .starlight-aside__title { color: var(--enigma-cyan); }
+.starlight-aside--note .starlight-aside__title { color: var(--e-cyan); }
 .starlight-aside--tip {
-    border-color: #33253a;
-    background: #120c17;
+    border-color: #16383a;
+    background: #071414;
 }
-.starlight-aside--tip .starlight-aside__title { color: var(--enigma-magenta); }
+.starlight-aside--tip .starlight-aside__title { color: var(--e-cyan-bright); }
 
 /*  Tables: the config reference is the most-read shape in these docs. */
 .sl-markdown-content table {
@@ -158,12 +179,12 @@
     line-height: 16px;
     letter-spacing: 0;
     text-transform: uppercase;
-    color: var(--enigma-cyan);
-    background: #0e1626;
+    color: var(--e-cyan);
+    background: #101810;
     text-align: start;
 }
 .sl-markdown-content th,
 .sl-markdown-content td {
-    border: 1px solid #141a28;
+    border: 1px solid #1a201a;
     padding: 10px 14px;
 }
