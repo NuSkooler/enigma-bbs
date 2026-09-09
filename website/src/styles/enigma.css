@@ -189,6 +189,19 @@
     padding: 10px 14px;
 }
 
+/*  ASCII art rendered as art rather than as code: no frame, no copy button,
+    and the bitmap face at its native 16px so the box lines up exactly. */
+.sl-markdown-content pre.hangup {
+    font-size: 16px;
+    line-height: 16px;
+    color: var(--e-green);
+    background: none;
+    border: 0;
+    padding: 0;
+    margin-block: 0 1.5rem;
+    overflow-x: auto;
+}
+
 /*  ---- light mode -------------------------------------------------------
  *
  *  :root:root[data-theme='light'] (0,3,0) so it beats both Starlight's stock

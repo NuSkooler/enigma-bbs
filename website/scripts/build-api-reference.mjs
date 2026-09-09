@@ -12,11 +12,18 @@
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 
+//  The page is a real Astro route (src/pages), not a public/ asset. Astro's dev
+//  server does not do directory-index resolution for public/, so a public-only
+//  page answers /api/index.html but 404s on /api/ -- fine once a static host is
+//  in front of it, broken for anyone running the dev server.
+const PAGE_DIR = 'src/pages/api';
+const PAGE = `${PAGE_DIR}/index.html`;
+//  The bundle stays a plain asset: it is fetched by path, never routed to.
 const OUT_DIR = 'public/api';
-const PAGE = `${OUT_DIR}/index.html`;
 const BUNDLE = 'redoc.standalone.js';
 const SOURCE_BUNDLE = `node_modules/redoc/bundles/${BUNDLE}`;
 
+mkdirSync(PAGE_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
 execFileSync(

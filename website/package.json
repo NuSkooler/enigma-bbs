@@ -4,7 +4,7 @@
     "private": true,
     "description": "ENiGMA\u00bd BBS \u2014 documentation and project site",
     "scripts": {
-        "dev": "astro dev",
+        "dev": "npm run api && astro dev",
         "api": "node scripts/build-api-reference.mjs",
         "build": "npm run api && astro build",
         "preview": "astro preview",
