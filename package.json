@@ -102,6 +102,11 @@
         "peggy": "^5.1.0",
         "prettier": "^3.9.6"
     },
+    "overrides": {
+        "avatar-generator": {
+            "sharp": "^0.35.4"
+        }
+    },
     "engines": {
         "node": ">=22"
     }
