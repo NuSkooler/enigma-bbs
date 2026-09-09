@@ -98,8 +98,10 @@ sudo semanage fcontext -a -t bin_t '/home/enigma/xibalba/misc/start\.sh'
 sudo restorecon -v /home/enigma/xibalba/misc/start.sh
 ```
 
-> :warning: Many editors save files via write-then-rename, which creates a new inode and **strips
-> the custom SELinux context** — leaving the file as `user_home_t` and breaking the service the
-> next time it restarts. The `semanage fcontext` rule above makes the correct context the default
-> for that path, so a quick `restorecon` after editing puts things right. If you prefer not to
-> remember that, edit the file in place (`sed -i`, `nano` with `set backupcopy yes` in vim, etc.).
+:::caution
+Many editors save files via write-then-rename, which creates a new inode and **strips
+the custom SELinux context** — leaving the file as `user_home_t` and breaking the service the
+next time it restarts. The `semanage fcontext` rule above makes the correct context the default
+for that path, so a quick `restorecon` after editing puts things right. If you prefer not to
+remember that, edit the file in place (`sed -i`, `nano` with `set backupcopy yes` in vim, etc.).
+:::

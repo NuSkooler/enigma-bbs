@@ -18,7 +18,9 @@ The system allows any user with the proper security to access the WFC / system o
 3. User ID of 1 (root/admin)
 4. The user belongs to the `wfc` group.
 
-> :information_source: Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group. See also [Security](../configuration/security.md) for more information on keeping your system secure!
+:::note
+Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group. See also [Security](../configuration/security.md) for more information on keeping your system secure!
+:::
 
 Adding your user to the `wfc` group:
 ```bash
@@ -36,9 +38,13 @@ mainMenuWaitingForCaller: {
 }
 ```
 
-> :bulb: You can add additional co-ops by adjusting the required ACS and/or adding them to a WFC-able group.
+:::tip
+You can add additional co-ops by adjusting the required ACS and/or adding them to a WFC-able group.
+:::
 
-> :lock: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
+:::caution
+ENiGMA½ will enforce ACS of at least `SC` (secure connection)
+:::
 
 ## Configuration
 ### Config Block
@@ -46,13 +52,13 @@ The WFC `config` block allows for the following keys:
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `acs` | :+1: | See [Security](#security) above. |
-| `opVisibility` | :-1: | Boolean. Set to `true` or `false` to change visibility when entering the WFC. |
-| `quickLogLevel` | :-1: | Sets the log level for the quick log view. Defaults to `info`. See also [Monitoring Logs](../troubleshooting/monitoring-logs.md). |
-| `art` | :+1: | An object containing art specs: `main` for the WFC main view and `help` for a help screen. |
-| `confirmKickNodePrompt` | :-1: | Override the prompt name used for the "Kick selected node?" prompt. Defaults to `confirmKickNodePrompt`. |
-| `pageIndicator` | :-1: | String shown in the node list for nodes with a pending sysop chat page. Defaults to `!`. |
-| `chatMenuName` | :-1: | Override the menu name used for sysop chat. Defaults to `sysopChat`. |
+| `acs` | Yes | See [Security](#security) above. |
+| `opVisibility` | No | Boolean. Set to `true` or `false` to change visibility when entering the WFC. |
+| `quickLogLevel` | No | Sets the log level for the quick log view. Defaults to `info`. See also [Monitoring Logs](../troubleshooting/monitoring-logs.md). |
+| `art` | Yes | An object containing art specs: `main` for the WFC main view and `help` for a help screen. |
+| `confirmKickNodePrompt` | No | Override the prompt name used for the "Kick selected node?" prompt. Defaults to `confirmKickNodePrompt`. |
+| `pageIndicator` | No | String shown in the node list for nodes with a pending sysop chat page. Defaults to `!`. |
+| `chatMenuName` | No | Override the menu name used for sysop chat. Defaults to `sysopChat`. |
 
 
 ## Theming
@@ -133,7 +139,9 @@ The following MCI codes are available:
     * `pendingPageMessage`: Message/reason of the most recent pending page, or empty.
 
 
-> :information_source: While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** refresh. For values that may change over time, please use the custom format values above.
+:::note
+While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** refresh. For values that may change over time, please use the custom format values above.
+:::
 
 ## Sysop Chat / Break Into Chat
 The WFC supports receiving pages from users and initiating chat with any connected node.

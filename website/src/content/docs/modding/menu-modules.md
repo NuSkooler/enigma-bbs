@@ -5,9 +5,13 @@ title: Menu Modules
 ## Menu Modules
 From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within [menu.hjson](../configuration/menu-hjson.md) are backed by *Menu Modules*. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from `MenuModule`. More on this below.
 
-> :information_source: Remember that ENiGMA does not impose any stucture to your system! The "flow" of all `menu.hjson` entries is up to you!
+:::note
+Remember that ENiGMA does not impose any stucture to your system! The "flow" of all `menu.hjson` entries is up to you!
+:::
 
-> :bulb: If the `module` entry is not present in a `menu.hjson` entry, the system automatically uses [standard_menu.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/standard_menu.js).
+:::tip
+If the `module` entry is not present in a `menu.hjson` entry, the system automatically uses [standard_menu.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/standard_menu.js).
+:::
 
 ## Creating a New Module
 At the highest level, to create a new custom menu or mod, inherit from `MenuModule` and expose it via the `getModule` exported method:
@@ -43,17 +47,19 @@ initSequence() {
 }
 ```
 
-> :bulb: Remember that *all* menus within ENiGMA are created by inheriting from `MenuModule`. Take a look at existing examples such as [WFC](https://github.com/NuSkooler/enigma-bbs/blob/master/core/wfc.js), [NUA](https://github.com/NuSkooler/enigma-bbs/blob/master/core/nua.js), [MRC](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mrc.js) and more!
+:::tip
+Remember that *all* menus within ENiGMA are created by inheriting from `MenuModule`. Take a look at existing examples such as [WFC](https://github.com/NuSkooler/enigma-bbs/blob/master/core/wfc.js), [NUA](https://github.com/NuSkooler/enigma-bbs/blob/master/core/nua.js), [MRC](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mrc.js) and more!
+:::
 
 ### ModuleInfo
 To register your module with the system, include a `moduleInfo` declaration in your exports. The following members are available:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `name` | :+1: | Short name of the module |
-| `desc` | :+1: | Long description of this module |
-| `author` | :+1: | Author(s) of module |
-| `packageName` | :-1: | Defines a reverse DNS style package name. Can be used in conjunction with the `getModDatabasePath()` call form [database.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/database.js) to interact with a database specific to your module (See example below) |
+| `name` | Yes | Short name of the module |
+| `desc` | Yes | Long description of this module |
+| `author` | Yes | Author(s) of module |
+| `packageName` | No | Defines a reverse DNS style package name. Can be used in conjunction with the `getModDatabasePath()` call form [database.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/database.js) to interact with a database specific to your module (See example below) |
 
 **Example**:
 
@@ -176,7 +182,9 @@ Where `mciData` is a Object mapping [MCI codes](../art/mci.md) such as `TL2` to 
 * `code` (String): The code itself, such as `TL`
 * `id` (Number): The MCI code's ID such as `1`
 
-> :information_source: Search the code for the above methods to see how they are used in the base system!
+:::note
+Search the code for the above methods to see how they are used in the base system!
+:::
 
 
 ## Custom Mods

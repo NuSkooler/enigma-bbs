@@ -18,7 +18,9 @@ ENiGMA½ does not utilize legacy "security levels" (see note below) but instead 
 
 You do not need to explicitly create groups: by checking for them via ACS and adding members to a group, they implicitly exist within the system. You may use as many groups as you like. See [`oputil user group`](../admin/oputil.md#user) for adding and removing users to groups.
 
-> :information_source: Many drop file formats require a security level. As such, the following apply: root user or users in `sysops` group receive a security level of `100` while standard `users` receive `30`.
+:::note
+Many drop file formats require a security level. As such, the following apply: root user or users in `sysops` group receive a security level of `100` while standard `users` receive `30`.
+:::
 
 ---
 
@@ -172,13 +174,15 @@ When an ACS block is not specified (or a particular scope is missing), the syste
 | FSE Body Upload | `uploadAcs` | `GM[users]` |
 | Menu Module | `acs` | *(no check — all users can access)* |
 
-> :information_source: The FSE (Full Screen Editor) uses a scope called `uploadAcs` (not `upload`) for controlling who can upload a file into a message body. This is distinct from the file area `write` scope which controls file base uploads. The `uploadAcs` scope is checked on the FSE's menu config to decide whether the "Upload" option appears in the editor menu. If you want to restrict message body file uploads, set `uploadAcs` in your FSE menu entry's config block:
->
-> ```hjson
-> config: {
->     uploadAcs: GM[sysops]  // only sysops can upload files into messages
-> }
-> ```
+:::note
+The FSE (Full Screen Editor) uses a scope called `uploadAcs` (not `upload`) for controlling who can upload a file into a message body. This is distinct from the file area `write` scope which controls file base uploads. The `uploadAcs` scope is checked on the FSE's menu config to decide whether the "Upload" option appears in the editor menu. If you want to restrict message body file uploads, set `uploadAcs` in your FSE menu entry's config block:
+
+```hjson
+config: {
+    uploadAcs: GM[sysops]  // only sysops can upload files into messages
+}
+```
+:::
 
 ---
 

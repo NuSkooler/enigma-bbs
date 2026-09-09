@@ -10,16 +10,18 @@ Message Conferences are the top level container for *1:n* Message *Areas* via th
 
 Each conference is represented by a entry under `messageConferences`. Each entries top level key is it's *conference tag*.
 
-> :bulb: It is **highly** recommended to use snake_case style message *conference tags* and *area tags*!
+:::tip
+It is **highly** recommended to use snake_case style message *conference tags* and *area tags*!
+:::
 
 | Config Item | Required | Description |
 |-------------|----------|-------------|
-| `name`      | :+1: | Friendly conference name |
-| `desc`      | :+1: | Friendly conference description. |
-| `sort`      | :-1: | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
-| `default`   | :-1: | Specify `true` to make this the default conference (e.g. assigned to new users) |
-| `areas`     | :+1: | Container of 1:n areas described below |
-| `acs`       | :-1: | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
+| `name`      | Yes | Friendly conference name |
+| `desc`      | Yes | Friendly conference description. |
+| `sort`      | No | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
+| `default`   | No | Specify `true` to make this the default conference (e.g. assigned to new users) |
+| `areas`     | Yes | Container of 1:n areas described below |
+| `acs`       | No | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
 
 ### ACS
 An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
@@ -49,15 +51,15 @@ Message Areas are topic specific containers for messages that live within a part
 
 | Config Item | Required | Description                                                                     |
 |-------------|----------|---------------------------------------------------------------------------------|
-| `name`      | :+1:     | Friendly area name. |
-| `desc`      | :+1:     | Friendly area description. |
-| `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
-| `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users) |
-| `acs`       | :-1:     | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
-| `maxMessages` | :-1:   | The maximum number of messages to keep in the area. Defaults to `1024`. |
-| `maxAgeDays` | :-1:    | The maximum age of messages to keep in the area. Defaults to `0`, which means unlimited. |
-| `autoSignatures` | :-1: | Set to `false` to disable auto-signatures in this area. |
-| `realNames` | :-1:      | Set to `true` to use real names in this area. |
+| `name`      | Yes     | Friendly area name. |
+| `desc`      | Yes     | Friendly area description. |
+| `sort`      | No     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
+| `default`   | No     | Specify `true` to make this the default area (e.g. assigned to new users) |
+| `acs`       | No     | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
+| `maxMessages` | No   | The maximum number of messages to keep in the area. Defaults to `1024`. |
+| `maxAgeDays` | No    | The maximum age of messages to keep in the area. Defaults to `0`, which means unlimited. |
+| `autoSignatures` | No | Set to `false` to disable auto-signatures in this area. |
+| `realNames` | No      | Set to `true` to use real names in this area. |
 
 The default values for `maxMessages` and `maxAgeDays` can be changed globally in `core/config_default.js`, they're located in the section `messageAreaDefaults`. The same file also defines several default events to be scheduled, which are located under `eventScheduler`. For example, the `trimMessageAreas` event is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed.
 

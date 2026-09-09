@@ -23,11 +23,13 @@ doorTradeWars2002BBSLink: {
 
 Fill in your credentials in `sysCode`, `authCode`, and `schemeCode` and that's it!
 
-> :bulb: Avoid storing credentials in plain text. Use `@file:` or `@environment:` instead:
-> ```hjson
-> authCode: "@file:/run/secrets/bbslink_auth"
-> ```
-> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::tip
+Avoid storing credentials in plain text. Use `@file:` or `@environment:` instead:
+```hjson
+authCode: "@file:/run/secrets/bbslink_auth"
+```
+See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::
 
 ## The door_party Module
 The module `door_party` provides native support for [DoorParty!](http://www.throwbackbbs.com/) Configuration is quite easy:
@@ -46,11 +48,13 @@ doorParty: {
 
 Fill in `username`, `password`, and `bbsTag` with credentials provided to you and you should be in business!
 
-> :bulb: Avoid storing credentials in plain text. Use `@file:` or `@environment:` instead:
-> ```hjson
-> password: "@file:/run/secrets/doorparty_pass"
-> ```
-> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::tip
+Avoid storing credentials in plain text. Use `@file:` or `@environment:` instead:
+```hjson
+password: "@file:/run/secrets/doorparty_pass"
+```
+See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::
 
 ## The Exodus Module
 TBC

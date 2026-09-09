@@ -223,15 +223,15 @@ All keys live under `contentServers.web.restApi` in `config.hjson`:
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `enabled` | :+1: | Set to `true` to enable the REST API. |
-| `corsAllowedOrigins` | :-1: | Array of allowed CORS origins. Default `[]` (no CORS headers). Use `["*"]` for open access. |
-| `jwtSecret` | :-1: | Override the auto-generated JWT signing secret. Useful for multi-node setups sharing a secret. |
-| `system.public.info` | :-1: | Make `GET /system/info` public. Default `true`. |
-| `system.public.nodes` | :-1: | Make `GET /system/nodes` public. Default `false`. |
-| `system.public.last-callers` | :-1: | Make `GET /system/last-callers` public. Default `true`. |
-| `system.public.stats` | :-1: | Make `GET /system/stats` public. Default `true`. |
-| `messages.publicAccess` | :-1: | Map of conference tags to `{ include, exclude }` glob arrays for anonymous read access. |
-| `files.publicAccess` | :-1: | Map of area tags to `{ include, exclude }` glob arrays for anonymous read access. |
+| `enabled` | Yes | Set to `true` to enable the REST API. |
+| `corsAllowedOrigins` | No | Array of allowed CORS origins. Default `[]` (no CORS headers). Use `["*"]` for open access. |
+| `jwtSecret` | No | Override the auto-generated JWT signing secret. Useful for multi-node setups sharing a secret. |
+| `system.public.info` | No | Make `GET /system/info` public. Default `true`. |
+| `system.public.nodes` | No | Make `GET /system/nodes` public. Default `false`. |
+| `system.public.last-callers` | No | Make `GET /system/last-callers` public. Default `true`. |
+| `system.public.stats` | No | Make `GET /system/stats` public. Default `true`. |
+| `messages.publicAccess` | No | Map of conference tags to `{ include, exclude }` glob arrays for anonymous read access. |
+| `files.publicAccess` | No | Map of area tags to `{ include, exclude }` glob arrays for anonymous read access. |
 
 ---
 

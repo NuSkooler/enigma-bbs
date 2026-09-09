@@ -5,7 +5,9 @@ title: ActivityPub Message Browser
 ## The ActivityPub Message Browser Module
 The built-in `activity_pub_msg_list` module provides a scrollable, paginated list of messages (Notes) received from the Fediverse. It supports multiple view modes, lazy-loading of additional pages as the user scrolls, and navigation to a message viewer or thread view.
 
-> :information_source: ActivityPub must be enabled and the [ActivityPub Web Handler](../servers/contentservers/activitypub-handler.md) must be configured for messages to appear.
+:::note
+ActivityPub must be enabled and the [ActivityPub Web Handler](../servers/contentservers/activitypub-handler.md) must be configured for messages to appear.
+:::
 
 ## View Modes
 The browser can be opened in one of the following modes by passing `mode` via `extraArgs`:
@@ -31,13 +33,13 @@ The browser can be opened in one of the following modes by passing `mode` via `e
 ## Config Block
 | Key | Required | Description |
 |-----|----------|-------------|
-| `art.main` | :+1: | Art spec for the main browser screen. |
-| `dateTimeFormat` | :-1: | [moment.js](https://momentjs.com/docs/#/displaying/format/) format string for message timestamps. `am`/`pm` are collapsed to `a`/`p`. Defaults to `MM/DD hh:mma` (12-char output). |
-| `attIndicator` | :-1: | Single character shown in the attachment column. Defaults to `*`. |
-| `likeIndicator` | :-1: | Single character shown as the like indicator in TL10+ views. Defaults to `♥` (CP437 `0x03`). |
-| `boostIndicator` | :-1: | Single character shown as the boost indicator in TL10+ views. Defaults to `▲` (CP437 `0x1E`). |
-| `viewerMenu` | :-1: | Menu name to push when opening a message. Defaults to `activityPubMsgViewer`. |
-| `threadMenu` | :-1: | Menu name to push when opening a thread. Defaults to `actPubThread`. |
+| `art.main` | Yes | Art spec for the main browser screen. |
+| `dateTimeFormat` | No | [moment.js](https://momentjs.com/docs/#/displaying/format/) format string for message timestamps. `am`/`pm` are collapsed to `a`/`p`. Defaults to `MM/DD hh:mma` (12-char output). |
+| `attIndicator` | No | Single character shown in the attachment column. Defaults to `*`. |
+| `likeIndicator` | No | Single character shown as the like indicator in TL10+ views. Defaults to `♥` (CP437 `0x03`). |
+| `boostIndicator` | No | Single character shown as the boost indicator in TL10+ views. Defaults to `▲` (CP437 `0x1E`). |
+| `viewerMenu` | No | Menu name to push when opening a message. Defaults to `activityPubMsgViewer`. |
+| `threadMenu` | No | Menu name to push when opening a thread. Defaults to `actPubThread`. |
 
 **Example**:
 ```hjson

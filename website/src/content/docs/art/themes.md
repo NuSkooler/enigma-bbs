@@ -13,7 +13,9 @@ ENiGMA½ comes with a default theme by [Luciano Ayres](https://16colo.rs/artist/
 ## Art
 For information on art files, see [General Art Information](general.md). In general, to theme a piece of art, create a version of it in your themes directory.
 
-:memo: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
+:::note
+Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
+:::
 
 ## Theme Sections
 Themes are some important sections to be aware of:
@@ -28,10 +30,10 @@ The `info` configuration block describes the theme itself.
 
 | Item | Required | Description                                              |
 |-------------|----------|----------------------------------------------------------|
-| `name`   | :+1: | Name of the theme. Be creative! |
-| `author` | :+1: | Author of the theme/artwork. |
-| `group` | :-1: | Group/affils of author. |
-| `enabled` | :-1: | Boolean of enabled state. If set to `false`, this theme will not be available to your users. If a user currently has this theme selected, the system default will be selected for them at next login. |
+| `name`   | Yes | Name of the theme. Be creative! |
+| `author` | Yes | Author of the theme/artwork. |
+| `group` | No | Group/affils of author. |
+| `enabled` | No | Boolean of enabled state. If set to `false`, this theme will not be available to your users. If a user currently has this theme selected, the system default will be selected for them at next login. |
 
 ### Customization Block
 The `customization` block in is itself broken up into major parts:
@@ -116,7 +118,9 @@ messageAreaChangeCurrentArea: {
 ```
 
 ## Creating Your Own
-:warning: ***IMPORTANT!*** Do not make any customizations to the included `luciano_blocktronics' theme. Instead, create your own and make changes to that instead:
+:::caution
+***IMPORTANT!*** Do not make any customizations to the included `luciano_blocktronics' theme. Instead, create your own and make changes to that instead:
+:::
 
 1. Copy `/art/themes/luciano_blocktronics` to `art/themes/your_board_theme`
 2. Update the `info` block at the top of the theme.hjson file:

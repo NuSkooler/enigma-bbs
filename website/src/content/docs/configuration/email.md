@@ -23,7 +23,9 @@ All email configuration lives under the `email` block in `config.hjson`.
 | `outbound.usernameReplaceChar` | `_` | Replacement character for invalid local-part characters when deriving a local-part from a BBS username (e.g. spaces). |
 | `inbound` | *(disabled)* | Inbound IMAP polling configuration. See [Internet Mail → Inbound Configuration](../messageareas/internet-mail.md#inbound-configuration-reference). |
 
-> :information_source: Only `defaultFrom` and `transport` are required for system notifications (password reset, etc.). Everything under `outbound` and `inbound` is opt-in for internet-mail send/receive.
+:::note
+Only `defaultFrom` and `transport` are required for system notifications (password reset, etc.). Everything under `outbound` and `inbound` is opt-in for internet-mail send/receive.
+:::
 
 ## Services
 
@@ -111,15 +113,17 @@ email: {
 
 See [Internet Mail](../messageareas/internet-mail.md) for the full reference, inbound flow details, failed-message handling, and provider-specific tips (app passwords, catch-all rules, etc.).
 
-> :bulb: Avoid storing SMTP/IMAP passwords in plain text. Use `@file:` or `@environment:` to inject credentials securely:
-> ```hjson
-> auth: {
->     user: noreply@yourbbs.net
->     pass: "@file:/run/secrets/smtp_pass"
->     // or: pass: "@environment:SMTP_PASS"
-> }
-> ```
-> See [Configuration Files — Secret Files](config-files.md#secret-files) for details.
+:::tip
+Avoid storing SMTP/IMAP passwords in plain text. Use `@file:` or `@environment:` to inject credentials securely:
+```hjson
+auth: {
+    user: noreply@yourbbs.net
+    pass: "@file:/run/secrets/smtp_pass"
+    // or: pass: "@environment:SMTP_PASS"
+}
+```
+See [Configuration Files — Secret Files](config-files.md#secret-files) for details.
+:::
 
 ## Password Reset / Account Unlock
 

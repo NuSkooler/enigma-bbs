@@ -7,9 +7,13 @@ A ticker view displays text as a continuously animated marquee inside a fixed-wi
 
 ## General Information
 
-> :information_source: A ticker view is defined with a percent (%) and the characters TK, followed by the view number. For example: `%TK1`
+:::note
+A ticker view is defined with a percent (%) and the characters TK, followed by the view number. For example: `%TK1`
+:::
 
-> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+:::note
+See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+:::
 
 The ticker starts automatically when the screen loads and runs until the screen is torn down. Standard and focus SGR colors are set by placing duplicate MCI codes back-to-back in the art file.
 
@@ -72,7 +76,9 @@ These are applied per-tick to the visible window, producing animated color or no
 | `scramble` | About 30% of non-space characters are replaced with random noise characters rendered in bright green each tick, giving a decryption/hacker feel. |
 | `glitch` | Real text with 1–3 random characters corrupted to red noise per tick. Looks like signal interference. |
 
-> :bulb: Text-style effects and dynamic effects are independent axes — `l33t` + `rainbow` works: the text is l33t-ified first, then rainbow colors are applied to the visible window each tick.
+:::tip
+Text-style effects and dynamic effects are independent axes — `l33t` + `rainbow` works: the text is l33t-ified first, then rainbow colors are applied to the visible window each tick.
+:::
 
 ---
 

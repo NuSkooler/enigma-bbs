@@ -6,7 +6,9 @@ title: FidoNet-Style Networks (FTN)
 ## FidoNet-Style Networks (FTN)
 [FidoNet](https://en.wikipedia.org/wiki/FidoNet) proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you'll be up and running in no time!
 
-:scroll: Before proceeding you may wish to check [Setting up FTN-style message networks with ENiGMA½ BBS](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d) by Alpha. An excellent guide detailing some of the setup described here!
+:::note
+Before proceeding you may wish to check [Setting up FTN-style message networks with ENiGMA½ BBS](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d) by Alpha. An excellent guide detailing some of the setup described here!
+:::
 
 ### Configuration
 Getting a fully running FTN enabled system requires a few configuration points:
@@ -15,7 +17,9 @@ Getting a fully running FTN enabled system requires a few configuration points:
 2. `messageNetworks.ftn.areas`: Establishes local area mappings (ENiGMA½ to/from FTN area tags) and per-area specific configurations.
 3. `scannerTossers.ftn_bso`: General configuration for the scanner/tosser (import/export) process. This is also where we configure per-node (uplink) settings.
 
-> :information_source: ENiGMA½'s `ftn_bso` module is **not a mailer** and makes **no attempts** to perform packet transport! An external utility such as Binkd is required for this task.
+:::note
+ENiGMA½'s `ftn_bso` module is **not a mailer** and makes **no attempts** to perform packet transport! An external utility such as Binkd is required for this task.
+:::
 
 #### Networks
 The `networks` block is a per-network configuration where each entry's ID (or "key") may be referenced elsewhere in `config.hjson`. Network keys are matched case-insensitively, so `fsxNet`, `fsxnet`, and `FSXNET` are all equivalent — just be consistent within your config. For example, consider two networks: ArakNet and fsxNet:
@@ -47,9 +51,9 @@ When ENiGMA½ imports messages, they will be placed in the local area that match
 
 | Config Item | Required | Description                                              |
 |-------------|----------|----------------------------------------------------------|
-| `network`   | :+1:     | Associated network from the `networks` section above |
-| `tag`       | :+1:     | FTN area tag (ie: `FSX_GEN`) |
-| `uplinks`   | :+1:     | An array of FTN address uplink(s) for this network |
+| `network`   | Yes     | Associated network from the `networks` section above |
+| `tag`       | Yes     | FTN area tag (ie: `FSX_GEN`) |
+| `uplinks`   | Yes     | An array of FTN address uplink(s) for this network |
 
 Example:
 ```hjson
@@ -69,7 +73,9 @@ Example:
 }
 ```
 
-> :bulb: You can import `AREAS.BBS` or FTN style `.NA` files using [oputil](../admin/oputil.md)!
+:::tip
+You can import `AREAS.BBS` or FTN style `.NA` files using [oputil](../admin/oputil.md)!
+:::
 
 #### A More Complete Example
 Below is a more complete *example* illustrating some of the concepts above:
@@ -100,7 +106,9 @@ Below is a more complete *example* illustrating some of the concepts above:
 }
 ```
 
-> :information_source: Remember for a complete FTN experience, you'll probably also want to configure [FTN/BSO scanner/tosser](bso-import-export.md) settings.
+:::note
+Remember for a complete FTN experience, you'll probably also want to configure [FTN/BSO scanner/tosser](bso-import-export.md) settings.
+:::
 
 #### Automatic Area Creation
 EchoMail that arrives for an FTN area tag you have not configured is skipped and, because the packet is then removed, lost. ENiGMA½ can instead create those areas for you. **The feature is off unless you configure it**, and a system with no `autoAreas` block behaves exactly as it always has.
@@ -167,7 +175,7 @@ There is no parent `enabled` flag: the feature is on for a network if either `on
 
 | Config Item     | Required | Description |
 |-----------------|----------|-------------|
-| `confTag`       | :+1:     | Message conference created areas are placed in. Must already exist; creation is refused otherwise |
+| `confTag`       | Yes     | Message conference created areas are placed in. Must already exist; creation is refused otherwise |
 | `ignore`        |          | FTN tags never to create. Also **removes** ones already created, so this is how you un-create something |
 | `maxAutoCreate` |          | Cap on the total number of areas ever created for this network. Defaults to `500`. This is a total, not a per-run limit |
 
@@ -186,7 +194,9 @@ Networks distribute an "info pack" — an archive with the area list, nodelist a
 
 Its job is narrow: replace the placeholder name and description on areas you **already carry**. A pack lists what the *network* carries, not what *you are linked to*, so creating from it wholesale would leave you with hundreds of permanently empty areas. Set `createUnlinked: true` if you want that anyway.
 
-> :information_source: `areaFile` is an exact name for a reason. Most networks ship *two* `.na` files — one message echo list and one **file** echo list — and the extension does not tell them apart. Pointing at the wrong one gets you nothing; ENiGMA½ recognises a FILEBONE list and declines to take descriptions from it rather than importing nonsense.
+:::note
+`areaFile` is an exact name for a reason. Most networks ship *two* `.na` files — one message echo list and one **file** echo list — and the extension does not tell them apart. Pointing at the wrong one gets you nothing; ENiGMA½ recognises a FILEBONE list and declines to take descriptions from it rather than importing nonsense.
+:::
 
 Some networks ship no machine-readable list at all. If the file cannot be recognised, you get a warning saying what it looked like instead, and your areas keep their tag-based names.
 

@@ -8,7 +8,9 @@ ENiGMA½ can detect and process various archive formats such as zip and arj for 
 
 Archivers are managed via the `archives:archivers` configuration block of `config.hjson`. Each entry in this section defines an **external archiver** that can be referenced in other sections of `config.hjson` and in code. Entries define how to `compress`, `decompress` (a full archive), `list`, and `extract` (specific files from an archive).
 
-> :bulb: Generally you do not need to do anything beyond installing supporting binaries. No `config.hjson` editing necessary; Please see [External Binaries](external-binaries.md)!
+:::tip
+Generally you do not need to do anything beyond installing supporting binaries. No `config.hjson` editing necessary; Please see [External Binaries](external-binaries.md)!
+:::
 
 ### Quick Check
 

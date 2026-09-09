@@ -7,7 +7,7 @@ do things manually, read on...
 
 ## Prerequisites
 * [Node.js](https://nodejs.org/) version **v22.x LTS or higher**.
-  * :bulb: It is **highly** recommended to use [Node Version Manager (NVM)](https://github.com/creationix/nvm) to manage your Node.js installation if you're on a Linux/Unix environment.
+  * **Tip:** It is **highly** recommended to use [Node Version Manager (NVM)](https://github.com/creationix/nvm) to manage your Node.js installation if you're on a Linux/Unix environment.
 
 * [Python](https://www.python.org/downloads/) for compiling Node.js packages with native extensions via `node-gyp`.
 
@@ -24,7 +24,9 @@ Node Version Manager (NVM) is an excellent way to install and manage Node.js ver
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 ```
-> :information_source: Do not cut+paste the above command! Visit the [NVM](https://github.com/creationix/nvm) page and run the latest version!
+:::note
+Do not cut+paste the above command! Visit the [NVM](https://github.com/creationix/nvm) page and run the latest version!
+:::
 
 Next, install Node.js with NVM:
 ```bash
@@ -47,14 +49,20 @@ git clone https://github.com/NuSkooler/enigma-bbs.git
 cd enigma-bbs
 npm install # yarn also works
 ```
-> :information_source: At the moment you might see a few warnings about packages being deprecated or replaced. This is a known issue that will be resolved in the future.
+:::note
+At the moment you might see a few warnings about packages being deprecated or replaced. This is a known issue that will be resolved in the future.
+:::
 
 ## Other Recommended Packages
 ENiGMA BBS makes use of a few packages for archive and legacy protocol support. They're not pre-requisites for running ENiGMA, but without them you'll miss certain functionality. Once installed, they should be made available on your systems `PATH`.
 
-> :information_source: Please see [External Binaries](../configuration/external-binaries.md) for information on setting these up.
+:::note
+Please see [External Binaries](../configuration/external-binaries.md) for information on setting these up.
+:::
 
-> :information_source: Additional information in [Archivers](../configuration/archivers.md) and [File Transfer Protocols](../configuration/file-transfer-protocols.md)
+:::note
+Additional information in [Archivers](../configuration/archivers.md) and [File Transfer Protocols](../configuration/file-transfer-protocols.md)
+:::
 
 ## Config Files
 You'll need a basic configuration to get started. The main system configuration is handled via `config/config.hjson`. This is an [HJSON](https://hjson.github.io/) file (compliant JSON is also OK). See [Configuration](../configuration/hjson.md) for more information.

@@ -6,7 +6,9 @@ title: WebSocket / Web Interface Server
 
 The WebSocket Login Server provides **secure** (`wss://`) as well as non-secure (`ws://`) WebSocket login access. This is most commonly combined with a browser-based client such as [VTX](https://github.com/codewar65/VTX_ClientServer) or fTelnet to give users a web browser entry point to your BBS.
 
-> :information_source: If you run into any trouble getting WebSocket or VTX set up, see [Troubleshooting WebSocket & VTX](../../troubleshooting/websocket-troubleshooting.md).
+:::note
+If you run into any trouble getting WebSocket or VTX set up, see [Troubleshooting WebSocket & VTX](../../troubleshooting/websocket-troubleshooting.md).
+:::
 
 ---
 
@@ -122,7 +124,9 @@ loginServers: {
 
 Point `wsConnect` in `vtxdata.js` to `wss://your-hostname.here:8811`.
 
-> :warning: Let's Encrypt certificates are written to a privileged directory by default. If ENiGMA does not run as root (it shouldn't), copy the cert and key to a location readable by the ENiGMA user and keep them updated when the cert renews.
+:::caution
+Let's Encrypt certificates are written to a privileged directory by default. If ENiGMA does not run as root (it shouldn't), copy the cert and key to a location readable by the ENiGMA user and keep them updated when the cert renews.
+:::
 
 ---
 
@@ -130,7 +134,9 @@ Point `wsConnect` in `vtxdata.js` to `wss://your-hostname.here:8811`.
 
 ENiGMA supports the [VTX WebSocket client](https://github.com/codewar65/VTX_ClientServer) for in-browser BBS access. Example deployments: [Xibalba](https://xibalba.l33t.codes), [fORCE9](https://bbs.force9.org/vtx/force9.html).
 
-> :warning: **Browsers require `wss://`** whenever the page itself is served over HTTPS. A browser will refuse to open a plain `ws://` connection from an HTTPS page (mixed-content policy). For any publicly accessible BBS whose VTX page is served over HTTPS, a secure WebSocket connection is **required**, not optional. Plain `ws://` is only practical for local/LAN testing where the page is also served over plain HTTP.
+:::caution
+**Browsers require `wss://`** whenever the page itself is served over HTTPS. A browser will refuse to open a plain `ws://` connection from an HTTPS page (mixed-content policy). For any publicly accessible BBS whose VTX page is served over HTTPS, a secure WebSocket connection is **required**, not optional. Plain `ws://` is only practical for local/LAN testing where the page is also served over plain HTTP.
+:::
 
 ### Setup
 
@@ -138,7 +144,9 @@ ENiGMA supports the [VTX WebSocket client](https://github.com/codewar65/VTX_Clie
 
 2. **Download VTX_ClientServer.** Visit [github.com/codewar65/VTX_ClientServer](https://github.com/codewar65/VTX_ClientServer) and download the release you intend to use. Unpack it to a temporary directory.
 
-   > :information_source: The `vtxdata.js` configuration format has changed across VTX_ClientServer releases. The example below matches current releases; if you download an older or newer version and see a black screen or a browser console error, check [Troubleshooting WebSocket & VTX](../../troubleshooting/websocket-troubleshooting.md).
+   :::note
+   The `vtxdata.js` configuration format has changed across VTX_ClientServer releases. The example below matches current releases; if you download an older or newer version and see a black screen or a browser console error, check [Troubleshooting WebSocket & VTX](../../troubleshooting/websocket-troubleshooting.md).
+   :::
 
 3. **Download the example HTML file.** Save [vtx.html](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/vtx/vtx.html) to your webserver root.
 
@@ -195,6 +203,6 @@ ENiGMA supports the [VTX WebSocket client](https://github.com/codewar65/VTX_Clie
 | `wss.enabled` | | Enable secure `wss://` listener. Default: `false`. |
 | `wss.port` | | Port for `wss://`. Default: `8811`. |
 | `wss.address` | | Bind address for `wss://`. |
-| `wss.certPem` | :+1: (if wss enabled) | Path to TLS certificate in PEM format. |
-| `wss.keyPem` | :+1: (if wss enabled) | Path to TLS private key in PEM format. |
+| `wss.certPem` | Yes (if wss enabled) | Path to TLS certificate in PEM format. |
+| `wss.keyPem` | Yes (if wss enabled) | Path to TLS private key in PEM format. |
 | `proxied` | | Set `true` when behind a TLS-terminating proxy. Trusts `X-Forwarded-Proto: https`. Default: `false`. |

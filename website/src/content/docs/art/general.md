@@ -82,7 +82,9 @@ No configuration change is required in `menu.hjson` — simply place the `.utf8a
 
 `.utf8ans` files are decoded as UTF-8 and may contain any Unicode content: CJK characters, emoji, Unicode box-drawing, etc. They otherwise follow the same rules as standard ANSI art files including SAUCE metadata, MCI codes, and `pause` / `baudRate` config options.
 
-> :information_source: The terminal encoding is negotiated during connect via the ANSI CPR-based probe. To additionally enable UTF-8 detection for terminals that self-identify as CP437 types, set `term.probeUtf8Encoding: true` in `config.hjson`.
+:::note
+The terminal encoding is negotiated during connect via the ANSI CPR-based probe. To additionally enable UTF-8 detection for terminals that self-identify as CP437 types, set `term.probeUtf8Encoding: true` in `config.hjson`.
+:::
 
 #### ACS-Driven Conditionals
 The [ACS](../configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
@@ -164,7 +166,9 @@ Other "fonts" also available:
 * `iso8859_1`
 * `cp1131`
 
-> :information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+:::note
+See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+:::
 
 #### Baud Rates
 The `baudRate` member throttles art display on the server side, dripping bytes to the terminal at the rate a real modem of that speed would have delivered them. This works with every terminal client — no special support required. The rate applies only while the art is displaying and resets automatically when it finishes.

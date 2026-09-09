@@ -10,9 +10,13 @@ A status bar view (`%SB`) is a single-line view that operates in one of two mode
 
 ## General Information
 
-> :information_source: A status bar view is defined with a percent (%) and the characters SB, followed by the view number. For example: `%SB1`
+:::note
+A status bar view is defined with a percent (%) and the characters SB, followed by the view number. For example: `%SB1`
+:::
 
-> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+:::note
+See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+:::
 
 ---
 

@@ -25,7 +25,9 @@ Below is a visual representation of this process:
 ![Upgrade Flow](../assets/images/upgrade-flow.png)
 
 
-> :information_source: After upgrading, it is always recommended to look at [UPGRADE.md](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md) and inspect the version-to-version notes as well as the [WHATSNEW](https://github.com/NuSkooler/enigma-bbs/blob/master/WHATSNEW.md).
+:::note
+After upgrading, it is always recommended to look at [UPGRADE.md](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md) and inspect the version-to-version notes as well as the [WHATSNEW](https://github.com/NuSkooler/enigma-bbs/blob/master/WHATSNEW.md).
+:::
 
 ### Configuration File Updates
 After an upgrade, **it is possible that your system is missing new features exposed in the default theme/menu layout**. To check this, you can look at the template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files for changes/additions.
@@ -35,7 +37,9 @@ After an upgrade, **it is possible that your system is missing new features expo
 * As the template files described above are likely what you built your system from, a visual diff viewer such as [DiffMerge](https://www.sourcegear.com/diffmerge/downloads.php) (free, works on all major platforms) can be very helpful for the tasks outlined above!
 
 
-> :bulb: It is recommended to [monitor logs](../troubleshooting/monitoring-logs.md) and poke around a bit after an upgrade!
+:::tip
+It is recommended to [monitor logs](../troubleshooting/monitoring-logs.md) and poke around a bit after an upgrade!
+:::
 
 # Something Went Wrong!
 Check [TROUBLESHOOTING](https://github.com/NuSkooler/enigma-bbs/blob/master/TROUBLESHOOTING.md) first.

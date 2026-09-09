@@ -6,7 +6,9 @@ title: Local Doors — Native v86 Emulation
 
 ENiGMA½ includes a built-in x86/DOS emulator powered by [v86](https://github.com/copy/v86) — a JavaScript x86 emulator that runs entirely within Node.js. The `v86_door` module boots a FreeDOS disk image and bridges COM1 directly to the user's connection, with no external emulator installed on the server.
 
-> :information_source: The emulator runs in a dedicated worker thread, so it does not block ENiGMA½'s event loop. Each active session gets its own isolated emulator instance.
+:::note
+The emulator runs in a dedicated worker thread, so it does not block ENiGMA½'s event loop. Each active session gets its own isolated emulator instance.
+:::
 
 ---
 
@@ -44,15 +46,15 @@ You need a raw FreeDOS disk image (`.img`) with your door game pre-installed. Ra
 
 | Item | Required | Description |
 |------|----------|-------------|
-| `name` | :+1: | Door name. Used as a key for tracking concurrent sessions. |
-| `image` | :+1: | Path to the raw FreeDOS disk image (`.img`). |
-| `dropFileType` | :-1: | Drop file to generate and inject onto the `A:` floppy: `DORINFO`, `DOOR`, or `DOOR32`. Omit if the door needs no drop file. The connection is always reported as serial — the guest sees COM1. |
-| `runBatch` | :-1: | Multi-line batch script written to `A:\RUN.BAT` at runtime. Supports [variable substitution](#runbatch-variables). See [One Image, Multiple Doors](#one-image-multiple-doors). |
-| `nodeMax` | :-1: | Max concurrent sessions. `0` = unlimited. |
-| `tooManyArt` | :-1: | Art spec to display when `nodeMax` is exceeded. |
-| `memoryMb` | :-1: | Guest RAM in MB. Default: `64`. |
-| `biosPath` | :-1: | Path to SeaBIOS image. Default: `misc/v86_bios/seabios.bin`. |
-| `vgaBiosPath` | :-1: | Path to VGA BIOS image. Default: `misc/v86_bios/vgabios.bin`. |
+| `name` | Yes | Door name. Used as a key for tracking concurrent sessions. |
+| `image` | Yes | Path to the raw FreeDOS disk image (`.img`). |
+| `dropFileType` | No | Drop file to generate and inject onto the `A:` floppy: `DORINFO`, `DOOR`, or `DOOR32`. Omit if the door needs no drop file. The connection is always reported as serial — the guest sees COM1. |
+| `runBatch` | No | Multi-line batch script written to `A:\RUN.BAT` at runtime. Supports [variable substitution](#runbatch-variables). See [One Image, Multiple Doors](#one-image-multiple-doors). |
+| `nodeMax` | No | Max concurrent sessions. `0` = unlimited. |
+| `tooManyArt` | No | Art spec to display when `nodeMax` is exceeded. |
+| `memoryMb` | No | Guest RAM in MB. Default: `64`. |
+| `biosPath` | No | Path to SeaBIOS image. Default: `misc/v86_bios/seabios.bin`. |
+| `vgaBiosPath` | No | Path to VGA BIOS image. Default: `misc/v86_bios/vgabios.bin`. |
 
 #### Drop File Filenames on A:
 
@@ -127,7 +129,9 @@ doorTradeWars2002: {
 }
 ```
 
-> :information_source: **ANSI color with DORINFO:** ENiGMA½ sets the DORINFO graphics field to `2` (ANSI color), which is the value required by RBBS-mode doors such as TradeWars 2002. A value of `1` enables IBM high-bit characters but not color in strict RBBS mode.
+:::note
+**ANSI color with DORINFO:** ENiGMA½ sets the DORINFO graphics field to `2` (ANSI color), which is the value required by RBBS-mode doors such as TradeWars 2002. A value of `1` enables IBM high-bit characters but not color in strict RBBS mode.
+:::
 
 ---
 
@@ -195,7 +199,9 @@ doorSmurfCombat: {
 }
 ```
 
-> :information_source: All concurrent sessions for the same image path share a single in-memory disk buffer (SharedArrayBuffer). Guest writes from one session are immediately visible to others — exactly as they would be with a real shared disk. Use `nodeMax: 1` for single-player doors that have no locking. For multi-node games that rely on file/record locking (e.g. TradeWars 2002), load a FOSSIL-aware SHARE driver (`C:\FOSSIL\X00.SYS` plus `C:\FREEDOS\BIN\SHARE.COM`) in `runBatch` — the game handles concurrent access the same way it would on a real BBS.
+:::note
+All concurrent sessions for the same image path share a single in-memory disk buffer (SharedArrayBuffer). Guest writes from one session are immediately visible to others — exactly as they would be with a real shared disk. Use `nodeMax: 1` for single-player doors that have no locking. For multi-node games that rely on file/record locking (e.g. TradeWars 2002), load a FOSSIL-aware SHARE driver (`C:\FOSSIL\X00.SYS` plus `C:\FREEDOS\BIN\SHARE.COM`) in `runBatch` — the game handles concurrent access the same way it would on a real BBS.
+:::
 
 #### FOSSIL Driver
 

@@ -12,7 +12,9 @@ There are multiple ways of installing ENiGMA BBS, depending on your level of exp
 | [Manual](manual.md) | Linux, Windows, BSD (And others; YMMV!) | If you like doing things manually, or are running Windows |
 
 ## Community HOWTO's
-:scroll: Check out [this awesome video on installation and basic configuration](https://youtu.be/WnN-ucVi3ZU) from Al's Geek Lab!
+:::note
+Check out [this awesome video on installation and basic configuration](https://youtu.be/WnN-ucVi3ZU) from Al's Geek Lab!
+:::
 
 ## Keeping Up To Date
 After installing, you'll want to [keep your system updated](../admin/upgrading.md).

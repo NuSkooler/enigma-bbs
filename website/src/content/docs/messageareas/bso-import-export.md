@@ -5,20 +5,22 @@ title: BSO Import / Export
 ## BSO Import / Export
 The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers.ftn_bso`.
 
-> :information_source: ENiGMA½'s `ftn_bso` module handles message scanning and tossing only — **packet transport is handled separately**. You can use the built-in [native BinkP mailer](binkp.md) (no external software required) or an external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd).
+:::note
+ENiGMA½'s `ftn_bso` module handles message scanning and tossing only — **packet transport is handled separately**. You can use the built-in [native BinkP mailer](binkp.md) (no external software required) or an external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd).
+:::
 
 ### Configuration
 Let's look at some of the basic configuration:
 
 | Config Item | Required | Description                                              |
 |-------------|----------|----------------------------------------------------------|
-| `schedule`  | :+1: | Sets `import` and `export` schedules. [Later style text parsing](https://bunkat.github.io/later/parsers.html#text) supported. `import` also can utilize a `@watch:<path/to/file>` syntax while `export` additionally supports `@immediate`. |
-| `packetMsgEncoding` | :-1: | Override default `utf8` encoding.
-| `defaultNetwork` | :-1: | Explicitly set default network (by tag found within `messageNetworks.ftn.networks`, matched case-insensitively). If not set, the first found is used. Set to `null` for *no* default network. See **Outbound Directory Layout** below. |
-| `nodes` | :+1: | Per-node settings. Entries (keys) here support wildcards for a portion of the FTN-style address (e.g.: `21:1/*`). See **Nodes** below.
-| `paths` | :-1: | An optional configuration block that can set a additional paths or override defaults. See **Paths** below. |
-| `packetTargetByteSize`  | :-1: | Overrides the system *target* packet (.pkt) size of 512000 bytes (512k) |
-| `bundleTargetByteSize`  | :-1: | Overrides the system *target* ArcMail bundle size of 2048000 bytes (2M) |
+| `schedule`  | Yes | Sets `import` and `export` schedules. [Later style text parsing](https://bunkat.github.io/later/parsers.html#text) supported. `import` also can utilize a `@watch:<path/to/file>` syntax while `export` additionally supports `@immediate`. |
+| `packetMsgEncoding` | No | Override default `utf8` encoding.
+| `defaultNetwork` | No | Explicitly set default network (by tag found within `messageNetworks.ftn.networks`, matched case-insensitively). If not set, the first found is used. Set to `null` for *no* default network. See **Outbound Directory Layout** below. |
+| `nodes` | Yes | Per-node settings. Entries (keys) here support wildcards for a portion of the FTN-style address (e.g.: `21:1/*`). See **Nodes** below.
+| `paths` | No | An optional configuration block that can set a additional paths or override defaults. See **Paths** below. |
+| `packetTargetByteSize`  | No | Overrides the system *target* packet (.pkt) size of 512000 bytes (512k) |
+| `bundleTargetByteSize`  | No | Overrides the system *target* ArcMail bundle size of 2048000 bytes (2M) |
 
 #### Nodes
 The `nodes` section defines how to export messages for one or more uplinks.
@@ -27,10 +29,10 @@ A node entry starts with a [FTN address](http://ftsc.org/docs/old/fsp-1028.001) 
 
 | Config Item      | Required | Description                                                                     |
 |------------------|----------|---------------------------------------------------------------------------------|
-| `packetType`     | :-1:     | `2`, `2.2`, or `2+`. Defaults to `2+` for modern mailer compatibility. |
-| `packetPassword` | :-1:     | Optional password for the packet |
-| `encoding`       | :-1:     | Encoding to use for message bodies; Defaults to `utf-8`. |
-| `archiveType`    | :-1:     | Specifies the archive type (by extension or MIME type) for ArcMail bundles. This should be `zip` (or `application/zip`) for most setups. Other valid examples include `arc`, `arj`, `lhz`, `pak`, `sqz`, or `zoo`. See [Archivers](../configuration/archivers.md) for more information. When omitted, or when no archiver is available for the type given, mail is sent as bare uncompressed packets referenced from the node's flow file — correct, but larger on the wire. |
+| `packetType`     | No     | `2`, `2.2`, or `2+`. Defaults to `2+` for modern mailer compatibility. |
+| `packetPassword` | No     | Optional password for the packet |
+| `encoding`       | No     | Encoding to use for message bodies; Defaults to `utf-8`. |
+| `archiveType`    | No     | Specifies the archive type (by extension or MIME type) for ArcMail bundles. This should be `zip` (or `application/zip`) for most setups. Other valid examples include `arc`, `arj`, `lhz`, `pak`, `sqz`, or `zoo`. See [Archivers](../configuration/archivers.md) for more information. When omitted, or when no archiver is available for the type given, mail is sent as bare uncompressed packets referenced from the node's flow file — correct, but larger on the wire. |
 
 **Example**:
 ```hjson
@@ -50,11 +52,13 @@ A node entry starts with a [FTN address](http://ftsc.org/docs/old/fsp-1028.001) 
 }
 ```
 
-> :bulb: Avoid storing `packetPassword` in plain text. Use `@file:` or `@environment:` instead:
-> ```hjson
-> packetPassword: "@file:/run/secrets/ftn_packet_pass"
-> ```
-> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::tip
+Avoid storing `packetPassword` in plain text. Use `@file:` or `@environment:` instead:
+```hjson
+packetPassword: "@file:/run/secrets/ftn_packet_pass"
+```
+See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::
 
 #### Paths
 Paths for packet files work out of the box and are relative to your install directory. If you want to configure `reject` or `retain` to keep rejected/imported packet files respectively, set those values. You may override defaults as well.
@@ -91,7 +95,9 @@ scannerTossers: {
 }
 ```
 
-> :information_source: The [native BinkP mailer](binkp.md) resolves these directories through the same logic, so the two always agree. If you use an external mailer such as Binkd, its per-domain outbound paths must match the table above — see the Binkd example at the end of this document.
+:::note
+The [native BinkP mailer](binkp.md) resolves these directories through the same logic, so the two always agree. If you use an external mailer such as Binkd, its per-domain outbound paths must match the table above — see the Binkd example at the end of this document.
+:::
 
 ### Scheduling
 Schedules can be defined for importing and exporting via `import` and `export` under `schedule`. Each entry is allowed a "free form" text and/or special indicators for immediate export or watch file triggers.

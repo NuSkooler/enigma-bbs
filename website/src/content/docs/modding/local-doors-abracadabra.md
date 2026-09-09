@@ -6,7 +6,9 @@ title: Local Doors — Scripts & Native Binaries
 
 The `abracadabra` module provides a generic solution for launching any local process as a door: native terminal applications, shell scripts, Python scripts, and more. Any process that communicates over stdio works. I/O is bridged through standard I/O (stdio) or a temporary TCP socket server.
 
-> :information_source: For DOS-specific setups using DOSEMU or QEMU, see [External DOS Emulators](local-doors-dos-emulation.md). For zero-dependency DOS emulation, see [Native v86 Emulation](local-doors-v86.md).
+:::note
+For DOS-specific setups using DOSEMU or QEMU, see [External DOS Emulators](local-doors-dos-emulation.md). For zero-dependency DOS emulation, see [Native v86 Emulation](local-doors-v86.md).
+:::
 
 ---
 
@@ -16,19 +18,19 @@ The `abracadabra` `config` block supports the following fields:
 
 | Item | Required | Description |
 |------|----------|-------------|
-| `name` | :+1: | Used as a key for tracking the number of clients using this door. |
-| `dropFileType` | :-1: | Type of drop file to generate. See [Drop File Types](local-doors.md#drop-file-types). Can be omitted or `none`. |
-| `cmd` | :+1: | Path to the executable to launch. |
-| `args` | :-1: | Array of arguments to pass to `cmd`. See [Argument Variables](#argument-variables) below. |
-| `preCmd` | :-1: | Path to a pre-command executable or script. Executes before `cmd`. |
-| `preCmdArgs` | :-1: | Arguments to pass to `preCmd`. See [Argument Variables](#argument-variables) below. |
-| `cwd` | :-1: | Working directory for `cmd`. Defaults to the directory containing `cmd`. |
-| `env` | :-1: | Environment variables as a map: `{ SOME_VAR: "value" }` |
-| `nodeMax` | :-1: | Max concurrent sessions for this door. Uses `name` as the tracking key. |
-| `tooManyArt` | :-1: | Art spec to display when `nodeMax` is exceeded. |
-| `io` | :-1: | I/O mode: `stdio` (default) or `socket`. When `socket`, ENiGMA½ spawns a temporary TCP server on `{srvPort}` that the door process connects back to. |
-| `commType` | :-1: | What the drop file tells the door it is talking to: `local`, `serial`, or `socket`. Defaults to `socket` when `io: socket`, otherwise `local`. See [Comm Type](#comm-type) below. |
-| `encoding` | :-1: | The door process's text encoding. Defaults to `cp437`. Linux-native binaries often use `utf8`. |
+| `name` | Yes | Used as a key for tracking the number of clients using this door. |
+| `dropFileType` | No | Type of drop file to generate. See [Drop File Types](local-doors.md#drop-file-types). Can be omitted or `none`. |
+| `cmd` | Yes | Path to the executable to launch. |
+| `args` | No | Array of arguments to pass to `cmd`. See [Argument Variables](#argument-variables) below. |
+| `preCmd` | No | Path to a pre-command executable or script. Executes before `cmd`. |
+| `preCmdArgs` | No | Arguments to pass to `preCmd`. See [Argument Variables](#argument-variables) below. |
+| `cwd` | No | Working directory for `cmd`. Defaults to the directory containing `cmd`. |
+| `env` | No | Environment variables as a map: `{ SOME_VAR: "value" }` |
+| `nodeMax` | No | Max concurrent sessions for this door. Uses `name` as the tracking key. |
+| `tooManyArt` | No | Art spec to display when `nodeMax` is exceeded. |
+| `io` | No | I/O mode: `stdio` (default) or `socket`. When `socket`, ENiGMA½ spawns a temporary TCP server on `{srvPort}` that the door process connects back to. |
+| `commType` | No | What the drop file tells the door it is talking to: `local`, `serial`, or `socket`. Defaults to `socket` when `io: socket`, otherwise `local`. See [Comm Type](#comm-type) below. |
+| `encoding` | No | The door process's text encoding. Defaults to `cp437`. Linux-native binaries often use `utf8`. |
 
 #### Comm Type
 
@@ -40,7 +42,9 @@ The `abracadabra` `config` block supports the following fields:
 | `serial` | `DOOR32.SYS` comm type `1`, `DOOR.SYS` `COM1:`, `DORINFO` `COM1` | An emulator sits between ENiGMA½ and the door and presents it a COM port — QEMU bridging `{srvPort}` onto `isa-serial`, for example. |
 | `socket` | `DOOR32.SYS` comm type `2`, `DOOR.SYS` `COM1:`, `DORINFO` `COM1` | Descriptor sharing by way of [bivrost!](#door32sys-socket-descriptor-sharing). |
 
-> :warning: Setting `commType: socket` does **not** give the door a socket. ENiGMA½ shares a socket *server*, not a descriptor, so `DOOR32.SYS` line 2 is written as `-1` and bivrost! replaces both lines with the real handle. A door handed `2` and `-1` with nothing in between is entitled to refuse to start, and some do.
+:::caution
+Setting `commType: socket` does **not** give the door a socket. ENiGMA½ shares a socket *server*, not a descriptor, so `DOOR32.SYS` line 2 is written as `-1` and bivrost! replaces both lines with the real handle. A door handed `2` and `-1` with nothing in between is entitled to refuse to start, and some do.
+:::
 
 Doors that ignore these fields entirely — most DOS-era games under an emulator — are unaffected by any of this.
 

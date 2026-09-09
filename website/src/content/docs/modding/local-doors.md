@@ -6,7 +6,9 @@ title: Local Doors
 
 ENiGMA½ supports running local BBS door games through several approaches. In addition to the [many built-in door server modules](door-servers.md) (DoorParty, BBSLink, Exodus, etc.), local doors run directly on your server.
 
-> :information_source: See also [Let's add a DOS door to Enigma½ BBS](https://medium.com/retro-future/lets-add-a-dos-game-to-enigma-1-2-41f257deaa3c) by Robbie Whiting for a great writeup on adding doors!
+:::note
+See also [Let's add a DOS door to Enigma½ BBS](https://medium.com/retro-future/lets-add-a-dos-game-to-enigma-1-2-41f257deaa3c) by Robbie Whiting for a great writeup on adding doors!
+:::
 
 ---
 

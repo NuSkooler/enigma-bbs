@@ -25,9 +25,9 @@ The following is a table of all configuration keys available under `contentServe
 
 | Key | Required | Description |
 |------|----------|-------------|
-| `domain` | :+1: | Sets the domain, e.g. `bbs.yourdomain.com`. |
-| `http` | :-1: | Sub configuration for HTTP (non-secure) connections. See **HTTP Configuration** below. |
-| `overrideUrlPrefix` | :-1: | Instructs the system to be explicit when handing out URLs. Useful if your server is behind a transparent proxy. |
+| `domain` | Yes | Sets the domain, e.g. `bbs.yourdomain.com`. |
+| `http` | No | Sub configuration for HTTP (non-secure) connections. See **HTTP Configuration** below. |
+| `overrideUrlPrefix` | No | Instructs the system to be explicit when handing out URLs. Useful if your server is behind a transparent proxy. |
 
 ### HTTP Configuration
 
@@ -35,9 +35,9 @@ Entries available under `contentServers.web.http`:
 
 | Key | Required | Description |
 |------|----------|-------------|
-| `enable` | :+1: | Set to `true` to enable this server.
-| `port` | :-1: | Override the default port of `8080`. |
-| `address` | :-1: | Sets an explicit bind address. |
+| `enable` | Yes | Set to `true` to enable this server.
+| `port` | No | Override the default port of `8080`. |
+| `address` | No | Sets an explicit bind address. |
 
 ### HTTPS Configuration
 
@@ -45,17 +45,19 @@ Entries available under `contentServers.web.https`:
 
 | Key | Required | Description |
 |------|----------|-------------|
-| `enable` | :+1: | Set to `true` to enable this server.
-| `port` | :-1: | Override the default port of `8080`. |
-| `address` | :-1: | Sets an explicit bind address. |
-| `certPem` | :+1: | Overrides the default certificate path of `/config/https_cert.pem`. Certificate must be in PEM format. See **Certificates** below. |
-| `keyPem` | :+1: | Overrides the default certificate key path of `/config/https_cert_key.pem`. Key must be in PEM format. See **Certificates** below. |
+| `enable` | Yes | Set to `true` to enable this server.
+| `port` | No | Override the default port of `8080`. |
+| `address` | No | Sets an explicit bind address. |
+| `certPem` | Yes | Overrides the default certificate path of `/config/https_cert.pem`. Certificate must be in PEM format. See **Certificates** below. |
+| `keyPem` | Yes | Overrides the default certificate key path of `/config/https_cert_key.pem`. Key must be in PEM format. See **Certificates** below. |
 
 #### Certificates
 
 If you don't have a TLS certificate for your domain, a good source for a certificate can be [Let's Encrypt](https://letsencrypt.org/) who supplies free and trusted TLS certificates. A common strategy is to place another web server such as [Caddy](https://caddyserver.com/) in front of ENiGMA½ acting as a transparent proxy and TLS termination point.
 
-> :information_source: Keep in mind that the SSL certificate provided by Let's Encrypt's Certbot is by default stored in a privileged location; if your ENIGMA instance is not running as root (which it should not be!), you'll need to copy the SSL certificate somewhere else in order for ENIGMA to use it.
+:::note
+Keep in mind that the SSL certificate provided by Let's Encrypt's Certbot is by default stored in a privileged location; if your ENIGMA instance is not running as root (which it should not be!), you'll need to copy the SSL certificate somewhere else in order for ENIGMA to use it.
+:::
 
 ## Static Root
 Static files live relative to the `contentServers.web.staticRoot` path which defaults to `enigma-bbs/www`. This is also commonly known as your "public root" directory.

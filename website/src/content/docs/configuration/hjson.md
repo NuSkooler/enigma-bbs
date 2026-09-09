@@ -13,7 +13,9 @@ For those completely unfamiliar, JSON stands for JavaScript Object Notation. But
 * Keys never need to be quoted
 * ...much more! See [the official HJSON website](https://hjson.github.io/).
 
-> :bulb: Not sure your HJSON is valid? Try it in the [live HJSON playground](https://hjson.github.io/try.html) before editing your config files!
+:::tip
+Not sure your HJSON is valid? Try it in the [live HJSON playground](https://hjson.github.io/try.html) before editing your config files!
+:::
 
 ## Terminology
 Through the documentation, some terms regarding HJSON and configuration files will be used:
@@ -43,7 +45,9 @@ Several other editors have HJSON plugins available. The [official HJSON users pa
 ### Hot-Reload A.K.A. Live Editing
 ENiGMA½'s configuration, menu, and theme files can be edited while your BBS is running. When a file is saved, it is hot-reloaded into the running system. If users are currently connected and you change a menu for example, the next reload of that menu will show the changes.
 
-> :information_source: See also [Configuration Files](../configuration/config-files.md)
+:::note
+See also [Configuration Files](../configuration/config-files.md)
+:::
 
 ### CaSe SeNsiTiVE
 Configuration keys are **case sensitive**. That means if a configuration key is `boardName` for example, `boardname`, or `BOARDNAME` **will not work**.
@@ -56,7 +60,9 @@ something: {
 }
 ```
 
-> :information_source: Escape sequences (like `\\`) only work inside **double-quoted** strings. Unquoted values are taken literally and do not support escaping.
+:::note
+Escape sequences (like `\\`) only work inside **double-quoted** strings. Unquoted values are taken literally and do not support escaping.
+:::
 
 ## Common Pitfalls
 

@@ -31,28 +31,30 @@ Under a given node defined in the `ftn_bso` config section in `config.hjson` (se
 }
 ```
 
-> :bulb: Avoid storing `password` in plain text. Use `@file:` or `@environment:` instead:
-> ```hjson
-> password: "@file:/run/secrets/tic_pass"
-> ```
-> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::tip
+Avoid storing `password` in plain text. Use `@file:` or `@environment:` instead:
+```hjson
+password: "@file:/run/secrets/tic_pass"
+```
+See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::
 
 Valid `tic` members:
 
 | Item | Required | Description |
 |--------|---------------|------------------|
-| `password` | :-1: | TIC packet password, if required. Compared without regard to case, as other FTN software does |
-| `uploadBy` | :-1: | Sets the "uploaded by" field for TIC attachments, for example "AgoraNet TIC" |
-| `allowReplace` | :-1: | Set to `true` to allow TIC attachments to replace each other. This is especially handy for things like weekly node list attachments |
-| `descPriority` | :-1: | Where the file description comes from: `diz` (default) prefers a `FILE_ID.DIZ` shipped inside the file, `tic` prefers the TIC's own `Ldesc` |
-| `exportType` | :-1: | Flavour of the outbound queued for this downlink: `crash` (default), `hold`, `direct` or `normal`. HTick calls this `fileEchoFlavour` |
-| `noTic` | :-1: | Send the file with **no** companion TIC. HTick's `noTIC` |
-| `longNames` | :-1: | Emit `Lfile` (long file names). Defaults to `true` |
-| `passUnknownKeywords` | :-1: | Pass keywords we do not recognise through unchanged. Defaults to `true`; set `false` for a peer in FSC-87 subset mode |
-| `sha256` | :-1: | Pass a `Sha256` line through. Defaults to `false` |
-| `addressDimensions` | :-1: | Dimensions to write `From` and `To` in — `3D`, `4D` (default) or `5D`. **`Seenby` is always written 4D** regardless: it is the loop guard, and some processors match it by exact string, so a `@domain` there can cause a downlink to send a file back to a system that already has it |
-| `fileCase` | :-1: | Case of generated `.tic` filenames — `lower` (default) or `upper` |
-| `allowUnverifiedForward` | :-1: | Forward files received from this node even though it has no `password`, i.e. was never authenticated. Defaults to `false` |
+| `password` | No | TIC packet password, if required. Compared without regard to case, as other FTN software does |
+| `uploadBy` | No | Sets the "uploaded by" field for TIC attachments, for example "AgoraNet TIC" |
+| `allowReplace` | No | Set to `true` to allow TIC attachments to replace each other. This is especially handy for things like weekly node list attachments |
+| `descPriority` | No | Where the file description comes from: `diz` (default) prefers a `FILE_ID.DIZ` shipped inside the file, `tic` prefers the TIC's own `Ldesc` |
+| `exportType` | No | Flavour of the outbound queued for this downlink: `crash` (default), `hold`, `direct` or `normal`. HTick calls this `fileEchoFlavour` |
+| `noTic` | No | Send the file with **no** companion TIC. HTick's `noTIC` |
+| `longNames` | No | Emit `Lfile` (long file names). Defaults to `true` |
+| `passUnknownKeywords` | No | Pass keywords we do not recognise through unchanged. Defaults to `true`; set `false` for a peer in FSC-87 subset mode |
+| `sha256` | No | Pass a `Sha256` line through. Defaults to `false` |
+| `addressDimensions` | No | Dimensions to write `From` and `To` in — `3D`, `4D` (default) or `5D`. **`Seenby` is always written 4D** regardless: it is the loop guard, and some processors match it by exact string, so a `@domain` there can cause a downlink to send a file back to a system that already has it |
+| `fileCase` | No | Case of generated `.tic` filenames — `lower` (default) or `upper` |
+| `allowUnverifiedForward` | No | Forward files received from this node even though it has no `password`, i.e. was never authenticated. Defaults to `false` |
 
 The `password`, `uploadBy`, `allowReplace` and `descPriority` members may also be
 set once for all nodes under `scannerTossers.ftn_bso.tic`, where the following
@@ -60,9 +62,9 @@ system-wide members live as well:
 
 | Item | Required | Description |
 |--------|---------------|------------------|
-| `secureInOnly` | :-1: | Only process TIC files found in the **secure** inbound (`paths.secInbound`). Defaults to `true`. TIC files in the unsecure inbound are left where they are, not imported and not deleted |
-| `requireAreaAuthorization` | :-1: | Also require the sender to be an `uplinks` entry of the area when **importing**, not only when forwarding. Defaults to `false`. See [Restricting who may import](#restricting-who-may-import) |
-| `holdMaxAgeMs` | :-1: | How long to keep a TIC whose file has not arrived yet. Defaults to 48 hours; set to `0` to hold indefinitely. See [Files arriving after their TIC](#files-arriving-after-their-tic) |
+| `secureInOnly` | No | Only process TIC files found in the **secure** inbound (`paths.secInbound`). Defaults to `true`. TIC files in the unsecure inbound are left where they are, not imported and not deleted |
+| `requireAreaAuthorization` | No | Also require the sender to be an `uplinks` entry of the area when **importing**, not only when forwarding. Defaults to `false`. See [Restricting who may import](#restricting-who-may-import) |
+| `holdMaxAgeMs` | No | How long to keep a TIC whose file has not arrived yet. Defaults to 48 hours; set to `0` to hold indefinitely. See [Files arriving after their TIC](#files-arriving-after-their-tic) |
 
 ### Files arriving after their TIC
 A `.tic` and the file it announces frequently arrive in **separate mailer
@@ -92,18 +94,20 @@ ticAreas: {
 
 ```
 
-> :information_source: Note that in the example above `agn_node` represents the **external** network area tag, usually represented in all caps. In this case, `AGN_NODE`.
+:::note
+Note that in the example above `agn_node` represents the **external** network area tag, usually represented in all caps. In this case, `AGN_NODE`.
+:::
 
 Valid `ticAreas` members under a given node mapping are as follows:
 
 | Item | Required | Description |
 |--------|---------------|------------------|
-| `areaTag` | :+1: | Specifies the local areaTag in which to place TIC attachments |
-| `storageTag` | :-1: | Optionally, set a specific storageTag. If not set, the default for this area will be used. |
-| `hashTags` | :-1: | One or more optional hash tags to assign TIC attachments in this area. |
-| `downlinks` | :-1: | Addresses to forward this area's files on to. See [Forwarding to Downlinks](#forwarding-to-downlinks) |
-| `uplinks` | :-1: | Addresses permitted to **publish** into this area. **Required if `downlinks` is set** — an area with downlinks and no uplinks forwards nothing |
-| `network` | :-1: | Which network in `messageNetworks.ftn.networks` this area belongs to. Only needed when forwarding, and only strictly required if the downlinks' zone is claimed by more than one of your networks |
+| `areaTag` | Yes | Specifies the local areaTag in which to place TIC attachments |
+| `storageTag` | No | Optionally, set a specific storageTag. If not set, the default for this area will be used. |
+| `hashTags` | No | One or more optional hash tags to assign TIC attachments in this area. |
+| `downlinks` | No | Addresses to forward this area's files on to. See [Forwarding to Downlinks](#forwarding-to-downlinks) |
+| `uplinks` | No | Addresses permitted to **publish** into this area. **Required if `downlinks` is set** — an area with downlinks and no uplinks forwards nothing |
+| `network` | No | Which network in `messageNetworks.ftn.networks` this area belongs to. Only needed when forwarding, and only strictly required if the downlinks' zone is claimed by more than one of your networks |
 
 
 💡 Multiple TIC areas can be mapped to a single file base area.
@@ -175,9 +179,11 @@ tic: {
 }
 ```
 
-> :warning: This needs an `uplinks` list on **every** area you import, and it fails closed: an area naming no uplinks refuses everything. It also requires a `ticAreas` entry per area, since an area matched only by its file base tag has nowhere to put `uplinks`.
->
-> While the setting is off, startup logs exactly which areas would stop importing if you turned it on — so you can see the cost before paying it. Look for *"If … requireAreaAuthorization were enabled, these areas would stop importing"*.
+:::caution
+This needs an `uplinks` list on **every** area you import, and it fails closed: an area naming no uplinks refuses everything. It also requires a `ticAreas` entry per area, since an area matched only by its file base tag has nowhere to put `uplinks`.
+
+While the setting is off, startup logs exactly which areas would stop importing if you turned it on — so you can see the cost before paying it. Look for *"If … requireAreaAuthorization were enabled, these areas would stop importing"*.
+:::
 
 It is off by default only for compatibility; nothing in an existing configuration says who is entitled to which echo. A forwarding hub already has the `uplinks` lists this needs, so for one it usually costs nothing to enable.
 
@@ -201,15 +207,17 @@ ticAreas: {
 }
 ```
 
-> :warning: `uplinks` is what stops a node you have configured for some *other*
-> reason from announcing a file into this echo and having you relay it to its
-> subscribers under your own address. Every node in `nodes` is otherwise equally
-> able to send you a TIC for any area you carry — authentication is not
-> per-area. Name the system that actually feeds you this echo.
->
-> An area with `downlinks` and no `uplinks` **forwards nothing**, and says so at
-> startup. That is deliberate: relaying on behalf of an unspecified set of
-> senders is the outcome this prevents.
+:::caution
+`uplinks` is what stops a node you have configured for some *other*
+reason from announcing a file into this echo and having you relay it to its
+subscribers under your own address. Every node in `nodes` is otherwise equally
+able to send you a TIC for any area you carry — authentication is not
+per-area. Name the system that actually feeds you this echo.
+
+An area with `downlinks` and no `uplinks` **forwards nothing**, and says so at
+startup. That is deliberate: relaying on behalf of an unspecified set of
+senders is the outcome this prevents.
+:::
 
 Each downlink also needs an entry in `nodes` — that is where its TIC password and any per-link options live:
 
@@ -223,7 +231,9 @@ nodes: {
 }
 ```
 
-> :information_source: `downlinks` belongs to the **external** area tag, not to the local file base area. A file echo is the thing with subscribers, and one local area may carry several echoes.
+:::note
+`downlinks` belongs to the **external** area tag, not to the local file base area. A file echo is the thing with subscribers, and one local area may carry several echoes.
+:::
 
 ### What gets sent
 For each downlink that should receive the file, ENiGMA½ queues **the file itself followed by a generated `.tic`**, in that order — [FSC-0087](http://ftsc.org/docs/fsc-0087.001) requires the file to be sent first so a failed session cannot orphan a TIC. The file is sent from your file base and left there; the generated TIC is deleted once sent.

@@ -12,7 +12,9 @@ Web handlers provide a way to easily add additional _routes_ to your [Web Server
 
 ## Building Your Own
 
-> :warning: Custom web handlers are an **advanced, internal extension point**. By default the system loads handlers from `core/servers/content/web_handlers/` — the same directory as the built-in handlers. You can override the search path via `paths.webHandlers` in `config.hjson` if you want to keep custom code out of the ENiGMA source tree.
+:::caution
+Custom web handlers are an **advanced, internal extension point**. By default the system loads handlers from `core/servers/content/web_handlers/` — the same directory as the built-in handlers. You can override the search path via `paths.webHandlers` in `config.hjson` if you want to keep custom code out of the ENiGMA source tree.
+:::
 
 ### Skeleton
 

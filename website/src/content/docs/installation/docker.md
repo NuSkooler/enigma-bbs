@@ -3,7 +3,9 @@ layout: page
 title: Docker
 ---
 
-> :warning: **You'll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
+:::caution
+**You'll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
+:::
 for every operating system on the [Docker website](https://docs.docker.com/engine/install/).**
 
 ## Quick Start
@@ -39,14 +41,20 @@ docker run -d -p 8888:8888 \
 -v "$(pwd)/mail:/mail" \
 enigmabbs/enigma-bbs:latest
 ```
-### Restarting and Making changes\
+### Restarting and Making changes
 If you make any changes to your host config folder they will persist, and you can just restart ENiGMABBS container to load any changes you've made.
 
-```docker restart ENiGMABBS```
+```bash
+docker restart ENiGMABBS
+```
 
-> :bulb: Configuration will be stored in `$(pwd)/enigma-bbs/config`.
+:::tip
+Configuration will be stored in `$(pwd)/enigma-bbs/config`.
+:::
 
-> :bulb: Windows users - you'll need to switch out `$(pwd)/enigma-bbs/config` for a Windows-style path.
+:::tip
+Windows users — you'll need to switch out `$(pwd)/enigma-bbs/config` for a Windows-style path.
+:::
 
 ## Volumes
 

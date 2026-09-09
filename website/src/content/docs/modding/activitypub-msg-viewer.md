@@ -5,7 +5,9 @@ title: ActivityPub Message Viewer
 ## The ActivityPub Message Viewer Module
 The built-in `activity_pub_msg_viewer` module provides a read-only, scrollable viewer for individual ActivityPub Notes from the Fediverse. It uses a two-art layout — a body art containing the message text and header labels, and a footer art containing a horizontal action menu — mirroring the FSE view-mode design.
 
-> :information_source: This module is normally pushed by the [ActivityPub Message Browser](./activitypub-msg-browser.md) and receives the selected message via `extraArgs`. It can also be launched directly from a menu if needed.
+:::note
+This module is normally pushed by the [ActivityPub Message Browser](./activitypub-msg-browser.md) and receives the selected message via `extraArgs`. It can also be launched directly from a menu if needed.
+:::
 
 ## Layout
 Two separate art files are used:
@@ -25,9 +27,9 @@ All user interaction — including scrolling the message body — is handled by 
 ## Config Block
 | Key | Required | Description |
 |-----|----------|-------------|
-| `art.body` | :+1: | Art spec for the body screen (contains `%MT1` and `%TL10`+). |
-| `art.footer` | :+1: | Art spec for the footer screen (contains `%HM1`). |
-| `dateTimeFormat` | :-1: | [moment.js](https://momentjs.com/docs/#/displaying/format/) format string for the message date. `am`/`pm` are collapsed to `a`/`p`. Defaults to `MM/DD hh:mma`. |
+| `art.body` | Yes | Art spec for the body screen (contains `%MT1` and `%TL10`+). |
+| `art.footer` | Yes | Art spec for the footer screen (contains `%HM1`). |
+| `dateTimeFormat` | No | [moment.js](https://momentjs.com/docs/#/displaying/format/) format string for the message date. `am`/`pm` are collapsed to `a`/`p`. Defaults to `MM/DD hh:mma`. |
 
 **Example**:
 ```hjson
@@ -64,7 +66,9 @@ activityPubMsgViewer: {
 }
 ```
 
-> :warning: If `width` or `height` are omitted, `%MT1` will render as an empty area. Set them to match the usable space in your body art file.
+:::caution
+If `width` or `height` are omitted, `%MT1` will render as an empty area. Set them to match the usable space in your body art file.
+:::
 
 ### MCI 10+ — Custom Header Views (Form 1)
 `%TL10`, `%TL11`, etc. may be placed anywhere in the body art and configured via `bodyInfoFormat##` keys in the menu's `config` block:

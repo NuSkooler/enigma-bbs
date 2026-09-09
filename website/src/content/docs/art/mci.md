@@ -8,9 +8,13 @@ ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce info
 ## General Information
 MCI codes are composed of two characters and are prefixed with a percent (%) symbol.
 
-> :information_source: To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: `%BN1`.
+:::note
+To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: `%BN1`.
+:::
 
-> :information_source: Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:
+:::note
+Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:
+:::
 
 ![Example](../assets/images/mci-example1.png "MCI Colors")
 
@@ -124,9 +128,13 @@ Some additional special case codes also exist:
 | `XY`   | A special code that may be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen. |
 
 
-> :information_source: More are added all the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) for a full listing.
+:::note
+More are added all the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) for a full listing.
+:::
 
-> :memo: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
+:::note
+Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
+:::
 
 
 ## Views
@@ -149,7 +157,9 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `TK` | Ticker               | A continuously scrolling marquee | Scrolls text left or right in a fixed-width window. See [Ticker View](views/ticker_view.md) |
 | `SB` | Status Bar           | An auto-refreshing text label | Re-renders MCI format codes on a timer. See [Status Bar View](views/status_bar_view.md) |
 
-> :information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
+:::note
+Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
+:::
 
 ### Mask Edits
 Mask Edits (`%ME`) use the special `maskPattern` property to control a _mask_. This can be useful for gathering dates, phone numbers, so on.
@@ -232,7 +242,9 @@ text: "|00|07{SD:,}"
 text: "|00:07{SD!countWithAbbr}"
 ```
 
-> :bulb: MCI formatting also applies when programmatically calling [setText()](https://github.com/NuSkooler/enigma-bbs/blob/6710bf8c084487be2ee1d46d72a05d17a7b166f4/core/text_view.js#L148) of [TextView's](./views/text_view.md) and derived views.
+:::tip
+MCI formatting also applies when programmatically calling [setText()](https://github.com/NuSkooler/enigma-bbs/blob/6710bf8c084487be2ee1d46d72a05d17a7b166f4/core/text_view.js#L148) of [TextView's](./views/text_view.md) and derived views.
+:::
 
 ### Additional Text Styles
 Some of the text styles mentioned above are also available in the mini format language:
@@ -270,4 +282,6 @@ Suppose a format object contains the following elements: `userName` and `affils`
 
 ![Example](../assets/images/text-format-example1.png "Text Format")
 
-> :bulb: Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".
+:::tip
+Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".
+:::

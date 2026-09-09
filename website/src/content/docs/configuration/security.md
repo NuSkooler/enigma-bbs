@@ -65,7 +65,9 @@ scannerTossers: {
 
 See [Configuration Files — Secret Files](config-files.md#secret-files) for the full reference and a complete list of supported `@environment:` type coercions.
 
-> :warning: If `privateKeyPass` is left blank in your config, the SSH host key will be used without a passphrase. This is acceptable if the key file itself is properly permission-restricted and the host is otherwise secured.
+:::caution
+If `privateKeyPass` is left blank in your config, the SSH host key will be used without a passphrase. This is acceptable if the key file itself is properly permission-restricted and the host is otherwise secured.
+:::
 
 ## Two-Factor Authentication via One-Time Password
 Enabling Two-Factor Authentication via One-Time-Password (2FA/OTP) on an account adds an extra layer of security ("_something a user has_") in addition to their password ("_something a user knows_"). Providing 2FA/OTP to your users has some prerequisites:
@@ -73,7 +75,9 @@ Enabling Two-Factor Authentication via One-Time-Password (2FA/OTP) on an account
 * One or more secure servers enabled such as [SSH](../servers/loginservers/ssh.md) or secure [WebSockets](../servers/loginservers/websocket.md) (that is, WebSockets over a secure connection such as TLS).
 * The [web server](../servers/contentservers/web-server.md) enabled and exposed over TLS (HTTPS).
 
-> :information_source: For WebSockets and the web server, ENiGMA½ _may_ listen on insecure channels if behind a secure web proxy.
+:::note
+For WebSockets and the web server, ENiGMA½ _may_ listen on insecure channels if behind a secure web proxy.
+:::
 
 ### User Registration Flow
 Due to the nature of 2FA/OTP, even if enabled on your system, users must opt-in and enable this feature on their account. Users must also have a valid email address such that a registration link can be sent to them. To opt-in, users must enable the option, which will cause the system to email them a registration link. Following the link provides the following:
@@ -82,16 +86,22 @@ Due to the nature of 2FA/OTP, even if enabled on your system, users must opt-in 
 2. If applicable, a scannable QR code for easy device entry (e.g. Google Authenticator)
 3. A confirmation prompt in which the user must enter a OTP code. If entered correctly, this validates everything is set up properly and 2FA/OTP will be enabled for the account. Backup codes will also be provided at this time. Future logins will now prompt the user for their OTP after they enter their standard password.
 
-> :warning: Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is **highly** discouraged!
+:::caution
+Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is **highly** discouraged!
+:::
 
-> :memo: +ops can also manually enable or disable 2FA/OTP for a user using [oputil](../admin/oputil.md), but this is generally discouraged.
+:::note
++ops can also manually enable or disable 2FA/OTP for a user using [oputil](../admin/oputil.md), but this is generally discouraged.
+:::
 
 #### Recovery
 In the situation that a user loses their 2FA/OTP device (such as a lost phone with Google Auth), there are some options:
 * Utilize one of their backup codes.
 * Contact the SysOp.
 
-:warning: There is no way for a user to disable 2FA/OTP without first fully logging in! This is by design as a security measure.
+:::caution
+There is no way for a user to disable 2FA/OTP without first fully logging in! This is by design as a security measure.
+:::
 
 ### ACS Checks
 Various places throughout the system that implement [ACS](../configuration/acs.md) can make 2FA specific checks:

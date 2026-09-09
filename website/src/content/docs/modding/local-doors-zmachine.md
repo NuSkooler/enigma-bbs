@@ -6,7 +6,9 @@ title: Local Doors — Z-Machine Interactive Fiction
 
 ENiGMA½ includes a native Z-Machine interpreter for running interactive fiction games — the format used by classic Infocom titles (Zork, Hitchhiker's Guide to the Galaxy, Planetfall, etc.) and hundreds of modern IF competition winners. The `zmachine_door` module runs these games directly in a Node.js worker thread. **No external emulator, no drop file, no BIOS image, and no platform-specific setup** — just a path to a `.z3`, `.z5`, or `.z8` game file.
 
-> :information_source: Each active session runs in its own worker thread, isolated from other users. Multiple players can run the same or different games simultaneously with no cross-talk.
+:::note
+Each active session runs in its own worker thread, isolated from other users. Multiple players can run the same or different games simultaneously with no cross-talk.
+:::
 
 ---
 
@@ -36,7 +38,9 @@ Modern free Interactive Fiction is available from the [IF Archive](https://www.i
 * **Anchorhead** — Michael Gentry's Lovecraftian horror masterpiece.
 * **An Act of Murder** — Christopher Huang's procedurally-generated murder mystery. Every playthrough is a different case.
 
-> :warning: **Infocom games are not legally distributable.** The original commercial Infocom titles (Zork, Hitchhiker's, etc.) remain under copyright and are still sold commercially (e.g. via GOG). Do not redistribute them; if you own a legitimate copy you can use your own `.z5` files.
+:::caution
+**Infocom games are not legally distributable.** The original commercial Infocom titles (Zork, Hitchhiker's, etc.) remain under copyright and are still sold commercially (e.g. via GOG). Do not redistribute them; if you own a legitimate copy you can use your own `.z5` files.
+:::
 
 #### Recommended Directory Layout
 
@@ -60,10 +64,10 @@ The `zmachine_door` `config` block supports the following fields:
 
 | Item | Required | Description |
 |------|----------|-------------|
-| `name` | :+1: | Door name. Used as a key for tracking concurrent sessions. |
-| `game_path` | :+1: | Absolute path to the Z-Machine game file (`.z3`, `.z4`, `.z5`, or `.z8`). |
-| `nodeMax` | :-1: | Max concurrent sessions. `0` = unlimited (default). |
-| `tooManyArt` | :-1: | Art spec to display when `nodeMax` is exceeded. |
+| `name` | Yes | Door name. Used as a key for tracking concurrent sessions. |
+| `game_path` | Yes | Absolute path to the Z-Machine game file (`.z3`, `.z4`, `.z5`, or `.z8`). |
+| `nodeMax` | No | Max concurrent sessions. `0` = unlimited (default). |
+| `tooManyArt` | No | Art spec to display when `nodeMax` is exceeded. |
 
 No drop file configuration is needed — Z-Machine games don't use them.
 
@@ -124,13 +128,13 @@ doorActOfMurder: {
 
 | Version | Supported | Notes |
 |---------|:---------:|-------|
-| z1 / z2 | :-1: | Very early Infocom releases; not implemented by ifvms. |
-| **z3** | :+1: | Most classic Infocom games (Zork, Planetfall, Hitchhiker's Guide, etc.) |
-| **z4** | :+1: | Trinity, A Mind Forever Voyaging, Bureaucracy |
-| **z5** | :+1: | Beyond Zork, Sherlock, Border Zone, and most modern IF. The most common target version for modern games. |
-| z6 | :-1: | Graphical variant — requires a full windowed Glk implementation; not applicable for terminal use. |
-| **z8** | :+1: | Larger modern IF games (Anchorhead, Lost Pig, Varicella, etc.) |
-| Glulx | :-1: | A different virtual machine used by some modern IF; not supported. Most z-machine games also have Glulx builds — use the `.z*` version. |
+| z1 / z2 | No | Very early Infocom releases; not implemented by ifvms. |
+| **z3** | Yes | Most classic Infocom games (Zork, Planetfall, Hitchhiker's Guide, etc.) |
+| **z4** | Yes | Trinity, A Mind Forever Voyaging, Bureaucracy |
+| **z5** | Yes | Beyond Zork, Sherlock, Border Zone, and most modern IF. The most common target version for modern games. |
+| z6 | No | Graphical variant — requires a full windowed Glk implementation; not applicable for terminal use. |
+| **z8** | Yes | Larger modern IF games (Anchorhead, Lost Pig, Varicella, etc.) |
+| Glulx | No | A different virtual machine used by some modern IF; not supported. Most z-machine games also have Glulx builds — use the `.z*` version. |
 
 #### Rendering
 

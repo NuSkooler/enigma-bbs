@@ -8,11 +8,17 @@ Views are the interactive and display widgets that make up ENiGMA½ screens. The
 
 ## General Information
 
-> :information_source: Views are instantiated by placing an MCI code in an art file. The code determines the view type; an optional number suffix ties it to a specific view ID. For example: `%VM1` creates a Vertical Menu View with ID 1.
+:::note
+Views are instantiated by placing an MCI code in an art file. The code determines the view type; an optional number suffix ties it to a specific view ID. For example: `%VM1` creates a Vertical Menu View with ID 1.
+:::
 
-> :information_source: Standard and focus colors are set by placing duplicate MCI codes back-to-back in the art file. The first occurrence sets the normal color, the second sets the focused color.
+:::note
+Standard and focus colors are set by placing duplicate MCI codes back-to-back in the art file. The first occurrence sets the normal color, the second sets the focused color.
+:::
 
-> :information_source: See [MCI](../mci.md) for general information on MCI codes and the common configuration properties shared by all views.
+:::note
+See [MCI](../mci.md) for general information on MCI codes and the common configuration properties shared by all views.
+:::
 
 ### Common Properties
 
@@ -266,4 +272,6 @@ The general flow is:
 4. When a view with `submit: true` receives an `accept` action, the form is submitted
 5. The submitted form data drives the next menu action or module behaviour
 
-> :information_source: See [MCI](../mci.md) for details on formatting, text styles, and how MCI codes relate to menus and themes.
+:::note
+See [MCI](../mci.md) for details on formatting, text styles, and how MCI codes relate to menus and themes.
+:::

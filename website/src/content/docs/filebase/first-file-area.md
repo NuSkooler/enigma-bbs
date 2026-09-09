@@ -23,9 +23,13 @@ storageTags: {
 }
 ```
 
-:memo: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
+:::note
+On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
+:::
 
-:warning: Remember that paths are case sensitive on most non-Windows systems!
+:::caution
+Remember that paths are case sensitive on most non-Windows systems!
+:::
 
 #### Wildcard (Recursive) Storage Tags
 
@@ -49,11 +53,11 @@ File base *Areas* are configured using the `fileBase.areas` configuration block 
 
 | Item | Required | Description |
 |--------|---------------|------------------|
-| `name` | :+1: | Friendly area name. |
-| `desc` | :-1: | Friendly area description. |
-| `storageTags` | :+1: | An array of storage tags for physical storage backing of the files in this area. If uploads are enabled for this area, **first** storage tag location is utilized! |
-| `sort` | :-1: | If present, provides the sort key for ordering. `name` is used otherwise. |
-| `hashTags` | :-1: | Set to an array of strings or comma separated list to provide _default_ hash tags for this area. |
+| `name` | Yes | Friendly area name. |
+| `desc` | No | Friendly area description. |
+| `storageTags` | Yes | An array of storage tags for physical storage backing of the files in this area. If uploads are enabled for this area, **first** storage tag location is utilized! |
+| `sort` | No | If present, provides the sort key for ordering. `name` is used otherwise. |
+| `hashTags` | No | Set to an array of strings or comma separated list to provide _default_ hash tags for this area. |
 
 Example areas section:
 

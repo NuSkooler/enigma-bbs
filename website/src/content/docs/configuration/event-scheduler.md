@@ -12,9 +12,9 @@ Events can have the following members:
 
 | Item | Required | Description |
 |------|----------|-------------|
-| `schedule` | :+1: | A [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string such as `at 4:00 am`, or `every 24 hours`. Can also be (or contain) an `@watch` clause. See **Schedules** below for details. |
-| `action` | :+1: | Action to perform when the schedule is triggered. May be an `@method` or `@execute` spec. See **Actions** below. |
-| `args` | :-1: | An array of arguments to pass along to the method or binary specified in `action`. |
+| `schedule` | Yes | A [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string such as `at 4:00 am`, or `every 24 hours`. Can also be (or contain) an `@watch` clause. See **Schedules** below for details. |
+| `action` | Yes | Action to perform when the schedule is triggered. May be an `@method` or `@execute` spec. See **Actions** below. |
+| `args` | No | An array of arguments to pass along to the method or binary specified in `action`. |
 
 ### Schedules
 As mentioned above, `schedule` may contain a [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string and/or an `@watch` clause.
@@ -26,7 +26,9 @@ As mentioned above, `schedule` may contain a [Later style](https://bunkat.github
 
 An `@watch` clause monitors a specified file for changes and takes the following form: `@watch:<path>` where `<path>` is a fully qualified path.
 
-> :bulb: If you would like to have a schedule **and** watch a file for changes, place the `@watch` clause second and separated with the word `or`. For example: `every 24 hours or @watch:/path/to/somefile.txt`.
+:::tip
+If you would like to have a schedule **and** watch a file for changes, place the `@watch` clause second and separated with the word `or`. For example: `every 24 hours or @watch:/path/to/somefile.txt`.
+:::
 
 ### Actions
 Events can kick off actions by calling a method (function) provided by the system or custom module in addition to executing arbritary binaries or scripts.

@@ -6,7 +6,9 @@ title: Local Doors — External DOS Emulators
 
 This page covers running classic DOS door games using external emulators — DOSEMU and QEMU — via the `abracadabra` module. ENiGMA½ launches the emulator as a child process and bridges I/O over stdio or a socket.
 
-> :information_source: **No emulator on the server?** See [Native v86 Emulation](local-doors-v86.md) — ENiGMA½ includes a built-in x86 emulator. Raw FreeDOS `.img` images are compatible between QEMU and v86, so you can set up your image with QEMU and run it with v86 in production.
+:::note
+**No emulator on the server?** See [Native v86 Emulation](local-doors-v86.md) — ENiGMA½ includes a built-in x86 emulator. Raw FreeDOS `.img` images are compatible between QEMU and v86, so you can set up your image with QEMU and run it with v86 in production.
+:::
 
 ---
 
@@ -74,7 +76,9 @@ doorPimpWars: {
 
 [QEMU](https://www.qemu.org/) provides a robust, cross-platform solution for DOS doors. The general approach is a bootstrap shell script that prepares a node-specific `GO.BAT`, then launches QEMU with the FreeDOS image.
 
-> :warning: **Multiple concurrent sessions of the same QEMU image are not safe.** Each node needs its own image copy, or use [Native v86 Emulation](local-doors-v86.md) which isolates each session automatically.
+:::caution
+**Multiple concurrent sessions of the same QEMU image are not safe.** Each node needs its own image copy, or use [Native v86 Emulation](local-doors-v86.md) which isolates each session automatically.
+:::
 
 ### Step 1: Create a FreeDOS Image
 

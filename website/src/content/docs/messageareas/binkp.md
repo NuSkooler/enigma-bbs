@@ -20,9 +20,13 @@ BinkP is the TCP/IP session-layer protocol used by modern FidoNet nodes to excha
 - **FREQ (File REQuest)** — serves files to requesting nodes; supports magic names (e.g. `NODELIST`) and versioned directory search
 - **BSO spool integration** — reads and writes the same BSO outbound/inbound directories that [`ftn_bso`](bso-import-export.md) uses for packet scanning and tossing
 
-> :information_source: The native BinkP mailer handles **transport only**. Scanning outbound messages into packets and tossing received packets into message areas is still performed by the `ftn_bso` scanner/tosser. These two modules work together automatically.
+:::note
+The native BinkP mailer handles **transport only**. Scanning outbound messages into packets and tossing received packets into message areas is still performed by the `ftn_bso` scanner/tosser. These two modules work together automatically.
+:::
 
-> :information_source: If you prefer to continue using an external mailer such as [binkd](https://github.com/pgul/binkd), `ftn_bso` continues to work unchanged — the native BinkP mailer is purely opt-in.
+:::note
+If you prefer to continue using an external mailer such as [binkd](https://github.com/pgul/binkd), `ftn_bso` continues to work unchanged — the native BinkP mailer is purely opt-in.
+:::
 
 ---
 
@@ -115,11 +119,13 @@ scannerTossers: {
 }
 ```
 
-> :bulb: Avoid storing `sessionPassword` in plain text. Use `@file:` or `@environment:` instead:
-> ```hjson
-> sessionPassword: "@file:/run/secrets/binkp_pass"
-> ```
-> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::tip
+Avoid storing `sessionPassword` in plain text. Use `@file:` or `@environment:` instead:
+```hjson
+sessionPassword: "@file:/run/secrets/binkp_pass"
+```
+See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::
 
 #### `binkp.inbound`
 
@@ -166,7 +172,9 @@ Raise it if you have a dangling reference you already know about and have not de
 
 #### `flowLockTimeoutMs`
 
-> :information_source: This one lives at `scannerTossers.ftn_bso.flowLockTimeoutMs`, **not** under `binkp` — it governs the tosser (the writer), not the mailer.
+:::note
+This one lives at `scannerTossers.ftn_bso.flowLockTimeoutMs`, **not** under `binkp` — it governs the tosser (the writer), not the mailer.
+:::
 
 [FTS-5005.003](http://ftsc.org/docs/fts-5005.003) §5.1 requires that *any* software touching a BSO flow file first take that file's `.bsy` lock, and prohibits changes entirely while the lock is held:
 
@@ -327,7 +335,9 @@ The two modules share the same BSO spool directories (`paths.outbound`, `paths.i
 
 Both resolve outbound subdirectories — which network owns the bare `outbound/` directory, and how zones are suffixed — through the same shared logic, so they cannot disagree about where a given node's mail lives. See [Outbound Directory Layout](bso-import-export.md#outbound-directory-layout).
 
-> :information_source: Systems upgraded from before 0.5.1-beta may still have mail queued under the previous layout, in which a multi-network system with no explicit `defaultNetwork` wrote the first-listed network's mail to `<networkName>/` rather than `outbound/`. BinkP scans that directory as well, so anything left there is still sent; once it is empty it can be removed. See [UPGRADE.md](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md).
+:::note
+Systems upgraded from before 0.5.1-beta may still have mail queued under the previous layout, in which a multi-network system with no explicit `defaultNetwork` wrote the first-listed network's mail to `<networkName>/` rather than `outbound/`. BinkP scans that directory as well, so anything left there is still sent; once it is empty it can be removed. See [UPGRADE.md](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md).
+:::
 
 **Outbound flow:**
 1. `ftn_bso` scans message areas → writes `.pkt` files and flow file references into the outbound spool
@@ -379,7 +389,9 @@ Pre-existing custom menus that don't include this entry will need it added manua
 4. Remove or adjust any `@watch` / `@sched` import schedule from `ftn_bso` — the native mailer triggers toss immediately after each session, so a frequent scheduled import is no longer necessary (a slow fallback such as `"every 60 minutes"` is harmless)
 5. Reload the config (`oputil.js config reload`) or bounce the process
 
-> :warning: Do **not** run the native BinkP mailer and `binkd` concurrently on the same node address. They will compete for the BSO `.bsy` lock files and one will win while the other skips. If you want to run both temporarily for testing, use different node addresses or stagger their poll windows.
+:::caution
+Do **not** run the native BinkP mailer and `binkd` concurrently on the same node address. They will compete for the BSO `.bsy` lock files and one will win while the other skips. If you want to run both temporarily for testing, use different node addresses or stagger their poll windows.
+:::
 
 #### Renamed since `binkd` migration guides
 

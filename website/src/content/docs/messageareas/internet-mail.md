@@ -8,7 +8,9 @@ ENiGMA½ can send and receive internet email directly from the message system. U
 
 This feature is implemented as an `email` scanner/tosser module, following the same pattern as [FTN/BSO](bso-import-export.md) and ActivityPub.
 
-> :information_source: Outbound email requires the `email.transport` block to be configured. See [Email Configuration](../configuration/email.md).
+:::note
+Outbound email requires the `email.transport` block to be configured. See [Email Configuration](../configuration/email.md).
+:::
 
 ## Sending Email
 
@@ -27,7 +29,9 @@ ENiGMA½ polls an IMAP mailbox at a configurable interval. When a new message ar
 
 Messages that cannot be matched to a local user are saved as `.eml` files in `mail/email/failed/` for sysop review.
 
-> :bulb: Set up a dedicated mailbox (e.g. `bbs@yourdomain.com`) and configure your mail provider to accept `*@yourdomain.com` into it, or use per-user aliases — whatever fits your provider. ENiGMA½ only needs IMAP access to a single inbox.
+:::tip
+Set up a dedicated mailbox (e.g. `bbs@yourdomain.com`) and configure your mail provider to accept `*@yourdomain.com` into it, or use per-user aliases — whatever fits your provider. ENiGMA½ only needs IMAP access to a single inbox.
+:::
 
 ## Configuration
 
@@ -42,9 +46,13 @@ All email configuration lives under the `email` block in `config.hjson`.
 
 When `outbound.fromDomain` is set, the `From:` header reflects the sending BBS user while the SMTP `Sender:` header and envelope MAIL FROM are set to `defaultFrom`. This matches the standard "on behalf of" pattern used by mailing lists and keeps bounces deliverable to the authenticated mailbox.
 
-> :warning: Your SMTP provider must allow the authenticated account to send as other local-parts within the configured domain. Verify this in your provider's settings (most providers allow this for any address in a verified domain).
+:::caution
+Your SMTP provider must allow the authenticated account to send as other local-parts within the configured domain. Verify this in your provider's settings (most providers allow this for any address in a verified domain).
+:::
 
-> :information_source: The sanitized local-part is checked against `users.badUserNames` before use. If a user's sanitized name collides with a reserved name, that message falls back to `defaultFrom`.
+:::note
+The sanitized local-part is checked against `users.badUserNames` before use. If a user's sanitized name collides with a reserved name, that message falls back to `defaultFrom`.
+:::
 
 ### Inbound Configuration Reference
 
@@ -61,7 +69,9 @@ When `outbound.fromDomain` is set, the `From:` header reflects the sending BBS u
 | `inbound.imap.failedFolder` | *(none)* | IMAP folder to move messages that could not be imported (unknown local recipient, parse error). If omitted, failed messages stay in INBOX marked `\Seen`. Either way, a copy is saved locally as `.eml` in `mail/email/failed/` for sysop review |
 | `inbound.imap.maxMessagesPerRun` | `50` | Maximum messages to import per poll cycle |
 
-> :information_source: **Server-side message lifecycle:** the inbound poller **marks every processed message `\Seen`** — both imports that succeeded and imports that failed. This is intentional: a message that cannot be matched (e.g. addressed to a deleted local user) would otherwise be re-fetched on every poll and duplicated into `mail/email/failed/` indefinitely. Marking seen breaks that loop. Messages are **never deleted** by ENiGMA½ — retention of `processedFolder` / `failedFolder` / INBOX is entirely up to you or your provider.
+:::note
+**Server-side message lifecycle:** the inbound poller **marks every processed message `\Seen`** — both imports that succeeded and imports that failed. This is intentional: a message that cannot be matched (e.g. addressed to a deleted local user) would otherwise be re-fetched on every poll and duplicated into `mail/email/failed/` indefinitely. Marking seen breaks that loop. Messages are **never deleted** by ENiGMA½ — retention of `processedFolder` / `failedFolder` / INBOX is entirely up to you or your provider.
+:::
 
 ### Polling vs. IMAP IDLE
 
@@ -198,14 +208,18 @@ email: {
 }
 ```
 
-> :warning: Many providers (Gmail, Outlook) require an **app password** or OAuth2 token rather than your account password for IMAP/SMTP access. Generate one in your provider's security settings.
+:::caution
+Many providers (Gmail, Outlook) require an **app password** or OAuth2 token rather than your account password for IMAP/SMTP access. Generate one in your provider's security settings.
+:::
 
-> :bulb: Avoid storing SMTP/IMAP passwords in plain text in `config.hjson`. Use `@file:` or `@environment:` to inject credentials securely — for example:
-> ```hjson
-> pass: "@file:/run/secrets/smtp_pass"
-> password: "@environment:IMAP_PASSWORD"
-> ```
-> See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::tip
+Avoid storing SMTP/IMAP passwords in plain text in `config.hjson`. Use `@file:` or `@environment:` to inject credentials securely — for example:
+```hjson
+pass: "@file:/run/secrets/smtp_pass"
+password: "@environment:IMAP_PASSWORD"
+```
+See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
+:::
 
 ## Failed Message Handling
 

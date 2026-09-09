@@ -6,7 +6,9 @@ title: External Support Binaries
 ## External Support Binaries
 ENiGMA½ relies on various external binaries to perform common tasks such as processing file archives, extracting information from uploads/file imports, and supporting legacy transfer protocols.
 
-:correct: Before using features such as the [File Base](../filebase/index.md) or [File Transfer Protocols](../configuration/file-transfer-protocols.md) it is highly recommended to install support binaries!
+:::note
+Before using features such as the [File Base](../filebase/index.md) or [File Transfer Protocols](../configuration/file-transfer-protocols.md) it is highly recommended to install support binaries!
+:::
 
 ## Quick Check
 
@@ -109,7 +111,7 @@ Below is a table of pre-configured archivers. Remember that you can override set
 | Archiver (Key) | File Types | More Info | Debian/Ubuntu (apt/deb) | Red Hat (yum/rpm) | Windows |
 |----------|---------|-----------|-------------------------|-------------------|---------|
 | `Arj` | .arj | [Wikipedia](https://en.wikipedia.org/wiki/ARJ) | `arj` | `arj` | [ARJ](https://arj.sourceforge.net/) |
-| `7Zip` | .7z, .bzip2, .gzip/.gz, etc.<br>:warning: Does not attempt to handle zip files! See `InfoZip`! | https://www.7-zip.org | `p7zip-full` (provides `7za`) | `p7zip` / `p7zip-plugins` (often via EPEL; provides `7za`) | [7-zip](https://www.7-zip.org/) |
+| `7Zip` | .7z, .bzip2, .gzip/.gz, etc.<br>**Warning:** Does not attempt to handle zip files! See `InfoZip`! | https://www.7-zip.org | `p7zip-full` (provides `7za`) | `p7zip` / `p7zip-plugins` (often via EPEL; provides `7za`) | [7-zip](https://www.7-zip.org/) |
 | `InfoZip` | .zip | https://infozip.sourceforge.net <br>`zip` and `unzip` must be in ENiGMA's PATH | `zip` and `unzip` | `zip` and `unzip` | [InfoZip](https://infozip.sourceforge.net/) |
 | `Lha` | .lza, .lzh, etc. | [Wikipedia](https://en.wikipedia.org/wiki/LHA_(file_format)) <br> https://fragglet.github.io/lhasa/ | `lhasa` (provides `lha`) | Often not packaged on modern EL; build from source if needed | [Win32 binaries](https://soulsphere.org/projects/lhasa/win32/) |
 | `Lzx` | .lzx | [Amiga LZX](https://en.wikipedia.org/wiki/LZX_(algorithm)#Amiga_LZX) | Often not packaged; build from source if needed | Often not packaged; build from source if needed | [Source](http://xavprods.free.fr/lzx/) |
@@ -118,9 +120,13 @@ Below is a table of pre-configured archivers. Remember that you can override set
 | `Atr` | .atr | [ATR (Atari disk image)](https://en.wikipedia.org/wiki/ATR_(disk_image)) <br> https://github.com/jhallen/atari-tools | Not typically packaged; build from source | Not typically packaged; build from source | Varies |
 
 
-> :information_source: For the exact defaults, see `core/config_default.js`.
+:::note
+For the exact defaults, see `core/config_default.js`.
+:::
 
-> :information_source: For information on changing configuration or adding more archivers see [Archivers](archivers.md).
+:::note
+For information on changing configuration or adding more archivers see [Archivers](archivers.md).
+:::
 
 ## File Transfer Protocols
 Handlers for legacy file transfer protocols such as Z-Modem and Y-Modem.

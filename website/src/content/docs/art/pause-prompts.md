@@ -30,7 +30,9 @@ Controls whether and how the system pauses after displaying the menu's art.
 | `'<promptId>'` | Shorthand: pause in end mode using the named prompt. Equivalent to `pause: true` + `pausePrompt: <promptId>`. |
 | `false` (or absent) | No pause. |
 
-> :information_source: Art that uses absolute cursor positioning (ANSI sequences with explicit row/col addresses) is detected automatically — `pageBreak` falls back to single-page display for such art.
+:::note
+Art that uses absolute cursor positioning (ANSI sequences with explicit row/col addresses) is detected automatically — `pageBreak` falls back to single-page display for such art.
+:::
 
 ### `pausePrompt`
 

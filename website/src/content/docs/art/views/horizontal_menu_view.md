@@ -9,9 +9,13 @@ A horizontal menu view supports displaying a list of times on a screen horizonta
 
 Items can be selected on a menu via the cursor keys, Page Up, Page Down, Home, and End, or by selecting them via a `hotKey` - see ***Hot Keys*** below.
 
-> :information_source: A horizontal menu view is defined with a percent (%) and the characters HM, followed by the view number (if used.) For example: `%HM1`
+:::note
+A horizontal menu view is defined with a percent (%) and the characters HM, followed by the view number (if used.) For example: `%HM1`
+:::
 
-> :information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+:::note
+See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+:::
 
 ### Properties
 

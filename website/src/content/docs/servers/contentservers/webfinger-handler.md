@@ -46,7 +46,9 @@ contentServers: {
 }
 ```
 
-> :information_source: A sample template can be found at `www/wf/profile.template.html`
+:::note
+A sample template can be found at `www/wf/profile.template.html`
+:::
 
 # Example Session
 ```shell

@@ -41,7 +41,9 @@ For protocols of type `external` the following members may be defined:
 * `recvArgsNonBatch`: Required if using `recvCmd` and supporting non-batch (single file) uploads; A placeholder of `{fileName}` may be supplied to indicate to the protocol what the uploaded file should be named (this will be collected from the user before the upload starts).
 * `processIACs`: Optional; If set to `true`, escape/de-escape Telnet IAC (0xff) bytes when the connection is Telnet-based. This is required for external protocol handlers such as `sz` and `rz` that do not escape themselves.
 
-    :information_source: `escapeTelnet` is a deprecated name; it is still accepted for compatibility.
+    :::note
+    `escapeTelnet` is a deprecated name; it is still accepted for compatibility.
+    :::
 
 ### Adding Your Own
 Take a look a the example below as well as [core/config_default.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config_default.js).
