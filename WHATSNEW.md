@@ -119,7 +119,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   }
   ```
 
-  **Off unless you configure it.** An area with no `downlinks` behaves exactly as before. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks).
+  **Off unless you configure it.** An area with no `downlinks` behaves exactly as before. See [TIC Support](website/src/content/docs/filebase/tic-support.md#forwarding-to-downlinks).
 
   * **`uplinks` is an access control, not a formality.** Authentication is not per-area: every node in `nodes` is equally able to send you a TIC for any area you carry. Without `uplinks`, a node configured for some entirely unrelated reason could announce a file into an echo it has no rights to and have you relay it to that echo's subscribers under your own address, `Path` and `Seenby`. An area with `downlinks` and no `uplinks` forwards nothing and says so at startup. HTick performs the same check before forwarding.
 
@@ -139,14 +139,14 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   Because `NNNNnnnn.bsy` is the standard name, honouring it also interlocks correctly with **external mailers** — Binkd takes the very same lock, so neither side needs to know about the other. (The pre-existing `enigma.bsy` flag could never serve this purpose: it is a non-FTS-5005 name in the outbound *root*, so no external mailer has reason to interpret it.) The protocol now lives in one place and is shared by the writer and the mailer rather than reimplemented on each side.
 
-  When the lock cannot be taken the outbound is **not** queued that pass and says so — not writing is what the spec requires, and the next export cycle picks it up. `scannerTossers.ftn_bso.flowLockTimeoutMs` (default 5 seconds) bounds the wait; see [BinkP](docs/_docs/messageareas/binkp.md#flowlocktimeoutms).
+  When the lock cannot be taken the outbound is **not** queued that pass and says so — not writing is what the spec requires, and the next export cycle picks it up. `scannerTossers.ftn_bso.flowLockTimeoutMs` (default 5 seconds) bounds the wait; see [BinkP](website/src/content/docs/messageareas/binkp.md#flowlocktimeoutms).
 
   **A second, related race** was found by running two instances against each other: when one session ships more than one file to the same node, each file's completion rewrote the whole flow file independently, so all but one entry silently lost its "sent" mark. For mail the entry is deleted after sending, so the leftover reference merely dangles; for a forwarded file echo — where the file stays in your file base and must not be deleted — it looked unsent and went out again on **every** subsequent session. Those rewrites are now serialised.
 
 
 * **A wildcard could shadow a more specific entry in `nodes{}` and NetMail `routes{}`** -- where several patterns matched an address, which one applied depended on nothing but the order they were written in `config.hjson`. A `"*"` route above `"21:*"` took every message; a `"21:*"` node block above `"21:1/100"` meant that node's `packetPassword` was never the one checked. The **most specific match now wins** regardless of order, which is what the native BinkP mailer already did for its own `binkp.nodes{}`.
 
-  `routes{}` is still consulted before `nodes{}`, so a catch-all `"*"` route claims all NetMail -- AreaFix to your uplinks on other networks included. With ordering no longer deciding the outcome, a more specific route can now reliably send those direct. See [NetMail](docs/_docs/messageareas/netmail.md#which-route-applies).
+  `routes{}` is still consulted before `nodes{}`, so a catch-all `"*"` route claims all NetMail -- AreaFix to your uplinks on other networks included. With ordering no longer deciding the outcome, a more specific route can now reliably send those direct. See [NetMail](website/src/content/docs/messageareas/netmail.md#which-route-applies).
 
 * **The `download` file area ACS was enforced over the REST API and nowhere else** -- a security control that silently did not work. A file area can reasonably let everyone browse while restricting who may actually pull bytes down:
 
@@ -171,7 +171,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 * **Message areas can now be created automatically for EchoMail you are not configured for** ([#241](https://github.com/NuSkooler/enigma-bbs/issues/241)) — mail arriving for an unknown FTN area tag was skipped with a warning, and since the packet was then removed, skipped meant *lost*. ENiGMA½ can now create those areas instead. **Off unless you configure it**; a system with no `autoAreas` block behaves exactly as before, and with no network enabled nothing extra runs at all.
 
-  Setup is one command — `./oputil.js mb auto-areas init` — and then a per-network `autoAreas` block. See [FTN](docs/_docs/messageareas/ftn.md#automatic-area-creation).
+  Setup is one command — `./oputil.js mb auto-areas init` — and then a per-network `autoAreas` block. See [FTN](website/src/content/docs/messageareas/ftn.md#automatic-area-creation).
 
   * **Created areas are read-only, and that means both halves.** They carry no `uplinks`, so nothing is exported. On its own that is not read-only: a local user could still post into an area that looks live and goes nowhere. So they also carry a write-deny ACS. To adopt one, define it in `config.hjson` with your own `uplinks` and `acs` — `config.hjson` always wins over the generated file.
 
@@ -258,15 +258,15 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 * **v86 multi-node shared disk** — concurrent door sessions for the same disk image now share a single in-memory buffer (SharedArrayBuffer), giving all nodes a live view of the same disk — exactly as they would on a real BBS with a shared drive. Games that rely on file/record locking (e.g. TradeWars 2002) work correctly when `SHARE.COM` is loaded from `runBatch`. Single-player doors are unchanged; use `nodeMax: 1` as before. The buffer is flushed back to the image file after each session exits, serialized so concurrent exits never race at the OS level.
 
-* **OSC 8 clickable hyperlinks** — URLs in message bodies, file NFO/readme viewers, and file download listings are now rendered as clickable hyperlinks on terminals that support the OSC 8 standard: IcyTerm, SyncTERM, VTX, and modern *nix terminals (foot, Alacritty, GNOME Terminal, kitty, WezTerm, Windows Terminal, and others). Sysops enable hyperlinks per-view by adding `hyperlinks: true` to any `%MT` view in preview or read-only mode. The default menu templates and ActivityPub viewer have this enabled out of the box. See [Multi Line Edit Text View](./docs/_docs/art/views/multi_line_edit_text_view.md) for details.
+* **OSC 8 clickable hyperlinks** — URLs in message bodies, file NFO/readme viewers, and file download listings are now rendered as clickable hyperlinks on terminals that support the OSC 8 standard: IcyTerm, SyncTERM, VTX, and modern *nix terminals (foot, Alacritty, GNOME Terminal, kitty, WezTerm, Windows Terminal, and others). Sysops enable hyperlinks per-view by adding `hyperlinks: true` to any `%MT` view in preview or read-only mode. The default menu templates and ActivityPub viewer have this enabled out of the box. See [Multi Line Edit Text View](./website/src/content/docs/art/views/multi_line_edit_text_view.md) for details.
 
 * **User status config module** — users can now toggle their own availability and visibility via the new `user_status_config` module (command `STATUS` from the main menu in the default template). Availability controls whether the user can be paged/messaged; visibility controls whether they appear in who's-online and last-callers lists. Sysops expose the module by wiring `@menu:userStatusConfig` into their menu config. The module supports `enabledIndicator`/`disabledIndicator` config overrides and `TL10`/`TL11` custom-format views (`{availableIndicator}`, `{visibleIndicator}`) for full theme control.
 
 * **Pre-auth feedback to sysop** — visitors can now send a private message to the sysop directly from the login matrix, before logging in. The sender types a free-text name (not resolved to any user account) and composes a message using the full FSE editor. Replies to these ghost-sender messages are blocked at the inbox with a clear notice rather than failing silently. See the Sysop Chat & Contact doc for configuration details.
 
-* **Secret file injection (`@file:`)** — any string-valued config key that holds a secret (SSH host key passphrase, SMTP/IMAP passwords, BinkP session passwords, FTN packet passwords, JWT signing secret, door service credentials, etc.) can now be kept out of `config.hjson` entirely by using the new `@file:` directive. Point it at any readable file — absolute or relative to the config directory — and ENiGMA½ reads and trims the value at startup. Docker/Podman secrets (`/run/secrets/…`) and `chmod 600` files both work. The existing `@environment:` directive is unchanged. See [Configuration Files — Secret Files](./docs/_docs/configuration/config-files.md#secret-files) and [Security](./docs/_docs/configuration/security.md) for examples covering every secret-bearing config key.
+* **Secret file injection (`@file:`)** — any string-valued config key that holds a secret (SSH host key passphrase, SMTP/IMAP passwords, BinkP session passwords, FTN packet passwords, JWT signing secret, door service credentials, etc.) can now be kept out of `config.hjson` entirely by using the new `@file:` directive. Point it at any readable file — absolute or relative to the config directory — and ENiGMA½ reads and trims the value at startup. Docker/Podman secrets (`/run/secrets/…`) and `chmod 600` files both work. The existing `@environment:` directive is unchanged. See [Configuration Files — Secret Files](./website/src/content/docs/configuration/config-files.md#secret-files) and [Security](./website/src/content/docs/configuration/security.md) for examples covering every secret-bearing config key.
 
-* **REST API v1** — a JSON REST API is now available under `/_enig/api/v1/` when the web server is enabled. Endpoints cover system info, message conferences and areas (read/post/delete), file areas (list/metadata/download/upload), and user profiles. Two auth schemes are supported: short-lived JWT Bearer tokens (obtained via `POST /auth/login`) and long-lived API keys managed with `oputil rest api-key`. Public access to specific message and file areas can be configured without requiring authentication. See [REST API](./docs/_docs/servers/contentservers/rest-api.md) for full documentation.
+* **REST API v1** — a JSON REST API is now available under `/_enig/api/v1/` when the web server is enabled. Endpoints cover system info, message conferences and areas (read/post/delete), file areas (list/metadata/download/upload), and user profiles. Two auth schemes are supported: short-lived JWT Bearer tokens (obtained via `POST /auth/login`) and long-lived API keys managed with `oputil rest api-key`. Public access to specific message and file areas can be configured without requiring authentication. See [REST API](./website/src/content/docs/servers/contentservers/rest-api.md) for full documentation.
 
 ## 0.4.0-beta
 
@@ -284,7 +284,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   * **Static file symlink escape fix** — the web server's static file resolver now dereferences symlinks via `fs.realpath` before the path boundary check, preventing a symlink placed inside `staticRoot` from escaping it.
 
-  * **Config file security note** — see [Security](./docs/_docs/configuration/security.md) for guidance on protecting `config.hjson` (which contains secrets such as `privateKeyPass`) with appropriate file permissions.
+  * **Config file security note** — see [Security](./website/src/content/docs/configuration/security.md) for guidance on protecting `config.hjson` (which contains secrets such as `privateKeyPass`) with appropriate file permissions.
 
 * **Native BinkP / FTN mailer** — built-in BinkP/1.1 implementation (inbound listener + outbound caller) that integrates directly with the existing BSO scanner/tosser. No external `binkd` or cron-driven poll script required for FidoNet-style networks. Two complementary triggers replace the old single-timer model:
 
@@ -292,7 +292,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * **Pull schedule** — `binkp.pullSchedule` (default `every 15 minutes`) dials *every* configured peer in `binkp.nodes` regardless of pending mail, so echo mail flows in from hubs that wait for the spoke to call. Per-node opt-out via `pull: false`.
   * Configure inbound port, per-node hosts/passwords (CRAM-MD5), and the schedules under `scannerTossers.ftn_bso.binkp` in `config.hjson`.
 
-* **Internet Mail (send & receive)** — users can now send and receive internet email directly from the BBS private message system, via a new `email` scanner/tosser module. See [Email Configuration](./docs/_docs/configuration/email.md) and [Internet Mail](./docs/_docs/messageareas/internet-mail.md).
+* **Internet Mail (send & receive)** — users can now send and receive internet email directly from the BBS private message system, via a new `email` scanner/tosser module. See [Email Configuration](./website/src/content/docs/configuration/email.md) and [Internet Mail](./website/src/content/docs/messageareas/internet-mail.md).
 
   * **Send**: private messages addressed to `user@domain.com` are delivered through your configured SMTP transport (Nodemailer-compatible — any provider, or service shortcut like Zoho/Fastmail).
   * **Receive**: inbound email is pulled from a single IMAP mailbox (polling or `IMAP IDLE`) and routed to the local user whose name matches the To: local-part. Successfully imported messages are marked `\Seen` and optionally moved to `inbound.imap.processedFolder`. Unmatched / unparseable mail is preserved as `.eml` in `mail/email/failed/`, marked `\Seen` to prevent re-fetch loops, and optionally moved to `inbound.imap.failedFolder`. ENiGMA½ never deletes mail from your IMAP server — retention is up to you or your provider.
@@ -307,7 +307,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * `renderStringLength`, `ansiRenderStringLength`, and the new exported `renderSplitPos` in `string_util.js` all account for wide characters; pipe codes and ANSI cursor-forward sequences are handled correctly in both
   * `getText()` on `LineBuffer` correctly round-trips CJK text — no spurious space is inserted at character-boundary soft-wrap points
 
-* **UTF-8 Art Variants (`.utf8ans`)** — place a `FOO.UTF8ANS` alongside `FOO.ANS` in any art or theme directory; UTF-8-capable users automatically receive the UTF-8 variant while CP437 users see the standard file. No menu or theme configuration is required — selection is automatic based on the negotiated terminal encoding. See [General Art Information](./docs/_docs/art/general.md).
+* **UTF-8 Art Variants (`.utf8ans`)** — place a `FOO.UTF8ANS` alongside `FOO.ANS` in any art or theme directory; UTF-8-capable users automatically receive the UTF-8 variant while CP437 users see the standard file. No menu or theme configuration is required — selection is automatic based on the negotiated terminal encoding. See [General Art Information](./website/src/content/docs/art/general.md).
 
   * Opt-in upward UTF-8 probe — set `term.probeUtf8Encoding: true` in `config.hjson` to enable a CPR-based check that upgrades CP437-identified terminals (e.g. `ansi`, `syncterm`) to UTF-8 output when the terminal actually supports it. Uses the same cursor-advance technique as `checkUtf8Encoding`. Default: `false`.
 
@@ -336,7 +336,7 @@ Various fixes
 
 * **SQLite driver migrated to `better-sqlite3`** -- This is an internal change with no impact on existing data or configuration. Results in some major DB performance gains.
 
-* **[Z-Machine Interactive Fiction Door](./docs/_docs/modding/local-doors-zmachine.md)** — new `zmachine_door` module runs Z-Machine IF games (Zork, Colossal Cave Adventure, Photopia, Anchorhead, Lost Pig, and hundreds more) natively in Node.js. No external emulator, no serial bridge, no drop file — a cross-platform pure-JavaScript path for text-adventure games.
+* **[Z-Machine Interactive Fiction Door](./website/src/content/docs/modding/local-doors-zmachine.md)** — new `zmachine_door` module runs Z-Machine IF games (Zork, Colossal Cave Adventure, Photopia, Anchorhead, Lost Pig, and hundreds more) natively in Node.js. No external emulator, no serial bridge, no drop file — a cross-platform pure-JavaScript path for text-adventure games.
 
   * Backed by [ifvms.js](https://github.com/curiousdannii/ifvms.js) (the Z-Machine interpreter used by Parchment) and [glkote-term](https://github.com/curiousdannii/glkote-term), run in a dedicated worker thread per session for isolation.
   * Supports Z-Machine versions 3, 4, 5, and 8 — covers all classic Infocom titles, the original Crowther/Woods Adventure port, and the vast majority of modern Inform games from the [IF Archive](https://www.ifarchive.org/).
@@ -352,7 +352,7 @@ Various fixes
 
 ## 0.1.0-beta
 
-* **[Sysop Chat / Break Into Chat](./docs/_docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user
+* **[Sysop Chat / Break Into Chat](./website/src/content/docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user
 
   * Sysop can break into chat with any node directly from WFC (`B` key on selected node)
   * Users can page the sysop via the `pageSysop` menu entry; includes per-user rate limiting and BEL + interrupt notification to all online sysops (sysops at WFC see it directly in the node list)
@@ -365,7 +365,7 @@ Various fixes
 
 ## 0.1.0-beta
 
-* **Pause Prompt Improvements** — see [Pause Prompts](./docs/_docs/art/pause-prompts.md) for the full reference
+* **Pause Prompt Improvements** — see [Pause Prompts](./website/src/content/docs/art/pause-prompts.md) for the full reference
 
   * `pause: pageBreak` — art is paginated and displayed screen-by-screen with a prompt between pages; detects absolute-positioning ANSI and falls back to single-page display automatically
   * `pause: '<promptId>'` — shorthand: end-mode pause using the named prompt; equivalent to `pause: true` + `pausePrompt: <promptId>`
@@ -378,7 +378,7 @@ Various fixes
 
 * **New MCI View Types**
 
-  * **[TickerView](./docs/_docs/art/views/ticker_view.md) (`%TK`)** — animated single-line marquee with a two-axis model; works in any context including pause prompts (see above):
+  * **[TickerView](./website/src/content/docs/art/views/ticker_view.md) (`%TK`)** — animated single-line marquee with a two-axis model; works in any context including pause prompts (see above):
     * **Motion styles**: `left`, `right`, `bounce`, `reveal`, `typewriter`, `fallLeft`, `fallRight`
       * `fallLeft`/`fallRight`: characters spread across the window with increasing inter-char gaps toward the source edge, then all slide at 1 col/tick and stack against the target edge — a "stack of bricks" effect
     * **Effects**: text-style effects (`upper`, `lower`, `title`, `l33t`, `mixed`, and more) baked at set-time; dynamic per-tick effects (`rainbow`, `scramble`, `glitch`)
@@ -387,7 +387,7 @@ Various fixes
     * Redraw optimization: ticks where the rendered output hasn't changed (e.g. `bounce` at rest, hold phases) are skipped entirely — no unnecessary cursor movement
     * All configuration via `mci` block in `menu.hjson` / `theme.hjson` — no inline MCI args needed
     * `destroy()` clears timers; view teardown in `ViewController` now calls `destroy()` on all views, fixing timers surviving menu transitions
-  * **[StatusBarView](./docs/_docs/art/views/status_bar_view.md) (`%SB`)** — single-line view with two modes:
+  * **[StatusBarView](./website/src/content/docs/art/views/status_bar_view.md) (`%SB`)** — single-line view with two modes:
     * **Single mode**: auto-refreshing text label that re-renders a format template on a configurable `refreshInterval`; skips redraws when text hasn't changed
     * **Panel mode** (`panels` array): divides the view into independently-addressable named slots, each with its own width, alignment, color, fill character, and optional auto-refresh template. Panels are updated from code via `setPanel(name, value)` / `setPanels(updates)` without touching adjacent slots. A panel's `text` property (without `refreshInterval`) sets a static initial value evaluated once at init — useful for fixed label prefixes configured entirely from `menu.hjson`.
   * **FSE editor footer** now uses a single `%SB1` in panel mode (replacing the old separate `%TL1`/`%TL2` views) — displays cursor position and INS/OVR mode side-by-side, updated live as the cursor moves. See [UPGRADE](UPGRADE.md) if you have custom FSE art or menu config.
@@ -431,7 +431,7 @@ Various fixes
 
 * **ActivityPub & Mastodon Support (Experimental)**
 
-  * A new [ActivityPub Web Handler](./docs/_docs/servers/contentservers/activitypub-handler.md) has been added.
+  * A new [ActivityPub Web Handler](./website/src/content/docs/servers/contentservers/activitypub-handler.md) has been added.
   * ⚠️ **WARNING**: ActivityPub is **disabled by default**. There may be **security implications**, federation may be **unstable**, and some parts may not work yet. **Use at your own risk!**
   * Provides groundwork for federated features: WebFinger discovery, NodeInfo2, actor profiles/avatars, inbox/outbox/shared inbox, and handling of common ActivityPub object types (`Note`, `Accept`, `Undo`, followers/following).
   * **WebFinger** and **NodeInfo2** handlers are also disabled by default. These may be useful for inter-BBS or other integrations, but note: WebFinger may still “advertise” ActivityPub endpoints even if AP itself is off.
@@ -448,17 +448,17 @@ Various fixes
 
     The fate of full ActivityPub support in ENiGMA is till up in the air...
 
-* **[Web Server](/docs/_docs/servers/contentservers/web-server.md) Changes** (⚠️ some may be breaking):
+* **[Web Server](/website/src/content/docs/servers/contentservers/web-server.md) Changes** (⚠️ some may be breaking):
 
   * `/static/` prefixes are no longer required (ugly hack removed).
   * Internal routes (e.g. password reset) now live under `/_enig/`.
   * File base routes now default to `/_f/` instead of `/f/`. If your `config.hjson` still uses `/f/`, update it.
   * The system will now search for `index.html` then `index.htm` if a suitable route cannot be found.
-  * [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md) modules are now easier to add; several exist by default.
+  * [Web Handler](/website/src/content/docs/servers/contentservers/web-handlers.md) modules are now easier to add; several exist by default.
 
 * **Other Additions & Changes**
 
-  * New users now have randomly generated avatars assigned (served via System General [Web Handler](/docs/_docs/servers/contentservers/web-handlers.md)).
+  * New users now have randomly generated avatars assigned (served via System General [Web Handler](/website/src/content/docs/servers/contentservers/web-handlers.md)).
   * CombatNet has shut down; the module (`combatnet.js`) has been removed.
   * New `NewUserPrePersist` system event available for developers to hook into account creation.
   * `viewValidationListener` callback signature has changed: now `(err, newFocusId)`. To ignore a validation error, call with `null` for `err`.

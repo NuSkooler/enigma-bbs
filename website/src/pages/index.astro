@@ -1,0 +1,397 @@
+---
+import AnsiArt from '../components/AnsiArt.astro';
+import '../styles/enigma.css';
+
+const install =
+    'curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash';
+
+const features = [
+    ['THREE WAYS IN', 'Telnet, SSH and both secure and non-secure WebSocket access built in, with unlimited nodes. Additional servers are easy to implement.'],
+    ['FIDONET, NATIVELY', 'A native BinkP/1.1 mailer — inbound listener and outbound caller, no external binkd. Crashmail ships on export; a pull cycle keeps echo mail coming from quiet hubs.'],
+    ['DOS DOORS THAT RUN', 'Native x86 emulation via v86 — LORD, PimpWars, TradeWars — with zero external dependencies. No QEMU, DOSBox or DOSEMU. Plus BBSLink, DoorParty and Exodus.'],
+    ['INTERACTIVE FICTION', 'Z-Machine support runs Infocom classics natively in Node.js. Zork, Colossal Cave and hundreds more from the IF Archive. Versions 3, 4, 5 and 8.'],
+    ['INDEXED FILE BASES', 'Gazelle-inspired file bases with fully indexed full-text search and #tags. FILE_ID.DIZ and NFO extraction on upload. Legacy X/Y/Z modem still works.'],
+    ['ART AS IT WAS DRAWN', 'CP437 and UTF-8 with wide-character support, full SAUCE, SyncTERM-style fonts and baud emulation. View ANSI like the block gods intended.'],
+    ['MAIL BEYOND FTN', 'Internet mail over IMAP/SMTP straight from the private message base, MRC relay chat, and experimental ActivityPub federation with WebFinger and NodeInfo2.'],
+    ['READ IT ANYWHERE', 'Message bases exposed over Gopher and NNTP, plus a built-in web server with HTTP(S) for temporary download URLs and file browsing.'],
+    ['YOURS TO SHAPE', 'HJSON configuration, menus and themes, Renegade-style pipe codes, MCI codes for lightbars and input areas, and JavaScript mods when config runs out.'],
+    ['MODERN UNDERNEATH', 'PBKDF2-backed passwords, two-factor auth with one-time passwords, SQLite storage and structured Bunyan logging. Runs anywhere modern Node.js does.'],
+    ['A FULL SCREEN EDITOR', 'ANSI art support, live cursor and mode indicators, inline find with Ctrl-F, and file upload straight into a message body.'],
+    ['GAMIFIED', 'An expandable achievement system, and a remote-accessible Waiting For Caller dashboard for the sysop.'],
+];
+---
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>ENiGMA½ BBS — modern BBS software with a nostalgic flair</title>
+        <meta
+            name="description"
+            content="Modern bulletin board software with a nostalgic flair. Telnet, SSH and WebSocket in one Node.js process, plus FidoNet mail, indexed file bases, and DOS doors that actually run."
+        />
+        <link rel="sitemap" href="/sitemap-index.xml" />
+        <script is:inline>
+            //  Mirrors Starlight's ThemeProvider so a choice made in the docs
+            //  carries to this page, and so the correct theme is applied before
+            //  first paint rather than flashing. Same storage key, same
+            //  data-theme attribute.
+            (() => {
+                const stored = (() => {
+                    try {
+                        return localStorage.getItem('starlight-theme');
+                    } catch {
+                        return null;
+                    }
+                })();
+                const theme =
+                    stored === 'light' || stored === 'dark'
+                        ? stored
+                        : window.matchMedia('(prefers-color-scheme: light)').matches
+                          ? 'light'
+                          : 'dark';
+                document.documentElement.dataset.theme = theme;
+            })();
+        </script>
+    </head>
+    <body>
+        <header class="nav">
+            <a class="brand dos" href="/"><span class="brand__mark">█▄</span> ENiGMA½</a>
+            <nav>
+                <a href="/installation/installation-methods/">Docs</a>
+                <a href="#features">Features</a>
+                <a href="https://github.com/NuSkooler/enigma-bbs" class="dos nav__cta">GITHUB</a>
+            </nav>
+        </header>
+
+        <section class="hero">
+            <div class="hero__row">
+                <div class="hero__text">
+                    <p class="dos kicker">▀▀ BULLETIN BOARD SOFTWARE</p>
+                    <h1 class="dos wordmark">ENiGMA½<br /><span class="wordmark__b">BBS</span></h1>
+                    <p class="lede">
+                        Modern bulletin board software with a nostalgic flair. Telnet, SSH and
+                        WebSocket in one Node.js process — plus FidoNet mail, indexed file
+                        bases, and DOS doors that actually run.
+                    </p>
+                    <p class="cta">
+                        <a class="dos cta__primary" href="/installation/installation-methods/">GET STARTED</a>
+                        <a class="dos cta__secondary" href="#try">CALL A BOARD</a>
+                    </p>
+                </div>
+                <div class="hero__screen">
+                    <AnsiArt
+                        src="MMENU.ANS"
+                        alt="The ENiGMA½ main menu in the luciano_blocktronics theme"
+                        max="26px"
+                    />
+                    <p class="dos screen__caption">MMENU.ANS · luciano_blocktronics · shipped with ENiGMA½</p>
+                </div>
+            </div>
+
+            <!-- Full width: the install command is ~95 characters and was being
+                 clipped inside the hero text column. -->
+            <div class="install">
+                <span class="dos install__sigil">&gt;</span>
+                <code>{install}</code>
+                <button class="dos install__copy" type="button" data-copy={install}>COPY</button>
+            </div>
+        </section>
+
+        <section class="try" id="try">
+            <div class="try__text">
+                <h2 class="dos section-head">▀▀ NEVER USED A BBS?</h2>
+                <p class="try__lede">
+                    Then call one. <strong>Xibalba</strong> is ENiGMA½'s world headquarters —
+                    a real board, running this software, with message areas, file bases,
+                    doors and other people on it right now.
+                </p>
+                <dl class="dial">
+                    <div class="dial__row">
+                        <dt class="dos">TELNET</dt>
+                        <dd><code>telnet://xibalba.vip:44510</code></dd>
+                    </div>
+                    <div class="dial__row">
+                        <dt class="dos">SSH</dt>
+                        <dd>
+                            <code>ssh://xibalba.vip:44511</code>
+                            <span class="dial__hint">log in as <code>new</code> / <code>new</code></span>
+                        </dd>
+                    </div>
+                    <div class="dial__row">
+                        <dt class="dos">WEB</dt>
+                        <dd><a href="https://xibalba.vip">xibalba.vip</a></dd>
+                    </div>
+                </dl>
+                <p class="try__note">
+                    Or <a href="/installation/installation-methods/">run your own</a> —
+                    that is rather the point.
+                </p>
+            </div>
+            <div class="try__screen">
+                <AnsiArt
+                    src="XIBALBA3.ANS"
+                    alt="Xibalba BBS login art"
+                    max="16px"
+                />
+            </div>
+        </section>
+
+        <section class="features" id="features">
+            <h2 class="dos section-head">WHAT YOU GET</h2>
+            <ul class="grid">
+                {features.map(([title, body]) => (
+                    <li class="card">
+                        <h3 class="dos card__title">█▄ {title}</h3>
+                        <p class="card__body">{body}</p>
+                    </li>
+                ))}
+            </ul>
+        </section>
+
+        <section class="community">
+            <div class="community__col">
+                <h2 class="dos section-head">▀▀ WHERE THIS CAME FROM</h2>
+                <p class="origin">
+                    ENiGMA½ was started in <strong>October 2015</strong>, out of a lack of
+                    diversity in the BBS scene and no modern open source option to reach for.
+                    You can still read the{' '}
+                    <a href="https://www.reddit.com/r/bbs/comments/3qmo35/enigma%C2%BD_bbs_software_on_github/">original announcement</a>.
+                    It has been developed in the open ever since, led by{' '}
+                    <a href="https://github.com/NuSkooler">NuSkooler</a> with contributions
+                    from many others.
+                </p>
+            </div>
+            <div class="community__col">
+                <h2 class="dos section-head">▀▀ GETTING HELP</h2>
+                <ul class="help">
+                    <li><a href="https://github.com/NuSkooler/enigma-bbs/discussions">GitHub Discussions</a> — questions and ideas</li>
+                    <li><a href="https://github.com/NuSkooler/enigma-bbs/issues">Issue tracker</a> — bugs and feature requests</li>
+                    <li><a href="https://discord.gg/M2pbyvuGva">Discord</a> — the fastest way to reach other sysops</li>
+                    <li><code>FSX_ENG</code> on <a href="https://fsxnet.nz">fsxNet</a> — carried by many boards</li>
+                    <li><a href="https://www.facebook.com/groups/enigmabbs/">Facebook group</a></li>
+                    <li><a href="https://github.com/NuSkooler/enigma-bbs/blob/master/CONTRIBUTING.md">Contributing</a> — code, bug reports and docs</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer class="foot">
+            <p class="dos">TELNET · SSH · WEBSOCKET · GOPHER · NNTP</p>
+            <p class="dos">v0.5.1-beta · BSD-2-Clause</p>
+            <p class="attrib">
+                Type is <a href="https://int10h.org/oldschool-pc-fonts/">The Ultimate Oldschool
+                PC Font Pack</a> by VileR, licensed{' '}
+                <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+            </p>
+        </footer>
+    </body>
+</html>
+
+<style>
+    body {
+        margin: 0;
+        background: var(--sl-color-black);
+        color: var(--sl-color-gray-2);
+        font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+    }
+    a { color: var(--e-cyan-bright); text-decoration: none; }
+    a:hover { color: #ffffff; }
+
+    .nav {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1rem; padding: 0 2.5rem; height: 62px;
+        border-bottom: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6);
+    }
+    .brand { font-size: 16px; line-height: 16px; color: var(--sl-color-gray-2); }
+    .brand__mark { color: var(--e-green); }
+    .nav nav { display: flex; align-items: center; gap: 1.6rem; }
+    .nav__cta { font-size: 16px; line-height: 16px; background: var(--e-green); color: var(--sl-color-black); padding: 8px 14px; }
+    .nav__cta:hover { color: var(--sl-color-black); background: var(--e-green-dim); }
+
+    .hero {
+        padding: 3.5rem 2.5rem 3rem;
+        border-bottom: 1px solid var(--sl-color-gray-5);
+        background:
+            radial-gradient(ellipse 640px 380px at 74% 46%, rgb(85 255 85 / 0.10), transparent 68%),
+            radial-gradient(ellipse 520px 300px at 16% 30%, rgb(0 170 170 / 0.10), transparent 70%);
+        position: relative;
+    }
+    /*  Scanlines live on the marketing surfaces only; the docs reading column
+        gets none of this. */
+    .hero::after {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background: repeating-linear-gradient(
+            to bottom, rgb(0 0 0 / 0.3) 0, rgb(0 0 0 / 0.3) 1px, transparent 1px, transparent 3px);
+        opacity: 0.5;
+    }
+    .hero__row {
+        display: flex; flex-wrap: wrap; gap: 3rem; align-items: center;
+        position: relative; z-index: 1;
+    }
+    .hero__text { flex: 1 1 24rem; min-width: 0; max-width: 32rem; }
+    .hero__screen { flex: 3 1 38rem; min-width: 0; }
+
+    .kicker { font-size: 16px; line-height: 16px; color: var(--e-green); margin: 0 0 1.4rem; }
+    .wordmark {
+        font-size: 80px; line-height: 80px; font-weight: normal; margin: 0 0 1.2rem;
+        color: var(--e-green);
+        text-shadow: 0 0 26px rgb(85 255 85 / 0.45), 3px 3px 0 rgb(0 170 170 / 0.55);
+    }
+    .wordmark__b { color: var(--sl-color-white); text-shadow: 0 0 22px rgb(255 255 255 / 0.28); }
+    .lede { font-size: 19px; line-height: 1.58; color: var(--sl-color-gray-2); max-width: 34rem; margin: 0 0 1.6rem; text-wrap: pretty; }
+
+    .cta { display: flex; gap: 0.75rem; margin: 0; flex-wrap: wrap; }
+    .cta__primary {
+        font-size: 16px; line-height: 16px; background: var(--e-green); color: var(--sl-color-black);
+        padding: 14px 24px; box-shadow: 0 0 22px rgb(85 255 85 / 0.25);
+    }
+    .cta__primary:hover { color: var(--sl-color-black); background: var(--e-green-dim); }
+    .cta__secondary { font-size: 16px; line-height: 16px; border: 1px solid var(--sl-color-gray-5); color: var(--sl-color-gray-2); padding: 13px 24px; }
+    .cta__secondary:hover { border-color: var(--e-green); color: #ffffff; }
+    .screen__caption { font-size: 16px; line-height: 16px; color: var(--sl-color-gray-4); margin: 0.7rem 0 0; text-align: right; }
+
+    /*  Full width, below the hero row: the install command is ~95 characters
+        and was being clipped inside the text column. */
+    .install {
+        position: relative; z-index: 1;
+        display: flex; align-items: stretch; margin: 2.25rem 0 0;
+        /*  Wide enough for the ~95-character command plus the sigil and the
+            copy button, and no wider -- full-bleed made it read as a banner. */
+        max-width: 54rem;
+        border: 1px solid var(--sl-color-gray-5); background: #000000; overflow: hidden;
+    }
+    .install__sigil { flex-shrink: 0; font-size: 16px; line-height: 16px; color: var(--e-green); padding: 13px 0 13px 14px; }
+    .install code {
+        flex-grow: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
+        color: var(--sl-color-gray-2); padding: 12px 14px;
+    }
+    .install__copy {
+        flex-shrink: 0; cursor: pointer; font-size: 16px; line-height: 16px;
+        background: var(--sl-color-gray-6); color: var(--e-green); border: 0; border-left: 1px solid var(--sl-color-gray-5);
+        padding: 0 18px;
+    }
+    .install__copy:hover { background: var(--e-green); color: var(--sl-color-black); }
+    .install__copy.is-copied { background: #00aa00; color: var(--sl-color-black); }
+
+    .try {
+        display: flex; flex-wrap: wrap; gap: 3rem; align-items: center;
+        padding: 3.5rem 2.5rem; border-bottom: 1px solid var(--sl-color-gray-5);
+    }
+    .try__text { flex: 1 1 26rem; min-width: 0; }
+    .try__screen { flex: 1 1 30rem; min-width: 0; }
+    .try__lede { font-size: 17px; line-height: 1.6; color: var(--sl-color-gray-2); margin: 0 0 1.5rem; max-width: 34rem; text-wrap: pretty; }
+    .try__lede strong { color: var(--sl-color-white); }
+    .try__note { font-size: 14.5px; line-height: 1.6; color: var(--sl-color-gray-3); margin: 1.4rem 0 0; max-width: 32rem; }
+
+    .dial { margin: 0; display: grid; gap: 0.55rem; }
+    .dial__row { display: flex; gap: 0.9rem; align-items: baseline; }
+    .dial dt { flex: 0 0 5.5rem; font-size: 16px; line-height: 16px; color: var(--e-cyan); }
+    .dial dd { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.75rem; }
+    .dial__hint { font-size: 13.5px; color: var(--sl-color-gray-3); }
+    .dial__hint code { color: var(--e-green); }
+    .dial code {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
+        color: var(--sl-color-gray-2); background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-gray-5); padding: 2px 7px;
+    }
+
+    .community {
+        display: flex; flex-wrap: wrap; gap: 3rem;
+        padding: 3.5rem 2.5rem; border-top: 1px solid var(--sl-color-gray-5);
+    }
+    .community__col { flex: 1 1 24rem; min-width: 0; }
+    .origin { font-size: 15.5px; line-height: 1.68; color: var(--sl-color-gray-3); margin: 0; max-width: 34rem; text-wrap: pretty; }
+    .origin strong { color: var(--sl-color-gray-2); }
+    .help { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+    .help li { font-size: 15px; line-height: 1.5; color: var(--sl-color-gray-3); }
+    .help code {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
+        color: var(--e-green); background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-gray-5); padding: 1px 6px;
+    }
+
+    .features { padding: 3.5rem 2.5rem; }
+    .section-head { font-size: 16px; line-height: 16px; font-weight: normal; color: var(--e-green); margin: 0 0 1.6rem; }
+    .grid {
+        list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    }
+    .card { border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6); padding: 1.4rem; }
+    .card__title { font-size: 16px; line-height: 16px; font-weight: normal; color: var(--e-cyan-bright); margin: 0 0 0.75rem; }
+    .card__body { font-size: 14.5px; line-height: 1.62; color: var(--sl-color-gray-3); margin: 0; }
+
+    .foot {
+        display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; align-items: baseline;
+        justify-content: space-between; padding: 1.5rem 2.5rem 2.2rem;
+        border-top: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6);
+    }
+    .foot p { margin: 0; font-size: 16px; line-height: 16px; color: var(--sl-color-gray-4); }
+    /*  The wordmark is a bitmap face: it only lands on whole pixels at whole
+        multiples of 16px, so it steps down rather than scaling fluidly.
+        "ENiGMA½" is 7 cells wide, which at 80px is 280px -- wider than the
+        content box on a 320px phone. */
+    @media (max-width: 23rem) {
+        .wordmark {
+            font-size: 64px;
+            line-height: 64px;
+        }
+    }
+    @media (max-width: 20rem) {
+        .wordmark {
+            font-size: 48px;
+            line-height: 48px;
+        }
+    }
+
+    :root[data-theme='light'] .hero {
+        background: none;
+    }
+    :root[data-theme='light'] .hero::after {
+        display: none;
+    }
+    :root[data-theme='light'] .wordmark,
+    :root[data-theme='light'] .wordmark__b {
+        text-shadow: none;
+    }
+    :root[data-theme='light'] .cta__primary {
+        box-shadow: none;
+    }
+    /*  The install row is a terminal, and stays one in both themes -- the same
+        reasoning that keeps ANSI art and code blocks on black. */
+    :root[data-theme='light'] .install code {
+        color: #d9ded9;
+    }
+    :root[data-theme='light'] .install__copy {
+        background: #101810;
+        border-left-color: #2a332a;
+    }
+
+    .foot .attrib {
+        flex-basis: 100%; font-family: 'Source Sans 3', system-ui, sans-serif;
+        font-size: 12px; line-height: 1.5; color: var(--sl-color-gray-4); margin-top: 0.6rem;
+    }
+</style>
+
+<script>
+    //  Progressive enhancement. The command is selectable text either way, and
+    //  clipboard access can be refused (insecure origin, denied permission), so
+    //  a failure leaves the button alone rather than reporting an error.
+    document.querySelectorAll('[data-copy]').forEach(node => {
+        const btn = node as HTMLButtonElement;
+        btn.addEventListener('click', async () => {
+            const text = btn.dataset.copy;
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                const previous = btn.textContent;
+                btn.textContent = 'COPIED';
+                btn.classList.add('is-copied');
+                setTimeout(() => {
+                    btn.textContent = previous;
+                    btn.classList.remove('is-copied');
+                }, 1500);
+            } catch {
+                /*  clipboard unavailable; the text stays selectable */
+            }
+        });
+    });
+</script>

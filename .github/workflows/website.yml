@@ -1,0 +1,63 @@
+name: Website
+
+on:
+  push:
+    branches: [ master ]
+
+  pull_request:
+    #  core/rest/ is in here on purpose: the API spec check loads those route
+    #  modules, so adding an endpoint without documenting it should fail the
+    #  pull request that adds it, not be noticed months later.
+    paths:
+      - 'website/**'
+      - 'core/rest/**'
+      - '.github/workflows/website.yml'
+
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  website:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          #  package.json requires >=22
+          node-version: '22'
+          cache: npm
+          #  Two lockfiles: the BBS's own and the site's.
+          cache-dependency-path: |
+            package-lock.json
+            website/package-lock.json
+
+      - name: Install BBS dependencies
+        #  Needed by the API spec check, which loads core/rest/routes/ for real
+        #  rather than parsing it -- and those modules pull in the application's
+        #  whole dependency tree.
+        run: npm ci --include=dev
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Verify
+        working-directory: website
+        #  Builds the site, then fails on any broken internal link and on any
+        #  drift between openapi.yaml and the routes the server registers.
+        run: npm run verify
+
+      - name: Upload built site
+        #  Handy for eyeballing a change before it is published, and the same
+        #  artifact the publish step will eventually deploy.
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: website/dist
+          retention-days: 7

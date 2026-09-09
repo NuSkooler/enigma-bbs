@@ -41,7 +41,7 @@
         Please see RTFM ...er, uh... see the documentation for more information, and
         don't be shy to ask for help:
 
-        BBS     : Xibalba @ xibalba.l33t.codes
+        BBS     : Xibalba @ xibalba.vip
         FTN     : BBS Discussion on fsxNet
         IRC     : #enigma-bbs / FreeNode
         Email   : bryan@l33t.codes
@@ -55,10 +55,10 @@
         prettyBoardName : '|08XXXXX'
 
         // Telnet hostname and port for your board
-        telnetHostname  : 'xibalba.l33t.codes:44510'
+        telnetHostname  : 'xibalba.vip:44510'
 
         // SSH hostname and port for your board
-        sshHostname     : 'xibalba.l33t.codes:44511'
+        sshHostname     : 'xibalba.vip:44511'
 
         // Your board's website
         website         : 'https://enigma-bbs.github.io'

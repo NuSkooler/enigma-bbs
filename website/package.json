@@ -1,0 +1,26 @@
+{
+    "name": "enigma-bbs-website",
+    "type": "module",
+    "private": true,
+    "description": "ENiGMA\u00bd BBS \u2014 documentation and project site",
+    "scripts": {
+        "dev": "npm run api && astro dev",
+        "api": "node scripts/build-api-reference.mjs",
+        "build": "npm run api && astro build",
+        "preview": "astro preview",
+        "check": "astro check",
+        "check:links": "node scripts/check-links.mjs",
+        "check:api": "node scripts/check-api-spec.mjs",
+        "verify": "npm run build && npm run check:links && npm run check:api",
+        "build:shim": "node scripts/build-redirect-shim.mjs"
+    },
+    "devDependencies": {
+        "@astrojs/markdown-remark": "^7.3.1",
+        "@astrojs/starlight": "^0.42.0",
+        "@redocly/cli": "^2.51.2",
+        "astro": "^7.3.2",
+        "redoc": "^2.5.3",
+        "sharp": "^0.35.4",
+        "unist-util-visit": "^5.1.0"
+    }
+}

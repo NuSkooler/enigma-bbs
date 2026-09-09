@@ -1,0 +1,102 @@
+name: Publish website
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'website/**'
+      #  The API reference is generated from the spec, and the spec check reads
+      #  these, so a route change can change what gets published.
+      - 'core/rest/**'
+      - '.github/workflows/website-publish.yml'
+
+  workflow_dispatch:
+    inputs:
+      publish_redirects:
+        description: >-
+          Replace this repository's gh-pages (the CURRENT documentation at
+          nuskooler.github.io/enigma-bbs) with redirect stubs pointing at
+          enigma-bbs.github.io. This is the cutover. Only run it once the new
+          site is confirmed live.
+        type: boolean
+        default: false
+
+concurrency:
+  #  One deployed site, so runs queue rather than racing. Queued rather than
+  #  cancelled: a deploy interrupted part way is worse than a build that waits.
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          #  package.json requires >=22
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            website/package-lock.json
+
+      - name: Install BBS dependencies
+        #  The API spec check loads core/rest/routes/ for real, and those
+        #  modules pull in the application's whole dependency tree.
+        run: npm ci --include=dev
+
+      - name: Install website dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Verify
+        #  Nothing is published unless the site builds, every internal link
+        #  resolves, and the OpenAPI spec still matches the served routes.
+        working-directory: website
+        run: npm run verify
+
+      - name: Deploy to enigma-bbs.github.io
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          #  Cross-repository push, authenticated by the deploy key whose public
+          #  half is installed on the target. GITHUB_TOKEN cannot reach another
+          #  repository.
+          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          external_repository: enigma-bbs/enigma-bbs.github.io
+          publish_branch: gh-pages
+          publish_dir: ./website/dist
+          #  Astro emits _astro/, which GitHub's built-in Jekyll would skip
+          #  outright because of the leading underscore. The action writes
+          #  .nojekyll when this is false, which is the default -- being
+          #  explicit because the failure is silent and total.
+          enable_jekyll: false
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: 'deploy: ${{ github.sha }}'
+
+      #  --- the cutover, deliberately manual -------------------------------
+      #
+      #  This overwrites the documentation currently served at
+      #  nuskooler.github.io/enigma-bbs with redirect stubs. It never runs on a
+      #  push; it has to be asked for. The old content stays in this branch's
+      #  history, so it is one revert away.
+      - name: Build redirect shim
+        if: ${{ inputs.publish_redirects }}
+        working-directory: website
+        run: npm run build:shim
+
+      - name: Publish redirects over the old documentation URLs
+        if: ${{ inputs.publish_redirects }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./website/shim
+          enable_jekyll: false
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: 'redirect: documentation moved to enigma-bbs.github.io'

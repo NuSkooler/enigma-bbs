@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{{title}}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      body { padding: 0; margin: 0; }
+      /*  Redoc renders a standalone page with none of the site's chrome, so
+          give the reader a way back. */
+      .site-return {
+        display: block; padding: 11px 20px; background: #0a0d0a; color: #55ff55;
+        font: 16px/1.2 'IBM Plex Mono', ui-monospace, monospace;
+        text-decoration: none; border-bottom: 1px solid #1f261f;
+      }
+      .site-return:hover { color: #ffffff; }
+    </style>
+    {{{redocHead}}}
+  </head>
+  <body>
+    <a class="site-return" href="/servers/contentservers/rest-api/">&#8592; ENiGMA&#189; BBS docs</a>
+    {{{redocHTML}}}
+  </body>
+</html>

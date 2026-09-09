@@ -1,0 +1,138 @@
+---
+import { renderAnsiFile } from '../lib/ansi.js';
+
+//  `max` caps the cell height in px. Each character is max/2 wide, so the art
+//  tops out at cols * max/2 pixels wide regardless of how much room it has.
+const { src, alt, credit = true, max = '20px' } = Astro.props;
+
+//  Rendered at build time — the browser gets plain markup, no JS, no canvas.
+const { html, sauce, cols, unsupported } = renderAnsiFile(src);
+
+if (unsupported.length) {
+    console.warn(
+        `[AnsiArt] ${src} uses unsupported CSI sequences: ${unsupported.join(', ')} — ` +
+            `output may be wrong. This renderer handles SGR colour only.`
+    );
+}
+
+const by = [sauce?.author, sauce?.group].filter(Boolean).join(' / ');
+---
+
+<figure class="ansi-figure">
+    <pre
+        class="ansi"
+        style={`--ansi-cols:${cols}; --ansi-max:${max}`}
+        role="img"
+        aria-label={alt ?? sauce?.title ?? 'ANSI art'}
+        set:html={html}
+    />
+    {
+        credit && by && (
+            <figcaption class="ansi-credit">
+                ANSI by <span class="ansi-credit__by">{by}</span>
+            </figcaption>
+        )
+    }
+</figure>
+
+<style>
+    .ansi-figure {
+        margin: 0;
+        /* The art is a fixed character grid; let it scroll on narrow screens
+           rather than wrap, which would destroy it. */
+        overflow-x: auto;
+        overflow-y: hidden;
+        /* Size against THIS box, not the viewport, or the art overshoots its
+           container on wide screens. */
+        container-type: inline-size;
+    }
+
+    .ansi {
+        font-family: 'IBM VGA', ui-monospace, monospace;
+        -webkit-font-smoothing: none;
+
+        /* The glyph cell is 8x16, so at font-size F each character occupies
+           F/2 by F pixels. To fill width W with N columns: F = 2W/N.
+           line-height must be exactly 1 — anything more opens horizontal seams
+           between rows, because each span paints its own background. */
+        font-size: 16px; /* fallback: native 1x */
+        /* Snap to an even number of pixels so the half-width (F/2) also lands
+           on a whole pixel. Fractional cells produce hairline column gaps. */
+        font-size: round(
+            down,
+            clamp(8px, calc(200cqw / var(--ansi-cols)), var(--ansi-max, 20px)),
+            2px
+        );
+        line-height: 1;
+
+        letter-spacing: 0;
+        font-variant-ligatures: none;
+        font-kerning: none;
+        text-rendering: optimizeSpeed;
+
+        white-space: pre;
+        margin: 0;
+        display: inline-block;
+        background: #000;
+        padding: 0;
+    }
+
+    /* Backgrounds must tile with no seams between adjacent spans. */
+    .ansi :global(span) { display: inline; }
+
+    .ansi-credit {
+        margin-top: 0.6rem;
+        font-family: 'IBM VGA', ui-monospace, monospace;
+        -webkit-font-smoothing: none;
+        font-size: 16px;
+        line-height: 16px;
+        color: #4e5768;
+        text-transform: uppercase;
+        text-align: right;
+    }
+    .ansi-credit__by { color: oklch(0.78 0.13 335); }
+
+    /* --- palette --------------------------------------------------------
+       Indices are ANSI SGR order (fg = code - 30), NOT the VGA/DOS attribute
+       order. The two disagree on red and blue:
+
+         index   1      3       4      6
+         ANSI    red    yellow  blue   cyan
+         VGA     blue   cyan    red    brown
+
+       Getting these backwards renders the art in entirely wrong colours.
+       ------------------------------------------------------------------ */
+    .ansi :global(.f0)  { color: #000000; }
+    .ansi :global(.f1)  { color: #aa0000; }
+    .ansi :global(.f2)  { color: #00aa00; }
+    .ansi :global(.f3)  { color: #aa5500; }
+    .ansi :global(.f4)  { color: #0000aa; }
+    .ansi :global(.f5)  { color: #aa00aa; }
+    .ansi :global(.f6)  { color: #00aaaa; }
+    .ansi :global(.f7)  { color: #aaaaaa; }
+    .ansi :global(.f8)  { color: #555555; }
+    .ansi :global(.f9)  { color: #ff5555; }
+    .ansi :global(.f10) { color: #55ff55; }
+    .ansi :global(.f11) { color: #ffff55; }
+    .ansi :global(.f12) { color: #5555ff; }
+    .ansi :global(.f13) { color: #ff55ff; }
+    .ansi :global(.f14) { color: #55ffff; }
+    .ansi :global(.f15) { color: #ffffff; }
+
+    .ansi :global(.b0)  { background-color: #000000; }
+    .ansi :global(.b1)  { background-color: #aa0000; }
+    .ansi :global(.b2)  { background-color: #00aa00; }
+    .ansi :global(.b3)  { background-color: #aa5500; }
+    .ansi :global(.b4)  { background-color: #0000aa; }
+    .ansi :global(.b5)  { background-color: #aa00aa; }
+    .ansi :global(.b6)  { background-color: #00aaaa; }
+    .ansi :global(.b7)  { background-color: #aaaaaa; }
+    .ansi :global(.b8)  { background-color: #555555; }
+    .ansi :global(.b9)  { background-color: #ff5555; }
+    .ansi :global(.b10) { background-color: #55ff55; }
+    .ansi :global(.b11) { background-color: #ffff55; }
+    .ansi :global(.b12) { background-color: #5555ff; }
+    .ansi :global(.b13) { background-color: #ff55ff; }
+    .ansi :global(.b14) { background-color: #55ffff; }
+    .ansi :global(.b15) { background-color: #ffffff; }
+</style>
