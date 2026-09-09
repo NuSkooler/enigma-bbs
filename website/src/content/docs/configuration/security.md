@@ -8,7 +8,7 @@ Unlike in the golden era of BBSing, modern Internet-connected systems are prone 
 * Alternatives to insecure Telnet logins are built in: [SSH](https://en.wikipedia.org/wiki/Secure_Shell) and secure [WebSockets](https://en.wikipedia.org/wiki/WebSocket) for example.
 * A built in web server with [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) support (aka HTTPS).
 * Optional SSH public key authentication for passwordless logins over secure transports.
-* Optional [Two-Factor Authentication (2FA)](https://en.wikipedia.org/wiki/Multi-factor_authentication) via [One-Time-Password (OTP)](https://en.wikipedia.org/wiki/One-time_password) for users, supporting [Google Authenticator](http://google-authenticator.com/), [Time-Based One-Time Password Algorithm (TOTP, RFC-6238)](https://tools.ietf.org/html/rfc6238), and [HMAC-Based One-Time Password Algorithm (HOTP, RFC-4266)](https://tools.ietf.org/html/rfc4226).
+* Optional [Two-Factor Authentication (2FA)](https://en.wikipedia.org/wiki/Multi-factor_authentication) via [One-Time-Password (OTP)](https://en.wikipedia.org/wiki/One-time_password) for users, supporting [Google Authenticator](https://support.google.com/accounts/answer/1066447), [Time-Based One-Time Password Algorithm (TOTP, RFC-6238)](https://tools.ietf.org/html/rfc6238), and [HMAC-Based One-Time Password Algorithm (HOTP, RFC-4266)](https://tools.ietf.org/html/rfc4226).
 
 ## Protecting Sensitive Configuration
 

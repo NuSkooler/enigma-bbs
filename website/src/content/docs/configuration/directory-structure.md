@@ -12,11 +12,13 @@ All paths mentioned here are relative to the ENiGMA½ checkout directory.
 | `/config/menus`     | [menu.hjson](menu-hjson.md) storage.
 | `/config/security`  | SSL certificates and public/private keys.
 | `/db`               | All ENiGMA½ databases in SQLite3 format.
-| `/docs`             | These docs ;-)
-| `/dropfiles`        | Dropfiles created for [local doors](../modding/local-doors.md)
+| `/drop`             | Dropfiles created for [local doors](../modding/local-doors.md)
+| `/gopher`           | Static root for the [Gopher server](../servers/contentservers/gopher.md)
 | `/logs`             | Logs. See [Monitoring Logs](../troubleshooting/monitoring-logs.md)
+| `/mail`             | FTN mail for use with an external mailer. See [BSO Import / Export](../messageareas/bso-import-export.md)
 | `/misc`             | Stuff with no other home; reset password templates, common password lists, other random bits
 | `/mods`             | User mods. See [Modding](../modding/existing-mods.md)
 | `/node_modules`     | External libraries required by ENiGMA½, installed when you run `npm install`
 | `/util`             | Various tools used in running/debugging ENiGMA½
+| `/website`          | Source for [these docs](https://enigma-bbs.github.io) — an Astro + Starlight site
 | `/www`              | ENiGMA½'s built in webserver root directory

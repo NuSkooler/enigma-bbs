@@ -35,7 +35,7 @@ See [MCI](../mci.md) for general information on how to use views and common conf
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 ET1: {
   maxLength: @config:users.usernameMax
@@ -43,5 +43,5 @@ ET1: {
   focus: true
 }
 ```
-</div>
+
 </details>

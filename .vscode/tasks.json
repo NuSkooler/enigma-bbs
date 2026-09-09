@@ -2,14 +2,19 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Start Jekyll (ENiGMA½ documentation server)",
-            "command": "cd docs && bundle exec jekyll serve",
+            "label": "Start docs site (Astro dev server)",
+            "command": "cd website && npm run dev",
             "isBackground": true,
             "type": "shell"
         },
         {
-            "label": "(re)build Jekyll bundles",
-            "command": "cd docs && bundle install",
+            "label": "Build docs site",
+            "command": "cd website && npm run verify",
+            "type": "shell"
+        },
+        {
+            "label": "(re)build docs site node modules",
+            "command": "cd website && /bin/rm -rf node_modules && npm install",
             "type": "shell"
         },
         {

@@ -79,7 +79,7 @@ If the list is for display only (there is no form action associated with it) you
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 HM2: {
   focus: true
@@ -91,5 +91,5 @@ HM2: {
   ]
 }
 ```
-</div>
+
 </details>

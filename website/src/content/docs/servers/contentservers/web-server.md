@@ -2,9 +2,9 @@
 layout: page
 title: Web Server
 ---
-ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the [File Bases](../../modding/file-base-web-download-manager.md) registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
+ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the [File Base](../../filebase/web-access.md) registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
 
-# Configuration
+## Configuration
 
 By default the web server is not enabled. To enable it, you will need to at a minimum configure two keys in the `contentServers.web` section of `config.hjson`:
 
@@ -27,6 +27,8 @@ The following is a table of all configuration keys available under `contentServe
 |------|----------|-------------|
 | `domain` | Yes | Sets the domain, e.g. `bbs.yourdomain.com`. |
 | `http` | No | Sub configuration for HTTP (non-secure) connections. See **HTTP Configuration** below. |
+| `https` | No | Sub configuration for HTTPS (secure) connections. See **HTTPS Configuration** below. |
+| `staticRoot` | No | Path serving as the static/public root. Defaults to `enigma-bbs/www`. See **Static Root** below. |
 | `overrideUrlPrefix` | No | Instructs the system to be explicit when handing out URLs. Useful if your server is behind a transparent proxy. |
 
 ### HTTP Configuration
@@ -35,7 +37,7 @@ Entries available under `contentServers.web.http`:
 
 | Key | Required | Description |
 |------|----------|-------------|
-| `enable` | Yes | Set to `true` to enable this server.
+| `enabled` | Yes | Set to `true` to enable this server. Defaults to `false`. |
 | `port` | No | Override the default port of `8080`. |
 | `address` | No | Sets an explicit bind address. |
 
@@ -45,11 +47,11 @@ Entries available under `contentServers.web.https`:
 
 | Key | Required | Description |
 |------|----------|-------------|
-| `enable` | Yes | Set to `true` to enable this server.
-| `port` | No | Override the default port of `8080`. |
+| `enabled` | Yes | Set to `true` to enable this server. Defaults to `false`. |
+| `port` | No | Override the default port of `8443`. |
 | `address` | No | Sets an explicit bind address. |
-| `certPem` | Yes | Overrides the default certificate path of `/config/https_cert.pem`. Certificate must be in PEM format. See **Certificates** below. |
-| `keyPem` | Yes | Overrides the default certificate key path of `/config/https_cert_key.pem`. Key must be in PEM format. See **Certificates** below. |
+| `certPem` | No | Overrides the default certificate path of `config/https_cert.pem`. Certificate must be in PEM format. See **Certificates** below. |
+| `keyPem` | No | Overrides the default certificate key path of `config/https_cert_key.pem`. Key must be in PEM format. See **Certificates** below. |
 
 #### Certificates
 

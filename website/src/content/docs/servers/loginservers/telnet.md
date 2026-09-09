@@ -10,7 +10,7 @@ The following configuration can be made in `config.hjson` under the `loginServer
 
 | Key | Required | Description |
 |------|----------|-------------|
-| `enabled` | No Defaults to `true`. Set to `false` to disable Telnet |
+| `enabled` | No | Defaults to `true`. Set to `false` to disable Telnet. |
 | `port` | No | Override the default port of `8888`. |
 | `address` | No | Sets an explicit bind address. |
 | `firstMenu` | No | First menu a telnet connected user is presented with. Defaults to `telnetConnected`. |

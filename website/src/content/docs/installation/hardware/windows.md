@@ -62,7 +62,7 @@ Install [7-Zip](https://www.7-zip.org/download.html) and add it to your `PATH`:
     node .\oputil.js config new
     ```
 
-4. Edit your configuration files in `enigma-bbs\config` with [Notepad++](https://notepad-plus-plus.org/download/) or [Visual Studio Code](https://code.visualstudio.com/Download).
+4. Edit your configuration files in `enigma-bbs\config` with [Notepad++](https://notepad-plus-plus.org/downloads/) or [Visual Studio Code](https://code.visualstudio.com/Download).
 
 5. Run ENiGMA½:
     ```powershell

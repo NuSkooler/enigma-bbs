@@ -43,6 +43,6 @@ If you don't have any telnet software, these are compatible with ENiGMA½:
 * [SyncTERM](http://syncterm.bbsdev.net/)
 * [EtherTerm](https://github.com/M-griffin/EtherTerm)
 * [NetRunner](http://mysticbbs.com/downloads.html)
-* [MagiTerm](https://magickabbs.com/utils/)
+* [MagiTerm](https://gitlab.com/magickabbs/MagiTerm)
 * [VTX](https://github.com/codewar65/VTX_ClientServer) (Browser based)
 * [fTelnet](https://www.ftelnet.ca/) (Browser based)

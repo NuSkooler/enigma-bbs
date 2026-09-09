@@ -168,7 +168,7 @@ A BSO flow file stores an **absolute path** to each file queued for a node. If t
 
 `flowRefWarnRepeatMs` (default `60 * 60 * 1000`, i.e. 1 hour) is how often that warning repeats for the same reference. It repeats because the condition is a standing fault rather than an event: nothing fixes it on its own, and saying it once per process meant it scrolled away long before anyone looked.
 
-Raise it if you have a dangling reference you already know about and have not dealt with yet. To see what is affected and act on it, use [`oputil bso status`]({{ site.baseurl }}/docs/admin/oputil.html) — and note that a node whose queued entries have *all* gone missing is deliberately not polled, so that command is the only place it shows up.
+Raise it if you have a dangling reference you already know about and have not dealt with yet. To see what is affected and act on it, use [`oputil bso status`](../admin/oputil.md) — and note that a node whose queued entries have *all* gone missing is deliberately not polled, so that command is the only place it shows up.
 
 #### `flowLockTimeoutMs`
 

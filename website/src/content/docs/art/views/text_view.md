@@ -48,11 +48,11 @@ Otherwise, setting `textOverflow` to one or more characters will truncate the va
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 TL1: {
   text: Text label
 }
 ```
-</div>
+
 </details>

@@ -100,7 +100,7 @@ Otherwise, setting `textOverflow` to one or more characters will truncate the va
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 FM1: {
   submit: true
@@ -127,7 +127,7 @@ FM1: {
 }
 
 ```
-</div>
+
 </details>
 
 ### A simple horizontal menu - similar to HM
@@ -136,7 +136,7 @@ FM1: {
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 FM2: {
   focus: true
@@ -149,7 +149,7 @@ FM2: {
   ]
 }
 ```
-</div>
+
 </details>
 
 ### A multi-column navigation menu with hotkeys
@@ -159,7 +159,7 @@ FM2: {
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 FM1: {
   focus: true
@@ -245,6 +245,6 @@ FM1: {
   ]
 }
 ```
-</div>
+
 </details>
 

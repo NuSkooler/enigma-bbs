@@ -2,7 +2,7 @@
 layout: page
 title: File Transfer Protocol Select
 ---
-## The Rumorz Module
+## The File Transfer Protocol Select Module
 The built in `file_transfer_protocol_select` module provides a way to select a legacy file transfer protocol (X/Y/Z-Modem, etc.) for upload/downloads.
 
 ## Configuration

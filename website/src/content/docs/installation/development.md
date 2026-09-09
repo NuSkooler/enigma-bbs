@@ -17,13 +17,17 @@ That's it! Visual Studio Code should prompt you for everything else that is need
 
 Once it completes, there are a few tasks and run-configs that are useful.  Open up the command pallete and search/choose "Tasks> Run Task". From there you can run the following tasks:
 
-### Start Jekyll (ENiGMA½ documentation server)
+### Start docs site (Astro dev server)
 
-This task will start the Jekyll server to perform local testing of changes to documentation. After running this task, open a browser to (http://localhost:4000/enigma-bbs/) to see the documentation.
+Starts the documentation site's dev server for local testing of documentation changes. After running this task, open a browser to <http://localhost:4321> to see the docs with live reload as you edit.
 
-### (re)build Jekyll bundles
+### Build docs site
 
-When the image is created the Jekyll bundles are installed, so in general there shouldn't be much need to run this task. This is available however in case something goes wrong or you are working on the Jekyll setup itself.
+Runs `npm run verify` in `website/` — a production build followed by the internal link check and the OpenAPI spec check. Run this before opening a documentation PR; CI runs the same thing.
+
+### (re)build docs site node modules
+
+Re-installs the documentation site's dependencies under `website/`. Generally unnecessary unless something is broken or you are changing versions.
 
 ### (re)build node modules
 

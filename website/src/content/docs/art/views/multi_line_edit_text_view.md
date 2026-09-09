@@ -50,7 +50,7 @@ With mode preview, scrolling the contents is allowed, but is not with read-only.
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 ML1: {
   width: 79
@@ -67,5 +67,5 @@ MT1: {
   hyperlinks: true
 }
 ```
-</div>
+
 </details>
