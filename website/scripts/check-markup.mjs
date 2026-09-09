@@ -52,15 +52,20 @@ function proseOf(html) {
     const end = body.indexOf('<footer');
     if (end !== -1) body = body.slice(0, end);
 
-    //  Case-insensitive throughout: HTML tag names are not case sensitive, and a
-    //  <SCRIPT> that survived the strip would land in the prose and trip the very
-    //  patterns this function exists to isolate them from.
+    //  Two things about these patterns, both of which HTML allows and a naive
+    //  regex misses. Tag names are case insensitive, so <SCRIPT> has to match.
+    //  And a closing tag may carry whitespace before its '>', so </script > is
+    //  a real end tag. Either miss leaves the element's contents in the text
+    //  this check then scans for markdown syntax -- a script body containing
+    //  "](" would be reported as an unrendered link on a page that is fine.
+    const element = name => new RegExp(`<${name}[\\s\\S]*?</${name}\\s*>`, 'gi');
+
     return body
-        .replace(/<figure class="frame[\s\S]*?<\/figure>/gi, ' ')
-        .replace(/<code[\s\S]*?<\/code>/gi, ' ')
-        .replace(/<pre[\s\S]*?<\/pre>/gi, ' ')
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<figure class="frame[\s\S]*?<\/figure\s*>/gi, ' ')
+        .replace(element('code'), ' ')
+        .replace(element('pre'), ' ')
+        .replace(element('script'), ' ')
+        .replace(element('style'), ' ')
         .replace(/<[^>]+>/g, ' ')
         .replace(/&#x3C;/g, '<')
         .replace(/&lt;/g, '<')
