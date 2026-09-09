@@ -159,12 +159,16 @@
     border-color: #1c3a1c;
     background: #0a140a;
 }
-.starlight-aside--note .starlight-aside__title { color: var(--e-cyan); }
+.starlight-aside--note .starlight-aside__title {
+    color: var(--e-cyan);
+}
 .starlight-aside--tip {
     border-color: #16383a;
     background: #071414;
 }
-.starlight-aside--tip .starlight-aside__title { color: var(--e-cyan-bright); }
+.starlight-aside--tip .starlight-aside__title {
+    color: var(--e-cyan-bright);
+}
 
 /*  Tables: the config reference is the most-read shape in these docs. */
 .sl-markdown-content table {

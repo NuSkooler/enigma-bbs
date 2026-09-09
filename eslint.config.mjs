@@ -32,6 +32,9 @@ export default [
             '.vscode/**', //  editor-local, and JSONC rather than JSON
             'website/dist/**', //  Astro build output
             'website/.astro/**', //  Astro's generated types and content store
+            'website/public/api/**', //  vendored Redoc bundle + generated page
+            'website/src/pages/api/**', //  generated API reference page
+            'website/shim/**', //  generated redirect stubs
         ],
     },
 
