@@ -456,7 +456,7 @@ See also: [Menu Modules](./website/src/content/docs/modding/menu-modules.md).
   * Added kex: 'curve25519-sha256', 'curve25519-sha256@libssh.org', 'curve25519-sha256', 'curve25519-sha256@libssh.org', 'ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521'
 
 ## 0.0.12-beta to 0.0.13-beta
-* To enable the new Waiting for Caller (WFC) support, please see [WFC](docs/modding/wfc.md).
+* To enable the new Waiting for Caller (WFC) support, please see [WFC](./website/src/content/docs/modding/wfc.md).
 * :exclamation: The SSH server's `ssh2` module has gone through a major upgrade. Existing users will need to comment out two SSH KEX algorithms from their `config.hjson` if present else clients such as NetRunner will not be able to connect over SSH. Comment out `diffie-hellman-group-exchange-sha256` and `diffie-hellman-group-exchange-sha1`
 * Gopher configuration change. See [WHATSNEW](WHATSNEW.md)
 * All features and changes are backwards compatible. There are a few new configuration options in a new `term` section in the configuration. These are all optional, but include the following options in case you use them:
@@ -585,7 +585,7 @@ sqlite> INSERT INTO message_fts(message_fts) VALUES('rebuild');
 ```
 
 ### Archiver Changes
-If you have overridden or made additions to archivers in your `config.hjson` you will need to update them. See [Archive Configuration](docs/archive.md) and `core/config.js`
+If you have overridden or made additions to archivers in your `config.hjson` you will need to update them. See [Archive Configuration](./website/src/content/docs/configuration/archivers.md) and `core/config.js`
 
 ### File Base Configuration
-As 0.0.4-alpha contains file bases, you'll want to create a suitable configuration if you wish to use the feature. See [File Base Configuration](docs/file_base.md).
+As 0.0.4-alpha contains file bases, you'll want to create a suitable configuration if you wish to use the feature. See [File Base Configuration](./website/src/content/docs/filebase/index.md).
