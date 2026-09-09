@@ -1,0 +1,30 @@
+#  Theming for the rendered API reference (npm run api).
+#
+#  Redoc emits a standalone page rather than a Starlight one, so it cannot
+#  inherit the site's stylesheet. These few values keep it recognisably part of
+#  the same site rather than stock Redoc blue. Light-side palette, because the
+#  reference is a long-form reading surface and Redoc's layout assumes light.
+openapi:
+  hideDownloadButton: false
+  theme:
+    colors:
+      primary:
+        main: '#007a00'
+      success:
+        main: '#007a00'
+      text:
+        primary: '#1d2118'
+        secondary: '#3a4034'
+    typography:
+      fontFamily: "'Source Sans 3', ui-sans-serif, system-ui, sans-serif"
+      headings:
+        fontFamily: "'Source Sans 3', ui-sans-serif, system-ui, sans-serif"
+      code:
+        fontFamily: "'IBM Plex Mono', ui-monospace, monospace"
+        color: '#005f5f'
+    rightPanel:
+      backgroundColor: '#14170f'
+    sidebar:
+      backgroundColor: '#f4f7f0'
+      textColor: '#1d2118'
+      activeTextColor: '#007a00'

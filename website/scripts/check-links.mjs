@@ -49,13 +49,14 @@ for (const f of files.filter(f => f.endsWith('.html'))) {
         const path = raw.split('#')[0].split('?')[0];
         if (!path) continue;
 
-        //  A relative target that survived to the output is itself a bug: every
-        //  internal link should have been resolved to a root-relative route.
-        if (!path.startsWith('/')) {
-            problems.push([rel(f), raw, 'unresolved relative link']);
-            continue;
-        }
-        if (!served.has(path) && !served.has(path + '/')) {
+        //  Relative targets are legitimate -- the generated API reference loads
+        //  its bundle as a sibling -- so resolve them against the page rather
+        //  than rejecting them outright.
+        const resolved = path.startsWith('/')
+            ? path
+            : posix.resolve('/' + posix.dirname(rel(f)), path);
+
+        if (!served.has(resolved) && !served.has(resolved + '/')) {
             problems.push([rel(f), raw, 'target not built']);
         }
     }
