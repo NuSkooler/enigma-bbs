@@ -330,9 +330,15 @@ module.exports = {
     'scannerTossers.ftn_bso.netMail.routes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.nodes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.tempDir': { type: 'string' },
+    //  null, false and '' all mean "no default network" -- every network gets
+    //  its own suffixed directory and nothing lands in outbound/. See
+    //  resolveDefaultNetworkName() in core/bso_util.js, which is explicit about
+    //  it, and the BSO Import / Export docs, which document setting it to null.
     'scannerTossers.ftn_bso.defaultNetwork': {
         type: 'string',
-        description: 'Network whose outbound goes in the unsuffixed directory.',
+        nullable: true,
+        description:
+            'Network whose outbound goes in the unsuffixed directory; null for none.',
     },
     'scannerTossers.ftn_bso.schedule': { type: 'object' },
     'scannerTossers.ftn_bso.packetTargetByteSize': {

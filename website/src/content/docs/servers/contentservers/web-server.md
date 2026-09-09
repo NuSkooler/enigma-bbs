@@ -10,7 +10,7 @@ ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTT
 
 By default the web server is not enabled. To enable it, you will need to at a minimum configure two keys in the `contentServers.web` section of `config.hjson`:
 
-```js
+```hjson
 contentServers: {
     web: {
         domain: bbs.yourdomain.com

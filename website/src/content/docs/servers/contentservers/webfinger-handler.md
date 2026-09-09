@@ -14,7 +14,7 @@ The WebFinger ([webfinger.js](https://github.com/NuSkooler/enigma-bbs/blob/maste
 ## Configuration
 By default, the WebFinger handler is not enabled. To enable, at a minimum set `contentServers.web.handlers.webFinger.enabled` to `true` in `config.hjson`:
 
-```js
+```hjson
 contentServers: {
     web: {
         handlers: {
@@ -35,7 +35,7 @@ contentServers: {
 ### Profile Template
 A profile template file can offer flexibility as to what information, the format, and MIME type served by the [profile-page](https://webfinger.net/rel/profile-page/) WebFinger query. Set the `profileTemplate` key in your `webFinger` configuration block to a path to serve as the template. The MIME type will be determined by the file's extension:
 
-```js
+```hjson
 contentServers: {
     web: {
         handlers: {

@@ -25,7 +25,7 @@ Full ActivityPub support requires the [Web Server](./web-server.md) module be en
 | ActivityPub | `activityPub` | Described within this file | disabled |
 
 **Example**
-```js
+```hjson
 contentServers: {
     web: {
         handlers: {

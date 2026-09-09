@@ -11,12 +11,13 @@
         "check": "astro check",
         "check:links": "node scripts/check-links.mjs",
         "check:api": "node scripts/check-api-spec.mjs",
-        "verify": "npm run build && npm run check:links && npm run check:nav && npm run check:markup && npm run check:api",
+        "verify": "npm run build && npm run check:links && npm run check:nav && npm run check:markup && npm run check:api && npm run check:config",
         "build:shim": "node scripts/build-redirect-shim.mjs",
         "check:nav": "node scripts/check-nav.mjs",
         "release-notes": "node scripts/build-release-notes.mjs",
         "check:markup": "node scripts/check-markup.mjs",
-        "check:external": "node scripts/check-external-links.mjs"
+        "check:external": "node scripts/check-external-links.mjs",
+        "check:config": "node scripts/check-config-examples.mjs"
     },
     "devDependencies": {
         "@astrojs/markdown-remark": "^7.3.1",
