@@ -10,8 +10,8 @@ ENV NVM_DIR /root/.nvm
 ENV DEBIAN_FRONTEND noninteractive
 
 
-# Just copy the package.json so it only needs to build once
-COPY package.json /enigma-bbs/
+# Just copy the manifest and its lockfile so it only needs to build once
+COPY package.json package-lock.json /enigma-bbs/
 
 # Install APT and NPM packages
 RUN apt-get update \
@@ -29,10 +29,10 @@ RUN apt-get update \
     dos2unix \
     && npm set progress=false && npm config set depth 0 \
     && npm install -g pm2 \
-    && cd /enigma-bbs && npm install
+    && cd /enigma-bbs && npm ci
 
 
-# Do this after npm install to avoid cache-miss on every code change
+# Do this after npm ci to avoid cache-miss on every code change
 COPY . /enigma-bbs
 
 # Then run post source copy steps that have to happen every time
