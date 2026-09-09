@@ -23,6 +23,10 @@ export default defineConfig({
         '/configuration/sysop-setup/': '/admin/administration/',
         '/filebase/uploads/': '/filebase/acs/',
         '/filebase/web-access/': '/filebase/',
+        '/installation/hardware/windows/': '/installation/windows/',
+        '/installation/hardware/rpi/': '/installation/raspberry-pi/',
+        '/installation/development/': '/contributing/development/',
+        '/configuration/colour-codes/': '/art/colour-codes/',
         '/misc/user-interrupt/': '/modding/user-interrupt/',
         '/modding/activitypub-msg-browser/': '/modules/activitypub-msg-browser/',
         '/modding/activitypub-msg-viewer/': '/modules/activitypub-msg-viewer/',
@@ -145,6 +149,7 @@ export default defineConfig({
                         'art/mci',
                         'art/themes',
                         'art/pause-prompts',
+                        'art/colour-codes',
                         {
                             label: 'Views',
                             items: [{ autogenerate: { directory: 'art/views' } }],
@@ -196,6 +201,10 @@ export default defineConfig({
                 {
                     label: 'Troubleshooting',
                     items: [{ autogenerate: { directory: 'troubleshooting' } }],
+                },
+                {
+                    label: 'Contributing',
+                    items: [{ autogenerate: { directory: 'contributing' } }],
                 },
             ],
         }),

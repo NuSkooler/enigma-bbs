@@ -1,8 +1,8 @@
 ---
-title: Installation Under Windows
+title: Windows
 description: "Install ENiGMA½ on Windows, including Visual Studio Build Tools for the native modules."
 sidebar:
-    order: 5
+    order: 4
 ---
 ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.
 
@@ -39,7 +39,7 @@ Install [7-Zip](https://www.7-zip.org/download.html) and add it to your `PATH`:
 4. Click `New` and paste the path to 7-Zip (e.g. `C:\Program Files\7-Zip`)
 5. Close and reopen your console — type `7z` to verify it works
 
-(See [Archivers](../../configuration/archivers.md) for additional archive utilities.)
+(See [Archivers](../configuration/archivers.md) for additional archive utilities.)
 
 ---
 
@@ -69,9 +69,9 @@ Install [7-Zip](https://www.7-zip.org/download.html) and add it to your `PATH`:
     node .\main.js
     ```
 
-Then [test your installation](../testing.md).
+Then [test your installation](testing.md).
 
-See [Production Installation](../production.md) when you are ready to go live.
+See [Production Installation](production.md) when you are ready to go live.
 
 ---
 

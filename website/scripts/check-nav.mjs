@@ -57,15 +57,17 @@ for (const f of files) {
     routes.delete(dir ? `/${dir}/` : '/');
 }
 
-//  The sidebar is identical on every doc page, so one is enough. Pick a doc
-//  page rather than the landing page, which has no sidebar at all.
-const sample = files.find(f => relative(DIST, f).startsWith('installation'));
+//  The sidebar is identical on every doc page, so one is enough -- but it has to
+//  be a real page. The landing page has no sidebar, and neither does a redirect
+//  stub, so pick the first file that actually contains one.
+const MARKER = 'id="starlight__sidebar"';
+const sample = files.find(f => readFileSync(f, 'utf8').includes(MARKER));
 if (!sample) {
-    console.error('nav check: no documentation page found in dist/');
+    console.error('nav check: no page with a sidebar found in dist/');
     process.exit(1);
 }
 const html = readFileSync(sample, 'utf8');
-const nav = html.slice(html.indexOf('id="starlight__sidebar"'));
+const nav = html.slice(html.indexOf(MARKER));
 const navEnd = nav.indexOf('</nav>');
 const sidebar = navEnd === -1 ? nav : nav.slice(0, navEnd);
 

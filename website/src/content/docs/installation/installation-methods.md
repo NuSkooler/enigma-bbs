@@ -11,8 +11,8 @@ There are multiple ways of installing ENiGMA BBS, depending on your level of exp
 | [Installation Script](install-script.md) | Linux, BSD, macOS | You want the quickest route. Installs Node.js via mise, clones ENiGMA½, and walks you through an initial configuration |
 | [Docker](docker.md) | Linux, BSD, macOS, Windows | You want easy upgrades and no dependencies on the host |
 | [Manual](manual.md) | Linux, BSD, macOS | You would rather install the prerequisites and clone the source yourself |
-| [Windows](hardware/windows.md) | Windows | You are installing natively on Windows — needs Visual Studio Build Tools for the native modules |
-| [Raspberry Pi](hardware/rpi.md) | Raspberry Pi OS | Notes specific to the Pi, then the install script |
+| [Windows](windows.md) | Windows | You are installing natively on Windows — needs Visual Studio Build Tools for the native modules |
+| [Raspberry Pi](raspberry-pi.md) | Raspberry Pi OS | Notes specific to the Pi, then the install script |
 
 ## After Installing
 
@@ -33,5 +33,5 @@ get familiar with [running the board day to day](../admin/administration.md).
 
 :::note
 Looking to work on ENiGMA½ itself rather than run a board? See
-[Development Environment Setup](development.md).
+[Development Environment Setup](../contributing/development.md).
 :::

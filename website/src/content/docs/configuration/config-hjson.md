@@ -47,7 +47,7 @@ Below is a list of various configuration sections. There are many more, but this
 * [Access Condition System (ACS)](acs.md): Gate menus, areas and actions on who the user is.
 * [Achievements](achievements.md): Reward users for posting, uploading and calling.
 * [Archivers](archivers.md): External archive utilities for ZIP, ARJ, RAR, and so on.
-* [Colour Codes](colour-codes.md): Renegade-style pipe codes used throughout your config.
+* [Colour Codes](../art/colour-codes.md): Renegade-style pipe codes used throughout your config.
 * [Directory Structure](directory-structure.md): What lives where in an installation.
 * [Email](email.md): SMTP and IMAP for password resets, 2FA and internet mail.
 * [Event Scheduler](event-scheduler.md): Set up events as you see fit!

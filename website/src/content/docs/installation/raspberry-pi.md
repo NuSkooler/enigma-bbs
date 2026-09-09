@@ -2,7 +2,7 @@
 title: Raspberry Pi
 description: "Set up a Raspberry Pi for ENiGMA½, from Raspberry Pi OS Lite through to the install script."
 sidebar:
-    order: 6
+    order: 5
 ---
 
 All Raspberry Pi models work great with ENiGMA½! Keep in mind compiling the dependencies with
@@ -22,8 +22,8 @@ complete.
 
 4. Install required packages: `sudo apt install git lrzsz p7zip-full`
 
-5. Follow the [installation instructions](../install-script.md) to install ENiGMA½.
+5. Follow the [installation instructions](install-script.md) to install ENiGMA½.
 
-6. [Test your installation](../testing.md).
+6. [Test your installation](testing.md).
 
 7. Profit!
