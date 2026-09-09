@@ -230,14 +230,14 @@ module.exports = () => {
                 //  1 - Generate a Private Key (PK):
                 //  Currently ENiGMA 1/2 requires a PKCS#1 PEM formatted PK.
                 //  For information on generating a key, see:
-                //  https://nuskooler.github.io/enigma-bbs/servers/loginservers/ssh.html#generate-a-ssh-private-key
+                //  https://enigma-bbs.github.io/servers/loginservers/ssh/#generate-a-ssh-private-key
                 //
                 //  2 - Set 'privateKeyPass' to the password you used in step #1
                 //
                 //  3 - Finally, set 'enabled' to 'true'
                 //
                 //  Additional reading:
-                //  - https://nuskooler.github.io/enigma-bbs/servers/loginservers/ssh.html
+                //  - https://enigma-bbs.github.io/servers/loginservers/ssh/
                 //
                 privateKeyPem: paths.join(
                     __dirname,

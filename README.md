@@ -38,7 +38,7 @@ Below are just some of the features ENiGMA½ supports out of the box:
  ...and much much more. Please check out [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features!
 
 ## Documentation
-[Browse the docs online](https://nuskooler.github.io/enigma-bbs/). Be sure to checkout the [/docs/](./website/src/content/docs/) folder as well for the latest and greatest documentation.
+[Browse the docs online](https://enigma-bbs.github.io/). The same content lives in [website/src/content/docs/](./website/src/content/docs/) if you would rather read it here, and pull requests against it are welcome.
 
 ## Installation
 On most *nix systems simply run the following from your terminal:
@@ -46,7 +46,7 @@ On most *nix systems simply run the following from your terminal:
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
-Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
+Please see [Installation Methods](https://enigma-bbs.github.io/installation/installation-methods/) for Windows, Docker, and so on...
 
 ## Donating
 If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSkooler/donate)<br/>
@@ -76,7 +76,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ## Special Thanks
 (in no particular order)
-* [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) and [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
+* [Dave Stephens aka RiPuk](https://github.com/davestephens) for the original [ENiGMA website](https://github.com/ENiGMA-BBS/enigma-bbs.github.io) and KICK ASS documentation, code contributions, etc.
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
