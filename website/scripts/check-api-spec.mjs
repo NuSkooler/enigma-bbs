@@ -24,7 +24,25 @@ const stubServer = { addRoute: r => registered.push(r) };
 const stubLog = new Proxy({}, { get: () => () => {} });
 
 for (const file of readdirSync(ROUTES_DIR).filter(f => f.endsWith('.js'))) {
-    const mod = require(resolve(ROUTES_DIR, file));
+    let mod;
+    try {
+        mod = require(resolve(ROUTES_DIR, file));
+    } catch (err) {
+        //  The route modules reach into the BBS itself, so they drag in the
+        //  whole application dependency tree -- better-sqlite3, sharp, ssh2 and
+        //  friends. Those live in the repo root's node_modules, not this
+        //  package's, and a contributor who only set up website/ would otherwise
+        //  get a bare MODULE_NOT_FOUND with no idea why a docs check wants sqlite.
+        if (err.code === 'MODULE_NOT_FOUND') {
+            console.error(
+                `[api spec] cannot load core/rest/routes/${file}: ${err.message.split('\n')[0]}\n\n` +
+                    `  This check loads the real route modules, which depend on the BBS's own\n` +
+                    `  packages. Run \`npm ci\` in the repository root as well as in website/.`
+            );
+            process.exit(1);
+        }
+        throw err;
+    }
     if (typeof mod.register !== 'function') continue;
     mod.register(stubServer, stubLog);
 }
