@@ -48,6 +48,23 @@ const assert = require('assert');
 const _ = require('lodash');
 
 exports.Client = Client;
+exports.getCtermVersion = getCtermVersion;
+
+//
+//  CTerm answers DA with the "CTerm" prefix followed by its revision, dots
+//  turned into semi-colons: '67;84;101;114;109;1;332' is revision 1.332. A
+//  fork appends a further component rather than incrementing one of these, so
+//  whatever follows the prefix is kept as-is.
+//
+//  See https://syncterm.bbsdev.net/cterm.html
+//
+function getCtermVersion(deviceAttr) {
+    const revision = deviceAttr.split(';').slice(5);
+    if (!revision.length || revision.some(part => !/^(?:0|[1-9][0-9]*)$/.test(part))) {
+        return null;
+    }
+    return revision.join('.');
+}
 
 //  :TODO: Move all of the key stuff to it's own module
 
@@ -348,6 +365,9 @@ function Client(/*input, output*/) {
                 var termClient = self.getTermClient(parts[1]);
                 if (termClient) {
                     self.term.termClient = termClient;
+                    if ('cterm' === termClient) {
+                        self.term.ctermVersion = getCtermVersion(parts[1]);
+                    }
                 }
             } else if ((parts = RE_CTERM_CAP_RESPONSE_ANYWHERE.exec(s))) {
                 self.emit('cterm capability response', {

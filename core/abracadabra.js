@@ -87,7 +87,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
     //  rather than a socket; those setups say so with |commType|.
     //
     getDropFileCommType() {
-        const defaultCommType = 'socket' === this.doorIo ? 'socket' : 'local';
+        const defaultCommType = this.defaultDropFileCommType();
         const commType = _.isString(this.config.commType)
             ? this.config.commType.toLowerCase()
             : '';
@@ -96,7 +96,15 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             return defaultCommType;
         }
 
-        if (!DropFile.ValidCommTypes.includes(commType)) {
+        //
+        //  A BBSDEV.DRP type is passed through even when it is wrong: DropFile
+        //  owns that judgement, and it refuses the file rather than coercing
+        //  the door onto a channel it was not given.
+        //
+        if (
+            !this.isBbsDevDropFile() &&
+            !DropFile.validCommTypes(this.config.dropFileType).includes(commType)
+        ) {
             this.client.log.warn(
                 { name: this.config.name, commType: this.config.commType },
                 `Invalid door "commType"; using "${defaultCommType}"`
@@ -105,6 +113,38 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         }
 
         return commType;
+    }
+
+    //
+    //  BBSDEV.DRP separates a door on standard streams from one on the local
+    //  console, so an |io: stdio| door says so by name. The legacy formats
+    //  have no such token and report 'local' for both.
+    //
+    defaultDropFileCommType() {
+        if ('socket' === this.doorIo) {
+            return 'socket';
+        }
+        return this.isBbsDevDropFile() ? 'stdio' : 'local';
+    }
+
+    isBbsDevDropFile() {
+        return 'BBSDEV' === (this.config.dropFileType || '').toUpperCase();
+    }
+
+    //
+    //  BBSDEV.DRP is discovered through the environment, not an argument: the
+    //  door reads BBSDEV_DRP itself, so the path is neither quoted nor shell
+    //  escaped. A sysop's |env| still replaces our own environment, as it
+    //  always has; the variable is added to whichever one the door gets.
+    //
+    doorEnvironment(env) {
+        if (!this.dropFile || 'BBSDEV' !== this.dropFile.fileType) {
+            return env;
+        }
+
+        return Object.assign({}, env || process.env, {
+            BBSDEV_DRP: this.dropFile.fullPath,
+        });
     }
 
     incrementActiveDoorNodeInstances() {
@@ -188,6 +228,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                     self.dropFile = new DropFile(self.client, {
                         fileType: self.config.dropFileType,
                         commType: self.getDropFileCommType(),
+                        commParams: self.config.commParams,
                     });
 
                     return self.dropFile.createFile(callback);
@@ -221,7 +262,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             io: this.doorIo,
             encoding: this.config.encoding || 'cp437',
             node: this.client.node,
-            env: this.config.env,
+            env: this.doorEnvironment(this.config.env),
         };
 
         exeInfo.dropFileDir = DropFile.dropFileDirectory(

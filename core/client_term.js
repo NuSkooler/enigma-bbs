@@ -48,6 +48,10 @@ function ClientTerminal(output) {
 
     this.currentSyncFont = 'not_set';
 
+    //  CTerm revision, e.g. '1.332', set from the DA response; null until a
+    //  terminal identifies itself as CTerm
+    this.ctermVersion = null;
+
     //  Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
     this.env = {};
 

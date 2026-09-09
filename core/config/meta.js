@@ -100,6 +100,11 @@ module.exports = {
         description:
             'Simultaneous connections allowed across every login server. 0 for unlimited.',
     },
+    'general.language': {
+        type: 'string',
+        description:
+            "BCP 47 language tag for the board, e.g. 'en-US'. Reported to doors; ENiGMA½ itself is not translated.",
+    },
 
     //  ── Terminal ─────────────────────────────────────────────────────────
     'term.checkUtf8Encoding': {

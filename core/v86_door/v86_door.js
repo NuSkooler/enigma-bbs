@@ -207,6 +207,17 @@ exports.getModule = class V86DoorModule extends MenuModule {
                     let dropFileName = '';
 
                     if (hasDropFile) {
+                        //  BBSDEV.DRP is found through an environment
+                        //  variable the guest never sees, and its serial modes
+                        //  name a host descriptor rather than the guest's COM1
+                        if ('BBSDEV' === dropFileType) {
+                            return callback(
+                                Errors.MissingConfig(
+                                    'v86_door: BBSDEV.DRP needs the BBSDEV_DRP environment variable, which a v86 guest cannot be given (use DORINFO, DOOR, or DOOR32)'
+                                )
+                            );
+                        }
+
                         const dropFile = new DropFile(self.client, {
                             fileType: dropFileType,
                             //  the guest sees COM1; v86_worker bridges the
