@@ -11,7 +11,8 @@
         "check": "astro check",
         "check:links": "node scripts/check-links.mjs",
         "check:api": "node scripts/check-api-spec.mjs",
-        "verify": "npm run build && npm run check:links && npm run check:api"
+        "verify": "npm run build && npm run check:links && npm run check:api",
+        "build:shim": "node scripts/build-redirect-shim.mjs"
     },
     "devDependencies": {
         "@astrojs/markdown-remark": "^7.3.1",
