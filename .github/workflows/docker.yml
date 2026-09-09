@@ -6,6 +6,13 @@ on:
 
   workflow_dispatch:
 
+concurrency:
+  #  One mutable tag, so runs collapse rather than racing: a build that has
+  #  been superseded can only publish a :latest older than the one that
+  #  superseded it.
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   buildx:
     runs-on: ubuntu-latest

@@ -8,6 +8,13 @@ on:
       # It is highly recommended that you only run this action on push to a 
         # specific branch, eg. master or source (if on *.github.io repo)
     
+concurrency:
+  #  One deployed site, so runs collapse rather than racing. Queued rather
+  #  than cancelled: this pushes to gh-pages, and a deploy interrupted part
+  #  way is worse than a build that waits ~80s for the one ahead of it.
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   jekyll:
     runs-on: ubuntu-latest # can change this to ubuntu-latest if you prefer
