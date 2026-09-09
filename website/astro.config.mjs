@@ -8,7 +8,7 @@ export default defineConfig({
     //  Deploys to the org site at the root, so no base path.
     site: 'https://enigma-bbs.github.io',
     output: 'static',
-    trailingSlash: 'always',
+    trailingSlash: 'ignore',
     build: {
         //  `installation/docker/index.html` rather than `installation/docker.html`.
         format: 'directory',
