@@ -7,9 +7,12 @@
 //  Jekyll did the first half via jekyll-relative-links; nothing in Starlight
 //  does it, so without this every doc-to-doc link 404s.
 //
-//  The second half is the part that matters long-term: an unresolvable link is
-//  a build error, not a silently shipped 404. The old site accumulated ~20 of
-//  those precisely because nothing ever failed.
+//  It reports unresolvable targets but deliberately does NOT throw. Astro
+//  catches an exception from a remark plugin, logs it, and then renders that
+//  page with an EMPTY BODY while the build still exits 0 -- so throwing turns a
+//  dead link into a silently blank page, which is far worse. The page is left
+//  to render with its raw `.md` href instead, and scripts/check-links.mjs fails
+//  the build on it afterwards, where a non-zero exit actually sticks.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { visit } from 'unist-util-visit';
@@ -18,7 +21,7 @@ const CONTENT_ROOT = path.resolve('src/content/docs');
 const MD = /\.(md|markdown|mdx)$/i;
 
 /** @param {{ strict?: boolean }} opts */
-export function remarkDocLinks({ strict = true } = {}) {
+export function remarkDocLinks({ strict = false } = {}) {
     return (tree, file) => {
         const self = file.path ?? file.history?.[0];
         if (!self) return;
@@ -65,7 +68,10 @@ export function remarkDocLinks({ strict = true } = {}) {
             const rel = path.relative(CONTENT_ROOT, self);
             const msg =
                 `[doc-links] ${rel} links to ${broken.length} target(s) that do not exist:\n` +
-                broken.map(b => `    ${b}`).join('\n');
+                broken.map(b => `    ${b}`).join('\n') +
+                `\n    (left unrewritten; check-links.mjs will fail the build on it)`;
+            //  strict is opt-in and only for debugging: see the note above for
+            //  why throwing here is the wrong place to fail.
             if (strict) throw new Error(msg);
             console.warn(msg);
         }

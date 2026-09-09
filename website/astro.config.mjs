@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import { unified } from '@astrojs/markdown-remark';
 import starlight from '@astrojs/starlight';
 import { remarkDocLinks } from './plugins/remark-doc-links.mjs';
 import { hjsonFragment } from './src/lib/hjson-grammar.mjs';
@@ -15,9 +16,15 @@ export default defineConfig({
     },
     devToolbar: { enabled: false },
     markdown: {
-        //  Strict: an unresolvable doc-to-doc link fails the build. The old
-        //  site accumulated ~20 dead links precisely because nothing ever did.
-        remarkPlugins: [remarkDocLinks],
+        //  markdown.remarkPlugins is deprecated in Astro 7; the pipeline is
+        //  configured through markdown.processor now.
+        processor: unified({
+            //  Rewrites relative .md links to routes. It reports dead targets
+            //  but does not throw -- see the note in the plugin: a throw here
+            //  produces an empty page and a green build. check-links.mjs is
+            //  what actually fails on them.
+            remarkPlugins: [remarkDocLinks],
+        }),
     },
     integrations: [
         starlight({
