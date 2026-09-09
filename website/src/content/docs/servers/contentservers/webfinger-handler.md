@@ -53,7 +53,7 @@ A sample template can be found at `www/wf/profile.template.html`
 # Example Session
 ```shell
 # WebFinger query
-> http get 'https://xibalba.l33t.codes/.well-known/webfinger?resource=acct:NuSkooler@xibalba.l33t.codes'
+> http get 'https://xibalba.vip/.well-known/webfinger?resource=acct:NuSkooler@xibalba.vip'
 HTTP/1.1 200 OK
 Connection: keep-alive
 Content-Length: 558
@@ -63,32 +63,32 @@ Keep-Alive: timeout=5
 
 {
     "aliases": [
-        "https://xibalba.l33t.codes/_enig/wf/@NuSkooler",
-        "https://xibalba.l33t.codes/_enig/ap/users/NuSkooler"
+        "https://xibalba.vip/_enig/wf/@NuSkooler",
+        "https://xibalba.vip/_enig/ap/users/NuSkooler"
     ],
     "links": [
         {
-            "href": "https://xibalba.l33t.codes/_enig/wf/@NuSkooler",
+            "href": "https://xibalba.vip/_enig/wf/@NuSkooler",
             "rel": "https://webfinger.net/rel/profile-page",
             "type": "text/plain"
         },
         {
-            "href": "https://xibalba.l33t.codes/_enig/ap/users/NuSkooler",
+            "href": "https://xibalba.vip/_enig/ap/users/NuSkooler",
             "rel": "self",
             "type": "application/activity+json"
         },
         {
             "rel": "http://ostatus.org/schema/1.0/subscribe",
-            "template": "http://xibalba.l33t.codes/_enig/ap/authorize_interaction?uri={uri}"
+            "template": "http://xibalba.vip/_enig/ap/authorize_interaction?uri={uri}"
         }
     ],
-    "subject": "acct:NuSkooler@xibalba.l33t.codes"
+    "subject": "acct:NuSkooler@xibalba.vip"
 }
 ```
 
 ```shell
 # Now we can fetch the profile
-> http get 'https://xibalba.l33t.codes/_enig/wf/@NuSkooler'
+> http get 'https://xibalba.vip/_enig/wf/@NuSkooler'
 HTTP/1.1 200 OK
 Connection: keep-alive
 Content-Length: 116

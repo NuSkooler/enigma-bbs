@@ -13,7 +13,7 @@ Available `config` entries:
 * `font`: A SyncTERM style font. Useful for example if you would like to connect form a "DOS" style BBS to an Amiga. See [the general art documentation on SyncTERM Style Fonts](../art/general.md).
 
 ### Example
-Below is an example `menu.hjson` entry that would connect to [Xibalba](https://xibalba.l33t.codes):
+Below is an example `menu.hjson` entry that would connect to [Xibalba](https://xibalba.vip):
 
 ```hjson
 {
@@ -21,7 +21,7 @@ Below is an example `menu.hjson` entry that would connect to [Xibalba](https://x
         desc: Xibalba BBS
         module: telnet_bridge
         config: {
-            host: xibalba.l33t.codes
+            host: xibalba.vip
             port: 45510
         }
     }
@@ -76,7 +76,7 @@ telnetBridgeMenu: {
                         value: { "selection" : "xib" }
                         action: @menu:telnetBridgeFromExtraFlags
                         extraArgs: {
-                            host: xibalba.l33t.codes
+                            host: xibalba.vip
                             port: 44510
                         }
                     }

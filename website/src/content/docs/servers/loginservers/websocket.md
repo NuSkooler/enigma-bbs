@@ -132,7 +132,7 @@ Let's Encrypt certificates are written to a privileged directory by default. If 
 
 ## VTX Web Client
 
-ENiGMA supports the [VTX WebSocket client](https://github.com/codewar65/VTX_ClientServer) for in-browser BBS access. Example deployments: [Xibalba](https://xibalba.l33t.codes), [fORCE9](https://bbs.force9.org/vtx/force9.html).
+ENiGMA supports the [VTX WebSocket client](https://github.com/codewar65/VTX_ClientServer) for in-browser BBS access. Example deployment: [Xibalba](https://xibalba.vip).
 
 :::caution
 **Browsers require `wss://`** whenever the page itself is served over HTTPS. A browser will refuse to open a plain `ws://` connection from an HTTPS page (mixed-content policy). For any publicly accessible BBS whose VTX page is served over HTTPS, a secure WebSocket connection is **required**, not optional. Plain `ws://` is only practical for local/LAN testing where the page is also served over plain HTTP.
