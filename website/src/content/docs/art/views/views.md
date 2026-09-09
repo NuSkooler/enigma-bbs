@@ -20,19 +20,86 @@ Standard and focus colors are set by placing duplicate MCI codes back-to-back in
 See [MCI](../mci.md) for general information on MCI codes and the common configuration properties shared by all views.
 :::
 
-### Common Properties
+## Common View Properties
 
-The following properties are available on all views:
+Every view accepts the following. Individual view pages document only what they
+add on top of these.
 
 | Property | Description |
 |----------|-------------|
 | `focus` | If set to `true`, this view receives initial focus when the screen loads |
-| `submit` | If set to `true`, an `accept` action on this view will submit the enclosing form |
+| `submit` | If set to `true`, an `accept` action on this view will submit the enclosing **form** |
 | `argName` | The key name used to identify this view's value in a submitted form |
 | `width` | Width of the view in columns |
 | `height` | Height of the view in rows (where applicable) |
+| `justify` | Justification of content: `left` (default), `right`, or `center` |
+| `fillChar` | Character used to fill space the content does not occupy. Defaults to a space |
 | `textStyle` | Standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
 | `focusTextStyle` | Text style when the view has focus. See **Text Styles** in [MCI](../mci.md) |
+
+## Common Menu View Properties
+
+The five **menu views** — [Horizontal](horizontal_menu_view.md),
+[Vertical](vertical_menu_view.md), [Full](full_menu_view.md),
+[Toggle](toggle_menu_view.md) and [Spinner](spinner_menu_view.md) — all derive
+from the same base and therefore accept everything above **plus** the following.
+
+| Property | Description |
+|----------|-------------|
+| `items` | The list of items to show. See **Items** below |
+| `focusItems` | An alternate list used when an item is focused, parallel to `items` |
+| `itemFormat` | Format applied to a list entry. See **Entry Formatting** in [MCI](../mci.md) |
+| `focusItemFormat` | Format applied to the focused list entry |
+| `focusItemIndex` | Index of the item focused when the view is first drawn |
+| `hotKeys` | Map of characters to item indexes. See **Hot Keys** below |
+| `hotKeySubmit` | If `true`, selecting via a hot key also submits the form |
+| `itemSpacing` | Blank rows (or columns, for horizontal layouts) between items |
+| `itemHorizSpacing` | Horizontal spacing between items where the view lays out in columns |
+| `textOverflow` | String used to indicate a truncated item, e.g. `"..."` |
+| `sort` | Sort the items. `true` sorts on the displayed text, or supply a key name to sort on that field |
+
+:::note
+Both tables are derived from `View` and `MenuView` in `core/`, so anything listed
+here works on every view of that kind — including combinations an individual
+view's page does not show an example of.
+:::
+
+### Hot Keys
+
+`hotKeys` lets a user press a character to select an item directly, and
+`hotKeySubmit` submits the form when they do:
+
+```hjson
+hotKeys: { A: 0, B: 1, C: 2, D: 3 }
+hotKeySubmit: true
+```
+
+This selects and submits the first item on `A`, the second on `B`, and so on.
+
+### Items
+
+Menu views take a list of items to display. The long form carries a `data` value
+submitted with the form, separate from the `text` shown on screen:
+
+```hjson
+items: [
+  {
+      text: First Item
+      data: first
+  }
+  {
+      text: Second Item
+      data: second
+  }
+]
+```
+
+If the list is display-only — no form action is attached to it — the `data`
+element can be omitted and the items given as a plain list:
+
+```hjson
+items: [ "First item", "Second item", "Third Item" ]
+```
 
 ---
 

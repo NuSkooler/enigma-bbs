@@ -44,12 +44,11 @@ The [vscode-hjson](https://marketplace.visualstudio.com/items?itemName=laktak.hj
 ### Other Editors
 Several other editors have HJSON plugins available. The [official HJSON users page](https://hjson.github.io/users.html) has a current list. Note that plugins for **Sublime Text** (`sublime-hjson`) and **Notepad++** (`npp-hjson`) exist but are no longer actively maintained — they still work for basic syntax highlighting but may have rough edges on newer editor versions.
 
-### Hot-Reload A.K.A. Live Editing
-ENiGMA½'s configuration, menu, and theme files can be edited while your BBS is running. When a file is saved, it is hot-reloaded into the running system. If users are currently connected and you change a menu for example, the next reload of that menu will show the changes.
-
-:::note
-See also [Configuration Files](../configuration/config-files.md)
-:::
+### Hot-Reload
+Configuration, menu and theme files can be edited while your BBS is running — a
+saved file is reloaded into the live system. See
+[Configuration Files](config-files.md#hot-reload) for the details, along with the
+`includes`, `@reference`, `@environment` and `@file` directives these files share.
 
 ### CaSe SeNsiTiVE
 Configuration keys are **case sensitive**. That means if a configuration key is `boardName` for example, `boardname`, or `BOARDNAME` **will not work**.

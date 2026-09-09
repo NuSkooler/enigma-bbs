@@ -4,69 +4,24 @@ description: "%TM — a two-item toggle for Yes/No and On/Off choices."
 sidebar:
     order: 21
 ---
-A toggle menu view supports displaying a list of options on a screen horizontally (side to side, in a single row) similar to a [Horizontal Menu](horizontal_menu_view.md). It is designed to present one of two choices easily.
-
-## General Information
-
-Items can be selected on a menu via the left and right cursor keys, or by selecting them via a `hotKey` - see ***Hot Keys*** below.
+A toggle menu view displays exactly two items side by side and lets the user flip between them — typically Yes/No or On/Off. It behaves like a [Horizontal Menu View](horizontal_menu_view.md) constrained to two entries.
 
 :::note
-A toggle menu view is defined with a percent (%) and the characters TM, followed by the view number (if used.) For example: `%TM1`
+A toggle menu view is defined with a percent (%) and the characters TM, followed by the view
+number if used. For example: `%TM1`
 :::
 
 :::note
-See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
+See [Views](views.md) for the **common view properties**, the **common menu view
+properties**, and the shared **Hot Keys** and **Items** reference — all of which
+apply here.
 :::
 
-### Properties
+## Properties
 
-| Property    | Description  |
-|-------------|--------------|
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
-| `focusTextStyle` | Sets focus text style. See **Text Styles** in [MCI](../mci.md)|
-| `focus` | If set to `true`, establishes initial focus |
-| `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
-| `hotKeys` | Sets hot keys to activate specific items. See **Hot Keys** below |
-| `hotKeySubmit` | Set to submit a form on hotkey selection |
-| `argName` | Sets the argument name for this selection in the form |
-| `items` | List of items to show in the menu. Must include exactly two (2) items. See **Items** below. |
-
-
-### Hot Keys
-
-A set of `hotKeys` are used to allow the user to press a character on the keyboard to select that item, and optionally submit the form.
-
-Example:
-
-```hjson
-hotKeys: { A: 0, B: 1, Q: 1 }
-hotKeySubmit: true
-```
-This would select and submit the first item if `A` is typed, second if `B`, etc.
-
-### Items
-
-A toggle menu, similar to other menus, take a list of items to display in the menu. Unlike other menus, however, there must be exactly two items in a toggle menu. For example:
-
-
-```hjson
-items: [
-  {
-      text: First Item
-      data: first
-  }
-  {
-      text: Second Item
-      data: second
-  }
-]
-```
-
-If the list is for display only (there is no form action associated with it) you can omit the data element, and include the items as a simple list:
-
-```
-["First item", "Second item"]
-```
+A toggle menu view expects **exactly two items**. The first is treated as the
+true/yes value and the second as false/no, which is what lets a form read the
+view as a boolean.
 
 ## Example
 

@@ -48,6 +48,15 @@ for (const r of [...routes]) {
     if (r.startsWith('/pagefind/') || r.startsWith('/_astro/')) routes.delete(r);
 }
 
+//  Redirect stubs from `redirects` in astro.config.mjs are routes that exist
+//  only to forward an old URL. They are deliberately not navigable.
+for (const f of files) {
+    const html = readFileSync(f, 'utf8');
+    if (!/<meta http-equiv="refresh"/i.test(html)) continue;
+    const dir = relative(DIST, f).split(/[\\/]/).slice(0, -1).join('/');
+    routes.delete(dir ? `/${dir}/` : '/');
+}
+
 //  The sidebar is identical on every doc page, so one is enough. Pick a doc
 //  page rather than the landing page, which has no sidebar at all.
 const sample = files.find(f => relative(DIST, f).startsWith('installation'));

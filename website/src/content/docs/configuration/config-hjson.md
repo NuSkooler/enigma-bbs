@@ -14,11 +14,13 @@ See also [Configuration Files](config-files.md). Additionally [HJSON General Inf
 
 ## Creating a Configuration
 Your initial configuration skeleton should be created using the `oputil.js` command line utility. From your enigma-bbs root directory:
-```
+```bash
 ./oputil.js config new
 ```
 
-You will be asked a series of questions to create an initial configuration.
+You will be asked a series of questions to create an initial configuration, which is
+written to `config/config.hjson`. The same run also produces your menu files under
+`config/menus/` — see [Menu HJSON](menu-hjson.md).
 
 ## Overriding Defaults
 The file `core/config_default.js` provides various defaults to the system that you can override via `config.hjson`. For example, the default system name is defined as follows:

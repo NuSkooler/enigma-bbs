@@ -14,6 +14,12 @@ Monitor your system via the [Waiting For Caller (WFC)](../modding/wfc.md) screen
 ## Managing Users
 User management is currently handled via the [oputil CLI](oputil.md).
 
+The **first user to log into a fresh installation is made the SysOp**: they are
+placed in the built-in `sysops` group, which is what
+[ACS](../configuration/acs.md) checks such as `GM[sysops]` test against. There is
+no separate step to claim the account — log in first, before you expose the
+board.
+
 ## Backing Up Your System
 It is *highly* recommended to perform **regular backups** of your system. Nothing is worse than spending a lot of time setting up a system only to have it go away unexpectedly!
 

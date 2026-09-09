@@ -14,6 +14,14 @@ export default defineConfig({
         //  `installation/docker/index.html` rather than `installation/docker.html`.
         format: 'directory',
     },
+    //  Pages that were merged into another during the docs cleanup. Astro emits
+    //  a redirect stub for each in a static build, so an existing deep link --
+    //  from a forum post, a bookmark, a search result -- still lands somewhere
+    //  useful rather than on a 404.
+    redirects: {
+        '/configuration/creating-config/': '/configuration/config-hjson/',
+        '/configuration/sysop-setup/': '/admin/administration/',
+    },
     devToolbar: { enabled: false },
     markdown: {
         //  markdown.remarkPlugins is deprecated in Astro 7; the pipeline is
