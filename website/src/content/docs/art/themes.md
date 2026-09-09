@@ -127,7 +127,7 @@ info: {
     group: Sick Group
     enabled: true // default
 }
-```
+```hjson
 
 3. If desired, you may make this the default system theme in `config.hjson` via `theme.default`. `theme.preLogin` may be set if you want this theme used for pre-authenticated users. Both of these values also accept `*` if you want the system to randomly pick.
 ``` hjson

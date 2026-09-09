@@ -47,7 +47,7 @@ For protocols of type `external` the following members may be defined:
 Take a look a the example below as well as [core/config_default.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config_default.js).
 
 #### Example File Transfer Protocol Configuration
-```
+```hjson
 zmodem8kSexyz : {
     name		: 'ZModem 8k (SEXYZ)',
     type		: 'external',

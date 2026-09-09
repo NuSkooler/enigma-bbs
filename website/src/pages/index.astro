@@ -43,23 +43,78 @@ const features = [
         </header>
 
         <section class="hero">
-            <div class="hero__text">
-                <p class="dos kicker">▀▀ BULLETIN BOARD SOFTWARE</p>
-                <h1 class="dos wordmark">ENiGMA½<br /><span class="wordmark__b">BBS</span></h1>
-                <p class="lede">
-                    Modern bulletin board software with a nostalgic flair. Telnet, SSH and
-                    WebSocket in one Node.js process — plus FidoNet mail, indexed file
-                    bases, and DOS doors that actually run.
+            <div class="hero__row">
+                <div class="hero__text">
+                    <p class="dos kicker">▀▀ BULLETIN BOARD SOFTWARE</p>
+                    <h1 class="dos wordmark">ENiGMA½<br /><span class="wordmark__b">BBS</span></h1>
+                    <p class="lede">
+                        Modern bulletin board software with a nostalgic flair. Telnet, SSH and
+                        WebSocket in one Node.js process — plus FidoNet mail, indexed file
+                        bases, and DOS doors that actually run.
+                    </p>
+                    <p class="cta">
+                        <a class="dos cta__primary" href="/installation/installation-methods/">GET STARTED</a>
+                        <a class="dos cta__secondary" href="#try">CALL A BOARD</a>
+                    </p>
+                </div>
+                <div class="hero__screen">
+                    <AnsiArt
+                        src="MMENU.ANS"
+                        alt="The ENiGMA½ main menu in the luciano_blocktronics theme"
+                        max="26px"
+                    />
+                    <p class="dos screen__caption">MMENU.ANS · luciano_blocktronics · shipped with ENiGMA½</p>
+                </div>
+            </div>
+
+            <!-- Full width: the install command is ~95 characters and was being
+                 clipped inside the hero text column. -->
+            <div class="install">
+                <span class="dos install__sigil">&gt;</span>
+                <code>{install}</code>
+                <button class="dos install__copy" type="button" data-copy={install}>COPY</button>
+            </div>
+        </section>
+
+        <section class="try" id="try">
+            <div class="try__text">
+                <h2 class="dos section-head">▀▀ NEVER USED A BBS?</h2>
+                <p class="try__lede">
+                    Then call one. <strong>Xibalba</strong> is ENiGMA½'s world headquarters —
+                    a real board, running this software, with message areas, file bases,
+                    doors and other people on it right now.
                 </p>
-                <p class="install"><span class="dos install__sigil">&gt;</span><code>{install}</code></p>
-                <p class="cta">
-                    <a class="dos cta__primary" href="/installation/installation-methods/">GET STARTED</a>
-                    <a class="dos cta__secondary" href="/configuration/creating-config/">READ THE DOCS</a>
+                <dl class="dial">
+                    <div class="dial__row">
+                        <dt class="dos">TELNET</dt>
+                        <dd><code>telnet://xibalba.l33t.codes:44510</code></dd>
+                    </div>
+                    <div class="dial__row">
+                        <dt class="dos">SSH</dt>
+                        <dd><code>ssh://xibalba.l33t.codes:44511</code></dd>
+                    </div>
+                    <div class="dial__row">
+                        <dt class="dos">WEB</dt>
+                        <dd><a href="https://xibalba.vip">xibalba.vip</a></dd>
+                    </div>
+                    <div class="dial__row">
+                        <dt class="dos">BROWSER</dt>
+                        <dd><a href="https://l33t.codes/vtx/xibalba.html">Connect with VTX — no client needed</a></dd>
+                    </div>
+                </dl>
+                <p class="try__note">
+                    No terminal to hand? The browser link works anywhere. Otherwise
+                    <a href="/installation/installation-methods/">run your own</a> — that is
+                    rather the point.
                 </p>
             </div>
-            <div class="hero__screen">
-                <AnsiArt src="MMENU.ANS" alt="The ENiGMA½ main menu in the luciano_blocktronics theme" max="30px" />
-                <p class="dos screen__caption">MMENU.ANS · luciano_blocktronics · shipped with ENiGMA½</p>
+            <div class="try__screen">
+                <AnsiArt
+                    src="MATRIX.ANS"
+                    alt="The Xibalba login matrix, drawn in the luciano_blocktronics theme"
+                    max="16px"
+                />
+                <p class="dos screen__caption">MATRIX.ANS · the login screen you will land on</p>
             </div>
         </section>
 
@@ -105,30 +160,31 @@ const features = [
     .brand { font-size: 16px; line-height: 16px; color: #d9ded9; }
     .brand__mark { color: #55ff55; }
     .nav nav { display: flex; align-items: center; gap: 1.6rem; }
-    .nav__cta {
-        font-size: 16px; line-height: 16px;
-        background: #55ffff; color: #060806; padding: 8px 14px;
-    }
-    .nav__cta:hover { color: #060806; }
+    .nav__cta { font-size: 16px; line-height: 16px; background: #55ff55; color: #060806; padding: 8px 14px; }
+    .nav__cta:hover { color: #060806; background: #7dff7d; }
 
     .hero {
-        display: flex; flex-wrap: wrap; gap: 3rem; align-items: center;
-        padding: 3.5rem 2.5rem 4rem;
+        padding: 3.5rem 2.5rem 3rem;
         border-bottom: 1px solid #1f261f;
         background:
             radial-gradient(ellipse 640px 380px at 74% 46%, rgb(85 255 85 / 0.10), transparent 68%),
             radial-gradient(ellipse 520px 300px at 16% 30%, rgb(0 170 170 / 0.10), transparent 70%);
         position: relative;
     }
-    /* Scanlines live on the hero only. The reading column gets none. */
+    /*  Scanlines live on the marketing surfaces only; the docs reading column
+        gets none of this. */
     .hero::after {
         content: ''; position: absolute; inset: 0; pointer-events: none;
         background: repeating-linear-gradient(
             to bottom, rgb(0 0 0 / 0.3) 0, rgb(0 0 0 / 0.3) 1px, transparent 1px, transparent 3px);
         opacity: 0.5;
     }
-    .hero__text { flex: 1 1 26rem; min-width: 0; max-width: 34rem; position: relative; z-index: 1; }
-    .hero__screen { flex: 4 1 44rem; min-width: 0; position: relative; z-index: 1; }
+    .hero__row {
+        display: flex; flex-wrap: wrap; gap: 3rem; align-items: center;
+        position: relative; z-index: 1;
+    }
+    .hero__text { flex: 1 1 24rem; min-width: 0; max-width: 32rem; }
+    .hero__screen { flex: 3 1 38rem; min-width: 0; }
 
     .kicker { font-size: 16px; line-height: 16px; color: #55ff55; margin: 0 0 1.4rem; }
     .wordmark {
@@ -139,24 +195,55 @@ const features = [
     .wordmark__b { color: #f2f6f2; text-shadow: 0 0 22px rgb(255 255 255 / 0.28); }
     .lede { font-size: 19px; line-height: 1.58; color: #a8b0a8; max-width: 34rem; margin: 0 0 1.6rem; text-wrap: pretty; }
 
-    .install {
-        display: flex; align-items: stretch; margin: 0 0 1.4rem; max-width: 40rem;
-        border: 1px solid #2a332a; background: #000000; overflow-x: auto;
-    }
-    .install__sigil { font-size: 16px; line-height: 16px; color: #55ff55; padding: 13px 0 13px 14px; }
-    .install code {
-        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12.5px;
-        color: #d9ded9; padding: 12px 14px; white-space: nowrap;
-    }
-
     .cta { display: flex; gap: 0.75rem; margin: 0; flex-wrap: wrap; }
     .cta__primary {
-        font-size: 16px; line-height: 16px; background: #55ffff;
-        color: #060806; padding: 14px 24px; box-shadow: 0 0 22px rgb(85 255 85 / 0.25);
+        font-size: 16px; line-height: 16px; background: #55ff55; color: #060806;
+        padding: 14px 24px; box-shadow: 0 0 22px rgb(85 255 85 / 0.25);
     }
-    .cta__primary:hover { color: #060806; }
+    .cta__primary:hover { color: #060806; background: #7dff7d; }
     .cta__secondary { font-size: 16px; line-height: 16px; border: 1px solid #2a332a; color: #d9ded9; padding: 13px 24px; }
+    .cta__secondary:hover { border-color: #55ff55; color: #ffffff; }
     .screen__caption { font-size: 16px; line-height: 16px; color: #4d554d; margin: 0.7rem 0 0; text-align: right; }
+
+    /*  Full width, below the hero row: the install command is ~95 characters
+        and was being clipped inside the text column. */
+    .install {
+        position: relative; z-index: 1;
+        display: flex; align-items: stretch; margin: 2.25rem 0 0;
+        border: 1px solid #2a332a; background: #000000; overflow: hidden;
+    }
+    .install__sigil { flex-shrink: 0; font-size: 16px; line-height: 16px; color: #55ff55; padding: 13px 0 13px 14px; }
+    .install code {
+        flex-grow: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
+        color: #d9ded9; padding: 12px 14px;
+    }
+    .install__copy {
+        flex-shrink: 0; cursor: pointer; font-size: 16px; line-height: 16px;
+        background: #0d110d; color: #55ff55; border: 0; border-left: 1px solid #2a332a;
+        padding: 0 18px;
+    }
+    .install__copy:hover { background: #55ff55; color: #060806; }
+    .install__copy.is-copied { background: #00aa00; color: #060806; }
+
+    .try {
+        display: flex; flex-wrap: wrap; gap: 3rem; align-items: center;
+        padding: 3.5rem 2.5rem; border-bottom: 1px solid #1f261f;
+    }
+    .try__text { flex: 1 1 26rem; min-width: 0; }
+    .try__screen { flex: 1 1 30rem; min-width: 0; }
+    .try__lede { font-size: 17px; line-height: 1.6; color: #a8b0a8; margin: 0 0 1.5rem; max-width: 34rem; text-wrap: pretty; }
+    .try__lede strong { color: #f2f6f2; }
+    .try__note { font-size: 14.5px; line-height: 1.6; color: #8a928a; margin: 1.4rem 0 0; max-width: 32rem; }
+
+    .dial { margin: 0; display: grid; gap: 0.55rem; }
+    .dial__row { display: flex; gap: 0.9rem; align-items: baseline; }
+    .dial dt { flex: 0 0 5.5rem; font-size: 16px; line-height: 16px; color: #00aaaa; }
+    .dial dd { margin: 0; min-width: 0; }
+    .dial code {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
+        color: #d9ded9; background: #101810; border: 1px solid #1f261f; padding: 2px 7px;
+    }
 
     .features { padding: 3.5rem 2.5rem; }
     .section-head { font-size: 16px; line-height: 16px; font-weight: normal; color: #55ff55; margin: 0 0 1.6rem; }
@@ -179,3 +266,28 @@ const features = [
         font-size: 12px; line-height: 1.5; color: #4d554d; margin-top: 0.6rem;
     }
 </style>
+
+<script>
+    //  Progressive enhancement. The command is selectable text either way, and
+    //  clipboard access can be refused (insecure origin, denied permission), so
+    //  a failure leaves the button alone rather than reporting an error.
+    document.querySelectorAll('[data-copy]').forEach(node => {
+        const btn = node as HTMLButtonElement;
+        btn.addEventListener('click', async () => {
+            const text = btn.dataset.copy;
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                const previous = btn.textContent;
+                btn.textContent = 'COPIED';
+                btn.classList.add('is-copied');
+                setTimeout(() => {
+                    btn.textContent = previous;
+                    btn.classList.remove('is-copied');
+                }, 1500);
+            } catch {
+                /*  clipboard unavailable; the text stays selectable */
+            }
+        });
+    });
+</script>

@@ -40,7 +40,7 @@ A set of `hotKeys` are used to allow the user to press a character on the keyboa
 
 Example:
 
-```
+```hjson
 hotKeys: { A: 0, B: 1, C: 2, D: 3 }
 hotKeySubmit: true
 ```
@@ -51,7 +51,7 @@ This would select and submit the first item if `A` is typed, second if `B`, etc.
 A vertical menu, similar to other menus, take a list of items to display in the menu. For example:
 
 
-```
+```hjson
 items: [
   {
       text: First Item
@@ -87,7 +87,7 @@ The `textOverflow` option is used to specify what happens when a text string is 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
 <div markdown="1">
-```
+```hjson
 VM1: {
   submit: true
   argName: navSelect

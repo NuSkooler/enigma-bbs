@@ -313,7 +313,7 @@ Menu modules can check user ACS in order to restrict areas and perform flow cont
 
 ### Menu Access
 To restrict menu access add an `acs` key to `config`. Example:
-```
+```hjson
 opOnlyMenu: {
     desc: Ops Only!
     config: {
@@ -341,7 +341,7 @@ Action blocks (`action`) can perform ACS checks:
 
 ### Flow Control
 The `next` member of a menu may be an array of objects containing an `acs` check as well as the destination. Depending on the current user's ACS, the system will pick the appropriate target. The last element in an array without an `acs` can be used as a catch all. Example:
-```
+```hjson
 login: {
     desc: Logging In
     next: [

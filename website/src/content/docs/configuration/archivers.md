@@ -28,7 +28,7 @@ Archiver entries in `config.hjson` are mostly self explanatory with the exceptio
 For `list` commands, the `entryMatch` key must be provided. This key should provide a regular expression that matches two sub groups: One for uncompressed file byte sizes (sub group 1) and the other for file names (sub group 2). An optional `entryGroupOrder` can be supplied to change the default sub group order.
 
 #### Example Archiver Configuration
-```
+```hjson
 7Zip: {
 	compress: {
 		cmd: '7za',

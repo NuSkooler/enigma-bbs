@@ -43,7 +43,7 @@ The mode of a multi line edit text view controls how the view behaves. The follo
 <details>
 <summary>Configuration fragment (expand to view)</summary>
 <div markdown="1">
-```
+```hjson
 ML1: {
   width: 79
   argName: message
@@ -52,7 +52,7 @@ ML1: {
 ```
 
 Viewer with clickable hyperlinks:
-```
+```hjson
 MT1: {
   width: 79
   mode: preview

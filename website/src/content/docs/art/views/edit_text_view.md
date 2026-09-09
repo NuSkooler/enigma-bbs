@@ -32,7 +32,7 @@ An edit text view supports editing form values on a screen. This can be for new 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
 <div markdown="1">
-```
+```hjson
 ET1: {
   maxLength: @config:users.usernameMax
   argName: username

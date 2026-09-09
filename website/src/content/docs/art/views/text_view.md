@@ -39,7 +39,7 @@ The `textOverflow` option is used to specify what happens when a text string is 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
 <div markdown="1">
-```
+```hjson
 TL1: {
   text: Text label
 }

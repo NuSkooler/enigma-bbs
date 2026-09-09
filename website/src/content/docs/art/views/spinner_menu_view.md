@@ -38,7 +38,7 @@ A set of `hotKeys` are used to allow the user to press a character on the keyboa
 
 Example:
 
-```
+```hjson
 hotKeys: { A: 0, B: 1, C: 2, D: 3 }
 hotKeySubmit: true
 ```
@@ -49,7 +49,7 @@ This would select and submit the first item if `A` is typed, second if `B`, etc.
 A spinner menu, similar to other menus, take a list of items to display in the menu. For example:
 
 
-```
+```hjson
 items: [
   {
       text: First Item
@@ -75,7 +75,7 @@ If the list is for display only (there is no form action associated with it) you
 <details>
 <summary>Configuration fragment (expand to view)</summary>
 <div markdown="1">
-```
+```hjson
 SM1: {
   submit: true
   argName: themeSelect

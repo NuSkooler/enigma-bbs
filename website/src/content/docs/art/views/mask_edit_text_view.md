@@ -53,7 +53,7 @@ Any value other than the entries above is treated like a literal value to be dis
 <details>
 <summary>Configuration fragment (expand to view)</summary>
 <div markdown="1">
-```
+```hjson
 ME1: {
   argName: height
   fillChar: "#"
