@@ -4,7 +4,7 @@ description: "The built-in HTTP/HTTPS server that powers download links, passwor
 sidebar:
     order: 1
 ---
-ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the [File Base](../../filebase/web-access.md) registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
+ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the [File Base](../../filebase/index.md#web-downloads) registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
 
 ## Configuration
 

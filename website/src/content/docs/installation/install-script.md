@@ -23,5 +23,7 @@ After installing:
 * If you plan to run ENiGMA½ as a long-running service (systemd, etc.), read [Production Installation](production.md) — there are gotchas around `PATH` and version managers like `mise` that you'll want to know about up front.
 :::
 
+Once it finishes, [test your installation](testing.md).
+
 You might also check out some external guides:
 * https://www.maketecheasier.com/create-bbs-linux-with-enigmabbs/

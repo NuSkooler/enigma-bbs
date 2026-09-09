@@ -75,4 +75,4 @@ Use `oputil.js` to generate your **initial** configuration:
 ./oputil.js config new
 ```
 
-Follow the prompts!
+Follow the prompts! Then [test your installation](testing.md).

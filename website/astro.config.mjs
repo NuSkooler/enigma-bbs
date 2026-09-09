@@ -21,6 +21,8 @@ export default defineConfig({
     redirects: {
         '/configuration/creating-config/': '/configuration/config-hjson/',
         '/configuration/sysop-setup/': '/admin/administration/',
+        '/filebase/uploads/': '/filebase/acs/',
+        '/filebase/web-access/': '/filebase/',
     },
     devToolbar: { enabled: false },
     markdown: {

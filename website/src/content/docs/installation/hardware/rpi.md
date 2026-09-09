@@ -24,4 +24,6 @@ complete.
 
 5. Follow the [installation instructions](../install-script.md) to install ENiGMA½.
 
-6. Profit!
+6. [Test your installation](../testing.md).
+
+7. Profit!

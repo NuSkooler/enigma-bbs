@@ -557,3 +557,8 @@ Close the browser tab or press `Ctrl+C` to stop the server.
 - A 500 MB image will take noticeably longer, especially when accessed over an SSH tunnel or slow link.
 - Prefer lean images: install only what a door needs, and avoid bundling large data files that aren't required at runtime.
 - The same advice applies to the live BBS door sessions — smaller images mean less RAM and faster startup for users.
+
+## See Also
+
+* [Administration](administration.md) — backups, database maintenance and scheduled tasks
+* [Upgrading](upgrading.md) — keeping your system current

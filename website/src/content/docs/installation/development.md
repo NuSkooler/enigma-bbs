@@ -4,7 +4,7 @@ description: "Set up a development environment for working on ENiGMA½ itself, v
 sidebar:
     order: 10
 ---
-_Note:_ This is only useful for people who are looking to contribute to the ENiGMA½ source base itself. Those that are just setting up a new BBS system do not need this section.
+_Note:_ This is only useful for people who are looking to contribute to the ENiGMA½ source base itself. If you are just setting up a new BBS, see [Installation Methods](installation-methods.md) instead.
 
 The easiest way to get started with development on ENiGMA½ is via the pre-configured Visual Studio Code remote docker container environment. This setup will download and configure everything needed with minimal interaction. It also works cross-platform.
 

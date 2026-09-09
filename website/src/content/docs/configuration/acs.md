@@ -191,7 +191,7 @@ config: {
 The following areas of the system support ACS checks:
 
 * [Message conferences and areas](../messageareas/configuring-a-message-area.md)
-* [File base areas](../filebase/first-file-area.md) and [Uploads](../filebase/uploads.md)
+* [File base areas](../filebase/first-file-area.md) and [Access & Uploads](../filebase/acs.md)
 * Menus within [Menu HJSON (menu.hjson)](menu-hjson.md) — use `acs` in a menu's `config` block to restrict access
 * Conditional `next` / `action` arrays in menu configuration — each entry can include an `acs` field to control which branch is taken
 

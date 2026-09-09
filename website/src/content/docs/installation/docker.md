@@ -57,6 +57,8 @@ Configuration will be stored in `$(pwd)/enigma-bbs/config`.
 Windows users — you'll need to switch out `$(pwd)/enigma-bbs/config` for a Windows-style path.
 :::
 
+Once the container is up, [test your installation](testing.md).
+
 ## Volumes
 
 Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs

@@ -62,13 +62,7 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
 
 ## Terminal Clients
-ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
-* [IcyTERM](https://github.com/mkrueger/icy_tools/tree/master/crates/icy_term)
-* [VTX](https://github.com/codewar65/VTX_ClientServer) (Try [Xibalba using VTX](https://xibalba.vip)!)
-* [SyncTERM](http://syncterm.bbsdev.net/)
-* [EtherTerm](https://github.com/M-griffin/EtherTerm)
-* [NetRunner](http://mysticbbs.com/downloads.html)
-* [MagiTerm](https://gitlab.com/magickabbs/MagiTerm)
+ENiGMA has been tested with many terminals. [IcyTERM](https://github.com/mkrueger/icy_tools/tree/master/crates/icy_term), [SyncTERM](http://syncterm.bbsdev.net/) and the browser-based [VTX](https://github.com/codewar65/VTX_ClientServer) are the usual recommendations — see [Terminal Clients](https://enigma-bbs.github.io/installation/testing/#terminal-clients) for the full list.
 
 ## Some Boards
 * :skull: [Xibalba - ENiGMA WHQ](https://xibalba.vip) :skull: (**ssh://xibalba.vip:44511** or **telnet://xibalba.vip:44510**)

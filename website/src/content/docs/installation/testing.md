@@ -39,12 +39,26 @@ To shut down the server, press Ctrl-C.
   [this Stack Overflow article](https://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode) for some tips on using these ports on your system if desired.
 * The first user you create when logging in will be automatically be added to the `sysops` group.
 
-## Telnet Software
-If you don't have any telnet software, these are compatible with ENiGMA½:
+## Terminal Clients
 
-* [SyncTERM](http://syncterm.bbsdev.net/)
-* [EtherTerm](https://github.com/M-griffin/EtherTerm)
-* [NetRunner](http://mysticbbs.com/downloads.html)
-* [MagiTerm](https://gitlab.com/magickabbs/MagiTerm)
-* [VTX](https://github.com/codewar65/VTX_ClientServer) (Browser based)
-* [fTelnet](https://www.ftelnet.ca/) (Browser based)
+ENiGMA½ has been tested with many terminals. Any of the following will connect
+happily; the first three are the usual recommendations for day-to-day BBSing.
+
+| Client | Platforms | Notes |
+|--------|-----------|-------|
+| [IcyTERM](https://github.com/mkrueger/icy_tools/tree/master/crates/icy_term) | Linux, macOS, Windows | Modern, actively developed, good CP437 and font support |
+| [SyncTERM](http://syncterm.bbsdev.net/) | Linux, macOS, Windows | The long-standing reference client; the fonts ENiGMA½ requests are SyncTERM-style |
+| [VTX](https://github.com/codewar65/VTX_ClientServer) | Browser | Pairs with the [WebSocket login server](../servers/loginservers/websocket.md). Try [Xibalba over VTX](https://xibalba.vip) |
+| [NetRunner](http://mysticbbs.com/downloads.html) | Windows | See [Troubleshooting SSH](../troubleshooting/ssh-troubleshooting.md#errors-with-netrunner) if connecting over SSH |
+| [EtherTerm](https://github.com/M-griffin/EtherTerm) | Linux, macOS, Windows | |
+| [MagiTerm](https://gitlab.com/magickabbs/MagiTerm) | Windows | |
+| [fTelnet](https://www.ftelnet.ca/) | Browser | Telnet only |
+
+## Next Steps
+
+With the board running and a client connected, move on to
+[creating your configuration](../configuration/config-hjson.md) — your board
+name, servers, message areas and file areas all live there.
+
+If you plan to leave the board running permanently, read
+[Production Installation](production.md) before you expose it.

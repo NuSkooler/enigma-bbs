@@ -44,12 +44,18 @@ While not everything that is available in your `config.hjson` file can be found 
 ## Configuration Sections
 Below is a list of various configuration sections. There are many more, but this should get you started:
 
-* [ACS](acs.md)
-* [Archivers](archivers.md): Set up external archive utilities for handling things like ZIP, ARJ, RAR, and so on.
-* [Email](email.md): System email support.
+* [Access Condition System (ACS)](acs.md): Gate menus, areas and actions on who the user is.
+* [Achievements](achievements.md): Reward users for posting, uploading and calling.
+* [Archivers](archivers.md): External archive utilities for ZIP, ARJ, RAR, and so on.
+* [Colour Codes](colour-codes.md): Renegade-style pipe codes used throughout your config.
+* [Directory Structure](directory-structure.md): What lives where in an installation.
+* [Email](email.md): SMTP and IMAP for password resets, 2FA and internet mail.
 * [Event Scheduler](event-scheduler.md): Set up events as you see fit!
-* [File Base](../filebase/index.md)
+* [External Support Binaries](external-binaries.md): The tools ENiGMA½ shells out to, and how to install them.
+* [File Base](../filebase/index.md): Areas, storage tags, uploads and [TIC](../filebase/tic-support.md).
 * [File Transfer Protocols](file-transfer-protocols.md): Oldschool file transfer protocols such as X/Y/Z-Modem!
 * [Message Areas](../messageareas/configuring-a-message-area.md), [Networks](../messageareas/message-networks.md), [NetMail](../messageareas/netmail.md), etc.
+* [Security](security.md): Password storage, 2FA and choosing secure transports.
+* [Servers](../servers/loginservers/telnet.md): [Telnet](../servers/loginservers/telnet.md), [SSH](../servers/loginservers/ssh.md) and [WebSocket](../servers/loginservers/websocket.md) logins; [web](../servers/contentservers/web-server.md), [Gopher](../servers/contentservers/gopher.md) and [NNTP](../servers/contentservers/nntp.md) content.
 * ...and a **lot** more! Explore the docs! If you can't find something, please contact us!
 

@@ -69,6 +69,8 @@ Install [7-Zip](https://www.7-zip.org/download.html) and add it to your `PATH`:
     node .\main.js
     ```
 
+Then [test your installation](../testing.md).
+
 See [Production Installation](../production.md) when you are ready to go live.
 
 ---
