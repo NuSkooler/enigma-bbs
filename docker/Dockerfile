@@ -1,9 +1,8 @@
-FROM --platform=${BUILDPLATFORM:-linux/amd64} node:22-bookworm-slim
-
-ARG TARGETPLATFORM
-ARG BUILDPLATFORM
-ARG TARGETOS
-ARG TARGETBRANCH
+#  No --platform here on purpose. Pinning this to BUILDPLATFORM builds every
+#  target on the builder's own architecture, which is only correct if the rest
+#  of the file then cross compiles -- and it does not, it just runs npm install
+#  and copies the tree. The result was four tags whose contents were all amd64.
+FROM node:22-bookworm-slim
 
 LABEL maintainer="dave@force9.org"
 
