@@ -325,6 +325,23 @@ const features = [
         border-top: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6);
     }
     .foot p { margin: 0; font-size: 16px; line-height: 16px; color: var(--sl-color-gray-4); }
+    /*  The wordmark is a bitmap face: it only lands on whole pixels at whole
+        multiples of 16px, so it steps down rather than scaling fluidly.
+        "ENiGMA½" is 7 cells wide, which at 80px is 280px -- wider than the
+        content box on a 320px phone. */
+    @media (max-width: 23rem) {
+        .wordmark {
+            font-size: 64px;
+            line-height: 64px;
+        }
+    }
+    @media (max-width: 20rem) {
+        .wordmark {
+            font-size: 48px;
+            line-height: 48px;
+        }
+    }
+
     :root[data-theme='light'] .hero {
         background: none;
     }
