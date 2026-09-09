@@ -126,6 +126,7 @@ export default defineConfig({
             //  four hand-listed art pages do not, which is what scripts/check-nav.mjs
             //  is for.
             sidebar: [
+                { label: 'Start Here', link: '/start/' },
                 {
                     label: 'Installation',
                     items: [{ autogenerate: { directory: 'installation' } }],
@@ -159,6 +160,7 @@ export default defineConfig({
                 {
                     label: 'Servers',
                     items: [
+                        'servers',
                         {
                             label: 'Login Servers',
                             items: [
