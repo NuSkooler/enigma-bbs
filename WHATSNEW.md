@@ -448,17 +448,17 @@ Various fixes
 
     The fate of full ActivityPub support in ENiGMA is till up in the air...
 
-* **[Web Server](/website/src/content/docs/servers/contentservers/web-server.md) Changes** (⚠️ some may be breaking):
+* **[Web Server](./website/src/content/docs/servers/contentservers/web-server.md) Changes** (⚠️ some may be breaking):
 
   * `/static/` prefixes are no longer required (ugly hack removed).
   * Internal routes (e.g. password reset) now live under `/_enig/`.
   * File base routes now default to `/_f/` instead of `/f/`. If your `config.hjson` still uses `/f/`, update it.
   * The system will now search for `index.html` then `index.htm` if a suitable route cannot be found.
-  * [Web Handler](/website/src/content/docs/servers/contentservers/web-handlers.md) modules are now easier to add; several exist by default.
+  * [Web Handler](./website/src/content/docs/servers/contentservers/web-handlers.md) modules are now easier to add; several exist by default.
 
 * **Other Additions & Changes**
 
-  * New users now have randomly generated avatars assigned (served via System General [Web Handler](/website/src/content/docs/servers/contentservers/web-handlers.md)).
+  * New users now have randomly generated avatars assigned (served via System General [Web Handler](./website/src/content/docs/servers/contentservers/web-handlers.md)).
   * CombatNet has shut down; the module (`combatnet.js`) has been removed.
   * New `NewUserPrePersist` system event available for developers to hook into account creation.
   * `viewValidationListener` callback signature has changed: now `(err, newFocusId)`. To ignore a validation error, call with `null` for `err`.
@@ -473,33 +473,33 @@ Various fixes
 * **New Waiting For Caller (WFC)** support via the `wfc.js` module.
 * Added new configuration options for `term.checkUtf8Encoding`, `term.checkAnsiHomePosition`, `term.cp437TermList`, and `term.utf8TermList`. More information on these options is available in [UPGRADE](UPGRADE.md).
 * Many new system statistics available via the StatLog such as current and average load, memory, etc.
-* Many new MCI codes: `MB`, `MF`, `LA`, `CL`, `UU`, `FT`, `DD`, `FB`, `DB`, `LC`, `LT`, `LD`, and more. See [MCI](./docs/art/mci.md).
+* Many new MCI codes: `MB`, `MF`, `LA`, `CL`, `UU`, `FT`, `DD`, `FB`, `DB`, `LC`, `LT`, `LD`, and more. See [MCI](./website/src/content/docs/art/mci.md).
 * SyncTERM style font support detection.
 * Added a system method to support setting the client encoding from menus, `@systemMethod:setClientEncoding`.
 * Many additional backward-compatible bug fixes since the first release of 0.0.12-beta. See the [project repository](https://github.com/NuSkooler/enigma-bbs) for more information.
-* Deprecated Gopher's `messageConferences` configuration key in favor of a easier to deal with `exposedConfAreas` allowing wildcards and exclusions. See [Gopher](./docs/servers/contentservers/gopher.md).
+* Deprecated Gopher's `messageConferences` configuration key in favor of a easier to deal with `exposedConfAreas` allowing wildcards and exclusions. See [Gopher](./website/src/content/docs/servers/contentservers/gopher.md).
 * NNTP write (aka POST) access support for authenticated users over TLS.
-* [Advanced MCI formatting](./docs/art/mci.md#mci-formatting)!
-* Additional options in the `abracadabra` module for launching doors. See [Local Doors](./docs/modding/local-doors.md)
+* [Advanced MCI formatting](./website/src/content/docs/art/mci.md#mci-formatting)!
+* Additional options in the `abracadabra` module for launching doors. See [Local Doors](./website/src/content/docs/modding/local-doors.md)
 
 ## 0.0.12-beta
-* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Upgrading](./docs/admin/upgrading.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
+* The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Upgrading](./website/src/content/docs/admin/upgrading.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
 * Development now occurs against [Node.js 14 LTS](https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V14.md).
-* The default configuration has been moved to [config_default.js](/core/config_default.js).
+* The default configuration has been moved to [config_default.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config_default.js).
 * A full configuration revamp has taken place. Configuration files such as `config.hjson`, `menu.hjson`, and `theme.hjson` can now utilize includes via the `includes` directive, reference 'self' sections using `@reference:` and import environment variables with `@environment`.
 * An explicit prompt file previously specified by `general.promptFile` in `config.hjson` is no longer necessary. Instead, this now simply part of the `prompts` section in `menu.hjson`. The default setup still creates a separate prompt HJSON file, but it is `includes`ed in `menu.hjson`. With the removal of prompts the `PromptsChanged` event will no longer be fired.
-* New `PV` ACS check for arbitrary user properties. See [ACS](./docs/configuration/acs.md) for details.
+* New `PV` ACS check for arbitrary user properties. See [ACS](./website/src/content/docs/configuration/acs.md) for details.
 * The `message` arg used by `msg_list` has been deprecated. Please starting using `messageIndex` for this purpose. Support for `message` will be removed in the future.
-* A number of new MCI codes (see [MCI](./docs/art/mci.md))
+* A number of new MCI codes (see [MCI](./website/src/content/docs/art/mci.md))
 * Added ability to export/download messages. This is enabled in the default menu. See `messageAreaViewPost` in [the default message base template](./misc/menu_templates/message_base.in.hjson) and look for the download options (`@method:addToDownloadQueue`, etc.) for details on adding to your system!
-* The Gopher server has had a revamp! Standard `gophermap` files are now served along with any other content you configure for your Gopher Hole! A default [gophermap](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) can be found [in the misc directory](./misc/gophermap) that behaves like the previous implementation. See [Gopher docs](./docs/servers/gopher.md) for more information.
+* The Gopher server has had a revamp! Standard `gophermap` files are now served along with any other content you configure for your Gopher Hole! A default [gophermap](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) can be found [in the misc directory](./misc/gophermap) that behaves like the previous implementation. See [Gopher docs](./website/src/content/docs/servers/contentservers/gopher.md) for more information.
 * Default file browser up/down/pageUp/pageDown scrolls description (e.g. FILE_ID.DIZ). If you want to expose this on an existing system see the `fileBaseListEntries` in the default `file_base.in.hjson` template.
 * File base search has had an improvement to search term handling.
 * `./oputil user group -group` to now accepts `~group` removing the need for special handling of the "-" character. #331
 * A fix has been made to clean up old `file.db` entries when a file is removed. Previously stale records could be left or even recycled into new entries. Please see [UPGRADE.md](UPGRADE.md) for details on applying this fix (look for `tables_update_2020-11-29.sql`).
-* The [./docs/modding/onelinerz.md](onelinerz) module can have `dbSuffix` set in it's `config` block to specify a separate DB file. For example to use as a requests list.
+* The [onelinerz](./website/src/content/docs/modding/onelinerz.md) module can have `dbSuffix` set in it's `config` block to specify a separate DB file. For example to use as a requests list.
 * Default hash tags can now be set in file areas. Simply supply an array or list of values in a file area block via `hashTags`.
-* Added ability to pass an `env` value (map) to `abracadabra` doors. See [Local Doors](./docs/modding/local-doors.md]).
+* Added ability to pass an `env` value (map) to `abracadabra` doors. See [Local Doors](./website/src/content/docs/modding/local-doors.md).
 * `dropFileType` is now optional when launching doors with `abracadabra`. It can also be explicitly set to `none`.
 * FSE in *view* mode can now stylize quote indicators. Supply `quoteStyleLevel1` in the `config` block. This can be a single string or an array of two strings (one to style the quotee's initials, the next for the '>' character, and finally the quoted text). See the `messageAreaViewPost` menu `config` block in the default `luciano_blocktronics` `theme.hjson` file for an example. An additional level style (e.g. for nested quotes) may be added in the future.
 * FSE in *view* mode can now stylize tear lines and origin lines via `tearLineStyle` and `originStyle` `config` values in the same manor as `quoteStyleLevel`.
@@ -507,7 +507,7 @@ Various fixes
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!
 * Development is now against Node.js 12.x LTS. Other versions may work but are not currently supported!
-* [QWK support](./docs/messageareas/qwk.md)
+* [QWK support](./website/src/content/docs/messageareas/qwk.md)
 * `oputil fb scan *areaTagWildcard*` scans all areas in which wildcard is matched.
 * The archiver configuration `escapeTelnet` has been renamed `escapeIACs`. Support for the old value will be removed in the future.
 
@@ -515,8 +515,8 @@ Various fixes
 + `oputil.js user rename USERNAME NEWNAME`
 + `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.
 + SSH Public Key Authentication has been added. The system uses a OpenSSH style public key set on the `ssh_public_key` user property.
-+ 2-Factor (2FA) authentication is now available using [RFC-4266 - HOTP: HMAC-Based One-Time Password Algorithm)](https://tools.ietf.org/html/rfc4226), [RFC-6238 - TOTP: Time-Based One-Time Password Algorithm](https://tools.ietf.org/html/rfc6238), or [Google Authenticator](http://google-authenticator.com/). QR codes for activation are available as well. One-time backup aka recovery codes can also be used. See [Security](./docs/configuration/security.md) for more info!
-* New ACS codes for new 2FA/OTP: `AR` and `AF`. See [ACS](./docs/configuration/acs.md) for details.
++ 2-Factor (2FA) authentication is now available using [RFC-4266 - HOTP: HMAC-Based One-Time Password Algorithm)](https://tools.ietf.org/html/rfc4226), [RFC-6238 - TOTP: Time-Based One-Time Password Algorithm](https://tools.ietf.org/html/rfc6238), or [Google Authenticator](http://google-authenticator.com/). QR codes for activation are available as well. One-time backup aka recovery codes can also be used. See [Security](./website/src/content/docs/configuration/security.md) for more info!
+* New ACS codes for new 2FA/OTP: `AR` and `AF`. See [ACS](./website/src/content/docs/configuration/acs.md) for details.
 + `oputil.js user 2fa USERNAME TYPE` enables 2-factor authentication for a user.
 * `oputil.js user info USERNAME --security` can now display additional security information such as 2FA/OTP.
 * `oputil.js fb scan --quick` is now the default. Override with `--full`.
@@ -575,12 +575,12 @@ submit: [
 * `{userName}` (sanitized) and `{userNameRaw}` as well as `{cwd}` have been added to param options when launching a door.
 * Any module may now register for a system startup initialization via the `initializeModules(initInfo, cb)` export.
 * User event log is now functional. Various events a user performs will be persisted to the `system.sqlite3` `user_event_log` table for up to 90 days. An example usage can be found in the updated `last_callers` module where events are turned into Ami/X style actions. Please see `UPGRADE.md`!
-* New MCI codes including general purpose movement codes. See [MCI codes](docs/art/mci.md)
+* New MCI codes including general purpose movement codes. See [MCI codes](./website/src/content/docs/art/mci.md)
 * `install.sh` will now attempt to use NPM's `--build-from-source` option when ARM is detected.
 * `oputil.js config new` will now generate a much more complete configuration file with comments, examples, etc. `oputil.js config cat` dumps your current config to stdout.
 * Handling of failed login attempts is now fully in. Disconnect clients, lock out accounts, ability to auto or unlock at (email-driven) password reset, etc. See `users.failedLogin` in `config.hjson`.
-* NNTP support! See [NNTP docs](./docs/servers/nntp.md) for more information.
-* `oputil.js user rm` and `oputil.js user info` are in! See [oputil CLI](./docs/admin/oputil.md).
+* NNTP support! See [NNTP docs](./website/src/content/docs/servers/contentservers/nntp.md) for more information.
+* `oputil.js user rm` and `oputil.js user info` are in! See [oputil CLI](./website/src/content/docs/admin/oputil.md).
 * Performing a file scan/import using `oputil.js fb scan` now recognizes various `FILES.BBS` formats.
 * Usernames found in the `config.users.badUserNames` are now not only disallowed from applying, but disconnected at any login attempt.
 * Total minutes online is now tracked for users. Of course, it only starts after you get the update :)
