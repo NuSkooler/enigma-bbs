@@ -135,10 +135,12 @@ for (const page of PAGES) {
 
     md = normaliseHeadings(rewriteLinks(md)).trim();
 
-    const esc = page.description.replace(/"/g, '\\"');
+    //  JSON.stringify rather than escaping quotes by hand: a YAML double-quoted
+    //  scalar escapes the same way JSON does, and hand-rolling it missed
+    //  backslashes.
     const out = `---
 title: ${page.title}
-description: "${esc}"
+description: ${JSON.stringify(page.description)}
 sidebar:
     order: ${page.order}
 editUrl: https://github.com/NuSkooler/enigma-bbs/edit/master/${page.src}

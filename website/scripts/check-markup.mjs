@@ -52,12 +52,15 @@ function proseOf(html) {
     const end = body.indexOf('<footer');
     if (end !== -1) body = body.slice(0, end);
 
+    //  Case-insensitive throughout: HTML tag names are not case sensitive, and a
+    //  <SCRIPT> that survived the strip would land in the prose and trip the very
+    //  patterns this function exists to isolate them from.
     return body
-        .replace(/<figure class="frame[\s\S]*?<\/figure>/g, ' ')
-        .replace(/<code[\s\S]*?<\/code>/g, ' ')
-        .replace(/<pre[\s\S]*?<\/pre>/g, ' ')
-        .replace(/<script[\s\S]*?<\/script>/g, ' ')
-        .replace(/<style[\s\S]*?<\/style>/g, ' ')
+        .replace(/<figure class="frame[\s\S]*?<\/figure>/gi, ' ')
+        .replace(/<code[\s\S]*?<\/code>/gi, ' ')
+        .replace(/<pre[\s\S]*?<\/pre>/gi, ' ')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
         .replace(/<[^>]+>/g, ' ')
         .replace(/&#x3C;/g, '<')
         .replace(/&lt;/g, '<')
