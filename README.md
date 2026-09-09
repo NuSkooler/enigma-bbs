@@ -64,14 +64,14 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
 * [IcyTERM](https://github.com/mkrueger/icy_tools/tree/master/crates/icy_term)
-* [VTX](https://github.com/codewar65/VTX_ClientServer) (Try [Xibalba using VTX](https://l33t.codes/vtx/xibalba.html)!)
+* [VTX](https://github.com/codewar65/VTX_ClientServer) (Try [Xibalba using VTX](https://xibalba.vip)!)
 * [SyncTERM](http://syncterm.bbsdev.net/)
 * [EtherTerm](https://github.com/M-griffin/EtherTerm)
 * [NetRunner](http://mysticbbs.com/downloads.html)
 * [MagiTerm](https://gitlab.com/magickabbs/MagiTerm)
 
 ## Some Boards
-* :skull: [Xibalba - ENiGMA WHQ](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
+* :skull: [Xibalba - ENiGMA WHQ](https://xibalba.vip) :skull: (**ssh://xibalba.vip:44511** or **telnet://xibalba.vip:44510**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
 
 ## Special Thanks

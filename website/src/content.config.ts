@@ -1,10 +1,12 @@
 import { defineCollection } from 'astro:content';
-import { docsLoader } from '@astrojs/starlight/loaders';
-import { docsSchema } from '@astrojs/starlight/schema';
+import { docsLoader, i18nLoader } from '@astrojs/starlight/loaders';
+import { docsSchema, i18nSchema } from '@astrojs/starlight/schema';
 
-//  Content lives at the conventional src/content/docs/. Starlight derives the
-//  sidebar from this tree, so a new page cannot be invisible in the nav the way
-//  six of them were under the hand-maintained Jekyll list.
+//  Starlight looks for both collections and warns on every build when the i18n
+//  one is missing, even for a single-language site. Declaring it costs nothing
+//  and silences the noise; src/content/i18n/ stays empty until there is a
+//  translation to put in it.
 export const collections = {
     docs: defineCollection({ loader: docsLoader(), schema: docsSchema() }),
+    i18n: defineCollection({ loader: i18nLoader(), schema: i18nSchema() }),
 };

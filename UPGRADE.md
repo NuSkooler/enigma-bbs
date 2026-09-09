@@ -14,7 +14,7 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 # Problems
 1. Check [TROUBLESHOOTING](TROUBLESHOOTING.md) first.
-2. Report your issue on [Xibalba BBS](https://xibalba.l33t.codes), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues)!
+2. Report your issue on [Xibalba BBS](https://xibalba.vip), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues)!
 
 
 # Version to Version Notes
