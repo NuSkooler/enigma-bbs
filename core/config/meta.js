@@ -300,6 +300,14 @@ module.exports = {
     'messageNetworks.qwk.areas': { openMap: true },
     'messageNetworks.qwk.bbsID': { type: 'string' },
 
+    'messageNetworks.bluewave': { type: 'object', closedKeys: true },
+    'messageNetworks.bluewave.areas': { openMap: true },
+    'messageNetworks.bluewave.bbsID': {
+        type: 'string',
+        description:
+            'Packet ID: the 1-8 character root name every file in a Blue Wave packet shares.',
+    },
+
     //  ── FTN BSO scanner/tosser ───────────────────────────────────────────
     'scannerTossers.ftn_bso.nodes': { openMap: true },
     //
