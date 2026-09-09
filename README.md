@@ -56,7 +56,7 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 ## Support
 * See [Discussions](https://github.com/NuSkooler/enigma-bbs/discussions) and [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
-* Discord: https://discord.gg/ghx8Vxex
+* Discord: https://discord.gg/M2pbyvuGva
 * `FSX_ENG` on [fsxNet](https://fsxnet.nz) available on many fine boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)

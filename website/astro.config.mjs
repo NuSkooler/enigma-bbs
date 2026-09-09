@@ -46,7 +46,7 @@ export default defineConfig({
                 {
                     icon: 'discord',
                     label: 'Discord',
-                    href: 'https://discord.gg/ghx8Vxex',
+                    href: 'https://discord.gg/M2pbyvuGva',
                 },
             ],
             //  Section order and titles mirror the old _data/sections.yml, but the
