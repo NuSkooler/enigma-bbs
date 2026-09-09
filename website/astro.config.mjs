@@ -37,6 +37,18 @@ export default defineConfig({
                 baseUrl: 'https://github.com/NuSkooler/enigma-bbs/edit/master/website/',
             },
             lastUpdated: true,
+            social: [
+                {
+                    icon: 'github',
+                    label: 'GitHub',
+                    href: 'https://github.com/NuSkooler/enigma-bbs',
+                },
+                {
+                    icon: 'discord',
+                    label: 'Discord',
+                    href: 'https://discord.gg/ghx8Vxex',
+                },
+            ],
             //  Section order and titles mirror the old _data/sections.yml, but the
             //  PAGES inside each are discovered from disk. That is what makes it
             //  impossible to add a doc that never appears in the nav.

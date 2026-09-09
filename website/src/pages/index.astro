@@ -127,6 +127,32 @@ const features = [
             </ul>
         </section>
 
+        <section class="community">
+            <div class="community__col">
+                <h2 class="dos section-head">▀▀ WHERE THIS CAME FROM</h2>
+                <p class="origin">
+                    ENiGMA½ was started in <strong>October 2015</strong>, out of a lack of
+                    diversity in the BBS scene and no modern open source option to reach for.
+                    You can still read the
+                    <a href="https://www.reddit.com/r/bbs/comments/3qmo35/enigma%C2%BD_bbs_software_on_github/">original announcement</a>.
+                    It has been developed in the open ever since, led by
+                    <a href="https://github.com/NuSkooler">NuSkooler</a> with contributions
+                    from many others.
+                </p>
+            </div>
+            <div class="community__col">
+                <h2 class="dos section-head">▀▀ GETTING HELP</h2>
+                <ul class="help">
+                    <li><a href="https://github.com/NuSkooler/enigma-bbs/discussions">GitHub Discussions</a> — questions and ideas</li>
+                    <li><a href="https://github.com/NuSkooler/enigma-bbs/issues">Issue tracker</a> — bugs and feature requests</li>
+                    <li><a href="https://discord.gg/ghx8Vxex">Discord</a> — the fastest way to reach other sysops</li>
+                    <li><code>FSX_ENG</code> on <a href="https://fsxnet.nz">fsxNet</a> — carried by many boards</li>
+                    <li><a href="https://www.facebook.com/groups/enigmabbs/">Facebook group</a></li>
+                    <li><a href="https://github.com/NuSkooler/enigma-bbs/blob/master/CONTRIBUTING.md">Contributing</a> — code, bug reports and docs</li>
+                </ul>
+            </div>
+        </section>
+
         <footer class="foot">
             <p class="dos">TELNET · SSH · WEBSOCKET · GOPHER · NNTP</p>
             <p class="dos">v0.5.1-beta · BSD-2-Clause</p>
@@ -245,6 +271,20 @@ const features = [
     .dial code {
         font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
         color: #d9ded9; background: #101810; border: 1px solid #1f261f; padding: 2px 7px;
+    }
+
+    .community {
+        display: flex; flex-wrap: wrap; gap: 3rem;
+        padding: 3.5rem 2.5rem; border-top: 1px solid #1f261f;
+    }
+    .community__col { flex: 1 1 24rem; min-width: 0; }
+    .origin { font-size: 15.5px; line-height: 1.68; color: #8a928a; margin: 0; max-width: 34rem; text-wrap: pretty; }
+    .origin strong { color: #d9ded9; }
+    .help { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+    .help li { font-size: 15px; line-height: 1.5; color: #8a928a; }
+    .help code {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
+        color: #55ff55; background: #101810; border: 1px solid #1f261f; padding: 1px 6px;
     }
 
     .features { padding: 3.5rem 2.5rem; }
