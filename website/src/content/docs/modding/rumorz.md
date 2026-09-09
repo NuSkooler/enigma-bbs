@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Rumorz
+description: "The classic rumorz board."
+sidebar:
+    order: 55
 ---
 ## The Rumorz Module
 The built in `rumorz` module provides a classic interface for users to add and view rumorz!

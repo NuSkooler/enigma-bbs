@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Creating Initial Config Files
+description: "Generate your first config.hjson and menu files with oputil."
+sidebar:
+    order: 1
 ---
 Configuration files in ENiGMA½ are simple UTF-8 encoded [HJSON](https://hjson.github.io/) files. HJSON is just like JSON but simplified and much more resilient to human error.
 

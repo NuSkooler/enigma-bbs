@@ -1,6 +1,8 @@
 ---
-layout: page
 title: User List
+description: "The user list and the fields available to it."
+sidebar:
+    order: 52
 ---
 ## The User List Module
 The built in `user_list` module provides basic user list functionality.

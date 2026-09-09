@@ -1,18 +1,18 @@
 ---
-layout: page
 title: Installation Under Windows
+description: "Install ENiGMA½ on Windows, including Visual Studio Build Tools for the native modules."
+sidebar:
+    order: 5
 ---
-## Installation Under Windows
-
 ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.
 
-### Prerequisites
+## Prerequisites
 
-#### Node.js
+### Node.js
 
 Download and install Node.js from [nodejs.org](https://nodejs.org/). Use the current **LTS release** — non-LTS/bleeding-edge versions are not tested and may cause issues.
 
-#### Visual Studio Build Tools
+### Visual Studio Build Tools
 
 ENiGMA½ includes native modules (`node-pty` and `sqlite3`) that must be compiled during installation. This requires Visual Studio Build Tools:
 
@@ -25,11 +25,11 @@ ENiGMA½ includes native modules (`node-pty` and `sqlite3`) that must be compile
 
 > **Note:** Visual Studio Build Tools 2017 or newer is required. Older versions will not be detected by node-gyp.
 
-#### Git
+### Git
 
 Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/).
 
-#### 7-Zip
+### 7-Zip
 
 Install [7-Zip](https://www.7-zip.org/download.html) and add it to your `PATH`:
 
@@ -43,7 +43,7 @@ Install [7-Zip](https://www.7-zip.org/download.html) and add it to your `PATH`:
 
 ---
 
-### Installation
+## Installation
 
 1. Clone ENiGMA½ — browse to the directory you want and run:
     ```powershell
@@ -73,7 +73,7 @@ See [Production Installation](../production.md) when you are ready to go live.
 
 ---
 
-### Troubleshooting: node-gyp / Visual Studio Not Found
+## Troubleshooting: node-gyp / Visual Studio Not Found
 
 If `npm install` fails with an error like *"could not find a version of Visual Studio"* or *"unknown version found"*, node-gyp is not detecting your VS Build Tools installation. Try:
 

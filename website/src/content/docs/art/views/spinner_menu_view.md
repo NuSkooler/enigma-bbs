@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Spinner Menu View
+description: "%SM — a single-item rotary selector that cycles through a list."
+sidebar:
+    order: 22
 ---
-## Spinner Menu View
 A spinner menu view supports displaying a set of items on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.
 
 ## General Information

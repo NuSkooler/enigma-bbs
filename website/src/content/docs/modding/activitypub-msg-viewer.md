@@ -1,6 +1,8 @@
 ---
-layout: page
 title: ActivityPub Message Viewer
+description: "A read-only viewer for a single ActivityPub Note."
+sidebar:
+    order: 35
 ---
 ## The ActivityPub Message Viewer Module
 The built-in `activity_pub_msg_viewer` module provides a read-only, scrollable viewer for individual ActivityPub Notes from the Fediverse. It uses a two-art layout — a body art containing the message text and header labels, and a footer art containing a horizontal action menu — mirroring the FSE view-mode design.

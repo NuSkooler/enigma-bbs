@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Last Callers
+description: "The last callers list, its collapse rules and its action indicators."
+sidebar:
+    order: 50
 ---
 ## The Last Callers Module
 The built in `last_callers` module provides flexible retro last callers mod.

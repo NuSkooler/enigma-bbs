@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Vertical Menu View
+description: "%VM — a scrolling vertical lightbar list."
+sidebar:
+    order: 19
 ---
-## Vertical Menu View
 A vertical menu view supports displaying a list of times on a screen vertically in a single column, similar to a lightbar. This type of control is often useful for lists of items or menu controls.
 
 ## General Information

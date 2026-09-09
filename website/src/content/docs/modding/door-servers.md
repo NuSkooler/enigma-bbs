@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Door Servers
+description: "Connect to hosted door services: BBSLink, DoorParty and Exodus."
+sidebar:
+    order: 15
 ---
 ## The bbs_link Module
 Native support for [BBSLink](http://www.bbslink.net/) doors is provided via the `bbs_link` module.

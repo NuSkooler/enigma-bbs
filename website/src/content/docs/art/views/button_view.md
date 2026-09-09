@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Button View
+description: "%BN — a labelled button that triggers an action when activated."
+sidebar:
+    order: 17
 ---
-## Button View
 A button view supports displaying a button on a screen.
 
 ## General Information

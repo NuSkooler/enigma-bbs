@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Administration
+description: "Day-to-day running of a board: users, backups, database maintenance and scheduled tasks."
+sidebar:
+    order: 1
 ---
-
-# Administration
 
 ## Keeping Up to Date
 See [Upgrading](upgrading.md).

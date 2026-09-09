@@ -1,6 +1,8 @@
 ---
-layout: page
 title: oputil
+description: "The oputil command line tool — users, config, message bases, file bases and FTN maintenance."
+sidebar:
+    order: 2
 ---
 ## The oputil CLI
 ENiGMA½ comes with `oputil.js` henceforth known as `oputil`, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration.

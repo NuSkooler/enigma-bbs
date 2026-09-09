@@ -1,22 +1,24 @@
 ---
-layout: page
 title: Web Handlers
+description: "Add your own routes to the web server, and the handlers that ship with ENiGMA½."
+sidebar:
+    order: 2
 ---
 Web handlers provide a way to easily add additional _routes_ to your [Web Server](./web-server.md).
 
-# Built in Web Handler Modules
+## Built in Web Handler Modules
 * [WebFinger](./webfinger-handler.md): Provides basic [WebFinger](https://webfinger.net/) ([RFC7033](https://www.rfc-editor.org/rfc/rfc7033)) support.
 * System General: Serves user avatars.
 * NodeInfo2: Handles [NodeInfo2](https://github.com/jaywink/nodeinfo2) requests.
 * ActivityPub:
 
-## Building Your Own
+### Building Your Own
 
 :::caution
 Custom web handlers are an **advanced, internal extension point**. By default the system loads handlers from `core/servers/content/web_handlers/` — the same directory as the built-in handlers. You can override the search path via `paths.webHandlers` in `config.hjson` if you want to keep custom code out of the ENiGMA source tree.
 :::
 
-### Skeleton
+#### Skeleton
 
 Inherit from `WebHandlerModule`, export `moduleInfo` and `getModule`, then register your route(s) inside `init()`:
 
@@ -61,7 +63,7 @@ exports.getModule = class MyWebHandler extends WebHandlerModule {
 };
 ```
 
-### Enabling Your Handler
+#### Enabling Your Handler
 
 Add an entry under `contentServers.web.handlers` in `config.hjson`. The key is the **camelCase** form of your `moduleInfo.name`:
 

@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Security
+description: "Password storage, two-factor authentication, and choosing secure transports for your board."
+sidebar:
+    order: 9
 ---
-## Security
 Unlike in the golden era of BBSing, modern Internet-connected systems are prone to hacking attempts, eavesdropping, etc. While plain-text passwords, insecure data over [Plain Old Telephone Service (POTS)](https://en.wikipedia.org/wiki/Plain_old_telephone_service), and so on was good enough then, modern systems must employ protections against attacks. ENiGMA½ comes with many security features that help keep the system and your users secure — not limited to:
 * Passwords are **never** stored in plain-text, but instead are stored using [Password-Based Key Derivation Function 2 (PBKDF2)](https://en.wikipedia.org/wiki/PBKDF2). Even the system operator can _never_ know your password!
 * Alternatives to insecure Telnet logins are built in: [SSH](https://en.wikipedia.org/wiki/Secure_Shell) and secure [WebSockets](https://en.wikipedia.org/wiki/WebSocket) for example.

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Existing Mods
+description: "Third-party mods and events released for ENiGMA½."
+sidebar:
+    order: 2
 ---
 Many "addon" modules exist and have been released. Below are a few:
 

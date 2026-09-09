@@ -1,9 +1,9 @@
 ---
-layout: page
 title: BinkP Native Mailer
+description: "The built-in BinkP mailer: inbound listener, outbound caller, CRAM-MD5, NR mode and GZ compression."
+sidebar:
+    order: 5
 ---
-## BinkP Native Mailer
-
 ENiGMA½ includes a built-in [BinkP](http://ftsc.org/docs/fts-1026.001) mailer that handles both inbound and outbound FidoNet packet transport without requiring an external daemon such as `binkd`.
 
 BinkP is the TCP/IP session-layer protocol used by modern FidoNet nodes to exchange mail packets and files. The native mailer implements:
@@ -30,7 +30,7 @@ If you prefer to continue using an external mailer such as [binkd](https://githu
 
 ---
 
-### Configuration
+## Configuration
 
 All BinkP configuration lives inside the existing `scannerTossers.ftn_bso` block in `config.hjson`, under a `binkp` sub-key.
 
@@ -127,7 +127,7 @@ sessionPassword: "@file:/run/secrets/binkp_pass"
 See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
 :::
 
-#### `binkp.inbound`
+### `binkp.inbound`
 
 | Key | Required | Default | Description |
 |-----|----------|---------|-------------|
@@ -135,7 +135,7 @@ See [Configuration Files — Secret Files](../configuration/config-files.md#secr
 | `port` | No | `24554` | TCP port to listen on |
 | `address` | No | `"0.0.0.0"` | IP address to bind |
 
-#### `binkp.pullSchedule`
+### `binkp.pullSchedule`
 
 [Later.js text expression](https://bunkat.github.io/later/parsers.html#text) — for example `"every 15 minutes"` or `"at 3:00 am"`. When the timer fires, ENiGMA½ dials **every** configured peer in `binkp.nodes` (excluding wildcard patterns and any peer with `pull: false`). This is independent of whether we have outbound mail queued — its job is to give quiet hubs a chance to push their pending echo mail down to us.
 
@@ -143,13 +143,13 @@ Set to `null`, `""`, or omit the key entirely to disable the pull cycle. Crashma
 
 If the expression fails to parse, the pull cycle is disabled and a warning is logged at startup.
 
-#### `binkp.crashmailDebounceMs`
+### `binkp.crashmailDebounceMs`
 
 When `ftn_bso` writes a flow file (i.e. queues a packet for a remote peer), it emits a `NewOutboundBSO` event. The BinkP module dials the destination peer right away — within hundreds of milliseconds — so messages ship without waiting on the next pull cycle. To avoid one session per message during a multi-message export, dialing is delayed by `crashmailDebounceMs` (default `500`) so back-to-back exports to the same peer coalesce into a single session.
 
 Lower it to ship faster at the cost of more sessions per burst; raise it if your scanner emits big batched exports.
 
-#### `binkp.staleLockMaxAgeMs`
+### `binkp.staleLockMaxAgeMs`
 
 When ENiGMA½ acquires a node lock (`.bsy` file in the outbound directory), it expects to release it cleanly at session end. If the BBS crashes mid-session the lock persists and that node becomes un-pollable until the file is removed.
 
@@ -162,7 +162,7 @@ The default is 6× the internal session timeout (5 minutes), giving a generous s
 
 The same `.bsy` files are honoured by external mailers such as Binkd, and by the ENiGMA½ *tosser* when it queues outbound — see [`flowLockTimeoutMs`](#flowlocktimeoutms) below.
 
-#### `binkp.flowRefWarnRepeatMs`
+### `binkp.flowRefWarnRepeatMs`
 
 A BSO flow file stores an **absolute path** to each file queued for a node. If that file is later deleted or moved, the entry can never be sent — the node simply never receives it. ENiGMA½ warns about this, naming the node and the file.
 
@@ -170,7 +170,7 @@ A BSO flow file stores an **absolute path** to each file queued for a node. If t
 
 Raise it if you have a dangling reference you already know about and have not dealt with yet. To see what is affected and act on it, use [`oputil bso status`](../admin/oputil.md) — and note that a node whose queued entries have *all* gone missing is deliberately not polled, so that command is the only place it shows up.
 
-#### `flowLockTimeoutMs`
+### `flowLockTimeoutMs`
 
 :::note
 This one lives at `scannerTossers.ftn_bso.flowLockTimeoutMs`, **not** under `binkp` — it governs the tosser (the writer), not the mailer.
@@ -192,14 +192,14 @@ Flow file busy; outbound not queued this pass
 
 Nothing is lost or corrupted — the write simply did not happen, which is what the spec requires. Raise this on a busy hub with long sessions.
 
-#### `binkp.inboundTempMaxAgeMs`
+### `binkp.inboundTempMaxAgeMs`
 
 Inbound files are buffered in `tempDir` (defaults to the OS temp dir) under names like `binkp_in_*.dt`, then renamed into the inbound spool on successful receipt. Two layers protect against leaks if a peer drops mid-transfer:
 
 - **In-session finalizer**: each session tracks the temp files it owns; on socket error or disconnect they are unlinked immediately.
 - **Startup sweep**: catches anything left after a hard process kill that prevented the in-session finalizer from running. `inboundTempMaxAgeMs` (default `60 * 60 * 1000`, i.e. 1 hour) is the age threshold.
 
-#### `binkp.nodes`
+### `binkp.nodes`
 
 Each key is an FTN address or wildcard pattern. Values:
 
@@ -214,7 +214,7 @@ Each key is an FTN address or wildcard pattern. Values:
 
 Wildcard patterns (e.g. `"21:1/*"`) are valid for inbound password lookup but are skipped during pull cycles, since the pull cycle dials concrete addresses only. Put the most specific patterns first in your config — pattern matching uses first-match-wins on insertion order.
 
-#### `binkp.nodes[].requestNR` — NR (non-reliable) mode
+### `binkp.nodes[].requestNR` — NR (non-reliable) mode
 
 NR mode is the binkp answer to a link that keeps dropping mid-transfer. Normally a sender starts every file at offset 0 and the receiver has to interrupt with `M_GET` to move it; on a bad line the connection is often gone again before that lands. In NR mode the sender instead offers the file with an offset of `-1` and waits to be told where to start, so the resume position is settled before any data moves. See [FTS-1028](http://ftsc.org/docs/fts-1028.001).
 
@@ -222,7 +222,7 @@ NR mode is the binkp answer to a link that keeps dropping mid-transfer. Normally
 
 The other direction needs no configuration. If a peer asks us for NR mode we always honour it, which FTS-1028 makes a `MUST`.
 
-#### `binkp.nodes[].gz` — compression
+### `binkp.nodes[].gz` — compression
 
 When both sides advertise `GZ` (and `EXTCMD`), file data is compressed on the wire. Files that are already compressed — ArcMail bundles (`.mo0`, `.tu1`, …), `.zip`, `.arj` and friends — are sent as-is, so a node using `archiveType` sees little of this either way.
 
@@ -230,7 +230,7 @@ The wire format is the zlib container ([FTS-1029](http://ftsc.org/docs/fts-1029.
 
 If a peer cannot decompress what we send, ENiGMA½ does not simply give up on the file: FTS-1029 allows a receiver to ask for it again uncompressed, and a peer that asks us that way is honoured for the rest of the session. Set `gz: false` to skip compression with a node entirely.
 
-#### `binkp.nodes[].tls` / TLS outbound (binkps)
+### `binkp.nodes[].tls` / TLS outbound (binkps)
 
 To dial a node over TLS (binkps, typically port 24555) set `tls: true` in the node block. Exactly one of the following trust options is also required:
 
@@ -240,7 +240,7 @@ To dial a node over TLS (binkps, typically port 24555) set `tls: true` in the no
 | `tlsFingerprint` | `"SHA256:AA:BB:..."` — pin to a specific certificate fingerprint |
 | `tlsCertFile` | `"/path/to/ca.pem"` — trust a specific CA or self-signed certificate file |
 
-#### `binkp.inbound.tls` — TLS listener (binkps)
+### `binkp.inbound.tls` — TLS listener (binkps)
 
 Set `inbound.tls.enabled: true` to start a second, TLS-only listener. Both the plain (port 24554) and TLS (default 24555) listeners run simultaneously. Requires a certificate and matching private key:
 
@@ -251,7 +251,7 @@ Set `inbound.tls.enabled: true` to start a second, TLS-only listener. Both the p
 | `certFile` | Absolute path to the PEM certificate |
 | `keyFile` | Absolute path to the PEM private key |
 
-#### `binkp.freq` — File REQuest (FREQ)
+### `binkp.freq` — File REQuest (FREQ)
 
 When FREQ is configured, remote nodes can request named files by sending a `.req` file containing one name per line. ENiGMA½ resolves each name and sends the matching files back **in the same BinkP session** (no extra round-trip required).
 
@@ -300,13 +300,13 @@ freq: {
 
 With this setup, every new nodelist that arrives via TIC is immediately FREQ-serveable — no path configuration to maintain.
 
-#### Sessions and batches
+### Sessions and batches
 
 A binkp/1.1 session is a series of *batches*. Each ends when both sides have sent `M_EOB`, and another follows any batch that carried more than that pair — so a session that moved mail always ends on a short empty batch. Each new batch is also an opportunity: anything that turned up mid-session, such as a FREQ response or mail tossed from a packet that just arrived, goes out on the same connection instead of waiting for the next poll.
 
 Both sides decide this the same way, by counting the command frames sent and received since the batch began, so they agree without negotiating. A peer that identifies itself as binkp/1.0, or that never sends a version at all, is not offered a second batch.
 
-#### Reloading configuration
+### Reloading configuration
 
 `config.hjson` is watched and reloaded while the BBS runs. Almost everything under `binkp` is read at the moment it is used, so a reload applies on its own:
 
@@ -329,7 +329,7 @@ The last row is bound into the socket when it starts listening; changing it unde
 
 ---
 
-### How it works with `ftn_bso`
+## How it works with `ftn_bso`
 
 The two modules share the same BSO spool directories (`paths.outbound`, `paths.inbound`, `paths.secInbound`):
 
@@ -356,7 +356,7 @@ If you use an external mailer (`binkd`, etc.) instead of or alongside the native
 
 ---
 
-### Sysop poll command
+## Sysop poll command
 
 Once BinkP is configured, sysops can trigger an immediate outbound poll from the main menu by typing `!BINKP`. The system dials every node that has pending mail and reports the result. The default menu template wires this for the sysop ACS group automatically; a fresh install gets the command for free.
 
@@ -373,7 +373,7 @@ Pre-existing custom menus that don't include this entry will need it added manua
 
 ---
 
-### Firewall / NAT notes
+## Firewall / NAT notes
 
 - Open TCP port **24554** inbound if you want other nodes to be able to call you
 - The outbound caller initiates connections from an ephemeral port; no special firewall rules needed for outbound
@@ -381,7 +381,7 @@ Pre-existing custom menus that don't include this entry will need it added manua
 
 ---
 
-### Migrating from external `binkd`
+## Migrating from external `binkd`
 
 1. Stop `binkd` and disable its startup service
 2. Add the `binkp` block to your `scannerTossers.ftn_bso` config as shown above, with `inbound.enabled: true`
@@ -393,7 +393,7 @@ Pre-existing custom menus that don't include this entry will need it added manua
 Do **not** run the native BinkP mailer and `binkd` concurrently on the same node address. They will compete for the BSO `.bsy` lock files and one will win while the other skips. If you want to run both temporarily for testing, use different node addresses or stagger their poll windows.
 :::
 
-#### Renamed since `binkd` migration guides
+### Renamed since `binkd` migration guides
 
 If you're following older notes or examples, two things have changed:
 

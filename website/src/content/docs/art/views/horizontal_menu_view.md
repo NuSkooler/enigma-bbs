@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Horizontal Menu View
+description: "%HM — a single-row horizontal list of selectable items."
+sidebar:
+    order: 18
 ---
-## Horizontal Menu View
 A horizontal menu view supports displaying a list of times on a screen horizontally (side to side, in a single row) similar to a lightbox.
 
 ## General Information

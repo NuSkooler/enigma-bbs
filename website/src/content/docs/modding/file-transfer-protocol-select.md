@@ -1,6 +1,8 @@
 ---
-layout: page
 title: File Transfer Protocol Select
+description: "The protocol picker shown before a legacy upload or download."
+sidebar:
+    order: 43
 ---
 ## The File Transfer Protocol Select Module
 The built in `file_transfer_protocol_select` module provides a way to select a legacy file transfer protocol (X/Y/Z-Modem, etc.) for upload/downloads.

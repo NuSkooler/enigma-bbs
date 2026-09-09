@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Netmail
+description: "Send and receive NetMail from the private mail area, and route it through your uplinks."
+sidebar:
+    order: 6
 ---
 ENiGMA supports import and export of Netmail from the Private Mail area. `RiPuk @ 21:1/136` and `RiPuk <21:1/136>` 'To' address formats are supported.
 

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: ACS
+description: "Control who can list, download from and upload to a file area with ACS."
+sidebar:
+    order: 3
 ---
 ## File Base ACS
 [ACS Codes](../configuration/acs.md) may be used to control access to File Base areas by specifying an `acs` string in a file area's definition. If no `acs` is supplied in a file area definition, the following defaults apply to an area:

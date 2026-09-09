@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Installation Methods
+description: "Compare the install script, Docker and manual installation, and pick the one that fits your system."
+sidebar:
+    order: 1
 ---
-## Installation Methods
 There are multiple ways of installing ENiGMA BBS, depending on your level of experience and desire to do things manually versus have it automated for you.
 
 | Method | Operating System Compatibility | Notes |

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Message Area List
+description: "Browse and change message areas within the current conference."
+sidebar:
+    order: 31
 ---
 ## The Message Area List Module
 The built in `msg_area_list` module provides a menu to display and change between message areas in the users current conference.

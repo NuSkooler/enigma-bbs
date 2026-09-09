@@ -1,6 +1,8 @@
 ---
-layout: page
 title: HJSON Config Files
+description: "The HJSON format, editing tips, common pitfalls, and how to validate a config file before starting."
+sidebar:
+    order: 5
 ---
 ## JSON for Humans!
 HJSON is the configuration file format used by ENiGMA½ for [System Configuration](config-hjson.md), [Menus](menu-hjson.md), etc. [HJSON](https://hjson.github.io/) is [JSON](https://json.org/) for humans!

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Auto Signature Editor
+description: "The auto-signature editor, and disabling autosigs per message area."
+sidebar:
+    order: 26
 ---
 ## The Auto Signature Editor
 The built in `autosig_edit` module allows users to edit their auto signatures (AKA "autosig").

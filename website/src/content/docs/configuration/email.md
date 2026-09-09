@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Email
+description: "SMTP and IMAP settings for password resets, 2FA mail and internet mail."
+sidebar:
+    order: 13
 ---
 ## Email Support
 

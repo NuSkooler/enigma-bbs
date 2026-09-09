@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Toggle Menu View
+description: "%TM — a two-item toggle for Yes/No and On/Off choices."
+sidebar:
+    order: 21
 ---
-## Toggle Menu View
 A toggle menu view supports displaying a list of options on a screen horizontally (side to side, in a single row) similar to a [Horizontal Menu](horizontal_menu_view.md). It is designed to present one of two choices easily.
 
 ## General Information

@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Menu HJSON
+description: "Menus, prompts, forms and action blocks — the file that defines how your board flows."
+sidebar:
+    order: 3
 ---
-## Menu HJSON
 The core of a ENiGMA½ based BBS is it's menus driven by what will be referred to as `menu.hjson`. Throughout ENiGMA½ documentation, when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.github.io/) format.
 
 :::note

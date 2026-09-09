@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Troubleshooting SSH
+description: "Fixes for the common SSH setup failures: missing keys, unsupported formats and old clients."
+sidebar:
+    order: 2
 ---
 
 Stuck with errors trying to get your SSH setup configured? See below for some common problems. Or as always, reach out to us by creating an [Issue](https://github.com/NuSkooler/enigma-bbs/issues) or start a [Discussion](https://github.com/NuSkooler/enigma-bbs/discussions)

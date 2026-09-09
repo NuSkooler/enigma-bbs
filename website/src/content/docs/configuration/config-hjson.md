@@ -1,8 +1,9 @@
 ---
-layout: page
 title: System Configuration
+description: "How config.hjson overrides system defaults, and the configuration sections available to you."
+sidebar:
+    order: 2
 ---
-## System Configuration
 The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. Defaults lived in `core/config_default.js`.
 
 The default path is `/enigma-bbs/config/config.hjson` though this can be overridden using the `--config` parameter when invoking `main.js`.
@@ -11,7 +12,7 @@ The default path is `/enigma-bbs/config/config.hjson` though this can be overrid
 See also [Configuration Files](config-files.md). Additionally [HJSON General Information](hjson.md) may be helpful for more information on the HJSON format.
 :::
 
-### Creating a Configuration
+## Creating a Configuration
 Your initial configuration skeleton should be created using the `oputil.js` command line utility. From your enigma-bbs root directory:
 ```
 ./oputil.js config new
@@ -19,7 +20,7 @@ Your initial configuration skeleton should be created using the `oputil.js` comm
 
 You will be asked a series of questions to create an initial configuration.
 
-### Overriding Defaults
+## Overriding Defaults
 The file `core/config_default.js` provides various defaults to the system that you can override via `config.hjson`. For example, the default system name is defined as follows:
 ```javascript
 general : {
@@ -38,7 +39,7 @@ general: {
 
 While not everything that is available in your `config.hjson` file can be found defaulted in `core/config_default.js`, a lot is. [Poke around and see what you can find](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config_default.js)!
 
-### Configuration Sections
+## Configuration Sections
 Below is a list of various configuration sections. There are many more, but this should get you started:
 
 * [ACS](acs.md)

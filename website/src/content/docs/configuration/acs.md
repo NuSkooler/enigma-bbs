@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Access Condition System (ACS)
+description: "Access Condition System codes for gating menus, areas, files and actions on user attributes."
+sidebar:
+    order: 8
 ---
-
-## Access Condition System (ACS)
 
 ENiGMA½ uses an Access Condition System (ACS) that is both familiar to oldschool BBS operators and has its own style. With ACS, SysOps are able to control access to various areas of the system based on conditions such as group membership, connection type, terminal capabilities, and more. Various touch points in the system are configured to allow for `acs` checks. In some cases ACS is a simple boolean check while others (via ACS blocks) allow defining what conditions must be true for certain _rights_ such as `read` and `write` (though others exist as well).
 

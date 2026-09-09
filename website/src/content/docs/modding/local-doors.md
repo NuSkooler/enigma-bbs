@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Local Doors
+description: "Choose between v86, external DOS emulators, native binaries and Z-Machine for running doors."
+sidebar:
+    order: 10
 ---
-## Local Doors
-
 ENiGMA½ supports running local BBS door games through several approaches. In addition to the [many built-in door server modules](door-servers.md) (DoorParty, BBSLink, Exodus, etc.), local doors run directly on your server.
 
 :::note

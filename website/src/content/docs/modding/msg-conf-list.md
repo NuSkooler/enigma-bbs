@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Message Conference List
+description: "Browse and change message conferences."
+sidebar:
+    order: 30
 ---
 ## The Message Conference List Module
 The built in `msg_conf_list` module provides a menu to display and change between message conferences.

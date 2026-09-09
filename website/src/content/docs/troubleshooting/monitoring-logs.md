@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Monitoring Logs
+description: "Read ENiGMA½'s Bunyan JSON logs in a human-friendly form."
+sidebar:
+    order: 1
 ---
-## Monitoring Logs
 ENiGMA½ does not produce much to stdout. Logs are produced by [Bunyan](https://github.com/trentm/node-bunyan) which outputs each entry as a JSON object.
 
 Start by installing bunyan and making it available on your path:
@@ -23,7 +24,7 @@ tail -F /path/to/enigma-bbs/logs/enigma-bbs.log | bunyan
 
 See `bunyan --help` for more information on what you can do!
 
-### Example
+## Example
 Logs _without_ Bunyan:
 ```bash
 tail -F /path/to/enigma-bbs/logs/enigma-bbs.log

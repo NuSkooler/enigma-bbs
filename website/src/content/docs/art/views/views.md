@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Views
+description: "What views are, the properties they share, and an index of every view type."
+sidebar:
+    order: 10
 ---
-## Views
-
 Views are the interactive and display widgets that make up ENiGMA½ screens. They are placed in art files using [MCI codes](../mci.md) and configured via `menu.hjson` and `theme.hjson`. Every element a user sees or interacts with — a text label, an input field, a menu list — is a view.
 
 ## General Information

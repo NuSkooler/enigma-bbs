@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Upgrading
+description: "Pull a new version, reinstall dependencies, and merge new menu and theme entries into your config."
+sidebar:
+    order: 3
 ---
 ## Upgrading From Source
 Keeping your system up to date ensures you have the latest fixes, features, and general improvements. Upgrading ENiGMA½ can be a bit of a learning curve compared to traditional binary-release systems you may be used to, especially when running from Git cloned source.

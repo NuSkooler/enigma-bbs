@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Message Base
+description: "Set up message conferences and areas, their ACS, and how long messages are kept."
+sidebar:
+    order: 1
 ---
 ## General Information
 In ENiGMA½, a message base is divided into two logical grouping components: **Message Conferences** and **Areas**. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag.

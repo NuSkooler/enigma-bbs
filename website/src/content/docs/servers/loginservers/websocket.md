@@ -1,6 +1,8 @@
 ---
-layout: page
 title: WebSocket / Web Interface Server
+description: "Browser access over ws:// and wss://, including VTX client setup and reverse proxy deployment."
+sidebar:
+    order: 3
 ---
 ## WebSocket Login Server
 

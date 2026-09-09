@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Colour Codes
+description: "Renegade-style pipe colour codes and the full colour reference chart."
+sidebar:
+    order: 16
 ---
 ENiGMA½ supports Renegade-style pipe colour codes for formatting strings. You'll see them used throughout your configuration, and can also be used in places like onelinerz, rumourz, full screen editor etc.
 

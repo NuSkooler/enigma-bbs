@@ -1,6 +1,8 @@
 ---
-layout: page
 title: File Base Web Download Manager
+description: "The download queue manager for temporary web download links."
+sidebar:
+    order: 42
 ---
 ## File Base Web Download Manager Module
 The `file_base_web_download_manager` module provides a download queue manager for web (HTTP/HTTPS) based downloads. This module relies on having the web server enabled at a minimum.

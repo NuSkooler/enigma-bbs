@@ -1,6 +1,8 @@
 ---
-layout: page
 title: ActivityPub Message Browser
+description: "A paginated list of ActivityPub Notes received from the Fediverse."
+sidebar:
+    order: 34
 ---
 ## The ActivityPub Message Browser Module
 The built-in `activity_pub_msg_list` module provides a scrollable, paginated list of messages (Notes) received from the Fediverse. It supports multiple view modes, lazy-loading of additional pages as the user scrolls, and navigation to a message viewer or thread view.

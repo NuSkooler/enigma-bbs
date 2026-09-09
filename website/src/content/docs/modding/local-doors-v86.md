@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Local Doors — Native v86 Emulation
+description: "Run classic DOS doors in the built-in v86 emulator, with no QEMU or DOSBox on the server."
+sidebar:
+    order: 11
 ---
 ## Native DOS Emulation via v86
 

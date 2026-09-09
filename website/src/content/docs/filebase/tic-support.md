@@ -1,8 +1,9 @@
 ---
-layout: page
 title: TIC Support
+description: "Receive and forward FidoNet TIC file attachments by mapping TIC areas to local file areas."
+sidebar:
+    order: 7
 ---
-## TIC Support
 ENiGMA½ supports FidoNet-Style TIC file attachments by mapping external TIC area tags to local file areas.
 
 Files can be **received** from an uplink and, if you declare downlinks, **passed on** to them — see [Forwarding to Downlinks](#forwarding-to-downlinks).

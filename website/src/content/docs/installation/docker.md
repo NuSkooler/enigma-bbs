@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Docker
+description: "Run ENiGMA½ from the official container image, including the volumes you need to persist."
+sidebar:
+    order: 3
 ---
 
 :::caution

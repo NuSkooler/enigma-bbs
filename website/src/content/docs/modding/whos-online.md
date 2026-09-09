@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Who's Online
+description: "The who's online list and the fields available to it."
+sidebar:
+    order: 51
 ---
 ## The Who's Online Module
 The built in `whos_online` module provides a basic who's online mod.

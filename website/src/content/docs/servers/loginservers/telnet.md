@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Telnet Server
+description: "The Telnet login server and its configuration keys."
+sidebar:
+    order: 1
 ---
 ## Telnet Login Server
 The Telnet *login server* provides a standard **non-secure** Telnet login experience.

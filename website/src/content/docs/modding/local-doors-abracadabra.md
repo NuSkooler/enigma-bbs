@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Local Doors — Scripts & Native Binaries
+description: "Launch any local process as a door — native binaries, shell scripts and Python."
+sidebar:
+    order: 13
 ---
 ## Scripts & Native Binaries (abracadabra)
 

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Web Server
+description: "The built-in HTTP/HTTPS server that powers download links, password resets and static files."
+sidebar:
+    order: 1
 ---
 ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the [File Base](../../filebase/web-access.md) registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
 

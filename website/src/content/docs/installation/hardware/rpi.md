@@ -1,13 +1,15 @@
 ---
-layout: page
 title: Raspberry Pi
+description: "Set up a Raspberry Pi for ENiGMA½, from Raspberry Pi OS Lite through to the install script."
+sidebar:
+    order: 6
 ---
 
 All Raspberry Pi models work great with ENiGMA½! Keep in mind compiling the dependencies with
 `npm install` will take some time and *may* appear to hang. It's still working - just be patient and let it
 complete.
 
-### Basic Instructions
+## Basic Instructions
 
 1. Download [Raspberry Pi OS Lite](https://www.raspberrypi.com/software/operating-systems/) (64-bit recommended for Pi 3 and newer). Follow the instructions on the [Raspberry Pi site](https://www.raspberrypi.com/documentation/computers/getting-started.html) regarding how to get it written to an SD card.
 

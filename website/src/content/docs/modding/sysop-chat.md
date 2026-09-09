@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Sysop Chat
+description: "Two-way split-screen chat between the sysop and a connected user."
+sidebar:
+    order: 22
 ---
-## Sysop Chat
-
 ENiGMA½ provides a two-way split-screen chat system between the sysop and any connected user. It is composed of two modules that work together:
 
 * `page_sysop` — user-facing page flow

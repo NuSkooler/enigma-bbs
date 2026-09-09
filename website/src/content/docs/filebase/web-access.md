@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Web Access
+description: "Temporary HTTP(S) download links served by the built-in web server."
+sidebar:
+    order: 5
 ---
 Temporary web HTTP(S) URLs can be used to download files using the built in web server. Temporary links
 expire after `fileBase::web::expireMinutes` (default 24 hours). The full URL given to users is built

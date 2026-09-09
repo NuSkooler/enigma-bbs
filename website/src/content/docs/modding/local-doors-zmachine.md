@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Local Doors — Z-Machine Interactive Fiction
+description: "Run Infocom-era interactive fiction natively, with no external interpreter."
+sidebar:
+    order: 14
 ---
 ## Z-Machine Interactive Fiction
 

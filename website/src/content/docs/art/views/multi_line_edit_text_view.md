@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Multi Line Edit Text View
+description: "%MT — the multi-line text editor used for message bodies."
+sidebar:
+    order: 16
 ---
-## Multi Line Edit Text View
 A text display / editor designed to edit or display a message.
 
 ## General Information

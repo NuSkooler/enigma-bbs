@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Themes
+description: "Build your own theme: theme.hjson structure, per-menu overrides and MCI styling."
+sidebar:
+    order: 3
 ---
-## Themes
 ENiGMA½ comes with an advanced theming system allowing system operators to highly customize the look and feel of their boards. A given installation can have as many themes as you like for your users to choose from.
 
 ## General Information

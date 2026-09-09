@@ -1,6 +1,8 @@
 ---
-layout: page
 title: SSH Server
+description: "The SSH login server: generating a host key, algorithms, and public key authentication."
+sidebar:
+    order: 2
 ---
 ## SSH Login Server
 

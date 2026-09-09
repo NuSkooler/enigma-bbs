@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Pause Prompts
+description: "Control how the system pauses after art, including page breaks and custom prompts."
+sidebar:
+    order: 4
 ---
-## Pause Prompts
-
 ENiGMA½ supports a flexible pause prompt system that controls how the system waits for user input after displaying art. Pause prompts are fully themeable: they support art files, any MCI view type, and can be customised per-menu.
 
 ---

@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Configuring a File Base
+description: "Configure storage locations, areas and tags, and get your first file area scanned in."
+sidebar:
+    order: 2
 ---
-## Configuring a File Base
 ENiGMA½ offers a powerful and flexible file base. Configuration of file the file base and areas is handled via the `fileBase` section of `config.hjson`.
 
 ## ENiGMA½ File Base Key Concepts

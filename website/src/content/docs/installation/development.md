@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Development Environment Setup
+description: "Set up a development environment for working on ENiGMA½ itself, via the VS Code dev container."
+sidebar:
+    order: 10
 ---
 _Note:_ This is only useful for people who are looking to contribute to the ENiGMA½ source base itself. Those that are just setting up a new BBS system do not need this section.
 

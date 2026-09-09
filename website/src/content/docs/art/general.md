@@ -1,23 +1,24 @@
 ---
-layout: page
 title: General Art Information
+description: "Art file locations, art specs, fonts, SAUCE, baud emulation and UTF-8 variants."
+sidebar:
+    order: 1
 ---
-## General Art Information
 One of the most basic elements of BBS customization is through its artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.
 
-### Art File Locations
+## Art File Locations
 As a general rule, art files live in one of two places:
 
 1. The `art/general` directory. This is where you place common/non-themed art files.
 2. Within a _theme_ such as `art/themes/super_fancy_theme`.
 
-### MCI Codes
+## MCI Codes
 All art can contain [MCI Codes](mci.md).
 
-### Art in Menus
+## Art in Menus
 While art can be displayed programmatically such as from a custom module, the most basic and common form is via `menu.hjson` entries. This usually falls into one of two forms:
 
-#### Standard
+### Standard
 A "standard" entry where a single `art` spec is utilized:
 ```hjson
 {
@@ -27,7 +28,7 @@ A "standard" entry where a single `art` spec is utilized:
 }
 ```
 
-#### Module Specific / Multiple Art
+### Module Specific / Multiple Art
 An entry for a custom module where multiple pieces are declared and used. The second style usually takes the form of a `config.art` block with two or more entries:
 ```hjson
 {
@@ -54,7 +55,7 @@ A menu entry has a few elements that control how art is selected and displayed. 
 | `types` | An optional array of types (aka file extensions) to consider for lookup. For example : `[ '.ans', '.asc' ]` |
 | `readSauce` | May be set to `false` if you need to explicitly disable SAUCE support. |
 
-#### Art Spec
+### Art Spec
 In the section above it is mentioned that the `art` member is a *spec*. The value of a `art` spec controls how the system looks for an asset. The following forms are supported:
 
 * `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path. Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
@@ -69,7 +70,7 @@ ENiGMA½ uses a fallback system for art selection. When a menu entry calls for a
 3. In the system default theme directory.
 4. In the `art/general` directory.
 
-#### UTF-8 Art Variants
+### UTF-8 Art Variants
 
 For UTF-8 capable terminals ENiGMA½ will automatically prefer a `.utf8ans` file over a `.ans` file when both share the same base name. This lets you ship two versions of any art piece side-by-side:
 
@@ -86,7 +87,7 @@ No configuration change is required in `menu.hjson` — simply place the `.utf8a
 The terminal encoding is negotiated during connect via the ANSI CPR-based probe. To additionally enable UTF-8 detection for terminals that self-identify as CP437 types, set `term.probeUtf8Encoding: true` in `config.hjson`.
 :::
 
-#### ACS-Driven Conditionals
+### ACS-Driven Conditionals
 The [ACS](../configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
 ```hjson
 {
@@ -105,7 +106,7 @@ The [ACS](../configuration/acs.md) system can be used to make conditional art se
 }
 ```
 
-#### SyncTERM Style Fonts
+### SyncTERM Style Fonts
 ENiGMA½ can set a [SyncTERM](http://syncterm.bbsdev.net/) style font for art display. This is supported by many other popular BBS terminals as well. A common usage is for displaying Amiga style fonts for example. The system will use the `font` specifier or look for a font declared in an artworks SAUCE record (unless `readSauce` is `false`).
 
 The most common fonts are probably as follows:
@@ -170,7 +171,7 @@ Other "fonts" also available:
 See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 :::
 
-#### Baud Rates
+### Baud Rates
 The `baudRate` member throttles art display on the server side, dripping bytes to the terminal at the rate a real modem of that speed would have delivered them. This works with every terminal client — no special support required. The rate applies only while the art is displaying and resets automatically when it finishes.
 
 Accepted values: `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, `115200`. A value of `unlimited`, `off`, or `0` disables throttling (immediate display).
@@ -190,7 +191,7 @@ The table below maps each rate to the modem era it evokes:
 | `76800` | 1996 – 1998 | USR Courier 33.6; Rockwell V.34+ chipsets |
 | `115200` | 1997 – 2000 | USR Courier 56K; Hayes Accura 56K; 3Com 56K |
 
-### Common Example
+## Common Example
 ```hjson
 fullLogoffSequenceRandomBoardAd: {
     art: OTHRBBS
@@ -204,5 +205,5 @@ fullLogoffSequenceRandomBoardAd: {
 }
 ```
 
-### See Also
+## See Also
 See also the [Show Art Module](../modding/show-art.md) for more advanced art display!

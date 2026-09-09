@@ -1,8 +1,9 @@
 ---
-layout: page
 title: The Show Art Module
+description: "Advanced art display: keyed selection, random pieces and per-user art."
+sidebar:
+    order: 21
 ---
-## The Show Art Module
 The built in `show_art` module add some advanced ways in which you can configure your system to display art assets beyond what a standard menu entry can provide. For example, based on user selection of a file or message base area.
 
 ## Configuration

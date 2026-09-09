@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Full Menu View
+description: "%FM — a paginated multi-column grid of selectable items."
+sidebar:
+    order: 20
 ---
-## Full Menu View
 A full menu view supports displaying a list of times on a screen in a very configurable manner. A full menu view supports either a single row or column of values, similar to Horizontal Menu (HM) and Vertical Menu (VM), or in multiple columns.
 
 ## General Information

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Directory Structure
+description: "What lives where in an ENiGMA½ installation."
+sidebar:
+    order: 6
 ---
 All paths mentioned here are relative to the ENiGMA½ checkout directory.
 

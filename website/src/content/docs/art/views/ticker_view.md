@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Ticker View
+description: "%TK — a continuously scrolling marquee."
+sidebar:
+    order: 12
 ---
-## Ticker View
 A ticker view displays text as a continuously animated marquee inside a fixed-width window. It supports multiple independent motion styles and visual effects that can be freely combined.
 
 ## General Information

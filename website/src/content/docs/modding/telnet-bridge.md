@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Telnet Bridge
+description: "Bridge users out to other Telnet services and BBSes from a menu."
+sidebar:
+    order: 16
 ---
-## Telnet Bridge
 The `telnet_bridge` module allows "bridged" Telnet connections from your board to other Telnet services (such as other BBSes!).
 
 ## Configuration

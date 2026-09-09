@@ -1,6 +1,8 @@
 ---
-layout: page
 title: BBS List
+description: "A user-maintained list of other bulletin board systems."
+sidebar:
+    order: 56
 ---
 ## The BBS List Module
 The built in `bbs_list` module provides the ability for users to manage entries to other Bulletin Board Systems.

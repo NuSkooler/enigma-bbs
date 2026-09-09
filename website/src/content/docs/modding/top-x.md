@@ -1,6 +1,8 @@
 ---
-layout: page
 title: TopX
+description: "Top user statistics for the week, month or all time."
+sidebar:
+    order: 53
 ---
 ## The TopX Module
 The built in `top_x` module allows for displaying oLDSKOOL (?!) top user stats for the week, month, etc. Ops can configure what stat(s) are displayed and how far back in days the stats are considered.

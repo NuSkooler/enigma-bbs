@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Text View
+description: "%TL — a static single-line text label."
+sidebar:
+    order: 11
 ---
-## Text View
 A text label view supports displaying simple text on a screen.
 
 ## General Information

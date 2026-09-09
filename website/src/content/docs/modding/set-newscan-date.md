@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Set Newscan Date Module
+description: "Let users reset their newscan pointer to a chosen date."
+sidebar:
+    order: 33
 ---
-## Set Newscan Date Module
 The `set_newscan_date` module allows setting newscan dates for message conferences and areas, the file base, or a global newscan floor. The behaviour depends on the `target` configured for the menu entry.
 
 | Target | What it does |

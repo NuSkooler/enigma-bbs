@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Waiting For Caller (WFC)
+description: "The Waiting For Caller dashboard — node status, live logs and sysop actions, remotely accessible."
+sidebar:
+    order: 20
 ---
 ## The Waiting For Caller (WFC) Module
 The `wfc.js` module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.

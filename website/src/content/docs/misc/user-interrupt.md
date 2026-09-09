@@ -1,8 +1,9 @@
 ---
-layout: page
 title: User Interruptions
+description: "How the system interrupts users with node messages and other notifications."
+sidebar:
+    order: 1
 ---
-## User Interruptions
 ENiGMA½ provides functionality to "interrupt" a user for various purposes such as a [node-to-node message](../modding/node-msg.md). User interruptions can be queued and displayed at the next opportune time such as when switching to a new menu, or realtime if appropriate.
 
 ## Standard Menu Behavior

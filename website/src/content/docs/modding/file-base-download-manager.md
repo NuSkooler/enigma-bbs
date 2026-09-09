@@ -1,6 +1,8 @@
 ---
-layout: page
 title: File Base Download Manager
+description: "The download queue manager for legacy X/Y/ZModem transfers."
+sidebar:
+    order: 41
 ---
 ## File Base Download Manager Module
 The `file_base_download_manager` module provides a download queue manager for "legacy" (X/Y/Z-Modem, etc.) downloads. Web (HTTP/HTTPS) download functionality can be optionally available when the web content server is enabled.

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Testing Your Installation
+description: "Start your board for the first time, connect to it, and confirm the install worked."
+sidebar:
+    order: 7
 ---
 Once you've completed your chosen installation method, it's time to test!
 

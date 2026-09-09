@@ -1,6 +1,8 @@
 ---
-layout: page
 title: File Area List
+description: "The flexible file listing UI, its config block and its theming fields."
+sidebar:
+    order: 40
 ---
 ## The File Area List Module
 The built in `file_area_list` module provides a very flexible file listing UI.

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Local Doors — External DOS Emulators
+description: "Run DOS doors through external DOSEMU or QEMU via the abracadabra module."
+sidebar:
+    order: 12
 ---
 ## DOS Doors via External Emulators
 

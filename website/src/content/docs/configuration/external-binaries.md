@@ -1,9 +1,10 @@
 ---
-layout: page
 title: External Support Binaries
+description: "The external tools ENiGMA½ shells out to for archives, transfers and file inspection, and how to install them."
+sidebar:
+    order: 10
 ---
 
-## External Support Binaries
 ENiGMA½ relies on various external binaries to perform common tasks such as processing file archives, extracting information from uploads/file imports, and supporting legacy transfer protocols.
 
 :::note

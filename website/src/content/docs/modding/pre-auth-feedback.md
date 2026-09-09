@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Pre-Auth Feedback
+description: "Let visitors send the sysop feedback before they log in."
+sidebar:
+    order: 23
 ---
-## Pre-Auth Feedback
-
 The `pre_auth_feedback` module lets unauthenticated visitors send a private message to the sysop **before logging in** — directly from the login matrix. This is distinct from [`page_sysop`](sysop-chat.md), which requires an authenticated user.
 
 The sender types a free-text name in the From field. It is stored as-is and **never resolved to a user account**, so a malicious visitor cannot impersonate an existing user. The To field is locked to the sysop. The full FSE editor is used for composition.

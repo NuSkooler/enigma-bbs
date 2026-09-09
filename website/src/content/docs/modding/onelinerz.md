@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Onelinerz
+description: "The retro onelinerz wall."
+sidebar:
+    order: 54
 ---
 ## The Onelinerz Module
 The built in `onelinerz` module provides a retro onelinerz system.

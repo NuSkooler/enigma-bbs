@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Gopher Server
+description: "Serve message areas and your own content over gopher://, including gophermap support."
+sidebar:
+    order: 4
 ---
 ## The Gopher Content Server
 The Gopher *content server* provides access to publicly exposed message conferences and areas over Gopher (`gopher://`) as well as any other content you wish to serve in your Gopher Hole!

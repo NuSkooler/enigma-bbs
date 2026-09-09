@@ -1,8 +1,9 @@
 ---
-layout: page
 title: MCI Codes
+description: "MCI codes — the placeholders in art files that produce system information and create views."
+sidebar:
+    order: 2
 ---
-## MCI Codes
 ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce information about the current user, system, or other statistics while others are used to instantiate a **View**.
 
 ## General Information

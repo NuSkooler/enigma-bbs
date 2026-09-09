@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Node to Node Messaging
+description: "Node-to-node messaging between users on different nodes."
+sidebar:
+    order: 24
 ---
 ## The Node to Node Messaging Module
 The node to node messaging (`node_msg`) module allows users to send messages to one or more users on different nodes. Messages delivered to nodes follow standard [User Interruption](../misc/user-interrupt.md) rules.

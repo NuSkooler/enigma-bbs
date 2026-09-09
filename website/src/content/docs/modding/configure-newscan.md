@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Configure Newscan Module
+description: "Let users choose which conferences, areas and file areas their newscan covers."
+sidebar:
+    order: 32
 ---
-## Configure Newscan Module
-
 The `configure_newscan` module gives users direct control over their newscan experience. From a single screen they can:
 
 * Select exactly which message areas are included in their newscan (or scan all).
