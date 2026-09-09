@@ -80,7 +80,7 @@ ENiGMA has been tested with many terminals. [IcyTERM](https://github.com/mkruege
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
 * Avon of [Agency BBS](http://bbs.nz/) and [fsxNet](https://fsxnet.nz) for putting up with my experiments to his system and for FSX_ENG!
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
-* [Apam](https://github.com/apamment) of [Magicka](https://magickabbs.com/)
+* Apam of [Magicka](https://magickabbs.com/)
 * [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!
 * [Whazzit/blocktronics](http://blocktronics.org/tag/whazzit/) for the amazing Mayan ANSI pieces scattered about Xibalba BBS!
 * [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?
