@@ -1,6 +1,8 @@
 ---
-layout: page
 title: QWK Support
+description: "QWK and QWK-Net packet import and export, conference mapping, and tested offline readers."
+sidebar:
+    order: 7
 ---
 
 ## QWK and QWK-Net Style Networks

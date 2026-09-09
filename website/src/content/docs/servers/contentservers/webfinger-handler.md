@@ -1,18 +1,20 @@
 ---
-layout: page
 title: WebFinger Web Handler
+description: "WebFinger discovery so Fediverse servers can find users on your board."
+sidebar:
+    order: 6
 ---
 The WebFinger ([webfinger.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/servers/content/web_handlers/webfinger.js)) [Handler](./web-handlers.md) provides basic [WebFinger](https://webfinger.net/) ([RFC7033](https://www.rfc-editor.org/rfc/rfc7033)) support, enabling servers such as those participating in the [Mastodon](https://en.wikipedia.org/wiki/Mastodon_(social_network)) [Fediverse](https://en.wikipedia.org/wiki/Fediverse) to discover basic information about a user.
 
-# Supported Features
+## Supported Features
 * [profile-page](https://webfinger.net/rel/profile-page/)
 * [ActivityStream URI](https://www.w3.org/TR/activitystreams-core/) via rel of `self` and of type `application/activity+json`
 * Subscription URI template via rel of `http://ostatus.org/schema/1.0/subscribe`
 
-# Configuration
+## Configuration
 By default, the WebFinger handler is not enabled. To enable, at a minimum set `contentServers.web.handlers.webFinger.enabled` to `true` in `config.hjson`:
 
-```js
+```hjson
 contentServers: {
     web: {
         handlers: {
@@ -24,16 +26,16 @@ contentServers: {
 }
 ```
 
-## Configuration Keys
+### Configuration Keys
 | Key | Description |
 | ----|-------------|
 | `enabled` | Boolean. Set to `true` to enable WebFinger services |
 | `profileTemplate` | String. Provide a fully qualified, or relative to [static root](./web-server.md#static-root) path to a template file for fetching profile information. See [Profile Template](#profile-template) for more information.
 
-## Profile Template
+### Profile Template
 A profile template file can offer flexibility as to what information, the format, and MIME type served by the [profile-page](https://webfinger.net/rel/profile-page/) WebFinger query. Set the `profileTemplate` key in your `webFinger` configuration block to a path to serve as the template. The MIME type will be determined by the file's extension:
 
-```js
+```hjson
 contentServers: {
     web: {
         handlers: {
@@ -50,7 +52,7 @@ contentServers: {
 A sample template can be found at `www/wf/profile.template.html`
 :::
 
-# Example Session
+## Example Session
 ```shell
 # WebFinger query
 > http get 'https://xibalba.vip/.well-known/webfinger?resource=acct:NuSkooler@xibalba.vip'

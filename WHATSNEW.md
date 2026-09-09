@@ -336,7 +336,7 @@ Various fixes
 
 * **SQLite driver migrated to `better-sqlite3`** -- This is an internal change with no impact on existing data or configuration. Results in some major DB performance gains.
 
-* **[Z-Machine Interactive Fiction Door](./website/src/content/docs/modding/local-doors-zmachine.md)** — new `zmachine_door` module runs Z-Machine IF games (Zork, Colossal Cave Adventure, Photopia, Anchorhead, Lost Pig, and hundreds more) natively in Node.js. No external emulator, no serial bridge, no drop file — a cross-platform pure-JavaScript path for text-adventure games.
+* **[Z-Machine Interactive Fiction Door](./website/src/content/docs/doors/zmachine.md)** — new `zmachine_door` module runs Z-Machine IF games (Zork, Colossal Cave Adventure, Photopia, Anchorhead, Lost Pig, and hundreds more) natively in Node.js. No external emulator, no serial bridge, no drop file — a cross-platform pure-JavaScript path for text-adventure games.
 
   * Backed by [ifvms.js](https://github.com/curiousdannii/ifvms.js) (the Z-Machine interpreter used by Parchment) and [glkote-term](https://github.com/curiousdannii/glkote-term), run in a dedicated worker thread per session for isolation.
   * Supports Z-Machine versions 3, 4, 5, and 8 — covers all classic Infocom titles, the original Crowther/Woods Adventure port, and the vast majority of modern Inform games from the [IF Archive](https://www.ifarchive.org/).
@@ -352,7 +352,7 @@ Various fixes
 
 ## 0.1.0-beta
 
-* **[Sysop Chat / Break Into Chat](./website/src/content/docs/modding/sysop-chat.md)** — real-time split-screen chat between sysop and user
+* **[Sysop Chat / Break Into Chat](./website/src/content/docs/modules/sysop-chat.md)** — real-time split-screen chat between sysop and user
 
   * Sysop can break into chat with any node directly from WFC (`B` key on selected node)
   * Users can page the sysop via the `pageSysop` menu entry; includes per-user rate limiting and BEL + interrupt notification to all online sysops (sysops at WFC see it directly in the node list)
@@ -480,7 +480,7 @@ Various fixes
 * Deprecated Gopher's `messageConferences` configuration key in favor of a easier to deal with `exposedConfAreas` allowing wildcards and exclusions. See [Gopher](./website/src/content/docs/servers/contentservers/gopher.md).
 * NNTP write (aka POST) access support for authenticated users over TLS.
 * [Advanced MCI formatting](./website/src/content/docs/art/mci.md#mci-formatting)!
-* Additional options in the `abracadabra` module for launching doors. See [Local Doors](./website/src/content/docs/modding/local-doors.md)
+* Additional options in the `abracadabra` module for launching doors. See [Local Doors](./website/src/content/docs/doors/index.md)
 
 ## 0.0.12-beta
 * The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Upgrading](./website/src/content/docs/admin/upgrading.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
@@ -497,9 +497,9 @@ Various fixes
 * File base search has had an improvement to search term handling.
 * `./oputil user group -group` to now accepts `~group` removing the need for special handling of the "-" character. #331
 * A fix has been made to clean up old `file.db` entries when a file is removed. Previously stale records could be left or even recycled into new entries. Please see [UPGRADE.md](UPGRADE.md) for details on applying this fix (look for `tables_update_2020-11-29.sql`).
-* The [onelinerz](./website/src/content/docs/modding/onelinerz.md) module can have `dbSuffix` set in it's `config` block to specify a separate DB file. For example to use as a requests list.
+* The [onelinerz](./website/src/content/docs/modules/onelinerz.md) module can have `dbSuffix` set in it's `config` block to specify a separate DB file. For example to use as a requests list.
 * Default hash tags can now be set in file areas. Simply supply an array or list of values in a file area block via `hashTags`.
-* Added ability to pass an `env` value (map) to `abracadabra` doors. See [Local Doors](./website/src/content/docs/modding/local-doors.md).
+* Added ability to pass an `env` value (map) to `abracadabra` doors. See [Local Doors](./website/src/content/docs/doors/index.md).
 * `dropFileType` is now optional when launching doors with `abracadabra`. It can also be explicitly set to `none`.
 * FSE in *view* mode can now stylize quote indicators. Supply `quoteStyleLevel1` in the `config` block. This can be a single string or an array of two strings (one to style the quotee's initials, the next for the '>' character, and finally the quoted text). See the `messageAreaViewPost` menu `config` block in the default `luciano_blocktronics` `theme.hjson` file for an example. An additional level style (e.g. for nested quotes) may be added in the future.
 * FSE in *view* mode can now stylize tear lines and origin lines via `tearLineStyle` and `originStyle` `config` values in the same manor as `quoteStyleLevel`.

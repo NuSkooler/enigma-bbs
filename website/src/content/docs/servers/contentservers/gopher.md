@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Gopher Server
+description: "Serve message areas and your own content over gopher://, including gophermap support."
+sidebar:
+    order: 4
 ---
 ## The Gopher Content Server
 The Gopher *content server* provides access to publicly exposed message conferences and areas over Gopher (`gopher://`) as well as any other content you wish to serve in your Gopher Hole!
@@ -23,7 +25,7 @@ The Gopher protocol serves content that contains host/domain and port even when 
 ## Gophermap's
 [Gophermap's](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) are how to build menus for your Gopher Hole. Each map is a simple text file named `gophermap` (all lowercase, no extension) with DOS style CRLF endings.
 
-Within any directory nested within your `staticRoot` may live a `gophermap`. A template may be found in the `enigma-bbsmisc` directory.
+Within any directory nested within your `staticRoot` may live a `gophermap`. A template may be found in the `enigma-bbs/misc` directory.
 
 ENiGMA will pre-process `gophermap` files replacing in following variables:
 * `{publicHostname}`: The public hostname from your config.
@@ -38,7 +40,7 @@ See [RFC 1436](https://tools.ietf.org/html/rfc1436) for the original Gopher spec
 :::
 
 :::tip
-Tools such as [gfu](https://rawtext.club/~sloum/gfu.html) may help you with `gophermap`'s
+Tools such as [gfu](https://tildegit.org/sloum/gfu) may help you with `gophermap`'s
 :::
 
 ### Example Gophermap
@@ -60,7 +62,7 @@ contentServers: {
         publicPort: 70
 
         //  Expose some public message conferences/areas
-        messageConferences: {
+        exposedConfAreas: {
             araknet: { // ArakNet's conference tag
                 // start with all areas exposed
                 include: [ "*" ]

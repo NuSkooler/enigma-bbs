@@ -1,12 +1,13 @@
 ---
-layout: page
 title: Docker
+description: "Run ENiGMA½ from the official container image, including the volumes you need to persist."
+sidebar:
+    order: 3
 ---
 
 :::caution
-**You'll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
+You'll need Docker installed before going any further. Installing it is out of scope of these docs, but you can find full instructions for every operating system on the [Docker website](https://docs.docker.com/engine/install/).
 :::
-for every operating system on the [Docker website](https://docs.docker.com/engine/install/).**
 
 ## Quick Start
 Prepare a folder where you are going to save your bbs files.
@@ -55,6 +56,8 @@ Configuration will be stored in `$(pwd)/enigma-bbs/config`.
 :::tip
 Windows users — you'll need to switch out `$(pwd)/enigma-bbs/config` for a Windows-style path.
 :::
+
+Once the container is up, [test your installation](testing.md).
 
 ## Volumes
 

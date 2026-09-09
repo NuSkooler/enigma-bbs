@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Network Setup
+description: "Port forwarding and dynamic DNS for hosting a board from a home network."
+sidebar:
+    order: 8
 ---
 ## Hosting an ENiGMA instance from your Home Network
 

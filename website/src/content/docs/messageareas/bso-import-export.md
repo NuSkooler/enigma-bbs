@@ -1,8 +1,9 @@
 ---
-layout: page
 title: BSO Import / Export
+description: "The ftn_bso scanner/tosser — BinkleyTerm Style Outbound import, export and scheduling."
+sidebar:
+    order: 4
 ---
-## BSO Import / Export
 The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers.ftn_bso`.
 
 :::note

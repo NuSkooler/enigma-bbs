@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Themes
+description: "Build your own theme: theme.hjson structure, per-menu overrides and MCI styling."
+sidebar:
+    order: 3
 ---
-## Themes
 ENiGMA½ comes with an advanced theming system allowing system operators to highly customize the look and feel of their boards. A given installation can have as many themes as you like for your users to choose from.
 
 ## General Information
@@ -119,27 +120,30 @@ messageAreaChangeCurrentArea: {
 
 ## Creating Your Own
 :::caution
-***IMPORTANT!*** Do not make any customizations to the included `luciano_blocktronics' theme. Instead, create your own and make changes to that instead:
+***IMPORTANT!*** Do not make any customizations to the included `luciano_blocktronics` theme. Instead, create your own and make changes to that instead:
 :::
 
 1. Copy `/art/themes/luciano_blocktronics` to `art/themes/your_board_theme`
-2. Update the `info` block at the top of the theme.hjson file:
-``` hjson
-info: {
-    name: Awesome Theme
-    author: Cool Artist
-    group: Sick Group
-    enabled: true // default
-}
-```hjson
+
+2. Update the `info` block at the top of the `theme.hjson` file:
+
+   ```hjson
+   info: {
+       name: Awesome Theme
+       author: Cool Artist
+       group: Sick Group
+       enabled: true // default
+   }
+   ```
 
 3. If desired, you may make this the default system theme in `config.hjson` via `theme.default`. `theme.preLogin` may be set if you want this theme used for pre-authenticated users. Both of these values also accept `*` if you want the system to randomly pick.
-``` hjson
-theme: {
-    default: your_board_theme
-    preLogin: *
-}
-```
+
+   ```hjson
+   theme: {
+       default: your_board_theme
+       preLogin: *
+   }
+   ```
 
 ## Theming Example
 Let's run through an example!

@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Troubleshooting WebSocket & VTX
+description: "Fixes for WebSocket and VTX problems: black screens, mixed content, certificates and proxies."
+sidebar:
+    order: 3
 ---
 
 Stuck getting WebSocket or the VTX client working? See the common problems below. You can also reach out by creating an [Issue](https://github.com/NuSkooler/enigma-bbs/issues) or starting a [Discussion](https://github.com/NuSkooler/enigma-bbs/discussions).

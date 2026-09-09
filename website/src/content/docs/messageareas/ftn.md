@@ -1,16 +1,17 @@
 ---
-layout: page
 title: FidoNet-Style Networks (FTN)
+description: "Configure FidoNet-style networks: your addresses, network definitions, and area mappings."
+sidebar:
+    order: 3
 ---
 
-## FidoNet-Style Networks (FTN)
 [FidoNet](https://en.wikipedia.org/wiki/FidoNet) proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you'll be up and running in no time!
 
 :::note
 Before proceeding you may wish to check [Setting up FTN-style message networks with ENiGMA½ BBS](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d) by Alpha. An excellent guide detailing some of the setup described here!
 :::
 
-### Configuration
+## Configuration
 Getting a fully running FTN enabled system requires a few configuration points:
 
 1. `messageNetworks.ftn.networks`: Declares available networks. That is, networks you wish to sync up with.
@@ -21,7 +22,7 @@ Getting a fully running FTN enabled system requires a few configuration points:
 ENiGMA½'s `ftn_bso` module is **not a mailer** and makes **no attempts** to perform packet transport! An external utility such as Binkd is required for this task.
 :::
 
-#### Networks
+### Networks
 The `networks` block is a per-network configuration where each entry's ID (or "key") may be referenced elsewhere in `config.hjson`. Network keys are matched case-insensitively, so `fsxNet`, `fsxnet`, and `FSXNET` are all equivalent — just be consistent within your config. For example, consider two networks: ArakNet and fsxNet:
 
 ```hjson
@@ -44,7 +45,7 @@ The `networks` block is a per-network configuration where each entry's ID (or "k
 }
 ```
 
-#### Areas
+### Areas
 The `areas` section describes a mapping of local **area tags** configured in your `messageConferences` (see [Configuring a Message Area](configuring-a-message-area.md)) to a message network (described above), a FTN specific area tag, and remote uplink address(s). This section can be thought of similar to the *AREAS.BBS* file used by other BBS packages.
 
 When ENiGMA½ imports messages, they will be placed in the local area that matches key under `areas` while exported messages will be sent to the relevant `network`.
@@ -77,7 +78,7 @@ Example:
 You can import `AREAS.BBS` or FTN style `.NA` files using [oputil](../admin/oputil.md)!
 :::
 
-#### A More Complete Example
+### A More Complete Example
 Below is a more complete *example* illustrating some of the concepts above:
 
 ```hjson
@@ -110,10 +111,10 @@ Below is a more complete *example* illustrating some of the concepts above:
 Remember for a complete FTN experience, you'll probably also want to configure [FTN/BSO scanner/tosser](bso-import-export.md) settings.
 :::
 
-#### Automatic Area Creation
+### Automatic Area Creation
 EchoMail that arrives for an FTN area tag you have not configured is skipped and, because the packet is then removed, lost. ENiGMA½ can instead create those areas for you. **The feature is off unless you configure it**, and a system with no `autoAreas` block behaves exactly as it always has.
 
-##### Getting started
+#### Getting started
 Run this once:
 
 ```bash
@@ -124,7 +125,7 @@ That creates `config/auto-areas.hjson` and adds it to `includes` in your `config
 
 Automatically created areas are written to `auto-areas.hjson`, never to your `config.hjson`. Includes are merged such that **`config.hjson` always wins**, so that file can be rewritten on every pass without ever touching something you set by hand.
 
-##### Configuration
+#### Configuration
 Configured per network under `messageNetworks.ftn.networks.<network>.autoAreas`:
 
 ```hjson
@@ -179,7 +180,7 @@ There is no parent `enabled` flag: the feature is on for a network if either `on
 | `ignore`        |          | FTN tags never to create. Also **removes** ones already created, so this is how you un-create something |
 | `maxAutoCreate` |          | Cap on the total number of areas ever created for this network. Defaults to `500`. This is a total, not a per-run limit |
 
-##### Created areas are read-only
+#### Created areas are read-only
 An area created this way carries no `uplinks`, so nothing is ever exported from it. That alone is not read-only — a local user could still post into an area that looks live and goes nowhere — so it also gets `acs: { write: ID0 }`, which no user satisfies.
 
 To adopt an area, define it in your `config.hjson` under the same conference and area tag with your own `uplinks` and `acs`. Your `config.hjson` wins over the generated file, so the two coexist.
@@ -189,7 +190,7 @@ Some tags are refused outright rather than merged, and the operator is told why:
 * A tag that would lower case onto a built-in area, such as `PRIVATE_MAIL` → `private_mail`
 * A tag already used by an area in **any** conference, or already carried by another network
 
-##### The info pack
+#### The info pack
 Networks distribute an "info pack" — an archive with the area list, nodelist and documentation — through a file echo, so it arrives by TIC like any other file. ENiGMA½ does not wait to be told about it; it looks in the file area you name. A pack that landed before you turned the feature on is picked up just the same, as is one you dropped in by hand and scanned with `oputil fb scan`.
 
 Its job is narrow: replace the placeholder name and description on areas you **already carry**. A pack lists what the *network* carries, not what *you are linked to*, so creating from it wholesale would leave you with hundreds of permanently empty areas. Set `createUnlinked: true` if you want that anyway.
@@ -200,7 +201,7 @@ Its job is narrow: replace the placeholder name and description on areas you **a
 
 Some networks ship no machine-readable list at all. If the file cannot be recognised, you get a warning saying what it looked like instead, and your areas keep their tag-based names.
 
-##### AreaFix rescan
+#### AreaFix rescan
 Optionally, an AreaFix request can be sent to your uplink after an area is created, asking it to send the backlog. This is **off by default and has no default command**, because there is no portable syntax:
 
 | Uplink software | Working per-area rescan |
@@ -235,10 +236,10 @@ messageNetworks: {
 }
 ```
 
-##### Removing an area
+#### Removing an area
 Add its FTN tag to `ignore`. It is dropped from `auto-areas.hjson` on the next pass.
 
 Its messages are **not** deleted — they stay in the database keyed by area tag, invisible, and reappear if the tag is ever created again. A later re-link and rescan will dupe-drop rather than re-import that history, since the MSGID duplicate check is system wide.
 
-#### FTN/BSO Scanner Tosser
+### FTN/BSO Scanner Tosser
 Please see the [FTN/BSO Scanner/Tosser](bso-import-export.md) documentation for information on this area.

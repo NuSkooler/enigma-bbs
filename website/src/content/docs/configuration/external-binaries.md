@@ -1,9 +1,10 @@
 ---
-layout: page
 title: External Support Binaries
+description: "The external tools ENiGMA½ shells out to for archives, transfers and file inspection, and how to install them."
+sidebar:
+    order: 10
 ---
 
-## External Support Binaries
 ENiGMA½ relies on various external binaries to perform common tasks such as processing file archives, extracting information from uploads/file imports, and supporting legacy transfer protocols.
 
 :::note
@@ -117,7 +118,7 @@ Below is a table of pre-configured archivers. Remember that you can override set
 | `Lzx` | .lzx | [Amiga LZX](https://en.wikipedia.org/wiki/LZX_(algorithm)#Amiga_LZX) | Often not packaged; build from source if needed | Often not packaged; build from source if needed | [Source](http://xavprods.free.fr/lzx/) |
 | `Rar` | .rar | [Wikipedia](https://en.wikipedia.org/wiki/RAR_(file_format)) | `unrar` (may require non-default repo) | `unrar` (may require non-default repo) | [RARLAB](https://www.rarlab.com/) |
 | `TarGz` | .tar.gz, .gzip | [Wikipedia](https://en.wikipedia.org/wiki/Gzip) | `tar` | `tar` | [TAR.EXE](https://ss64.com/nt/tar.html) |
-| `Atr` | .atr | [ATR (Atari disk image)](https://en.wikipedia.org/wiki/ATR_(disk_image)) <br> https://github.com/jhallen/atari-tools | Not typically packaged; build from source | Not typically packaged; build from source | Varies |
+| `Atr` | .atr | ATR (Atari 8-bit disk image) <br> [atari-tools](https://github.com/jhallen/atari-tools) | Not typically packaged; build from source | Not typically packaged; build from source | Varies |
 
 
 :::note

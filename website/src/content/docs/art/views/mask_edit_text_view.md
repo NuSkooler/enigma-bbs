@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Mask Edit Text View
+description: "%ME — a single-line input constrained by a pattern, for dates, phone numbers and the like."
+sidebar:
+    order: 15
 ---
-## Mask Edit Text View
 A mask edit text view supports editing form values on a screen. This can be for new entry as well as editing existing values. Unlike a edit text view, the mask edit text view uses a mask pattern to specify what format the values should be entered in.
 
 ## General Information
@@ -56,7 +57,7 @@ Any value other than the entries above is treated like a literal value to be dis
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 ME1: {
   argName: height
@@ -64,5 +65,5 @@ ME1: {
   maskPattern: "# ft. ## in."
 }
 ```
-</div>
+
 </details>

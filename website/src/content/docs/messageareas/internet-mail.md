@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Internet Mail (Email)
+description: "Send and receive real internet email from the private message base over SMTP and IMAP."
+sidebar:
+    order: 8
 ---
 ## Internet Mail
 

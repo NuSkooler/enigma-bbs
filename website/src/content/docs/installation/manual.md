@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Manual Installation
+description: "Install prerequisites, Node.js and ENiGMA½ by hand when you would rather not use the script."
+sidebar:
+    order: 4
 ---
 For Linux environments it's recommended you run the [install script](install-script.md). If you like to
 do things manually, read on...
@@ -73,4 +75,4 @@ Use `oputil.js` to generate your **initial** configuration:
 ./oputil.js config new
 ```
 
-Follow the prompts!
+Follow the prompts! Then [test your installation](testing.md).

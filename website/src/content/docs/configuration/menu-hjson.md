@@ -1,8 +1,9 @@
 ---
-layout: page
-title: Menu HSJON
+title: Menu HJSON
+description: "Menus, prompts, forms and action blocks — the file that defines how your board flows."
+sidebar:
+    order: 3
 ---
-## Menu HJSON
 The core of a ENiGMA½ based BBS is it's menus driven by what will be referred to as `menu.hjson`. Throughout ENiGMA½ documentation, when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.github.io/) format.
 
 :::note
@@ -15,7 +16,7 @@ Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each en
 
 * Classical navigation and menus such as Main, Messages, and Files.
 * Art file display.
-* Module driven menus such as [door launchers](../modding/local-doors.md), [Onelinerz](../modding/onelinerz.md), and other custom mods.
+* Module driven menus such as [door launchers](../doors/index.md), [Onelinerz](../modules/onelinerz.md), and other custom mods.
 
 Menu entries live under the `menus` section of `menu.hjson`. The *key* for a menu is it's name that can be referenced by other menus and areas of the system.
 

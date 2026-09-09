@@ -1,9 +1,9 @@
 ---
-layout: page
 title: Pause Prompts
+description: "Control how the system pauses after art, including page breaks and custom prompts."
+sidebar:
+    order: 4
 ---
-## Pause Prompts
-
 ENiGMA½ supports a flexible pause prompt system that controls how the system waits for user input after displaying art. Pause prompts are fully themeable: they support art files, any MCI view type, and can be customised per-menu.
 
 ---
@@ -167,7 +167,6 @@ The art file can also be placed in your theme directory (`art/themes/<yourTheme>
 
 <details>
 <summary>Simple end-of-art pause (default)</summary>
-<div markdown="1">
 
 ```hjson
 myArtDisplay: {
@@ -179,12 +178,11 @@ myArtDisplay: {
 ```
 
 Uses the `pause` system prompt. No additional configuration required.
-</div>
+
 </details>
 
 <details>
 <summary>Paginated art with page-break and end pauses</summary>
-<div markdown="1">
 
 ```hjson
 myScroller: {
@@ -196,12 +194,11 @@ myScroller: {
 ```
 
 Uses `pausePage` between pages and `pause` at the end. Both are system defaults — add them to your `prompts:` block to customise.
-</div>
+
 </details>
 
 <details>
 <summary>Paginated art with a custom page-break prompt</summary>
-<div markdown="1">
 
 ```hjson
 // menu entry:
@@ -235,12 +232,11 @@ prompts: {
     }
 }
 ```
-</div>
+
 </details>
 
 <details>
 <summary>Shorthand: end pause with a named custom prompt</summary>
-<div markdown="1">
 
 ```hjson
 myArtDisplay: {
@@ -252,12 +248,11 @@ myArtDisplay: {
 ```
 
 Equivalent to `pause: true` + `pausePrompt: myFancyPause`.
-</div>
+
 </details>
 
 <details>
 <summary>Force pause position to a fixed row</summary>
-<div markdown="1">
 
 ```hjson
 myArtDisplay: {
@@ -272,5 +267,5 @@ myArtDisplay: {
 ```
 
 Useful when art has a specific row reserved for the pause prompt.
-</div>
+
 </details>

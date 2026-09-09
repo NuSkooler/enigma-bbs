@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Configuration Files
+description: "Hot-reload, plus the includes, @reference, @environment and @file directives shared by all config files."
+sidebar:
+    order: 4
 ---
 ## General Information
 ENiGMA½ configuration files such as the [system config](config-hjson.md), [menus](menu-hjson.md) and [themes](../art/themes.md) are formatted in the [HJSON format](hjson.md).

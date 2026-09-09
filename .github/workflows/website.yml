@@ -49,8 +49,10 @@ jobs:
 
       - name: Verify
         working-directory: website
-        #  Builds the site, then fails on any broken internal link and on any
+        #  Builds the site, then fails on: a broken internal link, a page that
+        #  is not reachable from the sidebar, markdown that did not render, and
         #  drift between openapi.yaml and the routes the server registers.
+        #  External links are checked weekly instead -- see docs-link-rot.yml.
         run: npm run verify
 
       - name: Upload built site

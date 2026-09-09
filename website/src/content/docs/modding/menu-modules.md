@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Menu Modules
+description: "Write a menu module: the MenuModule lifecycle, menu methods, helpers and per-mod databases."
+sidebar:
+    order: 1
 ---
-## Menu Modules
 From initial connection to the screens and mods your users interact with, the entire experience is made up of menu entries — And all menu entries found within [menu.hjson](../configuration/menu-hjson.md) are backed by *Menu Modules*. For basic menus, a standard handler is implemented requiring no code. However, if you would like to create a menu that has custom handling, you will very likely be inheriting from from `MenuModule`. More on this below.
 
 :::note
@@ -10,7 +11,7 @@ Remember that ENiGMA does not impose any stucture to your system! The "flow" of 
 :::
 
 :::tip
-If the `module` entry is not present in a `menu.hjson` entry, the system automatically uses [standard_menu.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/standard_menu.js).
+If the `module` entry is not present in a `menu.hjson` entry, the system automatically uses [standard_menu.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/standard_menu.js). For the modules ENiGMA½ already ships with, see [Built-in Modules](../modules/index.md).
 :::
 
 ## Creating a New Module

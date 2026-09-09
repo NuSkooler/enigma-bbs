@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Event Scheduler
+description: "Schedule recurring events by time or by watching a file, and run methods or external commands."
+sidebar:
+    order: 14
 ---
-## Event Scheduler
 The ENiGMA½ scheduler allows system operators to configure arbitrary events that can can fire based on date and/or time, or by watching for changes in a file. Events can kick off internal handlers, custom modules, or binaries & scripts.
 
 ## Scheduling Events

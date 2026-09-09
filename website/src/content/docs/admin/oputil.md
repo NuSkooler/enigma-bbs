@@ -1,6 +1,8 @@
 ---
-layout: page
 title: oputil
+description: "The oputil command line tool — users, config, message bases, file bases and FTN maintenance."
+sidebar:
+    order: 2
 ---
 ## The oputil CLI
 ENiGMA½ comes with `oputil.js` henceforth known as `oputil`, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration.
@@ -488,7 +490,7 @@ Read a file from the image (can be piped):
 ## v86 Emulation Tools
 The `v86` command boots raw FreeDOS disk images using the [v86](https://github.com/copy/v86) x86 emulator. Does not require a running ENiGMA instance.
 
-BIOS files default to `misc/v86_bios/seabios.bin` and `misc/v86_bios/vgabios.bin`. Run `misc/install.sh` to download them, or see [Local Doors — v86](../modding/local-doors-v86.md) for details.
+BIOS files default to `misc/v86_bios/seabios.bin` and `misc/v86_bios/vgabios.bin`. Run `misc/install.sh` to download them, or see [Local Doors — v86](../doors/v86.md) for details.
 
 ```
 usage: oputil.js v86 <action> <image.img> [arguments]
@@ -555,3 +557,8 @@ Close the browser tab or press `Ctrl+C` to stop the server.
 - A 500 MB image will take noticeably longer, especially when accessed over an SSH tunnel or slow link.
 - Prefer lean images: install only what a door needs, and avoid bundling large data files that aren't required at runtime.
 - The same advice applies to the live BBS door sessions — smaller images mean less RAM and faster startup for users.
+
+## See Also
+
+* [Administration](administration.md) — backups, database maintenance and scheduled tasks
+* [Upgrading](upgrading.md) — keeping your system current

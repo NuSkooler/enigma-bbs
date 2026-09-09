@@ -1,9 +1,10 @@
 ---
-layout: page
 title: Archivers
+description: "Configure external archivers so ENiGMA½ can list, extract and create ZIP, ARJ, RAR and more."
+sidebar:
+    order: 11
 ---
 
-## Archivers
 ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The `archives` section of `config.hjson` is used to override defaults, add new handlers, and so on.
 
 Archivers are managed via the `archives:archivers` configuration block of `config.hjson`. Each entry in this section defines an **external archiver** that can be referenced in other sections of `config.hjson` and in code. Entries define how to `compress`, `decompress` (a full archive), `list`, and `extract` (specific files from an archive).

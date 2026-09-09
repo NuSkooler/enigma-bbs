@@ -1824,8 +1824,11 @@
                             "additionalProperties": false
                         },
                         "defaultNetwork": {
-                            "description": "Network whose outbound goes in the unsuffixed directory.",
-                            "type": "string"
+                            "description": "Network whose outbound goes in the unsuffixed directory; null for none.",
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         },
                         "netMail": {
                             "type": "object",

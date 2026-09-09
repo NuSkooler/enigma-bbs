@@ -1,6 +1,8 @@
 ---
-layout: page
 title: REST API
+description: "The JSON REST API for message bases, file areas, users and system information."
+sidebar:
+    order: 3
 ---
 ENiGMA½ includes a built-in REST API served under `/_enig/api/v1/`. It exposes message bases, file areas, user profiles, and system information over JSON, enabling third-party clients, bots, and integrations to interact with your BBS programmatically.
 

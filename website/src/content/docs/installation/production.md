@@ -1,6 +1,8 @@
 ---
-layout: page
 title: Production Installation
+description: "Run ENiGMA½ as a long-lived service under systemd or PM2, with the PATH and SELinux gotchas."
+sidebar:
+    order: 9
 ---
 If you've become convinced you would like a "production" BBS running ENiGMA½ a more advanced installation
 may be in order.

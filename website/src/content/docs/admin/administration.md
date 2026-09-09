@@ -1,18 +1,24 @@
 ---
-layout: page
 title: Administration
+description: "Day-to-day running of a board: users, backups, database maintenance and scheduled tasks."
+sidebar:
+    order: 1
 ---
-
-# Administration
 
 ## Keeping Up to Date
 See [Upgrading](upgrading.md).
 
 ## Viewing Activity
-Monitor your system via the [Waiting For Caller (WFC)](../modding/wfc.md) screen and learn how to [monitoring logs](../troubleshooting/monitoring-logs.md).
+Monitor your system via the [Waiting For Caller (WFC)](../modules/wfc.md) screen and learn how to [monitoring logs](../troubleshooting/monitoring-logs.md).
 
 ## Managing Users
 User management is currently handled via the [oputil CLI](oputil.md).
+
+The **first user to log into a fresh installation is made the SysOp**: they are
+placed in the built-in `sysops` group, which is what
+[ACS](../configuration/acs.md) checks such as `GM[sysops]` test against. There is
+no separate step to claim the account — log in first, before you expose the
+board.
 
 ## Backing Up Your System
 It is *highly* recommended to perform **regular backups** of your system. Nothing is worse than spending a lot of time setting up a system only to have it go away unexpectedly!

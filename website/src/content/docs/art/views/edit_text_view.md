@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Edit Text View
+description: "%ET — a single-line text input field."
+sidebar:
+    order: 14
 ---
-## Edit Text View
 An edit text view supports editing form values on a screen. This can be for new entry as well as editing existing values defined by the module.
 
 ## General Information
@@ -35,7 +36,7 @@ See [MCI](../mci.md) for general information on how to use views and common conf
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 ET1: {
   maxLength: @config:users.usernameMax
@@ -43,5 +44,5 @@ ET1: {
   focus: true
 }
 ```
-</div>
+
 </details>

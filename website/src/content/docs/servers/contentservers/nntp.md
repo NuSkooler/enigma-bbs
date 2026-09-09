@@ -1,6 +1,8 @@
 ---
-layout: page
 title: NNTP Server
+description: "Expose message conferences and areas to newsreaders over NNTP and NNTPS."
+sidebar:
+    order: 5
 ---
 ## The NNTP Content Server
 The NNTP *content server* provides access to publicly exposed message conferences and areas over either **secure** NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).

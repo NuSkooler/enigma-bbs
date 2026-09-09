@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Ticker View
+description: "%TK — a continuously scrolling marquee."
+sidebar:
+    order: 12
 ---
-## Ticker View
 A ticker view displays text as a continuously animated marquee inside a fixed-width window. It supports multiple independent motion styles and visual effects that can be freely combined.
 
 ## General Information
@@ -86,7 +87,6 @@ Text-style effects and dynamic effects are independent axes — `l33t` + `rainbo
 
 <details>
 <summary>Scrolling board name with rainbow effect (expand)</summary>
-<div markdown="1">
 
 ```hjson
 TK1: {
@@ -97,12 +97,11 @@ TK1: {
   tickInterval: 80
 }
 ```
-</div>
+
 </details>
 
 <details>
 <summary>Bouncing l33t ticker (expand)</summary>
-<div markdown="1">
 
 ```hjson
 TK1: {
@@ -113,12 +112,11 @@ TK1: {
   tickInterval: 60
 }
 ```
-</div>
+
 </details>
 
 <details>
 <summary>Typewriter reveal with glitch effect (expand)</summary>
-<div markdown="1">
 
 ```hjson
 TK1: {
@@ -130,12 +128,11 @@ TK1: {
   holdTicks: 30
 }
 ```
-</div>
+
 </details>
 
 <details>
 <summary>Slide-in reveal (expand)</summary>
-<div markdown="1">
 
 ```hjson
 TK1: {
@@ -147,5 +144,5 @@ TK1: {
   holdTicks: 25
 }
 ```
-</div>
+
 </details>

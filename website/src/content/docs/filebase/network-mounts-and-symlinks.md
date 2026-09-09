@@ -1,11 +1,12 @@
 ---
-layout: page
 title: Network Mounts & Symlinks
+description: "Serve files from network shares using mounts and symlinks with areaStoragePrefix."
+sidebar:
+    order: 6
 ---
-## Network Mounts & Symlinks
 With many Bulletin Board Systems running on small headless boxes such as Raspberry Pis, it may not be practical to have all files you would like to make available in your file base. One solution to this is to utilize network mounts. Add in symbolic links to make things even easier!
 
-### A Practical Example
+## A Practical Example
 The scenario: A Windows box containing a lot of files you'd like in your systems file base. The BBS itself is running on a Raspberry Pi with very limited space.
 
 To solve this problem, we can perform the following steps:

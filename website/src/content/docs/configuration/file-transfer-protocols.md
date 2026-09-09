@@ -1,13 +1,14 @@
 ---
-layout: page
 title: File Transfer Protocols
+description: "Set up SEXYZ or sz/rz so users can transfer files over X, Y and ZModem."
+sidebar:
+    order: 12
 ---
 ENiGMA½ currently relies on external executable binaries for "legacy" file transfer protocols such as X, Y, and ZModem. Remember that ENiGMA½ also supports modern web (HTTP/HTTPS) downloads!
 
-## File Transfer Protocols
 File transfer protocols are managed via the `fileTransferProtocols` configuration block of `config.hjson`. Each entry defines an **external** protocol handler that can be used for uploads (recv), downloads (send), or both. Depending on the protocol and handler, batch receiving of files (uploads) may also be available.
 
-### Quick Check
+## Quick Check
 
 On Linux, you can quickly check what is available in your PATH:
 
@@ -15,19 +16,19 @@ On Linux, you can quickly check what is available in your PATH:
 command -v sexyz sz rz
 ```
 
-### Predefined File Transfer Protocols
+## Predefined File Transfer Protocols
 Please see [External Binaries](external-binaries.md) for a table of built in / predefined protocol handlers. You will need to have the binaries in ENiGMA's PATH.
-#### SEXYZ
+### SEXYZ
 [SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ. An x86_64 Linux binary, and hopefully more in the future, [can be downloaded here](https://l33t.codes/outgoing/sexyz).
 
 ENiGMA's default handlers execute the `sexyz` binary (see [External Binaries](external-binaries.md) for install notes and links).
 
-#### sz/rz
+### sz/rz
 ZModem-8k is configured using the standard Linux [sz(1)](https://linux.die.net/man/1/sz) and [rz(1)](https://linux.die.net/man/1/rz) binaries. Note that these binaries also support XModem and YModem, and as such adding the configurations to your system should be fairly straight forward.
 
 Generally available as `lrzsz` under Apt or Yum type packaging.
 
-### File Transfer Protocol Configuration
+## File Transfer Protocol Configuration
 The following top-level members are available to an external protocol configuration:
 * `name`: Required; Display name of the protocol
 * `type`: Required; Currently must be `external`. This will be expanded upon in the future with built in protocols.
@@ -45,10 +46,10 @@ For protocols of type `external` the following members may be defined:
     `escapeTelnet` is a deprecated name; it is still accepted for compatibility.
     :::
 
-### Adding Your Own
+## Adding Your Own
 Take a look a the example below as well as [core/config_default.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config_default.js).
 
-#### Example File Transfer Protocol Configuration
+### Example File Transfer Protocol Configuration
 ```hjson
 zmodem8kSexyz : {
     name		: 'ZModem 8k (SEXYZ)',

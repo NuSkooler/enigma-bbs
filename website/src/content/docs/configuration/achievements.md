@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Achievements
+description: "Define achievements that reward users for posting, uploading, calling and more."
+sidebar:
+    order: 15
 ---
-## Achievements
 ENiGMA½ includes a built-in achievement system that rewards users for activity on the board. Achievements are defined in `config/achievements.hjson` and fire automatically as users accumulate stats. When an achievement is earned the user sees a private interrupt notification; a separate global notification is broadcast to all other online users (if `globalText` is defined for that tier).
 
 ## Configuration
@@ -175,7 +176,7 @@ See [MCI](../art/mci.md) for general MCI documentation.
 
 ## Leaderboards
 
-Achievement totals can be surfaced in [Top-X](../modding/top-x.md) leaderboards using the User Event Log:
+Achievement totals can be surfaced in [Top-X](../modules/top-x.md) leaderboards using the User Event Log:
 
 ```hjson
 mciMap: {

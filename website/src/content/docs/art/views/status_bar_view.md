@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Status Bar View
+description: "%SB — an auto-refreshing single-line status label."
+sidebar:
+    order: 13
 ---
-## Status Bar View
 A status bar view (`%SB`) is a single-line view that operates in one of two modes:
 
 - **Single mode** (no `panels` option): behaves like a `TextView` with an optional timed auto-refresh. Useful for clocks, counters, and other self-updating labels.
@@ -54,7 +55,6 @@ See [MCI Codes](../mci.md#predefined-codes) for the full list of available prede
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
 
 ```hjson
 SB1: {
@@ -64,7 +64,7 @@ SB1: {
   justify: right
 }
 ```
-</div>
+
 </details>
 
 ---
@@ -122,7 +122,6 @@ The full-screen editor (`fse.js`) uses a single `%SB1` in `MSGEFTR.ANS` to displ
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
 
 ```hjson
 2: {
@@ -168,5 +167,4 @@ panels: [
 ]
 ```
 
-</div>
 </details>

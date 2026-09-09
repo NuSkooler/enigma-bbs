@@ -1,8 +1,9 @@
 ---
-layout: page
 title: Multi Line Edit Text View
+description: "%MT — the multi-line text editor used for message bodies."
+sidebar:
+    order: 16
 ---
-## Multi Line Edit Text View
 A text display / editor designed to edit or display a message.
 
 ## General Information
@@ -50,7 +51,7 @@ With mode preview, scrolling the contents is allowed, but is not with read-only.
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-<div markdown="1">
+
 ```hjson
 ML1: {
   width: 79
@@ -67,5 +68,5 @@ MT1: {
   hyperlinks: true
 }
 ```
-</div>
+
 </details>
