@@ -27,7 +27,7 @@ Below is a visual representation of this process:
 
 
 :::note
-After upgrading, it is always recommended to look at [UPGRADE.md](https://github.com/NuSkooler/enigma-bbs/blob/master/UPGRADE.md) and inspect the version-to-version notes as well as the [WHATSNEW](https://github.com/NuSkooler/enigma-bbs/blob/master/WHATSNEW.md).
+Before upgrading, read the [Upgrade Notes](upgrade-notes.md) for every version between yours and the one you are moving to. [Release Notes](release-notes.md) covers what is new.
 :::
 
 ### Configuration File Updates
@@ -43,4 +43,4 @@ It is recommended to [monitor logs](../troubleshooting/monitoring-logs.md) and p
 :::
 
 ## Something Went Wrong!
-Check [TROUBLESHOOTING](https://github.com/NuSkooler/enigma-bbs/blob/master/TROUBLESHOOTING.md) first.
+See [Installation & Upgrade Issues](../troubleshooting/installation-issues.md), which covers native module compile failures and the menu and theme entries an upgrade can leave behind.
