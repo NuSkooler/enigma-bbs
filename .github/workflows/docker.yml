@@ -38,6 +38,9 @@ jobs:
         with:
           tags: enigmabbs/enigma-bbs:latest
           file: docker/Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v8
+          #  linux/arm/v8 is not a platform the base image publishes -- arm64
+          #  is already ARMv8 -- and asking for it now fails the build rather
+          #  than silently resolving to amd64 as it used to.
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
 
