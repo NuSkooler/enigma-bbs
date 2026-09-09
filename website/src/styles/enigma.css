@@ -188,3 +188,88 @@
     border: 1px solid #1a201a;
     padding: 10px 14px;
 }
+
+/*  ---- light mode -------------------------------------------------------
+ *
+ *  :root:root[data-theme='light'] (0,3,0) so it beats both Starlight's stock
+ *  light palette on :root[data-theme='light'] (0,2,0) and our own dark block
+ *  on :root:root (0,2,0), regardless of which stylesheet the bundler emits
+ *  first.
+ *
+ *  The bright half of the 16-colour palette is unusable here -- #55ff55 on
+ *  white is around 1.4:1. So light mode uses the DARK half of the same
+ *  hardware palette, which is what those colours are for: #00aa00 green,
+ *  #00aaaa cyan, #555555 grey. Same vocabulary, legible ink.
+ *
+ *  Two things deliberately do NOT invert, further down: ANSI art and code
+ *  blocks stay on black. ANSI art is authored against a black screen -- its
+ *  own palette assumes it -- and re-grounding it on white does not lighten
+ *  it, it breaks it. */
+:root:root[data-theme='light'] {
+    --e-green: #007a00;
+    --e-green-dim: #00aa00;
+    --e-cyan: #006b6b;
+    --e-cyan-bright: #008080;
+    --e-grey: #555555;
+    --e-grey-dim: #767676;
+
+    --sl-color-white: #14170f;
+    --sl-color-gray-1: #1d2118;
+    --sl-color-gray-2: #3a4034;
+    --sl-color-gray-3: #5d6455;
+    --sl-color-gray-4: #8b9184;
+    --sl-color-gray-5: #d3d8cd;
+    --sl-color-gray-6: #eaeee5;
+    --sl-color-gray-7: #f4f7f0;
+    --sl-color-black: #fbfcf9;
+
+    --sl-color-accent-low: #d8ecd8;
+    --sl-color-accent: #007a00;
+    --sl-color-accent-high: #005200;
+}
+
+/*  Chrome that was painted with literal dark values above needs a light
+    counterpart; the token-driven parts follow on their own. */
+:root:root[data-theme='light'] .header {
+    background: #f0f3ec;
+}
+/*  No scanlines on white -- they read as moire, not as a CRT. */
+:root:root[data-theme='light'] .header::after {
+    display: none;
+}
+:root:root[data-theme='light'] .sl-markdown-content :not(pre) > code {
+    color: #005f5f;
+    background: #eaeee5;
+    border-color: #cfd6c8;
+}
+:root:root[data-theme='light'] .sl-markdown-content th {
+    color: #005f5f;
+    background: #e6ebe0;
+}
+:root:root[data-theme='light'] .sl-markdown-content th,
+:root:root[data-theme='light'] .sl-markdown-content td {
+    border-color: #d8ded1;
+}
+:root:root[data-theme='light'] .starlight-aside--note {
+    border-color: #b9d4d4;
+    background: #eef6f6;
+}
+:root:root[data-theme='light'] .starlight-aside--tip {
+    border-color: #bcd8bc;
+    background: #eff7ef;
+}
+:root:root[data-theme='light'] .starlight-aside--caution {
+    border-color: #ddd0a8;
+    background: #faf5e6;
+}
+
+/*  ANSI art keeps its black ground in both themes. The art's own 16 colours
+    are chosen against black; on white the dark half of the palette vanishes
+    and the bright half glares. A thin border keeps it from floating. */
+.ansi,
+:root:root[data-theme='light'] .ansi {
+    background: #000000;
+}
+:root:root[data-theme='light'] .ansi-figure {
+    border: 1px solid #d3d8cd;
+}

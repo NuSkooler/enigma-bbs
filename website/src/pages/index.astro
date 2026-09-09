@@ -31,6 +31,28 @@ const features = [
             content="Modern bulletin board software with a nostalgic flair. Telnet, SSH and WebSocket in one Node.js process, plus FidoNet mail, indexed file bases, and DOS doors that actually run."
         />
         <link rel="sitemap" href="/sitemap-index.xml" />
+        <script is:inline>
+            //  Mirrors Starlight's ThemeProvider so a choice made in the docs
+            //  carries to this page, and so the correct theme is applied before
+            //  first paint rather than flashing. Same storage key, same
+            //  data-theme attribute.
+            (() => {
+                const stored = (() => {
+                    try {
+                        return localStorage.getItem('starlight-theme');
+                    } catch {
+                        return null;
+                    }
+                })();
+                const theme =
+                    stored === 'light' || stored === 'dark'
+                        ? stored
+                        : window.matchMedia('(prefers-color-scheme: light)').matches
+                          ? 'light'
+                          : 'dark';
+                document.documentElement.dataset.theme = theme;
+            })();
+        </script>
     </head>
     <body>
         <header class="nav">
@@ -168,27 +190,27 @@ const features = [
 <style>
     body {
         margin: 0;
-        background: #060806;
-        color: #d9ded9;
+        background: var(--sl-color-black);
+        color: var(--sl-color-gray-2);
         font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
     }
-    a { color: #55ffff; text-decoration: none; }
+    a { color: var(--e-cyan-bright); text-decoration: none; }
     a:hover { color: #ffffff; }
 
     .nav {
         display: flex; align-items: center; justify-content: space-between;
         gap: 1rem; padding: 0 2.5rem; height: 62px;
-        border-bottom: 1px solid #1f261f; background: #0a0d0a;
+        border-bottom: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6);
     }
-    .brand { font-size: 16px; line-height: 16px; color: #d9ded9; }
-    .brand__mark { color: #55ff55; }
+    .brand { font-size: 16px; line-height: 16px; color: var(--sl-color-gray-2); }
+    .brand__mark { color: var(--e-green); }
     .nav nav { display: flex; align-items: center; gap: 1.6rem; }
-    .nav__cta { font-size: 16px; line-height: 16px; background: #55ff55; color: #060806; padding: 8px 14px; }
-    .nav__cta:hover { color: #060806; background: #7dff7d; }
+    .nav__cta { font-size: 16px; line-height: 16px; background: var(--e-green); color: var(--sl-color-black); padding: 8px 14px; }
+    .nav__cta:hover { color: var(--sl-color-black); background: var(--e-green-dim); }
 
     .hero {
         padding: 3.5rem 2.5rem 3rem;
-        border-bottom: 1px solid #1f261f;
+        border-bottom: 1px solid var(--sl-color-gray-5);
         background:
             radial-gradient(ellipse 640px 380px at 74% 46%, rgb(85 255 85 / 0.10), transparent 68%),
             radial-gradient(ellipse 520px 300px at 16% 30%, rgb(0 170 170 / 0.10), transparent 70%);
@@ -209,24 +231,24 @@ const features = [
     .hero__text { flex: 1 1 24rem; min-width: 0; max-width: 32rem; }
     .hero__screen { flex: 3 1 38rem; min-width: 0; }
 
-    .kicker { font-size: 16px; line-height: 16px; color: #55ff55; margin: 0 0 1.4rem; }
+    .kicker { font-size: 16px; line-height: 16px; color: var(--e-green); margin: 0 0 1.4rem; }
     .wordmark {
         font-size: 80px; line-height: 80px; font-weight: normal; margin: 0 0 1.2rem;
-        color: #55ff55;
+        color: var(--e-green);
         text-shadow: 0 0 26px rgb(85 255 85 / 0.45), 3px 3px 0 rgb(0 170 170 / 0.55);
     }
-    .wordmark__b { color: #f2f6f2; text-shadow: 0 0 22px rgb(255 255 255 / 0.28); }
-    .lede { font-size: 19px; line-height: 1.58; color: #a8b0a8; max-width: 34rem; margin: 0 0 1.6rem; text-wrap: pretty; }
+    .wordmark__b { color: var(--sl-color-white); text-shadow: 0 0 22px rgb(255 255 255 / 0.28); }
+    .lede { font-size: 19px; line-height: 1.58; color: var(--sl-color-gray-2); max-width: 34rem; margin: 0 0 1.6rem; text-wrap: pretty; }
 
     .cta { display: flex; gap: 0.75rem; margin: 0; flex-wrap: wrap; }
     .cta__primary {
-        font-size: 16px; line-height: 16px; background: #55ff55; color: #060806;
+        font-size: 16px; line-height: 16px; background: var(--e-green); color: var(--sl-color-black);
         padding: 14px 24px; box-shadow: 0 0 22px rgb(85 255 85 / 0.25);
     }
-    .cta__primary:hover { color: #060806; background: #7dff7d; }
-    .cta__secondary { font-size: 16px; line-height: 16px; border: 1px solid #2a332a; color: #d9ded9; padding: 13px 24px; }
-    .cta__secondary:hover { border-color: #55ff55; color: #ffffff; }
-    .screen__caption { font-size: 16px; line-height: 16px; color: #4d554d; margin: 0.7rem 0 0; text-align: right; }
+    .cta__primary:hover { color: var(--sl-color-black); background: var(--e-green-dim); }
+    .cta__secondary { font-size: 16px; line-height: 16px; border: 1px solid var(--sl-color-gray-5); color: var(--sl-color-gray-2); padding: 13px 24px; }
+    .cta__secondary:hover { border-color: var(--e-green); color: #ffffff; }
+    .screen__caption { font-size: 16px; line-height: 16px; color: var(--sl-color-gray-4); margin: 0.7rem 0 0; text-align: right; }
 
     /*  Full width, below the hero row: the install command is ~95 characters
         and was being clipped inside the text column. */
@@ -236,76 +258,99 @@ const features = [
         /*  Wide enough for the ~95-character command plus the sigil and the
             copy button, and no wider -- full-bleed made it read as a banner. */
         max-width: 54rem;
-        border: 1px solid #2a332a; background: #000000; overflow: hidden;
+        border: 1px solid var(--sl-color-gray-5); background: #000000; overflow: hidden;
     }
-    .install__sigil { flex-shrink: 0; font-size: 16px; line-height: 16px; color: #55ff55; padding: 13px 0 13px 14px; }
+    .install__sigil { flex-shrink: 0; font-size: 16px; line-height: 16px; color: var(--e-green); padding: 13px 0 13px 14px; }
     .install code {
         flex-grow: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
         font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
-        color: #d9ded9; padding: 12px 14px;
+        color: var(--sl-color-gray-2); padding: 12px 14px;
     }
     .install__copy {
         flex-shrink: 0; cursor: pointer; font-size: 16px; line-height: 16px;
-        background: #0d110d; color: #55ff55; border: 0; border-left: 1px solid #2a332a;
+        background: var(--sl-color-gray-6); color: var(--e-green); border: 0; border-left: 1px solid var(--sl-color-gray-5);
         padding: 0 18px;
     }
-    .install__copy:hover { background: #55ff55; color: #060806; }
-    .install__copy.is-copied { background: #00aa00; color: #060806; }
+    .install__copy:hover { background: var(--e-green); color: var(--sl-color-black); }
+    .install__copy.is-copied { background: #00aa00; color: var(--sl-color-black); }
 
     .try {
         display: flex; flex-wrap: wrap; gap: 3rem; align-items: center;
-        padding: 3.5rem 2.5rem; border-bottom: 1px solid #1f261f;
+        padding: 3.5rem 2.5rem; border-bottom: 1px solid var(--sl-color-gray-5);
     }
     .try__text { flex: 1 1 26rem; min-width: 0; }
     .try__screen { flex: 1 1 30rem; min-width: 0; }
-    .try__lede { font-size: 17px; line-height: 1.6; color: #a8b0a8; margin: 0 0 1.5rem; max-width: 34rem; text-wrap: pretty; }
-    .try__lede strong { color: #f2f6f2; }
-    .try__note { font-size: 14.5px; line-height: 1.6; color: #8a928a; margin: 1.4rem 0 0; max-width: 32rem; }
+    .try__lede { font-size: 17px; line-height: 1.6; color: var(--sl-color-gray-2); margin: 0 0 1.5rem; max-width: 34rem; text-wrap: pretty; }
+    .try__lede strong { color: var(--sl-color-white); }
+    .try__note { font-size: 14.5px; line-height: 1.6; color: var(--sl-color-gray-3); margin: 1.4rem 0 0; max-width: 32rem; }
 
     .dial { margin: 0; display: grid; gap: 0.55rem; }
     .dial__row { display: flex; gap: 0.9rem; align-items: baseline; }
-    .dial dt { flex: 0 0 5.5rem; font-size: 16px; line-height: 16px; color: #00aaaa; }
+    .dial dt { flex: 0 0 5.5rem; font-size: 16px; line-height: 16px; color: var(--e-cyan); }
     .dial dd { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.75rem; }
-    .dial__hint { font-size: 13.5px; color: #8a928a; }
-    .dial__hint code { color: #55ff55; }
+    .dial__hint { font-size: 13.5px; color: var(--sl-color-gray-3); }
+    .dial__hint code { color: var(--e-green); }
     .dial code {
         font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
-        color: #d9ded9; background: #101810; border: 1px solid #1f261f; padding: 2px 7px;
+        color: var(--sl-color-gray-2); background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-gray-5); padding: 2px 7px;
     }
 
     .community {
         display: flex; flex-wrap: wrap; gap: 3rem;
-        padding: 3.5rem 2.5rem; border-top: 1px solid #1f261f;
+        padding: 3.5rem 2.5rem; border-top: 1px solid var(--sl-color-gray-5);
     }
     .community__col { flex: 1 1 24rem; min-width: 0; }
-    .origin { font-size: 15.5px; line-height: 1.68; color: #8a928a; margin: 0; max-width: 34rem; text-wrap: pretty; }
-    .origin strong { color: #d9ded9; }
+    .origin { font-size: 15.5px; line-height: 1.68; color: var(--sl-color-gray-3); margin: 0; max-width: 34rem; text-wrap: pretty; }
+    .origin strong { color: var(--sl-color-gray-2); }
     .help { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
-    .help li { font-size: 15px; line-height: 1.5; color: #8a928a; }
+    .help li { font-size: 15px; line-height: 1.5; color: var(--sl-color-gray-3); }
     .help code {
         font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px;
-        color: #55ff55; background: #101810; border: 1px solid #1f261f; padding: 1px 6px;
+        color: var(--e-green); background: var(--sl-color-gray-6); border: 1px solid var(--sl-color-gray-5); padding: 1px 6px;
     }
 
     .features { padding: 3.5rem 2.5rem; }
-    .section-head { font-size: 16px; line-height: 16px; font-weight: normal; color: #55ff55; margin: 0 0 1.6rem; }
+    .section-head { font-size: 16px; line-height: 16px; font-weight: normal; color: var(--e-green); margin: 0 0 1.6rem; }
     .grid {
         list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem;
         grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
     }
-    .card { border: 1px solid #1f261f; background: #0d110d; padding: 1.4rem; }
-    .card__title { font-size: 16px; line-height: 16px; font-weight: normal; color: #55ffff; margin: 0 0 0.75rem; }
-    .card__body { font-size: 14.5px; line-height: 1.62; color: #8a928a; margin: 0; }
+    .card { border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6); padding: 1.4rem; }
+    .card__title { font-size: 16px; line-height: 16px; font-weight: normal; color: var(--e-cyan-bright); margin: 0 0 0.75rem; }
+    .card__body { font-size: 14.5px; line-height: 1.62; color: var(--sl-color-gray-3); margin: 0; }
 
     .foot {
         display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; align-items: baseline;
         justify-content: space-between; padding: 1.5rem 2.5rem 2.2rem;
-        border-top: 1px solid #1f261f; background: #0a0d0a;
+        border-top: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6);
     }
-    .foot p { margin: 0; font-size: 16px; line-height: 16px; color: #4d554d; }
+    .foot p { margin: 0; font-size: 16px; line-height: 16px; color: var(--sl-color-gray-4); }
+    :root[data-theme='light'] .hero {
+        background: none;
+    }
+    :root[data-theme='light'] .hero::after {
+        display: none;
+    }
+    :root[data-theme='light'] .wordmark,
+    :root[data-theme='light'] .wordmark__b {
+        text-shadow: none;
+    }
+    :root[data-theme='light'] .cta__primary {
+        box-shadow: none;
+    }
+    /*  The install row is a terminal, and stays one in both themes -- the same
+        reasoning that keeps ANSI art and code blocks on black. */
+    :root[data-theme='light'] .install code {
+        color: #d9ded9;
+    }
+    :root[data-theme='light'] .install__copy {
+        background: #101810;
+        border-left-color: #2a332a;
+    }
+
     .foot .attrib {
         flex-basis: 100%; font-family: 'Source Sans 3', system-ui, sans-serif;
-        font-size: 12px; line-height: 1.5; color: #4d554d; margin-top: 0.6rem;
+        font-size: 12px; line-height: 1.5; color: var(--sl-color-gray-4); margin-top: 0.6rem;
     }
 </style>
 
