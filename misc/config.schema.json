@@ -2155,7 +2155,24 @@
                     "properties": {
                         "areas": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                    "number": {
+                                        "type": "number"
+                                    },
+                                    "echotag": {
+                                        "type": "string"
+                                    },
+                                    "title": {
+                                        "type": "string"
+                                    }
+                                },
+                                "patternProperties": {
+                                    "^_": true
+                                },
+                                "additionalProperties": false
+                            }
                         },
                         "bbsID": {
                             "description": "Packet ID: the 1-8 character root name every file in a Blue Wave packet shares.",

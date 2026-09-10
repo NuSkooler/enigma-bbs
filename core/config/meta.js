@@ -301,7 +301,23 @@ module.exports = {
     'messageNetworks.qwk.bbsID': { type: 'string' },
 
     'messageNetworks.bluewave': { type: 'object', closedKeys: true },
-    'messageNetworks.bluewave.areas': { openMap: true },
+    //
+    //  A mistyped key here is silently ignored and the derived value used
+    //  instead -- for 'echotag' that quietly changes what a reply routes by --
+    //  so the value shape is closed even though the area tags above are not.
+    //
+    'messageNetworks.bluewave.areas': {
+        openMap: true,
+        value: {
+            type: 'object',
+            closedKeys: true,
+            children: {
+                number: { type: 'number' },
+                echotag: { type: 'string' },
+                title: { type: 'string' },
+            },
+        },
+    },
     'messageNetworks.bluewave.bbsID': {
         type: 'string',
         description:
