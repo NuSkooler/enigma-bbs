@@ -93,8 +93,10 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         return [MciViewIds.main.status, MciViewIds.main.progressBar];
     }
 
+    //  Optional: the NORESULTS branch that consumes this is currently dead
+    //  (see mciReady()), so a format need not supply one.
     noResultsMenuName() {
-        throw Errors.MissingParam('noResultsMenuName() is required');
+        return null;
     }
 
     //
@@ -249,7 +251,6 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         try {
             void this.packetFormatName;
             void this.userProperties;
-            void this.noResultsMenuName();
         } catch (e) {
             return e;
         }
@@ -540,8 +541,17 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                         return callback(null);
                     }
 
+                    //  private mail is a real area (system_internal /
+                    //  private_mail), so the hook gets the same shape it does
+                    //  for public areas
+                    const privateArea = getMessageAreaByTag(
+                        Message.WellKnownAreaTags.Private
+                    );
                     this.prepareAreaForExport(packetWriter, {
                         areaTag: Message.WellKnownAreaTags.Private,
+                        area: privateArea,
+                        conf:
+                            privateArea && getMessageConferenceByTag(privateArea.confTag),
                     });
 
                     const filter = {

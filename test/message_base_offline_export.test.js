@@ -3,6 +3,8 @@
 const { strict: assert } = require('assert');
 const { EventEmitter } = require('events');
 
+const configModule = require('../core/config.js');
+
 const MessageBaseOfflineExport = require('../core/message_base_offline_export.js');
 const QWKExport = require('../core/message_base_qwk_export.js').getModule;
 
@@ -259,8 +261,9 @@ describe('offline packet export flow', () => {
         createPacketWriter() {
             return this.writer;
         }
-        prepareAreaForExport(packetWriter, { areaTag }) {
-            this.declared.push(areaTag);
+        prepareAreaForExport(packetWriter, info) {
+            this.declared.push(info.areaTag);
+            this.declaredInfo.push(info);
         }
     }
 
@@ -270,6 +273,7 @@ describe('offline packet export flow', () => {
         mod.writer = new FakeWriter(startup);
         mod.tempPacketDir = '/tmp/packet-work';
         mod.declared = [];
+        mod.declaredInfo = [];
         mod.delivered = null;
         mod.status = [];
         mod.warnings = [];
@@ -349,6 +353,36 @@ describe('offline packet export flow', () => {
         const mod = makeExport([10]);
         mod._performExport('/tmp/downloads', () => {
             assert.deepEqual(mod.declared, [Message.WellKnownAreaTags.Private]);
+            done();
+        });
+    });
+
+    //  the hook gets one shape: private mail is a real area, so |area| and
+    //  |conf| are populated for it exactly as they are for a public one
+    it('hands the private area its area and conference', done => {
+        const previousConfig = configModule._pushTestConfig({
+            debug: { assertsEnabled: false },
+            menus: { cls: false },
+            general: { boardName: 'ENiGMA½ BBS' },
+            messageConferences: {
+                system_internal: {
+                    name: 'System Internal',
+                    areas: {
+                        private_mail: { name: 'Private Mail' },
+                    },
+                },
+            },
+        });
+
+        const mod = makeExport([10]);
+        mod._performExport('/tmp/downloads', () => {
+            configModule._popTestConfig(previousConfig);
+
+            assert.equal(mod.declaredInfo.length, 1);
+            const info = mod.declaredInfo[0];
+            assert.equal(info.areaTag, Message.WellKnownAreaTags.Private);
+            assert.equal(info.area.name, 'Private Mail');
+            assert.equal(info.conf.name, 'System Internal');
             done();
         });
     });
