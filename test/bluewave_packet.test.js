@@ -6,6 +6,8 @@ const paths = require('path');
 const iconv = require('iconv-lite');
 
 const StatLog = require('../core/stat_log.js');
+const configModule = require('../core/config.js');
+const { WellKnownAreaTags } = require('../core/message_const.js');
 const {
     BlueWavePacketWriter,
     RecordLength,
@@ -427,5 +429,126 @@ describe('Blue Wave echotags', () => {
         assert.equal(first.length, 20);
         assert.notEqual(first, second);
         assert.ok(second.length <= 20);
+    });
+});
+
+//
+//  The kit pairs INF_AREA_INFO.network_type with the ECHO/NETMAIL flags to
+//  say what an area is, and MultiMail branches on INF_NET_INTERNET to decide
+//  soft CR handling, kludge lifting and reply addressing. These assert the
+//  chart, not the writer's own constants.
+//
+describe('Blue Wave area kinds', () => {
+    const AreaFlag = {
+        Scanning: 0x0001,
+        Echo: 0x0008,
+        NetMail: 0x0010,
+        Post: 0x0020,
+        NoPublic: 0x0080,
+    };
+    const Base = AreaFlag.Scanning | AreaFlag.Post;
+
+    const areaRecord = (inf, index) =>
+        inf.slice(
+            RecordLength.InfHeader + index * RecordLength.InfArea,
+            RecordLength.InfHeader + (index + 1) * RecordLength.InfArea
+        );
+
+    function withAreas(build, cb) {
+        const previousConfig = configModule._pushTestConfig({
+            debug: { assertsEnabled: false },
+            menus: { cls: false },
+            general: { boardName: 'ENiGMA½ BBS' },
+            messageConferences: {
+                system_internal: {
+                    name: 'System Internal',
+                    areas: {
+                        private_mail: { name: 'Private Mail' },
+                    },
+                },
+                local: {
+                    name: 'Local',
+                    areas: {
+                        chatter: { name: 'Chatter' },
+                        fido_general: { name: 'Fido General', addressFlavor: 'ftn' },
+                        list_mail: { name: 'List Mail', addressFlavor: 'email' },
+                        a_newsgroup: { name: 'A Newsgroup', addressFlavor: 'nntp' },
+                    },
+                },
+            },
+        });
+
+        buildPacket(build, result => {
+            configModule._popTestConfig(previousConfig);
+            cb(result);
+        });
+    }
+
+    it('calls a local base local: neither ECHO nor NETMAIL', done => {
+        withAreas(
+            writer => writer.addArea('chatter'),
+            ({ inf }) => {
+                const rec = areaRecord(inf, 0);
+                assert.equal(rec.readUInt16LE(InfArea.Flags), Base);
+                assert.equal(rec.readUInt8(InfArea.NetworkType), 0);
+                done();
+            }
+        );
+    });
+
+    it('calls an FTN area an echo under INF_NET_FIDONET', done => {
+        withAreas(
+            writer => writer.addArea('fido_general'),
+            ({ inf }) => {
+                const rec = areaRecord(inf, 0);
+                assert.equal(rec.readUInt16LE(InfArea.Flags), Base | AreaFlag.Echo);
+                assert.equal(rec.readUInt8(InfArea.NetworkType), 0);
+                done();
+            }
+        );
+    });
+
+    it('calls a newsgroup an echo under INF_NET_INTERNET', done => {
+        withAreas(
+            writer => writer.addArea('a_newsgroup'),
+            ({ inf }) => {
+                const rec = areaRecord(inf, 0);
+                assert.equal(rec.readUInt16LE(InfArea.Flags), Base | AreaFlag.Echo);
+                assert.equal(rec.readUInt8(InfArea.NetworkType), 1);
+                done();
+            }
+        );
+    });
+
+    it('calls an email area e-mail: ECHO and NETMAIL under INF_NET_INTERNET', done => {
+        withAreas(
+            writer => writer.addArea('list_mail'),
+            ({ inf }) => {
+                const rec = areaRecord(inf, 0);
+                assert.equal(
+                    rec.readUInt16LE(InfArea.Flags),
+                    Base | AreaFlag.Echo | AreaFlag.NetMail
+                );
+                assert.equal(rec.readUInt8(InfArea.NetworkType), 1);
+                done();
+            }
+        );
+    });
+
+    //  the caller's own mail, which the chart calls NetMail; nothing public
+    //  can be posted into it
+    it('calls private mail netmail', done => {
+        withAreas(
+            writer => writer.addArea(WellKnownAreaTags.Private),
+            ({ inf }) => {
+                const rec = areaRecord(inf, 0);
+                assert.equal(
+                    rec.readUInt16LE(InfArea.Flags),
+                    Base | AreaFlag.Echo | AreaFlag.NetMail | AreaFlag.NoPublic
+                );
+                assert.equal(rec.readUInt8(InfArea.NetworkType), 0);
+                done();
+            }
+        );
     });
 });

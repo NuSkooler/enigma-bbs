@@ -5,6 +5,7 @@
 const Config = require('./config.js').get;
 const { Errors } = require('./enig_error.js');
 const { getMessageAreaByTag, getMessageConferenceByTag } = require('./message_area.js');
+const { AddressFlavor, WellKnownAreaTags } = require('./message_const.js');
 const StatLog = require('./stat_log.js');
 const SysProps = require('./system_property.js');
 const ArchiveUtil = require('./archive_util.js');
@@ -55,6 +56,50 @@ const AreaFlags = {
     NoPrivate: 0x0040,
     NoPublic: 0x0080,
 };
+
+//  INF_AREA_INFO.network_type
+const NetworkType = {
+    FidoNet: 0,
+    Internet: 1,
+};
+
+//
+//  network_type and the ECHO/NETMAIL flags name the area together, per the
+//  kit's chart: neither flag is a local base, ECHO alone is an echo (a
+//  newsgroup under INF_NET_INTERNET) and both together is netmail (e-mail).
+//  It is not cosmetic -- MultiMail branches on INF_NET_INTERNET to stop
+//  stripping soft CRs, to lift the \001From:, \001Message-ID: and
+//  \001References: kludges out of the body, and to address a reply.
+//
+function areaKindFor(areaTag, area) {
+    if (WellKnownAreaTags.Private === areaTag) {
+        //  personal mail, which the chart calls NetMail
+        return {
+            flags: AreaFlags.Echo | AreaFlags.NetMail | AreaFlags.NoPublic,
+            networkType: NetworkType.FidoNet,
+        };
+    }
+
+    switch (area && area.addressFlavor) {
+        case AddressFlavor.FTN:
+        case AddressFlavor.QWK:
+            return { flags: AreaFlags.Echo, networkType: NetworkType.FidoNet };
+
+        case AddressFlavor.NNTP:
+        case AddressFlavor.ActivityPub:
+            return { flags: AreaFlags.Echo, networkType: NetworkType.Internet };
+
+        case AddressFlavor.Email:
+            return {
+                flags: AreaFlags.Echo | AreaFlags.NetMail,
+                networkType: NetworkType.Internet,
+            };
+
+        default:
+            //  local, and an area the sysop has since removed
+            return { flags: 0, networkType: NetworkType.FidoNet };
+    }
+}
 
 //  FTI_REC.flags
 const MessageFlags = {
@@ -165,8 +210,8 @@ class BlueWavePacketWriter extends EventEmitter {
                     this.datStream = fs.createWriteStream(
                         paths.join(this.workDir, `${this._rootName()}.DAT`)
                     );
-                    //  unhandled, a write failure (a full temp dir, say) is
-                    //  thrown at the process rather than failing the export
+                    //  a write failure (a full temp dir, say) reaches the
+                    //  export as an 'error' rather than at the process
                     this.datStream.on('error', err => this.emit('error', err));
                     return callback(null);
                 },
@@ -199,6 +244,7 @@ class BlueWavePacketWriter extends EventEmitter {
         const conf = area ? getMessageConferenceByTag(area.confTag) : null;
 
         entry = {
+            areaTag,
             number: this._areaNumberFor(configured.number),
             echoTag:
                 configured.echotag ||
@@ -269,6 +315,15 @@ class BlueWavePacketWriter extends EventEmitter {
         //
         //  Every message in the .DAT begins with a space that is not part of
         //  the text. msgptr points at it and msglength counts it.
+        //
+        //  Counting it is a choice: the kit says to read msglength bytes from
+        //  msgptr, and also that the space is not part of the message, which
+        //  cannot both hold. Readers split on it -- BlueMail's getBody()
+        //  counts the space, MultiMail's getblk() reads it for free -- so a
+        //  length that omits it truncates the last character of every message
+        //  in BlueMail, while counting it costs MultiMail one invisible
+        //  trailing space. Do not "fix" the stray space away: NoCarrierMail
+        //  inherits MultiMail's loop, so that is where it shows.
         //
         this.datStream.write(Buffer.from([0x20]));
         this.datStream.write(text);
@@ -445,13 +500,9 @@ class BlueWavePacketWriter extends EventEmitter {
             writeFixed(rec, 0, entry.number.toString(), 6);
             writeFixed(rec, 6, entry.echoTag, 21);
             writeFixed(rec, 27, entry.title, 50);
-            rec.writeUInt16LE(
-                AreaFlags.Scanning |
-                    AreaFlags.Post |
-                    (entry.area ? AreaFlags.Echo : AreaFlags.NoPublic),
-                77
-            );
-            rec.writeUInt8(0, 79); //  network_type: FidoNet
+            const kind = areaKindFor(entry.areaTag, entry.area);
+            rec.writeUInt16LE(AreaFlags.Scanning | AreaFlags.Post | kind.flags, 77);
+            rec.writeUInt8(kind.networkType, 79);
             areas.push(rec);
         });
 
