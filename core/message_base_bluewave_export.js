@@ -23,7 +23,7 @@ const UserProperties = {
 exports.moduleInfo = {
     name: 'Blue Wave Export',
     desc: 'Exports a Blue Wave packet for download',
-    author: 'ENiGMA½',
+    author: 'ENiGMA½ Team',
 };
 
 exports.getModule = class MessageBaseBlueWaveExport extends MessageBaseOfflineExport {
