@@ -411,6 +411,65 @@ describe('Blue Wave area numbers', () => {
     });
 });
 
+//
+//  areanum is six bytes with the NUL reserved, so a pinned number of more
+//  than five digits cannot be written as given. Truncating it silently is
+//  the same failure as a duplicate: .MIX binds to the wrong area.
+//
+describe('Blue Wave pinned area numbers', () => {
+    function withPinned(number, cb) {
+        const previousConfig = configModule._pushTestConfig({
+            debug: { assertsEnabled: false },
+            menus: { cls: false },
+            general: { boardName: 'ENiGMA½ BBS' },
+            messageNetworks: { bluewave: { areas: { general: { number } } } },
+        });
+
+        const warnings = [];
+        const realInit = StatLog.init;
+        const realGetSystemStat = StatLog.getSystemStat;
+        StatLog.init = callback => callback(null);
+        StatLog.getSystemStat = () => 'SysOp Name';
+
+        const writer = new BlueWavePacketWriter({
+            bbsID: 'ENIGMA',
+            user,
+            systemName: 'Test Board',
+            sysOpName: 'SysOp Name',
+        });
+
+        writer.on('warning', err => warnings.push(err.message));
+        writer.once('ready', () => {
+            writer.addArea('general');
+
+            StatLog.init = realInit;
+            StatLog.getSystemStat = realGetSystemStat;
+            configModule._popTestConfig(previousConfig);
+
+            cb(warnings, writer);
+        });
+
+        writer.init();
+    }
+
+    it('takes a five digit number as given', done => {
+        withPinned(99999, (warnings, writer) => {
+            assert.deepEqual(warnings, []);
+            assert.equal(writer.areas.get('general').number, 99999);
+            done();
+        });
+    });
+
+    it('warns and renumbers when a pinned number is too long', done => {
+        withPinned(123456, (warnings, writer) => {
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0], /longer than 5 digits/);
+            assert.equal(writer.areas.get('general').number, 1);
+            done();
+        });
+    });
+});
+
 describe('Blue Wave echotags', () => {
     it('keeps an area tag that fits', () => {
         assert.equal(echoTagFor('general'), 'GENERAL');

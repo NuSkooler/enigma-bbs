@@ -2,7 +2,11 @@
 'use strict';
 
 //  ENiGMA½
-const Config = require('./config.js').get;
+const configModule = require('./config.js');
+//  Late bound for the same reason as message_area.js: configModule.get is
+//  replaced by the Config bootstrapper, so capturing it here would freeze
+//  whichever getter happened to be installed when this file was required.
+const Config = (...args) => configModule.get(...args);
 const { Errors } = require('./enig_error.js');
 const { getMessageAreaByTag, getMessageConferenceByTag } = require('./message_area.js');
 const { AddressFlavor, WellKnownAreaTags } = require('./message_const.js');
