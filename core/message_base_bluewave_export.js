@@ -1,12 +1,6 @@
 /* jslint node: true */
 'use strict';
 
-//
-//  DEPENDS ON PR #799: `core/message_base_offline_export.js` is the shared
-//  export flow lifted out of the QWK module. Until that lands this module
-//  cannot load, and nothing here can run.
-//
-
 //  ENiGMA½
 const MessageBaseOfflineExport = require('./message_base_offline_export.js');
 const { BlueWavePacketWriter } = require('./bluewave_mail_packet.js');
