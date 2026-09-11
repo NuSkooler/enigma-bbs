@@ -4,6 +4,7 @@ const { strict: assert } = require('assert');
 const os = require('os');
 
 const DropFile = require('../core/dropfile.js');
+const configModule = require('../core/config.js');
 const { getCtermVersion } = require('../core/client.js');
 
 //
@@ -280,6 +281,40 @@ describe('BBSDEV.DRP comm type', () => {
             assert.ok(!DropFile.validCommTypes('BBSDEV').includes('socket'));
             //  the legacy formats still report it, as they always have
             assert.ok(DropFile.validCommTypes('DOOR32').includes('socket'));
+        });
+    });
+
+    //
+    //  Line 13 MUST be well formed or a conforming door may reject the file,
+    //  so a language that is not is refused here rather than written.
+    //
+    describe('the language tag', () => {
+        const withLanguage = (language, cb) => {
+            const previous = configModule._pushTestConfig({
+                debug: { assertsEnabled: false },
+                menus: { cls: false },
+                general: { language },
+                paths: { dropFiles: os.tmpdir() },
+            });
+            makeDropFile().createFile(err => {
+                configModule._popTestConfig(previous);
+                cb(err);
+            });
+        };
+
+        it('refuses a malformed tag', done => {
+            withLanguage('English (US)', err => {
+                assert.ok(err, 'expected an error');
+                assert.match(err.message, /BCP 47/);
+                done();
+            });
+        });
+
+        it('accepts a well-formed one', done => {
+            withLanguage('de-DE', err => {
+                assert.equal(err, null);
+                done();
+            });
         });
     });
 

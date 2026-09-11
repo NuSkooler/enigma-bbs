@@ -72,7 +72,11 @@ The format also has a `socket` mode, for a socket the door *inherits*. ENiGMA½ 
 
 **A channel ENiGMA½ cannot name stops the door from starting.** Where the legacy formats fall back to `local`, `local` in this format is a positive claim — the door uses its current local console — so writing it for a door reading a socket would describe a screen nobody sees. Instead the drop file is refused, the door does not run, and the reason is logged. That is what happens under `io: socket`: the socket ENiGMA½ shares is a server the door dials rather than a descriptor it inherits, and the format has no token for that. A QEMU or DOSEMU setup says what the door really gets — `commType: uart` with `commParams: 03F8,4`, or `fossil` with `0` — and writes a valid file.
 
-Line 11 of the file, the forced logoff time, is written empty: ENiGMA½ imposes no per-call time limit.
+Line 12 names the character set of the door's terminal data, and it is taken from the door's own `encoding` rather than the caller's terminal encoding -- that is the value ENiGMA½ decodes the door's output with, so the two cannot disagree. An encoding it cannot name in the registry's spelling refuses the file rather than guessing; aliases iconv accepts, such as `437` or `win1252`, are folded onto the same name.
+
+Line 13 must be a well-formed BCP 47 tag. A `general.language` that is not one -- `English (US)`, say -- refuses the file rather than writing something a conforming door must reject.
+
+Line 11, the forced logoff time, is written empty: ENiGMA½ imposes no per-call time limit.
 
 #### Argument Variables
 

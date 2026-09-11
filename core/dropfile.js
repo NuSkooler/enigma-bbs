@@ -2,7 +2,11 @@
 'use strict';
 
 //  ENiGMA½
-const Config = require('./config.js').get;
+const configModule = require('./config.js');
+//  Late bound as in message_area.js and bluewave_mail_packet.js:
+//  configModule.get is replaced by the Config bootstrapper, so capturing it
+//  here would freeze whichever getter was installed at require time.
+const Config = (...args) => configModule.get(...args);
 const StatLog = require('./stat_log.js');
 const UserProps = require('./user_property.js');
 const { Errors } = require('./enig_error.js');
@@ -96,6 +100,25 @@ const bbsDevEncodingName = encoding => BbsDevEncodingNames[bbsDevEncodingKey(enc
 //
 /* eslint-disable-next-line no-control-regex */
 const RE_BBSDEV_UNPRINTABLE = /[\u0000-\u001f\u007f-\u009f]/g;
+
+//
+//  Line 13 MUST be a well-formed BCP 47 tag, and a door that receives one
+//  that is not may reject the whole file -- so a |general.language| of
+//  "English (US)" is refused here rather than written and acted on. Intl
+//  throws RangeError on a malformed tag, which is the same well-formedness
+//  test the registry describes, without a regex of our own to keep current.
+//
+const bbsDevLanguage = (value, fallback = 'en-US') => {
+    const tag = bbsDevField(value);
+    if (!tag) {
+        return fallback;
+    }
+    try {
+        return Intl.getCanonicalLocales(tag)[0] || fallback;
+    } catch (e) {
+        return null; //  malformed; bbsDevError() reports it
+    }
+};
 
 const bbsDevField = (value, fallback = '') => {
     const clean = _.isString(value)
@@ -493,7 +516,7 @@ module.exports = class DropFile {
                 term.ctermVersion || '', //  empty unless the caller answered DA as CTerm
                 '', //  time of logoff: ENiGMA½ has no per-call time limit
                 bbsDevEncodingName(this.doorEncoding),
-                bbsDevField(Config().general.language, 'en-US'),
+                bbsDevLanguage(Config().general.language),
                 `ENiGMA½ BBS ${packageJson.version}`,
                 bbsDevField(Config().general.boardName, 'ENiGMA½ BBS'),
                 bbsDevField(StatLog.getSystemStat(SysProps.SysOpUsername), 'sysop'),
@@ -533,6 +556,10 @@ module.exports = class DropFile {
         }
         if (!bbsDevEncodingName(this.doorEncoding)) {
             return `no IANA character set name is known for the door encoding "${this.doorEncoding}"`;
+        }
+        const language = Config().general.language;
+        if (!bbsDevLanguage(language)) {
+            return `"general.language" is not a well-formed BCP 47 tag: "${language}"`;
         }
     }
 
