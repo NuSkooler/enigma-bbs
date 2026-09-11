@@ -7,6 +7,7 @@ const configModule = require('../core/config.js');
 
 const MessageBaseOfflineExport = require('../core/message_base_offline_export.js');
 const QWKExport = require('../core/message_base_qwk_export.js').getModule;
+const BlueWaveExport = require('../core/message_base_bluewave_export.js').getModule;
 
 //
 //  The module is exercised through its prototype: constructing it wants a live
@@ -507,5 +508,53 @@ describe('offline packet export flow', () => {
             assert.equal(mod.delivered, null);
             done();
         });
+    });
+});
+
+//
+//  The Blue Wave format's own hooks. The flow above them is covered by the
+//  fake format elsewhere in this file; what is checked here is that this
+//  subclass fills every hook the flow calls, since a missing one is only
+//  discovered when a caller tries to export.
+//
+describe('Blue Wave export format', () => {
+    it('names itself and the properties it stores under', () => {
+        const mod = makeModule(BlueWaveExport);
+        assert.equal(mod.packetFormatName, 'Blue Wave');
+        assert.deepEqual(mod.userProperties, {
+            ExportOptions: 'bluewave_export_options',
+            ExportAreas: 'bluewave_export_msg_areas',
+        });
+    });
+
+    it('supplies every hook the flow requires', () => {
+        assert.equal(makeModule(BlueWaveExport)._missingHook(), null);
+    });
+
+    //  no art ships for this format, so it must not ask the menu for views
+    it('asks for no views, unlike the default', () => {
+        assert.deepEqual(makeModule(BlueWaveExport).requiredViewIds(), []);
+        assert.deepEqual(makeModule(MessageBaseOfflineExport).requiredViewIds(), [1, 2]);
+    });
+
+    it('hands the packet ID to the writer it builds', () => {
+        const mod = makeModule(BlueWaveExport, { config: { bbsID: 'TESTBBS' } });
+        const writer = mod.createPacketWriter({ user: null });
+        assert.equal(writer.options.bbsID, 'TESTBBS');
+        writer.temptmp.cleanup(); //  the constructor tracks a session of its own
+    });
+
+    //
+    //  Blue Wave lists every area the caller can reach, not only those with
+    //  new mail, so the hook has to reach the writer for an area that never
+    //  produces a message.
+    //
+    it('declares an area to the writer by tag', () => {
+        const declared = [];
+        makeModule(BlueWaveExport).prepareAreaForExport(
+            { addArea: areaTag => declared.push(areaTag) },
+            { areaTag: 'general', area: { name: 'General' }, conf: { name: 'Local' } }
+        );
+        assert.deepEqual(declared, ['general']);
     });
 });
