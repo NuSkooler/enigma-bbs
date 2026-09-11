@@ -20,7 +20,7 @@ Key directories:
 
 ## Art & Theme System
 
-> :construction: Full documentation lives in `docs/_docs/art/`. This section is a quick map for contributors.
+> :construction: Full documentation lives in `website/src/content/docs/art/`. This section is a quick map for contributors.
 
 Art files are ANSI or UTF-8 files with SAUCE metadata stored under `art/themes/<theme-name>/`. They contain **MCI codes** (`%SB1`, `%TL1`, `%VM1`, etc.) which are placeholders for interactive views.
 
@@ -74,7 +74,7 @@ All view properties flow through `view.setPropertyValue(propName, value)` — ne
 
 Views have `acceptsFocus` and `acceptsInput` (both `false` by default). Any view that owns a timer must implement `destroy()` to clear it — `ViewController.detachClientEvents()` calls `destroy()` on all views.
 
-See `docs/_docs/art/views/` for per-view documentation.
+See `website/src/content/docs/art/views/` for per-view documentation.
 
 ## Configuration
 

@@ -1,6 +1,6 @@
 # ENiGMA½ BBS Software
 
-![ENiGMA½ BBS](docs/assets/images/enigma-bbs.png "ENiGMA½ BBS")
+![ENiGMA½ BBS](website/src/content/docs/assets/images/enigma-bbs.png "ENiGMA½ BBS")
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
@@ -8,37 +8,37 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 Below are just some of the features ENiGMA½ supports out of the box:
  * **Multi platform** — Anywhere modern [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, macOS and Windows)
  * Unlimited multi node support
- * **Highly customizable** via [HJSON](https://hjson.github.io/) based configuration, menus, and themes in addition to JavaScript based [mods](./docs/_docs/modding/existing-mods.md)
+ * **Highly customizable** via [HJSON](https://hjson.github.io/) based configuration, menus, and themes in addition to JavaScript based [mods](https://enigma-bbs.github.io/modding/existing-mods/)
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
  * Support for **2-Factor Authentication** with One-Time-Passwords
  * Structured [Bunyan](https://github.com/trentm/node-bunyan) logging!
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
- * Built-in [web server](./docs/_docs/servers/contentservers/web-server.md) with HTTP(S) support — powers temporary download URLs, file browsing, and more
+ * Built-in [web server](https://enigma-bbs.github.io/servers/contentservers/web-server/) with HTTP(S) support — powers temporary download URLs, file browsing, and more
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output with **wide character support** — CJK, Hangul, fullwidth forms, and similar scripts display and edit correctly
  * [SyncTERM](http://syncterm.bbsdev.net/) style font support. Display PC/DOS and Amiga style artwork as it should be! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * Baud emulation. View ANSI like the block gods intended.
  * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support.
- * Renegade style [pipe color codes](./docs/_docs/configuration/colour-codes.md).
- * [MCI support](./docs/_docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other bells and whistles
- * [Message networks](./docs/_docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export, and **MRC** (Multi-Relay Chat)
+ * Renegade style [pipe color codes](https://enigma-bbs.github.io/art/colour-codes/).
+ * [MCI support](https://enigma-bbs.github.io/art/mci/) for lightbars, toggles, input areas, and so on plus many other bells and whistles
+ * [Message networks](https://enigma-bbs.github.io/messageareas/message-networks/) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export, and **MRC** (Multi-Relay Chat)
  * **Native BinkP/1.1 mailer** — built-in inbound listener and outbound caller for FTN networks. No external `binkd` required; outbound mail ships immediately on export ("crashmail"), and a configurable pull cycle keeps echo mail flowing in from quiet hubs.
- * **Internet mail** — send and receive email directly from the BBS private message system via IMAP/SMTP. See [Internet Mail](./docs/_docs/messageareas/internet-mail.md)
+ * **Internet mail** — send and receive email directly from the BBS private message system via IMAP/SMTP. See [Internet Mail](https://enigma-bbs.github.io/messageareas/internet-mail/)
  * **ActivityPub / Fediverse** *(experimental)* — federated messaging with WebFinger, NodeInfo2, actor profiles, and common ActivityPub object types; PNG avatars with auto-generated defaults
- * Message bases exposed via [Gopher](./docs/_docs/servers/contentservers/gopher.md) and [NNTP](./docs/_docs/servers/contentservers/nntp.md) content servers
+ * Message bases exposed via [Gopher](https://enigma-bbs.github.io/servers/contentservers/gopher/) and [NNTP](https://enigma-bbs.github.io/servers/contentservers/nntp/) content servers
  * [Gazelle](https://github.com/WhatCD/Gazelle) (🪦) inspired File Bases including fast fully indexed full text search (FTS), #tags, and legacy X/Y/Z modem support
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
- * [Door support](./docs/_docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
- * **Native x86/DOS door emulation** via [v86](https://github.com/copy/v86) — run classic DOS BBS doors (LORD, PimpWars, TradeWars, etc.) directly inside ENiGMA½ with zero external dependencies. No QEMU, DOSBox, or DOSEMU required. Includes `oputil fat` for managing FreeDOS disk images and `oputil v86` for an interactive browser-based DOS desktop. See [Local Doors — v86](./docs/_docs/modding/local-doors-v86.md).
- * **Z-Machine interactive fiction** — run Infocom classics (Zork, Colossal Cave, and hundreds more from the [IF Archive](https://www.ifarchive.org/)) natively in Node.js. No external emulator required. Supports Z-Machine versions 3, 4, 5, and 8. See [Z-Machine Door](./docs/_docs/modding/local-doors-zmachine.md).
+ * [Door support](https://enigma-bbs.github.io/doors/door-servers/) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), and [Exodus](https://oddnetwork.org/exodus/)!
+ * **Native x86/DOS door emulation** via [v86](https://github.com/copy/v86) — run classic DOS BBS doors (LORD, PimpWars, TradeWars, etc.) directly inside ENiGMA½ with zero external dependencies. No QEMU, DOSBox, or DOSEMU required. Includes `oputil fat` for managing FreeDOS disk images and `oputil v86` for an interactive browser-based DOS desktop. See [Local Doors — v86](https://enigma-bbs.github.io/doors/v86/).
+ * **Z-Machine interactive fiction** — run Infocom classics (Zork, Colossal Cave, and hundreds more from the [IF Archive](https://www.ifarchive.org/)) natively in Node.js. No external emulator required. Supports Z-Machine versions 3, 4, 5, and 8. See [Z-Machine Door](https://enigma-bbs.github.io/doors/zmachine/).
  * **Full Screen Editor (FSE)** with ANSI art support, real-time cursor/mode indicators, inline find/search (`Ctrl-F`), file upload to body, and a fully modernized view engine
- * A remote accessible [Waiting For Caller (WFC)](./docs/_docs/modding/wfc.md)!
+ * A remote accessible [Waiting For Caller (WFC)](https://enigma-bbs.github.io/modules/wfc/)!
  * Expandable **achievement system** — BBSing gamified!
 
  ...and much much more. Please check out [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features!
 
 ## Documentation
-[Browse the docs online](https://nuskooler.github.io/enigma-bbs/). Be sure to checkout the [/docs/](./docs/_docs/) folder as well for the latest and greatest documentation.
+[Browse the docs online](https://enigma-bbs.github.io/). The same content lives in [website/src/content/docs/](./website/src/content/docs/) if you would rather read it here, and pull requests against it are welcome.
 
 ## Installation
 On most *nix systems simply run the following from your terminal:
@@ -46,7 +46,7 @@ On most *nix systems simply run the following from your terminal:
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
-Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
+Please see [Installation Methods](https://enigma-bbs.github.io/installation/installation-methods/) for Windows, Docker, and so on...
 
 ## Donating
 If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSkooler/donate)<br/>
@@ -56,27 +56,21 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 ## Support
 * See [Discussions](https://github.com/NuSkooler/enigma-bbs/discussions) and [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
-* Discord: https://discord.gg/ghx8Vxex
+* Discord: https://discord.gg/M2pbyvuGva
 * `FSX_ENG` on [fsxNet](https://fsxnet.nz) available on many fine boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
 
 ## Terminal Clients
-ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
-* [IcyTERM](https://github.com/mkrueger/icy_tools/tree/master/crates/icy_term)
-* [VTX](https://github.com/codewar65/VTX_ClientServer) (Try [Xibalba using VTX](https://l33t.codes/vtx/xibalba.html)!)
-* [SyncTERM](http://syncterm.bbsdev.net/)
-* [EtherTerm](https://github.com/M-griffin/EtherTerm)
-* [NetRunner](http://mysticbbs.com/downloads.html)
-* [MagiTerm](https://gitlab.com/magickabbs/MagiTerm)
+ENiGMA has been tested with many terminals. [IcyTERM](https://github.com/mkrueger/icy_tools/tree/master/crates/icy_term), [SyncTERM](http://syncterm.bbsdev.net/) and the browser-based [VTX](https://github.com/codewar65/VTX_ClientServer) are the usual recommendations — see [Terminal Clients](https://enigma-bbs.github.io/installation/testing/#terminal-clients) for the full list.
 
 ## Some Boards
-* :skull: [Xibalba - ENiGMA WHQ](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
+* :skull: [Xibalba - ENiGMA WHQ](https://xibalba.vip) :skull: (**ssh://xibalba.vip:44511** or **telnet://xibalba.vip:44510**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
 
 ## Special Thanks
 (in no particular order)
-* [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) and [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
+* [Dave Stephens aka RiPuk](https://github.com/davestephens) for the original [ENiGMA website](https://github.com/ENiGMA-BBS/enigma-bbs.github.io) and KICK ASS documentation, code contributions, etc.
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
@@ -86,7 +80,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
 * Avon of [Agency BBS](http://bbs.nz/) and [fsxNet](https://fsxnet.nz) for putting up with my experiments to his system and for FSX_ENG!
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
-* [Apam](https://github.com/apamment) of [Magicka](https://magickabbs.com/)
+* Apam of [Magicka](https://magickabbs.com/)
 * [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!
 * [Whazzit/blocktronics](http://blocktronics.org/tag/whazzit/) for the amazing Mayan ANSI pieces scattered about Xibalba BBS!
 * [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?

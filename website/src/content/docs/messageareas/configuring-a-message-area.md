@@ -1,0 +1,98 @@
+---
+title: Message Base
+description: "Set up message conferences and areas, their ACS, and how long messages are kept."
+sidebar:
+    order: 1
+---
+## General Information
+In ENiGMA½, a message base is divided into two logical grouping components: **Message Conferences** and **Areas**. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag.
+
+## Conferences
+Message Conferences are the top level container for *1:n* Message *Areas* via the `messageConferences` block in `config.hjson`. A common setup may include a local conference and one or more conferences each dedicated to a particular message network such as fsxNet, ArakNet, etc.
+
+Each conference is represented by a entry under `messageConferences`. Each entries top level key is it's *conference tag*.
+
+:::tip
+It is **highly** recommended to use snake_case style message *conference tags* and *area tags*!
+:::
+
+| Config Item | Required | Description |
+|-------------|----------|-------------|
+| `name`      | Yes | Friendly conference name |
+| `desc`      | Yes | Friendly conference description. |
+| `sort`      | No | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
+| `default`   | No | Specify `true` to make this the default conference (e.g. assigned to new users) |
+| `areas`     | Yes | Container of 1:n areas described below |
+| `acs`       | No | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
+
+### ACS
+An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
+* `read`: ACS required to read (see) this conference. Defaults to `GM[users]`.
+* `write`: ACS required to write (post) to this conference. Defaults to `GM[users]`.
+
+### Example
+
+```hjson
+{
+  messageConferences: {
+    local: { // conference tag
+      name: Local
+      desc: Local discussion
+      sort: 1
+      default: true
+      acs: {
+        read: GM[users] // default
+      }
+    }
+  }
+}
+```
+
+## Message Areas
+Message Areas are topic specific containers for messages that live within a particular conference. The top level key for an area sets it's *area tag*. For example, "General Discussion" may live under a Local conference while an fsxNet conference may contain "BBS Discussion".
+
+| Config Item | Required | Description                                                                     |
+|-------------|----------|---------------------------------------------------------------------------------|
+| `name`      | Yes     | Friendly area name. |
+| `desc`      | Yes     | Friendly area description. |
+| `sort`      | No     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
+| `default`   | No     | Specify `true` to make this the default area (e.g. assigned to new users) |
+| `acs`       | No     | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
+| `maxMessages` | No   | The maximum number of messages to keep in the area. Defaults to `1024`. |
+| `maxAgeDays` | No    | The maximum age of messages to keep in the area. Defaults to `0`, which means unlimited. |
+| `autoSignatures` | No | Set to `false` to disable auto-signatures in this area. |
+| `realNames` | No      | Set to `true` to use real names in this area. |
+
+The default values for `maxMessages` and `maxAgeDays` can be changed globally in `core/config_default.js`, they're located in the section `messageAreaDefaults`. The same file also defines several default events to be scheduled, which are located under `eventScheduler`. For example, the `trimMessageAreas` event is run every 24 hours and defines that the action `trimMessageAreasScheduledEvent` is performed.
+
+### ACS
+An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
+* `read`: ACS required to read (see) this area. Defaults to `GM[users]`.
+* `write`: ACS required to write (post) to this area. Defaults to `GM[users]`.
+
+### Example
+
+```hjson
+messageConferences: {
+  local: {
+    // ... see above ...
+    areas: {
+      enigma_dev: { // Area tag - required elsewhere!
+        name: ENiGMA 1/2 Development
+        desc: ENiGMA 1/2 development and discussion!
+        sort: 1
+        default: true
+        maxMessages: 2000 // keep at most 2000 messages
+        maxAgeDays: 365   // delete anything older than 1 year
+        acs: {
+          read: GM[users] // default
+          write: GM[l33t] // super elite ENiGMA 1/2 users!
+        }
+      }
+    }
+  }
+}
+```
+
+## Importing
+FidoNet style `.na` files as well as legacy `AREAS.BBS` files in common formats can be imported using `oputil.js mb import-areas`. See [The oputil CLI](../admin/oputil.md) for more information and usage.

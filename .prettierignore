@@ -1,15 +1,27 @@
 art
 config
 db
-docs
 drop
 gopher
 logs
 misc
 www
-mkdocs.yml
 *.md
 .github
 .venv
 dev_util/gotosocial/web
 node_modules
+
+#  The docs site. Generated output first:
+website/dist
+website/shim
+website/.astro
+website/public/api
+website/src/pages/api
+
+#  Hand-maintained with a deliberately compact style -- prettier would expand
+#  every `schema: { type: string }` onto three lines and treble its length.
+website/src/api/openapi.yaml
+
+#  Handlebars, not HTML: prettier's parser mangles the {{{...}}} placeholders.
+website/scripts/redoc-template.hbs

@@ -1824,8 +1824,11 @@
                             "additionalProperties": false
                         },
                         "defaultNetwork": {
-                            "description": "Network whose outbound goes in the unsuffixed directory.",
-                            "type": "string"
+                            "description": "Network whose outbound goes in the unsuffixed directory; null for none.",
+                            "type": [
+                                "string",
+                                "null"
+                            ]
                         },
                         "netMail": {
                             "type": "object",
@@ -2147,6 +2150,40 @@
         "messageNetworks": {
             "type": "object",
             "properties": {
+                "bluewave": {
+                    "type": "object",
+                    "properties": {
+                        "areas": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                    "number": {
+                                        "type": "number"
+                                    },
+                                    "echotag": {
+                                        "type": "string"
+                                    },
+                                    "title": {
+                                        "type": "string"
+                                    }
+                                },
+                                "patternProperties": {
+                                    "^_": true
+                                },
+                                "additionalProperties": false
+                            }
+                        },
+                        "bbsID": {
+                            "description": "Packet ID: the 1-8 character root name every file in a Blue Wave packet shares.",
+                            "type": "string"
+                        }
+                    },
+                    "patternProperties": {
+                        "^_": true
+                    },
+                    "additionalProperties": false
+                },
                 "ftn": {
                     "type": "object",
                     "properties": {

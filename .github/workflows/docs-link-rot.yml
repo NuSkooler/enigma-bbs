@@ -1,0 +1,122 @@
+name: Docs Link Rot
+
+#  The documentation cites a few hundred external URLs, a lot of them on small
+#  hobbyist hosts -- BBS software pages, art scene sites, personal servers. Those
+#  go away quietly, and nothing noticed until someone read the page and followed
+#  a dead link.
+#
+#  This is deliberately NOT part of the website build. Those same hosts rate
+#  limit, block unfamiliar user agents, and go down for an afternoon; gating a
+#  build on them would make the build flaky and train people to ignore it. It
+#  runs weekly instead and opens (or updates) a single issue.
+
+on:
+  schedule:
+    #  Mondays, 07:00 UTC.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: docs-link-rot
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check external links
+        id: check
+        working-directory: website
+        env:
+          LINK_REPORT_PATH: ${{ runner.temp }}/link-report.md
+        #  Exits non-zero when something is dead; the report is what we want
+        #  either way, so do not let that fail the step.
+        run: |
+          set +e
+          node scripts/check-external-links.mjs
+          echo "dead=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Open or update an issue
+        if: steps.check.outputs.dead != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync(process.env.RUNNER_TEMP + '/link-report.md', 'utf8');
+            const title = 'Documentation: dead external links';
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'documentation',
+              per_page: 100,
+            });
+            const existing = open.find(i => i.title === title);
+
+            const footer = [
+              '',
+              '---',
+              `_Checked by [\`docs-link-rot\`](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/workflows/docs-link-rot.yml)`,
+              `on ${new Date().toISOString().slice(0, 10)}. This issue is updated in place rather than reopened each week._`,
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: body + footer,
+              });
+              core.notice(`Updated issue #${existing.number}`);
+            } else {
+              const { data: created } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: body + footer,
+                labels: ['documentation'],
+              });
+              core.notice(`Opened issue #${created.number}`);
+            }
+
+      - name: Close the issue when everything resolves
+        if: steps.check.outputs.dead == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Documentation: dead external links';
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'documentation',
+              per_page: 100,
+            });
+            const existing = open.find(i => i.title === title);
+            if (!existing) return;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              body: 'All external documentation links resolve again. Closing.',
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              state: 'closed',
+            });

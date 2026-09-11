@@ -300,6 +300,30 @@ module.exports = {
     'messageNetworks.qwk.areas': { openMap: true },
     'messageNetworks.qwk.bbsID': { type: 'string' },
 
+    'messageNetworks.bluewave': { type: 'object', closedKeys: true },
+    //
+    //  A mistyped key here is silently ignored and the derived value used
+    //  instead -- for 'echotag' that quietly changes what a reply routes by --
+    //  so the value shape is closed even though the area tags above are not.
+    //
+    'messageNetworks.bluewave.areas': {
+        openMap: true,
+        value: {
+            type: 'object',
+            closedKeys: true,
+            children: {
+                number: { type: 'number' },
+                echotag: { type: 'string' },
+                title: { type: 'string' },
+            },
+        },
+    },
+    'messageNetworks.bluewave.bbsID': {
+        type: 'string',
+        description:
+            'Packet ID: the 1-8 character root name every file in a Blue Wave packet shares.',
+    },
+
     //  ── FTN BSO scanner/tosser ───────────────────────────────────────────
     'scannerTossers.ftn_bso.nodes': { openMap: true },
     //
@@ -330,9 +354,15 @@ module.exports = {
     'scannerTossers.ftn_bso.netMail.routes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.nodes': { openMap: true },
     'scannerTossers.ftn_bso.binkp.tempDir': { type: 'string' },
+    //  null, false and '' all mean "no default network" -- every network gets
+    //  its own suffixed directory and nothing lands in outbound/. See
+    //  resolveDefaultNetworkName() in core/bso_util.js, which is explicit about
+    //  it, and the BSO Import / Export docs, which document setting it to null.
     'scannerTossers.ftn_bso.defaultNetwork': {
         type: 'string',
-        description: 'Network whose outbound goes in the unsuffixed directory.',
+        nullable: true,
+        description:
+            'Network whose outbound goes in the unsuffixed directory; null for none.',
     },
     'scannerTossers.ftn_bso.schedule': { type: 'object' },
     'scannerTossers.ftn_bso.packetTargetByteSize': {

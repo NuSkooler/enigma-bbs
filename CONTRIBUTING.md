@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-ENiGMA½ requires Node.js (see `.node-version` / `.mise.toml` for the version in use). Install dependencies with:
+ENiGMA½ requires Node.js (see `mise.toml`, or the `engines` field in `package.json`, for the version in use). Install dependencies with:
 
 ```bash
 npm install

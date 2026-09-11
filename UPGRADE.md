@@ -2,19 +2,19 @@
 This document covers information for keeping your system updated through periodic upgrades as well as version-to-version upgrade notes. **Be sure to read these notes for _any_ upgrade!**
 
 # Before Upgrading
-1. Always back up your system! (See [Administration - Backing Up Your System](./docs/_docs/admin/administration.md#backing-up-your-system))
+1. Always back up your system! (See [Administration - Backing Up Your System](./website/src/content/docs/admin/administration.md#backing-up-your-system))
 2. Seriously, always back up your system!
 3. Review the version to version release notes within this document.
-4. [Upgrade](./docs/_docs/admin/upgrading.md)
+4. [Upgrade](./website/src/content/docs/admin/upgrading.md)
 
 # The Upgrade Process
 ENiGMA½ does not currently have much of a "release process" in that instead, it is expected that if you want new features, you will `git pull` them to your system.
 
-Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this process.
+Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details around this process.
 
 # Problems
 1. Check [TROUBLESHOOTING](TROUBLESHOOTING.md) first.
-2. Report your issue on [Xibalba BBS](https://xibalba.l33t.codes), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues)!
+2. Report your issue on [Xibalba BBS](https://xibalba.vip), or [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues)!
 
 
 # Version to Version Notes
@@ -90,7 +90,7 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 * **TIC file echoes can now be forwarded to downlinks** ([#743](https://github.com/NuSkooler/enigma-bbs/issues/743)). Previously ENiGMA½ was always a leaf node for file echoes. **No action is required**: forwarding happens only for a `ticAreas` entry that names `downlinks`, and an area without them behaves exactly as before.
 
-  **If you want to carry an echo for others**, add `uplinks`, `downlinks` and `network` to the area and give each downlink a `nodes` entry with its own `tic.password`. `uplinks` names who is allowed to publish into the echo and is **required for forwarding** — an area with downlinks and no uplinks forwards nothing, and says so at startup. It exists because authentication is not per-area: without it, any node you have configured for any reason could announce into that echo and have you relay it under your own address. See [TIC Support](docs/_docs/filebase/tic-support.md#forwarding-to-downlinks). Two things to know before you point a downlink at it:
+  **If you want to carry an echo for others**, add `uplinks`, `downlinks` and `network` to the area and give each downlink a `nodes` entry with its own `tic.password`. `uplinks` names who is allowed to publish into the echo and is **required for forwarding** — an area with downlinks and no uplinks forwards nothing, and says so at startup. It exists because authentication is not per-area: without it, any node you have configured for any reason could announce into that echo and have you relay it under your own address. See [TIC Support](website/src/content/docs/filebase/tic-support.md#forwarding-to-downlinks). Two things to know before you point a downlink at it:
 
   * **A node with no `tic.password` is never authenticated** — the password check is skipped entirely when none is configured — so files received from such a node are **not** forwarded. This is deliberate: importing affects only your own file base, while forwarding makes other systems receive traffic your `Path` and `Seenby` lines vouch for. Set a password per node, or set `tic.allowUnverifiedForward` if you accept the risk.
   * **TICs from the unsecure inbound are never forwarded**, even where you have set `tic.secureInOnly` to `false` in order to import from there.
@@ -126,7 +126,7 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
 * **Automatic message area creation is available, and off** ([#241](https://github.com/NuSkooler/enigma-bbs/issues/241)). EchoMail for an FTN area tag you have not configured can now create that area instead of being skipped and lost. **No action is required**: with no `autoAreas` block in your configuration nothing changes, and with no network enabled the feature does no work at all.
 
-  **If you want it**, run `./oputil.js mb auto-areas init` once and then add an `autoAreas` block per network — see [FTN](./docs/_docs/messageareas/ftn.md#automatic-area-creation). Two things are worth knowing before you turn it on:
+  **If you want it**, run `./oputil.js mb auto-areas init` once and then add an `autoAreas` block per network — see [FTN](./website/src/content/docs/messageareas/ftn.md#automatic-area-creation). Two things are worth knowing before you turn it on:
 
   * The `init` command adds `auto-areas.hjson` to `includes` in your `config.hjson`. **Do not remove that file while it is still listed** — a file listed in `includes` that does not exist stops the board from starting. To back the feature out, remove the `includes` entry first, then the file.
   * Created areas are **read-only by design**: no `uplinks`, so nothing exports, plus a write-deny `acs` so nothing can be posted into them. If you want to actually link one, define it in your own `config.hjson` with `uplinks` and your own `acs` — `config.hjson` wins over the generated file, so you do not need to edit or remove anything there.
@@ -237,7 +237,7 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
     }
     ```
 
-  Either way, explicitly setting `defaultNetwork` to a network name is recommended for multi-network systems: it pins the layout so that adding or reordering entries in `messageNetworks.ftn.networks` can never relocate a spool directory. See [BSO Import / Export](./docs/_docs/messageareas/bso-import-export.md).
+  Either way, explicitly setting `defaultNetwork` to a network name is recommended for multi-network systems: it pins the layout so that adding or reordering entries in `messageNetworks.ftn.networks` can never relocate a spool directory. See [BSO Import / Export](./website/src/content/docs/messageareas/bso-import-export.md).
 
 * **Network names are now matched case-insensitively when resolving outbound directories.** Systems using a mixed-case key in `messageNetworks.ftn.networks` (e.g. `fsxNet`) on a case-sensitive filesystem could have outbound mail written to a directory the mailer never scanned. No action required.
 
@@ -291,7 +291,7 @@ Refer to [Upgrading](./docs/_docs/admin/upgrading.md) for details around this pr
 
   You will also need to create an art file named `user_status_config` (`.ans`, `.asc`, etc.) containing `TL10` and `TL11` MCI codes for the availability and visibility indicators respectively. The `menuInfoFormat10`/`menuInfoFormat11` format strings support `{availableIndicator}`, `{visibleIndicator}`, `{isAvailable}`, and `{isVisible}` tokens and can be styled with pipe codes in your theme.
 
-* **Recommended:** review any secrets currently stored as plain text in `config.hjson` (`privateKeyPass`, SMTP/IMAP passwords, BinkP `sessionPassword`, FTN `packetPassword`, TIC `password`, `jwtSecret`, door service credentials) and consider moving them to `@file:` or `@environment:` references. This is optional but strongly encouraged — existing plain-text values continue to work unchanged. See [Security](./docs/_docs/configuration/security.md#keeping-secrets-out-of-confighjson) for examples.
+* **Recommended:** review any secrets currently stored as plain text in `config.hjson` (`privateKeyPass`, SMTP/IMAP passwords, BinkP `sessionPassword`, FTN `packetPassword`, TIC `password`, `jwtSecret`, door service credentials) and consider moving them to `@file:` or `@environment:` references. This is optional but strongly encouraged — existing plain-text values continue to work unchanged. See [Security](./website/src/content/docs/configuration/security.md#keeping-secrets-out-of-confighjson) for examples.
 
 ## 0.3.0-beta to 0.4.0-beta
 N/A
@@ -362,7 +362,7 @@ N/A
   diff ./misc/menu_templates/message_base.in.hjson ./config/menus/your_board-message_base.hjson
   ```
 
-  Apply only the form `2` changes shown above. See [Configuration Files](./docs/_docs/configuration/config-files.md) for details.
+  Apply only the form `2` changes shown above. See [Configuration Files](./website/src/content/docs/configuration/config-files.md) for details.
 
 * ⚠️ **New FSE keyboard shortcuts and find overlay require menu config updates.** The following changes apply to all FSE menu entries (`messageBaseNewPost`, `messageAreaViewPost`, `messageAreaReplyPost`, and their private-mail equivalents).
 
@@ -424,7 +424,7 @@ N/A
 
 * **nodemailer upgraded to v8.** If you have `email.transport` configured with AWS SES, you will need to update your transport config to use the SESv2 SDK — see the [nodemailer SES docs](https://nodemailer.com/transports/ses/). All other transports (SMTP, etc.) require no changes.
 
-* **Pause prompt and TickerView enhancements** — new `pause: pageBreak` pagination mode, `pausePrompt`, `pausePosition`, `continuousKey`/`quitKey`, and TickerView (`%TK`) support in pause prompts. Existing `pause: true` configs continue to work unchanged. See [What's New](WHATSNEW.md) and [Pause Prompts](./docs/_docs/art/pause-prompts.md) for details.
+* **Pause prompt and TickerView enhancements** — new `pause: pageBreak` pagination mode, `pausePrompt`, `pausePosition`, `continuousKey`/`quitKey`, and TickerView (`%TK`) support in pause prompts. Existing `pause: true` configs continue to work unchanged. See [What's New](WHATSNEW.md) and [Pause Prompts](./website/src/content/docs/art/pause-prompts.md) for details.
 
 ## 0.0.13-beta to 0.0.14-beta
 * A new ActivityPub menu template has been created. Upgrades will **not** have this file present so you will need to copy the template to your `config/menus` directory and rename it appropriately (it must match the `include` statement in your main `menu.hjson` file). Example:
@@ -433,7 +433,7 @@ N/A
 cp ./misc/menu_templates/activitypub.in.hjson ./config/menus/my_board_name-activitypub.hjson`
 ```
 
-This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`. See [Configuration Files Include Statements](./docs/_docs/configuration/config-files.md#includes) for more information on using `include`.
+This will expose the default ActivityPub setup. Enabling ActivityPub functionality requires the web server enabled and ActivityPub itself enabled in your `config.hjson`. See [Configuration Files Include Statements](./website/src/content/docs/configuration/config-files.md#includes) for more information on using `include`.
 
 * ⚠ The menu flag `noHistory` has been revamped to work as expected. Some menu entires now need this flag. Look for any "NoResults" entries and remove `menuFlags`. For example, here is the (updated) default `fileBaseListEntriesNoResults` menu:
 
@@ -448,7 +448,7 @@ fileBaseListEntriesNoResults: {
 }
 ```
 
-See also: [Menu Modules](./docs/_docs/modding/menu-module.md).
+See also: [Menu Modules](./website/src/content/docs/modding/menu-modules.md).
 
 
 * Due to changes to supported algorithms in newer versions of openssl, the default list of supported algorithms for the ssh login server has changed. There are both removed ciphers as well as optional new kex algorithms available now. ***NOTE:*** Changes to supported algorithms are only needed to support keys generated with new versions of openssl, if you already have a ssl key in use you should not have to make any changes to your config.
@@ -456,7 +456,7 @@ See also: [Menu Modules](./docs/_docs/modding/menu-module.md).
   * Added kex: 'curve25519-sha256', 'curve25519-sha256@libssh.org', 'curve25519-sha256', 'curve25519-sha256@libssh.org', 'ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521'
 
 ## 0.0.12-beta to 0.0.13-beta
-* To enable the new Waiting for Caller (WFC) support, please see [WFC](docs/modding/wfc.md).
+* To enable the new Waiting for Caller (WFC) support, please see [WFC](./website/src/content/docs/modules/wfc.md).
 * :exclamation: The SSH server's `ssh2` module has gone through a major upgrade. Existing users will need to comment out two SSH KEX algorithms from their `config.hjson` if present else clients such as NetRunner will not be able to connect over SSH. Comment out `diffie-hellman-group-exchange-sha256` and `diffie-hellman-group-exchange-sha1`
 * Gopher configuration change. See [WHATSNEW](WHATSNEW.md)
 * All features and changes are backwards compatible. There are a few new configuration options in a new `term` section in the configuration. These are all optional, but include the following options in case you use them:
@@ -585,7 +585,7 @@ sqlite> INSERT INTO message_fts(message_fts) VALUES('rebuild');
 ```
 
 ### Archiver Changes
-If you have overridden or made additions to archivers in your `config.hjson` you will need to update them. See [Archive Configuration](docs/archive.md) and `core/config.js`
+If you have overridden or made additions to archivers in your `config.hjson` you will need to update them. See [Archive Configuration](./website/src/content/docs/configuration/archivers.md) and `core/config.js`
 
 ### File Base Configuration
-As 0.0.4-alpha contains file bases, you'll want to create a suitable configuration if you wish to use the feature. See [File Base Configuration](docs/file_base.md).
+As 0.0.4-alpha contains file bases, you'll want to create a suitable configuration if you wish to use the feature. See [File Base Configuration](./website/src/content/docs/filebase/index.md).

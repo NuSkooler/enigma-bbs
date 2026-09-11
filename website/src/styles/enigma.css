@@ -1,0 +1,292 @@
+/*  ENiGMA½ — A+B hybrid: ANSI-16 palette, DOS bitmap display type, CRT
+    rationed to the chrome. Body prose stays proportional; the reading
+    column is deliberately left clean.
+
+    Web437/WebPlus IBM VGA — The Ultimate Oldschool PC Font Pack by VileR,
+    https://int10h.org/oldschool-pc-fonts/ — CC BY-SA 4.0. See
+    /fonts/LICENSE-int10h.txt. */
+
+@font-face {
+    font-family: 'IBM VGA';
+    src: url('/fonts/WebPlus_IBM_VGA_8x16.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: block;
+}
+
+/*  :root:root, not :root.
+ *
+ *  Astro inlines this file into the page head BEFORE Starlight's linked
+ *  stylesheet, so an equal-specificity :root block loses the cascade and every
+ *  token below silently does nothing. Doubling the selector (0,2,0) beats
+ *  Starlight's dark defaults on plain :root (0,1,0), while still losing to its
+ *  :root[data-theme=light] rules (0,2,0, and later) -- so light mode keeps
+ *  working instead of being half-overridden. */
+:root:root {
+    /*  Straight from the 16-colour hardware palette, chosen by what the
+        luciano_blocktronics theme actually uses. Across its 121 art files and
+        8,510 colour changes: dark grey 22%, cyan 22%, bright green 17%, green
+        13%, light grey 10%, white 6%. Bright magenta is 3 uses in 8,510 — which
+        is why the site is green and grey, not magenta. */
+    --e-green: #55ff55; /*  bright green — primary accent   */
+    --e-green-dim: #00aa00; /*  green                           */
+    --e-cyan: #00aaaa; /*  cyan — secondary                */
+    --e-cyan-bright: #55ffff; /*  bright cyan — links             */
+    --e-grey: #aaaaaa; /*  light grey                      */
+    --e-grey-dim: #555555; /*  dark grey — rules, captions     */
+
+    --font-dos: 'IBM VGA', 'IBM Plex Mono', ui-monospace, monospace;
+
+    /*  Starlight tokens. Greys carry a slight green cast so the chrome sits
+        with the art rather than against it. */
+    --sl-font: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+    --sl-color-accent-low: #0f1a0f;
+    --sl-color-accent: #1f7a1f;
+    --sl-color-accent-high: var(--e-green);
+    --sl-color-white: #f2f6f2;
+    --sl-color-gray-1: #d9ded9;
+    --sl-color-gray-2: #a8b0a8;
+    --sl-color-gray-3: #8a928a;
+    --sl-color-gray-4: #4d554d;
+    --sl-color-gray-5: #1f261f;
+    --sl-color-gray-6: #131813;
+    --sl-color-black: #060806;
+
+    /*  The reading column was leaving a third of a 1440px window empty. */
+    --sl-content-width: 58rem;
+    --sl-sidebar-width: 17.5rem;
+}
+
+/*  A bitmap face only lands on whole pixels at whole multiples of 16px, so
+    every DOS-font size in this stylesheet is 16px or 32px — never 14, never
+    1.2em. Anything else interpolates and goes soft. */
+.dos,
+.site-title,
+.sl-markdown-content pre,
+.sl-markdown-content pre code {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    letter-spacing: 0;
+    font-variant-ligatures: none;
+    font-kerning: none;
+}
+
+/*  Code blocks: the real VGA cell at native size. One weight, no italic —
+    highlighting is colour-only, the way a DOS editor did it. */
+.sl-markdown-content pre,
+.sl-markdown-content pre code {
+    font-size: 16px;
+    line-height: 16px;
+}
+.sl-markdown-content pre {
+    padding-block: 14px;
+}
+
+/*  Inline code stays proportional-friendly: at 16px it would tower over the
+    surrounding prose. */
+.sl-markdown-content :not(pre) > code {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 0.875em;
+    color: var(--e-cyan-bright);
+    background: #101810;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0;
+}
+
+/*  Site chrome: the header is the one place the CRT treatment lives on a
+    docs page. The reading column gets none of it. */
+.header {
+    background: #0a0d0a;
+    position: relative;
+}
+.header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgb(0 0 0 / 0.3) 0px,
+        rgb(0 0 0 / 0.3) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+    opacity: 0.45;
+}
+.site-title {
+    font-size: 16px;
+    line-height: 16px;
+    color: var(--sl-color-gray-1);
+}
+
+/*  Sidebar group headings in the DOS face, magenta — the ANSI-16 accent. */
+.sidebar-content summary .large,
+.sidebar-content > ul > li > details > summary,
+.sidebar-content .top-level > li > span {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    font-size: 16px;
+    line-height: 16px;
+    letter-spacing: 0;
+    color: var(--e-green);
+    text-transform: uppercase;
+}
+
+/*  Square everything off. Rounded corners are not a BBS idiom. */
+.sl-markdown-content pre,
+.sl-markdown-content blockquote,
+.starlight-aside,
+.sl-markdown-content table,
+.sl-markdown-content img {
+    border-radius: 0 !important;
+}
+
+/*  Callouts: square, DOS-face label, ANSI accent per kind. */
+.starlight-aside {
+    border-inline-start-width: 1px;
+    border: 1px solid var(--sl-color-gray-5);
+    padding: 13px 17px;
+}
+.starlight-aside__title {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    font-size: 16px;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+.starlight-aside--note {
+    border-color: #1c3a1c;
+    background: #0a140a;
+}
+.starlight-aside--note .starlight-aside__title {
+    color: var(--e-cyan);
+}
+.starlight-aside--tip {
+    border-color: #16383a;
+    background: #071414;
+}
+.starlight-aside--tip .starlight-aside__title {
+    color: var(--e-cyan-bright);
+}
+
+/*  Tables: the config reference is the most-read shape in these docs. */
+.sl-markdown-content table {
+    border: 1px solid var(--sl-color-gray-5);
+    border-collapse: collapse;
+    width: 100%;
+}
+.sl-markdown-content th {
+    font-family: var(--font-dos);
+    -webkit-font-smoothing: none;
+    font-size: 16px;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    color: var(--e-cyan);
+    background: #101810;
+    text-align: start;
+}
+.sl-markdown-content th,
+.sl-markdown-content td {
+    border: 1px solid #1a201a;
+    padding: 10px 14px;
+}
+
+/*  ASCII art rendered as art rather than as code: no frame, no copy button,
+    and the bitmap face at its native 16px so the box lines up exactly. */
+.sl-markdown-content pre.hangup {
+    font-size: 16px;
+    line-height: 16px;
+    color: var(--e-green);
+    background: none;
+    border: 0;
+    padding: 0;
+    margin-block: 0 1.5rem;
+    overflow-x: auto;
+}
+
+/*  ---- light mode -------------------------------------------------------
+ *
+ *  :root:root[data-theme='light'] (0,3,0) so it beats both Starlight's stock
+ *  light palette on :root[data-theme='light'] (0,2,0) and our own dark block
+ *  on :root:root (0,2,0), regardless of which stylesheet the bundler emits
+ *  first.
+ *
+ *  The bright half of the 16-colour palette is unusable here -- #55ff55 on
+ *  white is around 1.4:1. So light mode uses the DARK half of the same
+ *  hardware palette, which is what those colours are for: #00aa00 green,
+ *  #00aaaa cyan, #555555 grey. Same vocabulary, legible ink.
+ *
+ *  Two things deliberately do NOT invert, further down: ANSI art and code
+ *  blocks stay on black. ANSI art is authored against a black screen -- its
+ *  own palette assumes it -- and re-grounding it on white does not lighten
+ *  it, it breaks it. */
+:root:root[data-theme='light'] {
+    --e-green: #007a00;
+    --e-green-dim: #00aa00;
+    --e-cyan: #006b6b;
+    --e-cyan-bright: #008080;
+    --e-grey: #555555;
+    --e-grey-dim: #767676;
+
+    --sl-color-white: #14170f;
+    --sl-color-gray-1: #1d2118;
+    --sl-color-gray-2: #3a4034;
+    --sl-color-gray-3: #5d6455;
+    --sl-color-gray-4: #8b9184;
+    --sl-color-gray-5: #d3d8cd;
+    --sl-color-gray-6: #eaeee5;
+    --sl-color-gray-7: #f4f7f0;
+    --sl-color-black: #fbfcf9;
+
+    --sl-color-accent-low: #d8ecd8;
+    --sl-color-accent: #007a00;
+    --sl-color-accent-high: #005200;
+}
+
+/*  Chrome that was painted with literal dark values above needs a light
+    counterpart; the token-driven parts follow on their own. */
+:root:root[data-theme='light'] .header {
+    background: #f0f3ec;
+}
+/*  No scanlines on white -- they read as moire, not as a CRT. */
+:root:root[data-theme='light'] .header::after {
+    display: none;
+}
+:root:root[data-theme='light'] .sl-markdown-content :not(pre) > code {
+    color: #005f5f;
+    background: #eaeee5;
+    border-color: #cfd6c8;
+}
+:root:root[data-theme='light'] .sl-markdown-content th {
+    color: #005f5f;
+    background: #e6ebe0;
+}
+:root:root[data-theme='light'] .sl-markdown-content th,
+:root:root[data-theme='light'] .sl-markdown-content td {
+    border-color: #d8ded1;
+}
+:root:root[data-theme='light'] .starlight-aside--note {
+    border-color: #b9d4d4;
+    background: #eef6f6;
+}
+:root:root[data-theme='light'] .starlight-aside--tip {
+    border-color: #bcd8bc;
+    background: #eff7ef;
+}
+:root:root[data-theme='light'] .starlight-aside--caution {
+    border-color: #ddd0a8;
+    background: #faf5e6;
+}
+
+/*  ANSI art keeps its black ground in both themes. The art's own 16 colours
+    are chosen against black; on white the dark half of the palette vanishes
+    and the bright half glares. A thin border keeps it from floating. */
+.ansi,
+:root:root[data-theme='light'] .ansi {
+    background: #000000;
+}
+:root:root[data-theme='light'] .ansi-figure {
+    border: 1px solid #d3d8cd;
+}

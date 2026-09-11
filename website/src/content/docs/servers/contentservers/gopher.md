@@ -1,0 +1,76 @@
+---
+title: Gopher Server
+description: "Serve message areas and your own content over gopher://, including gophermap support."
+sidebar:
+    order: 4
+---
+## The Gopher Content Server
+The Gopher *content server* provides access to publicly exposed message conferences and areas over Gopher (`gopher://`) as well as any other content you wish to serve in your Gopher Hole!
+
+## Configuration
+Gopher configuration is found in `contentServers.gopher` in `config.hjson`.
+
+| Item | Required | Description |
+|------|----------|-------------|
+| `enabled` | Yes | Set to `true` to enable Gopher |
+| `staticRoot` | Yes | Sets the path serving as the static root path for all Gopher content. Defaults to `enigma-bbs/gopher`.<br>See also **Gophermap's** below |
+| `port` | No | Override the default port of `8070` |
+| `publicHostname` | Yes | Set the **public** hostname/domain that Gopher will serve to the outside world. Example: `myfancybbs.com` |
+| `publicPort` | Yes | Set the **public** port that Gopher will serve to the outside world. |
+| `exposedConfAreas` | No | An map of *conference tags* to an object containing `include`'d *area tags*, and exceptions via `exclude`'d *area tags*. Area tags may contain wildcards of '*' and '?'. Any area tags that match will be exposed to Gopher. See **Example Configuration** below.
+
+Notes on `publicHostname` and `publicPort`:
+The Gopher protocol serves content that contains host/domain and port even when referencing it's own documents. Due to this, these members must be set to your publicly addressable Gopher server!
+
+## Gophermap's
+[Gophermap's](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) are how to build menus for your Gopher Hole. Each map is a simple text file named `gophermap` (all lowercase, no extension) with DOS style CRLF endings.
+
+Within any directory nested within your `staticRoot` may live a `gophermap`. A template may be found in the `enigma-bbs/misc` directory.
+
+ENiGMA will pre-process `gophermap` files replacing in following variables:
+* `{publicHostname}`: The public hostname from your config.
+* `{publicPort}`: The public port from your config.
+
+:::note
+See [Wikipedia](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) for more information on the `gophermap` format.
+:::
+
+:::note
+See [RFC 1436](https://tools.ietf.org/html/rfc1436) for the original Gopher spec.
+:::
+
+:::tip
+Tools such as [gfu](https://tildegit.org/sloum/gfu) may help you with `gophermap`'s
+:::
+
+### Example Gophermap
+An example `gophermap` living in `enigma-bbs/gopher`:
+```
+iWelcome to a Gopher server!        {publicHostname}    {publicPort}
+1Public Message Area    /msgarea    {publicHostname}    {publicPort}
+.
+```
+
+### Example Configuration
+Let's suppose you are serving Gopher for your BBS at `myfancybbs.com`. Your ENiGMA½ system is listening on the default Gopher `port` of 8070 but you're behind a firewall and want port 70 exposed to the public. Lastly, you want to expose some ArakNet areas:
+
+```hjson
+contentServers: {
+    gopher: {
+        enabled: true
+        publicHostname: myfancybbs.com
+        publicPort: 70
+
+        //  Expose some public message conferences/areas
+        exposedConfAreas: {
+            araknet: { // ArakNet's conference tag
+                // start with all areas exposed
+                include: [ "*" ]
+
+                // ...except the +op and Phenom private areas
+                exclude: [ "ark_sysop", "ark_phenom" ]
+            }
+        }
+    }
+}
+```
