@@ -508,10 +508,35 @@ module.exports = class DropFile {
                 this.commType,
                 this.commParams, //  empty for 'local' and 'stdio'
                 bbsDevField(user.username, `user${user.userId}`),
-                user.userId.toString(), //  opaque, stable, ours alone
+                //
+                //  Line 5 asks two things of the user key: stable for the
+                //  life of the account, and never reassigned to another. A
+                //  |userId| is the first but not the second -- user.id is an
+                //  INTEGER PRIMARY KEY without AUTOINCREMENT, so it is a
+                //  rowid alias and SQLite reuses the largest unused one.
+                //  Delete the newest user and the next account created takes
+                //  its id, so a door keying saved state on this would hand
+                //  the deleted user's data to a new one.
+                //
+                //  Written as-is deliberately: the alternatives are worse
+                //  here. AccountCreated would distinguish a recycled id but
+                //  is written only by the new-user flow (nua.js), so an
+                //  account made with |oputil user add| -- often the first
+                //  sysop -- has none. A key of our own would have to be
+                //  generated and persisted on first door launch, which is a
+                //  user-table concern rather than a drop file one.
+                //
+                user.userId.toString(),
                 (term.termWidth || 80).toString(),
                 (term.termHeight || 25).toString(),
-                'Y', //  ANSI: every ENiGMA½ session is drawn with it
+                //
+                //  ANSI is asserted rather than asked. term.isANSI() exists
+                //  and is false for types in |utf8TermList| such as 'dumb',
+                //  but ENiGMA draws every session with ANSI regardless, so
+                //  reporting the terminal's opinion would tell the door 'N'
+                //  about a session that is about to receive escape sequences.
+                //
+                'Y',
                 'N', //  RIP: not supported
                 term.ctermVersion || '', //  empty unless the caller answered DA as CTerm
                 '', //  time of logoff: ENiGMA½ has no per-call time limit
