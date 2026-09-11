@@ -133,6 +133,34 @@ exports.getModule = class MessageListModule extends (
                     return cb(null);
                 }
             },
+            //
+            //  Posting from a list targets the area the focused message is
+            //  in rather than the caller's current area, since a personal or
+            //  search list spans areas. The post module checks write access
+            //  against that tag itself.
+            //
+            postNewMessage: (formData, extraArgs, cb) => {
+                if (MciViewIds.allViews.msgList != formData.submitId) {
+                    return cb(null);
+                }
+
+                //  newer 'messageIndex' or older deprecated value
+                const messageIndex = _.get(
+                    formData,
+                    'value.messageIndex',
+                    formData.value.message
+                );
+
+                const areaTag = _.get(this.config, ['messageList', messageIndex])
+                    ? this.getSelectedAreaTag(messageIndex)
+                    : this.config.messageAreaTag;
+
+                return this.gotoMenu(
+                    this.config.menuNewPost || 'messageBaseNewPost',
+                    { extraArgs: { messageAreaTag: areaTag } },
+                    cb
+                );
+            },
             fullExit: (formData, extraArgs, cb) => {
                 this.menuResult = { fullExit: true };
                 return this.prevMenu(cb);

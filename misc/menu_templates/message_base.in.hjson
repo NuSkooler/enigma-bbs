@@ -312,7 +312,16 @@
                             }
                         ]
                     }
-                    actionKeys: @reference:common.quitToPrev
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
                 }
             }
         }
@@ -561,7 +570,16 @@
                             }
                         ]
                     }
-                    actionKeys: @reference:common.quitToPrev
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
                 }
             }
         }
