@@ -4,6 +4,7 @@
 //  ENiGMA½
 const EnigAssert = require('./enigma_assert.js');
 const Logger = require('./logger.js');
+const { Errors } = require('./enig_error.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -16,6 +17,7 @@ exports.copyFileWithCollisionHandling = copyFileWithCollisionHandling;
 exports.safeCopyFile = safeCopyFile;
 exports.safeMoveFile = safeMoveFile;
 exports.pathWithTerminatingSeparator = pathWithTerminatingSeparator;
+exports.endWriteStream = endWriteStream;
 
 //
 //  fs.copyFile / fs-extra.copy both invoke utimensat() on the destination to
@@ -117,6 +119,34 @@ function _streamCopy(src, dst, cb) {
     ws.on('error', finish);
     ws.on('close', () => finish(null));
     rs.pipe(ws);
+}
+
+//
+//  Finishing a write stream means waiting for 'close', but a stream that has
+//  already failed will never emit it again: the error fired earlier and the
+//  stream destroyed itself, taking 'close' with it. A listener attached after
+//  that waits forever, and whatever was driving the stream is never answered.
+//
+//  Answer exactly once on either event, and refuse a stream that is already
+//  gone rather than waiting on it.
+//
+function endWriteStream(ws, cb) {
+    let done = false;
+    const finish = err => {
+        if (done) {
+            return;
+        }
+        done = true;
+        return cb(err || null);
+    };
+
+    if (ws.destroyed) {
+        return finish(Errors.General('Stream closed before it could be finished'));
+    }
+
+    ws.once('error', finish);
+    ws.once('close', () => finish(null));
+    ws.end();
 }
 
 function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {

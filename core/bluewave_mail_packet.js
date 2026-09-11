@@ -13,6 +13,7 @@ const { AddressFlavor, WellKnownAreaTags } = require('./message_const.js');
 const StatLog = require('./stat_log.js');
 const SysProps = require('./system_property.js');
 const ArchiveUtil = require('./archive_util.js');
+const { endWriteStream } = require('./file_util.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -368,10 +369,7 @@ class BlueWavePacketWriter extends EventEmitter {
     writePacketFiles(cb) {
         async.series(
             [
-                callback => {
-                    this.datStream.on('close', () => callback(null));
-                    this.datStream.end();
-                },
+                callback => endWriteStream(this.datStream, callback),
                 callback => this._writeIndexes(callback),
                 callback => this._writeInf(callback),
             ],

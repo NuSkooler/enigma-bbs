@@ -1,4 +1,5 @@
 const ArchiveUtil = require('./archive_util');
+const { endWriteStream } = require('./file_util');
 const { Errors } = require('./enig_error');
 const Message = require('./message');
 const { splitTextAtTerms } = require('./string_util');
@@ -1290,20 +1291,12 @@ class QWKPacketWriter extends EventEmitter {
     finish(packetDirectory) {
         async.series(
             [
-                callback => {
-                    this.messagesStream.on('close', () => {
-                        return callback(null);
-                    });
-                    this.messagesStream.end();
-                },
+                callback => endWriteStream(this.messagesStream, callback),
                 callback => {
                     if (!this.headersDatStream) {
                         return callback(null);
                     }
-                    this.headersDatStream.on('close', () => {
-                        return callback(null);
-                    });
-                    this.headersDatStream.end();
+                    return endWriteStream(this.headersDatStream, callback);
                 },
                 callback => {
                     return this._createControlData(callback);
@@ -1501,14 +1494,6 @@ class QWKPacketWriter extends EventEmitter {
         );
         controlStream.setDefaultEncoding('ascii');
 
-        controlStream.on('close', () => {
-            return cb(null);
-        });
-
-        controlStream.on('error', err => {
-            return cb(err);
-        });
-
         const initialControlData = [
             Config().general.boardName,
             'Earth',
@@ -1546,7 +1531,7 @@ class QWKPacketWriter extends EventEmitter {
             controlStream.write(`${trailer}\r\n`);
         });
 
-        controlStream.end();
+        return endWriteStream(controlStream, cb);
     }
 
     _createIndexes(cb) {
@@ -1574,11 +1559,7 @@ class QWKPacketWriter extends EventEmitter {
                         appendIndexData(indexStream, offset)
                     );
 
-                    indexStream.on('close', err => {
-                        return callback(err);
-                    });
-
-                    indexStream.end();
+                    return endWriteStream(indexStream, callback);
                 },
                 callback => {
                     //  000.NDX of private mails
@@ -1593,11 +1574,7 @@ class QWKPacketWriter extends EventEmitter {
                         appendIndexData(indexStream, offset)
                     );
 
-                    indexStream.on('close', err => {
-                        return callback(err);
-                    });
-
-                    indexStream.end();
+                    return endWriteStream(indexStream, callback);
                 },
                 callback => {
                     //  ####.NDX
@@ -1617,11 +1594,7 @@ class QWKPacketWriter extends EventEmitter {
                                 appendIndexData(indexStream, offset)
                             );
 
-                            indexStream.on('close', err => {
-                                return nextArea(err);
-                            });
-
-                            indexStream.end();
+                            return endWriteStream(indexStream, nextArea);
                         },
                         err => {
                             return callback(err);
