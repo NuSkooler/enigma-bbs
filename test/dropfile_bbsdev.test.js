@@ -118,16 +118,13 @@ describe('BBSDEV.DRP', () => {
     });
 
     //
-    //  The same character set reaches a session under several spellings:
-    //  iconv-lite's own, a sysop's forceOutputEncoding, and whatever a menu's
-    //  setClientEncoding passes.
+    //  The same character set reaches us under several spellings: iconv's
+    //  own, a sysop's |encoding|, and the aliases iconv accepts that our
+    //  table is not keyed on.
     //
-    it('names the terminal encoding by its IANA name', () => {
-        const named = (encoding, want) => {
-            const client = makeClient();
-            client.term.outputEncoding = encoding;
-            assert.equal(field({}, Line.Encoding, client), want, encoding);
-        };
+    it('names the door encoding by its IANA name', () => {
+        const named = (encoding, want) =>
+            assert.equal(field({ encoding }, Line.Encoding), want, encoding);
 
         named('cp437', 'IBM437');
         named('utf8', 'UTF-8');
@@ -145,12 +142,22 @@ describe('BBSDEV.DRP', () => {
         named('win1252', 'windows-1252');
     });
 
+    //
+    //  Door decodes the door's output with the door's own |encoding|
+    //  (door.js:58), not the caller's terminal encoding. A line 12 taken from
+    //  the terminal tells the door to emit bytes ENiGMA will then misread.
+    //
+    it('states the door encoding, not the terminal encoding', () => {
+        const client = makeClient();
+        client.term.outputEncoding = 'utf8';
+
+        assert.equal(field({ encoding: 'cp437' }, Line.Encoding, client), 'IBM437');
+    });
+
     //  a name we cannot give in the registry's spelling is not one a door may
     //  accept, so the file is refused rather than written with a guess
     it('refuses to write when the encoding has no IANA name', done => {
-        const client = makeClient();
-        client.term.outputEncoding = 'cp1006';
-        makeDropFile({}, client).createFile(err => {
+        makeDropFile({ encoding: 'cp1006' }).createFile(err => {
             assert.ok(err, 'expected an error');
             assert.match(err.message, /cp1006/);
             done();

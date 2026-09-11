@@ -229,6 +229,10 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                         fileType: self.config.dropFileType,
                         commType: self.getDropFileCommType(),
                         commParams: self.config.commParams,
+                        //  the same value runDoor() hands Door as
+                        //  |exeInfo.encoding|, so line 12 of a BBSDEV.DRP
+                        //  names the encoding the door's bytes are read with
+                        encoding: self.config.encoding,
                     });
 
                     return self.dropFile.createFile(callback);

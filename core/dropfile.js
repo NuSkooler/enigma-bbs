@@ -33,7 +33,9 @@ const packageJson = require('../package.json');
 //  same encoding reaches us under several spellings: iconv-lite's own, a
 //  sysop's |forceOutputEncoding|, and whatever a menu's setClientEncoding
 //  passes (e.g. 'utf-8'). BBSDEV.DRP line 12 names the character set of the
-//  terminal data, not of the drop file, which is always UTF-8.
+//  terminal data, not of the drop file, which is always UTF-8 -- and the
+//  terminal data is what Door decodes with the door's own |encoding|, so that
+//  is the value written there.
 //
 const BbsDevEncodingNames = {
     ascii: 'US-ASCII',
@@ -110,6 +112,7 @@ module.exports = class DropFile {
             baseDir = Config().paths.dropFiles,
             commType = 'local',
             commParams = '',
+            encoding = 'cp437',
         } = {}
     ) {
         this.client = client;
@@ -124,6 +127,13 @@ module.exports = class DropFile {
         //  set when the channel cannot be named; createFile refuses rather
         //  than writing a line 2 the door will act on
         this.commError = comm.commError;
+        //
+        //  Line 12 states the character set of the door's terminal data, and
+        //  Door decodes that data with the door's own |encoding| rather than
+        //  the caller's terminal encoding (door.js:58). Sourcing the field
+        //  from anything else makes the file describe bytes nobody produces.
+        //
+        this.doorEncoding = encoding || 'cp437';
     }
 
     static get ValidCommTypes() {
@@ -450,7 +460,6 @@ module.exports = class DropFile {
     getBbsDevBuffer() {
         const user = this.client.user;
         const term = this.client.term;
-        const encoding = term.outputEncoding || 'cp437';
 
         return Buffer.from(
             [
@@ -465,7 +474,7 @@ module.exports = class DropFile {
                 'N', //  RIP: not supported
                 term.ctermVersion || '', //  empty unless the caller answered DA as CTerm
                 '', //  time of logoff: ENiGMA½ has no per-call time limit
-                bbsDevEncodingName(encoding),
+                bbsDevEncodingName(this.doorEncoding),
                 bbsDevField(Config().general.language, 'en-US'),
                 `ENiGMA½ BBS ${packageJson.version}`,
                 bbsDevField(Config().general.boardName, 'ENiGMA½ BBS'),
@@ -504,9 +513,8 @@ module.exports = class DropFile {
         if (this.commError) {
             return this.commError;
         }
-        const encoding = this.client.term.outputEncoding || 'cp437';
-        if (!bbsDevEncodingName(encoding)) {
-            return `no IANA character set name is known for the session encoding "${encoding}"`;
+        if (!bbsDevEncodingName(this.doorEncoding)) {
+            return `no IANA character set name is known for the door encoding "${this.doorEncoding}"`;
         }
     }
 
