@@ -154,7 +154,14 @@ module.exports = class DropFile {
             BBSDEV: {
                 local: none,
                 stdio: none,
-                socket: params => uint.test(params),
+                //
+                //  'socket' is absent on purpose. The format's socket is a
+                //  descriptor the door inherits, carrying the native socket
+                //  value on line 3; ENiGMA's |io: socket| stands up a
+                //  listener the door dials instead (door.js:76), and it has
+                //  no descriptor to pass on. Any value written here would
+                //  name an fd the door never received.
+                //
                 serial: params => uint.test(params),
                 winserial: params => uint.test(params),
                 uart: params => /^[0-9A-F]{4},(?:[0-9]|1[0-5])$/.test(params),
@@ -203,6 +210,17 @@ module.exports = class DropFile {
         }
 
         commParams = DropFile.commParamsText(commParams);
+
+        if ('socket' === commType) {
+            return {
+                commType,
+                commParams,
+                commError:
+                    'BBSDEV.DRP has no token for a socket the door dials; a bridge ' +
+                    'should say what it really hands the door -- "uart" with the I/O ' +
+                    'base and IRQ, or "fossil" with the port',
+            };
+        }
 
         if (!known) {
             return {

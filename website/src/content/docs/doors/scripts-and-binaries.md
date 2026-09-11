@@ -63,15 +63,14 @@ The door is told where the file is through the `BBSDEV_DRP` environment variable
 |------------|--------------|--------------------|
 | `local` | none | its own local console |
 | `stdio` | none | terminal input on stdin, terminal output on stdout. This is the default under `io: stdio` |
-| `socket` | socket value | an inherited, connected socket carrying terminal bytes only |
 | `serial` | file descriptor | an inherited, configured POSIX serial descriptor |
 | `winserial` | Win32 `HANDLE` | an inherited, configured Win32 COM handle |
 | `uart` | `HHHH,I` — I/O base in four uppercase hex digits, then the IRQ | direct DOS UART access |
 | `fossil` | port, 0 through 254 | an initialized FOSSIL interface |
 
-ENiGMA½ has no descriptor of its own to hand over, so a value for `socket`, `serial` or `winserial` has to come from the emulator or bridge you put between ENiGMA½ and the door — QEMU, DOSEMU, [bivrost!](#door32sys-socket-descriptor-sharing).
+The format also has a `socket` mode, for a socket the door *inherits*. ENiGMA½ never has one to pass on -- `io: socket` stands up a listener the door dials -- so `commType: socket` is refused here rather than written, whatever `commParams` you give it. A value for `serial` or `winserial` has to come from the emulator or bridge you put between ENiGMA½ and the door — QEMU, DOSEMU, [bivrost!](#door32sys-socket-descriptor-sharing).
 
-**A channel ENiGMA½ cannot name stops the door from starting.** Where the legacy formats fall back to `local`, `local` in this format is a positive claim — the door uses its current local console — so writing it for a door reading a socket would describe a screen nobody sees. Instead the drop file is refused, the door does not run, and the reason is logged. That is what happens under `io: socket` with no `commParams`: the socket ENiGMA½ shares is a server the door dials rather than a descriptor it inherits, and the format has no token for that. A QEMU or DOSEMU setup says what the door really gets — `commType: uart` with `commParams: 03F8,4`, or `fossil` with `0` — and writes a valid file.
+**A channel ENiGMA½ cannot name stops the door from starting.** Where the legacy formats fall back to `local`, `local` in this format is a positive claim — the door uses its current local console — so writing it for a door reading a socket would describe a screen nobody sees. Instead the drop file is refused, the door does not run, and the reason is logged. That is what happens under `io: socket`: the socket ENiGMA½ shares is a server the door dials rather than a descriptor it inherits, and the format has no token for that. A QEMU or DOSEMU setup says what the door really gets — `commType: uart` with `commParams: 03F8,4`, or `fossil` with `0` — and writes a valid file.
 
 Line 11 of the file, the forced logoff time, is written empty: ENiGMA½ imposes no per-call time limit.
 

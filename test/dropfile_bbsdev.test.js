@@ -214,13 +214,13 @@ describe('BBSDEV.DRP comm type', () => {
             '03F8,4',
         ]);
         assert.deepEqual(comm({ commType: 'fossil', commParams: '0' }), ['fossil', '0']);
-        assert.deepEqual(comm({ commType: 'socket', commParams: '5' }), ['socket', '5']);
+        assert.deepEqual(comm({ commType: 'serial', commParams: '5' }), ['serial', '5']);
     });
 
     //  HJSON hands us a number when the sysop writes one
     it('takes a parameter written as a number', () => {
         assert.deepEqual(comm({ commType: 'fossil', commParams: 0 }), ['fossil', '0']);
-        assert.deepEqual(comm({ commType: 'socket', commParams: 5 }), ['socket', '5']);
+        assert.deepEqual(comm({ commType: 'serial', commParams: 5 }), ['serial', '5']);
     });
 
     it('accepts a comm type in any case', () => {
@@ -237,7 +237,6 @@ describe('BBSDEV.DRP comm type', () => {
         const unusable = [
             { commType: 'socket' }, //  no descriptor to share
             { commType: 'serial', commParams: 'COM1' }, //  not a descriptor
-            { commType: 'socket', commParams: '007' }, //  uint has no leading zeros
             { commType: 'uart', commParams: '3F8,4' }, //  not four hex digits
             { commType: 'uart', commParams: '03F8,16' }, //  IRQ out of range
             { commType: 'fossil', commParams: '255' }, //  reserved by FSC-0015
@@ -253,6 +252,34 @@ describe('BBSDEV.DRP comm type', () => {
                     done();
                 });
             });
+        });
+    });
+
+    //
+    //  ENiGMA's |io: socket| stands up a listener the door dials; the
+    //  format's 'socket' is a descriptor the door inherits, with the native
+    //  socket value on line 3. ENiGMA has none to pass on, so a hand-written
+    //  commParams would name an fd the door never received -- refused
+    //  whatever it is given, with the reason naming what a bridge should say.
+    //
+    describe('refuses socket outright', () => {
+        ['', '5', '007'].forEach(commParams => {
+            it(`refuses socket with commParams "${commParams}"`, () => {
+                const { commError } = DropFile.normalizeComm(
+                    'BBSDEV',
+                    'socket',
+                    commParams
+                );
+                assert.ok(commError, 'expected a commError');
+                assert.match(commError, /uart/);
+                assert.match(commError, /fossil/);
+            });
+        });
+
+        it('is not a BBSDEV communications type at all', () => {
+            assert.ok(!DropFile.validCommTypes('BBSDEV').includes('socket'));
+            //  the legacy formats still report it, as they always have
+            assert.ok(DropFile.validCommTypes('DOOR32').includes('socket'));
         });
     });
 
