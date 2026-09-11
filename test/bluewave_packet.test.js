@@ -317,7 +317,7 @@ describe('Blue Wave packet', () => {
     it('keeps NUL out of the message text', done => {
         buildPacket(
             writer => {
-                writer.appendMessage(makeMessage('general', { message: 'be fore' }));
+                writer.appendMessage(makeMessage('general', { message: 'be\u0000fore' }));
             },
             ({ dat }) => {
                 assert.equal(dat.indexOf(0x00), -1);
