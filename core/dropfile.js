@@ -62,12 +62,30 @@ const BbsDevEncodingNames = {
     utf8: 'UTF-8',
 };
 
-const bbsDevEncodingName = encoding =>
-    BbsDevEncodingNames[
-        String(encoding || '')
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, '')
-    ];
+//
+//  The allowlist is keyed on a punctuation-free spelling, but iconv accepts
+//  more of them than that covers and |forceOutputEncoding| takes whatever the
+//  sysop wrote -- a bare '437', a 'cs' prefixed registry alias, 'win1252'.
+//  Those reach the same encoding, so they are folded onto the same key rather
+//  than refusing to launch a door over a spelling.
+//
+const bbsDevEncodingKey = encoding => {
+    const key = String(encoding || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .replace(/^cs/, '')
+        .replace(/^win(?=[0-9])/, 'windows');
+
+    if (/^[0-9]{3}$/.test(key)) {
+        return `cp${key}`;
+    }
+    if (/^12[0-9]{2}$/.test(key)) {
+        return `windows${key}`;
+    }
+    return key;
+};
+
+const bbsDevEncodingName = encoding => BbsDevEncodingNames[bbsDevEncodingKey(encoding)];
 
 //
 //  BBSDEV.DRP has no quoting or escaping, so a field cannot carry a line

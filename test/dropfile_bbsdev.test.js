@@ -135,6 +135,14 @@ describe('BBSDEV.DRP', () => {
         named('cp1252', 'windows-1252');
         named('ISO-8859-1', 'ISO-8859-1');
         named('latin1', 'ISO-8859-1');
+
+        //  spellings iconv accepts that the table is not keyed on; refusing
+        //  these would stop every door on the board over a spelling
+        named('437', 'IBM437');
+        named('850', 'IBM850');
+        named('1252', 'windows-1252');
+        named('csibm437', 'IBM437');
+        named('win1252', 'windows-1252');
     });
 
     //  a name we cannot give in the registry's spelling is not one a door may
