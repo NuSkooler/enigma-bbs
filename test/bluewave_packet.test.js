@@ -6,6 +6,7 @@ const paths = require('path');
 const iconv = require('iconv-lite');
 
 const StatLog = require('../core/stat_log.js');
+const ArchiveUtil = require('../core/archive_util.js');
 const configModule = require('../core/config.js');
 const { WellKnownAreaTags } = require('../core/message_const.js');
 const {
@@ -732,6 +733,125 @@ describe('Blue Wave packet fixture', () => {
                 );
             });
             done();
+        });
+    });
+});
+
+//
+//  The archive step, which every other test in this file stops short of by
+//  calling writePacketFiles() directly. The archiver itself is stubbed --
+//  what matters here is the name the packet is given, that all four members
+//  are handed over, and that the events the export flow waits on are emitted.
+//
+describe('Blue Wave packet archive', () => {
+    const os = require('os');
+    const moment = require('moment');
+
+    function withStubbedArchiver(build, cb, reuseDir) {
+        const realGetInstance = ArchiveUtil.getInstance;
+        const calls = [];
+
+        ArchiveUtil.getInstance = () => ({
+            compressTo: (format, packetPath, files, workDir, done) => {
+                calls.push({ format, packetPath, files: files.slice().sort(), workDir });
+                fs.writeFileSync(packetPath, 'not really a zip');
+                return done(null);
+            },
+        });
+
+        const realInit = StatLog.init;
+        const realGetSystemStat = StatLog.getSystemStat;
+        StatLog.init = callback => callback(null);
+        StatLog.getSystemStat = () => 'SysOp Name';
+
+        const outDir = reuseDir || fs.mkdtempSync(paths.join(os.tmpdir(), 'bw-archive-'));
+
+        const writer = new BlueWavePacketWriter({
+            bbsID: 'ENIGMA',
+            user,
+            systemName: 'Test Board',
+            sysOpName: 'SysOp Name',
+        });
+
+        const events = [];
+        let packetInfo = null;
+
+        writer.once('error', err => {
+            throw err;
+        });
+        writer.once('packet', info => {
+            events.push('packet');
+            packetInfo = info;
+        });
+        writer.once('finished', () => {
+            events.push('finished');
+
+            ArchiveUtil.getInstance = realGetInstance;
+            StatLog.init = realInit;
+            StatLog.getSystemStat = realGetSystemStat;
+
+            cb({ calls, events, packetInfo, outDir });
+        });
+
+        writer.once('ready', () => {
+            build(writer);
+            writer.finish(outDir);
+        });
+
+        writer.init();
+    }
+
+    it('archives all four members and announces the packet', done => {
+        withStubbedArchiver(
+            writer => {
+                writer.addArea('general');
+                writer.appendMessage(makeMessage('general'));
+            },
+            ({ calls, events, packetInfo }) => {
+                assert.equal(calls.length, 1);
+                assert.equal(calls[0].format, 'application/zip');
+                assert.deepEqual(calls[0].files, [
+                    'ENIGMA.DAT',
+                    'ENIGMA.FTI',
+                    'ENIGMA.INF',
+                    'ENIGMA.MIX',
+                ]);
+
+                //  the caller is told about the packet before the flow is told
+                //  the writer is done; the export delivers what 'packet' named
+                assert.deepEqual(events, ['packet', 'finished']);
+                assert.ok(packetInfo.stats.size > 0);
+                assert.equal(packetInfo.path, calls[0].packetPath);
+                done();
+            }
+        );
+    });
+
+    //
+    //  The format names a packet for the day of the week, so a second export
+    //  on the same day would otherwise overwrite the first.
+    //
+    it('steps past a name already taken that day', done => {
+        const day = moment().format('dd').toUpperCase();
+        const build = writer => {
+            writer.addArea('general');
+            writer.appendMessage(makeMessage('general'));
+        };
+
+        withStubbedArchiver(build, first => {
+            assert.equal(paths.basename(first.packetInfo.path), `ENIGMA.${day}0`);
+
+            withStubbedArchiver(
+                build,
+                second => {
+                    assert.equal(
+                        paths.basename(second.packetInfo.path),
+                        `ENIGMA.${day}1`
+                    );
+                    done();
+                },
+                first.outDir
+            );
         });
     });
 });
