@@ -164,7 +164,7 @@ module.exports = class DropFile {
     //  mode that asks nothing of us. BBSDEV.DRP gets no such coercion: its
     //  'local' claims the door uses its current local console, so a channel
     //  we cannot name sets |commError| and the file is refused instead. See
-    //  docs/_docs/modding/local-doors-abracadabra.md#bbsdevdrp.
+    //  website/src/content/docs/doors/scripts-and-binaries.md, BBSDEV.DRP.
     //
     static normalizeComm(fileType, commType, commParams) {
         commType = _.isString(commType) ? commType.toLowerCase() : '';
