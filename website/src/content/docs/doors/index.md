@@ -35,7 +35,7 @@ See also [Let's add a DOS door to Enigma½ BBS](https://medium.com/retro-future/
 
 ## Drop File Types
 
-All local door approaches in ENiGMA½ support the same drop file types:
+All local door approaches in ENiGMA½ support these drop file types:
 
 | Value | Description |
 |-------|-------------|
@@ -43,8 +43,11 @@ All local door approaches in ENiGMA½ support the same drop file types:
 | `DOOR` | [DOOR.SYS](https://web.archive.org/web/20160325192739/http://goldfndr.home.mindspring.com/dropfile/doorsys.htm) |
 | `DOOR32` | [DOOR32.SYS](https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt) |
 | `DORINFO` | [DORINFOx.DEF](https://web.archive.org/web/20160321190038/http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm) |
+| `BBSDEV` | [BBSDEV.DRP](https://github.com/RealDeuce/bbsdev.drp), [abracadabra](scripts-and-binaries.md) only |
 
-Each of these carries a field naming the connection the door has been handed — `DOOR32.SYS` comm type and socket handle, `DOOR.SYS` comm port, `DORINFO` serial port. ENiGMA½ writes them to match how the door is actually launched, defaulting to local (stdin/stdout). Only [abracadabra](scripts-and-binaries.md#comm-type) setups where an emulator or bridge sits in between need to say otherwise; [v86](v86.md) reports serial on its own, since it bridges the caller to the guest's COM1.
+`BBSDEV.DRP` is a newer format. It is UTF-8, it names the terminal's character set and the board's language, and it states the communications mechanism exactly instead of leaving it to convention. A door finds the file through the `BBSDEV_DRP` environment variable rather than a command-line argument, so only [abracadabra](scripts-and-binaries.md) writes one: a [v86](v86.md) guest never sees the host's environment, and the format's serial modes name a host descriptor rather than the guest's COM1.
+
+Each of the older formats carries a field naming the connection the door has been handed — `DOOR32.SYS` comm type and socket handle, `DOOR.SYS` comm port, `DORINFO` serial port. ENiGMA½ writes them to match how the door is actually launched, defaulting to local (stdin/stdout). Only [abracadabra](scripts-and-binaries.md#comm-type) setups where an emulator or bridge sits in between need to say otherwise; [v86](v86.md) reports serial on its own, since it bridges the caller to the guest's COM1.
 
 ---
 

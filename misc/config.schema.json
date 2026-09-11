@@ -58,6 +58,11 @@
                     "minimum": 0,
                     "default": 0
                 },
+                "language": {
+                    "description": "BCP 47 language tag for the board, e.g. 'en-US'. Reported to doors; ENiGMA½ itself is not translated.",
+                    "type": "string",
+                    "default": "en-US"
+                },
                 "configValidation": {
                     "description": "Report configuration problems at startup and on reload, or stay silent.",
                     "type": "string",

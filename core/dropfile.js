@@ -2,9 +2,14 @@
 'use strict';
 
 //  ENiGMA½
-const Config = require('./config.js').get;
+const configModule = require('./config.js');
+//  Late bound as in message_area.js and bluewave_mail_packet.js:
+//  configModule.get is replaced by the Config bootstrapper, so capturing it
+//  here would freeze whichever getter was installed at require time.
+const Config = (...args) => configModule.get(...args);
 const StatLog = require('./stat_log.js');
 const UserProps = require('./user_property.js');
+const { Errors } = require('./enig_error.js');
 const SysProps = require('./system_property.js');
 
 //  deps
@@ -14,6 +19,7 @@ const _ = require('lodash');
 const moment = require('moment');
 const iconv = require('iconv-lite');
 const { mkdirs } = require('fs-extra');
+const packageJson = require('../package.json');
 
 //
 //  Resources
@@ -24,6 +30,103 @@ const { mkdirs } = require('fs-extra');
 //  * http://thebbs.org/bbsfaq/ch06.02.htm
 //  * http://lord.lordlegacy.com/dosemu/
 //
+
+//
+//  IANA preferred MIME names for the character sets a session can be set to.
+//  Keys are spelled without punctuation and looked up that way, because the
+//  same encoding reaches us under several spellings: iconv-lite's own, a
+//  sysop's |forceOutputEncoding|, and whatever a menu's setClientEncoding
+//  passes (e.g. 'utf-8'). BBSDEV.DRP line 12 names the character set of the
+//  terminal data, not of the drop file, which is always UTF-8 -- and the
+//  terminal data is what Door decodes with the door's own |encoding|, so that
+//  is the value written there.
+//
+const BbsDevEncodingNames = {
+    ascii: 'US-ASCII',
+    usascii: 'US-ASCII',
+    cp437: 'IBM437',
+    ibm437: 'IBM437',
+    cp850: 'IBM850',
+    ibm850: 'IBM850',
+    cp852: 'IBM852',
+    ibm852: 'IBM852',
+    cp865: 'IBM865',
+    ibm865: 'IBM865',
+    cp866: 'IBM866',
+    ibm866: 'IBM866',
+    cp1250: 'windows-1250',
+    windows1250: 'windows-1250',
+    cp1251: 'windows-1251',
+    windows1251: 'windows-1251',
+    cp1252: 'windows-1252',
+    windows1252: 'windows-1252',
+    latin1: 'ISO-8859-1',
+    iso88591: 'ISO-8859-1',
+    iso88592: 'ISO-8859-2',
+    iso885915: 'ISO-8859-15',
+    koi8r: 'KOI8-R',
+    utf8: 'UTF-8',
+};
+
+//
+//  The allowlist is keyed on a punctuation-free spelling, but iconv accepts
+//  more of them than that covers and |forceOutputEncoding| takes whatever the
+//  sysop wrote -- a bare '437', a 'cs' prefixed registry alias, 'win1252'.
+//  Those reach the same encoding, so they are folded onto the same key rather
+//  than refusing to launch a door over a spelling.
+//
+const bbsDevEncodingKey = encoding => {
+    const key = String(encoding || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .replace(/^cs/, '')
+        .replace(/^win(?=[0-9])/, 'windows');
+
+    if (/^[0-9]{3}$/.test(key)) {
+        return `cp${key}`;
+    }
+    if (/^12[0-9]{2}$/.test(key)) {
+        return `windows${key}`;
+    }
+    return key;
+};
+
+const bbsDevEncodingName = encoding => BbsDevEncodingNames[bbsDevEncodingKey(encoding)];
+
+//
+//  BBSDEV.DRP has no quoting or escaping, so a field cannot carry a line
+//  ending, a control character, or outer whitespace. Names reach us from the
+//  user and from the sysop's config, so they are cleaned rather than trusted.
+//
+/* eslint-disable-next-line no-control-regex */
+const RE_BBSDEV_UNPRINTABLE = /[\u0000-\u001f\u007f-\u009f]/g;
+
+//
+//  Line 13 MUST be a well-formed BCP 47 tag, and a door that receives one
+//  that is not may reject the whole file -- so a |general.language| of
+//  "English (US)" is refused here rather than written and acted on. Intl
+//  throws RangeError on a malformed tag, which is the same well-formedness
+//  test the registry describes, without a regex of our own to keep current.
+//
+const bbsDevLanguage = (value, fallback = 'en-US') => {
+    const tag = bbsDevField(value);
+    if (!tag) {
+        return fallback;
+    }
+    try {
+        return Intl.getCanonicalLocales(tag)[0] || fallback;
+    } catch (e) {
+        return null; //  malformed; bbsDevError() reports it
+    }
+};
+
+const bbsDevField = (value, fallback = '') => {
+    const clean = _.isString(value)
+        ? value.replace(RE_BBSDEV_UNPRINTABLE, '').trim()
+        : '';
+    return clean || fallback;
+};
+
 module.exports = class DropFile {
     constructor(
         client,
@@ -31,28 +134,134 @@ module.exports = class DropFile {
             fileType = 'DORINFO',
             baseDir = Config().paths.dropFiles,
             commType = 'local',
+            commParams = '',
+            encoding = 'cp437',
         } = {}
     ) {
         this.client = client;
         this.fileType = fileType.toUpperCase();
         this.baseDir = baseDir;
-        //  'local', 'serial', or 'socket' -- what the *door* is handed, which
-        //  is not ENiGMA's |io| type: Door accepts only stdio and socket
-        this.commType = DropFile.normalizeCommType(commType);
+        //  What the *door* is handed, which is not ENiGMA's |io| type: Door
+        //  accepts only stdio and socket. BBSDEV.DRP names more mechanisms
+        //  than the legacy formats can, and gives some of them a parameter.
+        const comm = DropFile.normalizeComm(this.fileType, commType, commParams);
+        this.commType = comm.commType;
+        this.commParams = comm.commParams;
+        //  set when the channel cannot be named; createFile refuses rather
+        //  than writing a line 2 the door will act on
+        this.commError = comm.commError;
+        //
+        //  Line 12 states the character set of the door's terminal data, and
+        //  Door decodes that data with the door's own |encoding| rather than
+        //  the caller's terminal encoding (door.js:58). Sourcing the field
+        //  from anything else makes the file describe bytes nobody produces.
+        //
+        this.doorEncoding = encoding || 'cp437';
     }
 
     static get ValidCommTypes() {
-        return ['local', 'serial', 'socket'];
+        return Object.keys(DropFile.CommTypes.DORINFO);
     }
 
     //
-    //  Anything unrecognized reports as 'local' -- the one mode that asks
-    //  nothing of us, and so cannot promise a door something we are unable
-    //  to hand over.
+    //  What each format can say about the channel the door is handed, and --
+    //  for BBSDEV.DRP alone -- what line 3 must carry with it. Parameters are
+    //  validated against that format's ABNF; 255 is the FOSSIL port FSC-0015
+    //  reserves.
     //
-    static normalizeCommType(commType) {
+    static get CommTypes() {
+        const uint = /^(?:0|[1-9][0-9]*)$/;
+        const none = params => '' === params;
+        return {
+            DORINFO: { local: none, serial: none, socket: none },
+            BBSDEV: {
+                local: none,
+                stdio: none,
+                //
+                //  'socket' is absent on purpose. The format's socket is a
+                //  descriptor the door inherits, carrying the native socket
+                //  value on line 3; ENiGMA's |io: socket| stands up a
+                //  listener the door dials instead (door.js:76), and it has
+                //  no descriptor to pass on. Any value written here would
+                //  name an fd the door never received.
+                //
+                serial: params => uint.test(params),
+                winserial: params => uint.test(params),
+                uart: params => /^[0-9A-F]{4},(?:[0-9]|1[0-5])$/.test(params),
+                fossil: params =>
+                    /^[0-9]{1,3}$/.test(params) && parseInt(params, 10) < 255,
+            },
+        };
+    }
+
+    static commTypesFor(fileType) {
+        return 'BBSDEV' === String(fileType).toUpperCase()
+            ? DropFile.CommTypes.BBSDEV
+            : DropFile.CommTypes.DORINFO;
+    }
+
+    static validCommTypes(fileType) {
+        return Object.keys(DropFile.commTypesFor(fileType));
+    }
+
+    //  a value from HJSON arrives as a number when it is written as one
+    static commParamsText(commParams) {
+        if (_.isFinite(commParams)) {
+            return commParams.toString();
+        }
+        return _.isString(commParams) ? commParams.trim() : '';
+    }
+
+    static isValidCommParams(commType, commParams, fileType = 'BBSDEV') {
+        const valid = DropFile.commTypesFor(fileType)[commType];
+        return valid ? valid(DropFile.commParamsText(commParams)) : false;
+    }
+
+    //
+    //  The legacy formats coerce anything unrecognized to 'local' -- the one
+    //  mode that asks nothing of us. BBSDEV.DRP gets no such coercion: its
+    //  'local' claims the door uses its current local console, so a channel
+    //  we cannot name sets |commError| and the file is refused instead. See
+    //  website/src/content/docs/doors/scripts-and-binaries.md, BBSDEV.DRP.
+    //
+    static normalizeComm(fileType, commType, commParams) {
         commType = _.isString(commType) ? commType.toLowerCase() : '';
-        return DropFile.ValidCommTypes.includes(commType) ? commType : 'local';
+        const known = DropFile.validCommTypes(fileType).includes(commType);
+
+        if ('BBSDEV' !== String(fileType).toUpperCase()) {
+            return { commType: known ? commType : 'local', commParams: '' };
+        }
+
+        commParams = DropFile.commParamsText(commParams);
+
+        if ('socket' === commType) {
+            return {
+                commType,
+                commParams,
+                commError:
+                    'BBSDEV.DRP has no token for a socket the door dials; a bridge ' +
+                    'should say what it really hands the door -- "uart" with the I/O ' +
+                    'base and IRQ, or "fossil" with the port',
+            };
+        }
+
+        if (!known) {
+            return {
+                commType,
+                commParams,
+                commError: `"${commType}" is not a BBSDEV.DRP communications type`,
+            };
+        }
+
+        if (!DropFile.isValidCommParams(commType, commParams)) {
+            return {
+                commType,
+                commParams,
+                commError: `a "${commType}" door needs a "commParams" naming its channel, and "${commParams}" is not one`,
+            };
+        }
+
+        return { commType, commParams };
     }
 
     static dropFileDirectory(baseDir, client) {
@@ -81,6 +290,7 @@ module.exports = class DropFile {
             JUMPER: 'JUMPER.DAT', //  2AM BBS
             SXDOOR: 'SXDOOR.' + _.pad(this.client.node.toString(), 3, '0'), //  System/X, dESiRE
             INFO: 'INFO.BBS', //  Phoenix BBS
+            BBSDEV: 'BBSDEV.DRP', //  https://github.com/RealDeuce/bbsdev.drp
         }[this.fileType];
     }
 
@@ -103,6 +313,7 @@ module.exports = class DropFile {
             DOOR: this.getDoorSysBuffer,
             DOOR32: this.getDoor32Buffer,
             DORINFO: this.getDoorInfoDefBuffer,
+            BBSDEV: this.getBbsDevBuffer,
         }[this.fileType];
     }
 
@@ -279,7 +490,110 @@ module.exports = class DropFile {
         );
     }
 
+    //
+    //  BBSDEV.DRP: 19 CRLF-terminated lines of UTF-8 with no byte-order mark.
+    //  See https://github.com/RealDeuce/bbsdev.drp for the specification,
+    //  its ABNF grammar, and an example of each communications mode.
+    //
+    //  The door finds this file through the BBSDEV_DRP environment variable
+    //  rather than an argument; abracadabra sets it.
+    //
+    getBbsDevBuffer() {
+        const user = this.client.user;
+        const term = this.client.term;
+
+        return Buffer.from(
+            [
+                '1.0', //  format version
+                this.commType,
+                this.commParams, //  empty for 'local' and 'stdio'
+                bbsDevField(user.username, `user${user.userId}`),
+                //
+                //  Line 5 asks two things of the user key: stable for the
+                //  life of the account, and never reassigned to another. A
+                //  |userId| is the first but not the second -- user.id is an
+                //  INTEGER PRIMARY KEY without AUTOINCREMENT, so it is a
+                //  rowid alias and SQLite reuses the largest unused one.
+                //  Delete the newest user and the next account created takes
+                //  its id, so a door keying saved state on this would hand
+                //  the deleted user's data to a new one.
+                //
+                //  Written as-is deliberately: the alternatives are worse
+                //  here. AccountCreated would distinguish a recycled id but
+                //  is written only by the new-user flow (nua.js), so an
+                //  account made with |oputil user add| -- often the first
+                //  sysop -- has none. A key of our own would have to be
+                //  generated and persisted on first door launch, which is a
+                //  user-table concern rather than a drop file one.
+                //
+                user.userId.toString(),
+                (term.termWidth || 80).toString(),
+                (term.termHeight || 25).toString(),
+                //
+                //  ANSI is asserted rather than asked. term.isANSI() exists
+                //  and is false for types in |utf8TermList| such as 'dumb',
+                //  but ENiGMA draws every session with ANSI regardless, so
+                //  reporting the terminal's opinion would tell the door 'N'
+                //  about a session that is about to receive escape sequences.
+                //
+                'Y',
+                'N', //  RIP: not supported
+                term.ctermVersion || '', //  empty unless the caller answered DA as CTerm
+                '', //  time of logoff: ENiGMA½ has no per-call time limit
+                bbsDevEncodingName(this.doorEncoding),
+                bbsDevLanguage(Config().general.language),
+                `ENiGMA½ BBS ${packageJson.version}`,
+                bbsDevField(Config().general.boardName, 'ENiGMA½ BBS'),
+                bbsDevField(StatLog.getSystemStat(SysProps.SysOpUsername), 'sysop'),
+                this.bbsDevAccessLevel,
+                this.client.node.toString(),
+                'N', //  no separate operator-side display to ask for
+            ].join('\r\n') + '\r\n',
+            'utf8'
+        );
+    }
+
+    //
+    //  The format's two portable role tokens where they apply, and the same
+    //  ordinal the legacy drop files carry otherwise. A door is told a role,
+    //  not given one: this file authenticates nothing.
+    //
+    get bbsDevAccessLevel() {
+        const user = this.client.user;
+        if (user.isSysOp()) {
+            return 'sysop';
+        }
+        if (user.isGroupMember('sysops')) {
+            return 'cosysop';
+        }
+        return user.getLegacySecurityLevel().toString();
+    }
+
+    //
+    //  What would make us write a file no consumer may accept. The spec's own
+    //  rule is that a door rejects a field it cannot use rather than guessing
+    //  around it, so a producer that cannot fill one has nothing honest to
+    //  write and says so here instead.
+    //
+    bbsDevError() {
+        if (this.commError) {
+            return this.commError;
+        }
+        if (!bbsDevEncodingName(this.doorEncoding)) {
+            return `no IANA character set name is known for the door encoding "${this.doorEncoding}"`;
+        }
+        const language = Config().general.language;
+        if (!bbsDevLanguage(language)) {
+            return `"general.language" is not a well-formed BCP 47 tag: "${language}"`;
+        }
+    }
+
     createFile(cb) {
+        const bbsDevError = 'BBSDEV' === this.fileType ? this.bbsDevError() : null;
+        if (bbsDevError) {
+            return cb(Errors.MissingConfig(`Cannot write BBSDEV.DRP: ${bbsDevError}`));
+        }
+
         mkdirs(paths.dirname(this.fullPath), err => {
             if (err) {
                 return cb(err);
