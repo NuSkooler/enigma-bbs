@@ -61,6 +61,10 @@
                     action: @menu:editAutoSignature
                 }
                 {
+                    value: { command: "B" }
+                    action: @menu:bluewaveExport
+                }
+                {
                     value: { command: "Q" }
                     action: @systemMethod:prevMenu
                 }
@@ -560,6 +564,16 @@
                     actionKeys: @reference:common.quitToPrev
                 }
             }
+        }
+
+        //
+        //  No art ships for this menu, so the module runs without a status or
+        //  progress view; a theme that supplies art gets both. The packet is
+        //  placed in the caller's download queue either way.
+        //
+        bluewaveExport: {
+            desc: Blue Wave Export
+            module: message_base_bluewave_export
         }
 
         editAutoSignature: {

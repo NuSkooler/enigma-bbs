@@ -389,6 +389,33 @@ describe('config validation: issue helpers', () => {
 
 // ─── Open maps whose values do have a known key set ──────────────────────────
 
+describe('config validation: Blue Wave area entries', () => {
+    //
+    //  Same exception as ticAreas below: the key set is three long and fully
+    //  enumerable. A mistyped 'echotag' is not a warning worth skipping --
+    //  the derived tag is used instead, and the echotag is what a reply is
+    //  routed by, so the area a reply lands in silently changes.
+    //
+    const bwAreas = entries =>
+        validate({ messageNetworks: { bluewave: { areas: entries } } });
+
+    it('catches echotags where echotag was meant', () => {
+        const [issue] = bwAreas({ general: { echotags: 'GENERAL' } });
+
+        assert.equal(issue.code, IssueCodes.UnknownKey);
+        assert.equal(issue.suggestion, 'echotag');
+    });
+
+    it('accepts every documented member', () => {
+        assert.deepEqual(
+            bwAreas({
+                general: { number: 3, echotag: 'GENERAL', title: 'General Chatter' },
+            }),
+            []
+        );
+    });
+});
+
 describe('config validation: ticAreas entries', () => {
     //
     //  Most open map values cannot be closed -- a file area carries whatever

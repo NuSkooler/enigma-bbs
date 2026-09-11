@@ -300,6 +300,30 @@ module.exports = {
     'messageNetworks.qwk.areas': { openMap: true },
     'messageNetworks.qwk.bbsID': { type: 'string' },
 
+    'messageNetworks.bluewave': { type: 'object', closedKeys: true },
+    //
+    //  A mistyped key here is silently ignored and the derived value used
+    //  instead -- for 'echotag' that quietly changes what a reply routes by --
+    //  so the value shape is closed even though the area tags above are not.
+    //
+    'messageNetworks.bluewave.areas': {
+        openMap: true,
+        value: {
+            type: 'object',
+            closedKeys: true,
+            children: {
+                number: { type: 'number' },
+                echotag: { type: 'string' },
+                title: { type: 'string' },
+            },
+        },
+    },
+    'messageNetworks.bluewave.bbsID': {
+        type: 'string',
+        description:
+            'Packet ID: the 1-8 character root name every file in a Blue Wave packet shares.',
+    },
+
     //  ── FTN BSO scanner/tosser ───────────────────────────────────────────
     'scannerTossers.ftn_bso.nodes': { openMap: true },
     //

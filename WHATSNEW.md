@@ -3,6 +3,12 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Blue Wave offline mail packets** ([#119](https://github.com/NuSkooler/enigma-bbs/issues/119)) — a caller can export their unread messages as a Blue Wave packet and read them offline. Where QWK identifies a message area by a conference number, Blue Wave carries a 20 character echotag, so a reply is routed by a name that survives the sysop renumbering the message base.
+
+  The new `message_base_bluewave_export` menu module writes the packet and places it in the caller's download queue, area by area from the point each was last exported. `messageNetworks.bluewave` sets the packet ID and pins an area's echotag, number or title where the derived one will not do. Callers reach it with <kbd>B</kbd> from the message base menu. See [Blue Wave Support](https://enigma-bbs.github.io/messageareas/bluewave/).
+
+  Reply packets are not read back in yet, so this is one-way for now, and the packet says so where the format has a field for it.
+
 * **`oputil.js config validate` checks your configuration before you restart** ([#281](https://github.com/NuSkooler/enigma-bbs/issues/281)) — a mistyped key in `config.hjson` has never been reported. Because your file is merged *into* the defaults, a typo does not replace anything: `outbund` lands quietly beside `outbound`, the setting you wrote is never read, and the board goes on using the default. Nothing is logged, and the file looks correct.
 
   The new command reports those, along with values whose type disagrees with the default they override:
