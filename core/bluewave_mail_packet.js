@@ -113,6 +113,9 @@ const MessageFlags = {
 //  MIX_REC.totmsgs is 16 bits, so an area cannot carry more than this
 const MaxMessagesPerArea = 65535;
 
+//  INF_AREA_INFO.areanum is a six byte NUL terminated string
+const MaxAreaNumberDigits = 5;
+
 const HostFieldLimit = {
     FromTo: 35,
     Subject: 71,
@@ -276,6 +279,16 @@ class BlueWavePacketWriter extends EventEmitter {
                 this.emit(
                     'warning',
                     Errors.General(`Blue Wave area number ${pinned} is used twice`)
+                );
+            } else if (_.toString(pinned).length > MaxAreaNumberDigits) {
+                //  INF_AREA_INFO.areanum is six bytes and writeFixed reserves
+                //  the NUL, so a longer number would be silently truncated --
+                //  and a truncated number joins .MIX to the wrong area
+                this.emit(
+                    'warning',
+                    Errors.General(
+                        `Blue Wave area number ${pinned} is longer than ${MaxAreaNumberDigits} digits`
+                    )
                 );
             } else {
                 return pinned;
