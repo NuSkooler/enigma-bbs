@@ -552,3 +552,127 @@ describe('Blue Wave area kinds', () => {
         );
     });
 });
+
+//
+//  A golden copy of a packet, byte for byte.
+//
+//  The assertions elsewhere in this file read the writer's output at offsets
+//  taken from the kit, which catches a field written to the wrong place but
+//  not a field that quietly moves along with its own test. This compares the
+//  whole of all four members against a checked-in copy, so any change to the
+//  layout has to be made deliberately by regenerating the fixture:
+//
+//      BLUEWAVE_FIXTURE_UPDATE=1 npx mocha test/bluewave_packet.test.js \
+//          --require test/setup.js --exit
+//
+//  Regenerating is the moment to ask whether the change was intended, and to
+//  check the result against bluewave.h rather than against the writer.
+//
+describe('Blue Wave packet fixture', () => {
+    const fixtureDir = paths.join(__dirname, 'fixtures', 'bluewave');
+    const members = ['INF', 'MIX', 'FTI', 'DAT'];
+
+    //
+    //  Every input is pinned: the area names come from a config pushed here
+    //  rather than the caller's, and the message date is built from local
+    //  components because the .FTI carries the board's own time.
+    //
+    function buildFixturePacket(cb) {
+        const previousConfig = configModule._pushTestConfig({
+            debug: { assertsEnabled: false },
+            menus: { cls: false },
+            general: { boardName: 'ENiGMA½ BBS' },
+            messageConferences: {
+                local: {
+                    name: 'Local',
+                    areas: {
+                        general: { name: 'General Chatter' },
+                        fido_general: { name: 'Fido General', addressFlavor: 'ftn' },
+                    },
+                },
+            },
+        });
+
+        const realInit = StatLog.init;
+        const realGetSystemStat = StatLog.getSystemStat;
+        StatLog.init = callback => callback(null);
+        StatLog.getSystemStat = () => 'SysOp Name';
+
+        const writer = new BlueWavePacketWriter({
+            bbsID: 'ENIGMA',
+            user: { username: 'testuser', realName: () => 'Test User' },
+            systemName: 'Test Board',
+            sysOpName: 'SysOp Name',
+        });
+
+        writer.once('error', err => {
+            throw err;
+        });
+
+        writer.once('ready', () => {
+            writer.addArea('general');
+            writer.addArea('fido_general');
+
+            writer.appendMessage(
+                makeMessage('general', {
+                    subject: 'A fixture message',
+                    message: 'One line of text.',
+                })
+            );
+            writer.appendMessage(
+                makeMessage('fido_general', {
+                    fromUserName: 'Distant Node',
+                    subject: 'An echomail fixture',
+                    message: 'Another line.',
+                })
+            );
+
+            writer.writePacketFiles(err => {
+                StatLog.init = realInit;
+                StatLog.getSystemStat = realGetSystemStat;
+                configModule._popTestConfig(previousConfig);
+
+                assert.equal(err, null);
+
+                const produced = {};
+                members.forEach(ext => {
+                    produced[ext] = fs.readFileSync(
+                        paths.join(writer.workDir, `ENIGMA.${ext}`)
+                    );
+                });
+                cb(produced);
+            });
+        });
+
+        writer.init();
+    }
+
+    it('matches the checked-in packet byte for byte', done => {
+        buildFixturePacket(produced => {
+            if (process.env.BLUEWAVE_FIXTURE_UPDATE) {
+                fs.mkdirSync(fixtureDir, { recursive: true });
+                members.forEach(ext =>
+                    fs.writeFileSync(
+                        paths.join(fixtureDir, `ENIGMA.${ext}`),
+                        produced[ext]
+                    )
+                );
+                return done();
+            }
+
+            members.forEach(ext => {
+                const expected = fs.readFileSync(paths.join(fixtureDir, `ENIGMA.${ext}`));
+                assert.equal(
+                    produced[ext].length,
+                    expected.length,
+                    `ENIGMA.${ext} changed length`
+                );
+                assert.ok(
+                    produced[ext].equals(expected),
+                    `ENIGMA.${ext} differs from the fixture`
+                );
+            });
+            done();
+        });
+    });
+});
