@@ -384,6 +384,7 @@ describe('config schema against config_default.js', () => {
             'general.closedSystem',
             'general.configValidation',
             'general.description',
+            'general.language',
             'general.maxConnections',
             'general.menuFile',
             'general.prettyBoardName',

@@ -31,7 +31,8 @@ The `abracadabra` `config` block supports the following fields:
 | `nodeMax` | No | Max concurrent sessions for this door. Uses `name` as the tracking key. |
 | `tooManyArt` | No | Art spec to display when `nodeMax` is exceeded. |
 | `io` | No | I/O mode: `stdio` (default) or `socket`. When `socket`, ENiGMA½ spawns a temporary TCP server on `{srvPort}` that the door process connects back to. |
-| `commType` | No | What the drop file tells the door it is talking to: `local`, `serial`, or `socket`. Defaults to `socket` when `io: socket`, otherwise `local`. See [Comm Type](#comm-type) below. |
+| `commType` | No | What the drop file tells the door it is talking to: `local`, `serial`, or `socket`, defaulting to `socket` when `io: socket` and `local` otherwise. `dropFileType: BBSDEV` takes a wider set with a different default — see [BBSDEV.DRP](#bbsdevdrp). |
+| `commParams` | No | The descriptor, handle, UART base and IRQ, or FOSSIL port belonging to `commType`. Read only for `dropFileType: BBSDEV`. See [BBSDEV.DRP](#bbsdevdrp) below. |
 | `encoding` | No | The door process's text encoding. Defaults to `cp437`. Linux-native binaries often use `utf8`. |
 
 #### Comm Type
@@ -40,7 +41,7 @@ The `abracadabra` `config` block supports the following fields:
 
 | `commType` | Reported as | Use when |
 |------------|-------------|----------|
-| `local` (default) | `DOOR32.SYS` comm type `0`, `DOOR.SYS` `COM0:`, `DORINFO` `0` | The door reads stdin and writes stdout. This covers `io: stdio`, which is nearly every native or scripted door. |
+| `local` (default for the legacy formats) | `DOOR32.SYS` comm type `0`, `DOOR.SYS` `COM0:`, `DORINFO` `0` | The door reads stdin and writes stdout. This covers `io: stdio`, which is nearly every native or scripted door. |
 | `serial` | `DOOR32.SYS` comm type `1`, `DOOR.SYS` `COM1:`, `DORINFO` `COM1` | An emulator sits between ENiGMA½ and the door and presents it a COM port — QEMU bridging `{srvPort}` onto `isa-serial`, for example. |
 | `socket` | `DOOR32.SYS` comm type `2`, `DOOR.SYS` `COM1:`, `DORINFO` `COM1` | Descriptor sharing by way of [bivrost!](#door32sys-socket-descriptor-sharing). |
 
@@ -49,6 +50,33 @@ Setting `commType: socket` does **not** give the door a socket. ENiGMA½ shares 
 :::
 
 Doors that ignore these fields entirely — most DOS-era games under an emulator — are unaffected by any of this.
+
+#### BBSDEV.DRP
+
+`dropFileType: BBSDEV` writes a [BBSDEV.DRP](https://github.com/RealDeuce/bbsdev.drp) instead of one of the legacy formats.
+
+The door is told where the file is through the `BBSDEV_DRP` environment variable, which ENiGMA½ sets to the full path before it spawns the process. The value is neither quoted nor shell-escaped, and a door reads it from its own environment. An `env` of your own still replaces ENiGMA½'s environment as it always has; `BBSDEV_DRP` is added to whichever environment the door gets.
+
+`commType` names a wider set of mechanisms, and most of them take a parameter in `commParams`:
+
+| `commType` | `commParams` | The door is handed |
+|------------|--------------|--------------------|
+| `local` | none | its own local console |
+| `stdio` | none | terminal input on stdin, terminal output on stdout. This is the default under `io: stdio` |
+| `serial` | file descriptor | an inherited, configured POSIX serial descriptor |
+| `winserial` | Win32 `HANDLE` | an inherited, configured Win32 COM handle |
+| `uart` | `HHHH,I` — I/O base in four uppercase hex digits, then the IRQ | direct DOS UART access |
+| `fossil` | port, 0 through 254 | an initialized FOSSIL interface |
+
+The format also has a `socket` mode, for a socket the door *inherits*. ENiGMA½ never has one to pass on -- `io: socket` stands up a listener the door dials -- so `commType: socket` is refused here rather than written, whatever `commParams` you give it. A value for `serial` or `winserial` has to come from the emulator or bridge you put between ENiGMA½ and the door — QEMU, DOSEMU, [bivrost!](#door32sys-socket-descriptor-sharing).
+
+**A channel ENiGMA½ cannot name stops the door from starting.** Where the legacy formats fall back to `local`, `local` in this format is a positive claim — the door uses its current local console — so writing it for a door reading a socket would describe a screen nobody sees. Instead the drop file is refused, the door does not run, and the reason is logged. That is what happens under `io: socket`: the socket ENiGMA½ shares is a server the door dials rather than a descriptor it inherits, and the format has no token for that. A QEMU or DOSEMU setup says what the door really gets — `commType: uart` with `commParams: 03F8,4`, or `fossil` with `0` — and writes a valid file.
+
+Line 12 names the character set of the door's terminal data, and it is taken from the door's own `encoding` rather than the caller's terminal encoding -- that is the value ENiGMA½ decodes the door's output with, so the two cannot disagree. An encoding it cannot name in the registry's spelling refuses the file rather than guessing; aliases iconv accepts, such as `437` or `win1252`, are folded onto the same name.
+
+Line 13 must be a well-formed BCP 47 tag. A `general.language` that is not one -- `English (US)`, say -- refuses the file rather than writing something a conforming door must reject.
+
+Line 11, the forced logoff time, is written empty: ENiGMA½ imposes no per-call time limit.
 
 #### Argument Variables
 

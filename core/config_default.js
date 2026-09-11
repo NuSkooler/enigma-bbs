@@ -17,6 +17,11 @@ module.exports = () => {
             achievementFile: 'achievements.hjson',
             maxConnections: 0, //  0 or less means 'unlimited'
 
+            //  BCP 47 language tag for the board, e.g. 'en-US', 'de', 'ru'.
+            //  Reported to doors that ask what language the caller reads;
+            //  ENiGMA½ itself is not translated.
+            language: 'en-US',
+
             //
             //  Report configuration problems -- unrecognised keys, values of
             //  the wrong type -- at startup and on hot reload. Set to 'off'
