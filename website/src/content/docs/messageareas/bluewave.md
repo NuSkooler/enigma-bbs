@@ -41,7 +41,9 @@ An area tag reaches the packet as an echotag, which is what a reply is routed by
 ```
 
 ### Menu Configuration
-The export is a menu module. Add it to a menu of your own:
+A new installation reaches the export with <kbd>B</kbd> from the message base menu, where the stock theme lists it as `b blue wave export`. A theme of your own needs that line added to its `MSGMNU` art, and a board configured before this landed keeps the menus it already has, so add the entry below to one of them.
+
+The export is a menu module, so it can go on any menu:
 
 ```hjson
 bluewaveExport: {
@@ -53,7 +55,7 @@ bluewaveExport: {
 }
 ```
 
-A caller who presses <kbd>ESC</kbd> during the export cancels it. The finished packet is placed in their download queue and is valid until the session ends.
+A menu with no art has no status or progress view. The export still runs and the packet still arrives; the caller just sees nothing while it works, and `progBarChar` has nothing to draw into. A caller who presses <kbd>ESC</kbd> during the export cancels it. The finished packet is placed in their download queue and is valid until the session ends.
 
 ### What a Caller Gets
 * Every message area they can read is listed in the packet, whether or not it had new mail.

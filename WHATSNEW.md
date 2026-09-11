@@ -5,7 +5,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 * **Blue Wave offline mail packets** ([#119](https://github.com/NuSkooler/enigma-bbs/issues/119)) — a caller can export their unread messages as a Blue Wave packet and read them offline. Where QWK identifies a message area by a conference number, Blue Wave carries a 20 character echotag, so a reply is routed by a name that survives the sysop renumbering the message base.
 
-  The new `message_base_bluewave_export` menu module writes the packet and places it in the caller's download queue, area by area from the point each was last exported. `messageNetworks.bluewave` sets the packet ID and pins an area's echotag, number or title where the derived one will not do. See [Blue Wave Support](https://nuskooler.github.io/enigma-bbs/messageareas/bluewave.html).
+  The new `message_base_bluewave_export` menu module writes the packet and places it in the caller's download queue, area by area from the point each was last exported. `messageNetworks.bluewave` sets the packet ID and pins an area's echotag, number or title where the derived one will not do. Callers reach it with <kbd>B</kbd> from the message base menu. See [Blue Wave Support](https://enigma-bbs.github.io/messageareas/bluewave/).
 
   Reply packets are not read back in yet, so this is one-way for now, and the packet says so where the format has a field for it.
 
