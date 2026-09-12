@@ -1,4 +1,9 @@
-node_modules
+#  A local build copies the whole checkout in with COPY . -- nothing here is
+#  needed at runtime, and a developer's tree can carry hundreds of megabytes
+#  of it (.git, the website's own node_modules and build output). CI checks
+#  out fresh, so this mostly protects `docker build` on a working copy.
+.git
+**/node_modules
 yarn.lock
 
 filebase
@@ -9,3 +14,5 @@ logs
 mail
 docs/_site
 docs/.sass-cache
+website/dist
+website/.astro
