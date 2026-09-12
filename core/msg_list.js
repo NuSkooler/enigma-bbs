@@ -135,9 +135,9 @@ exports.getModule = class MessageListModule extends (
             },
             //
             //  Posting from a list targets the area the focused message is
-            //  in rather than the caller's current area, since a personal or
-            //  search list spans areas. The post module checks write access
-            //  against that tag itself.
+            //  in rather than the caller's current area, since the personal
+            //  list spans areas. The post module checks write access against
+            //  that tag itself.
             //
             postNewMessage: (formData, extraArgs, cb) => {
                 if (MciViewIds.allViews.msgList != formData.submitId) {
