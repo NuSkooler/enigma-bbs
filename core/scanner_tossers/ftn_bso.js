@@ -761,30 +761,85 @@ function FTNMessageScanTossModule() {
         }
     };
 
-    this.getAreaLastScanId = function (areaTag, cb) {
+    //
+    //  Watermarks are keyed by (scan_toss, area_tag). The export scan uses
+    //  ScanToss.Export; the relay scan (performEchoMailRelayExport) keeps its
+    //  own under ScanToss.Relay so the two never move each other.
+    //
+    this.getAreaLastScanId = function (areaTag, scanToss, cb) {
         const sql = `SELECT message_id
             FROM message_area_last_scan
-            WHERE scan_toss = 'ftn_bso' AND area_tag = ?
+            WHERE scan_toss = ? AND area_tag = ?
             LIMIT 1;`;
 
         try {
-            const row = msgDb.prepare(sql).get(areaTag);
+            const row = msgDb.prepare(sql).get(scanToss, areaTag);
             return cb(null, row ? row.message_id : 0);
         } catch (err) {
             return cb(err);
         }
     };
 
-    this.setAreaLastScanId = function (areaTag, lastScanId, cb) {
+    this.setAreaLastScanId = function (areaTag, scanToss, lastScanId, cb) {
         const sql = `REPLACE INTO message_area_last_scan (scan_toss, area_tag, message_id)
-            VALUES ('ftn_bso', ?, ?);`;
+            VALUES (?, ?, ?);`;
 
         try {
-            msgDb.prepare(sql).run(areaTag, lastScanId);
+            msgDb.prepare(sql).run(scanToss, areaTag, lastScanId);
             return cb(null);
         } catch (err) {
             return cb(err);
         }
+    };
+
+    //
+    //  True when |areaTag| has never been scanned under |scanToss|.
+    //
+    //  getAreaLastScanId() cannot answer this: it reports 0 both for "never
+    //  scanned" and for "scanned, nothing seen yet", and the relay scan has to
+    //  tell them apart. A relay watermark that starts at 0 selects every
+    //  message ever imported into the area -- see seedRelayScanId().
+    //
+    this.isAreaScanUnset = function (areaTag, scanToss) {
+        const sql = `SELECT 1 AS present
+            FROM message_area_last_scan
+            WHERE scan_toss = ? AND area_tag = ?
+            LIMIT 1;`;
+        return !msgDb.prepare(sql).get(scanToss, areaTag);
+    };
+
+    //
+    //  Start relaying from *now* rather than from the beginning of time.
+    //
+    //  The relay scan selects imported messages above its watermark. On an
+    //  established board the entire message base is imported messages, so a
+    //  watermark starting at 0 would offer years of history to a link that has
+    //  never asked for it -- and, since a destination has only 36 bundle names
+    //  per day (getOutgoingBundleFileName), would likely stall part way through
+    //  and retry the same pile every scan.
+    //
+    //  So on first sight of an area, record where it is and export nothing.
+    //  Mail imported from here on is relayed; anything already in the base is
+    //  treated as history.
+    //
+    this.seedRelayScanId = function (areaTag, scanToss, cb) {
+        let maxId = 0;
+        try {
+            const row = msgDb
+                .prepare(
+                    `SELECT MAX(message_id) AS max_id FROM message WHERE area_tag = ?;`
+                )
+                .get(areaTag);
+            maxId = (row && row.max_id) || 0;
+        } catch (err) {
+            return cb(err);
+        }
+
+        Log.info(
+            { areaTag, scanToss, lastScanId: maxId },
+            'EchoMail relay: first scan of this area for this uplink; starting from current mail'
+        );
+        return this.setAreaLastScanId(areaTag, scanToss, maxId, err => cb(err, maxId));
     };
 
     //
@@ -992,10 +1047,13 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function storeStateFlags0Meta(callback) {
-                            message.updateMetaValue(
-                                'System',
-                                'state_flags0',
-                                Message.StateFlags0.Exported.toString(),
+                            //  OR the bit in rather than writing the value:
+                            //  a relayed message already carries Imported, and
+                            //  message_meta's UNIQUE key includes meta_value,
+                            //  so a plain write leaves two rows instead of a
+                            //  combined one.
+                            message.setStateFlags0Bit(
+                                Message.StateFlags0.Exported,
                                 err => {
                                     callback(err);
                                 }
@@ -1357,10 +1415,11 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function storeStateFlags0Meta(callback) {
-                            return message.updateMetaValue(
-                                'System',
-                                'state_flags0',
-                                Message.StateFlags0.Exported.toString(),
+                            //  See the EchoMail export path: OR the bit in so a
+                            //  message that already carries another flag ends up
+                            //  with one combined value rather than two rows.
+                            return message.setStateFlags0Bit(
+                                Message.StateFlags0.Exported,
                                 callback
                             );
                         },
@@ -1473,7 +1532,20 @@ function FTNMessageScanTossModule() {
         );
     };
 
-    this.exportEchoMailMessagesToUplinks = function (messageUuids, areaConfig, cb) {
+    //
+    //  |uplinks| is passed rather than read from |areaConfig| because the relay
+    //  scan sends a given message to a *subset* of the area's uplinks -- the
+    //  ones that have not already seen it. Note that the SEEN-BY line still
+    //  names every configured uplink: prepareMessage() builds it from config,
+    //  not from this list, which is correct FTN practice (you declare the whole
+    //  distribution) and helps a downlink we skipped avoid sending it back.
+    //
+    this.exportEchoMailMessagesToUplinks = function (
+        messageUuids,
+        areaConfig,
+        uplinks,
+        cb
+    ) {
         //  One uplink failing must not abandon the rest, but it must not pass
         //  for success either: the caller advances the area's last scan ID on
         //  a clean return, and doing that after a failed uplink is what turns
@@ -1488,7 +1560,7 @@ function FTNMessageScanTossModule() {
         //  uplinks landing in one millisecond therefore choose the same file
         //  name, and one silently overwrites or loses the other's mail.
         async.eachSeries(
-            areaConfig.uplinks,
+            uplinks,
             (uplink, nextUplink) => {
                 const nodeConfig = self.getNodeConfigByAddress(uplink);
                 if (!nodeConfig) {
@@ -1609,7 +1681,15 @@ function FTNMessageScanTossModule() {
 
                                     fse.move(oldPath, newPath, err => {
                                         if (err) {
-                                            Log.warn(
+                                            //  The packet is still in the temp
+                                            //  area, so this export did not
+                                            //  happen. Report it: the caller
+                                            //  advances the area's last scan ID
+                                            //  on a clean return, and doing that
+                                            //  here is how a disk-full or
+                                            //  permission error turns into mail
+                                            //  nobody ever sees again. See #818.
+                                            Log.error(
                                                 {
                                                     oldPath: oldPath,
                                                     newPath: newPath,
@@ -1618,7 +1698,7 @@ function FTNMessageScanTossModule() {
                                                 'Failed moving temporary outbound file!'
                                             );
 
-                                            return nextFile();
+                                            return nextFile(err);
                                         }
 
                                         const flowFilePath = self.getOutgoingFlowFileName(
@@ -1637,10 +1717,39 @@ function FTNMessageScanTossModule() {
                                             exportOpts.destAddress,
                                             err => {
                                                 if (err) {
-                                                    Log.warn(
-                                                        { path: flowFilePath },
+                                                    //  Also fatal to this
+                                                    //  export, and less obvious
+                                                    //  than the move: the packet
+                                                    //  sits in outbound with no
+                                                    //  flow file referencing it,
+                                                    //  so the mailer never offers
+                                                    //  it and nothing cleans it
+                                                    //  up.
+                                                    //
+                                                    //  This includes a busy flow
+                                                    //  file, which is an ordinary
+                                                    //  outcome under concurrent
+                                                    //  sessions -- and swallowing
+                                                    //  it meant a node that was
+                                                    //  merely busy lost the mail
+                                                    //  permanently, because the
+                                                    //  scan ID moved on anyway.
+                                                    //
+                                                    //  Retrying re-packetises
+                                                    //  under a fresh name rather
+                                                    //  than re-referencing this
+                                                    //  one, so the cost of the
+                                                    //  failed attempt is an
+                                                    //  orphaned packet, not a
+                                                    //  duplicate send.
+                                                    Log.error(
+                                                        {
+                                                            path: flowFilePath,
+                                                            error: err.toString(),
+                                                        },
                                                         'Failed appending flow reference record!'
                                                     );
+                                                    return nextFile(err);
                                                 }
                                                 nextFile();
                                             }
@@ -3889,7 +3998,7 @@ function FTNMessageScanTossModule() {
                 async.waterfall(
                     [
                         function getLastScanId(callback) {
-                            self.getAreaLastScanId(areaTag, callback);
+                            self.getAreaLastScanId(areaTag, ScanToss.Export, callback);
                         },
                         function getNewUuids(lastScanId, callback) {
                             let rows;
@@ -3912,6 +4021,7 @@ function FTNMessageScanTossModule() {
                             self.exportEchoMailMessagesToUplinks(
                                 uuidsOnly,
                                 areaConfig,
+                                areaConfig.uplinks,
                                 err => {
                                     const newLastScanId =
                                         msgRows[msgRows.length - 1].message_id;
@@ -3946,7 +4056,12 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function updateLastScanId(newLastScanId, callback) {
-                            self.setAreaLastScanId(areaTag, newLastScanId, callback);
+                            self.setAreaLastScanId(
+                                areaTag,
+                                ScanToss.Export,
+                                newLastScanId,
+                                callback
+                            );
                         },
                     ],
                     () => {
@@ -3957,6 +4072,420 @@ function FTNMessageScanTossModule() {
             err => {
                 return cb(err);
             }
+        );
+    };
+
+    //
+    //  Does |addr| name the same system as |other|? Point defaults to 0 on both
+    //  sides, and a missing zone is treated as "unknown, do not let it decide",
+    //  because a type-2 packet header carries no zone at all.
+    //
+    this.isSameFtnSystem = function (addr, other) {
+        if (!addr || !other) {
+            return false;
+        }
+        if (addr.net !== other.net || addr.node !== other.node) {
+            return false;
+        }
+        if ((addr.point || 0) !== (other.point || 0)) {
+            return false;
+        }
+        if (_.isNumber(addr.zone) && _.isNumber(other.zone)) {
+            return addr.zone === other.zone;
+        }
+        return true;
+    };
+
+    //
+    //  Which of |uplinks| should be offered a message we imported?
+    //
+    //  Three rules, in order:
+    //
+    //  1. Never back to the system that handed it to us. The packet header
+    //     origin is recorded at import (ftn_orig_*) and export does not
+    //     overwrite it in the database, so this is exact and does not depend on
+    //     SEEN-BY being well formed.
+    //
+    //  2. Always to our own points. SEEN-BY has no point component (FTS-1027):
+    //     a point's net/node are its boss's, and an upstream sender routinely
+    //     adds the boss to SEEN-BY before the message ever arrives. A plain
+    //     SEEN-BY test therefore reads "I have seen this", which is true by
+    //     definition once imported, so a point would never be relayed to.
+    //
+    //  3. Otherwise, only to uplinks not already in SEEN-BY -- the ordinary
+    //     loop guard for a genuine peer relationship.
+    //
+    this.relayTargetsForMessage = function (
+        uplinks,
+        seenByAddrs,
+        originAddress,
+        localAddress
+    ) {
+        return uplinks.filter(uplink => {
+            const addr = _.isString(uplink) ? Address.fromString(uplink) : uplink;
+            if (!addr || !addr.isValid()) {
+                Log.warn({ uplink }, 'EchoMail relay: unparsable uplink address');
+                return false;
+            }
+
+            if (self.isSameFtnSystem(addr, originAddress)) {
+                return false;
+            }
+
+            const isOurPoint =
+                (addr.point || 0) > 0 &&
+                localAddress &&
+                addr.net === localAddress.net &&
+                addr.node === localAddress.node &&
+                (!_.isNumber(addr.zone) ||
+                    !_.isNumber(localAddress.zone) ||
+                    addr.zone === localAddress.zone);
+            if (isOurPoint) {
+                return true;
+            }
+
+            return !seenByAddrs.some(
+                seen => seen.net === addr.net && seen.node === addr.node
+            );
+        });
+    };
+
+    //
+    //  EchoMail we imported, offered on to the area's other uplinks.
+    //
+    //  performEchoMailExport() cannot do this: it excludes any message carrying
+    //  a System/state_flags0 row, and import always writes one. So a second
+    //  uplink on an area -- a downstream point, or a sub-hub -- has until now
+    //  only ever received messages composed by a user at a terminal on this
+    //  system, never the echomail that flowed in from the area's own source.
+    //
+    //  Opt-in per area via `relay: true`, because relaying is outwardly visible
+    //  on the network: a board that configured a second uplink for some other
+    //  reason should not silently start feeding it.
+    //
+    this.performEchoMailRelayExport = function (cb) {
+        const config = Config();
+        const areaTags = Object.keys(
+            _.get(config, 'messageNetworks.ftn.areas', {})
+        ).filter(areaTag => Message.WellKnownAreaTags.Private !== areaTag);
+
+        //
+        //  Candidates are messages above the relay watermark that were
+        //  imported. Messages this system composed locally are the export
+        //  scan's business, not ours.
+        //
+        //  Test the *bit*, not the value. Once a message has been through an
+        //  export its flags read 3 (Imported|Exported), not 1, and an equality
+        //  test stops matching it -- which matters on the retry after a failed
+        //  pass, where the flag was written before the failure and the message
+        //  still has to come round again.
+        //
+        const getCandidatesSql = `SELECT message_id, message_uuid
+            FROM message m
+            WHERE area_tag = ? AND message_id > ?
+              AND EXISTS (
+                SELECT 1 FROM message_meta
+                WHERE message_id = m.message_id
+                  AND meta_category = 'System'
+                  AND meta_name = 'state_flags0'
+                  AND (CAST(meta_value AS INTEGER) & ?) = ?
+              )
+            ORDER BY message_id;`;
+
+        const importedFlag = Message.StateFlags0.Imported;
+
+        //
+        //  Grouped by (network, uplink) rather than per area or per message.
+        //  A destination has only 36 bundle names per day
+        //  (getOutgoingBundleFileName), and once they are gone exports to that
+        //  node fail until the day rolls over. One call per destination per run
+        //  keeps a hub with many areas well clear of that. Batching across
+        //  areas is safe because exportMessagesByUuid loads each message
+        //  individually and prepareMessage takes the AREA kludge from the
+        //  message's own area_tag; only the network has to match, since that is
+        //  what supplies our local address.
+        //
+        const groups = new Map();
+
+        async.eachSeries(
+            areaTags,
+            (areaTag, nextArea) => {
+                const areaConfig = config.messageNetworks.ftn.areas[areaTag];
+                if (!self.isAreaConfigValid(areaConfig) || true !== areaConfig.relay) {
+                    return nextArea();
+                }
+
+                const networkConfig = self.getNetworkConfig(areaConfig.network);
+                if (!networkConfig || !networkConfig.localAddress) {
+                    Log.warn(
+                        { areaTag, network: areaConfig.network },
+                        'EchoMail relay: no local address for network; skipping area'
+                    );
+                    return nextArea();
+                }
+                const localAddress = new Address(networkConfig.localAddress);
+
+                //
+                //  Watermark per destination. An uplink seen for the first time
+                //  is seeded to where the area is now and considered no further
+                //  this pass, exactly as a new area is -- which is also what
+                //  makes adding an uplink to a live area safe.
+                //
+                const marks = new Map();
+                return async.eachSeries(
+                    areaConfig.uplinks,
+                    (uplink, nextUplink) => {
+                        const scanToss = relayScanToss(uplink);
+                        try {
+                            if (self.isAreaScanUnset(areaTag, scanToss)) {
+                                return self.seedRelayScanId(areaTag, scanToss, err =>
+                                    nextUplink(err)
+                                );
+                            }
+                        } catch (err) {
+                            return nextUplink(err);
+                        }
+                        return self.getAreaLastScanId(
+                            areaTag,
+                            scanToss,
+                            (err, lastScanId) => {
+                                if (err) {
+                                    return nextUplink(err);
+                                }
+                                marks.set(uplink, lastScanId);
+                                return nextUplink(null);
+                            }
+                        );
+                    },
+                    err => {
+                        if (err) {
+                            return nextArea(err);
+                        }
+                        if (0 === marks.size) {
+                            return nextArea(); //  every uplink was just seeded
+                        }
+
+                        //  One query for the area, from the furthest-behind
+                        //  destination; each uplink then takes the slice above
+                        //  its own watermark.
+                        const lowWater = Math.min(...marks.values());
+
+                        let rows;
+                        let metaByMessageId;
+                        try {
+                            rows = msgDb
+                                .prepare(getCandidatesSql)
+                                .all(areaTag, lowWater, importedFlag, importedFlag);
+                            if (0 === rows.length) {
+                                return nextArea();
+                            }
+                            metaByMessageId = self.getRelayDecisionMeta(
+                                rows.map(r => r.message_id)
+                            );
+                        } catch (err) {
+                            return nextArea(err);
+                        }
+
+                        rows.forEach(row => {
+                            const meta = metaByMessageId.get(row.message_id) || {};
+                            const targets = self.relayTargetsForMessage(
+                                areaConfig.uplinks,
+                                meta.seenBy || [],
+                                meta.origin,
+                                localAddress
+                            );
+
+                            marks.forEach((watermark, uplink) => {
+                                if (row.message_id <= watermark) {
+                                    return; //  this destination has passed it
+                                }
+
+                                const key = `${areaConfig.network} ${uplink}`;
+                                let group = groups.get(key);
+                                if (!group) {
+                                    group = {
+                                        network: areaConfig.network,
+                                        uplink,
+                                        uuids: [],
+                                        //  areaTag -> { maxId, contributed }
+                                        areas: new Map(),
+                                    };
+                                    groups.set(key, group);
+                                }
+
+                                let areaMark = group.areas.get(areaTag);
+                                if (!areaMark) {
+                                    areaMark = { maxId: 0, contributed: false };
+                                    group.areas.set(areaTag, areaMark);
+                                }
+                                //  Considered, so the watermark moves past it
+                                //  whether or not it is sent -- otherwise a
+                                //  message every uplink has already seen is
+                                //  re-judged on every pass, forever.
+                                areaMark.maxId = Math.max(areaMark.maxId, row.message_id);
+
+                                if (targets.includes(uplink)) {
+                                    group.uuids.push(row.message_uuid);
+                                    areaMark.contributed = true;
+                                }
+                            });
+                        });
+
+                        return nextArea();
+                    }
+                );
+            },
+            err => {
+                if (err) {
+                    return cb(err);
+                }
+
+                async.eachSeries(
+                    Array.from(groups.values()),
+                    (group, nextGroup) => {
+                        const areaTagList = Array.from(group.areas.keys());
+
+                        //  Nothing qualified for this destination, so there is
+                        //  nothing to send and nothing that can fail. Record
+                        //  the progress and move on.
+                        if (0 === group.uuids.length) {
+                            return self.advanceRelayScanIds(group, true, nextGroup);
+                        }
+
+                        //  A stand-in area config: exportEchoMailMessagesToUplinks
+                        //  uses it for the network (which supplies our local
+                        //  address) and for log context. Each message still
+                        //  carries its own area_tag through to the AREA kludge.
+                        const groupAreaConfig = {
+                            network: group.network,
+                            tag: `(relay: ${areaTagList.join(', ')})`,
+                            uplinks: [group.uplink],
+                        };
+
+                        self.exportEchoMailMessagesToUplinks(
+                            group.uuids,
+                            groupAreaConfig,
+                            [group.uplink],
+                            err => {
+                                if (err) {
+                                    Log.warn(
+                                        {
+                                            uplink: group.uplink,
+                                            messages: group.uuids.length,
+                                            error: err.message,
+                                        },
+                                        'EchoMail relay incomplete; will retry'
+                                    );
+                                } else {
+                                    Log.info(
+                                        {
+                                            uplink: group.uplink,
+                                            network: group.network,
+                                            messagesRelayed: group.uuids.length,
+                                            areas: areaTagList,
+                                        },
+                                        'EchoMail relay complete'
+                                    );
+                                }
+                                //  On failure only the areas that actually had
+                                //  mail in this batch are held back. An area
+                                //  that contributed nothing to it learned
+                                //  nothing from the failure and would otherwise
+                                //  re-judge the same messages every pass.
+                                return self.advanceRelayScanIds(group, !err, () =>
+                                    nextGroup(null)
+                                );
+                            }
+                        );
+                    },
+                    cb
+                );
+            }
+        );
+    };
+
+    //
+    //  Meta needed to decide where a candidate may be relayed, for a batch of
+    //  message IDs: the SEEN-BY entries and the packet header origin.
+    //
+    this.getRelayDecisionMeta = function (messageIds) {
+        const byId = new Map();
+        if (0 === messageIds.length) {
+            return byId;
+        }
+
+        //  SQLite has a hard limit on host parameters, so read in chunks rather
+        //  than building one enormous IN list.
+        const CHUNK = 500;
+        for (let i = 0; i < messageIds.length; i += CHUNK) {
+            const chunk = messageIds.slice(i, i + CHUNK);
+            const placeholders = chunk.map(() => '?').join(',');
+            const rows = msgDb
+                .prepare(
+                    `SELECT message_id, meta_name, meta_value
+                    FROM message_meta
+                    WHERE message_id IN (${placeholders})
+                      AND meta_category = 'FtnProperty'
+                      AND meta_name IN (
+                        'ftn_seen_by', 'ftn_orig_node', 'ftn_orig_network',
+                        'ftn_orig_zone', 'ftn_orig_point'
+                      );`
+                )
+                .all(...chunk);
+
+            rows.forEach(row => {
+                let entry = byId.get(row.message_id);
+                if (!entry) {
+                    entry = { seenByRaw: [], orig: {} };
+                    byId.set(row.message_id, entry);
+                }
+                if ('ftn_seen_by' === row.meta_name) {
+                    //  One row per line when it arrived as an array.
+                    entry.seenByRaw.push(row.meta_value);
+                } else {
+                    entry.orig[row.meta_name] = parseInt(row.meta_value, 10);
+                }
+            });
+        }
+
+        byId.forEach(entry => {
+            entry.seenBy = entry.seenByRaw.flatMap(raw =>
+                ftnUtil.parseAbbreviatedNetNodeList(raw)
+            );
+            const o = entry.orig;
+            if (_.isFinite(o.ftn_orig_node) && _.isFinite(o.ftn_orig_network)) {
+                entry.origin = new Address({
+                    node: o.ftn_orig_node,
+                    net: o.ftn_orig_network,
+                    zone: _.isFinite(o.ftn_orig_zone) ? o.ftn_orig_zone : undefined,
+                    point: _.isFinite(o.ftn_orig_point) ? o.ftn_orig_point : 0,
+                });
+            }
+        });
+
+        return byId;
+    };
+
+    //
+    //  Move this destination's watermark up for each area that fed it.
+    //
+    //  |delivered| says whether the batch got out. When it did not, only the
+    //  areas that contributed to the batch are held back -- an area that had
+    //  nothing for this uplink learned nothing from the failure, and holding it
+    //  back would have it re-judge the same messages on every pass.
+    //
+    this.advanceRelayScanIds = function (group, delivered, cb) {
+        const scanToss = relayScanToss(group.uplink);
+        async.eachSeries(
+            Array.from(group.areas.entries()),
+            (entry, nextArea) => {
+                const [areaTag, mark] = entry;
+                if (!delivered && mark.contributed) {
+                    return nextArea();
+                }
+                self.setAreaLastScanId(areaTag, scanToss, mark.maxId, nextArea);
+            },
+            cb
         );
     };
 
@@ -3995,6 +4524,7 @@ function FTNMessageScanTossModule() {
                 function getLastScanId(callback) {
                     return self.getAreaLastScanId(
                         Message.WellKnownAreaTags.Private,
+                        ScanToss.Export,
                         callback
                     );
                 },
@@ -4978,6 +5508,30 @@ function sweepOrphanBsyFiles(dirs) {
 }
 
 const IMPORT_WATCHDOG_MS = 5 * 60 * 1000;
+//
+//  scan_toss keys in message_area_last_scan. Export tracks what this system
+//  has written and offered upstream; Relay tracks what it has imported and
+//  passed on. Two scans over the same areas with different criteria, so they
+//  need separate watermarks.
+//
+const ScanToss = {
+    Export: 'ftn_bso',
+    Relay: 'ftn_bso_relay',
+};
+
+//
+//  The relay watermark is per (area, destination), not per area.
+//
+//  A single watermark for the whole area means one unreachable uplink holds it
+//  back for all of them: every pass then re-selects a set that only grows, and
+//  re-sends all of it to the uplinks that are working. A dead point would
+//  quietly turn into an ever-larger duplicate feed for everyone else. Each
+//  destination tracks its own progress instead.
+//
+function relayScanToss(uplink) {
+    return `${ScanToss.Relay}:${uplink}`;
+}
+
 const EXPORT_WATCHDOG_MS = 10 * 60 * 1000;
 
 //
@@ -5575,7 +6129,10 @@ FTNMessageScanTossModule.prototype.performExport = function (cb) {
                 'FTN export',
                 innerDone => {
                     async.eachSeries(
-                        ['EchoMail', 'NetMail'],
+                        //  EchoMailRelay runs after EchoMail: both can target
+                        //  the same node, and the export scan's packets should
+                        //  claim their bundle names first.
+                        ['EchoMail', 'EchoMailRelay', 'NetMail'],
                         (type, nextType) => {
                             self[`perform${type}Export`](err => {
                                 if (err) {
@@ -5646,6 +6203,7 @@ FTNMessageScanTossModule.prototype.record = function (message) {
             this.exportEchoMailMessagesToUplinks(
                 [message.messageUuid],
                 areaConfig,
+                areaConfig.uplinks,
                 err => {
                     this.exportingEnd(() => exportLog(err));
                 }

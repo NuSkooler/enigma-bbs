@@ -766,6 +766,59 @@ module.exports = class Message {
         }
     }
 
+    //
+    //  OR |bit| into this message's state_flags0, as one row.
+    //
+    //  updateMetaValue() cannot do this. message_meta's UNIQUE key includes
+    //  meta_value (see database.js), so REPLACE INTO with a value that differs
+    //  from what is stored has nothing to collide with and inserts a *second*
+    //  row -- leaving a bitmask field holding '1' and '2' rather than '3', and
+    //  reloading as an array rather than a value.
+    //
+    //  That was unreachable while nothing ever exported a message it had
+    //  imported. EchoMail relay does exactly that.
+    //
+    setStateFlags0Bit(bit, cb) {
+        const name = MessageConst.SystemMetaNames.StateFlags0;
+        try {
+            msgDb.transaction(() => {
+                const rows = msgDb
+                    .prepare(
+                        `SELECT meta_value FROM message_meta
+                        WHERE message_id = ? AND meta_category = 'System'
+                          AND meta_name = ?;`
+                    )
+                    .all(this.messageId, name);
+
+                const flags = rows.reduce(
+                    (acc, row) => acc | (parseInt(row.meta_value, 10) || 0),
+                    bit
+                );
+
+                msgDb
+                    .prepare(
+                        `DELETE FROM message_meta
+                    WHERE message_id = ? AND meta_category = 'System'
+                      AND meta_name = ?;`
+                    )
+                    .run(this.messageId, name);
+
+                msgDb
+                    .prepare(
+                        `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value)
+                    VALUES (?, 'System', ?, ?);`
+                    )
+                    .run(this.messageId, name, flags.toString());
+
+                this.meta.System = this.meta.System || {};
+                this.meta.System[name] = flags.toString();
+            })();
+            return cb(null);
+        } catch (err) {
+            return cb(err);
+        }
+    }
+
     updateMetaValue(category, name, value, cb) {
         try {
             if (!Array.isArray(value)) {

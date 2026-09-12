@@ -160,6 +160,100 @@ function processBody(buf) {
     });
 }
 
+// -------------------------------------------------------------------------
+// Packet header origin -> message meta
+// -------------------------------------------------------------------------
+
+describe('parsePacketMessages — packet header origin recorded on the message', () => {
+    //
+    //  A packed message: fixed header fields, a 20 byte date, then four
+    //  null terminated strings. See MessageHeaderParser.
+    //
+    function packedMessage() {
+        const head = Buffer.alloc(14);
+        head.writeUInt16LE(2, 0); //  messageType
+        head.writeUInt16LE(700, 2); //  ftn_msg_orig_node
+        head.writeUInt16LE(100, 4); //  ftn_msg_dest_node
+        head.writeUInt16LE(218, 6); //  ftn_msg_orig_net
+        head.writeUInt16LE(218, 8); //  ftn_msg_dest_net
+        head.writeUInt16LE(0, 10); //  ftn_attr_flags
+        head.writeUInt16LE(0, 12); //  ftn_cost
+
+        const date = Buffer.alloc(20);
+        date.write('01 Jan 26  00:00:00\x00', 'ascii');
+
+        const strings = Buffer.from('All\x00Someone\x00Subject\x00Body\r\x00', 'ascii');
+
+        //  The trailing 0x0000 is the packet's end-of-messages marker, and it
+        //  is not optional here: parsePacketMessages only hands a message to
+        //  the iterator when there is more buffer after it, so without the
+        //  terminator the message is parsed and silently never emitted.
+        const terminator = Buffer.from([0x00, 0x00]);
+        return Buffer.concat([head, date, strings, terminator]);
+    }
+
+    function headerFor(version, origPoint) {
+        const ph = new PacketHeader();
+        ph.version = version;
+        ph.origNode = 700;
+        ph.destNode = 100;
+        ph.origNet = 218;
+        ph.destNet = 218;
+        ph.origPoint = origPoint;
+        return ph;
+    }
+
+    function firstMessage(header) {
+        return new Promise((resolve, reject) => {
+            let seen = null;
+            new Packet().parsePacketMessages(
+                header,
+                packedMessage(),
+                (what, msg, next) => {
+                    if ('message' === what) {
+                        seen = msg;
+                    }
+                    next(null);
+                },
+                err => (err ? reject(err) : resolve(seen))
+            );
+        });
+    }
+
+    it('records ftn_orig_point from a type 2+ packet', async () => {
+        //  Without this a point's mail reads as coming from its boss -- the two
+        //  share net and node, and the point number is the only thing telling
+        //  them apart. EchoMail relay needs it to avoid handing a point back
+        //  the message it just sent.
+        const msg = await firstMessage(headerFor('2+', 1));
+        assert.equal(msg.meta.FtnProperty.ftn_orig_point, 1);
+    });
+
+    it('records ftn_orig_point from a type 2.2 packet', async () => {
+        const msg = await firstMessage(headerFor('2.2', 3));
+        assert.equal(msg.meta.FtnProperty.ftn_orig_point, 3);
+    });
+
+    it('ignores the point field on a plain type-2 packet', async () => {
+        //  origPoint is a fill field there, so a stray value would make the
+        //  message look like it came from a point that does not exist -- and
+        //  the origin would then stop being recognised at all.
+        const msg = await firstMessage(headerFor('2', 7));
+        assert.equal(msg.meta.FtnProperty.ftn_orig_point, undefined);
+    });
+
+    it('omits the point entirely when the packet carries none', async () => {
+        const msg = await firstMessage(headerFor('2+', 0));
+        assert.equal(msg.meta.FtnProperty.ftn_orig_point, undefined);
+    });
+
+    it('always records the header origin node and net', async () => {
+        const msg = await firstMessage(headerFor('2+', 1));
+        assert.equal(msg.meta.FtnProperty.ftn_orig_node, 700);
+        assert.equal(msg.meta.FtnProperty.ftn_orig_network, 218);
+    });
+});
+
 describe('processMessageBody — kludge line parsing', () => {
     it('parses a standard Via kludge (mixed case)', async () => {
         const buf = makeMessageBody(['\x01Via 2:123/456.0 19960101.120000 ENiGMA 0.0']);
