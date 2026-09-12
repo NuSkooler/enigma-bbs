@@ -15,7 +15,11 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   The new `message_base_bluewave_export` menu module writes the packet and places it in the caller's download queue, area by area from the point each was last exported. `messageNetworks.bluewave` sets the packet ID and pins an area's echotag, number or title where the derived one will not do. Callers reach it with <kbd>B</kbd> from the message base menu. See [Blue Wave Support](https://enigma-bbs.github.io/messageareas/bluewave/).
 
-  Reply packets are not read back in yet, so this is one-way for now, and the packet says so where the format has a field for it.
+  Replies written offline come back in ([#810](https://github.com/NuSkooler/enigma-bbs/issues/810)). The new `message_base_offline_import` menu module takes the uploaded reply packet, reached with <kbd>U</kbd> from the message base menu. A packet advertises that it takes replies only when one of your menus carries that module. Nothing asks the caller what format it is: a reply packet names itself from the inside, so the archive is opened and read by whichever reader matches, and the format is chosen on the way out rather than on the way back.
+
+  Each reply is placed by echotag and then checked as though the caller had typed it at the keyboard -- write access on the target area, a real user for personal mail, and the `From` name replaced with their own, since a reader writes whatever name it was configured with. A packet built for a different login is refused. A reply is threaded onto the message it answers, which the packet names by that message's own ID.
+
+  The same entry takes a QWK `*.REP` packet. The QWK reader's reply mode had never worked: it required a `CONTROL.DAT`, which a reply packet does not carry, and looked for a messages file under a fixed name rather than the one named for the host. Both are fixed, so QWK mail is now two-way as well.
 
 * **`oputil.js config validate` checks your configuration before you restart** ([#281](https://github.com/NuSkooler/enigma-bbs/issues/281)) — a mistyped key in `config.hjson` has never been reported. Because your file is merged *into* the defaults, a typo does not replace anything: `outbund` lands quietly beside `outbound`, the setting you wrote is never read, and the board goes on using the default. Nothing is logged, and the file looks correct.
 
