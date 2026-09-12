@@ -294,6 +294,7 @@
             art: MSGLIST
             config: {
                 menuViewPost: messageAreaViewPost
+                menuNewPost: messageBaseNewPost
             }
             form: {
                 0: {
@@ -552,6 +553,7 @@
             art: MYMSGLST
             config: {
                 menuViewPost: messageAreaViewPost
+                menuNewPost: messageBaseNewPost
             }
             form: {
                 0: {
