@@ -1,0 +1,116 @@
+name: SEXYZ Refresh
+
+#  The Docker images ship a sexyz per platform, cross compiled from Synchronet's
+#  source (docker/sexyz/build.sh). Upstream has no release feed to watch and no
+#  Linux binaries to download, so this checks the source itself on a schedule and
+#  opens a pull request when it has actually changed.
+#
+#  "Changed" means the build inputs changed: the digest covers the .c/.h files
+#  the stand-alone cut produces, minus git_branch.h and git_hash.h, which are
+#  commit stamps rewritten on every Synchronet push. Without that exclusion this
+#  would open a pull request every week for binaries differing by a version
+#  string.
+
+on:
+  schedule:
+    #  Weekly. sexyz changes a few times a year; this is about not missing a fix,
+    #  not about being current within the hour.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Rebuild even when the source digest is unchanged'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sexyz-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check whether upstream sexyz changed
+        id: check
+        run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "forced=true; skipping the digest comparison"
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          #  --check exits 0 when the manifest already matches, 1 when a
+          #  rebuild is due. Anything else is a real failure and should fail
+          #  the job rather than be read as "no change".
+          set +e
+          ./docker/sexyz/build.sh --check
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "rebuild=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "rebuild=true"  >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::build.sh --check failed with $rc"; exit "$rc" ;;
+          esac
+
+      - name: Build
+        if: steps.check.outputs.rebuild == 'true'
+        run: ./docker/sexyz/build.sh
+
+      - name: Summarise
+        if: steps.check.outputs.rebuild == 'true'
+        id: summary
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          m = json.load(open('docker/sexyz/manifest.json'))
+          print(f"### SEXYZ {m['sexyz_version']}\n")
+          print(f"- upstream commit `{m['upstream_commit']}`")
+          print(f"- source digest `{m['source_digest']}`\n")
+          print("| Platform | sha256 |")
+          print("| --- | --- |")
+          for a, h in m['binaries'].items():
+              print(f"| `{a}` | `{h}` |")
+          PY
+          {
+            echo "version=$(python3 -c "import json;print(json.load(open('docker/sexyz/manifest.json'))['sexyz_version'])")"
+            echo "commit=$(python3 -c "import json;print(json.load(open('docker/sexyz/manifest.json'))['upstream_commit'][:10])")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open a pull request
+        if: steps.check.outputs.rebuild == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/sexyz-refresh
+          #  One rolling branch: a second refresh before the first is merged
+          #  updates that pull request rather than opening a competing one.
+          title: "chore(docker): refresh sexyz to ${{ steps.summary.outputs.version }} (${{ steps.summary.outputs.commit }})"
+          commit-message: |
+            chore(docker): refresh sexyz to ${{ steps.summary.outputs.version }} (${{ steps.summary.outputs.commit }})
+
+            Rebuilt from Synchronet ${{ steps.summary.outputs.commit }} by
+            .github/workflows/sexyz-refresh.yml. Provenance and per-platform
+            hashes are in docker/sexyz/manifest.json.
+          body: |
+            Automated rebuild: the sexyz source upstream no longer matches the
+            digest recorded in `docker/sexyz/manifest.json`.
+
+            Binaries for `amd64`, `arm64` and `armv7` were cross compiled from
+            Synchronet commit `${{ steps.summary.outputs.commit }}` in a
+            `debian:bookworm` container, matching the runtime base image.
+
+            The Docker build runs `sexyz v` after selecting a binary, so the
+            image build on this pull request is the check that each one runs on
+            the platform it is for. Review the job summary for the hashes, then
+            merge if the Docker workflow is green.
+          add-paths: |
+            docker/bin/sexyz-amd64
+            docker/bin/sexyz-arm64
+            docker/bin/sexyz-armv7
+            docker/sexyz/manifest.json

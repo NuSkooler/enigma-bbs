@@ -64,7 +64,7 @@ Notes:
 
 The following are frequently *not* available in default repositories:
 
-- `sexyz` (SEXYZ X/Y/Zmodem): https://l33t.codes/outgoing/sexyz
+- `sexyz` (SEXYZ X/Y/Zmodem): built from the Synchronet C source on \*nix — see http://wiki.synchro.net/util:sexyz. Upstream publishes ready-made binaries for Win32 only.
 - `xdms` (Amiga DMS): http://zakalwe.fi/~shd/foss/xdms/ (see also Debian packaging: https://github.com/glaubitz/xdms-debian)
 - `unlzx` (Amiga LZX): http://xavprods.free.fr/lzx/
 - `atr` (Atari disk images): https://github.com/jhallen/atari-tools (provides an `atr` CLI that matches ENiGMA’s default `Atr` archiver commands)

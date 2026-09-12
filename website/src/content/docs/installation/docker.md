@@ -59,6 +59,22 @@ Windows users — you'll need to switch out `$(pwd)/enigma-bbs/config` for a Win
 
 Once the container is up, [test your installation](testing.md).
 
+## Architecture and file transfers
+
+Images are published for `linux/amd64`, `linux/arm64` and `linux/arm/v7`, each built natively,
+and every one of them ships a matching `sexyz`. All four default X/Y/ZModem handlers work out
+of the box on all three, as does **ZModem 8k** (`zmodem8kSz`), which uses `sz`/`rz` from
+`lrzsz`.
+
+The `sexyz` binaries are cross compiled from Synchronet's own source rather than downloaded —
+upstream publishes ready-made builds for Win32 only. `docker/sexyz/build.sh` does the build and
+`docker/sexyz/manifest.json` records which upstream commit each one came from. The image build
+runs `sexyz v` after selecting the binary, so an architecture mismatch fails the build instead
+of reaching users (which is what [#797](https://github.com/NuSkooler/enigma-bbs/issues/797)
+was).
+
+See [File Transfer Protocols](../configuration/file-transfer-protocols.md) for the full picture.
+
 ## Volumes
 
 Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs

@@ -19,9 +19,17 @@ command -v sexyz sz rz
 ## Predefined File Transfer Protocols
 Please see [External Binaries](external-binaries.md) for a table of built in / predefined protocol handlers. You will need to have the binaries in ENiGMA's PATH.
 ### SEXYZ
-[SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ. An x86_64 Linux binary, and hopefully more in the future, [can be downloaded here](https://l33t.codes/outgoing/sexyz).
+[SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ.
+
+Upstream publishes ready-made binaries for Win32 only. On Linux and other \*nix systems SEXYZ is built from the Synchronet C source; see the wiki page above.
 
 ENiGMA's default handlers execute the `sexyz` binary (see [External Binaries](external-binaries.md) for install notes and links).
+
+:::note[Architecture]
+The Docker images ship a `sexyz` per published platform — `amd64`, `arm64` and `arm/v7` — cross compiled from the Synchronet source by `docker/sexyz/build.sh`, so all four SEXYZ handlers work on every published image.
+
+Outside Docker there is nothing to inherit: build `sexyz` for your own architecture, or use **ZModem 8k** (`zmodem8kSz`), which is backed by `lrzsz` and available everywhere. A `sexyz` built for the wrong architecture fails with `exec format error`, and ENiGMA½ surfaces that as a failed transfer rather than a configuration error, so check `file $(command -v sexyz)` if transfers fail immediately.
+:::
 
 ### sz/rz
 ZModem-8k is configured using the standard Linux [sz(1)](https://linux.die.net/man/1/sz) and [rz(1)](https://linux.die.net/man/1/rz) binaries. Note that these binaries also support XModem and YModem, and as such adding the configurations to your system should be fairly straight forward.
