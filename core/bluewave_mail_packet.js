@@ -8,12 +8,18 @@ const configModule = require('./config.js');
 //  whichever getter happened to be installed when this file was required.
 const Config = (...args) => configModule.get(...args);
 const { Errors } = require('./enig_error.js');
-const { getMessageAreaByTag, getMessageConferenceByTag } = require('./message_area.js');
+const {
+    getMessageAreaByTag,
+    getMessageConferenceByTag,
+    getAllAvailableMessageAreaTags,
+} = require('./message_area.js');
+const Message = require('./message.js');
 const { AddressFlavor, WellKnownAreaTags } = require('./message_const.js');
 const StatLog = require('./stat_log.js');
 const SysProps = require('./system_property.js');
 const ArchiveUtil = require('./archive_util.js');
 const { endWriteStream } = require('./file_util.js');
+const Address = require('./ftn_address.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -24,6 +30,7 @@ const iconv = require('iconv-lite');
 const temptmp = require('temptmp');
 const async = require('async');
 const { EventEmitter } = require('events');
+const crypto = require('crypto');
 
 //
 //  Blue Wave offline mail packets
@@ -158,28 +165,35 @@ const encodeText = text => {
 //
 //  An echotag is 20 characters and it is what a reply is routed by, so the
 //  kit requires it to be unique within the packet. Two area tags that differ
-//  only past the twentieth character would collide, so a digit replaces the
-//  tail until one is free.
+//  only past the twentieth character would collide, so a tag that had to be
+//  truncated ends in three characters taken from a digest of the whole tag.
 //
-const echoTagFor = (areaTag, taken = new Set()) => {
-    const base = _.toString(areaTag)
+//  The digest rather than a counter because an import has to arrive at the
+//  same tag as the export did, and the two do not walk the same list: an
+//  export walks the areas stored against that caller, an import the areas
+//  that exist now. A counter would hand the same tag to whichever area the
+//  walk reached first, so a reply would land in the other one.
+//
+const MaxEchoTagLength = 20;
+const EchoTagDigestLength = 3;
+
+const echoTagFor = areaTag => {
+    const full = _.toString(areaTag)
         .toUpperCase()
-        .replace(/[^A-Z0-9_.-]/g, '_')
-        .substr(0, 20);
+        .replace(/[^A-Z0-9_.-]/g, '_');
 
-    if (!taken.has(base)) {
-        return base;
+    if (full.length <= MaxEchoTagLength) {
+        return full;
     }
 
-    for (let n = 2; n < 1000; ++n) {
-        const suffix = n.toString();
-        const candidate = `${base.substr(0, 20 - suffix.length)}${suffix}`;
-        if (!taken.has(candidate)) {
-            return candidate;
-        }
-    }
+    const digest = crypto
+        .createHash('sha1')
+        .update(_.toString(areaTag))
+        .digest('hex')
+        .substr(0, EchoTagDigestLength)
+        .toUpperCase();
 
-    return base;
+    return `${full.substr(0, MaxEchoTagLength - EchoTagDigestLength)}${digest}`;
 };
 
 class BlueWavePacketWriter extends EventEmitter {
@@ -189,17 +203,24 @@ class BlueWavePacketWriter extends EventEmitter {
         archiveFormat = 'application/zip',
         systemName = null,
         sysOpName = null,
+        acceptsReplies = false,
     } = {}) {
         super();
 
-        this.options = { bbsID, user, archiveFormat, systemName, sysOpName };
+        this.options = {
+            bbsID,
+            user,
+            archiveFormat,
+            systemName,
+            sysOpName,
+            acceptsReplies,
+        };
 
         this.temptmp = temptmp.createTrackedSession('bwpacketwriter');
 
         //  areaTag -> { number, echoTag, area, conf, messages: [] }
         this.areas = new Map();
         this.datOffset = 0;
-        this.messageNumber = 0;
     }
 
     init() {
@@ -254,17 +275,26 @@ class BlueWavePacketWriter extends EventEmitter {
         entry = {
             areaTag,
             number: this._areaNumberFor(configured.number),
-            echoTag:
-                configured.echotag ||
-                echoTagFor(
-                    areaTag,
-                    new Set(Array.from(this.areas.values()).map(a => a.echoTag))
-                ),
+            echoTag: configured.echotag || echoTagFor(areaTag),
             title: configured.title || (area ? area.name : areaTag),
             area,
             conf,
             messages: [],
         };
+
+        //  a reply is routed by this, so two areas answering to one tag
+        //  would post into whichever the reader reached first
+        const clash = Array.from(this.areas.values()).find(
+            a => a.echoTag === entry.echoTag
+        );
+        if (clash) {
+            this.emit(
+                'warning',
+                Errors.General(
+                    `Blue Wave echotag "${entry.echoTag}" is used by both "${clash.areaTag}" and "${areaTag}"`
+                )
+            );
+        }
 
         this.areas.set(areaTag, entry);
         return entry;
@@ -328,7 +358,9 @@ class BlueWavePacketWriter extends EventEmitter {
             return;
         }
 
-        const text = encodeText(message.message);
+        const kind = areaKindFor(entry.areaTag, entry.area);
+        const text = encodeText(this._bodyFor(message, kind));
+        const isNetMail = 0 !== (kind.flags & AreaFlags.NetMail);
 
         //
         //  Every message in the .DAT begins with a space that is not part of
@@ -353,15 +385,90 @@ class BlueWavePacketWriter extends EventEmitter {
             //  'en' explicitly: the month name follows moment's global
             //  locale otherwise, and a non-ASCII one would reach CP437 as '?'
             date: moment(message.modTimestamp).locale('en').format('DD MMM YY  HH:mm:ss'),
-            //  a packet-local number: the format has 16 bits for it, which is
-            //  short of what an ENiGMA½ message ID can reach
-            number: (this.messageNumber += 1) & 0xffff,
+            number: this._messageNumberFor(message),
             offset: this.datOffset,
             length: text.length + 1,
             private: message.isPrivate(),
+            origin: isNetMail ? this._originAddress(message) : null,
         });
 
         this.datOffset += text.length + 1;
+    }
+
+    //
+    //  FTI_REC.msgnum is what a reply comes back naming, so it has to be a
+    //  number this end can resolve: the message's own ID. The field is 16
+    //  bits and an ENiGMA½ message ID is not, so an ID past that is written
+    //  as zero -- which the kit already defines as "no number" -- rather than
+    //  truncated into somebody else's. An import verifies the ID against the
+    //  area before threading anything onto it, so a wrapped number could not
+    //  quietly land on the wrong message either way.
+    //
+    _messageNumberFor(message) {
+        const messageId = parseInt(message.messageId, 10);
+        if (!messageId || messageId > 0xffff) {
+            if (messageId > 0xffff && !this.warnedMessageNumber) {
+                this.warnedMessageNumber = true;
+                this.emit(
+                    'warning',
+                    Errors.General(
+                        'Message IDs past 65535 do not fit the Blue Wave message number; replies to those messages arrive unthreaded'
+                    )
+                );
+            }
+            return 0;
+        }
+        return messageId;
+    }
+
+    //
+    //  MultiMail lifts these three out of the body of a message in an
+    //  Internet area and uses them to address and thread a reply; in a
+    //  FidoNet area it would leave them sitting in the text, so they are
+    //  written only where they are read.
+    //
+    _bodyFor(message, kind) {
+        if (NetworkType.Internet !== kind.networkType) {
+            return message.message;
+        }
+
+        const kludges = [];
+        const from = message.getRemoteFromUser && message.getRemoteFromUser();
+        if (from) {
+            kludges.push(`\u0001From: ${from}`);
+        }
+
+        const msgId = _.get(message, 'meta.FtnKludge.MSGID');
+        if (msgId) {
+            kludges.push(`\u0001Message-ID: ${msgId}`);
+        }
+
+        const replyTo = _.get(message, 'meta.FtnKludge.REPLY');
+        if (replyTo) {
+            kludges.push(`\u0001References: ${replyTo}`);
+        }
+
+        if (!kludges.length) {
+            return message.message;
+        }
+
+        return `${kludges.join('\n')}\n${message.message}`;
+    }
+
+    //
+    //  Where a netmail message came from, so a reader can address the reply
+    //  without the caller retyping the address. The kit expects zero outside
+    //  a netmail base, and an echo message carries a remote sender too, so
+    //  the caller checks the area rather than the message.
+    //
+    _originAddress(message) {
+        const from = message.getRemoteFromUser && message.getRemoteFromUser();
+        if (!from) {
+            return null;
+        }
+
+        const address = Address.fromString(from);
+        return address && address.isValid() ? address : null;
     }
 
     //  separate from finish() so the records can be read back without an
@@ -431,6 +538,11 @@ class BlueWavePacketWriter extends EventEmitter {
                     MessageFlags.Local | (msg.private ? MessageFlags.Private : 0),
                     178
                 );
+                if (msg.origin) {
+                    rec.writeUInt16LE(msg.origin.zone || 0, 180);
+                    rec.writeUInt16LE(msg.origin.net || 0, 182);
+                    rec.writeUInt16LE(msg.origin.node || 0, 184);
+                }
                 fti.push(rec);
                 ftiOffset += RecordLength.Fti;
             });
@@ -501,9 +613,13 @@ class BlueWavePacketWriter extends EventEmitter {
         header.writeUInt16LE(RecordLength.InfArea, 978);
         header.writeUInt16LE(RecordLength.Mix, 980);
         header.writeUInt16LE(RecordLength.Fti, 982);
-        //  uses_upl_file says the door can PROCESS .UPL replies, which
-        //  nothing here does yet; a level 3 reader writes them regardless
-        header.writeUInt8(0, 984);
+        //
+        //  uses_upl_file tells a reader to write its replies into a *.UPL.
+        //  Told that on a board with nowhere to upload them, a caller writes
+        //  replies offline and then finds there is no way to send them, so
+        //  the caller decides this rather than the format.
+        //
+        header.writeUInt8(this.options.acceptsReplies ? 1 : 0, 984);
         header.writeUInt8(HostFieldLimit.FromTo, 985);
         header.writeUInt8(HostFieldLimit.Subject, 986);
         writeFixed(header, 987, this._rootName(), 9);
@@ -609,8 +725,631 @@ class BlueWavePacketWriter extends EventEmitter {
     }
 }
 
+//
+//  Reply packets
+//
+//  A reader writes its replies into an archive of its own rather than back
+//  into the packet it was given. The members are one record per reply -- a
+//  *.UPL at level 3, or a *.UPI and a *.NET at level 2 -- each naming the
+//  file its message text lives in, plus an optional *.REQ list of files to
+//  request from the BBS.
+//
+const ReplyRecordLength = {
+    UplHeader: 256,
+    UplRec: 320,
+    //  written as sizeof(UPI_HEADER) - 1: the kit pads that struct to an
+    //  even size and says not to write the pad byte
+    UpiHeader: 55,
+    UpiRec: 184,
+    NetRec: 232,
+    ReqRec: 13,
+};
+
+//  UPL_REC.msg_attr
+const ReplyFlags = {
+    Inactive: 0x0001,
+    Private: 0x0002,
+    NoEcho: 0x0004,
+    HasFile: 0x0008,
+    NetMail: 0x0010,
+    IsReply: 0x0020,
+};
+
+//  UPI_REC.flags, a byte where UPL_REC.msg_attr is a word
+const OldReplyFlags = {
+    Private: 0x40,
+    NoEcho: 0x80,
+};
+
+//  MSG_REC.attr, of which a NET_REC is mostly made
+const NetMailFlags = {
+    Private: 0x0001,
+};
+
+//
+//  A kludge line opens with SOH and is not part of what the caller typed.
+//  MultiMail writes these ahead of the body of an Internet reply, which is
+//  where a newsgroup name and the message being followed up to arrive.
+//
+const KludgeIndicator = '\u0001';
+
+//  a field is a C string in a fixed slot: NUL terminated, NUL padded, CP437
+const readFixed = (buf, offset, length) => {
+    const slice = buf.slice(offset, offset + length);
+    const end = slice.indexOf(0);
+    return iconv.decode(slice.slice(0, -1 === end ? slice.length : end), 'cp437').trim();
+};
+
+//  Every echotag a packet from this system would have carried. Each one
+//  depends on its area tag alone, so the map does not have to reproduce the
+//  walk the export made.
+const buildEchoTagMap = areaTags => {
+    const map = new Map();
+
+    areaTags.forEach(areaTag => {
+        const configured = _.get(
+            Config(),
+            ['messageNetworks', 'bluewave', 'areas', areaTag],
+            {}
+        );
+        const echoTag = configured.echotag || echoTagFor(areaTag);
+
+        //  a tag the sysop pinned onto two areas: the first wins, as it does
+        //  in the packet itself
+        const key = echoTag.toUpperCase();
+        if (!map.has(key)) {
+            map.set(key, areaTag);
+        }
+    });
+
+    return map;
+};
+
+class BlueWavePacketReader extends EventEmitter {
+    constructor(
+        packetPath,
+        {
+            areaTagForEchoTag = null,
+            keepKludges = false,
+            maxMessages = 0,
+            maxMessageLength = 0,
+        } = {}
+    ) {
+        super();
+
+        this.packetPath = packetPath;
+        this.options = {
+            areaTagForEchoTag,
+            keepKludges,
+            maxMessages,
+            maxMessageLength,
+        };
+    }
+
+    read() {
+        //  only read() unpacks anything, and only read() cleans up after it
+        this.temptmp = temptmp.createTrackedSession('bwpacketreader');
+
+        async.waterfall(
+            [
+                callback => {
+                    const archiveUtil = ArchiveUtil.getInstance();
+                    archiveUtil.detectType(this.packetPath, (err, archiveType) => {
+                        if (err) {
+                            return callback(err);
+                        }
+                        this.emit('archive type', archiveType);
+                        return callback(null, archiveType);
+                    });
+                },
+                (archiveType, callback) => {
+                    this.temptmp.mkdir({ prefix: 'enigbwreader-' }, (err, tempDir) => {
+                        return callback(err, archiveType, tempDir);
+                    });
+                },
+                (archiveType, tempDir, callback) => {
+                    const archiveUtil = ArchiveUtil.getInstance();
+                    archiveUtil.extractTo(this.packetPath, tempDir, archiveType, err => {
+                        return callback(err, tempDir);
+                    });
+                },
+                (tempDir, callback) => {
+                    return this.readExtracted(tempDir, callback);
+                },
+            ],
+            err => {
+                this.temptmp.cleanup();
+
+                if (err) {
+                    return this.emit('error', err);
+                }
+                return this.emit('done');
+            }
+        );
+    }
+
+    //
+    //  Separate from read() so an unpacked packet can be read without an
+    //  archiver in the way.
+    //
+    readExtracted(packetDir, cb) {
+        fs.readdir(packetDir, (err, files) => {
+            if (err) {
+                return cb(err);
+            }
+
+            //  DOS names, so what a reader wrote may reach us in either case
+            const members = new Map(files.map(f => [f.toUpperCase(), f]));
+            const pathOf = name => {
+                const actual = members.get(_.toString(name).toUpperCase());
+                return actual ? paths.join(packetDir, actual) : null;
+            };
+
+            const byExt = ext =>
+                Array.from(members.keys())
+                    .filter(name => name.endsWith(ext))
+                    .sort();
+
+            const upl = byExt('.UPL')[0];
+            const upi = byExt('.UPI')[0];
+            const net = byExt('.NET')[0];
+            const req = byExt('.REQ')[0];
+
+            if (!upl && !upi && !net) {
+                return cb(
+                    Errors.Invalid(
+                        'Not a Blue Wave reply packet: no .UPL, .UPI or .NET member'
+                    )
+                );
+            }
+
+            async.series(
+                [
+                    //
+                    //  The kit is explicit that a door processes the *.UPL
+                    //  whenever one is present and the older pair only when
+                    //  it is not, so a reader that wrote both does not get
+                    //  its replies imported twice.
+                    //
+                    callback => {
+                        if (!upl) {
+                            return callback(null);
+                        }
+                        return this._readUpl(pathOf(upl), pathOf, callback);
+                    },
+                    callback => {
+                        if (upl || !upi) {
+                            return callback(null);
+                        }
+                        return this._readUpi(pathOf(upi), pathOf, callback);
+                    },
+                    callback => {
+                        if (upl || !net) {
+                            return callback(null);
+                        }
+                        return this._readNet(pathOf(net), pathOf, callback);
+                    },
+                    callback => {
+                        if (!req) {
+                            return callback(null);
+                        }
+                        return this._readReq(pathOf(req), callback);
+                    },
+                ],
+                err => cb(err)
+            );
+        });
+    }
+
+    _readUpl(uplPath, pathOf, cb) {
+        fs.readFile(uplPath, (err, buf) => {
+            if (err) {
+                return cb(err);
+            }
+
+            if (buf.length < ReplyRecordLength.UplHeader) {
+                return cb(Errors.Invalid('Truncated Blue Wave .UPL header'));
+            }
+
+            //
+            //  The header carries its own length and that of a record, so a
+            //  reader built against a later revision can add fields to
+            //  either without this having to know about them.
+            //
+            const headerLen = buf.readUInt16LE(112) || ReplyRecordLength.UplHeader;
+            const recLen = buf.readUInt16LE(114) || ReplyRecordLength.UplRec;
+
+            if (recLen < ReplyRecordLength.UplRec) {
+                return cb(
+                    Errors.Invalid(
+                        `Blue Wave .UPL record length ${recLen} is shorter than the format's ${ReplyRecordLength.UplRec}`
+                    )
+                );
+            }
+
+            this.emit('reader', {
+                //  obfuscated, which the kit concedes is "lame security"
+                version: this._deobfuscate(buf.slice(10, 30)),
+                name: readFixed(buf, 32, 80),
+                tearName: readFixed(buf, 204, 16),
+                registered: 0 === buf.readUInt8(222),
+            });
+
+            this.emit('packet user', {
+                loginName: readFixed(buf, 116, 44),
+                aliasName: readFixed(buf, 160, 44),
+            });
+
+            const count = Math.floor((buf.length - headerLen) / recLen);
+            const records = [];
+
+            for (let i = 0; i < count; ++i) {
+                const rec = buf.slice(headerLen + i * recLen);
+                const attr = rec.readUInt16LE(152);
+
+                //  the kit: a door should not import an inactive record
+                if (attr & ReplyFlags.Inactive) {
+                    continue;
+                }
+
+                records.push({
+                    from: readFixed(rec, 0, 36),
+                    to: readFixed(rec, 36, 36),
+                    subject: readFixed(rec, 72, 72),
+                    unixDate: rec.readUInt32LE(156),
+                    replyToNumber: rec.readUInt32LE(160),
+                    fileName: readFixed(rec, 164, 13),
+                    echoTag: readFixed(rec, 177, 21),
+                    netDest: readFixed(rec, 220, 100),
+                    networkType: rec.readUInt8(219),
+                    private: 0 !== (attr & ReplyFlags.Private),
+                    netMail: 0 !== (attr & ReplyFlags.NetMail),
+                    destination: {
+                        zone: rec.readUInt16LE(144),
+                        net: rec.readUInt16LE(146),
+                        node: rec.readUInt16LE(148),
+                        point: rec.readUInt16LE(150),
+                    },
+                    pathOf,
+                });
+            }
+
+            return this._emitReplies(records, cb);
+        });
+    }
+
+    //
+    //  Level 2 wrote everything but netmail into a *.UPI. Those records carry
+    //  no addressing and no network type, so each one is an echo or local
+    //  post.
+    //
+    _readUpi(upiPath, pathOf, cb) {
+        fs.readFile(upiPath, (err, buf) => {
+            if (err) {
+                return cb(err);
+            }
+
+            if (buf.length < ReplyRecordLength.UpiHeader) {
+                return cb(Errors.Invalid('Truncated Blue Wave .UPI header'));
+            }
+
+            const count = Math.floor(
+                (buf.length - ReplyRecordLength.UpiHeader) / ReplyRecordLength.UpiRec
+            );
+            const records = [];
+
+            for (let i = 0; i < count; ++i) {
+                const rec = buf.slice(
+                    ReplyRecordLength.UpiHeader + i * ReplyRecordLength.UpiRec
+                );
+                const flags = rec.readUInt8(182);
+
+                records.push({
+                    from: readFixed(rec, 0, 36),
+                    to: readFixed(rec, 36, 36),
+                    subject: readFixed(rec, 72, 72),
+                    unixDate: rec.readUInt32LE(144),
+                    replyToNumber: 0,
+                    fileName: readFixed(rec, 148, 13),
+                    echoTag: readFixed(rec, 161, 21),
+                    netDest: '',
+                    networkType: NetworkType.FidoNet,
+                    private: 0 !== (flags & OldReplyFlags.Private),
+                    netMail: false,
+                    destination: {},
+                    pathOf,
+                });
+            }
+
+            return this._emitReplies(records, cb);
+        });
+    }
+
+    //
+    //  The netmail half of a level 2 reply packet: a Fido *.MSG header
+    //  followed by the fields the door needs, and no header record of its
+    //  own.
+    //
+    _readNet(netPath, pathOf, cb) {
+        fs.readFile(netPath, (err, buf) => {
+            if (err) {
+                return cb(err);
+            }
+
+            const count = Math.floor(buf.length / ReplyRecordLength.NetRec);
+            const records = [];
+
+            for (let i = 0; i < count; ++i) {
+                const rec = buf.slice(i * ReplyRecordLength.NetRec);
+                const attr = rec.readUInt16LE(186);
+
+                records.push({
+                    from: readFixed(rec, 0, 36),
+                    to: readFixed(rec, 36, 36),
+                    subject: readFixed(rec, 72, 72),
+                    unixDate: rec.readUInt32LE(228),
+                    replyToNumber: rec.readUInt16LE(184),
+                    fileName: readFixed(rec, 190, 13),
+                    echoTag: readFixed(rec, 203, 21),
+                    netDest: '',
+                    networkType: NetworkType.FidoNet,
+                    private: 0 !== (attr & NetMailFlags.Private),
+                    netMail: true,
+                    destination: {
+                        zone: rec.readUInt16LE(224),
+                        //  MSG_REC keeps the destination split across two
+                        //  fields that are nowhere near each other
+                        net: rec.readUInt16LE(174),
+                        node: rec.readUInt16LE(166),
+                        point: rec.readUInt16LE(226),
+                    },
+                    pathOf,
+                });
+            }
+
+            return this._emitReplies(records, cb);
+        });
+    }
+
+    _readReq(reqPath, cb) {
+        fs.readFile(reqPath, (err, buf) => {
+            if (err) {
+                return cb(err);
+            }
+
+            const count = Math.floor(buf.length / ReplyRecordLength.ReqRec);
+            for (let i = 0; i < count; ++i) {
+                const fileName = readFixed(buf, i * ReplyRecordLength.ReqRec, 13);
+                if (fileName) {
+                    this.emit('file request', fileName);
+                }
+            }
+
+            return cb(null);
+        });
+    }
+
+    //
+    //  The kit says each byte of the version is "the actually ASCII value
+    //  plus 10", which is backwards: MultiMail writes vernum[c] -= 10 (bw.cc),
+    //  and a packet from it holds "&$++" for 0.55. Ten is added back here,
+    //  which is what the kit's own wording would have a reader do.
+    //
+    _deobfuscate(slice) {
+        const end = slice.indexOf(0);
+        const bytes = Buffer.from(slice.slice(0, -1 === end ? slice.length : end));
+        for (let i = 0; i < bytes.length; ++i) {
+            bytes[i] = (bytes[i] + 10) & 0xff;
+        }
+        return iconv.decode(bytes, 'cp437').trim();
+    }
+
+    //
+    //  How many replies the packet holds is known from the records alone, so
+    //  a packet over the limit is refused before a single message file is
+    //  opened.
+    //
+    _emitReplies(records, cb) {
+        const { maxMessages } = this.options;
+        if (maxMessages && records.length > maxMessages) {
+            return cb(
+                Errors.Invalid(`A reply packet may carry at most ${maxMessages} messages`)
+            );
+        }
+
+        return async.eachSeries(
+            records,
+            (rec, nextRecord) => this._emitReply(rec, nextRecord),
+            err => cb(err)
+        );
+    }
+
+    _emitReply(rec, cb) {
+        const areaTag = this._areaTagFor(rec.echoTag);
+        if (!areaTag) {
+            this.emit(
+                'warning',
+                Errors.Invalid(
+                    `No message area carries the Blue Wave echotag "${rec.echoTag}"`
+                )
+            );
+            return cb(null);
+        }
+
+        //  the kit: a record whose file is not in the packet is invalid
+        const textPath = rec.fileName ? rec.pathOf(rec.fileName) : null;
+        if (!textPath) {
+            this.emit(
+                'warning',
+                Errors.Invalid(
+                    `Blue Wave reply names "${rec.fileName}", which the packet does not carry`
+                )
+            );
+            return cb(null);
+        }
+
+        //
+        //  Sized before it is read: the archive is the caller's, and this
+        //  runs in their session on a board serving everybody else.
+        //
+        fs.stat(textPath, (err, stats) => {
+            if (err) {
+                this.emit('warning', err);
+                return cb(null);
+            }
+
+            const { maxMessageLength } = this.options;
+            if (maxMessageLength && stats.size > maxMessageLength) {
+                this.emit(
+                    'warning',
+                    Errors.Invalid(
+                        `Blue Wave reply "${rec.fileName}" is longer than ${maxMessageLength} bytes`
+                    )
+                );
+                return cb(null);
+            }
+
+            fs.readFile(textPath, (err, raw) => {
+                if (err) {
+                    this.emit('warning', err);
+                    return cb(null);
+                }
+
+                this._emitDecodedReply(rec, areaTag, raw);
+                return cb(null);
+            });
+        });
+    }
+
+    _emitDecodedReply(rec, areaTag, raw) {
+        const { body, kludges, newsgroups, extendedSubject } = this._decodeBody(raw);
+
+        const message = new Message({
+            areaTag,
+            toUserName: rec.to,
+            fromUserName: rec.from,
+            subject: extendedSubject || rec.subject,
+            message: body,
+            //  a Unix timestamp the reader wrote from its own clock
+            modTimestamp: moment.unix(rec.unixDate),
+        });
+
+        message.setExternalFlavor(
+            NetworkType.Internet === rec.networkType
+                ? Message.AddressFlavor.Email
+                : Message.AddressFlavor.FTN
+        );
+
+        if (rec.netMail) {
+            const remoteTo =
+                NetworkType.Internet === rec.networkType
+                    ? rec.netDest
+                    : this._ftnAddress(rec.destination);
+            if (remoteTo) {
+                message.setRemoteToUser(remoteTo);
+            }
+        }
+
+        const bwProperty = {
+            bw_echotag: rec.echoTag,
+            bw_reply_to_num: rec.replyToNumber,
+        };
+        if (newsgroups) {
+            bwProperty.bw_newsgroups = newsgroups;
+        }
+        message.meta.BlueWaveProperty = bwProperty;
+
+        if (!_.isEmpty(kludges)) {
+            message.meta.BlueWaveKludge = kludges;
+        }
+
+        return this.emit('message', message, {
+            echoTag: rec.echoTag,
+            private: rec.private,
+            netMail: rec.netMail,
+        });
+    }
+
+    _ftnAddress(dest) {
+        if (!dest.zone && !dest.net && !dest.node) {
+            return null;
+        }
+        const base = `${dest.zone}:${dest.net}/${dest.node}`;
+        return dest.point ? `${base}.${dest.point}` : base;
+    }
+
+    //
+    //  Message text is CP437 with bare CR line endings, and a NUL -- or a
+    //  CR/LF/NUL sequence -- may end it before the file does.
+    //
+    _decodeBody(raw) {
+        const end = raw.indexOf(0);
+        const text = iconv.decode(-1 === end ? raw : raw.slice(0, end), 'cp437');
+
+        const kludges = {};
+        const bodyLines = [];
+        let newsgroups = null;
+        let extendedSubject = null;
+
+        text.replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .split('\n')
+            .forEach(line => {
+                if (!line.startsWith(KludgeIndicator)) {
+                    return bodyLines.push(line);
+                }
+
+                const kludge = line.substr(1);
+                const sep = kludge.indexOf(':');
+                const name = (-1 === sep ? kludge : kludge.substr(0, sep)).toUpperCase();
+                const value = -1 === sep ? '' : kludge.substr(sep + 1).trim();
+
+                switch (name) {
+                    case 'NEWSGROUPS':
+                        newsgroups = value;
+                        break;
+
+                    //  a subject too long for the 72 byte field
+                    case 'SUBJECT':
+                        extendedSubject = value;
+                        break;
+                }
+
+                kludges[name] = value;
+
+                if (this.options.keepKludges) {
+                    bodyLines.push(line);
+                }
+            });
+
+        return {
+            body: bodyLines.join('\n').trim(),
+            kludges,
+            newsgroups,
+            extendedSubject,
+        };
+    }
+
+    _areaTagFor(echoTag) {
+        if (this.options.areaTagForEchoTag) {
+            return this.options.areaTagForEchoTag(echoTag);
+        }
+
+        if (!this.echoTagMap) {
+            this.echoTagMap = buildEchoTagMap(
+                getAllAvailableMessageAreaTags().concat([WellKnownAreaTags.Private])
+            );
+        }
+
+        return this.echoTagMap.get(_.toString(echoTag).toUpperCase());
+    }
+}
+
 module.exports = {
     BlueWavePacketWriter,
+    BlueWavePacketReader,
     RecordLength,
+    ReplyRecordLength,
     echoTagFor,
+    buildEchoTagMap,
 };
