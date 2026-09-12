@@ -135,6 +135,15 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         tag: 'QUIET',
         uplinks: [HUB, PEER],
     };
+    //  Relay-enabled but with no point among its uplinks, so a message every
+    //  uplink has seen really does leave nothing to send. RELAY_AREA cannot
+    //  express that: its point is relayed to unconditionally, by design.
+    const PEERS_AREA = {
+        network: 'testnet',
+        tag: 'PEERS',
+        uplinks: [HUB, PEER],
+        relay: true,
+    };
 
     before(async () => {
         tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'enigma_ftnrelay_'));
@@ -143,7 +152,11 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         }
 
         prevConfig = configModule._pushTestConfig(
-            makeConfig(tmpDir, { relay_area: RELAY_AREA, quiet_area: QUIET_AREA })
+            makeConfig(tmpDir, {
+                relay_area: RELAY_AREA,
+                quiet_area: QUIET_AREA,
+                peers_area: PEERS_AREA,
+            })
         );
 
         //  Same load-order dance as ftn_export_multi_uplink.test.js: message.js
@@ -215,7 +228,23 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
     //  An imported message: persisted, then given the meta the tosser writes on
     //  import -- the Imported state flag, the packet header origin, and SEEN-BY.
     //
-    async function addImported({ areaTag = 'relay_area', origin = HUB, seenBy }) {
+    //  `ftn_mail_packet.js` writes ftn_orig_node and ftn_orig_network from the
+    //  packet header and *nothing else about the origin*: no ftn_orig_zone and
+    //  no ftn_orig_point, even for a type 2+ packet that carried them. So that
+    //  is what this fixture writes by default. An earlier version supplied a
+    //  zone, which no real import ever does, and the effect was that every test
+    //  exercised isSameFtnSystem's strict-zone branch and none of them
+    //  exercised the branch production actually takes.
+    //
+    //  Pass `withZone: true` for the rarer case of an origin that does carry
+    //  one.
+    //
+    async function addImported({
+        areaTag = 'relay_area',
+        origin = HUB,
+        seenBy,
+        withZone = false,
+    }) {
         const seq = ++fixtureSeq;
         const message = new Message({
             areaTag,
@@ -231,10 +260,12 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         const [, zone, net, node] = /^(\d+):(\d+)\/(\d+)/.exec(origin);
         const meta = [
             ['System', 'state_flags0', Message.StateFlags0.Imported.toString()],
-            ['FtnProperty', 'ftn_orig_zone', zone],
             ['FtnProperty', 'ftn_orig_network', net],
             ['FtnProperty', 'ftn_orig_node', node],
         ];
+        if (withZone) {
+            meta.push(['FtnProperty', 'ftn_orig_zone', zone]);
+        }
         if (undefined !== seenBy) {
             meta.push(['FtnProperty', 'ftn_seen_by', seenBy]);
         }
@@ -391,6 +422,55 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         );
     });
 
+    it('keeps the origin rule when the packet header carried no zone', async () => {
+        //  The production shape: ftn_orig_network and ftn_orig_node only. This
+        //  is the branch of isSameFtnSystem that every real message takes, and
+        //  until this test existed none of them covered it.
+        const root = await freshRoot('no-zone-origin');
+        await addImported({});
+        await runRelay(root); //  seed
+
+        await addImported({ origin: HUB, withZone: false });
+        await runRelay(root);
+
+        const files = await flowFilesIn(root);
+        assert.ok(
+            !files.includes(flowName(HUB)),
+            `a zoneless origin must still be recognised; got ${files.join(', ')}`
+        );
+        assert.ok(files.includes(flowName(PEER)), 'the other peer should still get it');
+    });
+
+    it('does send our own point back the mail it sent us (known gap)', async () => {
+        //  A point's packet header carries origPoint, but the importer does not
+        //  record it -- so a message from OUR point reads as coming from
+        //  1:218/700, which is us, point 0. The origin rule therefore cannot
+        //  see that the point sent it, and the point carve-out relays
+        //  unconditionally.
+        //
+        //  The receiving tosser drops it on MSGID, so this is wasted traffic
+        //  rather than a loop, but it is worth knowing about and worth a test
+        //  that will notice if the importer ever starts recording the point.
+        const root = await freshRoot('point-origin');
+        await addImported({});
+        await runRelay(root); //  seed
+
+        await addImported({ origin: POINT });
+        await runRelay(root);
+
+        const files = await flowFilesIn(root);
+        const wentToPoint = files.some(
+            f => f.includes('.pnt/') && f.endsWith('00000001.clo')
+        );
+        assert.equal(
+            wentToPoint,
+            true,
+            'documents current behaviour: see the comment above -- if this ' +
+                'starts failing, the importer began recording ftn_orig_point ' +
+                'and the origin rule can now catch this case'
+        );
+    });
+
     it('skips a peer already in SEEN-BY, and relays to one that is not', async () => {
         const root = await freshRoot('seen-by');
         await addImported({});
@@ -474,20 +554,30 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
 
     it('advances past messages every uplink had already seen', async () => {
         //  Otherwise they are re-read and re-judged on every scan forever.
+        //
+        //  This has to run against an area with no point in it. An earlier
+        //  version used relay_area, whose point is relayed to unconditionally,
+        //  so mail was always going out and the assertion never saw the
+        //  "filtered away entirely" case it names -- it passed with the SEEN-BY
+        //  filter disabled outright.
         const root = await freshRoot('filtered-advance');
-        await addImported({});
+        await addImported({ areaTag: 'peers_area' });
         await runRelay(root); //  seed
 
         const filtered = await addImported({
+            areaTag: 'peers_area',
             origin: HUB,
-            seenBy: '218/700 701 702',
+            seenBy: '218/701 702',
         });
-        //  ...but the point still gets it, so use an area whose only uplinks
-        //  are ordinary peers to make "nothing to send" the real case.
         await runRelay(root);
 
+        assert.deepEqual(
+            await flowFilesIn(root),
+            [],
+            'origin plus SEEN-BY should account for every uplink of this area'
+        );
         assert.equal(
-            relayScanId('relay_area'),
+            relayScanId('peers_area'),
             filtered.messageId,
             'the decision has been made for that message; do not weigh it again'
         );
