@@ -151,9 +151,17 @@ exports.getModule = class MessageListModule extends (
                     formData.value.message
                 );
 
-                const areaTag = _.get(this.config, ['messageList', messageIndex])
+                const selected = _.get(this.config, ['messageList', messageIndex]);
+                const areaTag = selected
                     ? this.getSelectedAreaTag(messageIndex)
                     : this.config.messageAreaTag;
+
+                //  as selectMessage does: menu_stack snapshots this through
+                //  getSaveState(), so without it the list comes back focused
+                //  on the first unread rather than where the caller was
+                if (selected) {
+                    this.initialFocusIndex = messageIndex;
+                }
 
                 return this.gotoMenu(
                     this.config.menuNewPost || 'messageBaseNewPost',
