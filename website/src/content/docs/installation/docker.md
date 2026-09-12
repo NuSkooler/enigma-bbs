@@ -100,6 +100,19 @@ Customising the Docker image is easy!
 ```bash
 docker build -t enigmabbs -f ./docker/Dockerfile .
 ```
+
+The Dockerfile has two stages. A `build` stage installs a compiler toolchain and runs
+`npm ci`, which is where the native modules (node-pty, better-sqlite3 and friends) are
+compiled. The stage that ships installs only the runtime packages -- the archivers and
+`lrzsz` -- and copies `node_modules` out of the build stage, so no compiler reaches the
+published image ([#814](https://github.com/NuSkooler/enigma-bbs/issues/814)). Because the
+compiled modules are copied rather than rebuilt, both stages must start from the same base
+image; keep them in step if you change one.
+
+`ENIGMA_DOCKER_LIVE=1 npm run test:live` builds the image and checks it from the inside:
+that the toolchain is absent, the archivers and `sexyz` are present, and the copied native
+modules load. Point `ENIGMA_DOCKER_IMAGE` at a tag to check an image you already have.
+
 3. Run the image
 ```bash
 docker run -it -p 8888:8888 --name "ENiGMABBS" -v "$(pwd)/config:/enigma-bbs/config" -v "$(pwd)/db:/enigma-bbs/db" -v "$(pwd)/logs:/enigma-bbs/logs" -v "$(pwd)/filebase:/enigma-bbs/filebase" -v "$(pwd)/art:/enigma-bbs/art" -v "$(pwd)/mods:/enigma-bbs/mods" -v "$(pwd)/mail:/mail" enigmabbs

@@ -63,11 +63,17 @@ jobs:
           #  not compile -- so building only amd64 would check the half that
           #  rarely fails.
           push: ${{ github.event_name != 'pull_request' }}
-          #  The arm legs rebuild node-pty, cpu-features and dtrace-provider
+          #  The arm legs rebuild node-pty, better-sqlite3 and cpu-features
           #  under QEMU every run. A pull request reads master's cache but
           #  writes none of its own: master cannot read a branch cache back,
           #  so the write would only evict from the shared 10 GB that every
           #  pull request's `cache: npm` comes out of.
+          #
+          #  mode=max, not min. min exports only the layers of the final
+          #  image, and since #814 the npm ci layer -- the one the QEMU
+          #  rebuilds live in -- belongs to the discarded build stage. With
+          #  min it would be recompiled on every master push and the cache
+          #  would hold only the cheap half.
           cache-from: type=gha
-          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=min' || '' }}
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max' || '' }}
 
