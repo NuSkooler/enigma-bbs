@@ -18,7 +18,7 @@ const NodeType = require('./schema.js').NodeType;
 //  consulted by _finalizeTheme(), so the theming silently does not happen.
 //
 //  Two key names come from the code rather than from
-//  docs/_docs/art/themes.md, which lists the *helper method* names where the
+//  art/themes.md, which lists the *helper method* names where the
 //  configuration keys differ: the docs say getStatusAvailIndicators and
 //  getStatusVisibleIndicators, while core/theme.js:386,394 read
 //  statusAvailableIndicators and statusVisibleIndicators. Following the docs

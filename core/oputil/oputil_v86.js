@@ -46,7 +46,7 @@ function resolvePaths(imagePath) {
             console.error(`v86: ${label} not found: ${p}`);
             if (label !== 'image') {
                 console.error(
-                    'Download BIOS files: misc/install.sh or see docs/_docs/modding/local-doors-v86.md'
+                    'Download BIOS files: misc/install.sh or see https://enigma-bbs.github.io/doors/v86/'
                 );
             }
             process.exitCode = ExitCodes.BAD_ARGS;

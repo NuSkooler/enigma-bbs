@@ -94,7 +94,7 @@ describe('theme schema', () => {
 
     it('uses the key names the code reads, not the helper names in the docs', () => {
         //
-        //  docs/_docs/art/themes.md lists getStatusAvailIndicators and
+        //  art/themes.md lists getStatusAvailIndicators and
         //  getStatusVisibleIndicators, which are the *helper methods*.
         //  core/theme.js:386,394 read statusAvailableIndicators and
         //  statusVisibleIndicators. Following the docs would declare two keys
