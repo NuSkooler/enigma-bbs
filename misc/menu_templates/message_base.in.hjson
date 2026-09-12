@@ -65,6 +65,10 @@
                     action: @menu:bluewaveExport
                 }
                 {
+                    value: { command: "U" }
+                    action: @menu:offlineMailImport
+                }
+                {
                     value: { command: "Q" }
                     action: @systemMethod:prevMenu
                 }
@@ -594,6 +598,15 @@
         bluewaveExport: {
             desc: Blue Wave Export
             module: message_base_bluewave_export
+        }
+
+        //
+        //  The format is read out of the packet rather than asked for, so one
+        //  entry takes a reply packet from any reader this system knows.
+        //
+        offlineMailImport: {
+            desc: Offline Mail Import
+            module: message_base_offline_import
         }
 
         editAutoSignature: {
