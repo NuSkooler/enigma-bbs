@@ -35,11 +35,27 @@ RUN apt-get update \
 # Do this after npm ci to avoid cache-miss on every code change
 COPY . /enigma-bbs
 
+#  Supplied by BuildKit for each target of the arch matrix. One sexyz is built
+#  per published platform -- see docker/sexyz/build.sh -- so the right one has
+#  to be selected here. A single binary copied onto every target is what #797
+#  was: an x86-64 ELF giving every default X/Y/ZModem handler an "exec format
+#  error" on arm. TARGETARCH names amd64/arm64/arm; arm/v7 is the only 32-bit
+#  arm we publish, so it maps to the armv7 build.
+ARG TARGETARCH
+
 # Then run post source copy steps that have to happen every time
 RUN dos2unix /enigma-bbs/docker/bin/docker-entrypoint.sh \
     && apt-get remove dos2unix -y \
     && chmod +x /enigma-bbs/docker/bin/docker-entrypoint.sh \
-    && cp -f /enigma-bbs/docker/bin/sexyz /usr/local/bin \
+    && case "$TARGETARCH" in \
+        amd64) sexyz_build=amd64 ;; \
+        arm64) sexyz_build=arm64 ;; \
+        arm)   sexyz_build=armv7 ;; \
+        *)     echo "no sexyz build for TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+       esac \
+    && cp -f "/enigma-bbs/docker/bin/sexyz-${sexyz_build}" /usr/local/bin/sexyz \
+    && chmod +x /usr/local/bin/sexyz \
+    && sexyz v \
     && cd /enigma-bbs \
     && pm2 start main.js \
     && mkdir -p /enigma-bbs-pre/art \
