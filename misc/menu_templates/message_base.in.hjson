@@ -294,6 +294,7 @@
             art: MSGLIST
             config: {
                 menuViewPost: messageAreaViewPost
+                menuNewPost: messageBaseNewPost
             }
             form: {
                 0: {
@@ -312,7 +313,16 @@
                             }
                         ]
                     }
-                    actionKeys: @reference:common.quitToPrev
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
                 }
             }
         }
@@ -543,6 +553,7 @@
             art: MYMSGLST
             config: {
                 menuViewPost: messageAreaViewPost
+                menuNewPost: messageBaseNewPost
             }
             form: {
                 0: {
@@ -561,7 +572,16 @@
                             }
                         ]
                     }
-                    actionKeys: @reference:common.quitToPrev
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
                 }
             }
         }

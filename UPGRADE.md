@@ -22,6 +22,25 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **<kbd>P</kbd> on the message *list* reaches new installations only** ([#213](https://github.com/NuSkooler/enigma-bbs/issues/213)). This is the list of messages you reach with <kbd>L</kbd>, not the message menu, which has offered <kbd>P</kbd> to post for as long as it has existed. The new key is seeded from `misc/menu_templates/`, which `oputil config new` deploys once; your existing `menu.hjson` is yours and is never rewritten, so the key does not appear on an upgraded board until you add it.
+
+  **Action:** add the binding to `messageBaseMessageList` and `messageBaseMyMessagesList` in your `menu.hjson`. Each already has an `actionKeys` entry; `@reference:common.quitToPrev` substitutes the whole value, so the quit binding is written out alongside the new one rather than extended:
+
+  ```hjson
+  actionKeys: [
+      {
+          keys: [ "escape", "q", "shift + q" ]
+          action: @systemMethod:prevMenu
+      }
+      {
+          keys: [ "p", "shift + p" ]
+          action: @method:postNewMessage
+      }
+  ]
+  ```
+
+  The shipped `MSGLIST.ANS` and `MYMSGLST.ANS` name the key in their legend; a theme of your own needs the line adding to its own art.
+
 * **Eight customizations in the `luciano_blocktronics` theme were named wrongly and have been corrected.** `ThemeManager` starts from your `menu.hjson` and looks each menu up in the theme, so a customization naming a menu that does not exist is never consulted — it silently does nothing. Seven menu blocks and one prompt block in the theme we ship named nothing at all. Three were renamed to the menus they were meant for and four were removed.
 
   **This only affects you if you use `luciano_blocktronics` unmodified *and* your `menu.hjson` predates the menu renames.** If so, these blocks stop applying to your board:

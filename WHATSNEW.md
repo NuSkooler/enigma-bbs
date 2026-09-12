@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Post from a message list** ([#213](https://github.com/NuSkooler/enigma-bbs/issues/213)) — <kbd>P</kbd> on the message list, or the personal message list, starts a new message where before you had to back out to the message menu to reach its own <kbd>P</kbd>. The post goes to the area the highlighted message is in, so it does the right thing on a list that spans areas. An existing board keeps the menus it has, so see [UPGRADE.md](UPGRADE.md) for the binding to add.
+
 * **Doors can be handed a [`BBSDEV.DRP`](https://github.com/RealDeuce/bbsdev.drp) drop file** — set `dropFileType: BBSDEV` on an `abracadabra` door. The older formats are CP437, so a user whose name ENiGMA½ stores fine reaches the door mangled, and they leave the terminal's character set, the caller's language and the meaning of the comm field to convention. The new format is UTF-8 and states all three.
 
   The door is told where the file is through the `BBSDEV_DRP` environment variable rather than an argument, so nothing has to be quoted or escaped through a shell. `commType` accepts the mechanisms ENiGMA½ can honestly name — `local`, `stdio`, `serial`, `winserial`, `uart` and `fossil` — with the descriptor, handle, UART base or FOSSIL port in a new `commParams`. A channel ENiGMA½ cannot name stops the door from starting, with the reason logged, rather than writing a `local` that is untrue: that is the format's own rule, and `io: socket` is where it bites, since the format's socket is one the door inherits rather than one it dials.

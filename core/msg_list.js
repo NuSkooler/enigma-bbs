@@ -133,6 +133,42 @@ exports.getModule = class MessageListModule extends (
                     return cb(null);
                 }
             },
+            //
+            //  Posting from a list targets the area the focused message is
+            //  in rather than the caller's current area, since the personal
+            //  list spans areas. The post module checks write access against
+            //  that tag itself.
+            //
+            postNewMessage: (formData, extraArgs, cb) => {
+                if (MciViewIds.allViews.msgList != formData.submitId) {
+                    return cb(null);
+                }
+
+                //  newer 'messageIndex' or older deprecated value
+                const messageIndex = _.get(
+                    formData,
+                    'value.messageIndex',
+                    formData.value.message
+                );
+
+                const selected = _.get(this.config, ['messageList', messageIndex]);
+                const areaTag = selected
+                    ? this.getSelectedAreaTag(messageIndex)
+                    : this.config.messageAreaTag;
+
+                //  as selectMessage does: menu_stack snapshots this through
+                //  getSaveState(), so without it the list comes back focused
+                //  on the first unread rather than where the caller was
+                if (selected) {
+                    this.initialFocusIndex = messageIndex;
+                }
+
+                return this.gotoMenu(
+                    this.config.menuNewPost || 'messageBaseNewPost',
+                    { extraArgs: { messageAreaTag: areaTag } },
+                    cb
+                );
+            },
             fullExit: (formData, extraArgs, cb) => {
                 this.menuResult = { fullExit: true };
                 return this.prevMenu(cb);
