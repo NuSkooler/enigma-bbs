@@ -212,7 +212,12 @@ describe('ftn_bso — EchoMail export to multiple uplinks (issue #746)', functio
 
         const mod = makeModule(root);
         const err = await new Promise(resolve =>
-            mod.exportEchoMailMessagesToUplinks([message.messageUuid], AREA, resolve)
+            mod.exportEchoMailMessagesToUplinks(
+                [message.messageUuid],
+                AREA,
+                AREA.uplinks,
+                resolve
+            )
         );
 
         assert.equal(err, null, err && err.message);
@@ -241,7 +246,12 @@ describe('ftn_bso — EchoMail export to multiple uplinks (issue #746)', functio
 
         const mod = makeModule(root);
         await new Promise(resolve =>
-            mod.exportEchoMailMessagesToUplinks([message.messageUuid], AREA, resolve)
+            mod.exportEchoMailMessagesToUplinks(
+                [message.messageUuid],
+                AREA,
+                AREA.uplinks,
+                resolve
+            )
         );
 
         //  Three uplinks, one row each: the writes are per-uplink but the
@@ -300,7 +310,7 @@ describe('ftn_bso — EchoMail export to multiple uplinks (issue #746)', functio
         };
 
         const err = await new Promise(resolve =>
-            mod.exportEchoMailMessagesToUplinks(['uuid-1'], AREA, resolve)
+            mod.exportEchoMailMessagesToUplinks(['uuid-1'], AREA, AREA.uplinks, resolve)
         );
 
         assert.equal(err, null, err && err.message);
@@ -335,7 +345,7 @@ describe('ftn_bso — EchoMail export to multiple uplinks (issue #746)', functio
 
         warnings.length = 0;
         const err = await new Promise(resolve =>
-            mod.exportEchoMailMessagesToUplinks(['uuid-1'], AREA, resolve)
+            mod.exportEchoMailMessagesToUplinks(['uuid-1'], AREA, AREA.uplinks, resolve)
         );
 
         assert.ok(err, 'a failed uplink must not be reported as success');

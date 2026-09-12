@@ -55,6 +55,66 @@ When ENiGMA½ imports messages, they will be placed in the local area that match
 | `network`   | Yes     | Associated network from the `networks` section above |
 | `tag`       | Yes     | FTN area tag (ie: `FSX_GEN`) |
 | `uplinks`   | Yes     | An array of FTN address uplink(s) for this network |
+| `relay`     | No      | Set `true` to pass imported EchoMail on to the area's other uplinks. See [Relaying EchoMail](#relaying-echomail-points-and-sub-hubs). |
+
+### Relaying EchoMail (points and sub-hubs)
+
+By default ENiGMA½ exports only the messages written by users on *this* system.
+Mail that arrives from an area's upstream source is imported and stops there.
+
+That is the right behaviour for an ordinary node, and the wrong one as soon as
+something downstream of you is configured as a second uplink — a point, or a
+sub-hub. Such a link would receive only local chatter and none of the echo it
+actually subscribed to.
+
+Set `relay: true` on an area to pass imported mail on:
+
+```hjson
+fsx_general: {
+    network: fsxnet
+    tag: FSX_GEN
+    uplinks: [ "21:1/100", "21:1/121.1" ]    //  hub, and our own point
+    relay: true
+}
+```
+
+It is opt-in per area on purpose: relaying is visible to the rest of the
+network, and a board that configured a second uplink for some other reason
+should not silently start feeding it.
+
+#### What gets relayed where
+
+For each imported message, every uplink of the area is considered in turn:
+
+- **Never back to the system that sent it.** The packet header origin recorded
+  at import decides this, so it holds even when a sender omits itself from
+  SEEN-BY.
+- **Always to your own points.** SEEN-BY has no point component (FTS-1027): a
+  point's net/node are its boss's, and an upstream sender routinely lists the
+  boss before the message ever reaches you. A plain SEEN-BY test would therefore
+  read "already seen" for every point, every time, and nothing would ever be
+  relayed to one.
+- **Otherwise, only if the uplink is not already in SEEN-BY**, which is the
+  ordinary loop guard for a genuine peer relationship.
+
+SEEN-BY and `^aPATH` are updated on the way out exactly as they are for locally
+written mail, and the original `MSGID` is preserved rather than regenerated.
+
+:::note[Where relaying starts]
+The first time a relay-enabled area is scanned, ENiGMA½ records where the area
+currently is and exports nothing. Mail imported from that point on is relayed;
+anything already in the message base is treated as history.
+
+This matters on an established board, where the whole message base is imported
+mail: without it, the first scan would offer years of traffic to a link that
+never asked for it.
+:::
+
+:::caution
+Relaying to a genuine second *peer* — another hub rather than a point — is
+supported by the SEEN-BY rule above, but it is far less exercised than the point
+case. Watch your uplink's tosser log the first time round.
+:::
 
 Example:
 ```hjson

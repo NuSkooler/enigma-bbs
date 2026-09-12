@@ -789,10 +789,15 @@ describe('ftn_bso ↔ BinkP integration', function () {
 
             const outDir = mod.getOutgoingEchoMailPacketDir('testnet', DEST);
 
-            mod.exportEchoMailMessagesToUplinks(['uuid-1'], AREA_CONFIG, err => {
-                configModule._popTestConfig(prev);
-                cb(err, { outDir, root });
-            });
+            mod.exportEchoMailMessagesToUplinks(
+                ['uuid-1'],
+                AREA_CONFIG,
+                AREA_CONFIG.uplinks,
+                err => {
+                    configModule._popTestConfig(prev);
+                    cb(err, { outDir, root });
+                }
+            );
         }
 
         function spoolFor(root) {
