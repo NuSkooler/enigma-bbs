@@ -771,6 +771,24 @@ function Packet(options) {
             ftn_msg_dest_net: msgData.ftn_msg_dest_net,
         };
 
+        //
+        //  Record the origin point when the packet is a type that actually has
+        //  one. Without this, mail from our own point reads as coming from our
+        //  own address, and anything reasoning about where a message came from
+        //  -- EchoMail relay, for one -- cannot tell the two apart.
+        //
+        //  Gated on version rather than written unconditionally: origPoint is
+        //  a fill field in a plain type-2 packet, so a stray non-zero value
+        //  there would make a message look like it came from a point that does
+        //  not exist, and the origin would stop being recognised at all.
+        //
+        if (
+            ('2+' === header.version || '2.2' === header.version) &&
+            header.origPoint > 0
+        ) {
+            msg.meta.FtnProperty.ftn_orig_point = header.origPoint;
+        }
+
         self.processMessageBody(msgData.message, messageBodyData => {
             msg.message = messageBodyData.message;
             msg.meta.FtnKludge = messageBodyData.kludgeLines;

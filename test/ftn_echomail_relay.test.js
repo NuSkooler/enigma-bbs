@@ -84,6 +84,7 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
     const HUB = '1:218/701'; //  where our mail comes from
     const PEER = '1:218/702'; //  a genuine second peer
     const POINT = '1:218/700.1'; //  our own point -- same net/node as LOCAL
+    const POINT2 = '1:218/700.2'; //  a sibling point, same net/node again
 
     let tmpDir;
     let testDb;
@@ -108,7 +109,7 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
                     },
                     packetTargetByteSize: 256000,
                     nodes: Object.fromEntries(
-                        [HUB, PEER, POINT].map(u => [u, { packetType: '2+' }])
+                        [HUB, PEER, POINT, POINT2].map(u => [u, { packetType: '2+' }])
                     ),
                 },
             },
@@ -127,7 +128,7 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
     const RELAY_AREA = {
         network: 'testnet',
         tag: 'TEST',
-        uplinks: [HUB, PEER, POINT],
+        uplinks: [HUB, PEER, POINT, POINT2],
         relay: true,
     };
     const QUIET_AREA = {
@@ -245,6 +246,9 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         seenBy,
         withZone = false,
     }) {
+        //  `origin` may carry a point (1:218/700.1). A type 2+ or 2.2 packet
+        //  header carries origPoint and the importer now records it; a plain
+        //  type-2 does not, which is why it is conditional here too.
         const seq = ++fixtureSeq;
         const message = new Message({
             areaTag,
@@ -257,7 +261,7 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
             message.persist(err => (err ? reject(err) : resolve()))
         );
 
-        const [, zone, net, node] = /^(\d+):(\d+)\/(\d+)/.exec(origin);
+        const [, zone, net, node, point] = /^(\d+):(\d+)\/(\d+)(?:\.(\d+))?/.exec(origin);
         const meta = [
             ['System', 'state_flags0', Message.StateFlags0.Imported.toString()],
             ['FtnProperty', 'ftn_orig_network', net],
@@ -265,6 +269,9 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         ];
         if (withZone) {
             meta.push(['FtnProperty', 'ftn_orig_zone', zone]);
+        }
+        if (point && Number(point) > 0) {
+            meta.push(['FtnProperty', 'ftn_orig_point', point]);
         }
         if (undefined !== seenBy) {
             meta.push(['FtnProperty', 'ftn_seen_by', seenBy]);
@@ -295,13 +302,16 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         return message;
     }
 
-    function relayScanId(areaTag) {
+    //  Watermarks are per (area, destination), so a test that cares about one
+    //  destination has to name it. Default to the hub, which every relay area
+    //  here has.
+    function relayScanId(areaTag, uplink = HUB) {
         const row = testDb
             .prepare(
                 `SELECT message_id FROM message_area_last_scan
-                 WHERE scan_toss = 'ftn_bso_relay' AND area_tag = ?;`
+                 WHERE scan_toss = ? AND area_tag = ?;`
             )
-            .get(areaTag);
+            .get(`ftn_bso_relay:${uplink}`, areaTag);
         return row ? row.message_id : undefined;
     }
 
@@ -441,16 +451,12 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         assert.ok(files.includes(flowName(PEER)), 'the other peer should still get it');
     });
 
-    it('does send our own point back the mail it sent us (known gap)', async () => {
-        //  A point's packet header carries origPoint, but the importer does not
-        //  record it -- so a message from OUR point reads as coming from
-        //  1:218/700, which is us, point 0. The origin rule therefore cannot
-        //  see that the point sent it, and the point carve-out relays
-        //  unconditionally.
-        //
-        //  The receiving tosser drops it on MSGID, so this is wasted traffic
-        //  rather than a loop, but it is worth knowing about and worth a test
-        //  that will notice if the importer ever starts recording the point.
+    it('does not send our own point back the mail it sent us', async () => {
+        //  A point shares its boss's net/node, so without the point component
+        //  a message from OUR point reads as coming from us. The importer now
+        //  records ftn_orig_point for packet types that carry one, which is
+        //  what lets the origin rule tell the two apart -- otherwise the point
+        //  carve-out would relay it straight back.
         const root = await freshRoot('point-origin');
         await addImported({});
         await runRelay(root); //  seed
@@ -459,15 +465,32 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         await runRelay(root);
 
         const files = await flowFilesIn(root);
-        const wentToPoint = files.some(
-            f => f.includes('.pnt/') && f.endsWith('00000001.clo')
+        assert.ok(
+            !files.some(f => f.endsWith('00000001.clo')),
+            `our point should not get its own message back; got ${files.join(', ')}`
         );
-        assert.equal(
-            wentToPoint,
-            true,
-            'documents current behaviour: see the comment above -- if this ' +
-                'starts failing, the importer began recording ftn_orig_point ' +
-                'and the origin rule can now catch this case'
+        assert.ok(
+            files.includes(flowName(HUB)) || files.includes(flowName(PEER)),
+            'the node uplinks should still have been relayed to'
+        );
+    });
+
+    it("still relays a point's message to its sibling points", async () => {
+        //  Two points of the same boss share net and node and differ only in
+        //  the point number, so "same system" has to compare it. Without that
+        //  comparison one point's mail is treated as having come from the
+        //  other, and the sibling silently never receives it.
+        const root = await freshRoot('sibling-point');
+        await addImported({});
+        await runRelay(root); //  seed
+
+        await addImported({ origin: POINT });
+        await runRelay(root);
+
+        const files = await flowFilesIn(root);
+        assert.ok(
+            files.some(f => f.endsWith('00000002.clo')),
+            `the sibling point should have been relayed to; got ${files.join(', ')}`
         );
     });
 
@@ -583,6 +606,208 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
         );
     });
 
+    it('combines the exported flag into the imported one, as one row', async () => {
+        //  state_flags0 is a bitmask, but message_meta's UNIQUE key includes
+        //  meta_value, so REPLACE INTO with a different value inserts a second
+        //  row instead of replacing the first. Nothing hit that before relay,
+        //  because nothing ever exported a message it had imported: the result
+        //  was '1' and '2' side by side instead of '3', and the field reloading
+        //  as an array rather than a value.
+        const root = await freshRoot('flag-combine');
+        await addImported({});
+        await runRelay(root); //  seed
+
+        const relayed = await addImported({ origin: HUB, seenBy: '218/701' });
+        const err = await runRelay(root);
+        assert.ok(!err, err && err.message);
+
+        const rows = testDb
+            .prepare(
+                `SELECT meta_value FROM message_meta
+                 WHERE message_id = ? AND meta_category = 'System'
+                   AND meta_name = 'state_flags0';`
+            )
+            .all(relayed.messageId)
+            .map(r => r.meta_value);
+
+        assert.deepEqual(
+            rows,
+            [String(Message.StateFlags0.Imported | Message.StateFlags0.Exported)],
+            'one row holding both bits, not one row per bit'
+        );
+    });
+
+    it('does not re-feed healthy uplinks because another one is broken', async () => {
+        //  The reason watermarks are per destination rather than per area.
+        //
+        //  With one watermark for the whole area, an uplink that never succeeds
+        //  holds it back forever: every pass re-selects a set that only grows,
+        //  and hands all of it to the uplinks that are working. A dead point
+        //  quietly becomes an ever-larger duplicate feed for everyone else.
+        //
+        //  Counted as messages delivered, not flow references: a pass bundles
+        //  everything it has for a destination into one packet, so counting
+        //  references counts passes and would be the same either way.
+        const root = await freshRoot('dead-uplink');
+        await addImported({});
+        await runRelay(root); //  seed
+
+        const outboundDir = path.join(root, 'outbound', 'outbound');
+        await fsp.mkdir(outboundDir, { recursive: true });
+
+        //  Break PEER by making its flow file unwritable; the hub and the
+        //  points carry on normally.
+        const peerFlow = path.join(outboundDir, flowName(PEER));
+        await fsp.writeFile(peerFlow, '');
+        await fsp.chmod(peerFlow, 0o400);
+
+        const subjects = [];
+        try {
+            for (let i = 0; i < 3; i++) {
+                const msg = await addImported({ origin: HUB });
+                subjects.push(msg.subject);
+                await runRelay(root);
+            }
+        } finally {
+            await fsp.chmod(peerFlow, 0o600);
+        }
+
+        //  Everything the healthy point was actually given: its flow file names
+        //  the packets, and each packet carries the subjects in plain CP437.
+        const pointFlowRel = (await flowFilesIn(root)).find(f =>
+            f.endsWith('00000001.clo')
+        );
+        assert.ok(pointFlowRel, 'our point should have received mail');
+
+        const refs = (await fsp.readFile(path.join(outboundDir, pointFlowRel), 'utf8'))
+            .split('\n')
+            .filter(Boolean)
+            .map(line => line.replace(/^[\^#~!@-]/, ''));
+
+        let delivered = '';
+        for (const ref of refs) {
+            delivered += await fsp.readFile(ref, 'latin1');
+        }
+
+        const counts = subjects.map(subject => delivered.split(subject).length - 1);
+        assert.deepEqual(
+            counts,
+            [1, 1, 1],
+            `each message should reach the point once; got ${JSON.stringify(counts)}`
+        );
+    });
+
+    it('holds the watermark back when the flow file cannot be written', async () => {
+        //  The other half of #818, and the one that happens most: the packet
+        //  moves into outbound fine, then the flow reference cannot be
+        //  appended -- a full disk, a permission problem, or simply the node
+        //  being busy, which is an ordinary outcome under concurrent sessions.
+        //
+        //  Swallowed, it left the packet in outbound with nothing referencing
+        //  it, so the mailer never offered it and nothing ever cleaned it up --
+        //  while the watermark moved on regardless.
+        const root = await freshRoot('flow-fail-hold');
+        await addImported({});
+        await runRelay(root); //  seed
+
+        const pending = await addImported({ origin: HUB, seenBy: '218/701' });
+
+        const outboundDir = path.join(root, 'outbound', 'outbound');
+        await fsp.mkdir(outboundDir, { recursive: true });
+        const peerFlow = path.join(outboundDir, flowName(PEER));
+        await fsp.writeFile(peerFlow, '');
+        await fsp.chmod(peerFlow, 0o400);
+
+        let err;
+        try {
+            err = await runRelay(root);
+        } finally {
+            await fsp.chmod(peerFlow, 0o600);
+        }
+
+        assert.ok(!err, 'the pass itself should not throw');
+        assert.notEqual(
+            relayScanId('relay_area', PEER),
+            pending.messageId,
+            'a packet nothing references has not been delivered'
+        );
+        assert.ok(
+            logged.some(entry =>
+                JSON.stringify(entry).includes('Failed appending flow reference record')
+            ),
+            'the append failure should be reported'
+        );
+
+        //  ...and the retry delivers once the problem is gone.
+        const retryErr = await runRelay(root);
+        assert.ok(!retryErr, retryErr && retryErr.message);
+        assert.equal(
+            relayScanId('relay_area', PEER),
+            pending.messageId,
+            'and only then should that destination move on'
+        );
+    });
+
+    it('holds the watermark back when the move into outbound fails', async () => {
+        //  The failure mode the other test does NOT cover, and the one that
+        //  actually happens: the outbound directory already exists, so
+        //  fse.mkdirs is a silent no-op and the export gets all the way to
+        //  moving the packet in before it fails. That branch used to log a
+        //  warning and then report success, so the scan ID advanced past a
+        //  packet left orphaned in the temp area and the mail was never
+        //  offered again. See #818.
+        const root = await freshRoot('move-fail-hold');
+        await addImported({});
+        await runRelay(root); //  seed
+
+        const pending = await addImported({ origin: HUB, seenBy: '218/701' });
+
+        //  Create the destination directory first, then take write permission
+        //  away: mkdirs succeeds, the move does not.
+        const outboundDir = path.join(root, 'outbound', 'outbound');
+        await fsp.mkdir(outboundDir, { recursive: true });
+        await fsp.chmod(outboundDir, 0o500);
+
+        let err;
+        try {
+            err = await runRelay(root);
+        } finally {
+            await fsp.chmod(outboundDir, 0o700);
+        }
+
+        assert.ok(!err, 'the pass itself should not throw');
+        assert.notEqual(
+            relayScanId('relay_area', PEER),
+            pending.messageId,
+            'a packet that never left the temp area must come round again'
+        );
+        assert.equal(
+            relayScanId('relay_area', HUB),
+            pending.messageId,
+            'the hub was the origin, had nothing to send, and is not held back by ' +
+                "another destination's failure"
+        );
+        assert.ok(
+            logged.some(entry =>
+                JSON.stringify(entry).includes('Failed moving temporary outbound file')
+            ),
+            'the move failure should be reported'
+        );
+
+        //  ...and the retry actually delivers once the problem is fixed.
+        const retryErr = await runRelay(root);
+        assert.ok(!retryErr, retryErr && retryErr.message);
+        assert.ok(
+            (await flowFilesIn(root)).includes(flowName(PEER)),
+            'the next pass should deliver what the failed one did not'
+        );
+        assert.equal(
+            relayScanId('relay_area', PEER),
+            pending.messageId,
+            'and only then should that destination move on'
+        );
+    });
+
     it('holds the watermark back when an uplink fails', async () => {
         //  A destination with no node configuration is skipped by
         //  exportEchoMailMessagesToUplinks rather than failing, so provoke a
@@ -605,7 +830,7 @@ describe('ftn_bso — EchoMail relay to secondary uplinks (issue #748)', functio
 
         assert.ok(!err, 'the pass itself should not throw');
         assert.notEqual(
-            relayScanId('relay_area'),
+            relayScanId('relay_area', PEER),
             pending.messageId,
             'mail that did not get out must come round again'
         );

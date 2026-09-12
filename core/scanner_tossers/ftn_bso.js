@@ -822,7 +822,7 @@ function FTNMessageScanTossModule() {
     //  Mail imported from here on is relayed; anything already in the base is
     //  treated as history.
     //
-    this.seedRelayScanId = function (areaTag, cb) {
+    this.seedRelayScanId = function (areaTag, scanToss, cb) {
         let maxId = 0;
         try {
             const row = msgDb
@@ -836,12 +836,10 @@ function FTNMessageScanTossModule() {
         }
 
         Log.info(
-            { areaTag, lastScanId: maxId },
-            'EchoMail relay: first scan of this area; starting from current mail'
+            { areaTag, scanToss, lastScanId: maxId },
+            'EchoMail relay: first scan of this area for this uplink; starting from current mail'
         );
-        return this.setAreaLastScanId(areaTag, ScanToss.Relay, maxId, err =>
-            cb(err, maxId)
-        );
+        return this.setAreaLastScanId(areaTag, scanToss, maxId, err => cb(err, maxId));
     };
 
     //
@@ -1049,10 +1047,13 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function storeStateFlags0Meta(callback) {
-                            message.updateMetaValue(
-                                'System',
-                                'state_flags0',
-                                Message.StateFlags0.Exported.toString(),
+                            //  OR the bit in rather than writing the value:
+                            //  a relayed message already carries Imported, and
+                            //  message_meta's UNIQUE key includes meta_value,
+                            //  so a plain write leaves two rows instead of a
+                            //  combined one.
+                            message.setStateFlags0Bit(
+                                Message.StateFlags0.Exported,
                                 err => {
                                     callback(err);
                                 }
@@ -1414,10 +1415,11 @@ function FTNMessageScanTossModule() {
                             );
                         },
                         function storeStateFlags0Meta(callback) {
-                            return message.updateMetaValue(
-                                'System',
-                                'state_flags0',
-                                Message.StateFlags0.Exported.toString(),
+                            //  See the EchoMail export path: OR the bit in so a
+                            //  message that already carries another flag ends up
+                            //  with one combined value rather than two rows.
+                            return message.setStateFlags0Bit(
+                                Message.StateFlags0.Exported,
                                 callback
                             );
                         },
@@ -1679,7 +1681,15 @@ function FTNMessageScanTossModule() {
 
                                     fse.move(oldPath, newPath, err => {
                                         if (err) {
-                                            Log.warn(
+                                            //  The packet is still in the temp
+                                            //  area, so this export did not
+                                            //  happen. Report it: the caller
+                                            //  advances the area's last scan ID
+                                            //  on a clean return, and doing that
+                                            //  here is how a disk-full or
+                                            //  permission error turns into mail
+                                            //  nobody ever sees again. See #818.
+                                            Log.error(
                                                 {
                                                     oldPath: oldPath,
                                                     newPath: newPath,
@@ -1688,7 +1698,7 @@ function FTNMessageScanTossModule() {
                                                 'Failed moving temporary outbound file!'
                                             );
 
-                                            return nextFile();
+                                            return nextFile(err);
                                         }
 
                                         const flowFilePath = self.getOutgoingFlowFileName(
@@ -1707,10 +1717,39 @@ function FTNMessageScanTossModule() {
                                             exportOpts.destAddress,
                                             err => {
                                                 if (err) {
-                                                    Log.warn(
-                                                        { path: flowFilePath },
+                                                    //  Also fatal to this
+                                                    //  export, and less obvious
+                                                    //  than the move: the packet
+                                                    //  sits in outbound with no
+                                                    //  flow file referencing it,
+                                                    //  so the mailer never offers
+                                                    //  it and nothing cleans it
+                                                    //  up.
+                                                    //
+                                                    //  This includes a busy flow
+                                                    //  file, which is an ordinary
+                                                    //  outcome under concurrent
+                                                    //  sessions -- and swallowing
+                                                    //  it meant a node that was
+                                                    //  merely busy lost the mail
+                                                    //  permanently, because the
+                                                    //  scan ID moved on anyway.
+                                                    //
+                                                    //  Retrying re-packetises
+                                                    //  under a fresh name rather
+                                                    //  than re-referencing this
+                                                    //  one, so the cost of the
+                                                    //  failed attempt is an
+                                                    //  orphaned packet, not a
+                                                    //  duplicate send.
+                                                    Log.error(
+                                                        {
+                                                            path: flowFilePath,
+                                                            error: err.toString(),
+                                                        },
                                                         'Failed appending flow reference record!'
                                                     );
+                                                    return nextFile(err);
                                                 }
                                                 nextFile();
                                             }
@@ -4135,6 +4174,12 @@ function FTNMessageScanTossModule() {
         //  imported. Messages this system composed locally are the export
         //  scan's business, not ours.
         //
+        //  Test the *bit*, not the value. Once a message has been through an
+        //  export its flags read 3 (Imported|Exported), not 1, and an equality
+        //  test stops matching it -- which matters on the retry after a failed
+        //  pass, where the flag was written before the failure and the message
+        //  still has to come round again.
+        //
         const getCandidatesSql = `SELECT message_id, message_uuid
             FROM message m
             WHERE area_tag = ? AND message_id > ?
@@ -4143,11 +4188,11 @@ function FTNMessageScanTossModule() {
                 WHERE message_id = m.message_id
                   AND meta_category = 'System'
                   AND meta_name = 'state_flags0'
-                  AND meta_value = ?
+                  AND (CAST(meta_value AS INTEGER) & ?) = ?
               )
             ORDER BY message_id;`;
 
-        const importedFlag = Message.StateFlags0.Imported.toString();
+        const importedFlag = Message.StateFlags0.Imported;
 
         //
         //  Grouped by (network, uplink) rather than per area or per message.
@@ -4161,9 +4206,6 @@ function FTNMessageScanTossModule() {
         //  what supplies our local address.
         //
         const groups = new Map();
-        //  areaTag -> { maxId, failed } so a group that fails holds back the
-        //  watermark of every area that contributed to it.
-        const areaState = new Map();
 
         async.eachSeries(
             areaTags,
@@ -4183,28 +4225,57 @@ function FTNMessageScanTossModule() {
                 }
                 const localAddress = new Address(networkConfig.localAddress);
 
-                try {
-                    if (self.isAreaScanUnset(areaTag, ScanToss.Relay)) {
-                        return self.seedRelayScanId(areaTag, err => nextArea(err));
-                    }
-                } catch (err) {
-                    return nextArea(err);
-                }
-
-                return self.getAreaLastScanId(
-                    areaTag,
-                    ScanToss.Relay,
-                    (err, lastScanId) => {
+                //
+                //  Watermark per destination. An uplink seen for the first time
+                //  is seeded to where the area is now and considered no further
+                //  this pass, exactly as a new area is -- which is also what
+                //  makes adding an uplink to a live area safe.
+                //
+                const marks = new Map();
+                return async.eachSeries(
+                    areaConfig.uplinks,
+                    (uplink, nextUplink) => {
+                        const scanToss = relayScanToss(uplink);
+                        try {
+                            if (self.isAreaScanUnset(areaTag, scanToss)) {
+                                return self.seedRelayScanId(areaTag, scanToss, err =>
+                                    nextUplink(err)
+                                );
+                            }
+                        } catch (err) {
+                            return nextUplink(err);
+                        }
+                        return self.getAreaLastScanId(
+                            areaTag,
+                            scanToss,
+                            (err, lastScanId) => {
+                                if (err) {
+                                    return nextUplink(err);
+                                }
+                                marks.set(uplink, lastScanId);
+                                return nextUplink(null);
+                            }
+                        );
+                    },
+                    err => {
                         if (err) {
                             return nextArea(err);
                         }
+                        if (0 === marks.size) {
+                            return nextArea(); //  every uplink was just seeded
+                        }
+
+                        //  One query for the area, from the furthest-behind
+                        //  destination; each uplink then takes the slice above
+                        //  its own watermark.
+                        const lowWater = Math.min(...marks.values());
 
                         let rows;
                         let metaByMessageId;
                         try {
                             rows = msgDb
                                 .prepare(getCandidatesSql)
-                                .all(areaTag, lastScanId, importedFlag);
+                                .all(areaTag, lowWater, importedFlag, importedFlag);
                             if (0 === rows.length) {
                                 return nextArea();
                             }
@@ -4215,11 +4286,6 @@ function FTNMessageScanTossModule() {
                             return nextArea(err);
                         }
 
-                        areaState.set(areaTag, {
-                            maxId: rows[rows.length - 1].message_id,
-                            failed: false,
-                        });
-
                         rows.forEach(row => {
                             const meta = metaByMessageId.get(row.message_id) || {};
                             const targets = self.relayTargetsForMessage(
@@ -4229,7 +4295,11 @@ function FTNMessageScanTossModule() {
                                 localAddress
                             );
 
-                            targets.forEach(uplink => {
+                            marks.forEach((watermark, uplink) => {
+                                if (row.message_id <= watermark) {
+                                    return; //  this destination has passed it
+                                }
+
                                 const key = `${areaConfig.network} ${uplink}`;
                                 let group = groups.get(key);
                                 if (!group) {
@@ -4237,12 +4307,27 @@ function FTNMessageScanTossModule() {
                                         network: areaConfig.network,
                                         uplink,
                                         uuids: [],
-                                        areaTags: new Set(),
+                                        //  areaTag -> { maxId, contributed }
+                                        areas: new Map(),
                                     };
                                     groups.set(key, group);
                                 }
-                                group.uuids.push(row.message_uuid);
-                                group.areaTags.add(areaTag);
+
+                                let areaMark = group.areas.get(areaTag);
+                                if (!areaMark) {
+                                    areaMark = { maxId: 0, contributed: false };
+                                    group.areas.set(areaTag, areaMark);
+                                }
+                                //  Considered, so the watermark moves past it
+                                //  whether or not it is sent -- otherwise a
+                                //  message every uplink has already seen is
+                                //  re-judged on every pass, forever.
+                                areaMark.maxId = Math.max(areaMark.maxId, row.message_id);
+
+                                if (targets.includes(uplink)) {
+                                    group.uuids.push(row.message_uuid);
+                                    areaMark.contributed = true;
+                                }
                             });
                         });
 
@@ -4258,13 +4343,22 @@ function FTNMessageScanTossModule() {
                 async.eachSeries(
                     Array.from(groups.values()),
                     (group, nextGroup) => {
+                        const areaTagList = Array.from(group.areas.keys());
+
+                        //  Nothing qualified for this destination, so there is
+                        //  nothing to send and nothing that can fail. Record
+                        //  the progress and move on.
+                        if (0 === group.uuids.length) {
+                            return self.advanceRelayScanIds(group, true, nextGroup);
+                        }
+
                         //  A stand-in area config: exportEchoMailMessagesToUplinks
                         //  uses it for the network (which supplies our local
                         //  address) and for log context. Each message still
                         //  carries its own area_tag through to the AREA kludge.
                         const groupAreaConfig = {
                             network: group.network,
-                            tag: `(relay: ${Array.from(group.areaTags).join(', ')})`,
+                            tag: `(relay: ${areaTagList.join(', ')})`,
                             uplinks: [group.uplink],
                         };
 
@@ -4274,12 +4368,6 @@ function FTNMessageScanTossModule() {
                             [group.uplink],
                             err => {
                                 if (err) {
-                                    group.areaTags.forEach(areaTag => {
-                                        const state = areaState.get(areaTag);
-                                        if (state) {
-                                            state.failed = true;
-                                        }
-                                    });
                                     Log.warn(
                                         {
                                             uplink: group.uplink,
@@ -4294,21 +4382,23 @@ function FTNMessageScanTossModule() {
                                             uplink: group.uplink,
                                             network: group.network,
                                             messagesRelayed: group.uuids.length,
-                                            areas: Array.from(group.areaTags),
+                                            areas: areaTagList,
                                         },
                                         'EchoMail relay complete'
                                     );
                                 }
-                                return nextGroup(null); //  others still get theirs
+                                //  On failure only the areas that actually had
+                                //  mail in this batch are held back. An area
+                                //  that contributed nothing to it learned
+                                //  nothing from the failure and would otherwise
+                                //  re-judge the same messages every pass.
+                                return self.advanceRelayScanIds(group, !err, () =>
+                                    nextGroup(null)
+                                );
                             }
                         );
                     },
-                    () => {
-                        //  Areas whose candidates were all filtered away have no
-                        //  group at all, and still advance: the decision has
-                        //  been made for those messages.
-                        return self.advanceRelayScanIds(areaState, cb);
-                    }
+                    cb
                 );
             }
         );
@@ -4377,18 +4467,23 @@ function FTNMessageScanTossModule() {
     };
 
     //
-    //  Move each area's relay watermark up, skipping any area whose mail did
-    //  not all get out.
+    //  Move this destination's watermark up for each area that fed it.
     //
-    this.advanceRelayScanIds = function (areaState, cb) {
+    //  |delivered| says whether the batch got out. When it did not, only the
+    //  areas that contributed to the batch are held back -- an area that had
+    //  nothing for this uplink learned nothing from the failure, and holding it
+    //  back would have it re-judge the same messages on every pass.
+    //
+    this.advanceRelayScanIds = function (group, delivered, cb) {
+        const scanToss = relayScanToss(group.uplink);
         async.eachSeries(
-            Array.from(areaState.entries()),
+            Array.from(group.areas.entries()),
             (entry, nextArea) => {
-                const [areaTag, state] = entry;
-                if (state.failed) {
+                const [areaTag, mark] = entry;
+                if (!delivered && mark.contributed) {
                     return nextArea();
                 }
-                self.setAreaLastScanId(areaTag, ScanToss.Relay, state.maxId, nextArea);
+                self.setAreaLastScanId(areaTag, scanToss, mark.maxId, nextArea);
             },
             cb
         );
@@ -5423,6 +5518,19 @@ const ScanToss = {
     Export: 'ftn_bso',
     Relay: 'ftn_bso_relay',
 };
+
+//
+//  The relay watermark is per (area, destination), not per area.
+//
+//  A single watermark for the whole area means one unreachable uplink holds it
+//  back for all of them: every pass then re-selects a set that only grows, and
+//  re-sends all of it to the uplinks that are working. A dead point would
+//  quietly turn into an ever-larger duplicate feed for everyone else. Each
+//  destination tracks its own progress instead.
+//
+function relayScanToss(uplink) {
+    return `${ScanToss.Relay}:${uplink}`;
+}
 
 const EXPORT_WATCHDOG_MS = 10 * 60 * 1000;
 

@@ -101,13 +101,20 @@ SEEN-BY and `^aPATH` are updated on the way out exactly as they are for locally
 written mail, and the original `MSGID` is preserved rather than regenerated.
 
 :::note[Where relaying starts]
-The first time a relay-enabled area is scanned, ENiGMA½ records where the area
-currently is and exports nothing. Mail imported from that point on is relayed;
-anything already in the message base is treated as history.
+The first time a relay-enabled area is scanned for a given uplink, ENiGMA½
+records where the area currently is and exports nothing. Mail imported from that
+point on is relayed; anything already in the message base is treated as history.
 
 This matters on an established board, where the whole message base is imported
 mail: without it, the first scan would offer years of traffic to a link that
-never asked for it.
+never asked for it. It is also what makes adding an uplink to a busy area safe —
+the new link starts from the present, not the beginning.
+:::
+
+:::note[Each uplink tracks its own progress]
+Delivery is recorded per uplink, not per area. An uplink that cannot be reached
+is retried with its own backlog and does not hold up — or re-send to — the ones
+that are working.
 :::
 
 :::caution
