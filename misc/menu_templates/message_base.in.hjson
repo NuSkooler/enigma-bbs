@@ -318,10 +318,7 @@
                         ]
                     }
                     actionKeys: [
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                         {
                             keys: [ "p", "shift + p" ]
                             action: @method:postNewMessage
@@ -577,10 +574,7 @@
                         ]
                     }
                     actionKeys: [
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                         {
                             keys: [ "p", "shift + p" ]
                             action: @method:postNewMessage
@@ -766,10 +760,7 @@
                                 menu: messageAreaReplyPost
                             }
                         }
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                         {
                             keys: [ "d", "shift + d" ]
                             action: @method:addToDownloadQueue
