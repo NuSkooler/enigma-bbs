@@ -907,6 +907,36 @@ class BinkpSession extends EventEmitter {
             return;
         }
 
+        //
+        //  A sender resuming a file offers the offset it is resuming from, and
+        //  FTS-1026 allows it to do so unprompted. We keep no inbound partials
+        //  -- _destroy unlinks everything in _inboundTempPaths -- so there is
+        //  never anything here to resume against, and accepting the offer would
+        //  write the remainder from the start of a fresh file while waiting for
+        //  |size| bytes that are not coming.
+        //
+        //  Zero is always where we are, so say so and wait for the
+        //  re-announcement, which FTS-1026 requires of the sender under M_GET.
+        //  This is the shape binkd's start_file_recv uses when the offered
+        //  offset does not match where its own file is.
+        //
+        if (offset > 0) {
+            //  Unlike the NR case, this sender has already put the remainder
+            //  on the wire. Those bytes are in flight behind our M_GET and are
+            //  not an answer to it, so _onDataFrame must not adopt them -- doing
+            //  so writes the remainder as though it were the whole file, which
+            //  is the bug being fixed. Wait for the re-announcement.
+            this._pendingOffsetReq = {
+                name,
+                size,
+                timestamp,
+                useGZ,
+                awaitReannounce: true,
+            };
+            this._sendCmd(Commands.M_GET, `${name} ${size} ${timestamp} 0`);
+            return;
+        }
+
         this._beginReceive({ name, size, timestamp, useGZ });
     }
 
@@ -987,7 +1017,17 @@ class BinkpSession extends EventEmitter {
         //  not following FTS-1026, but the bytes are on the wire and
         //  discarding them would hang the batch. Adopt the outstanding
         //  offset request as the active receive instead.
+        //
+        //  Except when we asked in order to refuse a resume offer: there the
+        //  sender had already begun sending the remainder before it saw our
+        //  M_GET, so these bytes are the tail of the old stream rather than an
+        //  answer, and adopting them would assemble a partial file under the
+        //  full file's name. Drop them and wait for the re-announcement, which
+        //  FTS-1026 requires of the sender.
         if (!this._currentRecv && this._pendingOffsetReq) {
+            if (this._pendingOffsetReq.awaitReannounce) {
+                return;
+            }
             this._beginReceive(this._pendingOffsetReq);
         }
 
