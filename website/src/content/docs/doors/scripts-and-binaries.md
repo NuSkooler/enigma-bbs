@@ -78,7 +78,7 @@ Line 12 names the character set of the door's terminal data, and it is taken fro
 
 Line 13 must be a well-formed BCP 47 tag. A `general.language` that is not one -- `English (US)`, say -- refuses the file rather than writing something a conforming door must reject.
 
-Line 11, the forced logoff time, is written empty: ENiGMA½ imposes no per-call time limit.
+Line 11, the forced logoff time, states when the caller's [daily time budget](../configuration/time-limits.md) runs out, as an absolute UTC instant so a door that pauses cannot arrive at the wrong answer by counting down. It is written empty where nothing will end the session -- no limit configured, or an exempt user -- which is the format's way of saying there is no deadline.
 
 #### Argument Variables
 
