@@ -102,6 +102,14 @@ doorsMainMenu: {
 
 A user is warned at **5, 3, 2 and 1** minutes remaining, each threshold once. The check rides the same one-minute tick that bills the minute -- the only moment the balance can change -- so a tick that skips from 6 straight to 2 still warns, once, at 2.
 
+The text comes from `theme.timeWarningText`, which a theme may override through `customization.defaults.timeWarningText`, the same way `passwordChar` and the date formats work. `{minutes}` is the number remaining and `{plural}` is `s` unless that number is 1; [pipe codes](../art/colour-codes.md) are honoured. Setting it to an empty string turns the warnings off -- the kick at zero still happens.
+
+```hjson
+theme: {
+    timeWarningText: "|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00"
+}
+```
+
 Warnings are queued the same way a node-to-node message is: they appear at the next point the user's current module can be interrupted, rather than landing in the middle of their art or their editor. Exempt and unlimited users are never warned.
 
 A session that crosses midnight starts the new day with a fresh balance and a fresh set of warnings.

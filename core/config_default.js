@@ -213,6 +213,17 @@ module.exports = () => {
                 short: 'MM/DD/YYYY h:mm a',
                 long: 'ddd, MMMM Do, YYYY, h:mm a',
             },
+
+            //
+            //  Shown as a user's daily time budget runs down; see
+            //  users.timeLimits. "{minutes}" is the number remaining and
+            //  "{plural}" is "s" unless that number is 1. A theme may
+            //  override this via customization.defaults.timeWarningText.
+            //  Set it to "" to turn the warnings off; the kick at zero still
+            //  happens.
+            //
+            timeWarningText:
+                '|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00',
         },
 
         menus: {

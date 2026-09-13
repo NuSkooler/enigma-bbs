@@ -432,6 +432,7 @@ describe('config schema against config_default.js', () => {
             'theme.default',
             'theme.passwordChar',
             'theme.preLogin',
+            'theme.timeWarningText',
             'users.badUserNames',
             'users.failedLogin.autoUnlockMinutes',
             'users.failedLogin.disconnect',
