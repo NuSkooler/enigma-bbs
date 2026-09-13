@@ -218,12 +218,16 @@ describe('Time limit enforcement', () => {
             assert.deepEqual(seen, [5, 3, 2, 1]);
         });
 
-        //  the same mechanism, reached by a sysop raising a band mid-session
+        //
+        //  The same mechanism, reached by an operator granting more time
+        //  mid-call. The per-account override is the live tier -- a band
+        //  would not move a session that has already pinned one.
+        //
         it('warns again when the allowance grows mid-session', () => {
             const client = clientWithBudget(60, 58); //  2 left
             assert.equal(UserTime.checkTimeRemaining(client), 2);
 
-            TEST_CONFIG.users = { timeLimits: [{ minutesPerDay: 120 }] };
+            client.user.properties[UserProps.TimeMinutesPerDay] = 120;
             assert.equal(UserTime.checkTimeRemaining(client), undefined); //  62 left
             assert.equal(client.timeWarnLatch, undefined, 'latch must be cleared');
 

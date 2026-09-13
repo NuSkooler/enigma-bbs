@@ -54,6 +54,8 @@ users: {
 }
 ```
 
+A band is resolved **once per session**, and again if the session crosses midnight. ACS reads things that move while somebody is connected -- `MM` and `WD` most obviously, but also `GM` if you change a group -- and re-reading it mid-call would let an allowance fall underneath a caller who had already spent against the old one, dropping them to zero with no warning. The consequence is that editing `users.timeLimits` does not reach sessions already underway; the per-account override does, because you set that deliberately.
+
 :::caution
 Do not use [`ML`](acs.md) in a band's `acs`. It reads as "users with *n* minutes left get *n* minutes per day", which is circular; ENiGMA½ breaks the loop by treating the allowance as unlimited while a band is being evaluated, so such a band never does what it appears to say.
 :::
