@@ -331,6 +331,96 @@ describe('BinkpSession — NR mode receiving', function () {
     });
 });
 
+// ── Inbound resume offsets — issue #760 ──────────────────────────────────────
+
+describe('BinkpSession — inbound resume offset (issue #760)', function () {
+    this.timeout(10000);
+
+    //  M_GET frames the session sent, as [name, size, timestamp, offset].
+    function getRequests(peer) {
+        return peer.framesIn
+            .filter(f => f.cmd === Commands.M_GET)
+            .map(f => f.arg.split(' '));
+    }
+
+    it('asks for the whole file when the sender offers a resume offset', async () => {
+        //  _onFile parsed the offset and then dropped it, so the receive was
+        //  built against a fresh temp file with bytesReceived 0 while the
+        //  sender sent only the remainder. Before #745 the trailing frame
+        //  finalised it anyway and we acknowledged a truncated file with M_GOT,
+        //  telling the sender to delete its copy. After #745 the size check
+        //  refused it -- safe, but the file simply never transferred.
+        //
+        //  We keep no inbound partials (_destroy unlinks everything in
+        //  _inboundTempPaths), so zero is always where we are: say so, and let
+        //  the sender re-announce.
+        const body = Buffer.alloc(8192, 0x41);
+        const { session, peer } = await makeScriptedPair({
+            filesToSend: [
+                {
+                    name: 'resumed.pkt',
+                    size: body.length,
+                    timestamp: 1700000000,
+                    data: body,
+                    resumeFrom: 3000,
+                },
+            ],
+        });
+
+        let tempPath = null;
+        let receivedSize = null;
+        session.on('file-received', (name, size, ts, p) => {
+            tempPath = p;
+            receivedSize = size;
+        });
+
+        await runSession(session);
+
+        const gets = getRequests(peer);
+        assert.equal(gets.length, 1, 'exactly one M_GET should have been sent');
+        assert.deepEqual(
+            gets[0],
+            ['resumed.pkt', String(body.length), '1700000000', '0'],
+            'the M_GET must name offset 0 and the full size'
+        );
+
+        assert.ok(tempPath, 'the file must transfer after the re-announcement');
+        assert.equal(receivedSize, body.length);
+        const onDisk = await fsp.readFile(tempPath);
+        assert.equal(onDisk.length, body.length, 'the whole file, not the remainder');
+        assert.ok(onDisk.equals(body), 'contents must match');
+        await fsp.unlink(tempPath).catch(() => {});
+    });
+
+    it('still starts at zero for an ordinary offer', async () => {
+        //  Guard against answering M_GET for every file: offset 0 is the normal
+        //  case and must go straight into the receive.
+        const body = Buffer.from('ORDINARY-OFFER');
+        const { session, peer } = await makeScriptedPair({
+            filesToSend: [
+                {
+                    name: 'plain.pkt',
+                    size: body.length,
+                    timestamp: 1700000000,
+                    data: body,
+                },
+            ],
+        });
+
+        let tempPath = null;
+        session.on('file-received', (name, size, ts, p) => {
+            tempPath = p;
+        });
+
+        await runSession(session);
+
+        assert.ok(tempPath, 'the file must have been received');
+        assert.equal((await fsp.readFile(tempPath)).toString(), body.toString());
+        await fsp.unlink(tempPath).catch(() => {});
+        assert.deepEqual(getRequests(peer), [], 'no M_GET for a plain offer');
+    });
+});
+
 // ── Negotiation ───────────────────────────────────────────────────────────────
 
 describe('BinkpSession — NR negotiation (FTS-1028)', function () {

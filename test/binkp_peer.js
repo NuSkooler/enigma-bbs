@@ -364,6 +364,14 @@ class ScriptedPeer {
             this._sendFileHeader(file, -1, this._encode(file, 0).gz);
             return;
         }
+        //  A sender resuming unprompted: announce a non-zero offset and send
+        //  only the remainder, as FTS-1026 permits. |resumeFrom| models that.
+        if (file.resumeFrom > 0) {
+            const resumed = this._encode(file, file.resumeFrom);
+            this._sendFileHeader(file, file.resumeFrom, resumed.gz);
+            this._pump(resumed.body);
+            return;
+        }
         const { body, gz } = this._encode(file, 0);
         this._sendFileHeader(file, 0, gz);
         this._pump(body);
