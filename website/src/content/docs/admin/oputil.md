@@ -84,6 +84,11 @@ Actions:
 
   group USERNAME [+|~]GROUP    Adds (+) or removes (~) user from a group
 
+  time USERNAME MINUTES        Set the user's daily time allowance, in minutes,
+  time USERNAME clear          overriding any users.timeLimits band. 0 means
+                               unlimited; "clear" removes the override so the
+                               bands apply again.
+
   list [FILTER]                List users with optional FILTER.
 
   Valid filters:
@@ -120,6 +125,7 @@ info arguments:
 | `disable`   | Disables user (user will not be able to login)    | `./oputil.js user disable joeuser`    | N/A   |
 | `lock` | Locks the user account (prevents logins) | `./oputil.js user lock joeuser` | N/A |
 | `group`   | Modifies users group membership   | Add to group: `./oputil.js user group joeuser +derp`<br/>Remove from group: `./oputil.js user group joeuser ~derp`   | N/A    |
+| `time`   | Sets a user's daily time allowance, overriding any [`users.timeLimits`](../configuration/time-limits.md) band. `0` means unlimited; `clear` removes the override so the bands apply again.   | `./oputil.js user time joeuser 120`<br/>`./oputil.js user time joeuser clear`   | N/A    |
 
 #### Manage 2FA/OTP
 While `oputil.js` can be used to manage a user's 2FA/OTP, it is highly recommended to require users to opt-in themselves. See [Security](../configuration/security.md) for details.
