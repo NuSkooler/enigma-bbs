@@ -231,6 +231,7 @@ function recordLogin(client, cb) {
 
     const user = client.user;
     const loginTimestamp = StatLog.now;
+    const previousLoginTimestamp = user.getProperty(UserProps.LastLoginTs);
 
     //  Snapshot streak values now, before the parallel block updates LastLoginTs.
     const now = moment();
@@ -249,6 +250,17 @@ function recordLogin(client, cb) {
                     loginTimestamp,
                     callback
                 );
+            },
+            callback => {
+                if (previousLoginTimestamp) {
+                    return StatLog.setUserStat(
+                        user,
+                        UserProps.PrevLoginTs,
+                        previousLoginTimestamp,
+                        callback
+                    );
+                }
+                return callback(null);
             },
             callback => {
                 return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);

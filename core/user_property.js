@@ -26,6 +26,7 @@ module.exports = {
     ThemeId: 'theme_id',
     AccountCreated: 'account_created',
     LastLoginTs: 'last_login_timestamp',
+    PrevLoginTs: 'previous_login_timestamp',
     LoginCount: 'login_count',
     UserComment: 'user_comment', //  NYI
     AutoSignature: 'auto_signature',

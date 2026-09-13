@@ -348,8 +348,11 @@ module.exports = class DropFile {
         );
 
         const timeOfCall = moment(prop[UserProps.LastLoginTs] || moment()).format(
-            'hh:mm'
+            'HH:mm'
         );
+        const timeOfLastCall = prop[UserProps.PrevLoginTs]
+            ? moment(prop[UserProps.PrevLoginTs]).format('HH:mm')
+            : '';
 
         //  :TODO: fix time remaining
         //  :TODO: fix default protocol -- user prop: transfer_protocol
@@ -401,7 +404,7 @@ module.exports = class DropFile {
                 '256', //  "Time Credits In Minutes (positive/negative)"
                 '07/07/90', //  "Last New Files Scan Date          (mm/dd/yy)"
                 timeOfCall, //  "Time of This Call"
-                timeOfCall, //  "Time of Last Call                 (hh:mm)"
+                timeOfLastCall, //  "Time of Last Call                 (hh:mm)"
                 '9999', //  "Maximum daily files available"
                 '0', //  "Files d/led so far today"
                 upK.toString(), //  "Total "K" Bytes Uploaded"
