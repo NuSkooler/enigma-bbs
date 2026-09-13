@@ -97,7 +97,7 @@ function menuEntryNode() {
             },
             youSubmittedFormat: {
                 type: NodeType.String,
-                description: 'bbs_list only; see docs/_docs/modding/bbs-list.md.',
+                description: 'bbs_list only; see modules/bbs-list.md.',
             },
         },
     };

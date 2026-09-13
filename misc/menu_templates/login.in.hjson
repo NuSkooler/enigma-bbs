@@ -625,7 +625,7 @@
         //  field is locked to the sysop.
         //
         //  Reachable once the "feedback" item is uncommented in the matrix
-        //  above. See docs/_docs/modding/pre-auth-feedback.md.
+        //  above. See modules/pre-auth-feedback.md.
         //
         preAuthFeedback: {
             desc: Pre-Auth Feedback

@@ -348,7 +348,7 @@ Boot a raw FreeDOS disk image using the v86 x86 emulator.
 Does not require a running ENiGMA instance.
 
 BIOS files default to misc/v86_bios/seabios.bin and misc/v86_bios/vgabios.bin.
-Run misc/install.sh to download them, or see docs/_docs/modding/local-doors-v86.md.
+Run misc/install.sh to download them, or see https://enigma-bbs.github.io/doors/v86/.
 
 Actions:
   console IMAGE               Boot image, wire COM1 to this terminal (interactive).
