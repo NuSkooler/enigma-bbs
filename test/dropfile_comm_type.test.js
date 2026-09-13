@@ -4,29 +4,33 @@ const { strict: assert } = require('assert');
 const os = require('os');
 
 const DropFile = require('../core/dropfile.js');
+const UserProps = require('../core/user_property.js');
 
-function makeClient() {
+function makeClient(properties = {}) {
     return {
         node: 1,
         term: { termHeight: 25 },
         user: {
             userId: 1,
-            properties: {
-                login_count: '5',
-                location: 'Anywhere',
-            },
+            properties: Object.assign(
+                {
+                    login_count: '5',
+                    location: 'Anywhere',
+                },
+                properties
+            ),
             getSanitizedName: which => ('real' === which ? 'Test User' : 'testuser'),
             getLegacySecurityLevel: () => 30,
         },
     };
 }
 
-function dropFileLines(fileType, commType) {
+function dropFileLines(fileType, commType, properties) {
     const opts = { fileType, baseDir: os.tmpdir() };
     if (commType) {
         opts.commType = commType;
     }
-    const dropFile = new DropFile(makeClient(), opts);
+    const dropFile = new DropFile(makeClient(properties), opts);
     return dropFile.getContents().toString('latin1').split('\r\n');
 }
 
@@ -88,6 +92,27 @@ describe('DOOR.SYS comm port', () => {
     it('reports a port for serial and socket doors', () => {
         assert.equal(dropFileLines('DOOR', 'serial')[0], 'COM1:');
         assert.equal(dropFileLines('DOOR', 'socket')[0], 'COM1:');
+    });
+});
+
+describe('DOOR.SYS call times', () => {
+    it('writes distinct current and previous call times in 24-hour format', () => {
+        const lines = dropFileLines('DOOR', undefined, {
+            [UserProps.LastLoginTs]: '2026-09-12T14:32:00',
+            [UserProps.PrevLoginTs]: '2026-09-11T08:05:00',
+        });
+
+        assert.equal(lines[43], '14:32');
+        assert.equal(lines[44], '08:05');
+    });
+
+    it('leaves the previous call time blank for a first-time caller', () => {
+        const lines = dropFileLines('DOOR', undefined, {
+            [UserProps.LastLoginTs]: '2026-09-12T14:32:00',
+        });
+
+        assert.equal(lines[43], '14:32');
+        assert.equal(lines[44], '');
     });
 });
 
