@@ -9,12 +9,14 @@ const messageArea = require('./message_area.js');
 const { ErrorReasons } = require('./enig_error.js');
 const UserProps = require('./user_property.js');
 const { loginFactor2_OTP } = require('./user_2fa_otp.js');
+const UserTime = require('./user_time.js');
 
 //  deps
 const _ = require('lodash');
 const iconv = require('iconv-lite');
 
 exports.login = login;
+exports.enterOrKick = enterOrKick; //  exported for test; see user_time_enforcement.test.js
 exports.login2FA_OTP = login2FA_OTP;
 exports.setClientEncoding = setClientEncoding;
 exports.logoff = logoff;
@@ -65,6 +67,17 @@ const handleAuthFailures = (callingMenu, err, cb) => {
 //  abracadabra.autoNextMenu()), and an unguarded cb(err) here used to take
 //  down the whole BBS for everyone. Normalising cb at the entry of each
 //  exported method makes the body safe without scattering if (cb) checks.
+//
+//  A user whose daily allowance is already spent never reaches the session:
+//  admitSession() emits 'time up' and the kick handler takes it from there.
+//
+function enterOrKick(callingMenu, cb) {
+    if (!UserTime.admitSession(callingMenu.client)) {
+        return cb(null);
+    }
+    return callingMenu.nextMenu(cb);
+}
+
 function login(callingMenu, formData, extraArgs, cb) {
     cb = cb || _.noop;
     userLogin(
@@ -77,7 +90,7 @@ function login(callingMenu, formData, extraArgs, cb) {
             }
 
             //  success!
-            return callingMenu.nextMenu(cb);
+            return enterOrKick(callingMenu, cb);
         }
     );
 }
@@ -90,7 +103,7 @@ function login2FA_OTP(callingMenu, formData, extraArgs, cb) {
         }
 
         //  success!
-        return callingMenu.nextMenu(cb);
+        return enterOrKick(callingMenu, cb);
     });
 }
 

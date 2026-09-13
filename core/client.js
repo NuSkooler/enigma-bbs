@@ -504,6 +504,16 @@ Client.prototype.startIdleMonitor = function () {
     //  We also update minutes spent online the system here,
     //  if we have a authenticated user.
     //
+    //
+    //  The time budget rides its own interval rather than this one. Several
+    //  modules stop the idle monitor for the duration of something that must
+    //  not be interrupted -- MRC chat does it for the whole chat session --
+    //  and billing a user's daily allowance must not stop with it. Starting
+    //  it here rather than at 'ready' means every one of those modules
+    //  restores it for free on the way out.
+    //
+    this.startTimeMonitor();
+
     this.idleCheck = setInterval(() => {
         const nowMs = Date.now();
 
@@ -528,9 +538,6 @@ Client.prototype.startIdleMonitor = function () {
                     statValue: minOnline,
                 });
             }
-
-            //  ...and bill the same minute against today's time budget.
-            UserTime.accrueMinute(this);
         } else {
             idleLogoutSeconds = Config().users.preAuthIdleLogoutSeconds;
         }
@@ -545,6 +552,32 @@ Client.prototype.startIdleMonitor = function () {
             this.emit('idle timeout', idleLogoutSeconds);
         }
     }, 1000 * 60);
+};
+
+//
+//  Every 1m, bill a minute of today's budget and act on what is left. This
+//  is the only moment the balance can change, so warning and kicking from
+//  here is exact rather than merely frequent.
+//
+//  Deliberately not stopped by stopIdleMonitor(): see startIdleMonitor().
+//  It runs for the life of the session and is cleared in end().
+//
+Client.prototype.startTimeMonitor = function () {
+    if (this.timeCheck) {
+        return; //  already running
+    }
+
+    this.timeCheck = setInterval(() => {
+        UserTime.accrueMinute(this);
+        UserTime.checkTimeRemaining(this);
+    }, 1000 * 60);
+};
+
+Client.prototype.stopTimeMonitor = function () {
+    if (this.timeCheck) {
+        clearInterval(this.timeCheck);
+        delete this.timeCheck;
+    }
 };
 
 //
@@ -609,6 +642,7 @@ Client.prototype.end = function () {
     }
 
     this.stopIdleMonitor();
+    this.stopTimeMonitor();
 
     try {
         //

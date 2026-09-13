@@ -30,6 +30,8 @@ The `abracadabra` `config` block supports the following fields:
 | `env` | No | Environment variables as a map: `{ SOME_VAR: "value" }` |
 | `nodeMax` | No | Max concurrent sessions for this door. Uses `name` as the tracking key. |
 | `tooManyArt` | No | Art spec to display when `nodeMax` is exceeded. |
+| `minTimeLeftMinutes` | No | Refuse to start the door unless the user has at least this many minutes left in today's [time budget](../configuration/time-limits.md). Unset means no check; a user with no limit always passes. |
+| `notEnoughTimeArt` | No | Art spec to display when `minTimeLeftMinutes` is not met. |
 | `io` | No | I/O mode: `stdio` (default) or `socket`. When `socket`, ENiGMA½ spawns a temporary TCP server on `{srvPort}` that the door process connects back to. |
 | `commType` | No | What the drop file tells the door it is talking to: `local`, `serial`, or `socket`, defaulting to `socket` when `io: socket` and `local` otherwise. `dropFileType: BBSDEV` takes a wider set with a different default — see [BBSDEV.DRP](#bbsdevdrp). |
 | `commParams` | No | The descriptor, handle, UART base and IRQ, or FOSSIL port belonging to `commType`. Read only for `dropFileType: BBSDEV`. See [BBSDEV.DRP](#bbsdevdrp) below. |
