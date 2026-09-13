@@ -22,6 +22,28 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **<kbd>U</kbd> to upload a reply packet reaches new installations only** ([#810](https://github.com/NuSkooler/enigma-bbs/issues/810)). Like every menu key, it is seeded from `misc/menu_templates/`, which `oputil config new` deploys once; your `menu.hjson` is yours and is never rewritten.
+
+  **Action:** add the entry to the `submit` list of `messageBaseMainMenu` in your `menu.hjson`, and the menu it points at alongside your other message base menus:
+
+  ```hjson
+  {
+      value: { command: "U" }
+      action: @menu:offlineMailImport
+  }
+  ```
+
+  ```hjson
+  offlineMailImport: {
+      desc: Offline Mail Import
+      module: message_base_offline_import
+  }
+  ```
+
+  The shipped `MSGMNU.ANS` names the key in its legend; a theme of your own needs the line adding to its own art.
+
+  Nothing breaks if you leave the key out. A packet says it takes replies -- `INF_HEADER.uses_upl_file` -- only when one of your menus carries `message_base_offline_import`, so a board without the upload does not have callers write replies they cannot send.
+
 * **<kbd>P</kbd> on the message *list* reaches new installations only** ([#213](https://github.com/NuSkooler/enigma-bbs/issues/213)). This is the list of messages you reach with <kbd>L</kbd>, not the message menu, which has offered <kbd>P</kbd> to post for as long as it has existed. The new key is seeded from `misc/menu_templates/`, which `oputil config new` deploys once; your existing `menu.hjson` is yours and is never rewritten, so the key does not appear on an upgraded board until you add it.
 
   **Action:** add the binding to `messageBaseMessageList` and `messageBaseMyMessagesList` in your `menu.hjson`. Each already has an `actionKeys` entry; `@reference:common.quitToPrev` substitutes the whole value, so the quit binding is written out alongside the new one rather than extended:

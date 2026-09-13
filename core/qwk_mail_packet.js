@@ -393,21 +393,21 @@ class QWKPacketReader extends EventEmitter {
                                             //  name is whatever ID the host
                                             //  chose -- not a fixed one.
                                             //
-                                            if (key.endsWith('.MSG')) {
-                                                if (
-                                                    this.options.mode ===
-                                                    QWKPacketReader.Modes.Guess
-                                                ) {
-                                                    this.options.mode =
-                                                        QWKPacketReader.Modes.REP;
-                                                }
-
-                                                if (
-                                                    this.options.mode ===
+                                            //  Only when the caller said this
+                                            //  is a reply packet: files are
+                                            //  walked in readdir order, so a
+                                            //  stray .MSG sitting beside a
+                                            //  MESSAGES.DAT would otherwise
+                                            //  decide what a downloaded packet
+                                            //  is, depending on which the
+                                            //  directory listed first.
+                                            //
+                                            if (
+                                                key.endsWith('.MSG') &&
+                                                this.options.mode ===
                                                     QWKPacketReader.Modes.REP
-                                                ) {
-                                                    out.messages = { filename };
-                                                }
+                                            ) {
+                                                out.messages = { filename };
                                             }
                                             out[key] = { filename };
                                         }

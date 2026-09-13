@@ -37,6 +37,13 @@ Example:
 }
 ```
 
+### Uploading Replies
+A caller who reads a QWK packet offline uploads the `*.REP` their reader wrote, with <kbd>U</kbd> from the message base menu (`message_base_offline_import`). Nothing asks them what format it is: a reply packet names itself from the inside, so a QWK one -- a lone `*.MSG` file and no `CONTROL.DAT` -- is read as QWK, and a Blue Wave one as Blue Wave.
+
+Each reply names a conference number, which is matched against the same numbering the export used. An area with no `conference` configured is numbered automatically from 1000, so a conference you care about is worth pinning: an automatic number moves when you add or remove an area, and a reply written against the old numbering would then name a different one.
+
+The guards are the same for any format -- write access on the target area, a real user for personal mail, and the `From` name replaced with the caller's own. See [Blue Wave Support](./bluewave.md) for the full list.
+
 ### oputil
 The `oputil.js` utility can export packet files, dump the messages of a packet to stdout, etc. See [the oputil documentation](../admin/oputil.md) for more information.
 
