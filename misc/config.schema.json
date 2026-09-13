@@ -265,6 +265,19 @@
                     "minimum": 0,
                     "default": 360
                 },
+                "timeLimits": {
+                    "description": "Daily time allowance bands, in minutes. Ordered; first ACS match wins, an entry with no acs is the default, and no match means unlimited.",
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    },
+                    "default": []
+                },
+                "unlimitedTimeText": {
+                    "description": "What the TR and TA MCI codes render when no limit applies.",
+                    "type": "string",
+                    "default": "Unlimited"
+                },
                 "failedLogin": {
                     "type": "object",
                     "properties": {

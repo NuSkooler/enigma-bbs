@@ -63,6 +63,11 @@ Actions:
 
   group USERNAME [+|~]GROUP    Adds (+) or removes (~) user from a group
 
+  time USERNAME MINUTES        Set the user's daily time allowance, in minutes,
+  time USERNAME clear          overriding any users.timeLimits band. 0 means
+                               unlimited; "clear" removes the override so the
+                               bands apply again.
+
   import-ssh-key USERNAME KEYFILE
                                Import a SSH public key for a user from KEYFILE
 
