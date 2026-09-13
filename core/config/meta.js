@@ -161,6 +161,17 @@ module.exports = {
         min: 0,
         description: 'Idle timeout once logged in. 0 never disconnects.',
     },
+    //  The shipped default is [], which carries no item type of its own.
+    'users.timeLimits': {
+        type: 'array',
+        items: { type: 'object' },
+        description:
+            'Daily time allowance bands, in minutes. Ordered; first ACS match wins, an entry with no acs is the default, and no match means unlimited.',
+    },
+    'users.unlimitedTimeText': {
+        type: 'string',
+        description: 'What the TR and TA MCI codes render when no limit applies.',
+    },
     'users.failedLogin.disconnect': {
         type: 'number',
         min: 0,
