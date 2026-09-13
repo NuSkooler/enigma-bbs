@@ -41,6 +41,15 @@ const _ = require('lodash');
 const DateFormat = 'YYYY-MM-DD'; //  matches LoginStreakLastDate's convention
 
 //
+//  Warn at 5, 3, 2 and 1 minutes remaining: the consensus shape across
+//  Synchronet, Maximus, PCBoard and Wildcat!. Descending, and matched with
+//  <= rather than equality -- Mystic's "If TimeCount = 5" means a tick that
+//  lands on 4 drops the warning entirely, and an equality based
+//  implementation passes a naive test.
+//
+const WarnMinutes = [5, 3, 2, 1];
+
+//
 //  A users.timeLimits band is an ACS expression, so a band written as
 //  { acs: "ML30", ... } would recurse: accessor -> evaluate bands -> ML ->
 //  accessor. No sysop should write that, but ACS strings compose and the
@@ -206,17 +215,95 @@ function accrueMinute(client) {
     return used;
 }
 
+//
+//  Warn the user as the budget runs down, and say when it is gone.
+//
+//  Called from the same 1m tick that bills the minute, which is the only
+//  moment the balance can change, so the check is exact rather than merely
+//  frequent.
+//
+//  Returns 'time up' when there is nothing left, the threshold warned at, or
+//  undefined when there was nothing to say.
+//
+function checkTimeRemaining(client) {
+    const timeLeft = getTimeLeftMinutes(client);
+    if (null === timeLeft) {
+        return; //  unlimited, exempt, or nothing configured
+    }
+
+    if (timeLeft <= 0) {
+        client.emit('time up');
+        return 'time up';
+    }
+
+    //
+    //  The *lowest* threshold this balance has reached -- the last match in
+    //  a descending list, not the first. A tick that skips from 6 straight
+    //  to 2 then warns once, at 2, rather than at 5.
+    //
+    const threshold = WarnMinutes.filter(m => timeLeft <= m).pop();
+    if (undefined === threshold) {
+        return;
+    }
+
+    if (undefined !== client.timeWarnLatch && client.timeWarnLatch <= threshold) {
+        return; //  already warned at this threshold or a lower one
+    }
+    client.timeWarnLatch = threshold;
+
+    //
+    //  Late require: client.js loads this module, and the interrupt queue
+    //  reaches back into client_connections.js.
+    //
+    //  Queued rather than written straight to the terminal, so a warning
+    //  never lands in the middle of someone's art or editor. A module that
+    //  cannot be interrupted right now shows it at the next opportunity.
+    //
+    const UserInterruptQueue = require('./user_interrupt_queue.js');
+    UserInterruptQueue.queue(
+        {
+            text: `|12Time warning: |15${timeLeft} minute${
+                1 === timeLeft ? '' : 's'
+            }|12 remaining today.|00`,
+            pause: false,
+        },
+        { clients: [client] }
+    );
+
+    return threshold;
+}
+
+//
+//  Is there enough of today's budget left to *start* something that wants
+//  |minMinutes| of it?
+//
+//  True when nothing is asked for (no requirement configured) and true for
+//  an unlimited user, so a board that has not opted in is never gated.
+//
+function hasTimeFor(client, minMinutes) {
+    const required = parseInt(minMinutes, 10);
+    if (isNaN(required) || required < 1) {
+        return true;
+    }
+
+    const timeLeft = getTimeLeftMinutes(client);
+    return null === timeLeft || timeLeft >= required;
+}
+
 //  What TR/TA render when no limit applies.
 function unlimitedTimeText() {
     return _.get(Config(), 'users.unlimitedTimeText') || 'Unlimited';
 }
 
 module.exports = {
+    WarnMinutes,
     isTimeExempt,
     resetDailyUsageIfNeeded,
     getTimeUsedTodayMinutes,
     getAllowedMinutesToday,
     getTimeLeftMinutes,
     accrueMinute,
+    checkTimeRemaining,
+    hasTimeFor,
     unlimitedTimeText,
 };

@@ -98,6 +98,49 @@ doorsMainMenu: {
 
 ---
 
+## Running out
+
+A user is warned at **5, 3, 2 and 1** minutes remaining, each threshold once. The check rides the same one-minute tick that bills the minute -- the only moment the balance can change -- so a tick that skips from 6 straight to 2 still warns, once, at 2.
+
+Warnings are queued the same way a node-to-node message is: they appear at the next point the user's current module can be interrupted, rather than landing in the middle of their art or their editor. Exempt and unlimited users are never warned.
+
+At zero the user is sent to the `timeUpLogoff` menu and disconnected.
+
+```hjson
+timeUpLogoff: {
+    art:    TIMEUP
+    next:   @systemMethod:logoff
+}
+```
+
+If the art does not exist -- which it does not until you draw it -- the user gets a plain message and is disconnected, rather than a blank screen. The same is true if you remove the menu.
+
+:::note
+Nothing is enforced inside a door or a file transfer. See below.
+:::
+
+---
+
+## Doors
+
+A door is refused *before* it starts rather than killed part way through, which is what PCBoard and Maximus do and what the drop file formats assume: the file states the budget and the door is expected to honour it.
+
+```hjson
+doorLord: {
+    module: abracadabra
+    config: {
+        name: LORD
+        minTimeLeftMinutes: 15
+        notEnoughTimeArt: NOTIME
+        ...
+    }
+}
+```
+
+With no `minTimeLeftMinutes` there is no check, and a user with no limit always passes. See [Scripts & Binaries](../doors/scripts-and-binaries.md).
+
+---
+
 ## What is not metered
 
 * **Per-call time.** The budget is per day; how it is spent across calls is the user's business.

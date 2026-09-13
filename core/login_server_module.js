@@ -111,5 +111,68 @@ module.exports = class LoginServerModule extends ServerModule {
                 }
             });
         });
+
+        client.on('time up', () => {
+            client.log.info(`Node ${client.node} has used its time for today; Kicking`);
+            timeUpLogoff(client);
+        });
     }
 };
+
+//
+//  Send the user to the timeUpLogoff menu, or tell them plainly and hang up.
+//
+//  The art is resolved *before* handing over to the menu, rather than
+//  mirroring the idleLogoff pattern above. goto() only errors when the
+//  *menu* is missing: where the menu exists and its art does not, MenuModule
+//  displays nothing and runs straight on to @systemMethod:logoff, dropping
+//  the user in silence with no idea why. That is the common case here, since
+//  the shipped template defines timeUpLogoff and no theme ships TIMEUP art.
+//
+//  :TODO: idleLogoff above has the same silent-drop hole and wants the same
+//  treatment, as its own change.
+//
+const MenuName = 'timeUpLogoff';
+
+function timeUpLogoff(client, cb) {
+    const menuUtil = require('./menu_util.js');
+    const theme = require('./theme.js');
+
+    const done = how => {
+        if (cb) {
+            return cb(null, how);
+        }
+    };
+
+    const plainAndEnd = () => {
+        client.term.write('\nYour time for today is up. Goodbye!\n');
+        client.end();
+        return done('plain');
+    };
+
+    //  the menu as the user's theme has it; see menu_util.getMenuConfig()
+    const menuConfig = _.get(client.currentTheme, ['menus', MenuName]);
+    if (!menuConfig) {
+        return plainAndEnd(); //  no such menu
+    }
+
+    const artSpec = menuUtil.getResolvedSpec(client, menuConfig.art, 'art');
+    if (!_.isString(artSpec)) {
+        return plainAndEnd();
+    }
+
+    theme.getThemeArt({ client, name: artSpec }, err => {
+        if (err) {
+            return plainAndEnd(); //  the menu is there; its art is not
+        }
+
+        client.menuStack.goto(MenuName, err => {
+            if (err) {
+                return plainAndEnd();
+            }
+            return done('menu');
+        });
+    });
+}
+
+module.exports.timeUpLogoff = timeUpLogoff;

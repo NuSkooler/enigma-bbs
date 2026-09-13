@@ -529,8 +529,13 @@ Client.prototype.startIdleMonitor = function () {
                 });
             }
 
-            //  ...and bill the same minute against today's time budget.
+            //
+            //  ...and bill the same minute against today's time budget. This
+            //  tick is the only moment the balance changes, so warning and
+            //  kicking from here is exact rather than merely frequent.
+            //
             UserTime.accrueMinute(this);
+            UserTime.checkTimeRemaining(this);
         } else {
             idleLogoutSeconds = Config().users.preAuthIdleLogoutSeconds;
         }

@@ -8,6 +8,7 @@ const theme = require('./theme.js');
 const ansi = require('./ansi_term.js');
 const { Errors } = require('./enig_error.js');
 const { trackDoorRunBegin, trackDoorRunEnd } = require('./door_util.js');
+const UserTime = require('./user_time.js');
 const Log = require('./logger').log;
 const Config = require('./config.js').get;
 
@@ -55,7 +56,9 @@ exports.moduleInfo = {
             "cmd"           : "/usr/bin/dosemu",
             "args"          : [ "-quiet", "-f", "/etc/dosemu/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}" ] ],
             "nodeMax"       : 32,
-            "tooManyArt"    : "toomany-lord.ans"
+            "tooManyArt"    : "toomany-lord.ans",
+            "minTimeLeftMinutes" : 15,
+            "notEnoughTimeArt"   : "notime-lord.ans"
         }
     }
 
@@ -212,6 +215,42 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                         self.incrementActiveDoorNodeInstances();
                         return callback(null);
                     }
+                },
+                function validateTimeRemaining(callback) {
+                    //
+                    //  Refuse to *start* a door there is not time for rather
+                    //  than killing one mid-run: the drop file states the
+                    //  budget and the door is expected to honour it. No
+                    //  package enforces inside a door, and neither do we.
+                    //
+                    //  Opt-in per door: with no |minTimeLeftMinutes| there is
+                    //  no check at all, and an unlimited user always passes.
+                    //
+                    const minTimeLeft = self.config.minTimeLeftMinutes;
+                    if (UserTime.hasTimeFor(self.client, minTimeLeft)) {
+                        return callback(null);
+                    }
+
+                    const timeLeft = UserTime.getTimeLeftMinutes(self.client);
+                    self.client.log.info(
+                        { name: self.config.name, timeLeft, minTimeLeft },
+                        `Not enough time remaining for door "${self.config.name}"`
+                    );
+
+                    const denied = () =>
+                        callback(Errors.AccessDenied('Not enough time remaining'));
+
+                    if (_.isString(self.config.notEnoughTimeArt)) {
+                        return theme.displayThemeArt(
+                            { client: self.client, name: self.config.notEnoughTimeArt },
+                            () => self.pausePrompt(denied)
+                        );
+                    }
+
+                    self.client.term.write(
+                        `\nYou need at least ${minTimeLeft} minute(s) remaining today for this. You have ${timeLeft}.\n`
+                    );
+                    return self.pausePrompt(denied);
                 },
                 function prepareDoor(callback) {
                     self.doorInstance = new Door(self.client);
