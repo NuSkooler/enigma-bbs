@@ -10,7 +10,11 @@ const {
     getAllAvailableMessageAreaTags,
 } = require('./message_area');
 const StatLog = require('./stat_log');
-const Config = require('./config').get;
+const configModule = require('./config');
+//  Late bound for the same reason as message_area.js: configModule.get is
+//  replaced by the Config bootstrapper, so capturing it here would freeze
+//  whichever getter happened to be installed when this file was required.
+const Config = (...args) => configModule.get(...args);
 const SysProps = require('./system_property');
 const UserProps = require('./user_property');
 const { numToMbf32 } = require('./mbf');
@@ -182,6 +186,62 @@ const replaceCharInBuffer = (buffer, search, replace) => {
     }
 };
 
+//
+//  areaTag -> conference number.
+//
+//  - A conference the sysop configured is used as configured.
+//  - In User mode the rest are numbered from 1000, which works around what
+//    seems to be a bug in some readers.
+//  - In Network mode an area with no configuration is not mapped, and so is
+//    skipped.
+//
+//  A reply packet names the conference and nothing else, so an import has to
+//  reproduce this exactly to find its way back to an area.
+//
+const buildConferenceMap = (areaTags, { autoNumber = true, onWarning } = {}) => {
+    const map = {};
+
+    const configuredAreas = _.get(Config(), 'messageNetworks.qwk.areas');
+    if (configuredAreas) {
+        Object.keys(configuredAreas).forEach(areaTag => {
+            const confNumber = configuredAreas[areaTag].conference;
+            if (confNumber) {
+                map[areaTag] = confNumber;
+            }
+        });
+    }
+
+    if (!autoNumber) {
+        return map;
+    }
+
+    let confNumber = 1000;
+    const usedConfNumbers = new Set(Object.values(map));
+
+    areaTags.forEach(areaTag => {
+        if (map[areaTag]) {
+            return;
+        }
+
+        while (confNumber < 10001 && usedConfNumbers.has(confNumber)) {
+            ++confNumber;
+        }
+
+        //  we can go up to 65535 for some things, but NDX files are limited to 9999
+        if (confNumber === 10000) {
+            //  sanity...
+            if (onWarning) {
+                onWarning(Errors.General('To many conferences (over 9999)'));
+            }
+        } else {
+            map[areaTag] = confNumber;
+            ++confNumber;
+        }
+    });
+
+    return map;
+};
+
 class QWKPacketReader extends EventEmitter {
     constructor(
         packetPath,
@@ -278,22 +338,6 @@ class QWKPacketReader extends EventEmitter {
                                         }
                                         break;
 
-                                    case 'ID.MSG':
-                                        if (
-                                            this.options.mode ===
-                                            QWKPacketReader.Modes.Guess
-                                        ) {
-                                            this.options.mode = QWKPacketReader.Modes.REP;
-                                        }
-
-                                        if (
-                                            this.options.mode ===
-                                            QWKPacketReader.Modes.REP
-                                        ) {
-                                            out.messages = { filename };
-                                        }
-                                        break;
-
                                     case 'HEADERS.DAT': //  Synchronet
                                         out.headers = { filename };
                                         break;
@@ -342,6 +386,29 @@ class QWKPacketReader extends EventEmitter {
                                             };
                                             out.pointers.filenames.push(filename);
                                         } else {
+                                            //
+                                            //  A reply packet carries its
+                                            //  messages in a single file named
+                                            //  for the BBS it came from, so the
+                                            //  name is whatever ID the host
+                                            //  chose -- not a fixed one.
+                                            //
+                                            if (key.endsWith('.MSG')) {
+                                                if (
+                                                    this.options.mode ===
+                                                    QWKPacketReader.Modes.Guess
+                                                ) {
+                                                    this.options.mode =
+                                                        QWKPacketReader.Modes.REP;
+                                                }
+
+                                                if (
+                                                    this.options.mode ===
+                                                    QWKPacketReader.Modes.REP
+                                                ) {
+                                                    out.messages = { filename };
+                                                }
+                                            }
                                             out[key] = { filename };
                                         }
                                         break;
@@ -401,6 +468,14 @@ class QWKPacketReader extends EventEmitter {
         //  References:
         //  -   http://fileformats.archiveteam.org/wiki/QWK
         //
+        //
+        //  A reply packet carries no CONTROL.DAT: it is written by the
+        //  reader, which has nothing to say about the BBS it is going to.
+        //
+        if (this.options.mode === QWKPacketReader.Modes.REP) {
+            return cb(null);
+        }
+
         if (!this.packetInfo.control) {
             return cb(Errors.DoesNotExist('No control file found within QWK packet'));
         }
@@ -1013,55 +1088,13 @@ class QWKPacketWriter extends EventEmitter {
                     });
                 },
                 callback => {
-                    //
-                    //  Prepare areaTag -> conference number mapping:
-                    //  - In User mode, areaTags's that are not explicitly configured
-                    //    will have their conference number auto-generated.
-                    //  - In Network mode areaTags's missing a configuration will not
-                    //    be mapped, and thus skipped.
-                    //
-                    const configuredAreas = _.get(Config(), 'messageNetworks.qwk.areas');
-                    if (configuredAreas) {
-                        Object.keys(configuredAreas).forEach(areaTag => {
-                            const confNumber = configuredAreas[areaTag].conference;
-                            if (confNumber) {
-                                this.areaTagConfMap[areaTag] = confNumber;
-                            }
-                        });
-                    }
-
-                    if (this.options.mode === QWKPacketWriter.Modes.User) {
-                        //  All the rest
-                        //  Start at 1000 to work around what seems to be a bug with some readers
-                        let confNumber = 1000;
-                        const usedConfNumbers = new Set(
-                            Object.values(this.areaTagConfMap)
-                        );
-                        getAllAvailableMessageAreaTags().forEach(areaTag => {
-                            if (this.areaTagConfMap[areaTag]) {
-                                return;
-                            }
-
-                            while (
-                                confNumber < 10001 &&
-                                usedConfNumbers.has(confNumber)
-                            ) {
-                                ++confNumber;
-                            }
-
-                            //  we can go up to 65535 for some things, but NDX files are limited to 9999
-                            if (confNumber === 10000) {
-                                //  sanity...
-                                this.emit(
-                                    'warning',
-                                    Errors.General('To many conferences (over 9999)')
-                                );
-                            } else {
-                                this.areaTagConfMap[areaTag] = confNumber;
-                                ++confNumber;
-                            }
-                        });
-                    }
+                    this.areaTagConfMap = buildConferenceMap(
+                        getAllAvailableMessageAreaTags(),
+                        {
+                            autoNumber: this.options.mode === QWKPacketWriter.Modes.User,
+                            onWarning: warning => this.emit('warning', warning),
+                        }
+                    );
 
                     return callback(null);
                 },
@@ -1699,6 +1732,7 @@ class QWKPacketWriter extends EventEmitter {
 }
 
 module.exports = {
+    buildConferenceMap,
     QWKPacketReader,
     QWKPacketWriter,
 };
