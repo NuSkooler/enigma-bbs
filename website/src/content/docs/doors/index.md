@@ -47,6 +47,12 @@ All local door approaches in ENiGMA½ support these drop file types:
 
 `BBSDEV.DRP` is a newer format. It is UTF-8, it names the terminal's character set and the board's language, and it states the communications mechanism exactly instead of leaving it to convention. A door finds the file through the `BBSDEV_DRP` environment variable rather than a command-line argument, so only [abracadabra](scripts-and-binaries.md) writes one: a [v86](v86.md) guest never sees the host's environment, and the format's serial modes name a host descriptor rather than the guest's COM1.
 
+Every format states how much time the caller has left today, from their [daily time budget](../configuration/time-limits.md). The legacy formats carry it in a 16-bit field, so the figure is capped at **546 minutes** — a little over nine hours, the one documented ceiling in the BBS literature, and `546 × 60 = 32760`, which fits a signed 16-bit integer. The cap applies to every value, so a caller with no limit is simply told the ceiling rather than a sentinel. It errs downwards: the door under-reports and ENiGMA½ is what actually enforces.
+
+:::caution
+`DOOR.SYS` line 42, "time credits", is written as `0`. The GAP spec has doors read that field back, and ENiGMA½ has no time bank to draw on.
+:::
+
 Each of the older formats carries a field naming the connection the door has been handed — `DOOR32.SYS` comm type and socket handle, `DOOR.SYS` comm port, `DORINFO` serial port. ENiGMA½ writes them to match how the door is actually launched, defaulting to local (stdin/stdout). Only [abracadabra](scripts-and-binaries.md#comm-type) setups where an emulator or bridge sits in between need to say otherwise; [v86](v86.md) reports serial on its own, since it bridges the caller to the guest's COM1.
 
 ---
