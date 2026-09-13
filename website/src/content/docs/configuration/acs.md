@@ -134,6 +134,7 @@ The following ACS codes are available:
 |------|-----------|
 | `WD`*day*, `WD[`*day,...*`]` | Day of week is *day* or one of [*day,...*]. `0`=Sunday, `1`=Monday, ..., `6`=Saturday. |
 | `MM`*minutes* | Current time is >= *minutes* past midnight (system time) |
+| `ML`*minutes* | User has at least *minutes* left in today's time budget. **Always true when no budget applies** -- no `users.timeLimits` configured, the user is exempt, or there is no session (NNTP, the web API). Unlimited time trivially satisfies "at least *n* minutes remaining", so `ML` never hides anything from a board that has not opted in to time limits. See [Time Limits](time-limits.md). |
 
 ### Services & Features
 
