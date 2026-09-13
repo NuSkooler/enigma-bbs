@@ -5,6 +5,7 @@
 	const User		= require('./user.js');
 	const Config	= require('./config.js').get;
 	const ActivityPubSettings = require('./activitypub/settings');
+	const UserTime	= require('./user_time.js');
 
 	const _			= require('lodash');
 	const moment	= require('moment');
@@ -210,8 +211,21 @@
 					}
 				},
 				ML	: function minutesLeft() {
-					//	:TODO: implement me!
-					return false;
+					//
+					//	At least |value| minutes left in today's budget.
+					//
+					//	Passes whenever no budget applies: unlimited trivially
+					//	satisfies "at least n minutes remaining", and so does
+					//	having no session at all. ACS is evaluated with no
+					//	client over NNTP and the REST API, so failing there
+					//	would silently hide an area from those services.
+					//	Fail-open, consistent with the shipped default.
+					//
+					const timeLeft = UserTime.getTimeLeftMinutes(client);
+					if (null === timeLeft) {
+						return true;
+					}
+					return !isNaN(value) && timeLeft >= value;
 				},
 				TH	: function termHeight() {
 					return !isNaN(value) && _.get(client, 'term.termHeight', 0) >= value;
