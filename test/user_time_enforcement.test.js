@@ -10,6 +10,10 @@ const TEST_CONFIG = {
     menus: { cls: false },
     general: { boardName: 'ENiGMA½ BBS' },
     users: {},
+    theme: {
+        timeWarningText:
+            '|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00',
+    },
 };
 
 const UserProps = require('../core/user_property.js');
@@ -183,6 +187,79 @@ describe('Time limit enforcement', () => {
             UserTime.checkTimeRemaining(client);
             assert.ok(/1 minute\b/.test(client.warnings[0].text));
             assert.ok(!/minutes/.test(client.warnings[0].text));
+        });
+
+        describe('the text', () => {
+            const themeWith = customText => ({
+                helpers: {
+                    getTimeWarningText: () =>
+                        null === customText
+                            ? TEST_CONFIG.theme.timeWarningText
+                            : customText,
+                },
+            });
+
+            it('comes from theme.timeWarningText by default', () => {
+                const client = clientWithBudget(60, 57); //  3 left
+                client.currentTheme = themeWith(null);
+                UserTime.checkTimeRemaining(client);
+                assert.equal(
+                    client.warnings[0].text,
+                    '|12Time warning: |153 minutes|12 remaining today.|00'
+                );
+            });
+
+            it('honours a theme that customizes it', () => {
+                const client = clientWithBudget(60, 55); //  5 left
+                client.currentTheme = themeWith('Yo! {minutes} min{plural} left!');
+                UserTime.checkTimeRemaining(client);
+                assert.equal(client.warnings[0].text, 'Yo! 5 mins left!');
+            });
+
+            it('substitutes {plural} as nothing at one minute', () => {
+                const client = clientWithBudget(60, 59);
+                client.currentTheme = themeWith('{minutes} minute{plural}');
+                UserTime.checkTimeRemaining(client);
+                assert.equal(client.warnings[0].text, '1 minute');
+            });
+
+            //  the theme is not loaded for the whole life of a session
+            it('falls back to the config when the theme has no helpers yet', () => {
+                const client = clientWithBudget(60, 57);
+                client.currentTheme = { info: { name: 'N/A' } };
+                UserTime.checkTimeRemaining(client);
+                assert.equal(
+                    client.warnings[0].text,
+                    '|12Time warning: |153 minutes|12 remaining today.|00'
+                );
+            });
+
+            //
+            //  An empty template means the sysop turned warnings off. Queue
+            //  nothing rather than a blank interrupt, and keep latching so
+            //  the rest of the behaviour is unchanged.
+            //
+            it('queues nothing when the text is empty', () => {
+                const client = clientWithBudget(60, 57); //  3 left
+                client.currentTheme = themeWith('');
+                assert.equal(UserTime.checkTimeRemaining(client), 3);
+                assert.equal(client.warnings.length, 0);
+                assert.equal(client.timeWarnLatch, 3, 'the latch still moves');
+            });
+
+            it('still kicks at zero with warnings turned off', () => {
+                const client = clientWithBudget(60, 60);
+                client.currentTheme = themeWith('');
+                assert.equal(UserTime.checkTimeRemaining(client), 'time up');
+                assert.equal(client.timeUpCount, 1);
+            });
+
+            it('leaves a malformed template alone rather than throwing', () => {
+                const client = clientWithBudget(60, 57);
+                client.currentTheme = themeWith('broken {minutes');
+                assert.doesNotThrow(() => UserTime.checkTimeRemaining(client));
+                assert.equal(client.warnings[0].text, 'broken {minutes');
+            });
         });
 
         it('never pauses for the warning', () => {

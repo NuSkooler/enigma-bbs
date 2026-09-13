@@ -162,6 +162,11 @@ module.exports = {
         description: 'Idle timeout once logged in. 0 never disconnects.',
     },
     //  The shipped default is [], which carries no item type of its own.
+    'theme.timeWarningText': {
+        type: 'string',
+        description:
+            'Shown as a daily time budget runs down. "{minutes}" and "{plural}" are substituted; pipe codes are honoured.',
+    },
     'users.timeLimits': {
         type: 'array',
         items: { type: 'object' },

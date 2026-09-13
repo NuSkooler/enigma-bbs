@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const UserProps = require('./user_property.js');
+const stringFormat = require('./string_format.js');
 
 //
 //  Read through config.js rather than capturing its |get|, which is what the
@@ -325,16 +326,13 @@ function checkTimeRemaining(client) {
     //  never lands in the middle of someone's art or editor. A module that
     //  cannot be interrupted right now shows it at the next opportunity.
     //
+    const text = timeWarningText(client, timeLeft);
+    if (!text) {
+        return threshold; //  warnings turned off; the latch still moves
+    }
+
     const UserInterruptQueue = require('./user_interrupt_queue.js');
-    UserInterruptQueue.queue(
-        {
-            text: `|12Time warning: |15${timeLeft} minute${
-                1 === timeLeft ? '' : 's'
-            }|12 remaining today.|00`,
-            pause: false,
-        },
-        { clients: [client] }
-    );
+    UserInterruptQueue.queue({ text, pause: false }, { clients: [client] });
 
     return threshold;
 }
@@ -376,6 +374,30 @@ function hasTimeFor(client, minMinutes) {
 
     const timeLeft = getTimeLeftMinutes(client);
     return null === timeLeft || timeLeft >= required;
+}
+
+//
+//  The warning a user sees, from their theme if it customizes one and from
+//  theme.timeWarningText otherwise. The theme is not loaded for the whole
+//  life of a session, so fall back to the configured string when the helper
+//  is not there yet.
+//
+function timeWarningText(client, timeLeft) {
+    const getter = _.get(client, 'currentTheme.helpers.getTimeWarningText');
+    //  the same expression the helper uses, so both layers agree that an
+    //  empty string means no warning
+    const template = _.isFunction(getter)
+        ? getter()
+        : _.get(Config(), 'theme.timeWarningText', '');
+
+    if (!template) {
+        return ''; //  warnings turned off
+    }
+
+    return stringFormat(template, {
+        minutes: timeLeft,
+        plural: 1 === timeLeft ? '' : 's',
+    });
 }
 
 //  What TR/TA render when no limit applies.

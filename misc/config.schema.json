@@ -462,6 +462,11 @@
                         "^_": true
                     },
                     "additionalProperties": false
+                },
+                "timeWarningText": {
+                    "description": "Shown as a daily time budget runs down. \"{minutes}\" and \"{plural}\" are substituted; pipe codes are honoured.",
+                    "type": "string",
+                    "default": "|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00"
                 }
             },
             "patternProperties": {
