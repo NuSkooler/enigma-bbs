@@ -206,6 +206,25 @@ describe('recordLogin() — AccountDaysOld', function () {
     });
 });
 
+// ─── recordLogin(): previous login timestamp ────────────────────────────────
+
+describe('recordLogin() — previous login timestamp', function () {
+    it('preserves LastLoginTs before updating it for the current login', done => {
+        const previousLogin = '2026-09-11T08:05:00.000Z';
+        const user = makeUser({ [UserProps.LastLoginTs]: previousLogin });
+
+        runRecordLogin(user, (err, calls) => {
+            assert.ifError(err);
+            const previousLoginCall = calls.find(
+                c => c.statName === UserProps.PrevLoginTs
+            );
+            assert.ok(previousLoginCall, 'setUserStat should preserve PrevLoginTs');
+            assert.equal(previousLoginCall.value, previousLogin);
+            done();
+        });
+    });
+});
+
 // ─── recordLogin(): LoginStreakDays / LoginStreakLastDate ─────────────────────
 
 describe('recordLogin() — login streak parallel branches', function () {

@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **DOOR.SYS reports distinct call times** ([#824](https://github.com/NuSkooler/enigma-bbs/issues/824)) — the current and previous login times now occupy their respective fields in 24-hour format. First-time callers leave the previous-call field blank instead of repeating the current time.
+
 * **Post from a message list** ([#213](https://github.com/NuSkooler/enigma-bbs/issues/213)) — <kbd>P</kbd> on the message list, or the personal message list, starts a new message where before you had to back out to the message menu to reach its own <kbd>P</kbd>. The post goes to the area the highlighted message is in, so it does the right thing on a list that spans areas. An existing board keeps the menus it has, so see [UPGRADE.md](UPGRADE.md) for the binding to add.
 
 * **Doors can be handed a [`BBSDEV.DRP`](https://github.com/RealDeuce/bbsdev.drp) drop file** — set `dropFileType: BBSDEV` on an `abracadabra` door. The older formats are CP437, so a user whose name ENiGMA½ stores fine reaches the door mangled, and they leave the terminal's character set, the caller's language and the meaning of the comm field to convention. The new format is UTF-8 and states all three.
