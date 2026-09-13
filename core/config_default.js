@@ -135,6 +135,27 @@ module.exports = () => {
             preAuthIdleLogoutSeconds: 60 * 3, //  3m
             idleLogoutSeconds: 60 * 6, //  6m
 
+            //
+            //  Daily time budget, in minutes. Ordered; the first entry whose
+            //  |acs| matches wins, and an entry with no |acs| at all is the
+            //  catch-all default. No match => unlimited, as does a
+            //  |minutesPerDay| of 0.
+            //
+            //  Empty as shipped, so every user is unlimited until a sysop
+            //  opts in. Root and members of the "sysops" group are always
+            //  exempt and cannot be metered.
+            //
+            //  timeLimits: [
+            //      { acs: "GM[vip]", minutesPerDay: 240 }
+            //      { acs: "GM[users]", minutesPerDay: 90 }
+            //      { minutesPerDay: 30 }
+            //  ]
+            //
+            timeLimits: [],
+
+            //  Rendered by the TR and TA MCI codes when no limit applies
+            unlimitedTimeText: 'Unlimited',
+
             failedLogin: {
                 disconnect: 3, //  0=disabled
                 lockAccount: 9, //  0=disabled; Mark user status as "locked" if >= N

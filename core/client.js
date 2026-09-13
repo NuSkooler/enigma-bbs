@@ -38,6 +38,7 @@ const User = require('./user.js');
 const Config = require('./config.js').get;
 const MenuStack = require('./menu_stack.js');
 const ACS = require('./acs.js');
+const UserTime = require('./user_time.js');
 const Events = require('./events.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
 const UserProps = require('./user_property.js');
@@ -118,6 +119,7 @@ function Client(/*input, output*/) {
     this.lastActivityTime = Date.now();
     this.menuStack = new MenuStack(this);
     this.acs = new ACS({ client: this, user: this.user });
+    this.freeTimeDepth = 0; //  > 0 => the 1m tick does not bill time; see beginFreeTime()
     this.interruptQueue = new UserInterruptQueue(this);
 
     Object.defineProperty(this, 'currentTheme', {
@@ -526,6 +528,9 @@ Client.prototype.startIdleMonitor = function () {
                     statValue: minOnline,
                 });
             }
+
+            //  ...and bill the same minute against today's time budget.
+            UserTime.accrueMinute(this);
         } else {
             idleLogoutSeconds = Config().users.preAuthIdleLogoutSeconds;
         }
@@ -540,6 +545,24 @@ Client.prototype.startIdleMonitor = function () {
             this.emit('idle timeout', idleLogoutSeconds);
         }
     }, 1000 * 60);
+};
+
+//
+//  Free time: while the depth is > 0 the 1m tick does not bill the user.
+//  A depth rather than a boolean, so a free door that also performs a free
+//  download does not un-free itself on the inner end().
+//
+//  Nothing sets this yet. It exists so that the first exemption is a two
+//  line change rather than a restructuring of the accrual path.
+//
+Client.prototype.beginFreeTime = function () {
+    this.freeTimeDepth = (this.freeTimeDepth || 0) + 1;
+    return this.freeTimeDepth;
+};
+
+Client.prototype.endFreeTime = function () {
+    this.freeTimeDepth = Math.max(0, (this.freeTimeDepth || 0) - 1);
+    return this.freeTimeDepth;
 };
 
 Client.prototype.stopIdleMonitor = function () {

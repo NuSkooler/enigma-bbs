@@ -362,6 +362,44 @@ function modUserGroups(user) {
     }
 }
 
+function setUserTimeLimit(user) {
+    if (argv._.length < 3) {
+        return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+    }
+
+    const value = argv._[argv._.length - 1].toString();
+
+    function done(err, desc) {
+        if (err) {
+            process.exitCode = ExitCodes.ERROR;
+            return console.error(err.message);
+        }
+        return console.info(`Daily time limit for ${user.username}: ${desc}`);
+    }
+
+    //
+    //  "clear" removes the override so the account falls back through the
+    //  users.timeLimits bands again. Without it an operator can only ever
+    //  replace an override, never undo one.
+    //
+    if ('clear' === value.toLowerCase()) {
+        return user.removeProperty(UserProps.TimeMinutesPerDay, err =>
+            done(err, 'cleared (falls back to users.timeLimits)')
+        );
+    }
+
+    const minutes = parseInt(value, 10);
+    if (isNaN(minutes) || minutes < 0 || String(minutes) !== value) {
+        process.exitCode = ExitCodes.BAD_ARGS;
+        return console.error('Expected a number of minutes, 0, or "clear"');
+    }
+
+    //  0 is unlimited, matching the users.timeLimits convention
+    return user.persistProperty(UserProps.TimeMinutesPerDay, minutes, err =>
+        done(err, 0 === minutes ? '0 (unlimited)' : `${minutes} minute(s) per day`)
+    );
+}
+
 function formatSSHKeyInfo(user) {
     const ssh2 = require('ssh2');
     const crypto = require('crypto');
@@ -422,6 +460,37 @@ function showUserInfo(user) {
         return user.properties[UserProps.ThemeId];
     };
 
+    //
+    //  Only the per-account override is shown: the users.timeLimits bands
+    //  resolve against a live session's ACS, which oputil does not have.
+    //
+    const timeLimitDesc = () => {
+        const minutes = parseInt(user.properties[UserProps.TimeMinutesPerDay], 10);
+        if (isNaN(minutes)) {
+            return 'default (users.timeLimits)';
+        }
+        return minutes > 0 ? `${minutes} minute(s)` : 'unlimited';
+    };
+
+    //
+    //  Tracked whether or not anything is metered, so this is the "time on
+    //  today" figure even on a board with no limits. Stale by definition if
+    //  the stamp is not today's: the counters are reset lazily, on the
+    //  user's next read or tick, not by a scheduled job.
+    //
+    const timeUsedTodayDesc = () => {
+        const date = user.properties[UserProps.TimeUsedTodayDate];
+        if (!date) {
+            return 'N/A';
+        }
+        const minutes =
+            parseInt(user.properties[UserProps.TimeUsedTodayMinutes], 10) || 0;
+        const today = moment().format('YYYY-MM-DD');
+        return date === today
+            ? `${minutes} minute(s)`
+            : `0 minute(s) (last on ${date}: ${minutes})`;
+    };
+
     const apSettings = ActivityPubSettings.fromUser(user);
 
     let infoDump = `User information:
@@ -446,6 +515,8 @@ ActivityPub  : ${apSettings.enabled ? 'enabled' : 'disabled'}`;
             [OTPTypes.RFC4266_HOTP]: 'rfc4266 HOTP',
             [OTPTypes.GoogleAuthenticator]: 'GoogleAuth',
         }[otp] || 'disabled';
+    infoDump += `\nTime/day     : ${timeLimitDesc()}`;
+    infoDump += `\nTime today   : ${timeUsedTodayDesc()}`;
     infoDump += `\n2FA OTP      : ${oppDesc}`;
     infoDump += `\nSSH key      : ${formatSSHKeyInfo(user)}`;
 
@@ -789,23 +860,34 @@ function handleUserCommand() {
     const action = argv._[1];
     const userRequired = !['list'].includes(action);
 
+    //  actions of the form: user <action> USERNAME <value>
+    const takesTrailingValue = [
+        'pw',
+        'pass',
+        'passwd',
+        'password',
+        'group',
+        'mv',
+        'rename',
+        '2fa-otp',
+        'otp',
+        'import-ssh-key',
+        'time',
+    ].includes(action);
+
     let userName;
     if (userRequired) {
-        const usernameIdx = [
-            'pw',
-            'pass',
-            'passwd',
-            'password',
-            'group',
-            'mv',
-            'rename',
-            '2fa-otp',
-            'otp',
-            'import-ssh-key',
-        ].includes(action)
-            ? argv._.length - 2
-            : argv._.length - 1;
-        userName = argv._[usernameIdx];
+        //
+        //  Bail before the lookup when the trailing value is missing:
+        //  otherwise the username index lands on the action name itself and
+        //  the operator is told "no matching username", which says nothing
+        //  about what they actually left out.
+        //
+        if (takesTrailingValue && argv._.length < 4) {
+            return errUsage();
+        }
+
+        userName = argv._[takesTrailingValue ? argv._.length - 2 : argv._.length - 1];
     }
 
     if (!userName && userRequired) {
@@ -838,6 +920,8 @@ function handleUserCommand() {
                 lock: setAccountStatus,
 
                 group: modUserGroups,
+
+                time: setUserTimeLimit,
 
                 info: showUserInfo,
 
