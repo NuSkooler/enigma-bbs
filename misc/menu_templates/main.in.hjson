@@ -1382,6 +1382,16 @@
             art:    IDLELOG
             next:   @systemMethod:logoff
         }
+
+        //  Shown when a user has used their daily time allowance.
+        //  See users.timeLimits in config.hjson; nothing is metered until
+        //  you configure it, so this menu is unreachable by default.
+        //  If TIMEUP art does not exist, the user gets a plain message
+        //  instead of this menu.
+        timeUpLogoff: {
+            art:    TIMEUP
+            next:   @systemMethod:logoff
+        }
     }
 
     prompts: {
