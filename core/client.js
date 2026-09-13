@@ -121,6 +121,7 @@ function Client(/*input, output*/) {
     this.acs = new ACS({ client: this, user: this.user });
     this.freeTimeDepth = 0; //  > 0 => the 1m tick does not bill time; see beginFreeTime()
     this.interruptQueue = new UserInterruptQueue(this);
+    this.clientEnded = false; //  end() teardown runs once; see Client.prototype.end
 
     Object.defineProperty(this, 'currentTheme', {
         get: () => {
@@ -617,32 +618,55 @@ Client.prototype.restoreIdleLogoutSeconds = function () {
     delete this.idleLogoutSecondsOverride;
 };
 
+//
+//  end() is reached more than once on a server initiated disconnect, and
+//  always has been: end() calls disconnect(), the socket emits 'close',
+//  login_server_module's handler calls clientConnections.removeClient(),
+//  and removeClient() opens with client.end(). Anything that kicks a user --
+//  the idle timeout, "all nodes are busy", @systemMethod:logoff -- goes
+//  round that loop.
+//
+//  So the teardown below has been running twice per kicked session:
+//  notably |leave()| on whichever module the user was in, which is a module
+//  author's one chance to clean up and is written expecting to be called
+//  once. It also wrote MinutesOnlineTotalCount twice.
+//
+//  The teardown is therefore done once. The transport disconnect is *not*
+//  guarded and still runs on every call: closing an already closed socket is
+//  a no-op, whereas skipping it would risk leaving one open if a first call
+//  threw on its way here -- and removeClient() calling end() is precisely
+//  how the system guarantees the connection is gone.
+//
 Client.prototype.end = function () {
-    if (this.term) {
-        this.term.disconnect();
-    }
+    if (!this.clientEnded) {
+        this.clientEnded = true;
 
-    Events.removeListener(
-        Events.getSystemEvents().ThemeChanged,
-        this.themeChangedListener
-    );
+        if (this.term) {
+            this.term.disconnect();
+        }
 
-    const currentModule = this.menuStack.getCurrentModule;
-
-    if (currentModule) {
-        currentModule.leave();
-    }
-
-    //  persist time online for authenticated users
-    if (this.user.isAuthenticated()) {
-        this.user.persistProperty(
-            UserProps.MinutesOnlineTotalCount,
-            this.user.getProperty(UserProps.MinutesOnlineTotalCount)
+        Events.removeListener(
+            Events.getSystemEvents().ThemeChanged,
+            this.themeChangedListener
         );
-    }
 
-    this.stopIdleMonitor();
-    this.stopTimeMonitor();
+        const currentModule = this.menuStack.getCurrentModule;
+
+        if (currentModule) {
+            currentModule.leave();
+        }
+
+        //  persist time online for authenticated users
+        if (this.user.isAuthenticated()) {
+            this.user.persistProperty(
+                UserProps.MinutesOnlineTotalCount,
+                this.user.getProperty(UserProps.MinutesOnlineTotalCount)
+            );
+        }
+
+        this.stopIdleMonitor();
+        this.stopTimeMonitor();
+    }
 
     try {
         //
