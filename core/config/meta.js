@@ -162,11 +162,6 @@ module.exports = {
         description: 'Idle timeout once logged in. 0 never disconnects.',
     },
     //  The shipped default is [], which carries no item type of its own.
-    'theme.timeWarningText': {
-        type: 'string',
-        description:
-            'Shown as a daily time budget runs down. "{minutes}" and "{plural}" are substituted; pipe codes are honoured.',
-    },
     'users.timeLimits': {
         type: 'array',
         items: { type: 'object' },
@@ -209,6 +204,11 @@ module.exports = {
     //  Nothing here checks the id names a theme that exists; that needs the
     //  theme list, which loads later.
     //
+    'theme.timeWarningText': {
+        type: 'string',
+        description:
+            'Shown as a daily time budget runs down. "{minutes}" and "{plural}" are substituted; pipe codes are honoured. Empty means no warning.',
+    },
     'theme.default': {
         type: 'string',
         description:
@@ -276,6 +276,12 @@ module.exports = {
     'messageConferences.*.areas': { openMap: true },
 
     //  ── File base ────────────────────────────────────────────────────────
+    'fileBase.estimatedTransferCps': {
+        type: 'number',
+        min: 0,
+        description:
+            'Assumed bytes/sec when checking a download against the time budget. Deliberately optimistic; 0 disables the check.',
+    },
     'fileBase.storageTags': {
         openMap: true,
         value: { type: 'string' },

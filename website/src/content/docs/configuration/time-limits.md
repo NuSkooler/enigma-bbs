@@ -157,6 +157,25 @@ With no `minTimeLeftMinutes` there is no check, and a user with no limit always 
 
 ---
 
+## File transfers
+
+**Uploads are free.** They cost the caller nothing from their daily budget, as they do in every package that has an opinion on it -- Synchronet inverts its own flag name so that free is the default.
+
+**Downloads are charged, and checked before they start.** A download that cannot finish in the time the caller has left is refused up front rather than being severed mid-flight by the kick, which would cost them the minutes and leave a partial file. They are told how long it needs and how long they have.
+
+Nothing in ENiGMA½ measures the real transfer rate, so the check works from an assumption:
+
+```hjson
+fileBase: {
+    //  bytes/sec; 0 disables the check entirely
+    estimatedTransferCps: 14400
+}
+```
+
+The default is deliberately optimistic: over-stating the rate under-states the time, so a marginal download is allowed rather than refused. Lower it if your callers are on slow links and you would rather they were told up front. The check never applies to a user with no limit, it judges the whole batch rather than file by file, and a queue whose size cannot be determined always goes through.
+
+---
+
 ## What is not metered
 
 * **Per-call time.** The budget is per day; how it is spent across calls is the user's business.

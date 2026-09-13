@@ -1364,6 +1364,21 @@ module.exports = () => {
             maxDescFileByteSize: 471859, //  ~1/4 MB
             maxDescLongFileByteSize: 524288, //  1/2 MB
 
+            //
+            //  Bytes per second assumed when deciding whether a download fits
+            //  in what is left of the caller's daily time budget. Nothing in
+            //  ENiGMA½ measures the real rate, so this is an assumption, and
+            //  it is deliberately an optimistic one: over-stating the rate
+            //  under-states the time, so a marginal download is allowed
+            //  rather than refused. Lower it if your callers are on slow
+            //  links and you would rather they were told up front.
+            //
+            //  0 disables the check. It never applies to a user with no
+            //  limit, and it can only ever refuse to *start* a transfer --
+            //  nothing is interrupted part way through.
+            //
+            estimatedTransferCps: 115200 / 8, //  14400 bytes/sec
+
             fileNamePatterns: {
                 //  These are NOT case sensitive
                 //  FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
