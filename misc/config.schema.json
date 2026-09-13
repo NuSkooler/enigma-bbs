@@ -464,7 +464,7 @@
                     "additionalProperties": false
                 },
                 "timeWarningText": {
-                    "description": "Shown as a daily time budget runs down. \"{minutes}\" and \"{plural}\" are substituted; pipe codes are honoured.",
+                    "description": "Shown as a daily time budget runs down. \"{minutes}\" and \"{plural}\" are substituted; pipe codes are honoured. Empty means no warning.",
                     "type": "string",
                     "default": "|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00"
                 }
@@ -1932,6 +1932,12 @@
                 "maxDescLongFileByteSize": {
                     "type": "number",
                     "default": 524288
+                },
+                "estimatedTransferCps": {
+                    "description": "Assumed bytes/sec when checking a download against the time budget. Deliberately optimistic; 0 disables the check.",
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 14400
                 },
                 "fileNamePatterns": {
                     "type": "object",

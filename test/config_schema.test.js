@@ -375,6 +375,7 @@ describe('config schema against config_default.js', () => {
             'eventScheduler.events',
             'fileBase.areaStoragePrefix',
             'fileBase.areas',
+            'fileBase.estimatedTransferCps',
             'fileBase.storageTags',
             'fileBase.web.expireMinutes',
             'fileTransferProtocols',
