@@ -198,7 +198,7 @@
         //  Shown when the sysop tries to reply to a pre-auth feedback message.
         //  Its sender has no user account, so a reply cannot be delivered and
         //  would be silently discarded; see
-        //  docs/_docs/modding/pre-auth-feedback.md.
+        //  modules/pre-auth-feedback.md.
         //
         preAuthFeedbackNoReply: {
             desc: No Reply - Ghost Sender

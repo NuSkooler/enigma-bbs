@@ -333,7 +333,7 @@ module.exports = {
     'scannerTossers.ftn_bso.nodes': { openMap: true },
     //
     //  Unlike a file area, a ticAreas entry has a short, documented and
-    //  fully enumerable key set -- docs/_docs/filebase/tic-support.md lists
+    //  fully enumerable key set -- filebase/tic-support.md lists
     //  it -- so this one really can be closed. That matters: 'storageTags'
     //  for 'storageTag', or 'hashTag' for 'hashTags', is silently ignored by
     //  the importer and the override simply never happens.
@@ -401,7 +401,7 @@ module.exports = {
 
     //
     //  TIC. Every enum below is the full set the code recognises; see
-    //  docs/_docs/filebase/tic-support.md.
+    //  filebase/tic-support.md.
     //
     'scannerTossers.ftn_bso.tic.descPriority': {
         type: 'string',

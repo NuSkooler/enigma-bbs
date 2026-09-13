@@ -9,7 +9,7 @@ const DefaultConfig = require('../core/config_default');
 
 //
 //  A configuration carrying the three-way coupling the docs describe at
-//  docs/_docs/messageareas/binkp.md:272-285: a TIC area pointing at a file
+//  messageareas/binkp.md:280-293: a TIC area pointing at a file
 //  area, which points at a storage tag. Break any one link and nothing
 //  complains -- the file simply never lands.
 //

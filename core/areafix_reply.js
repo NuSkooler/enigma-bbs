@@ -4,7 +4,7 @@
 //
 //  Parsing of inbound AreaFix (conference manager) replies.
 //
-//  Pure: no config, no I/O.  See docs/_docs/messageareas/ftn.md for how this
+//  Pure: no config, no I/O.  See messageareas/ftn.md for how this
 //  is wired up.
 //
 //  The point of this module is *not* to extract descriptions.  A confirmation
