@@ -145,11 +145,46 @@ function getAllowedMinutesToday(client) {
         return null;
     }
 
+    //
+    //  The per-account override is read live: an operator running
+    //  "oputil.js user time" while somebody is connected means it to take
+    //  effect now.
+    //
     const override = user.getPropertyAsNumber(UserProps.TimeMinutesPerDay);
     if (!isNaN(override)) {
         return override > 0 ? override : null;
     }
 
+    //
+    //  The band, however, is resolved once per session -- and again when the
+    //  day rolls over -- rather than on every read.
+    //
+    //  A band is an ACS expression, and ACS reads things that move while
+    //  somebody is connected: MM and WD most obviously, but also GM if the
+    //  sysop changes a group, or TH/TW on a resize. Re-resolving every time
+    //  lets the allowance fall underneath a session that has already spent
+    //  against the old answer -- a caller who has used 100 minutes when an
+    //  MM band drops the allowance to 60 goes straight to zero and is
+    //  disconnected, having been warned about none of it.
+    //
+    //  Pinning makes a session's budget what it was when the session began,
+    //  which is how every package with per-class limits behaves: they are
+    //  read at logon. The visible consequence is that a configuration hot
+    //  reload does not reach sessions already underway.
+    //
+    const today = todayDateString();
+    if (client.timeBand && today === client.timeBand.date) {
+        return client.timeBand.minutesPerDay;
+    }
+
+    const minutesPerDay = resolveBandMinutes(client);
+    client.timeBand = { date: today, minutesPerDay };
+    return minutesPerDay;
+}
+
+//  The band lookup itself, without the per-session pin. Returns null for
+//  unlimited, exactly as the accessor does.
+function resolveBandMinutes(client) {
     const bands = _.get(Config(), 'users.timeLimits');
     if (!Array.isArray(bands) || 0 === bands.length) {
         return null;

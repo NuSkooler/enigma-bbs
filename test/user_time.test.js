@@ -214,6 +214,113 @@ describe('User time budget', () => {
         });
     });
 
+    //
+    //  A band is ACS, and ACS reads things that move mid-session. Resolving
+    //  it on every read let the allowance fall underneath a session that had
+    //  already spent against the old answer.
+    //
+    describe('band pinning', () => {
+        it('pins the band for the session, so an ACS change cannot move it', () => {
+            withTimeLimits([
+                { acs: 'GM[vip]', minutesPerDay: 240 },
+                { minutesPerDay: 30 },
+            ]);
+            const user = makeUser({ groups: ['users', 'vip'] });
+            const client = makeClient(user);
+            assert.equal(UserTime.getAllowedMinutesToday(client), 240);
+
+            user.groups = ['users']; //  mid-session ACS change
+            assert.equal(UserTime.getAllowedMinutesToday(client), 240);
+        });
+
+        //
+        //  The case this exists for: the allowance falling below what has
+        //  already been spent strands the caller at zero with no warning.
+        //
+        it('does not strand a session whose band would drop below what it used', () => {
+            withTimeLimits([
+                { acs: 'GM[vip]', minutesPerDay: 240 },
+                { minutesPerDay: 30 },
+            ]);
+            const user = makeUser({
+                groups: ['users', 'vip'],
+                properties: {
+                    [UserProps.TimeUsedTodayMinutes]: 100,
+                    [UserProps.TimeUsedTodayDate]: today(),
+                },
+            });
+            const client = makeClient(user);
+            assert.equal(UserTime.getTimeLeftMinutes(client), 140);
+
+            user.groups = ['users']; //  would now match the 30 minute band
+            assert.equal(
+                UserTime.getTimeLeftMinutes(client),
+                140,
+                'must not drop to 0 under a session that already spent 100'
+            );
+        });
+
+        it('does not reach a session already underway from a config reload', () => {
+            withTimeLimits([{ minutesPerDay: 60 }]);
+            const client = makeClient(makeUser());
+            assert.equal(UserTime.getAllowedMinutesToday(client), 60);
+
+            withTimeLimits([{ minutesPerDay: 5 }]);
+            assert.equal(UserTime.getAllowedMinutesToday(client), 60);
+
+            //  ...but the next session gets the new value
+            assert.equal(UserTime.getAllowedMinutesToday(makeClient(makeUser())), 5);
+        });
+
+        it('re-resolves when the day rolls over mid-session', () => {
+            withTimeLimits([{ minutesPerDay: 60 }]);
+            const client = makeClient(makeUser());
+            assert.equal(UserTime.getAllowedMinutesToday(client), 60);
+
+            withTimeLimits([{ minutesPerDay: 90 }]);
+            client.timeBand.date = moment().subtract(1, 'day').format('YYYY-MM-DD');
+            assert.equal(UserTime.getAllowedMinutesToday(client), 90);
+        });
+
+        it('pins unlimited as firmly as it pins a number', () => {
+            withTimeLimits([{ acs: 'GM[vip]', minutesPerDay: 30 }]);
+            const user = makeUser({ groups: ['users'] }); //  no band matches
+            const client = makeClient(user);
+            assert.equal(UserTime.getAllowedMinutesToday(client), null);
+
+            user.groups = ['users', 'vip'];
+            assert.equal(UserTime.getAllowedMinutesToday(client), null);
+        });
+
+        it('gives each session its own pin', () => {
+            withTimeLimits([
+                { acs: 'GM[vip]', minutesPerDay: 240 },
+                { minutesPerDay: 30 },
+            ]);
+            const vip = makeClient(makeUser({ groups: ['users', 'vip'] }));
+            const plain = makeClient(makeUser({ groups: ['users'] }));
+            assert.equal(UserTime.getAllowedMinutesToday(vip), 240);
+            assert.equal(UserTime.getAllowedMinutesToday(plain), 30);
+            assert.equal(UserTime.getAllowedMinutesToday(vip), 240);
+        });
+
+        it('lets the per-account override change under a pinned band', () => {
+            withTimeLimits([{ minutesPerDay: 60 }]);
+            const client = makeClient(makeUser());
+            assert.equal(UserTime.getAllowedMinutesToday(client), 60);
+
+            client.user.properties[UserProps.TimeMinutesPerDay] = 200;
+            assert.equal(UserTime.getAllowedMinutesToday(client), 200);
+
+            client.user.removeProperty(UserProps.TimeMinutesPerDay);
+            assert.equal(
+                UserTime.getAllowedMinutesToday(client),
+                60,
+                'band still pinned'
+            );
+        });
+    });
+
     describe('re-entrancy guard', () => {
         //
         //  A band whose acs contains ML would recurse: accessor -> bands ->
