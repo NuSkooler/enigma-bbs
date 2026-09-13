@@ -11,6 +11,7 @@ const FileBaseFilters = require('./file_base_filter.js');
 const { formatByteSize } = require('./string_util.js');
 const ANSI = require('./ansi_term.js');
 const UserProps = require('./user_property.js');
+const UserTime = require('./user_time.js');
 const SysProps = require('./system_property.js');
 const SysLogKeys = require('./system_log.js');
 const ActivityPubSettings = require('./activitypub/settings');
@@ -306,6 +307,23 @@ const PREDEFINED_MCI_GENERATORS = {
     TO: function friendlyTotalTimeOnSystem(client) {
         const minutes = client.user.properties[UserProps.MinutesOnlineTotalCount] || 0;
         return moment.duration(minutes, 'minutes').humanize();
+    },
+
+    //
+    //  Today's time budget. TR and TA render users.unlimitedTimeText when no
+    //  limit applies; TD is always a real figure, since usage is tracked even
+    //  for a user nothing meters.
+    //
+    TR: function timeRemainingToday(client) {
+        const minutes = UserTime.getTimeLeftMinutes(client);
+        return null === minutes ? UserTime.unlimitedTimeText() : minutes.toString();
+    },
+    TA: function timeAllowedToday(client) {
+        const minutes = UserTime.getAllowedMinutesToday(client);
+        return null === minutes ? UserTime.unlimitedTimeText() : minutes.toString();
+    },
+    TD: function timeUsedToday(client) {
+        return UserTime.getTimeUsedTodayMinutes(client.user).toString();
     },
     NM: function userNewMessagesAddressedToCount(client) {
         return StatLog.getUserStatNumByClient(
