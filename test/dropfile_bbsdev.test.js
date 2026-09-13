@@ -4,6 +4,7 @@ const { strict: assert } = require('assert');
 const os = require('os');
 
 const DropFile = require('../core/dropfile.js');
+const ACS = require('../core/acs.js');
 const configModule = require('../core/config.js');
 const { getCtermVersion } = require('../core/client.js');
 
@@ -33,8 +34,29 @@ const Line = {
     LocalDisplay: 19,
 };
 
-function makeClient() {
-    return {
+function makeClient(properties = {}) {
+    const props = Object.assign({}, properties);
+
+    //  the drop file states a logoff deadline, so the user has to answer the
+    //  questions core/user_time.js asks of a real one
+    const user = {
+        userId: 42,
+        username: 'testuser',
+        properties: props,
+        getSanitizedName: which => ('real' === which ? 'Test User' : 'testuser'),
+        getLegacySecurityLevel: () => 30,
+        isSysOp: () => false,
+        isRoot: () => false,
+        isGroupMember: () => false,
+        isAuthenticated: () => true,
+        getProperty: name => props[name],
+        getPropertyAsNumber: name => parseInt(props[name], 10),
+        persistProperty: (name, value) => {
+            props[name] = value;
+        },
+    };
+
+    const client = {
         node: 3,
         term: {
             termWidth: 132,
@@ -42,16 +64,10 @@ function makeClient() {
             outputEncoding: 'cp437',
             ctermVersion: null,
         },
-        user: {
-            userId: 42,
-            username: 'testuser',
-            properties: {},
-            getSanitizedName: which => ('real' === which ? 'Test User' : 'testuser'),
-            getLegacySecurityLevel: () => 30,
-            isSysOp: () => false,
-            isGroupMember: () => false,
-        },
+        user,
     };
+    client.acs = new ACS({ client, user });
+    return client;
 }
 
 function makeDropFile(opts = {}, client = makeClient()) {
@@ -113,8 +129,8 @@ describe('BBSDEV.DRP', () => {
         assert.equal(at(Line.LocalDisplay), 'N');
     });
 
-    //  ENiGMA has no per-call time limit, so there is no deadline to state
-    it('leaves the logoff deadline empty', () => {
+    //  nothing will end this session, and the format says so by omission
+    it('leaves the logoff deadline empty for an unlimited user', () => {
         assert.equal(field({}, Line.Logoff), '');
     });
 

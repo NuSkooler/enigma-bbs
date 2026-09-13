@@ -5,24 +5,37 @@ const os = require('os');
 
 const DropFile = require('../core/dropfile.js');
 const UserProps = require('../core/user_property.js');
+const ACS = require('../core/acs.js');
 
 function makeClient(properties = {}) {
-    return {
-        node: 1,
-        term: { termHeight: 25 },
-        user: {
-            userId: 1,
-            properties: Object.assign(
-                {
-                    login_count: '5',
-                    location: 'Anywhere',
-                },
-                properties
-            ),
-            getSanitizedName: which => ('real' === which ? 'Test User' : 'testuser'),
-            getLegacySecurityLevel: () => 30,
+    const props = Object.assign(
+        {
+            login_count: '5',
+            location: 'Anywhere',
+        },
+        properties
+    );
+
+    //  the drop files state a time budget, so the user has to answer the
+    //  questions core/user_time.js asks of a real one
+    const user = {
+        userId: 1,
+        properties: props,
+        getSanitizedName: which => ('real' === which ? 'Test User' : 'testuser'),
+        getLegacySecurityLevel: () => 30,
+        isAuthenticated: () => true,
+        isRoot: () => false,
+        isGroupMember: () => false,
+        getProperty: name => props[name],
+        getPropertyAsNumber: name => parseInt(props[name], 10),
+        persistProperty: (name, value) => {
+            props[name] = value;
         },
     };
+
+    const client = { node: 1, term: { termHeight: 25 }, user };
+    client.acs = new ACS({ client, user });
+    return client;
 }
 
 function dropFileLines(fileType, commType, properties) {
