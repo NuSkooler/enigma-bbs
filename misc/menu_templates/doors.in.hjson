@@ -40,7 +40,7 @@
                 }
                 //
                 //  v86 native DOS emulation example
-                //  See: docs/_docs/modding/local-doors-v86.md
+                //  See: doors/v86.md
                 //
                 {
                     value: { command: "MYGAME" }
@@ -76,7 +76,7 @@
                 //  local, serial, or socket. Defaults to socket here because
                 //  of io above; set it to serial if an emulator bridges the
                 //  port to a COM port in a guest. See
-                //  docs/_docs/modding/local-doors-abracadabra.md
+                //  doors/scripts-and-binaries.md
                 //
                 //commType: serial
             }
@@ -130,7 +130,7 @@
         //  below. This lets a single image host multiple doors — one entry per door,
         //  same image path.
         //
-        //  See docs/_docs/modding/local-doors-v86.md for full setup instructions.
+        //  See doors/v86.md for full setup instructions.
         //
         doorMyGameV86: {
             desc: My DOS Door (v86)
