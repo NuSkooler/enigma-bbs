@@ -131,7 +131,12 @@ function renegadeToAnsi(s, client) {
             result += s.substr(lastIndex, m.index - lastIndex) + val;
         } else if (m[5]) {
             //  || -- literal '|', that is.
-            result += '|';
+            //
+            //  The text between the previous match and this one has to come
+            //  along, exactly as the other branches do it. Without it every
+            //  character before a "||" was dropped: "if (a || b) {" rendered
+            //  as "| b) {".
+            result += s.substr(lastIndex, m.index - lastIndex) + '|';
         }
 
         lastIndex = re.lastIndex;
