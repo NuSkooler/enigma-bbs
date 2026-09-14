@@ -69,7 +69,7 @@ Module._load = function (request, parent, isMain) {
     return _originalLoad(request, parent, isMain);
 };
 
-const { computeLoginStreak, LOGIN_STREAK_MIN_HOURS } = require('../core/user_login.js');
+const { computeLoginStreak } = require('../core/user_login.js');
 
 //  Restore after load — other test files should not be affected.
 Module._load = _originalLoad;
@@ -82,7 +82,6 @@ const UserProps = require('../core/user_property.js');
 function makeUser(overrides = {}) {
     const props = Object.assign(
         {
-            [UserProps.LastLoginTs]: null,
             [UserProps.LoginStreakDays]: 0,
             [UserProps.LoginStreakLastDate]: '',
         },
@@ -94,264 +93,183 @@ function makeUser(overrides = {}) {
     };
 }
 
-//  Return a moment() that is exactly |hours| hours after |base|.
-function hoursAfter(base, hours) {
-    return base.clone().add(hours, 'hours');
+//  A user mid-streak: |days| long, last credited on |lastDate|.
+function userOnStreak(days, lastDate) {
+    return makeUser({
+        [UserProps.LoginStreakDays]: days,
+        [UserProps.LoginStreakLastDate]: lastDate,
+    });
 }
 
-//  Format a moment as the date string stored in LoginStreakLastDate.
-function dateStr(m) {
-    return m.format('YYYY-MM-DD');
-}
+const at = s => moment(s);
 
 // ─── computeLoginStreak() ─────────────────────────────────────────────────────
 
 describe('computeLoginStreak()', function () {
-    describe('first login (no LastLoginTs)', function () {
-        it('starts streak at 1', () => {
-            const user = makeUser();
-            const now = moment();
-            const [days, date] = computeLoginStreak(user, now);
+    describe('nothing credited yet', function () {
+        it('starts the streak at 1', () => {
+            const now = at('2024-06-15T09:00:00');
+            const [days, date] = computeLoginStreak(makeUser(), now);
             assert.equal(days, 1);
-            assert.equal(date, dateStr(now));
-        });
-    });
-
-    describe('too soon (< LOGIN_STREAK_MIN_HOURS elapsed)', function () {
-        it('does not change streak days when gap is 0 hours', () => {
-            const base = moment();
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 5,
-                [UserProps.LoginStreakLastDate]: dateStr(base),
-            });
-            const [days, date] = computeLoginStreak(user, base);
-            assert.equal(days, 5);
-            assert.equal(date, dateStr(base));
+            assert.equal(date, '2024-06-15');
         });
 
-        it('does not change streak when gap is exactly 1 hour', () => {
-            const base = moment();
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 3,
-                [UserProps.LoginStreakLastDate]: dateStr(base),
-            });
-            const now = hoursAfter(base, 1);
-            const [days] = computeLoginStreak(user, now);
-            assert.equal(days, 3);
-        });
-
-        it(`does not change streak when gap is LOGIN_STREAK_MIN_HOURS - 1 (${
-            LOGIN_STREAK_MIN_HOURS - 1
-        }h)`, () => {
-            const base = moment();
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 7,
-                [UserProps.LoginStreakLastDate]: dateStr(base),
-            });
-            const now = hoursAfter(base, LOGIN_STREAK_MIN_HOURS - 1);
-            const [days] = computeLoginStreak(user, now);
-            assert.equal(days, 7);
-        });
-
-        it('midnight exploit: 11:58 PM → 12:02 AM does not advance streak', () => {
-            const prevLogin = moment('2024-06-15T23:58:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: prevLogin.toISOString(),
-                [UserProps.LoginStreakDays]: 4,
-                [UserProps.LoginStreakLastDate]: '2024-06-15',
-            });
-            const now = moment('2024-06-16T00:02:00'); //  different calendar day, only 4 min later
-            const [days, date] = computeLoginStreak(user, now);
-            assert.equal(days, 4, 'streak must not advance on midnight exploit');
+        it('starts at 1 when the stored date cannot be parsed', () => {
+            const user = userOnStreak(9, 'not-a-date');
+            const [days, date] = computeLoginStreak(user, at('2024-06-15T09:00:00'));
+            assert.equal(days, 1);
             assert.equal(date, '2024-06-15');
         });
     });
 
-    describe('already counted today', function () {
-        it('does not double-count a second qualifying login on the same calendar day', () => {
-            const base = moment('2024-06-15T09:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 10,
-                [UserProps.LoginStreakLastDate]: '2024-06-15',
-            });
-            //  22 hours later — same calendar day, gap > MIN_HOURS
-            const now = moment('2024-06-15T22:00:00');
-            const [days, date] = computeLoginStreak(user, now);
-            assert.equal(days, 10, 'should not increment when already counted today');
+    describe('already credited today', function () {
+        it('leaves the streak alone on a second login the same day', () => {
+            const user = userOnStreak(10, '2024-06-15');
+            const [days, date] = computeLoginStreak(user, at('2024-06-15T22:00:00'));
+            assert.equal(days, 10);
+            assert.equal(date, '2024-06-15');
+        });
+
+        it('leaves the streak alone if the clock moved backwards', () => {
+            const user = userOnStreak(10, '2024-06-15');
+            const [days, date] = computeLoginStreak(user, at('2024-06-14T22:00:00'));
+            assert.equal(days, 10);
             assert.equal(date, '2024-06-15');
         });
     });
 
-    describe('streak continues (gap within 48h, different day)', function () {
-        it(`increments streak when gap is exactly LOGIN_STREAK_MIN_HOURS (${LOGIN_STREAK_MIN_HOURS}h)`, () => {
-            const base = moment('2024-06-14T10:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 3,
-                [UserProps.LoginStreakLastDate]: '2024-06-14',
-            });
-            const now = hoursAfter(base, LOGIN_STREAK_MIN_HOURS);
-            const [days, date] = computeLoginStreak(user, now);
-            assert.equal(days, 4);
-            assert.equal(date, dateStr(now));
-        });
-
-        it('increments streak for a normal next-day login (~24h gap)', () => {
-            const base = moment('2024-06-14T20:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 5,
-                [UserProps.LoginStreakLastDate]: '2024-06-14',
-            });
-            const now = moment('2024-06-15T20:30:00');
-            const [days, date] = computeLoginStreak(user, now);
+    describe('consecutive days advance the streak', function () {
+        it('increments on the next calendar day', () => {
+            const user = userOnStreak(5, '2024-06-14');
+            const [days, date] = computeLoginStreak(user, at('2024-06-15T20:30:00'));
             assert.equal(days, 6);
             assert.equal(date, '2024-06-15');
         });
 
-        it('increments streak when gap is 47h (edge of 48h window)', () => {
-            const base = moment('2024-06-13T10:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 8,
-                [UserProps.LoginStreakLastDate]: '2024-06-13',
-            });
-            const now = hoursAfter(base, 47);
-            const [days] = computeLoginStreak(user, now);
+        it('increments even when the calls are only minutes apart across midnight', () => {
+            //  One credit per calendar day is the rule, so this is a short gap
+            //  rather than a way to earn two days at once.
+            const user = userOnStreak(4, '2024-06-15');
+            const [days, date] = computeLoginStreak(user, at('2024-06-16T00:02:00'));
+            assert.equal(days, 5);
+            assert.equal(date, '2024-06-16');
+        });
+
+        it('increments when the calls are nearly 48h apart but on consecutive days', () => {
+            //  00:30 Sat to 23:30 Sun: 47h, but no day was missed.
+            const user = userOnStreak(8, '2024-06-15');
+            const [days] = computeLoginStreak(user, at('2024-06-16T23:30:00'));
             assert.equal(days, 9);
         });
+    });
 
-        it('updates the stored date to today', () => {
-            const base = moment('2024-06-14T10:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 1,
-                [UserProps.LoginStreakLastDate]: '2024-06-14',
-            });
-            const now = moment('2024-06-15T11:00:00');
-            const [, date] = computeLoginStreak(user, now);
+    describe('a missed day breaks the streak', function () {
+        it('resets when one day is skipped', () => {
+            const user = userOnStreak(20, '2024-06-13');
+            const [days, date] = computeLoginStreak(user, at('2024-06-15T10:00:00'));
+            assert.equal(days, 1);
             assert.equal(date, '2024-06-15');
         });
-    });
 
-    describe('streak broken (gap > 48h)', function () {
-        it('resets to 1 when gap is exactly 49h', () => {
-            const base = moment('2024-06-13T10:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 20,
-                [UserProps.LoginStreakLastDate]: '2024-06-13',
-            });
-            const now = hoursAfter(base, 49);
-            const [days, date] = computeLoginStreak(user, now);
-            assert.equal(days, 1, 'streak must reset to 1');
-            assert.equal(date, dateStr(now));
+        it('resets even when the gap is under 48h, if a day was missed', () => {
+            //  23:00 Thu to 22:00 Sat is 47h, but Friday never happened.
+            //  The old hours-based rule counted this as consecutive.
+            const user = userOnStreak(8, '2024-06-13');
+            const [days] = computeLoginStreak(user, at('2024-06-15T22:00:00'));
+            assert.equal(days, 1, 'a skipped day must break the run');
         });
 
-        it('resets to 1 after a week-long absence', () => {
-            const base = moment('2024-06-01T10:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 100,
-                [UserProps.LoginStreakLastDate]: '2024-06-01',
-            });
-            const now = moment('2024-06-08T10:00:00');
-            const [days] = computeLoginStreak(user, now);
+        it('resets after a week away', () => {
+            const user = userOnStreak(100, '2024-06-01');
+            const [days, date] = computeLoginStreak(user, at('2024-06-08T10:00:00'));
             assert.equal(days, 1);
-        });
-
-        it('updates the stored date to today after reset', () => {
-            const base = moment('2024-06-01T10:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 50,
-                [UserProps.LoginStreakLastDate]: '2024-06-01',
-            });
-            const now = moment('2024-06-10T10:00:00');
-            const [, date] = computeLoginStreak(user, now);
-            assert.equal(date, '2024-06-10');
+            assert.equal(date, '2024-06-08');
         });
     });
 
-    describe('boundary: exactly 48h gap', function () {
-        it('still counts as streak continuing at exactly 48h', () => {
-            const base = moment('2024-06-13T10:00:00');
-            const user = makeUser({
-                [UserProps.LastLoginTs]: base.toISOString(),
-                [UserProps.LoginStreakDays]: 12,
-                [UserProps.LoginStreakLastDate]: '2024-06-13',
-            });
-            const now = hoursAfter(base, 48);
-            const [days] = computeLoginStreak(user, now);
-            assert.equal(days, 13);
+    describe('regression: calling more than once a day', function () {
+        //
+        //  The streak used to be measured from the previous login rather than
+        //  from the day it was last credited, so a caller who connected twice in
+        //  one day pushed the reference point forward and the next day's login
+        //  was rejected as "too soon". Heavy callers were pinned at a streak of
+        //  1 no matter how many consecutive days they called.
+        //
+        it('advances for a caller who connects morning and evening every day', () => {
+            let days = 0;
+            let lastDate = '';
+
+            //  Mon..Fri, twice a day.
+            for (const day of ['17', '18', '19', '20', '21']) {
+                for (const hour of ['09:00:00', '20:00:00']) {
+                    const user = userOnStreak(days, lastDate);
+                    [days, lastDate] = computeLoginStreak(
+                        user,
+                        at(`2024-06-${day}T${hour}`)
+                    );
+                }
+            }
+
+            assert.equal(days, 5, 'five consecutive days should be a streak of 5');
+            assert.equal(lastDate, '2024-06-21');
+        });
+
+        it('advances the same whether the caller connects once or ten times a day', () => {
+            const run = perDay => {
+                let days = 0;
+                let lastDate = '';
+                for (const day of ['10', '11', '12']) {
+                    for (let i = 0; i < perDay; i++) {
+                        const user = userOnStreak(days, lastDate);
+                        const hour = String(8 + i).padStart(2, '0');
+                        [days, lastDate] = computeLoginStreak(
+                            user,
+                            at(`2024-06-${day}T${hour}:00:00`)
+                        );
+                    }
+                }
+                return days;
+            };
+
+            assert.equal(run(1), 3);
+            assert.equal(run(10), 3);
         });
     });
 
-    describe('streak accumulation across multiple logins', function () {
-        it('builds streak correctly over 5 simulated daily logins', () => {
-            //  Simulate 5 consecutive daily logins, each ~24h apart.
-            let props = {
-                [UserProps.LastLoginTs]: null,
-                [UserProps.LoginStreakDays]: 0,
-                [UserProps.LoginStreakLastDate]: '',
-            };
+    describe('streak accumulation', function () {
+        it('builds correctly over 10 consecutive daily logins', () => {
+            let days = 0;
+            let lastDate = '';
 
-            const baseDay = moment('2024-06-10T18:00:00');
-
-            for (let i = 0; i < 5; i++) {
-                const now = baseDay.clone().add(i, 'days');
-                const user = {
-                    getProperty: name => props[name] || null,
-                    getPropertyAsNumber: name => Number(props[name]) || 0,
-                };
-                const [days, date] = computeLoginStreak(user, now);
-                //  Update simulated stored props for next iteration.
-                props[UserProps.LastLoginTs] = now.toISOString();
-                props[UserProps.LoginStreakDays] = days;
-                props[UserProps.LoginStreakLastDate] = date;
+            for (let i = 0; i < 10; i++) {
+                const now = at('2024-06-10T18:00:00').add(i, 'days');
+                [days, lastDate] = computeLoginStreak(userOnStreak(days, lastDate), now);
             }
 
-            assert.equal(props[UserProps.LoginStreakDays], 5);
-            assert.equal(props[UserProps.LoginStreakLastDate], '2024-06-14');
+            assert.equal(days, 10);
+            assert.equal(lastDate, '2024-06-19');
         });
 
-        it('resets mid-streak correctly', () => {
-            //  3 days of streak, then a 3-day gap, then one more login.
-            let props = {
-                [UserProps.LastLoginTs]: null,
-                [UserProps.LoginStreakDays]: 0,
-                [UserProps.LoginStreakLastDate]: '',
+        it('starts over after a break, then builds again', () => {
+            let days = 0;
+            let lastDate = '';
+            const login = s => {
+                [days, lastDate] = computeLoginStreak(
+                    userOnStreak(days, lastDate),
+                    at(s)
+                );
             };
 
-            const days = [
-                moment('2024-06-10T18:00:00'),
-                moment('2024-06-11T18:00:00'),
-                moment('2024-06-12T18:00:00'),
-                //  gap — 2024-06-13, 2024-06-14, 2024-06-15 missed
-                moment('2024-06-16T18:00:00'),
-            ];
+            login('2024-06-10T12:00:00');
+            login('2024-06-11T12:00:00');
+            login('2024-06-12T12:00:00');
+            assert.equal(days, 3);
 
-            for (const now of days) {
-                const user = {
-                    getProperty: name => props[name] || null,
-                    getPropertyAsNumber: name => Number(props[name]) || 0,
-                };
-                const [newDays, newDate] = computeLoginStreak(user, now);
-                props[UserProps.LastLoginTs] = now.toISOString();
-                props[UserProps.LoginStreakDays] = newDays;
-                props[UserProps.LoginStreakLastDate] = newDate;
-            }
+            login('2024-06-20T12:00:00'); //  eight days away
+            assert.equal(days, 1);
 
-            assert.equal(
-                props[UserProps.LoginStreakDays],
-                1,
-                'streak should have reset to 1 after gap'
-            );
-            assert.equal(props[UserProps.LoginStreakLastDate], '2024-06-16');
+            login('2024-06-21T12:00:00');
+            assert.equal(days, 2);
         });
     });
 });
