@@ -489,12 +489,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }
@@ -629,12 +624,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }

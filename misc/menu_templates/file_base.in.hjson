@@ -129,10 +129,7 @@
                             keys: [ "w", "shift + w" ]
                             action: @method:showWebDownloadLink
                         }
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                         {
                             keys: [ "t", "shift + t" ]
                             action: @method:toggleQueue
@@ -313,12 +310,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }
@@ -375,10 +367,7 @@
                             keys: [ "c", "shift + c" ]
                             action: @method:clearQueue
                         }
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                     ]
                 }
             }
@@ -441,10 +430,7 @@
                             keys: [ "c", "shift + c" ]
                             action: @method:clearQueue
                         }
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                     ]
                 }
             }
@@ -500,12 +486,7 @@
                         ]
                     }
 
-                    "actionKeys" : [
-                        {
-                            "keys"      : [ "escape" ],
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
 
                 1: {
@@ -637,12 +618,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }
@@ -744,12 +720,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }
@@ -835,12 +806,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }
@@ -904,12 +870,7 @@
 				}
 			}
 
-			actionKeys: [
-				{
-					keys: [ "escape" ]
-					action: @systemMethod:prevMenu
-				}
-			]
+			actionKeys: @reference:common.escToPrev
 		}
 
 		fileBaseTagEntryPrompt: {

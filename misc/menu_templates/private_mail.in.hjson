@@ -167,10 +167,7 @@
                         ]
                     }
                     actionKeys: [
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                         {
                             keys: [ "delete", "d", "shift + d" ]
                             action: @method:deleteSelected
