@@ -21,11 +21,10 @@ const Message = require('../../message.js');
 const FTNAddress = require('../../ftn_address.js');
 const {
     isAnsi,
-    stripAnsiControlCodes,
+    stripAllControlCodes,
     splitTextAtTerms,
 } = require('../../string_util.js');
 const AnsiPrep = require('../../ansi_prep.js');
-const { stripMciColorCodes } = require('../../color_codes.js');
 const ACS = require('../../acs');
 const {
     makeBindError,
@@ -940,6 +939,13 @@ class NNTPServer extends NNTPServerBase {
     }
 
     prepareMessageBody(message, cb) {
+        //
+        //  Both branches must end up clean. AnsiPrep() renders ANSI to ASCII,
+        //  but it knows nothing about pipe codes -- so an ANSI message carrying
+        //  a "|07" (an appended auto-signature, typically) used to hand that
+        //  straight to the reader. isAnsi() trips at four escape sequences, so
+        //  that was every decorated message, not an edge case.
+        //
         if (isAnsi(message.message)) {
             AnsiPrep(
                 message.message,
@@ -951,14 +957,14 @@ class NNTPServer extends NNTPServerBase {
                     fillLines: false,
                 },
                 (err, prepped) => {
-                    message.preparedBody = prepped || message.message;
+                    message.preparedBody = stripAllControlCodes(
+                        prepped || message.message
+                    );
                     return cb(null);
                 }
             );
         } else {
-            message.preparedBody = stripMciColorCodes(
-                stripAnsiControlCodes(message.message, { all: true })
-            );
+            message.preparedBody = stripAllControlCodes(message.message);
             return cb(null);
         }
     }
@@ -1227,6 +1233,8 @@ class NNTPServer extends NNTPServerBase {
         );
     }
 }
+
+exports.NNTPServer = NNTPServer; //  exported for test; see content_server_body_prep.test.js
 
 exports.getModule = class NNTPServerModule extends ServerModule {
     constructor() {
