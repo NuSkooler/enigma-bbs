@@ -9,7 +9,7 @@ const { Errors } = require('../../enig_error.js');
 const {
     splitTextAtTerms,
     isAnsi,
-    stripAnsiControlCodes,
+    stripAllControlCodes,
     wildcardMatch,
 } = require('../../string_util.js');
 const {
@@ -21,7 +21,6 @@ const {
 const { sortAreasOrConfs } = require('../../conf_area_util.js');
 const AnsiPrep = require('../../ansi_prep.js');
 const { wordWrapText } = require('../../word_wrap.js');
-const { stripMciColorCodes } = require('../../color_codes.js');
 const { listenServer } = require('../../server_listen.js');
 
 //  deps
@@ -325,13 +324,14 @@ exports.getModule = class GopherModule extends ServerModule {
                     fillLines: false, //  Don't fill up to |cols|
                 },
                 (err, prepped) => {
-                    return cb(prepped || body);
+                    //  AnsiPrep() renders ANSI, but knows nothing of pipe
+                    //  codes -- without this an ANSI message carrying a "|07"
+                    //  handed it straight to the Gopher client.
+                    return cb(stripAllControlCodes(prepped || body));
                 }
             );
         } else {
-            const cleaned = stripMciColorCodes(
-                stripAnsiControlCodes(body, { all: true })
-            );
+            const cleaned = stripAllControlCodes(body);
             const prepped = splitTextAtTerms(cleaned)
                 .map(l =>
                     (wordWrapText(l, { width: WordWrapColumn }).wrapped || []).join('\n')
