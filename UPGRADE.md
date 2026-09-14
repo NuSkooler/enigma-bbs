@@ -22,6 +22,21 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **Achievement totals earned before 0.5.1-beta may be too high** ([#843](https://github.com/NuSkooler/enigma-bbs/pull/843)). Until the duplicate-award fix, crossing a new tier of a retroactive achievement re-counted every lower tier the user already held: the running `achievement_total_count` / `achievement_total_points` properties were incremented before `INSERT OR IGNORE` dropped the duplicate row. The `user_achievement` records were never wrong, only the running totals, and only upward. Boards that have been up for a while will see this in "Top Achievements" rankings and in the header of the Achievements screen, which can claim more achievements than the list below it shows.
+
+  No new drift accrues once you are on this version.
+
+  **Action:** optional, and cosmetic — nothing is broken if you skip it. To correct the historical totals:
+
+  ```bash
+  # stop the BBS first: an online user holds their totals in memory, and the
+  # next achievement they earn writes that stale figure back
+  ./oputil.js user fix-achievement-stats --dry-run   # report only
+  ./oputil.js user fix-achievement-stats             # write
+  ```
+
+  Back up your user database first, and expect the headline numbers on your Top Achievements art to drop. The command is idempotent.
+
 * **Daily time limits are off, and stay off** ([#795](https://github.com/NuSkooler/enigma-bbs/issues/795)). No `users.timeLimits` ships configured, so every user remains unlimited and nothing about your board changes. The `ML` ACS code, a stub that always returned `false` until now, is `true` whenever no limit applies — so an `acs` containing `ML` that had been silently failing will start passing. Nothing in the shipped menus or themes uses it.
 
   **Action:** none, unless you want limits. To opt in, see [Time Limits](https://enigma-bbs.github.io/configuration/time-limits/).

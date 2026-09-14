@@ -160,14 +160,37 @@ added alongside the lifetime one without new plumbing.
 
 ## Repair
 
+> :warning: **Stop the BBS first.** `StatLog.incrementUserStat()` reads the
+> current total from the in-memory `User` object, not from the database:
+>
+> ```js
+> const oldValue = user.getPropertyAsNumber(statName) || 0;
+> const newValue = oldValue + incrementBy;
+> ```
+>
+> A user who is online when the repair runs still holds their old inflated
+> figure. The next achievement they earn persists `staleInflated + points`,
+> undoing the repair for them. `_refreshUserStat()` only runs on display paths,
+> never on the increment path, so nothing closes that window. The command
+> prompts about this unless `--no-prompt` is given.
+
 ```
+systemctl stop <your bbs service>
+
+#  consistent single-file backup; a plain cp can miss outstanding WAL content
+sqlite3 db/user.sqlite3 ".backup 'db/user.sqlite3.pre-achievfix.bak'"
+
 ./oputil.js user fix-achievement-stats --dry-run   # report only
 ./oputil.js user fix-achievement-stats             # write
+
+systemctl start <your bbs service>
 ```
 
 Recomputes both totals from `user_achievement` for any user whose stored totals
 disagree, in a single transaction. Users who have never earned an achievement
-carry no totals and are left untouched. Idempotent.
+carry no totals and are left untouched. Idempotent — a second run should report
+nothing to do, and if it ever reports drift again, something is writing these
+properties incorrectly.
 
 Running it will visibly drop the headline numbers — djatropine 1654 → 1019,
 NuSkooler 1430 → 930 — so it is worth deciding whether to announce it first.

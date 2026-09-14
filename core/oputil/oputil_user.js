@@ -959,14 +959,52 @@ function fixAchievementStats() {
         return console.info('Dry run: no changes written.');
     }
 
-    try {
-        applyAchievementStats(UserDb, drifted);
-    } catch (err) {
-        process.exitCode = ExitCodes.ERROR;
-        return console.error(`Failed to write achievement stats: ${err.message}`);
+    const applyNow = () => {
+        try {
+            applyAchievementStats(UserDb, drifted);
+        } catch (err) {
+            process.exitCode = ExitCodes.ERROR;
+            return console.error(`Failed to write achievement stats: ${err.message}`);
+        }
+
+        console.info(`Recalculated achievement totals for ${drifted.length} user(s).`);
+    };
+
+    if (false === argv.prompt) {
+        return applyNow();
     }
 
-    console.info(`Recalculated achievement totals for ${drifted.length} user(s).`);
+    //
+    //  StatLog.incrementUserStat() reads the current total from the in-memory
+    //  User object, so a user who is online when this runs still holds the old
+    //  figure; the next achievement they earn persists that stale value and
+    //  puts them right back where they started. Nothing refreshes it on the
+    //  increment path, so the only way to be sure is to have the board down.
+    //
+    console.info(
+        'Stop the BBS before continuing. A user who is online holds their totals in'
+    );
+    console.info(
+        'memory, and the next achievement they earn writes that cached figure back,'
+    );
+    console.info('undoing this repair for them.');
+    console.info('WARNING: This cannot be undone -- back up your user database first!');
+
+    getAnswers(
+        [
+            {
+                name: 'proceed',
+                message: `Recalculate totals for ${drifted.length} user(s)?`,
+                type: 'confirm',
+            },
+        ],
+        answers => {
+            if (!answers.proceed) {
+                return console.info('Canceled.');
+            }
+            return applyNow();
+        }
+    );
 }
 
 function handleUserCommand() {
@@ -1015,12 +1053,7 @@ function handleUserCommand() {
         return errUsage();
     }
 
-    initAndGetUser(userName, (err, user) => {
-        if (userName && err) {
-            process.exitCode = ExitCodes.ERROR;
-            return console.error(err.message);
-        }
-
+    const dispatch = user => {
         return (
             {
                 pw: setUserPassword,
@@ -1056,5 +1089,26 @@ function handleUserCommand() {
                 'fix-achievement-stats': fixAchievementStats,
             }[action] || errUsage
         )(user, action);
+    };
+
+    const reportErr = err => {
+        process.exitCode = ExitCodes.ERROR;
+        return console.error(err.message);
+    };
+
+    //
+    //  An action that takes no username still needs config and databases up.
+    //  Initialize directly rather than asking initAndGetUser() to look up a
+    //  username we do not have -- its lookup would fail for a second reason and
+    //  mask a genuine startup failure behind whatever the action hits next.
+    //
+    if (!userRequired) {
+        return initConfigAndDatabases(err => {
+            return err ? reportErr(err) : dispatch(undefined);
+        });
+    }
+
+    initAndGetUser(userName, (err, user) => {
+        return err ? reportErr(err) : dispatch(user);
     });
 }

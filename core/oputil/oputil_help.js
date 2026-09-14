@@ -79,6 +79,11 @@ Actions:
                                above the real figure, inflating "Top
                                Achievements" rankings.
 
+                               Run this with the BBS stopped: an online user
+                               holds their totals in memory and the next
+                               achievement they earn writes that stale figure
+                               back.
+
   list [FILTER]                List users with optional FILTER.
 
   Valid filters:
@@ -93,6 +98,8 @@ info arguments:
 
 fix-achievement-stats arguments:
   --dry-run                    Report what would change without writing
+
+  --no-prompt                  Skip the confirmation prompt
 
 list arguments:
   --sort SORT_BY               Specify field to sort by
