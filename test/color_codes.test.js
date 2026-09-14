@@ -299,3 +299,70 @@ describe('color_codes', () => {
         });
     });
 });
+
+// ─── "||" escape — literal pipe, without eating the text before it ────────────
+
+describe('pipeToAnsi() — "||" literal pipe escape', () => {
+    //
+    //  "||" is the Renegade escape for a literal "|". The branch handling it
+    //  used to append only the "|", never the text between the previous match
+    //  and this one -- so everything before a "||" was silently dropped.
+    //  "if (a || b) {" rendered as "| b) {".
+    //
+    //  Note this is pipeToAnsi()/renegadeToAnsi() only. controlCodesToAnsi(),
+    //  which is what message bodies go through, has always emitted both pipes
+    //  and is deliberately left alone.
+    //
+
+    it('keeps the text before a "||"', () => {
+        assert.equal(pipeToAnsi('a||b'), 'a|b');
+    });
+
+    it('keeps a whole leading phrase', () => {
+        assert.equal(pipeToAnsi('hello || world'), 'hello | world');
+    });
+
+    it('handles the shape that motivated this — a logical OR in a post', () => {
+        assert.equal(pipeToAnsi('if (a || b) {'), 'if (a | b) {');
+    });
+
+    it('keeps text between several "||" escapes', () => {
+        assert.equal(pipeToAnsi('x||y||z'), 'x|y|z');
+    });
+
+    it('handles a trailing "||"', () => {
+        assert.equal(pipeToAnsi('a||'), 'a|');
+    });
+
+    it('handles a leading "||"', () => {
+        assert.equal(pipeToAnsi('||b'), '|b');
+        assert.equal(pipeToAnsi('|| leading'), '| leading');
+    });
+
+    it('collapses each "||" pair once, left to right', () => {
+        assert.equal(pipeToAnsi('a||||b'), 'a||b');
+    });
+
+    it('handles "||" alone', () => {
+        assert.equal(pipeToAnsi('||'), '|');
+    });
+
+    it('leaves a string with no pipe codes untouched', () => {
+        assert.equal(pipeToAnsi('no pipes here'), 'no pipes here');
+    });
+
+    it('keeps text between a colour code and a "||"', () => {
+        //  The 'b' between |07 and || is the character that used to vanish.
+        const result = pipeToAnsi('a|07b||c');
+        assert.ok(result.startsWith('a'), 'leading text lost');
+        assert.ok(result.includes('b'), 'text between code and escape lost');
+        assert.ok(
+            result.endsWith('|c'),
+            `trailing text wrong: ${JSON.stringify(result)}`
+        );
+    });
+
+    it('does not change controlCodesToAnsi(), which keeps both pipes', () => {
+        assert.equal(controlCodesToAnsi('a||b'), 'a||b');
+    });
+});
