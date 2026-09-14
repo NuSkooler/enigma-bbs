@@ -63,6 +63,7 @@ module.exports = function systemEventUserLogInit(statLog) {
             },
             [systemEvents.UserPostMessage]: e => {
                 append(e, LogNames.PostMessage, e.areaTag);
+                statLog.recordUserPostAreaTag(e.user, e.areaTag);
             },
             [systemEvents.UserSendMail]: e => {
                 append(e, LogNames.SendMail, 1);

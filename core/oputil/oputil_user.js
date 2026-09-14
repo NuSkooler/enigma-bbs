@@ -25,6 +25,8 @@ exports.handleUserCommand = handleUserCommand;
 //  exported for testing
 exports.findDriftedAchievementStats = findDriftedAchievementStats;
 exports.applyAchievementStats = applyAchievementStats;
+exports.findPostAreasByUser = findPostAreasByUser;
+exports.applyPostAreas = applyPostAreas;
 
 function initAndGetUser(userName, cb) {
     async.waterfall(
@@ -912,6 +914,175 @@ function applyAchievementStats(db, rows) {
     })();
 }
 
+//
+//  Reconstruct which areas each user has posted in, for boards that were already
+//  running before post_area_tags existed. Without this everyone starts at zero
+//  and has to revisit areas they posted in years ago.
+//
+//  Two things make the message base awkward to read for this. Echomail carries
+//  the *remote* poster's handle in from_user_name, and some of those collide with
+//  local account names -- on the board this was written against, four handles
+//  with hundreds of messages between them turned out to be other people on other
+//  systems entirely. Messages that arrived over FTN carry an ftn_origin property,
+//  so excluding those leaves what was actually typed here.
+//
+//  The result is a floor rather than an exact history: areas prune old messages,
+//  so a user's earliest areas may no longer be represented. Posting in one of
+//  them again simply adds it back.
+//
+function findPostAreasByUser(msgDb, userDb) {
+    const MessageConst = require('../message_const.js');
+
+    //  private mail is not an area anyone "posted in", and the ActivityPub
+    //  shared inbox is a holding pen rather than a place on the board
+    const notAreas = [MessageConst.WellKnownAreaTags.Private].concat(
+        MessageConst.WellKnownExternalAreaTags
+    );
+
+    const pairs = msgDb
+        .prepare(
+            `SELECT DISTINCT m.from_user_name AS user_name, m.area_tag AS area_tag
+            FROM message m
+            WHERE m.area_tag NOT IN (${notAreas.map(() => '?').join(', ')})
+              AND NOT EXISTS (
+                  SELECT 1 FROM message_meta mm
+                  WHERE mm.message_id = m.message_id
+                    AND mm.meta_category = 'FtnProperty'
+                    AND mm.meta_name = 'ftn_origin'
+              );`
+        )
+        .all(notAreas);
+
+    const userIdByName = new Map(
+        userDb
+            .prepare('SELECT id, user_name FROM user;')
+            .all()
+            .map(row => [row.user_name, row.id])
+    );
+
+    const found = new Map();
+    pairs.forEach(pair => {
+        const userId = userIdByName.get(pair.user_name);
+        if (!userId) {
+            return; //  a remote poster, or an account since removed
+        }
+        if (!found.has(userId)) {
+            found.set(userId, { userId, userName: pair.user_name, areaTags: new Set() });
+        }
+        found.get(userId).areaTags.add(pair.area_tag);
+    });
+
+    //  Merge with anything already recorded -- the set only ever grows, and this
+    //  may be run on a board that has been tracking live for a while.
+    const rows = [];
+    found.forEach(entry => {
+        const stored = userDb
+            .prepare(
+                'SELECT prop_value FROM user_property WHERE user_id = ? AND prop_name = ?;'
+            )
+            .get(entry.userId, UserProps.MessagePostAreaTags);
+
+        let existing = [];
+        if (stored && stored.prop_value) {
+            try {
+                const parsed = JSON.parse(stored.prop_value);
+                if (Array.isArray(parsed)) {
+                    existing = parsed;
+                }
+            } catch (e) {
+                existing = [];
+            }
+        }
+
+        const merged = new Set(existing);
+        const before = merged.size;
+        entry.areaTags.forEach(t => merged.add(t));
+
+        if (merged.size === before) {
+            return; //  nothing the board did not already know
+        }
+
+        rows.push({
+            userId: entry.userId,
+            userName: entry.userName,
+            areaTags: Array.from(merged).sort(),
+            was: before,
+        });
+    });
+
+    return rows.sort((a, b) => b.areaTags.length - a.areaTags.length);
+}
+
+function applyPostAreas(db, rows) {
+    const upsert = db.prepare(
+        `INSERT INTO user_property (user_id, prop_name, prop_value)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id, prop_name) DO UPDATE SET prop_value = excluded.prop_value;`
+    );
+
+    db.transaction(() => {
+        rows.forEach(row => {
+            upsert.run(
+                row.userId,
+                UserProps.MessagePostAreaTags,
+                JSON.stringify(row.areaTags)
+            );
+            upsert.run(
+                row.userId,
+                UserProps.MessagePostAreaCount,
+                `${row.areaTags.length}`
+            );
+        });
+    })();
+}
+
+function backfillPostAreas() {
+    const dryRun = true === argv['dry-run'];
+    const dbs = require('../database.js').dbs;
+
+    let rows;
+    try {
+        rows = findPostAreasByUser(dbs.message, dbs.user);
+    } catch (err) {
+        process.exitCode = ExitCodes.ERROR;
+        return console.error(`Failed to inspect the message base: ${err.message}`);
+    }
+
+    if (0 === rows.length) {
+        return console.info("Every user's posted-area list is already up to date.");
+    }
+
+    const table = new Table();
+    rows.forEach(row => {
+        table.cell('Username', row.userName);
+        table.cell('Areas', `${row.was} -> ${row.areaTags.length}`);
+        table.cell('Added', row.areaTags.length - row.was, Table.number(0));
+        table.newRow();
+    });
+    console.info(table.toString());
+    console.info(
+        `${rows.length} user(s) to update. This is a floor: areas prune old\n` +
+            'messages, so areas a user has not posted in for some time may be missing.'
+    );
+
+    if (dryRun) {
+        return console.info('Dry run: no changes written.');
+    }
+
+    try {
+        applyPostAreas(dbs.user, rows);
+    } catch (err) {
+        process.exitCode = ExitCodes.ERROR;
+        return console.error(`Failed to write posted-area lists: ${err.message}`);
+    }
+
+    console.info(`Recorded posted areas for ${rows.length} user(s).`);
+    console.info(
+        'Achievements are not awarded here -- there is no session to announce them\n' +
+            "to. They are earned on the user's next post."
+    );
+}
+
 function fixAchievementStats() {
     const dryRun = true === argv['dry-run'];
     const UserDb = require('../database.js').dbs.user;
@@ -1017,7 +1188,11 @@ function handleUserCommand() {
     }
 
     const action = argv._[1];
-    const userRequired = !['list', 'fix-achievement-stats'].includes(action);
+    const userRequired = ![
+        'list',
+        'fix-achievement-stats',
+        'backfill-post-areas',
+    ].includes(action);
 
     //  actions of the form: user <action> USERNAME <value>
     const takesTrailingValue = [
@@ -1087,6 +1262,7 @@ function handleUserCommand() {
                 'remove-ssh-key': removeSSHKey,
 
                 'fix-achievement-stats': fixAchievementStats,
+                'backfill-post-areas': backfillPostAreas,
             }[action] || errUsage
         )(user, action);
     };
