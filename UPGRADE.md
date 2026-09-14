@@ -76,6 +76,25 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
   ]
   ```
 
+  New installations now seed a second form of the shared binding for exactly this
+  case -- `common.quitToPrevEntry`, the entry without the array around it -- which
+  a menu can list beside its own keys instead of copying it:
+
+  ```hjson
+  actionKeys: [
+      @reference:common.quitToPrevEntry
+      {
+          keys: [ "p", "shift + p" ]
+          action: @method:postNewMessage
+      }
+  ]
+  ```
+
+  Your `menu.hjson` predates it, so the copy above is what to write unless you add
+  `quitToPrevEntry` to your own `common` section first. Either is fine; the copy
+  costs you a board that no longer tracks changes to the shared binding, which for
+  a binding that has not changed in years is a small thing.
+
   The shipped `MSGLIST.ANS` and `MYMSGLST.ANS` name the key in their legend; a theme of your own needs the line adding to its own art.
 
 * **Eight customizations in the `luciano_blocktronics` theme were named wrongly and have been corrected.** `ThemeManager` starts from your `menu.hjson` and looks each menu up in the theme, so a customization naming a menu that does not exist is never consulted — it silently does nothing. Seven menu blocks and one prompt block in the theme we ship named nothing at all. Three were renamed to the menus they were meant for and four were removed.

@@ -75,8 +75,70 @@ Consider `actionKeys` in a menu. Often times you may show a screen and the user 
 }
 ```
 
+#### A reference replaces the value, it does not merge into it
+
+`@reference` substitutes whatever it names *in place of the whole value*. That is
+what you want when a menu's `actionKeys` are nothing but the shared block, as
+above. It is not what you want when the menu has keys of its own: writing
+
+```hjson
+//  wrong -- the menu's own key is all that survives
+actionKeys: @reference:recycle.prevMenu
+```
+
+and then adding a key to it is impossible, because there is nowhere to add it to.
+Referencing the block and listing an extra key are the same slot.
+
+The way around this is to publish the *entry* as well as the array, so a menu can
+list the shared binding as one element among its own:
+
+```hjson
+{
+    recycle: {
+        //  the binding on its own
+        prevMenuEntry: {
+            keys: [ "escape" ]
+            action: @systemMethod:prevMenu
+        }
+
+        //  and wrapped, for menus that want nothing else
+        prevMenu: [
+            @reference:recycle.prevMenuEntry
+        ]
+    }
+
+    menus: {
+        someMenu: {
+            form: {
+                0: {
+                    actionKeys: [
+                        @reference:recycle.prevMenuEntry
+                        {
+                            keys: [ "p", "shift + p" ]
+                            action: @method:postNewMessage
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
+```
+
+A reference standing as an array element resolves like any other value, so both
+shapes work and the two menus stay in step with one binding.
+
+The menu templates ENiGMA½ ships follow this convention in their `common`
+section: `common.quitToPrev` is the array, `common.quitToPrevEntry` is the entry.
+Reach for the array when the shared binding is all the menu needs, and the entry
+when it has keys of its own.
+
 :::note
-An unresolved `@reference` will be left intact.
+An unresolved `@reference` will be left intact -- it stays in the configuration
+as the literal string `@reference:some.path`, and nothing is raised. In
+`actionKeys` that is invisible at runtime: an entry that is not an object with a
+`keys` array is skipped, so the key simply stops working. `oputil.js config
+validate --check-env` reports references that do not resolve.
 :::
 
 ### Environment Variables
