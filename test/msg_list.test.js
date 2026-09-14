@@ -151,3 +151,53 @@ describe('msg_list: posting from a list', () => {
         });
     });
 });
+
+describe('msg_list: the focused row', () => {
+    const list = () =>
+        makeList({
+            messageAreaTag: 'general',
+            messageList: [
+                { areaTag: 'general', messageId: 1 },
+                { areaTag: 'fsx_general', messageId: 2 },
+            ],
+        });
+
+    //  older menus submit the index as 'message' rather than 'messageIndex'
+    it('reads the deprecated message member when messageIndex is absent', done => {
+        const mod = list();
+
+        mod.menuMethods.postNewMessage(
+            { submitId: MSG_LIST_VIEW, value: { message: 1 } },
+            {},
+            err => {
+                assert.equal(err, null);
+                assert.equal(mod.went.options.extraArgs.messageAreaTag, 'fsx_general');
+                done();
+            }
+        );
+    });
+
+    it('does not prompt to delete when another view holds focus', done => {
+        const mod = list();
+        mod.promptDeleteMessageConfirm = () => assert.fail('no delete prompt');
+
+        mod.menuMethods.deleteSelected(
+            { submitId: 2, value: { messageIndex: 0 } },
+            {},
+            err => {
+                assert.equal(err, null);
+                done();
+            }
+        );
+    });
+
+    it('prompts to delete the focused message', done => {
+        const mod = list();
+        mod.promptDeleteMessageConfirm = (messageIndex, cb) => {
+            assert.equal(messageIndex, 1);
+            return cb(null);
+        };
+
+        mod.menuMethods.deleteSelected(keyPress(1), {}, done);
+    });
+});

@@ -63,11 +63,16 @@
             }
         ]
 
+        //  The entry on its own, so a menu can list it alongside its own
+        //  keys; @reference: replaces a whole value, so referencing
+        //  quitToPrev and adding a key would drop the shared bindings.
+        quitToPrevEntry: {
+            keys: [ "escape", "q", "shift + q" ]
+            action: @systemMethod:prevMenu
+        }
+
         quitToPrev: [
-            {
-                keys: [ "escape", "q", "shift + q" ]
-                action: @systemMethod:prevMenu
-            }
+            @reference:common.quitToPrevEntry
         ]
     }
 

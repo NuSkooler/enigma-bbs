@@ -49,6 +49,19 @@ const MciViewIds = {
     },
 };
 
+//
+//  The index of the message focused in the list when |formData| was submitted
+//  from it, or null when another view held focus. 'messageIndex' is the
+//  current member; older menus submit the deprecated 'message' member instead.
+//
+function focusedMessageIndex(formData) {
+    if (MciViewIds.allViews.msgList != formData.submitId) {
+        return null;
+    }
+
+    return _.get(formData, 'value.messageIndex', formData.value.message);
+}
+
 exports.getModule = class MessageListModule extends (
     MessageAreaConfTempSwitcher(MenuModule)
 ) {
@@ -78,13 +91,9 @@ exports.getModule = class MessageListModule extends (
                     return cb(null);
                 }
 
-                if (MciViewIds.allViews.msgList === formData.submitId) {
-                    //  'messageIndex' or older deprecated 'message' member
-                    this.initialFocusIndex = _.get(
-                        formData,
-                        'value.messageIndex',
-                        formData.value.message
-                    );
+                const messageIndex = focusedMessageIndex(formData);
+                if (null !== messageIndex) {
+                    this.initialFocusIndex = messageIndex;
 
                     const modOpts = {
                         extraArgs: {
@@ -140,16 +149,10 @@ exports.getModule = class MessageListModule extends (
             //  that tag itself.
             //
             postNewMessage: (formData, extraArgs, cb) => {
-                if (MciViewIds.allViews.msgList != formData.submitId) {
+                const messageIndex = focusedMessageIndex(formData);
+                if (null === messageIndex) {
                     return cb(null);
                 }
-
-                //  newer 'messageIndex' or older deprecated value
-                const messageIndex = _.get(
-                    formData,
-                    'value.messageIndex',
-                    formData.value.message
-                );
 
                 const selected = _.get(this.config, ['messageList', messageIndex]);
                 const areaTag = selected
@@ -174,16 +177,11 @@ exports.getModule = class MessageListModule extends (
                 return this.prevMenu(cb);
             },
             deleteSelected: (formData, extraArgs, cb) => {
-                if (MciViewIds.allViews.msgList != formData.submitId) {
+                const messageIndex = focusedMessageIndex(formData);
+                if (null === messageIndex) {
                     return cb(null);
                 }
 
-                //  newer 'messageIndex' or older deprecated value
-                const messageIndex = _.get(
-                    formData,
-                    'value.messageIndex',
-                    formData.value.message
-                );
                 return this.promptDeleteMessageConfirm(messageIndex, cb);
             },
             deleteMessageYes: (formData, extraArgs, cb) => {
