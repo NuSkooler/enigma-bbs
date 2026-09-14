@@ -184,45 +184,44 @@ function postLoginPrep(client, cb) {
     );
 }
 
-//  Minimum hours between logins for a login to count toward the streak.
-//  Prevents the midnight exploit (log in at 11:58 PM, back at 12:02 AM = 4 min apart
-//  but technically a different calendar day).
-const LOGIN_STREAK_MIN_HOURS = 20;
+const DateFormat = 'YYYY-MM-DD'; //  matches LoginStreakLastDate's convention
 
-//  Given the user's previous login timestamp and the current moment, compute
-//  the new streak day count and the date string to store.
-//  Returns [newStreakDays, newStreakLastDate] — both may be unchanged if the
-//  login doesn't qualify (too soon, or already counted today).
+//  Given the user's stored streak state and the current moment, compute the new
+//  streak day count and the date string to store.
+//  Returns [newStreakDays, newStreakLastDate] — unchanged when the streak has
+//  already been credited today.
+//
+//  The run is measured in whole calendar days against the day the streak was
+//  last credited. Measuring against the previous login instead means a caller
+//  who connects twice in a day moves the goalposts on themselves: the second
+//  login becomes the reference, and the next day's login is "too soon" to count.
+//  That is the same thing as saying the more often you call, the less likely the
+//  streak is to advance -- the opposite of what it is for.
+//
 function computeLoginStreak(user, now) {
-    const prevLoginTs = user.getProperty(UserProps.LastLoginTs);
-    if (!prevLoginTs) {
-        //  First ever login — start streak at 1.
-        return [1, now.format('YYYY-MM-DD')];
-    }
-
-    const hoursElapsed = now.diff(moment(prevLoginTs), 'hours');
-    if (hoursElapsed < LOGIN_STREAK_MIN_HOURS) {
-        //  Too soon — same session or rapid re-login; don't touch streak.
-        const currentDays = user.getPropertyAsNumber(UserProps.LoginStreakDays) || 0;
-        const lastDate = user.getProperty(UserProps.LoginStreakLastDate) || '';
-        return [currentDays, lastDate];
-    }
-
-    const todayStr = now.format('YYYY-MM-DD');
+    const currentDays = user.getPropertyAsNumber(UserProps.LoginStreakDays) || 0;
     const lastDateStr = user.getProperty(UserProps.LoginStreakLastDate) || '';
-    if (todayStr === lastDateStr) {
-        //  Already counted a qualifying login today.
-        const currentDays = user.getPropertyAsNumber(UserProps.LoginStreakDays) || 0;
+    const todayStr = now.format(DateFormat);
+
+    const lastDate = lastDateStr ? moment(lastDateStr, DateFormat, true) : null;
+    if (!lastDate || !lastDate.isValid()) {
+        //  nothing credited yet, or a stored date we cannot read
+        return [1, todayStr];
+    }
+
+    const daysSince = now.clone().startOf('day').diff(lastDate.startOf('day'), 'days');
+
+    if (daysSince <= 0) {
+        //  already credited today; a clock that moved backwards lands here too,
+        //  where leaving the streak alone is the safe answer
         return [currentDays, lastDateStr];
     }
 
-    const currentDays = user.getPropertyAsNumber(UserProps.LoginStreakDays) || 0;
-    if (hoursElapsed <= 48) {
-        //  Different day, reasonable gap — streak continues.
+    if (1 === daysSince) {
         return [currentDays + 1, todayStr];
     }
 
-    //  Gap too large — streak broken, restart.
+    //  a day was missed -- start the run again at today
     return [1, todayStr];
 }
 
@@ -233,7 +232,7 @@ function recordLogin(client, cb) {
     const loginTimestamp = StatLog.now;
     const previousLoginTimestamp = user.getProperty(UserProps.LastLoginTs);
 
-    //  Snapshot streak values now, before the parallel block updates LastLoginTs.
+    //  Compute before the parallel block writes LoginStreakLastDate back.
     const now = moment();
     const [newStreakDays, newStreakLastDate] = computeLoginStreak(user, now);
 
@@ -338,7 +337,6 @@ function recordLogin(client, cb) {
 }
 
 exports.computeLoginStreak = computeLoginStreak;
-exports.LOGIN_STREAK_MIN_HOURS = LOGIN_STREAK_MIN_HOURS;
 
 function transformLoginError(err, client, username) {
     client.sessionFailedLoginAttempts =

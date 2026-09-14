@@ -433,6 +433,7 @@ function _downloadHandler(req, resp, log) {
                         UserProps.FileDlTotalBytes,
                         stat.size
                     );
+                    StatLog.updateUserUlDlRatio(user);
                     StatLog.incrementSystemStat(SysProps.FileDlTotalCount, 1);
 
                     log.info(

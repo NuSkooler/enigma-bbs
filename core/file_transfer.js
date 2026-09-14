@@ -715,17 +715,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     downloadBytes
                 );
 
-                const dlCount =
-                    this.client.user.getPropertyAsNumber(UserProps.FileDlTotalCount) || 0;
-                const ulCount =
-                    this.client.user.getPropertyAsNumber(UserProps.FileUlTotalCount) || 0;
-                if (ulCount > 0 && dlCount > 0) {
-                    StatLog.setUserStat(
-                        this.client.user,
-                        UserProps.FileUlDlRatio,
-                        ~~((ulCount / dlCount) * 100)
-                    );
-                }
+                StatLog.updateUserUlDlRatio(this.client.user);
 
                 StatLog.incrementSystemStat(SysProps.FileDlTotalCount, downloadCount);
                 StatLog.incrementSystemStat(SysProps.FileDlTotalBytes, downloadBytes);
@@ -773,17 +763,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     uploadBytes
                 );
 
-                const ulCount2 =
-                    this.client.user.getPropertyAsNumber(UserProps.FileUlTotalCount) || 0;
-                const dlCount2 =
-                    this.client.user.getPropertyAsNumber(UserProps.FileDlTotalCount) || 0;
-                if (ulCount2 > 0 && dlCount2 > 0) {
-                    StatLog.setUserStat(
-                        this.client.user,
-                        UserProps.FileUlDlRatio,
-                        ~~((ulCount2 / dlCount2) * 100)
-                    );
-                }
+                StatLog.updateUserUlDlRatio(this.client.user);
 
                 StatLog.incrementSystemStat(SysProps.FileUlTotalCount, uploadCount);
                 StatLog.incrementSystemStat(SysProps.FileUlTotalBytes, uploadBytes);
