@@ -1036,6 +1036,35 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 }
             }
         });
+
+        //
+        //  Drawing the views above leaves the terminal cursor wherever the last
+        //  one finished -- typically parked on a status line well away from the
+        //  view the user is actually typing into. Put it back (#831).
+        //
+        if (views.length > 0) {
+            this.repositionCursorToFocusedView(formName);
+        }
+    }
+
+    //
+    //  Move the terminal cursor back to where the focused view of `formName`
+    //  wants it, after something else has drawn over the screen.
+    //
+    //  Only views that know where their cursor belongs implement
+    //  _repositionCursor() -- EditTextView, and views that patch the same hook
+    //  in. For anything else (menu views, MultiLineEditTextView) or when
+    //  nothing holds focus, this is a no-op and the caller's cursor handling
+    //  stands. _repositionCursor() is used rather than setFocus(true) so that
+    //  no focus state is mutated and no switch-focus events are fired.
+    //
+    repositionCursorToFocusedView(formName) {
+        const form = this.viewControllers[formName];
+        const view = form && form.getFocusedView();
+
+        if (view && view.hasFocus && _.isFunction(view._repositionCursor)) {
+            view._repositionCursor();
+        }
     }
 
     refreshPredefinedMciViewsByCode(formName, mciCodes) {

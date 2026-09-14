@@ -257,7 +257,6 @@ exports.getModule = class SysopChatModule extends MenuModule {
             userName: this.client.user.username,
             userNode: this.client.node,
         });
-        this._restoreCursorToInput();
     }
 
     _getPartnerName(session) {
@@ -351,6 +350,9 @@ exports.getModule = class SysopChatModule extends MenuModule {
 
         //  addText redraws the log panel and leaves the terminal cursor there;
         //  move it back to our input field so the next keypress goes to the right place.
+        //  This path writes to the view directly rather than going through
+        //  updateCustomViewTextsWithFilter(), so it is not covered by the cursor
+        //  restore that MenuModule does for custom views.
         this._restoreCursorToInput();
     }
 
