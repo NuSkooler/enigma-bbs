@@ -607,6 +607,43 @@ class ViewController extends events.EventEmitter {
         this.client.term.rawWrite(ansi.showCursor());
     }
 
+    //
+    //  Build the key -> action block map from an "actionKeys" array.
+    //
+    //  *   'keys' must be present and be an array of key names
+    //  *   If 'viewId' is present, key(s) will focus & submit on behalf
+    //      of the specified view.
+    //  *   If 'action' is present, that action will be procesed when
+    //      triggered by key(s)
+    //
+    //  An entry that is not an object with a 'keys' array binds nothing. That
+    //  is worth saying out loud rather than skipping quietly: the usual way to
+    //  arrive at one is an "@reference:" that does not resolve, which
+    //  ConfigLoader leaves in place as a literal string, so what the operator
+    //  sees is a key that has simply stopped working with nothing logged
+    //  anywhere. "oputil.js config validate --check-env" finds those, but only
+    //  if you already suspect the configuration.
+    //
+    mapActionKeys(actionKeys, what) {
+        actionKeys.forEach((ak, i) => {
+            if (!_.isObject(ak) || !Array.isArray(ak.keys)) {
+                return this.client.log.warn(
+                    {
+                        menu: _.get(this.client, 'currentMenuModule.menuName'),
+                        formId: this.formId,
+                        index: i,
+                        entry: ak,
+                    },
+                    `Ignoring ${what} actionKeys entry without a "keys" array; it binds nothing`
+                );
+            }
+
+            ak.keys.forEach(kn => {
+                this.actionKeyMap[kn] = ak;
+            });
+        });
+    }
+
     loadFromPromptConfig(options, cb) {
         assert(_.isObject(options));
         assert(_.isObject(options.mciMap));
@@ -725,24 +762,7 @@ class ViewController extends events.EventEmitter {
                         return callback(null);
                     }
 
-                    promptConfig.actionKeys.forEach(ak => {
-                        //
-                        //  *   'keys' must be present and be an array of key names
-                        //  *   If 'viewId' is present, key(s) will focus & submit on behalf
-                        //      of the specified view.
-                        //  *   If 'action' is present, that action will be procesed when
-                        //      triggered by key(s)
-                        //
-                        //  Ultimately, create a map of key -> { action block }
-                        //
-                        if (!Array.isArray(ak.keys)) {
-                            return;
-                        }
-
-                        ak.keys.forEach(kn => {
-                            this.actionKeyMap[kn] = ak;
-                        });
-                    });
+                    this.mapActionKeys(promptConfig.actionKeys, 'prompt');
 
                     return callback(null);
                 },
@@ -888,24 +908,7 @@ class ViewController extends events.EventEmitter {
                         return;
                     }
 
-                    formConfig.actionKeys.forEach(ak => {
-                        //
-                        //  *   'keys' must be present and be an array of key names
-                        //  *   If 'viewId' is present, key(s) will focus & submit on behalf
-                        //      of the specified view.
-                        //  *   If 'action' is present, that action will be procesed when
-                        //      triggered by key(s)
-                        //
-                        //  Ultimately, create a map of key -> { action block }
-                        //
-                        if (!Array.isArray(ak.keys)) {
-                            return;
-                        }
-
-                        ak.keys.forEach(kn => {
-                            this.actionKeyMap[kn] = ak;
-                        });
-                    });
+                    this.mapActionKeys(formConfig.actionKeys, 'form');
 
                     callback(null);
                 },
