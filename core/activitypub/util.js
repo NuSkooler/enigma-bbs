@@ -2,11 +2,7 @@ const User = require('../user');
 const { Errors, ErrorReasons } = require('../enig_error');
 const UserProps = require('../user_property');
 const ActivityPubSettings = require('./settings');
-const { stripAnsiControlCodes } = require('../string_util');
-
-//  Strip ENiGMA pipe color codes (|XX) — inlined to avoid the circular
-//  dependency: color_codes.js → predefined_mci.js → activitypub/util.js
-const stripMciColorCodes = s => s.replace(/\|[A-Z\d]{2}/g, '');
+const { stripAllControlCodes } = require('../string_util');
 const { WellKnownRecipientFields } = require('./const');
 const Log = require('../logger').log;
 const { getWebDomain } = require('../web_util');
@@ -486,7 +482,7 @@ function getUserProfileTemplatedBody(
 }
 
 function messageBodyToHtml(body) {
-    body = encode(stripAnsiControlCodes(stripMciColorCodes(body)), {
+    body = encode(stripAllControlCodes(body), {
         mode: 'nonAsciiPrintable',
     }).replace(/\r?\n/g, '<br>');
 
@@ -505,12 +501,14 @@ function messageBodyToHtml(body) {
 //  - https://docs.joinmastodon.org/spec/microformats/
 //
 function messageToHtml(message) {
-    //  Strip BBS pipe color codes (|XX) then ANSI escape sequences before
-    //  HTML-encoding so neither bleeds into the federated AP content field.
-    const msg = encode(
-        stripAnsiControlCodes(stripMciColorCodes(message.message.trim())),
-        { mode: 'nonAsciiPrintable' }
-    ).replace(/\r?\n/g, '<br>');
+    //  Strip every control code before HTML-encoding, so none bleeds into the
+    //  federated AP content field. Order is not a detail to be chosen here --
+    //  see stripAllControlCodes(), which iterates because either family can
+    //  hide the other. An escape that survives does not encode to nothing; it
+    //  encodes to a visible "&#27;" in front of every remote reader.
+    const msg = encode(stripAllControlCodes(message.message.trim()), {
+        mode: 'nonAsciiPrintable',
+    }).replace(/\r?\n/g, '<br>');
 
     return `<p>${msg}</p>`;
 }

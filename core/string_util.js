@@ -31,6 +31,7 @@ exports.formatByteSize = formatByteSize;
 exports.formatCountAbbr = formatCountAbbr;
 exports.formatCount = formatCount;
 exports.stripAnsiControlCodes = stripAnsiControlCodes;
+exports.stripAllControlCodes = stripAllControlCodes;
 exports.isAnsi = isAnsi;
 exports.isAnsiLine = isAnsiLine;
 exports.isFormattedLine = isFormattedLine;
@@ -559,6 +560,88 @@ function stripAnsiControlCodes(input, options) {
     }
 
     return parts.join('');
+}
+
+//
+//  Renegade/ENiGMA pipe & MCI codes, e.g. "|07" or "|UN".
+//
+//  This mirrors the |XX form that controlCodesToAnsi() recognizes in
+//  color_codes.js -- that is the renderer message bodies actually pass
+//  through (core/fse.js), so stripping exactly this much is what makes the
+//  cleaned text match what the user saw. Note in particular that "||" is NOT
+//  collapsed to a single "|": controlCodesToAnsi() leaves both pipes standing,
+//  and collapsing here would make external output disagree with the terminal.
+//
+//  Inlined rather than imported from color_codes.js on purpose: string_util
+//  cannot require color_codes, as color_codes -> predefined_mci ->
+//  string_util would close a require cycle.
+//
+const REGEXP_PIPE_MCI_CODES = /\|[A-Z\d]{2}/g;
+
+//  Stripping is iterated to a fixed point; this only bounds pathological input.
+const MAX_CONTROL_CODE_STRIP_PASSES = 8;
+
+//
+//  Strip every control-code family we understand from |input|, returning text
+//  safe to hand to a consumer that cannot render any of them -- NNTP, Gopher,
+//  e-mail, ActivityPub, a JSON API.
+//
+//  options:
+//    ansi           (default true)  strip ANSI escape sequences
+//    pipe           (default true)  strip Renegade/ENiGMA |XX pipe & MCI codes
+//    allowAnsiClean (default false) keep ANSI_OPCODES_ALLOWED_CLEAN sequences.
+//                                   Terminal-side only; no external consumer
+//                                   wants colour escapes left behind.
+//
+//  A single pass in either order is not enough, because each family can hide
+//  the other: "\x1b[1|07m" splits an SGR with a pipe code, so stripping ANSI
+//  first matches nothing and leaves a live ESC once the pipe code goes;
+//  "|0\x1b[0m7" splits a pipe code with an SGR, which fails the other way
+//  round. Removing one family repairs the other, so iterate until stable --
+//  in practice two or three passes.
+//
+function stripAllControlCodes(input, options) {
+    if (!input) {
+        return '';
+    }
+
+    options = options || {};
+
+    const wantAnsi = false !== options.ansi;
+    const wantPipe = false !== options.pipe;
+    const allowAnsiClean = true === options.allowAnsiClean;
+
+    let result = input;
+
+    for (let pass = 0; pass < MAX_CONTROL_CODE_STRIP_PASSES; ++pass) {
+        const previous = result;
+
+        if (wantAnsi) {
+            result = stripAnsiControlCodes(result, { all: !allowAnsiClean });
+        }
+
+        if (wantPipe) {
+            result = result.replace(REGEXP_PIPE_MCI_CODES, '');
+        }
+
+        if (result === previous) {
+            break;
+        }
+    }
+
+    //
+    //  Belt and braces: an unterminated sequence ("\x1b[1;32" at the end of a
+    //  truncated body) matches no rule above and would otherwise ship a live
+    //  ESC -- which is exactly the failure this helper exists to prevent, and
+    //  which HTML-encodes to a visible "&#27;" rather than to nothing. Drop any
+    //  ESC still standing. Only the ESC byte itself goes, so at worst a lone
+    //  CP437 0x1B glyph is lost from text that is being flattened anyway.
+    //
+    if (wantAnsi && !allowAnsiClean) {
+        result = result.replace(/\x1b/g, ''); //  eslint-disable-line no-control-regex
+    }
+
+    return result;
 }
 
 function isAnsiLine(line) {

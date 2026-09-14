@@ -8,6 +8,7 @@ const {
     renderStringLength,
     ansiRenderStringLength,
     renderSplitPos,
+    stripAllControlCodes,
 } = require('../core/string_util.js');
 
 // ─── charDisplayWidth ─────────────────────────────────────────────────────────
@@ -221,5 +222,107 @@ describe('renderSplitPos', () => {
         // fwd3(+3 vis) + 'AB'(+2 vis) = 5 vis; at width 4 → snap after fwd3+A = 4 vis
         const pos = renderSplitPos(fwd3 + 'AB', 4, false);
         assert.equal(pos, fwd3.length + 1); // fwd3 chars + 'A'
+    });
+});
+
+// ─── stripAllControlCodes ─────────────────────────────────────────────────────
+
+describe('stripAllControlCodes', () => {
+    it('strips ANSI escape sequences', () => {
+        assert.equal(stripAllControlCodes('hi \x1b[1;32mgreen\x1b[0m'), 'hi green');
+    });
+
+    it('strips pipe and MCI codes', () => {
+        assert.equal(stripAllControlCodes('|07hi |UN there'), 'hi  there');
+    });
+
+    it('strips both families together', () => {
+        assert.equal(
+            stripAllControlCodes('hi \x1b[1;32mgreen\x1b[0m |07pipe'),
+            'hi green pipe'
+        );
+    });
+
+    it('leaves plain text alone', () => {
+        assert.equal(stripAllControlCodes('Hello world'), 'Hello world');
+        assert.equal(stripAllControlCodes('bryan@l33t.codes'), 'bryan@l33t.codes');
+    });
+
+    it('handles empty and nullish input', () => {
+        assert.equal(stripAllControlCodes(''), '');
+        assert.equal(stripAllControlCodes(null), '');
+        assert.equal(stripAllControlCodes(undefined), '');
+    });
+
+    //
+    //  The reason this helper iterates rather than stripping once in a fixed
+    //  order: each family can split the other, and removing one repairs the
+    //  other. A single pass leaks whichever it ran first. See issue #226.
+    //
+    describe('interleaved sequences (why a single pass is not enough)', () => {
+        it('a pipe code splitting an ANSI sequence leaves no ESC', () => {
+            assert.equal(stripAllControlCodes('\x1b[1|07m'), '');
+            assert.equal(stripAllControlCodes('\x1b[|07m'), '');
+        });
+
+        it('an ANSI sequence splitting a pipe code leaves no pipe code', () => {
+            assert.equal(stripAllControlCodes('|0\x1b[0m7'), '');
+            assert.equal(stripAllControlCodes('a|\x1b[0m07b'), 'ab');
+        });
+
+        it('converges on nested interleaving', () => {
+            assert.equal(stripAllControlCodes('\x1b[0m|0\x1b[0m7'), '');
+        });
+    });
+
+    //
+    //  "||" is left alone on purpose. Message bodies render through
+    //  controlCodesToAnsi(), which emits both pipes; collapsing here would make
+    //  exported text disagree with what the user actually saw on the terminal.
+    //
+    it('does not collapse "||" to a single pipe', () => {
+        assert.equal(stripAllControlCodes('a||b'), 'a||b');
+        assert.equal(stripAllControlCodes('if (a || b) {'), 'if (a || b) {');
+        assert.equal(stripAllControlCodes('a||||b'), 'a||||b');
+    });
+
+    it('never leaves an ESC behind, even for an unterminated sequence', () => {
+        for (const input of [
+            '\x1b[1;32',
+            'a\x1bb',
+            '\x1b',
+            '\x1b]0;title\x07after',
+            '\x1b(0lqk\x1b(B',
+        ]) {
+            assert.ok(
+                !stripAllControlCodes(input).includes('\x1b'),
+                `ESC survived: ${JSON.stringify(input)}`
+            );
+        }
+    });
+
+    describe('options', () => {
+        it('ansi:false keeps ANSI but still strips pipe codes', () => {
+            assert.equal(
+                stripAllControlCodes('\x1b[1;32mx\x1b[0m |07p', { ansi: false }),
+                '\x1b[1;32mx\x1b[0m p'
+            );
+        });
+
+        it('pipe:false keeps pipe codes but still strips ANSI', () => {
+            assert.equal(
+                stripAllControlCodes('\x1b[1;32mx\x1b[0m |07p', { pipe: false }),
+                'x |07p'
+            );
+        });
+
+        it('allowAnsiClean keeps colour sequences for terminal-side callers', () => {
+            assert.equal(
+                stripAllControlCodes('\x1b[1;32mx\x1b[2J |07p', {
+                    allowAnsiClean: true,
+                }),
+                '\x1b[1;32mx p'
+            );
+        });
     });
 });
