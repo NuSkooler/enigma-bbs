@@ -159,7 +159,7 @@
         }
         1: {
           mci: {
-            MT7: {
+            MT1: {
               mode: preview
               acceptsFocus: false
               acceptsInput: false
