@@ -413,10 +413,7 @@
                         ]
                     }
                     actionKeys: [
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                         {
                             keys: [ "x", "shift + x" ]
                             action: @method:fullExit
@@ -500,10 +497,7 @@
                             keys: [ "w", "shift + w" ]
                             action: @method:showWebDownloadLink
                         }
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                         {
                             keys: [ "t", "shift + t" ]
                             action: @method:toggleQueue

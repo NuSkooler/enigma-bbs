@@ -155,12 +155,7 @@
               }
             ]
           }
-          actionKeys: [
-            {
-              keys: ["escape"]
-              action: @systemMethod:prevMenu
-            }
-          ]
+          actionKeys: @reference:common.escToPrev
         }
         1: {
           mci: {
@@ -320,10 +315,7 @@
               keys: ["s"]
               action: @method:searchActors
             }
-            {
-              keys: ["escape"]
-              action: @systemMethod:prevMenu
-            }
+            @reference:common.escToPrevEntry
           ]
         }
       }
@@ -350,10 +342,7 @@
               keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
-            {
-              keys: ["escape", "q", "shift + q"]
-              action: @systemMethod:prevMenu
-            }
+            @reference:common.quitToPrevEntry
           ]
         }
       }
@@ -380,10 +369,7 @@
               keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
-            {
-              keys: ["escape", "q", "shift + q"]
-              action: @systemMethod:prevMenu
-            }
+            @reference:common.quitToPrevEntry
           ]
         }
       }
@@ -411,10 +397,7 @@
               keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
-            {
-              keys: ["escape", "q", "shift + q"]
-              action: @systemMethod:prevMenu
-            }
+            @reference:common.quitToPrevEntry
           ]
         }
       }
@@ -442,10 +425,7 @@
               keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
-            {
-              keys: ["escape", "q", "shift + q"]
-              action: @systemMethod:prevMenu
-            }
+            @reference:common.quitToPrevEntry
           ]
         }
       }
@@ -473,10 +453,7 @@
               keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
-            {
-              keys: ["escape", "q", "shift + q"]
-              action: @systemMethod:prevMenu
-            }
+            @reference:common.quitToPrevEntry
           ]
         }
       }
@@ -509,10 +486,7 @@
               keys: ["return", "space", "b", "l", "r", "d", "t", "+", "down arrow", "up arrow", "page up", "page down", "home", "end"]
               action: @method:listKeyPressed
             }
-            {
-              keys: ["escape", "q", "shift + q"]
-              action: @systemMethod:prevMenu
-            }
+            @reference:common.quitToPrevEntry
           ]
         }
       }

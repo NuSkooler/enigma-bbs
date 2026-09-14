@@ -56,16 +56,33 @@
 
     //  This section creates common fragments to use as @reference
     common: {
+        //
+        //  Each binding is published twice: the entry on its own, and a
+        //  one-element array around it.
+        //
+        //  @reference: replaces a whole value rather than merging into it, so
+        //  a menu whose actionKeys are nothing but the shared binding wants
+        //  the array -- "actionKeys: @reference:common.escToPrev" -- while a
+        //  menu that adds keys of its own wants the entry, listed alongside
+        //  them:
+        //
+        //      actionKeys: [
+        //          @reference:common.quitToPrevEntry
+        //          { keys: [ "p" ], action: @method:postNewMessage }
+        //      ]
+        //
+        //  Referencing the array in that second case would drop the menu's
+        //  own keys, which is why the bindings used to be written out by hand.
+        //
+        escToPrevEntry: {
+            keys: [ "escape" ]
+            action: @systemMethod:prevMenu
+        }
+
         escToPrev: [
-            {
-                keys: [ "escape" ]
-                action: @systemMethod:prevMenu
-            }
+            @reference:common.escToPrevEntry
         ]
 
-        //  The entry on its own, so a menu can list it alongside its own
-        //  keys; @reference: replaces a whole value, so referencing
-        //  quitToPrev and adding a key would drop the shared bindings.
         quitToPrevEntry: {
             keys: [ "escape", "q", "shift + q" ]
             action: @systemMethod:prevMenu
@@ -300,10 +317,7 @@
                             keys: [ "l", "shift + l" ]
                             action: @method:displayFullLog
                         }
-						{
-							keys: [ "escape", "q", "shift + q" ]
-							action: @systemMethod:prevMenu
-						}
+						@reference:common.quitToPrevEntry
 					]
 				}
 
@@ -382,10 +396,7 @@
                         }
                     }
                     actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.escToPrevEntry
                         {
                             keys: [ "tab", "down arrow", "up arrow", "page up", "page down" ]
                             action: @method:movementKeyPressed
@@ -424,12 +435,7 @@
                             focus: true
                         }
                     }
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                     submit: {
                         *: [
                             {
@@ -581,10 +587,7 @@
                     }
 
                     actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.escToPrevEntry
                         {
                             keys: [ "q", "shift + q" ]
                             action: @method:showQRCode
@@ -658,12 +661,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }
@@ -705,10 +703,7 @@
                             keys: [ "v", "shift + v" ]
                             action: @method:toggleVisible
                         }
-                        {
-                            keys: [ "escape", "q", "shift + q" ]
-                            action: @systemMethod:prevMenu
-                        }
+                        @reference:common.quitToPrevEntry
                     ]
                 }
             }
@@ -754,12 +749,7 @@
                             submit: true
                         }
                     }
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                     submit: {
                         *: [
                             {
@@ -904,12 +894,7 @@
                         ]
                     }
 
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
             }
         }
@@ -967,12 +952,7 @@
                             }
                         ]
                     }
-                    actionKeys: [
-                        {
-                            keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
-                        }
-                    ]
+                    actionKeys: @reference:common.escToPrev
                 }
                 1: {
                     mci: {
@@ -1438,12 +1418,7 @@
                     focus: true
                 }
             }
-            actionKeys: [
-                {
-                    keys: [ "escape" ]
-                    action: @systemMethod:prevMenu
-                }
-            ]
+            actionKeys: @reference:common.escToPrev
         }
 
         // WFC
