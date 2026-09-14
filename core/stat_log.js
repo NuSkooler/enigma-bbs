@@ -176,6 +176,33 @@ class StatLog {
         return stat;
     }
 
+    //
+    //  Recompute the upload:download ratio from the two counters it derives
+    //  from. Every transfer path has to do this after moving either counter, so
+    //  it lives here rather than being copied into each of them -- it had been
+    //  copied into the protocol and web paths, and the REST download path was
+    //  missing it, leaving a stale ratio behind for anyone downloading that way.
+    //
+    //  Stored in hundredths to stay an integer, so 100 is 1:1. Left alone until
+    //  both counters are non-zero: a ratio against no downloads is a division by
+    //  zero, and one against no uploads says nothing worth recording.
+    //
+    updateUserUlDlRatio(user, cb) {
+        const ulCount = user.getPropertyAsNumber(UserProps.FileUlTotalCount) || 0;
+        const dlCount = user.getPropertyAsNumber(UserProps.FileDlTotalCount) || 0;
+
+        if (ulCount < 1 || dlCount < 1) {
+            return cb ? cb(null) : undefined;
+        }
+
+        return this.setUserStat(
+            user,
+            UserProps.FileUlDlRatio,
+            ~~((ulCount / dlCount) * 100),
+            cb
+        );
+    }
+
     incrementUserStat(user, statName, incrementBy, cb) {
         incrementBy = incrementBy || 1;
 
