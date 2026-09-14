@@ -482,6 +482,24 @@
                     text: "You've spent {achievedValue!durationMinutes} playing doors!"
                     points: 50
                 }
+                480: {
+                    title: "A Full Shift"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors. That's a working day."
+                    points: 55
+                }
+                1440: {
+                    title: "One More Turn"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors. Just one more turn, right?"
+                    points: 60
+                }
+                4320: {
+                    title: "The Real Endgame"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors. The dragons have started avoiding you."
+                    points: 65
+                }
             }
         }
 
@@ -700,6 +718,18 @@
                     globalText: "{userName} has been a member of {boardName} for five years!"
                     text: "Five years on {boardName}. You're basically furniture!"
                     points: 100
+                }
+                2555: {
+                    title: "Load Bearing"
+                    globalText: "{userName} has been a member of {boardName} for seven years!"
+                    text: "Seven years on {boardName}. We couldn't take you out now without the roof coming down."
+                    points: 110
+                }
+                3650: {
+                    title: "Decade Deep"
+                    globalText: "{userName} has been a member of {boardName} for ten years!"
+                    text: "Ten years on {boardName}. A decade of your life, right here."
+                    points: 125
                 }
             }
         }
@@ -965,6 +995,24 @@
                     globalText: "{userName} is probably a bot. They've spent {achievedValue!durationMinutes} on {boardName}!"
                     text: "You're a bot, aren't you? You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
                     points: 55
+                }
+                2880: {
+                    title: "Confirmed Bot"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Nobody is denying it now."
+                    text: "{achievedValue!durationMinutes} on {boardName}. We've stopped asking whether you're a bot."
+                    points: 58
+                }
+                7200: {
+                    title: "Someone Check On Them"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. Should someone check on them?"
+                    text: "{achievedValue!durationMinutes} on {boardName}. Is there someone we should call?"
+                    points: 62
+                }
+                21600: {
+                    title: "Measured in Weeks"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}. That is measured in weeks."
+                    text: "{achievedValue!durationMinutes} on {boardName}. Your time here is measured in weeks now."
+                    points: 66
                 }
             }
         }
