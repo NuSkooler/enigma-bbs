@@ -145,6 +145,43 @@
             }
         }
 
+        user_post_area_count: {
+            type: userStatSet
+            statName: post_area_count
+            match: {
+                2: {
+                    title: "Wandered Off"
+                    globalText: "{userName} has posted in {achievedValue} different areas!"
+                    text: "You've posted in {achievedValue} different areas. There's more than one, it turns out!"
+                    points: 10
+                }
+                3: {
+                    title: "Getting Your Bearings"
+                    globalText: "{userName} has posted in {achievedValue} different areas!"
+                    text: "You've posted in {achievedValue} different areas!"
+                    points: 15
+                }
+                5: {
+                    title: "Well Travelled"
+                    globalText: "{userName} has posted in {achievedValue} different areas!"
+                    text: "You've posted in {achievedValue} different areas!"
+                    points: 25
+                }
+                10: {
+                    title: "Everywhere At Once"
+                    globalText: "{userName} has posted in {achievedValue} different areas!"
+                    text: "You've posted in {achievedValue} different areas. Do you ever stay put?"
+                    points: 40
+                }
+                20: {
+                    title: "Knows Everybody"
+                    globalText: "{userName} has posted in {achievedValue} different areas. They know everybody!"
+                    text: "You've posted in {achievedValue} different areas. You know everybody here."
+                    points: 75
+                }
+            }
+        }
+
         user_upload_count: {
             type: userStatSet
             statName: ul_total_count

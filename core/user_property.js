@@ -53,6 +53,8 @@ module.exports = {
     MessageConfTag: 'message_conf_tag',
     MessageAreaTag: 'message_area_tag',
     MessagePostCount: 'post_count',
+    MessagePostAreaTags: 'post_area_tags', //  JSON array of areaTags the user has posted in
+    MessagePostAreaCount: 'post_area_count', //  length of the above; achievements can only match a number
     MailSentCount: 'mail_sent_count',
     NodeMsgSentCount: 'node_msg_sent_count',
 

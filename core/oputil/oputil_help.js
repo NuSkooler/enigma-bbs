@@ -84,6 +84,12 @@ Actions:
                                achievement they earn writes that stale figure
                                back.
 
+  backfill-post-areas          Reconstruct which message areas each user has
+                               posted in, from the message base, for boards that
+                               predate post_area_tags. Gives a floor: areas prune
+                               old messages. Achievements are earned on the
+                               user's next post, not awarded here.
+
   list [FILTER]                List users with optional FILTER.
 
   Valid filters:
@@ -97,6 +103,9 @@ info arguments:
   --security                   Include security information in output
 
 fix-achievement-stats arguments:
+  --dry-run                    Report what would change without writing
+
+backfill-post-areas arguments:
   --dry-run                    Report what would change without writing
 
   --no-prompt                  Skip the confirmation prompt

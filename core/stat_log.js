@@ -203,6 +203,72 @@ class StatLog {
         );
     }
 
+    //
+    //  Record that a user has posted in |areaTag| and keep the count of distinct
+    //  areas in step with it.
+    //
+    //  The set has to be stored because there is no way to tell a first post in
+    //  an area from the hundredth without remembering which areas have been seen,
+    //  and the event log cannot answer it -- appendUserLogEntry() prunes entries
+    //  past its keep window, so the history thins out from underneath any count
+    //  derived from it. The separate count exists because an achievement can only
+    //  match on a number.
+    //
+    recordUserPostAreaTag(user, areaTag, cb) {
+        //  Private mail and the ActivityPub shared inbox are not places on the
+        //  board. Nothing emits UserPostMessage for either today, but neither is
+        //  an area and counting one would be wrong rather than merely unexpected.
+        const MessageConst = require('./message_const.js');
+        const notAreas = [MessageConst.WellKnownAreaTags.Private].concat(
+            MessageConst.WellKnownExternalAreaTags
+        );
+
+        if (!areaTag || notAreas.includes(areaTag)) {
+            return cb ? cb(null) : undefined;
+        }
+
+        let areaTags = [];
+        try {
+            const stored = user.getProperty(UserProps.MessagePostAreaTags);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    areaTags = parsed;
+                }
+            }
+        } catch (e) {
+            //  unreadable or hand-edited; start the set again rather than
+            //  refusing to count anything from here on
+            areaTags = [];
+        }
+
+        if (areaTags.includes(areaTag)) {
+            return cb ? cb(null) : undefined;
+        }
+
+        areaTags.push(areaTag);
+
+        //  Persist the set before announcing the new total: the count is what
+        //  achievements fire on, and a count that got ahead of the set would
+        //  award the same tier again on the next new area.
+        user.persistProperty(
+            UserProps.MessagePostAreaTags,
+            JSON.stringify(areaTags),
+            err => {
+                if (err) {
+                    return cb ? cb(err) : undefined;
+                }
+
+                return this.setUserStat(
+                    user,
+                    UserProps.MessagePostAreaCount,
+                    areaTags.length,
+                    cb
+                );
+            }
+        );
+    }
+
     incrementUserStat(user, statName, incrementBy, cb) {
         incrementBy = incrementBy || 1;
 
