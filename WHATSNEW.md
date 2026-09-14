@@ -3,6 +3,36 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Daily time limits** ([#795](https://github.com/NuSkooler/enigma-bbs/issues/795)) — ENiGMA½ can now meter how long a user spends on the board each day and cut them off when their allowance runs out.
+
+  **Nothing is metered until you say so.** No allowance ships configured, every user is unlimited, and upgrading an existing board changes nothing. Time used today is tracked regardless, so `oputil.js user info` and the new `TD` MCI code tell the truth even where nothing is enforced — it is the "time on today" figure ENiGMA½ has never had.
+
+  An allowance is a `users.timeLimits` band: an ordered list where the first entry whose `acs` matches wins, and an entry with no `acs` at all is the default. A per-account override beats every band, set with `oputil.js user time USERNAME <minutes|clear>`.
+
+  ```hjson
+  users: {
+      timeLimits: [
+          { acs: GM[vip], minutesPerDay: 240 }
+          { acs: GM[users], minutesPerDay: 90 }
+          { minutesPerDay: 30 }
+      ]
+  }
+  ```
+
+  The root user and anyone in the `sysops` group are exempt, in code, and cannot be metered.
+
+  The `ML` ACS code — a `:TODO: implement me!` stub since 2015 — now means "at least *n* minutes left", so `acs: ML15` keeps a user out of a door they have no time for. It is **true whenever no budget applies**, including where ACS is evaluated with no session at all, so it cannot silently hide a message area over NNTP or the web API on a board that has not opted in. Art gets `TR` (remaining), `TA` (allowed today) and `TD` (used today) for `{TD} / {TA}`-style displays.
+
+  Users are warned at 5, 3, 2 and 1 minutes, then sent to a new `timeUpLogoff` menu; if its art does not exist they get a plain message rather than a silent drop. Someone whose allowance is already spent is turned away at login rather than let in for a minute first. A door can be given `minTimeLeftMinutes`, which refuses to *start* it when there is not enough time rather than killing it part way through.
+
+  See [Time Limits](https://enigma-bbs.github.io/configuration/time-limits/).
+
+* **Doors are told how much time the caller actually has** ([#795](https://github.com/NuSkooler/enigma-bbs/issues/795)) — `DOOR.SYS` lines 18 and 19, `DOOR32.SYS` line 9 and `DORINFO1.DEF` line 12 carried fixed placeholders: `15360`, `256` and `546`. The `256`s came from x/84 and mean nothing; `546` is real, but it is the documented *ceiling* a value must be clamped to, not a sentinel meaning "unlimited", so we had been using it backwards.
+
+  Each now states the minutes actually left today, capped at 546 — `546 × 60 = 32760`, which fits a signed 16-bit integer, so a door converting minutes to seconds cannot overflow. The seconds field is derived from the same clamped minutes, so the two can never disagree. A caller with no limit is told the ceiling like any other large number.
+
+  `DOOR.SYS` line 42, "time credits", now reads `0`. The GAP spec has doors read it back and ENiGMA½ has no time bank, so any other value was a claim it could not honour. `BBSDEV.DRP` line 11 states the logoff deadline as an absolute UTC instant, and stays empty where nothing will end the session.
+
 * **DOOR.SYS reports distinct call times** ([#824](https://github.com/NuSkooler/enigma-bbs/issues/824)) — the current and previous login times now occupy their respective fields in 24-hour format. First-time callers leave the previous-call field blank instead of repeating the current time.
 
 * **Post from a message list** ([#213](https://github.com/NuSkooler/enigma-bbs/issues/213)) — <kbd>P</kbd> on the message list, or the personal message list, starts a new message where before you had to back out to the message menu to reach its own <kbd>P</kbd>. The post goes to the area the highlighted message is in, so it does the right thing on a list that spans areas. An existing board keeps the menus it has, so see [UPGRADE.md](UPGRADE.md) for the binding to add.

@@ -19,6 +19,7 @@ configModule.get = () => ({
         },
         statusAvailableIndicators: ['Y', 'N'],
         statusVisibleIndicators: ['Y', 'N'],
+        timeWarningText: 'CONFIG: {minutes} minute{plural} left',
     },
     general: {},
     paths: {},
@@ -215,6 +216,82 @@ describe('ThemeManager._finalizeTheme() — MCI immutable properties', () => {
             mci.textStyle,
             'upper',
             'non-immutable property should be overridden'
+        );
+    });
+});
+
+// ─── theme helpers ────────────────────────────────────────────────────────────
+
+describe('ThemeManager._setThemeHelpers() — getTimeWarningText', () => {
+    const helpersFor = theme => {
+        makeThemeManager({})._setThemeHelpers(theme);
+        return theme.helpers;
+    };
+
+    //
+    //  theme.js late binds config.js's |get|, so pushing a config in a hook
+    //  reaches it whatever order the suite loaded in.
+    //
+    let previousConfig;
+    const withConfiguredText = timeWarningText => {
+        configModule._popTestConfig(previousConfig);
+        previousConfig = configModule._pushTestConfig({
+            debug: { assertsEnabled: false },
+            theme: { timeWarningText },
+            general: {},
+            paths: {},
+        });
+    };
+
+    beforeEach(() => {
+        previousConfig = configModule._pushTestConfig({
+            debug: { assertsEnabled: false },
+            theme: { timeWarningText: 'CONFIG: {minutes} minute{plural} left' },
+            general: {},
+            paths: {},
+        });
+    });
+
+    afterEach(() => {
+        configModule._popTestConfig(previousConfig);
+    });
+
+    it('uses the configured text when the theme says nothing', () => {
+        assert.equal(
+            helpersFor({}).getTimeWarningText(),
+            'CONFIG: {minutes} minute{plural} left'
+        );
+    });
+
+    it('lets a theme override it', () => {
+        const helpers = helpersFor({
+            customization: { defaults: { timeWarningText: 'THEME: {minutes}' } },
+        });
+        assert.equal(helpers.getTimeWarningText(), 'THEME: {minutes}');
+    });
+
+    //
+    //  An empty string means "no warning" and must survive both layers. The
+    //  "||" the sibling helpers use would swallow it and substitute a
+    //  default, which is the inconsistency this helper avoids.
+    //
+    it('honours an empty string from the configuration', () => {
+        withConfiguredText('');
+        assert.equal(helpersFor({}).getTimeWarningText(), '');
+    });
+
+    it('honours an empty string from the theme', () => {
+        const helpers = helpersFor({
+            customization: { defaults: { timeWarningText: '' } },
+        });
+        assert.equal(helpers.getTimeWarningText(), '');
+    });
+
+    //  the same shape as getPasswordChar and the date formats beside it
+    it('is defined alongside the other customization helpers', () => {
+        const helpers = helpersFor({});
+        ['getPasswordChar', 'getDateFormat', 'getTimeWarningText'].forEach(name =>
+            assert.equal(typeof helpers[name], 'function', name)
         );
     });
 });

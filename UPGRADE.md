@@ -22,6 +22,21 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **Daily time limits are off, and stay off** ([#795](https://github.com/NuSkooler/enigma-bbs/issues/795)). No `users.timeLimits` ships configured, so every user remains unlimited and nothing about your board changes. The `ML` ACS code, a stub that always returned `false` until now, is `true` whenever no limit applies — so an `acs` containing `ML` that had been silently failing will start passing. Nothing in the shipped menus or themes uses it.
+
+  **Action:** none, unless you want limits. To opt in, see [Time Limits](https://enigma-bbs.github.io/configuration/time-limits/).
+
+  **If you do opt in**, the `timeUpLogoff` menu is seeded from `misc/menu_templates/`, which `oputil config new` deploys once; your `menu.hjson` is yours and is never rewritten. Add it beside `idleLogoff`:
+
+  ```hjson
+  timeUpLogoff: {
+      art:    TIMEUP
+      next:   @systemMethod:logoff
+  }
+  ```
+
+  Without it — and without a `TIMEUP` art file, which no theme ships — a user whose time runs out gets a plain message and is disconnected. That is deliberate, not a fallback you need to avoid.
+
 * **<kbd>U</kbd> to upload a reply packet reaches new installations only** ([#810](https://github.com/NuSkooler/enigma-bbs/issues/810)). Like every menu key, it is seeded from `misc/menu_templates/`, which `oputil config new` deploys once; your `menu.hjson` is yours and is never rewritten.
 
   **Action:** add the entry to the `submit` list of `messageBaseMainMenu` in your `menu.hjson`, and the menu it points at alongside your other message base menus:

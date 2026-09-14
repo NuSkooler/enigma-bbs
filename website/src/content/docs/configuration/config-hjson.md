@@ -57,6 +57,7 @@ Below is a list of various configuration sections. There are many more, but this
 * [Message Areas](../messageareas/configuring-a-message-area.md), [Networks](../messageareas/message-networks.md), [NetMail](../messageareas/netmail.md), etc.
 * [Built-in Modules](../modules/index.md): The modules ENiGMA½ ships with, and how to configure them.
 * [Security](security.md): Password storage, 2FA and choosing secure transports.
+* [Time Limits](time-limits.md): Daily per-user time budgets, off by default.
 * [Servers](../servers/loginservers/telnet.md): [Telnet](../servers/loginservers/telnet.md), [SSH](../servers/loginservers/ssh.md) and [WebSocket](../servers/loginservers/websocket.md) logins; [web](../servers/contentservers/web-server.md), [Gopher](../servers/contentservers/gopher.md) and [NNTP](../servers/contentservers/nntp.md) content.
 * ...and a **lot** more! Explore the docs! If you can't find something, please contact us!
 

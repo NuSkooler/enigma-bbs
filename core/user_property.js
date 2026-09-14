@@ -76,6 +76,15 @@ module.exports = {
 
     MinutesOnlineTotalCount: 'minutes_online_total_count',
 
+    //
+    //  Daily time budget; see core/user_time.js. |TimeUsedTodayDate| is
+    //  stored as "YYYY-MM-DD" -- non-numeric, in the same spirit as
+    //  LoginStreakLastDate above, so it can never look like a stat.
+    //
+    TimeUsedTodayMinutes: 'time_used_today_minutes',
+    TimeUsedTodayDate: 'time_used_today_date',
+    TimeMinutesPerDay: 'time_minutes_per_day', //  per-user allowance override; absent = fall through to users.timeLimits
+
     NewPrivateMailCount: 'new_private_mail_count', //  non-persistent
     NewAddressedToMessageCount: 'new_addr_to_msg_count', //  non-persistent
     SSHPubKey: 'ssh_public_key', //  OpenSSH format (ssh-keygen, etc.)

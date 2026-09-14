@@ -161,6 +161,17 @@ module.exports = {
         min: 0,
         description: 'Idle timeout once logged in. 0 never disconnects.',
     },
+    //  The shipped default is [], which carries no item type of its own.
+    'users.timeLimits': {
+        type: 'array',
+        items: { type: 'object' },
+        description:
+            'Daily time allowance bands, in minutes. Ordered; first ACS match wins, an entry with no acs is the default, and no match means unlimited.',
+    },
+    'users.unlimitedTimeText': {
+        type: 'string',
+        description: 'What the TR and TA MCI codes render when no limit applies.',
+    },
     'users.failedLogin.disconnect': {
         type: 'number',
         min: 0,
@@ -193,6 +204,11 @@ module.exports = {
     //  Nothing here checks the id names a theme that exists; that needs the
     //  theme list, which loads later.
     //
+    'theme.timeWarningText': {
+        type: 'string',
+        description:
+            'Shown as a daily time budget runs down. "{minutes}" and "{plural}" are substituted; pipe codes are honoured. Empty means no warning.',
+    },
     'theme.default': {
         type: 'string',
         description:
@@ -260,6 +276,12 @@ module.exports = {
     'messageConferences.*.areas': { openMap: true },
 
     //  ── File base ────────────────────────────────────────────────────────
+    'fileBase.estimatedTransferCps': {
+        type: 'number',
+        min: 0,
+        description:
+            'Assumed bytes/sec when checking a download against the time budget. Deliberately optimistic; 0 disables the check.',
+    },
     'fileBase.storageTags': {
         openMap: true,
         value: { type: 'string' },

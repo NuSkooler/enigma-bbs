@@ -38,6 +38,7 @@ const User = require('./user.js');
 const Config = require('./config.js').get;
 const MenuStack = require('./menu_stack.js');
 const ACS = require('./acs.js');
+const UserTime = require('./user_time.js');
 const Events = require('./events.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
 const UserProps = require('./user_property.js');
@@ -118,7 +119,9 @@ function Client(/*input, output*/) {
     this.lastActivityTime = Date.now();
     this.menuStack = new MenuStack(this);
     this.acs = new ACS({ client: this, user: this.user });
+    this.freeTimeDepth = 0; //  > 0 => the 1m tick does not bill time; see beginFreeTime()
     this.interruptQueue = new UserInterruptQueue(this);
+    this.clientEnded = false; //  end() teardown runs once; see Client.prototype.end
 
     Object.defineProperty(this, 'currentTheme', {
         get: () => {
@@ -502,6 +505,16 @@ Client.prototype.startIdleMonitor = function () {
     //  We also update minutes spent online the system here,
     //  if we have a authenticated user.
     //
+    //
+    //  The time budget rides its own interval rather than this one. Several
+    //  modules stop the idle monitor for the duration of something that must
+    //  not be interrupted -- MRC chat does it for the whole chat session --
+    //  and billing a user's daily allowance must not stop with it. Starting
+    //  it here rather than at 'ready' means every one of those modules
+    //  restores it for free on the way out.
+    //
+    this.startTimeMonitor();
+
     this.idleCheck = setInterval(() => {
         const nowMs = Date.now();
 
@@ -542,6 +555,50 @@ Client.prototype.startIdleMonitor = function () {
     }, 1000 * 60);
 };
 
+//
+//  Every 1m, bill a minute of today's budget and act on what is left. This
+//  is the only moment the balance can change, so warning and kicking from
+//  here is exact rather than merely frequent.
+//
+//  Deliberately not stopped by stopIdleMonitor(): see startIdleMonitor().
+//  It runs for the life of the session and is cleared in end().
+//
+Client.prototype.startTimeMonitor = function () {
+    if (this.timeCheck) {
+        return; //  already running
+    }
+
+    this.timeCheck = setInterval(() => {
+        UserTime.accrueMinute(this);
+        UserTime.checkTimeRemaining(this);
+    }, 1000 * 60);
+};
+
+Client.prototype.stopTimeMonitor = function () {
+    if (this.timeCheck) {
+        clearInterval(this.timeCheck);
+        delete this.timeCheck;
+    }
+};
+
+//
+//  Free time: while the depth is > 0 the 1m tick does not bill the user.
+//  A depth rather than a boolean, so a free door that also performs a free
+//  download does not un-free itself on the inner end().
+//
+//  Nothing sets this yet. It exists so that the first exemption is a two
+//  line change rather than a restructuring of the accrual path.
+//
+Client.prototype.beginFreeTime = function () {
+    this.freeTimeDepth = (this.freeTimeDepth || 0) + 1;
+    return this.freeTimeDepth;
+};
+
+Client.prototype.endFreeTime = function () {
+    this.freeTimeDepth = Math.max(0, (this.freeTimeDepth || 0) - 1);
+    return this.freeTimeDepth;
+};
+
 Client.prototype.stopIdleMonitor = function () {
     if (this.idleCheck) {
         clearInterval(this.idleCheck);
@@ -561,31 +618,55 @@ Client.prototype.restoreIdleLogoutSeconds = function () {
     delete this.idleLogoutSecondsOverride;
 };
 
+//
+//  end() is reached more than once on a server initiated disconnect, and
+//  always has been: end() calls disconnect(), the socket emits 'close',
+//  login_server_module's handler calls clientConnections.removeClient(),
+//  and removeClient() opens with client.end(). Anything that kicks a user --
+//  the idle timeout, "all nodes are busy", @systemMethod:logoff -- goes
+//  round that loop.
+//
+//  So the teardown below has been running twice per kicked session:
+//  notably |leave()| on whichever module the user was in, which is a module
+//  author's one chance to clean up and is written expecting to be called
+//  once. It also wrote MinutesOnlineTotalCount twice.
+//
+//  The teardown is therefore done once. The transport disconnect is *not*
+//  guarded and still runs on every call: closing an already closed socket is
+//  a no-op, whereas skipping it would risk leaving one open if a first call
+//  threw on its way here -- and removeClient() calling end() is precisely
+//  how the system guarantees the connection is gone.
+//
 Client.prototype.end = function () {
-    if (this.term) {
-        this.term.disconnect();
-    }
+    if (!this.clientEnded) {
+        this.clientEnded = true;
 
-    Events.removeListener(
-        Events.getSystemEvents().ThemeChanged,
-        this.themeChangedListener
-    );
+        if (this.term) {
+            this.term.disconnect();
+        }
 
-    const currentModule = this.menuStack.getCurrentModule;
-
-    if (currentModule) {
-        currentModule.leave();
-    }
-
-    //  persist time online for authenticated users
-    if (this.user.isAuthenticated()) {
-        this.user.persistProperty(
-            UserProps.MinutesOnlineTotalCount,
-            this.user.getProperty(UserProps.MinutesOnlineTotalCount)
+        Events.removeListener(
+            Events.getSystemEvents().ThemeChanged,
+            this.themeChangedListener
         );
-    }
 
-    this.stopIdleMonitor();
+        const currentModule = this.menuStack.getCurrentModule;
+
+        if (currentModule) {
+            currentModule.leave();
+        }
+
+        //  persist time online for authenticated users
+        if (this.user.isAuthenticated()) {
+            this.user.persistProperty(
+                UserProps.MinutesOnlineTotalCount,
+                this.user.getProperty(UserProps.MinutesOnlineTotalCount)
+            );
+        }
+
+        this.stopIdleMonitor();
+        this.stopTimeMonitor();
+    }
 
     try {
         //

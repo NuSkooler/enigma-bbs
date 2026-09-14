@@ -3,7 +3,11 @@
 
 //  enigma-bbs
 const MenuModule = require('./menu_module.js').MenuModule;
-const Config = require('./config.js').get;
+//  Late bound as in dropfile.js and message_area.js: configModule.get is
+//  replaced by the Config bootstrapper, so capturing it here would freeze
+//  whichever getter was installed at require time.
+const configModule = require('./config.js');
+const Config = (...args) => configModule.get(...args);
 const stringFormat = require('./string_format.js');
 const Errors = require('./enig_error.js').Errors;
 const DownloadQueue = require('./download_queue.js');
@@ -13,6 +17,7 @@ const { moveFileWithCollisionHandling } = require('./file_util.js');
 const Log = require('./logger.js').log;
 const Events = require('./events.js');
 const UserProps = require('./user_property.js');
+const UserTime = require('./user_time.js');
 const SysProps = require('./system_property.js');
 const { TelnetSocket } = require('telnet-socket');
 
@@ -537,6 +542,129 @@ exports.getModule = class TransferFileModule extends MenuModule {
         }
     }
 
+    //
+    //  An upload costs the caller nothing from their daily time budget.
+    //
+    //  Every package in the prior art survey either makes uploads free or
+    //  credits them back while charging downloads; Synchronet inverts its own
+    //  flag name so that free is the default. The caller is doing the board a
+    //  favour, and charging them for it is the one thing nobody does.
+    //
+    //  The depth is released on the error path too: leaving it raised would
+    //  make the rest of the session free.
+    //
+    recvFilesFreeOfCharge(cb) {
+        this.client.beginFreeTime();
+
+        //
+        //  Released exactly once, however recvFiles() ends -- including if it
+        //  throws before it ever calls back, which it can:
+        //  prepAndBuildRecvArgs() maps over protocolConfig.external.recvArgs
+        //  or recvArgsNonBatch, and a protocol defines only the one it is
+        //  capable of. The protocol *selector* filters on exactly that, so
+        //  the normal upload path cannot pair them wrongly; a menu that sets
+        //  |protocol| or |recvFileName| in config, bypassing the selector,
+        //  can.
+        //
+        //  Cheap either way, and the consequence of getting it wrong is not:
+        //  a depth left raised bills the rest of the session nothing.
+        //
+        //  Once, because a protocol handler that called back twice would
+        //  otherwise release a free-time depth belonging to whatever wrapped
+        //  this.
+        //
+        let released = false;
+        const release = () => {
+            if (!released) {
+                released = true;
+                this.client.endFreeTime();
+            }
+        };
+
+        try {
+            this.recvFiles(err => {
+                release();
+                return cb(err);
+            });
+        } catch (e) {
+            release();
+            throw e;
+        }
+    }
+
+    //
+    //  Total bytes queued for sending. Items from the download queue carry
+    //  |byteSize|; anything else is a path we have to stat, the same
+    //  fallback updateSendStats() uses.
+    //
+    sendQueueByteSize(cb) {
+        let totalBytes = 0;
+
+        async.each(
+            this.sendQueue,
+            (queueItem, next) => {
+                if (_.isNumber(queueItem.byteSize)) {
+                    totalBytes += queueItem.byteSize;
+                    return next(null);
+                }
+
+                fs.stat(queueItem.path, (err, stats) => {
+                    if (!err) {
+                        totalBytes += stats.size;
+                    }
+                    return next(null);
+                });
+            },
+            () => {
+                return cb(totalBytes);
+            }
+        );
+    }
+
+    //
+    //  Refuse a download the caller cannot finish in the time they have
+    //  left today. Calls back with Errors.AccessDenied to abort, or null to
+    //  proceed.
+    //
+    //  Forgiving by construction: an unlimited or exempt user is never
+    //  checked, the assumed rate is optimistic so the estimate under-states
+    //  the time, and a queue we cannot size at all goes through.
+    //
+    checkSendTimeRemaining(cb) {
+        const timeLeft = UserTime.getTimeLeftMinutes(this.client);
+        if (null === timeLeft) {
+            return cb(null); //  nothing is metered for this user
+        }
+
+        const cps = parseInt(_.get(Config(), 'fileBase.estimatedTransferCps'), 10);
+        if (isNaN(cps) || cps <= 0) {
+            return cb(null); //  check disabled
+        }
+
+        this.sendQueueByteSize(totalBytes => {
+            //  a queue we could not size at all comes back as 0 bytes, which
+            //  costs 0 minutes and is therefore allowed -- deliberately
+            const needMinutes = Math.ceil(totalBytes / cps / 60);
+            if (needMinutes <= timeLeft) {
+                return cb(null);
+            }
+
+            this.client.log.info(
+                { totalBytes, needMinutes, timeLeft },
+                'Not enough time remaining to start download'
+            );
+
+            this.client.term.write(
+                `\nThis download needs about ${needMinutes} minute(s) and you have ${timeLeft}.\n` +
+                    `Try again tomorrow, or download fewer files.\n`
+            );
+
+            return this.pausePrompt(() => {
+                return cb(Errors.AccessDenied('Not enough time remaining to download'));
+            });
+        });
+    }
+
     updateSendStats(cb) {
         let downloadBytes = 0;
         let downloadCount = 0;
@@ -681,6 +809,22 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
                     return callback(null);
                 },
+                function validateTimeRemaining(callback) {
+                    //
+                    //  Refuse to *start* a download the caller has no time to
+                    //  finish, rather than letting the time-up kick sever it
+                    //  mid-flight and leave them a partial file and nothing to
+                    //  show for the minutes. PCBoard and Maximus both do this;
+                    //  Wildcat!, which does not, documents the complaints.
+                    //
+                    //  Uploads are never checked: they do not cost time.
+                    //
+                    if (!self.isSending()) {
+                        return callback(null);
+                    }
+
+                    return self.checkSendTimeRemaining(callback);
+                },
                 function transferFiles(callback) {
                     if (self.isSending()) {
                         self.sendFiles(err => {
@@ -712,7 +856,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                             return callback(null);
                         });
                     } else {
-                        self.recvFiles(err => {
+                        self.recvFilesFreeOfCharge(err => {
                             return callback(err);
                         });
                     }

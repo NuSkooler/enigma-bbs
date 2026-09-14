@@ -135,6 +135,27 @@ module.exports = () => {
             preAuthIdleLogoutSeconds: 60 * 3, //  3m
             idleLogoutSeconds: 60 * 6, //  6m
 
+            //
+            //  Daily time budget, in minutes. Ordered; the first entry whose
+            //  |acs| matches wins, and an entry with no |acs| at all is the
+            //  catch-all default. No match => unlimited, as does a
+            //  |minutesPerDay| of 0.
+            //
+            //  Empty as shipped, so every user is unlimited until a sysop
+            //  opts in. Root and members of the "sysops" group are always
+            //  exempt and cannot be metered.
+            //
+            //  timeLimits: [
+            //      { acs: "GM[vip]", minutesPerDay: 240 }
+            //      { acs: "GM[users]", minutesPerDay: 90 }
+            //      { minutesPerDay: 30 }
+            //  ]
+            //
+            timeLimits: [],
+
+            //  Rendered by the TR and TA MCI codes when no limit applies
+            unlimitedTimeText: 'Unlimited',
+
             failedLogin: {
                 disconnect: 3, //  0=disabled
                 lockAccount: 9, //  0=disabled; Mark user status as "locked" if >= N
@@ -192,6 +213,17 @@ module.exports = () => {
                 short: 'MM/DD/YYYY h:mm a',
                 long: 'ddd, MMMM Do, YYYY, h:mm a',
             },
+
+            //
+            //  Shown as a user's daily time budget runs down; see
+            //  users.timeLimits. "{minutes}" is the number remaining and
+            //  "{plural}" is "s" unless that number is 1. A theme may
+            //  override this via customization.defaults.timeWarningText.
+            //  Set it to "" to turn the warnings off; the kick at zero still
+            //  happens.
+            //
+            timeWarningText:
+                '|12Time warning: |15{minutes} minute{plural}|12 remaining today.|00',
         },
 
         menus: {
@@ -1331,6 +1363,21 @@ module.exports = () => {
 
             maxDescFileByteSize: 471859, //  ~1/4 MB
             maxDescLongFileByteSize: 524288, //  1/2 MB
+
+            //
+            //  Bytes per second assumed when deciding whether a download fits
+            //  in what is left of the caller's daily time budget. Nothing in
+            //  ENiGMA½ measures the real rate, so this is an assumption, and
+            //  it is deliberately an optimistic one: over-stating the rate
+            //  under-states the time, so a marginal download is allowed
+            //  rather than refused. Lower it if your callers are on slow
+            //  links and you would rather they were told up front.
+            //
+            //  0 disables the check. It never applies to a user with no
+            //  limit, and it can only ever refuse to *start* a transfer --
+            //  nothing is interrupted part way through.
+            //
+            estimatedTransferCps: 115200 / 8, //  14400 bytes/sec
 
             fileNamePatterns: {
                 //  These are NOT case sensitive

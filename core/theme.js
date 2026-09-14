@@ -1,7 +1,11 @@
 /* jslint node: true */
 'use strict';
 
-const Config = require('./config.js').get;
+//  Late bound as in dropfile.js and file_transfer.js: configModule.get is
+//  replaced by the Config bootstrapper, so capturing it here would freeze
+//  whichever getter was installed at require time.
+const configModule = require('./config.js');
+const Config = (...args) => configModule.get(...args);
 const art = require('./art.js');
 const ansi = require('./ansi_term.js');
 const Log = require('./logger.js').log;
@@ -469,6 +473,22 @@ exports.ThemeManager = class ThemeManager {
                     `customization.defaults.dateTimeFormat.${style}`,
                     format
                 );
+            },
+            //
+            //  Shown as the daily time budget runs down. A theme may override
+            //  it; "{minutes}" and "{plural}" are substituted, and pipe codes
+            //  are honoured.
+            //
+            //  The shipped wording lives in config_default.js and nowhere
+            //  else, so there is no second copy here to drift from it. An
+            //  explicit empty string at either layer means what it says --
+            //  no warning -- rather than being read as "unset" and quietly
+            //  replaced, which is how the "||" in the helpers above treats
+            //  one.
+            //
+            getTimeWarningText: function () {
+                const text = _.get(Config(), 'theme.timeWarningText', '');
+                return _.get(theme, 'customization.defaults.timeWarningText', text);
             },
             getStatusAvailIndicators: function () {
                 const format = Config().theme.statusAvailableIndicators || ['Y', 'N'];

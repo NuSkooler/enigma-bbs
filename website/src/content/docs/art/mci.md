@@ -79,6 +79,9 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `AP` | Current user's total achievement points |
 | `DR` | Current user's number of door runs |
 | `DM` | Current user's total amount of time spent in doors |
+| `TR` | Current user's time remaining today, in minutes, or `users.unlimitedTimeText` when no limit applies. See [Time Limits](../configuration/time-limits.md) |
+| `TA` | Current user's time allowed today, in minutes, or `users.unlimitedTimeText` when no limit applies |
+| `TD` | Current user's time used today, in minutes. Always a real figure: usage is tracked even where nothing is enforced |
 | `DT` | Current date (using theme date format) |
 | `CT` | Current time (using theme time format) |
 | `OS` | System OS (Linux, Windows, etc.) |

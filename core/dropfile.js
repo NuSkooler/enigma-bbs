@@ -9,6 +9,7 @@ const configModule = require('./config.js');
 const Config = (...args) => configModule.get(...args);
 const StatLog = require('./stat_log.js');
 const UserProps = require('./user_property.js');
+const UserTime = require('./user_time.js');
 const { Errors } = require('./enig_error.js');
 const SysProps = require('./system_property.js');
 
@@ -119,6 +120,23 @@ const bbsDevLanguage = (value, fallback = 'en-US') => {
         return null; //  malformed; bbsDevError() reports it
     }
 };
+
+//
+//  Every legacy drop file states a time budget in a 16-bit field, so 546 is
+//  a *cap, not a sentinel* -- we had been writing it as though it meant
+//  "unlimited", which inverts what the documentation it comes from says.
+//
+//  It is the one documented ceiling in the BBS literature, and 546 x 60 =
+//  32760 fits a signed 16-bit integer, so a door that converts minutes to
+//  seconds cannot overflow. Writing 32767 *minutes* would. 546 minutes is
+//  a little over nine hours, longer than any real session, and the clamp is
+//  in the safe direction anyway: the door under-reports and the BBS is what
+//  actually enforces.
+//
+//  Applying it to every value means "unlimited" stops being a special case:
+//  it clamps to the ceiling like any other large number.
+//
+const MaxDropFileMinutes = 546;
 
 const bbsDevField = (value, fallback = '') => {
     const clean = _.isString(value)
@@ -335,6 +353,21 @@ module.exports = class DropFile {
         return 'DORINFO' + x + '.DEF';
     }
 
+    //
+    //  Today's remaining minutes as a legacy drop file may state them.
+    //  See MaxDropFileMinutes above; unlimited clamps to the ceiling.
+    //
+    get timeLeftMinutes() {
+        const timeLeft = UserTime.getTimeLeftMinutes(this.client);
+        return Math.min(null === timeLeft ? Infinity : timeLeft, MaxDropFileMinutes);
+    }
+
+    //  Derived from the clamped minutes, so the two never disagree at the
+    //  boundary the way independently clamped values can.
+    get timeLeftSeconds() {
+        return this.timeLeftMinutes * 60;
+    }
+
     getDoorSysBuffer() {
         const prop = this.client.user.properties;
         const now = moment();
@@ -354,7 +387,6 @@ module.exports = class DropFile {
             ? moment(prop[UserProps.PrevLoginTs]).format('HH:mm')
             : '';
 
-        //  :TODO: fix time remaining
         //  :TODO: fix default protocol -- user prop: transfer_protocol
         return iconv.encode(
             [
@@ -375,8 +407,8 @@ module.exports = class DropFile {
                 secLevel, //  "Security Level"
                 prop[UserProps.LoginCount].toString(), //  "Total Times On"
                 now.format('MM/DD/YY'), //  "Last Date Called"
-                '15360', //  "Seconds Remaining THIS call (for those that particular)"
-                '256', //  "Minutes Remaining THIS call"
+                this.timeLeftSeconds.toString(), //  "Seconds Remaining THIS call (for those that particular)"
+                this.timeLeftMinutes.toString(), //  "Minutes Remaining THIS call"
                 'GR', //  "Graphics Mode - GR=Graph, NG=Non-Graph, 7E=7,E Caller"
                 this.client.term.termHeight.toString(), //  "Page Length"
                 'N', //  "User Mode - Y = Expert, N = Novice"
@@ -400,8 +432,12 @@ module.exports = class DropFile {
                 'Y', //  "ANSI supported & caller using NG mode (Y/N)"
                 'Y', //  "Use Record Locking                    (Y/N)"
                 '7', //  "BBS Default Color (Standard IBM color code, ie, 1-15)"
-                //  :TODO: fix minutes here also:
-                '256', //  "Time Credits In Minutes (positive/negative)"
+                //
+                //  The GAP spec has doors *read this back*, so it cannot
+                //  claim a balance that does not exist: ENiGMA has no time
+                //  bank, and 0 is the truth until it does.
+                //
+                '0', //  "Time Credits In Minutes (positive/negative)"
                 '07/07/90', //  "Last New Files Scan Date          (mm/dd/yy)"
                 timeOfCall, //  "Time of This Call"
                 timeOfLastCall, //  "Time of Last Call                 (hh:mm)"
@@ -449,7 +485,14 @@ module.exports = class DropFile {
                 this.client.user.getSanitizedName('real'),
                 this.client.user.getSanitizedName(),
                 this.client.user.getLegacySecurityLevel().toString(),
-                '546', //  :TODO: Minutes left!
+                //
+                //  Minutes, per the Revision 1 spec, and per Synchronet,
+                //  Mystic, Renegade, EleBBS and MBSE. Current WWIV writes
+                //  seconds here, directly beneath its own pasted copy of the
+                //  spec saying minutes, so a door coded against WWIV may
+                //  read this as seconds.
+                //
+                this.timeLeftMinutes.toString(), //  "Time left, in minutes"
                 '1', //  ANSI
                 this.client.node.toString(),
             ].join('\r\n') + '\r\n',
@@ -458,8 +501,6 @@ module.exports = class DropFile {
     }
 
     getDoorInfoDefBuffer() {
-        //  :TODO: fix time remaining
-
         //
         //  Resources:
         //  * http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm
@@ -486,7 +527,7 @@ module.exports = class DropFile {
                 location || '', //  "Where the user lives, or a blank line if unknown."
                 '2', //  0=TTY, 1=IBM high-bit chars, 2=ANSI color (RBBS standard; TW2002 requires 2)
                 secLevel, //  "The number 5 for problem users, 30 for regular users, 80 for Aides, and 100 for Sysops."
-                '546', //  "The number of minutes left in the current user's account, limited to 546 to keep from overflowing other software."
+                this.timeLeftMinutes.toString(), //  "The number of minutes left in the current user's account, limited to 546 to keep from overflowing other software."
                 '-1', //  "The number "-1" if using an external serial driver or "0" if using internal serial routines."
             ].join('\r\n') + '\r\n',
             'cp437'
@@ -542,7 +583,7 @@ module.exports = class DropFile {
                 'Y',
                 'N', //  RIP: not supported
                 term.ctermVersion || '', //  empty unless the caller answered DA as CTerm
-                '', //  time of logoff: ENiGMA½ has no per-call time limit
+                this.bbsDevLogoffTime, //  when the budget runs out; empty if it does not
                 bbsDevEncodingName(this.doorEncoding),
                 bbsDevLanguage(Config().general.language),
                 `ENiGMA½ BBS ${packageJson.version}`,
@@ -554,6 +595,23 @@ module.exports = class DropFile {
             ].join('\r\n') + '\r\n',
             'utf8'
         );
+    }
+
+    //
+    //  Line 11: when this session must end, as an absolute UTC instant
+    //  rather than a duration, so a door that pauses or sleeps cannot
+    //  arrive at the wrong answer by counting down.
+    //
+    //  Omitted entirely when nothing will end it -- the format's own way of
+    //  saying there is no deadline, and what Synchronet writes for a sysop.
+    //  Unclamped: this is a timestamp, not a 16-bit field.
+    //
+    get bbsDevLogoffTime() {
+        const timeLeft = UserTime.getTimeLeftMinutes(this.client);
+        if (null === timeLeft) {
+            return '';
+        }
+        return moment.utc().add(timeLeft, 'minutes').format('YYYY-MM-DDTHH:mm:ss[Z]');
     }
 
     //
