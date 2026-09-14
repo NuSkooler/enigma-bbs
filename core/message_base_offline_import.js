@@ -604,6 +604,25 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         });
     }
 
+    //
+    //  Every path out of finishedLoading() below moves the caller itself --
+    //  to protocol selection to collect the packet, or back where they came
+    //  from once the import is done. MenuModule.initSequence() calls
+    //  finishedLoading() and then autoNextMenu(), and a menu carrying neither
+    //  a form nor a prompt -- which is how the templates and the docs show
+    //  this one -- has runtime.autoNext set for it by ThemeManager, so the
+    //  automatic transition fires too.
+    //
+    //  It is worse here than for an export. The upload starts behind an async
+    //  mkdir(), so the automatic prevMenu() always wins the race: the stack
+    //  unwinds past the menu the caller came from while gotoMenu() is still in
+    //  flight, and two view controllers end up attached to client keypress,
+    //  echoing every character twice.
+    //
+    autoNextMenu() {
+        //  intentionally nothing; see above
+    }
+
     _finish() {
         this.client.log.info(this.summary, 'Offline mail import complete');
         this.temptmp.cleanup();

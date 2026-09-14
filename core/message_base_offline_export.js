@@ -192,6 +192,23 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         this.prevMenu();
     }
 
+    //
+    //  We leave the menu ourselves, above. MenuModule.initSequence() calls
+    //  finishedLoading() and then autoNextMenu(), and a menu carrying neither
+    //  a form nor a prompt -- which is how the templates and the docs show
+    //  this one -- has runtime.autoNext set for it by ThemeManager. That would
+    //  make the automatic transition fire as well, and menuStack.prev() has no
+    //  guard against being asked twice, so the caller would land two menus
+    //  back rather than one.
+    //
+    //  Nothing is lost by refusing it: this module has always returned to the
+    //  previous menu unconditionally, so a "next" on the menu was never
+    //  honored either way.
+    //
+    autoNextMenu() {
+        //  intentionally nothing; see above
+    }
+
     _getUserExportOptions() {
         let options = this.client.user.getProperty(this.userProperties.ExportOptions);
         try {
