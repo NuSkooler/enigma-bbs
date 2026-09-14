@@ -133,6 +133,45 @@ describe('messageToHtml()', function () {
         assert.ok(!/\|[A-Z\d]{2}/.test(result), 'no pipe codes should survive into HTML');
         assert.ok(result.includes('Sysop Name'), 'plain text of sig should be preserved');
     });
+
+    //
+    //  Issue #226. These assert the WHOLE string on purpose: the pipe-code
+    //  tests above passed throughout the period when every ANSI escape was
+    //  being published, because they only checked that pipe codes were absent.
+    //
+    describe('ANSI escapes (#226)', () => {
+        it('strips ANSI escape sequences', () => {
+            assert.equal(
+                messageToHtml(makeMessage('hi \x1b[1;32mgreen\x1b[0m |07pipe')),
+                '<p>hi green pipe</p>'
+            );
+        });
+
+        it('publishes neither a raw ESC nor an encoded one', () => {
+            //  An ESC that survives the strip does not vanish downstream -- it
+            //  HTML-encodes to a visible "&#27;" in the federated content.
+            const result = messageToHtml(
+                makeMessage('\x1b[2J\x1b[1;31mred\x1b[0m |07hi')
+            );
+            assert.ok(!result.includes('\x1b'), 'raw ESC must not be published');
+            assert.ok(!result.includes('&#27;'), 'encoded ESC must not be published');
+        });
+
+        it('handles a pipe code splitting an ANSI sequence', () => {
+            assert.equal(messageToHtml(makeMessage('a\x1b[1|07mb')), '<p>ab</p>');
+        });
+
+        it('handles an ANSI sequence splitting a pipe code', () => {
+            assert.equal(messageToHtml(makeMessage('a|\x1b[0m07b')), '<p>ab</p>');
+        });
+
+        it('leaves "||" alone, matching what the terminal renders', () => {
+            assert.equal(
+                messageToHtml(makeMessage('if (a || b) {')),
+                '<p>if (a || b) {</p>'
+            );
+        });
+    });
 });
 
 // ─── extractMessageMetadata ───────────────────────────────────────────────────

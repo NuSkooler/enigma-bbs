@@ -13,11 +13,11 @@ const ActivityPubSettings = require('./settings');
 const ActivityPubObject = require('./object');
 const { ActivityStreamMediaType, Collections } = require('./const');
 const Config = require('../config').get;
-const { stripMciColorCodes } = require('../color_codes');
-const { stripAnsiControlCodes } = require('../string_util');
+const { stripAllControlCodes } = require('../string_util');
 
 //  deps
 const _ = require('lodash');
+const { encode } = require('html-entities');
 const mimeTypes = require('mime-types');
 const { getJson } = require('../http_util.js');
 const moment = require('moment');
@@ -127,8 +127,14 @@ module.exports = class Actor extends ActivityPubObject {
             }
         };
 
-        const summary = stripMciColorCodes(
-            stripAnsiControlCodes(user.getProperty(UserProps.AutoSignature) || ''),
+        //  The signature is user-supplied and ends up in a public, federated
+        //  object, so it gets the same treatment as a message body: strip every
+        //  control code, then HTML-encode. The encode() was previously missing
+        //  here -- the options object was being passed as a second argument to
+        //  stripMciColorCodes(), which takes only one and silently ignored it,
+        //  so summaries shipped unencoded and still carrying escapes.
+        const summary = encode(
+            stripAllControlCodes(user.getProperty(UserProps.AutoSignature) || ''),
             { mode: 'nonAsciiPrintable' }
         );
 

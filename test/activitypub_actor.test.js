@@ -16,6 +16,15 @@ configModule.get = () => ({
             https: { enabled: true, port: 443 },
         },
     },
+    //  ActivityPubSettings.fromUser() reads Config().users.activityPub
+    //  unconditionally; Actor.fromLocalUser() goes through it.
+    users: {
+        activityPub: {
+            enabled: true,
+            manuallyApproveFollowers: false,
+            showRealName: true,
+        },
+    },
 });
 
 //
@@ -259,6 +268,91 @@ describe('Collection.addActor() + Collection.actor() round-trip', function () {
                 assert.equal(retrieved.id, ACTOR_ID);
                 done();
             });
+        });
+    });
+});
+
+// ─── Actor.fromLocalUser() — summary sanitizing (#226) ───────────────────────
+
+describe('Actor.fromLocalUser() — summary', function () {
+    const UserProps = require('../core/user_property.js');
+
+    function makeLocalUser(autoSig) {
+        return {
+            userId: 1,
+            username: 'testuser',
+            //
+            //  Supplied directly so ActivityPubSettings.fromUser() short-circuits
+            //  rather than constructing one. Its constructor reads
+            //  Config().users.activityPub through a reference captured at
+            //  require time, which in a full-suite run belongs to whichever test
+            //  file loaded settings.js first -- not to this file's mock.
+            //
+            activityPubSettings: {
+                enabled: true,
+                manuallyApprovesFollowers: false,
+                discoverable: true,
+                showRealName: true,
+                hideSocialGraph: false,
+                image: '',
+                icon: '',
+            },
+            getSanitizedName: () => 'testuser',
+            getProperty: p => {
+                if (p === UserProps.AutoSignature) return autoSig;
+                if (p === UserProps.ActivityPubActorId)
+                    return 'https://test.example.com/_enig/ap/users/testuser';
+                if (p === UserProps.RealName) return 'Test User';
+                return '';
+            },
+            getProperties: () => ({}),
+        };
+    }
+
+    function summaryFor(autoSig, cb) {
+        Actor.fromLocalUser(makeLocalUser(autoSig), (err, actor) => {
+            assert.equal(err, null);
+            return cb(actor.summary);
+        });
+    }
+
+    it('strips ANSI escapes and pipe codes from the auto-signature', done => {
+        summaryFor('hi \x1b[1;32mgreen\x1b[0m |07pipe', summary => {
+            assert.equal(summary, 'hi green pipe');
+            done();
+        });
+    });
+
+    it('never ships a raw ESC in the federated actor object', done => {
+        summaryFor('\x1b[2J\x1b[1;31mred\x1b[0m sig', summary => {
+            assert.ok(!summary.includes('\x1b'), 'raw ESC must not be published');
+            done();
+        });
+    });
+
+    //
+    //  The options object here used to be passed as a second argument to
+    //  stripMciColorCodes(), which takes one and ignored it -- so the summary
+    //  went out with no HTML encoding at all, unlike every message path.
+    //
+    it('HTML-encodes the summary', done => {
+        summaryFor('I <3 BBSing & ANSI art', summary => {
+            assert.equal(summary, 'I &lt;3 BBSing &amp; ANSI art');
+            done();
+        });
+    });
+
+    it('does not let raw markup through to the actor object', done => {
+        summaryFor('a <b>bold</b> claim', summary => {
+            assert.ok(!summary.includes('<b>'), 'raw tag must not be published');
+            done();
+        });
+    });
+
+    it('handles an absent auto-signature', done => {
+        summaryFor('', summary => {
+            assert.equal(summary, '');
+            done();
         });
     });
 });
