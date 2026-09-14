@@ -200,4 +200,55 @@ describe('msg_list: the focused row', () => {
 
         mod.menuMethods.deleteSelected(keyPress(1), {}, done);
     });
+
+    //
+    //  focusedMessageIndex() signals "another view held focus" with null, but
+    //  a menu naming neither member gets undefined back, and the callers test
+    //  with "null ===" so that such a menu keeps working. Pinned here because
+    //  the distinction is invisible at a glance: "== null" would turn these
+    //  menus into no-ops.
+    //
+    it('still acts on a submission that names no index at all', done => {
+        const mod = list();
+
+        mod.menuMethods.postNewMessage(
+            { submitId: MSG_LIST_VIEW, value: {} },
+            {},
+            err => {
+                assert.equal(err, null);
+                assert.equal(mod.went.name, 'messageBaseNewPost');
+                //  nothing selected, so the menu's own area
+                assert.equal(mod.went.options.extraArgs.messageAreaTag, 'general');
+                done();
+            }
+        );
+    });
+
+    //  and the other half of it: 0 is a row, not the absence of one
+    it('treats the first row as a selection', done => {
+        const mod = list();
+
+        mod.menuMethods.postNewMessage(keyPress(0), {}, err => {
+            assert.equal(err, null);
+            assert.equal(mod.went.options.extraArgs.messageAreaTag, 'general');
+            assert.equal(mod.initialFocusIndex, 0);
+            done();
+        });
+    });
+
+    it('prompts to delete the first row', done => {
+        const mod = list();
+        let prompted = false;
+        mod.promptDeleteMessageConfirm = (messageIndex, cb) => {
+            prompted = true;
+            assert.equal(messageIndex, 0);
+            return cb(null);
+        };
+
+        mod.menuMethods.deleteSelected(keyPress(0), {}, err => {
+            assert.equal(err, null);
+            assert.ok(prompted, 'expected a delete prompt for index 0');
+            done();
+        });
+    });
 });

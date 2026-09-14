@@ -54,6 +54,13 @@ const MciViewIds = {
 //  from it, or null when another view held focus. 'messageIndex' is the
 //  current member; older menus submit the deprecated 'message' member instead.
 //
+//  A menu that names neither -- one old enough to have no argName on the list
+//  view at all -- gets undefined back rather than null, and the callers below
+//  test with "null ===" so that it still falls through to the behaviour such a
+//  menu has always had. Comparing with "== null", or with a plain truthiness
+//  check, would change that: the first would turn those menus into no-ops, and
+//  the second would do the same to the message at index 0.
+//
 function focusedMessageIndex(formData) {
     if (MciViewIds.allViews.msgList != formData.submitId) {
         return null;
