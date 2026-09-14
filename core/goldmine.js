@@ -57,11 +57,21 @@ exports.getModule = class GoldmineModule extends MenuModule {
                         terminalSpeed: '',
                     });
 
+                    //
+                    //  gOLD mINE is an aggregator: unless the menu launches one
+                    //  game directly, the caller picks it from gOLD mINE's own
+                    //  menu inside the session and we cannot know which it was.
+                    //  Record the service itself in that case -- enough to tell a
+                    //  gOLD mINE run from a DoorParty run and from a door that
+                    //  supplies no tag at all.
+                    //
+                    let doorTag = 'goldmine';
                     if (
                         _.isString(this.config.directDoorCode) &&
                         this.config.directDoorCode.length > 0
                     ) {
                         rlogin.terminalType = `xtrn=${this.config.directDoorCode}`;
+                        doorTag = `goldmine_${this.config.directDoorCode}`;
                     }
 
                     const rloginSend = buffer => {
@@ -116,7 +126,7 @@ exports.getModule = class GoldmineModule extends MenuModule {
                         this.client.log.info('Connected to gOLD mINE');
                         this.client.term.output.on('data', rloginSend);
 
-                        doorTracking = trackDoorRunBegin(this.client);
+                        doorTracking = trackDoorRunBegin(this.client, doorTag);
                     });
 
                     rlogin.on('data', data => {

@@ -92,7 +92,18 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                                     );
                                 }
 
-                                doorTracking = trackDoorRunBegin(self.client);
+                                //
+                                //  DoorParty is an aggregator: the caller picks
+                                //  the game from DoorParty's own menu, inside the
+                                //  session, so we cannot know which game was
+                                //  played. Record the service itself -- enough to
+                                //  tell a DoorParty run from a gOLD mINE run and
+                                //  from a door that supplies no tag at all.
+                                //
+                                doorTracking = trackDoorRunBegin(
+                                    self.client,
+                                    'doorparty'
+                                );
 
                                 //
                                 //  Send rlogin
