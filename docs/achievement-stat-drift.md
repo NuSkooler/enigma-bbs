@@ -77,9 +77,30 @@ correct.
 
 ### Evidence this — and not data loss — is what happened
 
-1. **Perfect cohort split.** Users holding only single-tier achievements: 315,
-   **zero** drifted. Users holding at least one multi-tier achievement: 315,
-   **243** drifted. A purge or deletion could not produce that split.
+1. **Perfect cohort split.** The bug re-awards *lower tiers of the same
+   achievement*, so partition users by the most tiers they hold of any single
+   `achievement_tag` — not by how many different achievements they hold:
+
+   ```sql
+   WITH tiers AS (
+       SELECT user_id, achievement_tag, COUNT(*) n
+       FROM user_achievement GROUP BY user_id, achievement_tag
+   ),
+   grp AS (SELECT user_id, MAX(n) maxtier, SUM(n) real_count FROM tiers GROUP BY user_id),
+   props AS (
+       SELECT user_id, CAST(prop_value AS INTEGER) pc
+       FROM user_property WHERE prop_name = 'achievement_total_count'
+   )
+   SELECT CASE WHEN g.maxtier = 1 THEN 'every achievement at exactly 1 tier'
+               ELSE 'holds >=1 achievement at 2+ tiers' END AS cohort,
+          COUNT(*) AS users,
+          SUM(CASE WHEN p.pc <> g.real_count THEN 1 ELSE 0 END) AS with_drift
+   FROM grp g JOIN props p USING(user_id) GROUP BY cohort;
+   ```
+
+   Users whose every achievement sits at exactly one tier: 315, **zero** drifted.
+   Users holding at least one achievement at two or more tiers: 315, **243**
+   drifted. A purge or deletion could not produce that split.
 2. **Bounded by the mechanism.** The bug can generate at most `n(n-1)/2`
    duplicates per (user, achievement) with `n` tiers earned. 625 of 630 users sit
    strictly inside that bound; the 5 that exceed it (all 2019–2021 accounts)

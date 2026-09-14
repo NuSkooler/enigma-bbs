@@ -106,6 +106,30 @@ describe('oputil user fix-achievement-stats', () => {
         assert.deepEqual(totalsOf(db, 1), {});
     });
 
+    it('backfills a user who somehow has only one of the two totals', () => {
+        const db = makeDb();
+        addUser(db, 1, 'half_recorded');
+        earn(db, 1, 'user_login_count', 10, 5);
+        earn(db, 1, 'user_login_count', 100, 15);
+        db.prepare(
+            'INSERT INTO user_property (user_id, prop_name, prop_value) VALUES (?, ?, ?);'
+        ).run(1, 'achievement_total_points', '45');
+
+        const drifted = findDriftedAchievementStats(db);
+        assert.equal(drifted.length, 1);
+        //  the missing row reads as null, not as a zero that looks like real drift
+        assert.equal(drifted[0].stored_count, null);
+        assert.equal(drifted[0].stored_points, 45);
+        assert.equal(drifted[0].actual_count, 2);
+
+        applyAchievementStats(db, drifted);
+        assert.deepEqual(totalsOf(db, 1), {
+            achievement_total_count: '2',
+            achievement_total_points: '20',
+        });
+        assert.deepEqual(findDriftedAchievementStats(db), []);
+    });
+
     it('zeroes totals for a user whose achievements were all removed', () => {
         const db = makeDb();
         addUser(db, 1, 'wiped');

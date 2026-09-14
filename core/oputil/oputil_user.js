@@ -930,24 +930,27 @@ function fixAchievementStats() {
         );
     }
 
+    //
+    //  A user can be missing one of the two totals entirely -- the row is then
+    //  NULL rather than a number. Show that as "unset" instead of "null", and
+    //  count it as nothing removed rather than letting NULL coerce to zero and
+    //  subtract the user's whole total from the phantom tally.
+    //
+    const pointsRemoved = row =>
+        null === row.stored_points ? 0 : row.stored_points - row.actual_points;
+    const storedOf = value => (null === value ? 'unset' : value);
+
     const table = new Table();
     drifted.forEach(row => {
         table.cell('Username', row.user_name);
-        table.cell('Count', `${row.stored_count} -> ${row.actual_count}`);
-        table.cell('Points', `${row.stored_points} -> ${row.actual_points}`);
-        table.cell(
-            'Points Removed',
-            row.stored_points - row.actual_points,
-            Table.number(0)
-        );
+        table.cell('Count', `${storedOf(row.stored_count)} -> ${row.actual_count}`);
+        table.cell('Points', `${storedOf(row.stored_points)} -> ${row.actual_points}`);
+        table.cell('Points Removed', pointsRemoved(row), Table.number(0));
         table.newRow();
     });
     console.info(table.toString());
 
-    const totalPoints = drifted.reduce(
-        (sum, row) => sum + (row.stored_points - row.actual_points),
-        0
-    );
+    const totalPoints = drifted.reduce((sum, row) => sum + pointsRemoved(row), 0);
     console.info(
         `${drifted.length} user(s) drifted; ${totalPoints} phantom point(s) total.`
     );
