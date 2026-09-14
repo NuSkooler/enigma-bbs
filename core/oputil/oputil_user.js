@@ -22,6 +22,10 @@ const Table = require('easy-table');
 
 exports.handleUserCommand = handleUserCommand;
 
+//  exported for testing
+exports.findDriftedAchievementStats = findDriftedAchievementStats;
+exports.applyAchievementStats = applyAchievementStats;
+
 function initAndGetUser(userName, cb) {
     async.waterfall(
         [
@@ -848,6 +852,161 @@ function removeSSHKey(user) {
     });
 }
 
+//
+//  achievement_total_count/achievement_total_points are running totals kept by
+//  StatLog. Before the duplicate-award fix, a retroactive achievement re-queued
+//  every lower tier the user already held; record() bumped both totals before
+//  INSERT OR IGNORE dropped the duplicate row, so the totals drifted above
+//  user_achievement and never came back down.
+//
+//  user_achievement is the record of what was actually earned, so recompute
+//  from it. Users who have never earned anything carry no totals at all and are
+//  left alone; only rows that already exist are corrected.
+//
+function findDriftedAchievementStats(db) {
+    return db
+        .prepare(
+            `SELECT u.id AS user_id, u.user_name,
+                COALESCE(a.earned_count, 0) AS actual_count,
+                COALESCE(a.earned_points, 0) AS actual_points,
+                CAST(pc.prop_value AS INTEGER) AS stored_count,
+                CAST(pp.prop_value AS INTEGER) AS stored_points
+            FROM user u
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) AS earned_count, SUM(points) AS earned_points
+                FROM user_achievement
+                GROUP BY user_id
+            ) a ON a.user_id = u.id
+            LEFT JOIN user_property pc
+                ON pc.user_id = u.id AND pc.prop_name = 'achievement_total_count'
+            LEFT JOIN user_property pp
+                ON pp.user_id = u.id AND pp.prop_name = 'achievement_total_points'
+            WHERE (pc.prop_value IS NOT NULL OR pp.prop_value IS NOT NULL)
+              AND (COALESCE(CAST(pc.prop_value AS INTEGER), -1) <> COALESCE(a.earned_count, 0)
+                OR COALESCE(CAST(pp.prop_value AS INTEGER), -1) <> COALESCE(a.earned_points, 0))
+            ORDER BY (COALESCE(CAST(pp.prop_value AS INTEGER), 0) - COALESCE(a.earned_points, 0)) DESC;`
+        )
+        .all();
+}
+
+function applyAchievementStats(db, rows) {
+    const upsert = db.prepare(
+        `INSERT INTO user_property (user_id, prop_name, prop_value)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id, prop_name) DO UPDATE SET prop_value = excluded.prop_value;`
+    );
+
+    db.transaction(() => {
+        rows.forEach(row => {
+            upsert.run(
+                row.user_id,
+                UserProps.AchievementTotalCount,
+                `${row.actual_count}`
+            );
+            upsert.run(
+                row.user_id,
+                UserProps.AchievementTotalPoints,
+                `${row.actual_points}`
+            );
+        });
+    })();
+}
+
+function fixAchievementStats() {
+    const dryRun = true === argv['dry-run'];
+    const UserDb = require('../database.js').dbs.user;
+
+    let drifted;
+    try {
+        drifted = findDriftedAchievementStats(UserDb);
+    } catch (err) {
+        process.exitCode = ExitCodes.ERROR;
+        return console.error(`Failed to inspect achievement stats: ${err.message}`);
+    }
+
+    if (0 === drifted.length) {
+        return console.info(
+            'All achievement totals match user_achievement; nothing to do.'
+        );
+    }
+
+    //
+    //  A user can be missing one of the two totals entirely -- the row is then
+    //  NULL rather than a number. Show that as "unset" instead of "null", and
+    //  count it as nothing removed rather than letting NULL coerce to zero and
+    //  subtract the user's whole total from the phantom tally.
+    //
+    const pointsRemoved = row =>
+        null === row.stored_points ? 0 : row.stored_points - row.actual_points;
+    const storedOf = value => (null === value ? 'unset' : value);
+
+    const table = new Table();
+    drifted.forEach(row => {
+        table.cell('Username', row.user_name);
+        table.cell('Count', `${storedOf(row.stored_count)} -> ${row.actual_count}`);
+        table.cell('Points', `${storedOf(row.stored_points)} -> ${row.actual_points}`);
+        table.cell('Points Removed', pointsRemoved(row), Table.number(0));
+        table.newRow();
+    });
+    console.info(table.toString());
+
+    const totalPoints = drifted.reduce((sum, row) => sum + pointsRemoved(row), 0);
+    console.info(
+        `${drifted.length} user(s) drifted; ${totalPoints} phantom point(s) total.`
+    );
+
+    if (dryRun) {
+        return console.info('Dry run: no changes written.');
+    }
+
+    const applyNow = () => {
+        try {
+            applyAchievementStats(UserDb, drifted);
+        } catch (err) {
+            process.exitCode = ExitCodes.ERROR;
+            return console.error(`Failed to write achievement stats: ${err.message}`);
+        }
+
+        console.info(`Recalculated achievement totals for ${drifted.length} user(s).`);
+    };
+
+    if (false === argv.prompt) {
+        return applyNow();
+    }
+
+    //
+    //  StatLog.incrementUserStat() reads the current total from the in-memory
+    //  User object, so a user who is online when this runs still holds the old
+    //  figure; the next achievement they earn persists that stale value and
+    //  puts them right back where they started. Nothing refreshes it on the
+    //  increment path, so the only way to be sure is to have the board down.
+    //
+    console.info(
+        'Stop the BBS before continuing. A user who is online holds their totals in'
+    );
+    console.info(
+        'memory, and the next achievement they earn writes that cached figure back,'
+    );
+    console.info('undoing this repair for them.');
+    console.info('WARNING: This cannot be undone -- back up your user database first!');
+
+    getAnswers(
+        [
+            {
+                name: 'proceed',
+                message: `Recalculate totals for ${drifted.length} user(s)?`,
+                type: 'confirm',
+            },
+        ],
+        answers => {
+            if (!answers.proceed) {
+                return console.info('Canceled.');
+            }
+            return applyNow();
+        }
+    );
+}
+
 function handleUserCommand() {
     function errUsage() {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -858,7 +1017,7 @@ function handleUserCommand() {
     }
 
     const action = argv._[1];
-    const userRequired = !['list'].includes(action);
+    const userRequired = !['list', 'fix-achievement-stats'].includes(action);
 
     //  actions of the form: user <action> USERNAME <value>
     const takesTrailingValue = [
@@ -894,12 +1053,7 @@ function handleUserCommand() {
         return errUsage();
     }
 
-    initAndGetUser(userName, (err, user) => {
-        if (userName && err) {
-            process.exitCode = ExitCodes.ERROR;
-            return console.error(err.message);
-        }
-
+    const dispatch = user => {
         return (
             {
                 pw: setUserPassword,
@@ -931,7 +1085,30 @@ function handleUserCommand() {
 
                 'import-ssh-key': importSSHKey,
                 'remove-ssh-key': removeSSHKey,
+
+                'fix-achievement-stats': fixAchievementStats,
             }[action] || errUsage
         )(user, action);
+    };
+
+    const reportErr = err => {
+        process.exitCode = ExitCodes.ERROR;
+        return console.error(err.message);
+    };
+
+    //
+    //  An action that takes no username still needs config and databases up.
+    //  Initialize directly rather than asking initAndGetUser() to look up a
+    //  username we do not have -- its lookup would fail for a second reason and
+    //  mask a genuine startup failure behind whatever the action hits next.
+    //
+    if (!userRequired) {
+        return initConfigAndDatabases(err => {
+            return err ? reportErr(err) : dispatch(undefined);
+        });
+    }
+
+    initAndGetUser(userName, (err, user) => {
+        return err ? reportErr(err) : dispatch(user);
     });
 }

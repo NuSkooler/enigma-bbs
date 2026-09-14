@@ -73,6 +73,17 @@ Actions:
 
   remove-ssh-key USERNAME      Remove a user's SSH public key
 
+  fix-achievement-stats        Recalculate every user's achievement totals from
+                               the achievements they actually earned. Totals
+                               awarded before the duplicate-award fix can sit
+                               above the real figure, inflating "Top
+                               Achievements" rankings.
+
+                               Run this with the BBS stopped: an online user
+                               holds their totals in memory and the next
+                               achievement they earn writes that stale figure
+                               back.
+
   list [FILTER]                List users with optional FILTER.
 
   Valid filters:
@@ -84,6 +95,11 @@ Actions:
 
 info arguments:
   --security                   Include security information in output
+
+fix-achievement-stats arguments:
+  --dry-run                    Report what would change without writing
+
+  --no-prompt                  Skip the confirmation prompt
 
 list arguments:
   --sort SORT_BY               Specify field to sort by
