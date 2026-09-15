@@ -2,12 +2,15 @@
 
 const { strict: assert } = require('assert');
 
+const Address = require('../core/ftn_address.js');
+
 const {
     DEFAULT_NETWORK_DIR_NAME,
     canonicalNetworkName,
     resolveDefaultNetworkName,
     resolveNetworkDefaultZone,
     resolveNetworkNameForZone,
+    selectLocalNetworkForAddress,
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
@@ -334,5 +337,103 @@ describe('bso_util — outbound spool path resolution', () => {
             assert.equal(issues[0].code, 'reservedNetworkName');
             assert.equal(issues[0].network, 'Outbound');
         });
+    });
+});
+
+//
+//  #757: an area carried on more than one network, or a hub with several AKAs.
+//
+//  resolveNetworkNameForZone() above answers "which network owns this zone?",
+//  which is right for choosing a *directory* -- a zone maps to exactly one
+//  outbound subdirectory. It is the wrong tool for choosing a From line,
+//  because it gives one answer for a whole area: TIC forwarding took the
+//  network from the first downlink's zone and then signed every downlink with
+//  it.
+//
+describe('bso_util — choosing an AKA per link', () => {
+    const THREE = {
+        fidonet: { localAddress: '1:103/705' },
+        fsxnet: { localAddress: '21:1/121' },
+        spooknet: { localAddress: '700:100/28' },
+    };
+
+    const pick = (networks, defaultNetwork, addr) =>
+        selectLocalNetworkForAddress(networks, defaultNetwork, Address.fromString(addr));
+
+    it('prefers an AKA in the same net, which is the closest we can be', () => {
+        const r = pick(THREE, undefined, '1:103/999');
+        assert.equal(r.name, 'fidonet');
+        assert.equal(r.distance, 0);
+        assert.equal(r.address.toString(), '1:103/705');
+    });
+
+    it('falls back to an AKA in the same zone', () => {
+        const r = pick(THREE, undefined, '1:250/1');
+        assert.equal(r.name, 'fidonet');
+        assert.equal(r.distance, 1);
+    });
+
+    it('gives each network its own links rather than one answer for all', () => {
+        //  The actual defect. These three downlinks previously all got
+        //  whichever network the first one resolved to.
+        assert.equal(pick(THREE, undefined, '1:103/999').name, 'fidonet');
+        assert.equal(pick(THREE, undefined, '21:1/200').name, 'fsxnet');
+        assert.equal(pick(THREE, undefined, '700:100/50').name, 'spooknet');
+    });
+
+    it('still answers for a zone no AKA shares, and says it is a stretch', () => {
+        //  Better than refusing: a link may well know us by an address from
+        //  another network. The distance is how the caller knows to say so.
+        const r = pick(THREE, undefined, '99:9/9');
+        assert.ok(r.name, 'some address must be offered');
+        assert.equal(r.distance, 2);
+    });
+
+    it("honours a network's declared defaultZone over its localAddress", () => {
+        //  A system whose address is in one zone may still be configured to
+        //  serve another.
+        const networks = {
+            main: { localAddress: '1:103/705' },
+            odd: { localAddress: '1:1/1', defaultZone: 42 },
+        };
+        assert.equal(pick(networks, undefined, '42:10/20').name, 'odd');
+    });
+
+    it('breaks a tie with defaultNetwork, as the zone resolver does', () => {
+        //  Two networks claiming one zone is the configuration
+        //  resolveNetworkNameForZone() already warns about; the two must not
+        //  disagree about which one wins.
+        const networks = {
+            first: { localAddress: '21:1/100' },
+            second: { localAddress: '21:1/200' },
+        };
+        assert.equal(pick(networks, 'second', '21:1/300').name, 'second');
+        assert.equal(pick(networks, undefined, '21:1/300').name, 'first');
+        assert.deepEqual(pick(networks, 'second', '21:1/300').candidates, [
+            'first',
+            'second',
+        ]);
+    });
+
+    it('ignores a network whose localAddress will not parse', () => {
+        const networks = {
+            broken: { localAddress: 'not-an-address' },
+            good: { localAddress: '21:1/121' },
+        };
+        assert.equal(pick(networks, undefined, '21:1/200').name, 'good');
+    });
+
+    it('answers nothing rather than guessing when it has nothing to go on', () => {
+        assert.deepEqual(pick({}, undefined, '21:1/200'), {});
+        assert.deepEqual(
+            selectLocalNetworkForAddress(THREE, undefined, undefined),
+            {},
+            'no address'
+        );
+        assert.deepEqual(
+            selectLocalNetworkForAddress(THREE, undefined, { net: 1, node: 2 }),
+            {},
+            'an address with no zone says nothing about which network it is on'
+        );
     });
 });

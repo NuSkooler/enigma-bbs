@@ -56,6 +56,7 @@ Valid `tic` members:
 | `addressDimensions` | No | Dimensions to write `From` and `To` in — `3D`, `4D` (default) or `5D`. **`Seenby` is always written 4D** regardless: it is the loop guard, and some processors match it by exact string, so a `@domain` there can cause a downlink to send a file back to a system that already has it |
 | `fileCase` | No | Case of generated `.tic` filenames — `lower` (default) or `upper` |
 | `allowUnverifiedForward` | No | Forward files received from this node even though it has no `password`, i.e. was never authenticated. Defaults to `false` |
+| `network` | No | Address this link from your AKA in the named network, whatever its own zone suggests. htick's per-link `ourAka`. See [Areas on more than one network](#areas-on-more-than-one-network) |
 
 The `password`, `uploadBy`, `allowReplace` and `descPriority` members may also be
 set once for all nodes under `scannerTossers.ftn_bso.tic`, where the following
@@ -108,7 +109,7 @@ Valid `ticAreas` members under a given node mapping are as follows:
 | `hashTags` | No | One or more optional hash tags to assign TIC attachments in this area. |
 | `downlinks` | No | Addresses to forward this area's files on to. See [Forwarding to Downlinks](#forwarding-to-downlinks) |
 | `uplinks` | No | Addresses permitted to **publish** into this area. **Required if `downlinks` is set** — an area with downlinks and no uplinks forwards nothing |
-| `network` | No | Which network in `messageNetworks.ftn.networks` this area belongs to. Only needed when forwarding, and only strictly required if the downlinks' zone is claimed by more than one of your networks |
+| `network` | No | Pins every downlink of this area to one of your `messageNetworks.ftn.networks`. Without it each downlink is addressed from your closest AKA — see [Areas on more than one network](#areas-on-more-than-one-network) |
 
 
 💡 Multiple TIC areas can be mapped to a single file base area.
@@ -264,7 +265,39 @@ Each of these is logged at `warn` with the reason.
 When a TIC's `Replaces` supersedes a file you have already queued for a downlink that has not yet collected it, the old file **and** its TIC are removed from that downlink's outbound. Anything already sent is left alone. Without this a downlink that polls infrequently would receive both, and the older one would in any case have been deleted locally by then.
 
 ### Checking your configuration
-Problems that would otherwise be silent are reported at startup — an area with `downlinks` but no `uplinks` (which forwards nothing), an area with no resolvable `network`, a downlink missing from `nodes`, a downlink with no `tic.password` (its TICs will carry no `Pw` line), or an area whose zone more than one of your networks claims. If an area imports fine but never forwards, look there first.
+Problems that would otherwise be silent are reported at startup — an area with `downlinks` but no `uplinks` (which forwards nothing), an area with no resolvable `network`, a downlink missing from `nodes`, a downlink with no `tic.password` (its TICs will carry no `Pw` line), a downlink no address of yours shares a zone with, or an area whose zone more than one of your networks claims. If an area imports fine but never forwards, look there first.
+
+## Areas on More Than One Network
+If you have a single FTN address, none of this applies and nothing here changes what you see.
+
+If you have several — a file echo carried on two networks, or a hub with several AKAs — each downlink is addressed from **your** address in **its** network. The `From` line, the `Path` line you add, and the outbound directory the file is queued in all follow that choice together, so a downlink never receives a TIC from an address it does not know you by.
+
+The AKA is chosen by closeness to the downlink, which is what Synchronet's tickit does and what htick does per link:
+
+| | |
+|---|---|
+| Same zone **and** same net | Best — you are a neighbour in their own net |
+| Same zone | Same network, a different net |
+| Neither | A last resort, and reported at startup: you are introducing yourself with an address from another network entirely, which only works if the link already knows you by it |
+
+### Overriding it
+Most specific wins:
+
+1. `nodes.<address>.tic.network` — this link, for file echoes only
+2. `nodes.<address>.network` — this link, the key NetMail routing already uses
+3. `ticAreas.<tag>.network` — every downlink of this area
+4. Closest AKA, as above
+
+`ticAreas.<tag>.network` keeps meaning exactly what it always did: it pins the whole area. A configuration that already uses it is not second-guessed by closeness matching. A node-level setting is more specific and overrides it, which is how you carve one link out of a pinned area.
+
+A network name that is not configured falls back to the closest AKA rather than dropping the file, and says so.
+
+### Seenby
+`Seenby` names every AKA you present in the echo, not just one. It is the loop guard, and a peer matches it against the address **it** knows you by — Synchronet's tickit compares by literal string equality — so a peer that knows you by your Fidonet address would not recognise an fsxNet-only `Seenby` and would forward the file straight back at you.
+
+Only the AKAs actually in play for that echo are listed. An address on a network the echo is not carried on has nothing to do with the file and would propagate as noise into every downstream TIC.
+
+Selecting downlinks still treats **all** your addresses as you, across every network, so a `downlinks` list naming one of your own AKAs is recognised as a configuration error rather than fed.
 
 ## See Also
 [Message Networks](../messageareas/message-networks.md)

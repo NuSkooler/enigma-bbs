@@ -3,6 +3,9 @@
 
 const Address = require('./ftn_address.js');
 
+//  deps
+const _ = require('lodash');
+
 //
 //  Shared BSO (Binkley Style Outbound) spool path resolution.
 //
@@ -149,6 +152,81 @@ function resolveNetworkNameForZone(networks, defaultNetwork, zone) {
 }
 
 //
+//  Which of our AKAs should sign traffic to |addr|?
+//
+//  A system with several addresses has to present the right one per link.
+//  resolveNetworkNameForZone() above answers a coarser question -- "which
+//  network owns this zone?" -- and is the right tool when the *directory* is
+//  what is being decided, since a zone maps to exactly one outbound
+//  subdirectory. It is the wrong tool for choosing a From line, because it
+//  takes one answer for a whole area: TIC forwarding picked the network from
+//  the *first* downlink's zone and then signed every downlink with it, so an
+//  echo carried to a Fidonet link and an fsxNet link announced both under
+//  whichever address happened to come first (#757).
+//
+//  The rule is Synchronet tickit's AKA distance matching, which is also what
+//  htick does per link with |downlink->ourAka|:
+//
+//    0   same zone and same net   -- we are a neighbour in their own net
+//    1   same zone                -- same network, a different net
+//    2   neither                  -- a last resort, and usually a
+//                                    misconfiguration rather than a choice
+//
+//  Ties go to |defaultNetwork| and then to configuration order, matching
+//  resolveNetworkNameForZone(), so the two cannot disagree about which network
+//  owns a zone that more than one claims.
+//
+//  Returns { name, address, distance, candidates }, or an empty object when no
+//  network is usable. |candidates| is every network at the winning distance, so
+//  a caller can say when the choice was ambiguous.
+//
+function selectLocalNetworkForAddress(networks, defaultNetwork, addr) {
+    if (!addr || !_.isNumber(addr.zone)) {
+        return {};
+    }
+
+    const scored = [];
+
+    networkNames(networks).forEach(name => {
+        const local = Address.fromString(_.get(networks, [name, 'localAddress']));
+        if (!local || !local.isValid()) {
+            return;
+        }
+
+        //  The network's declared default zone, where it has one, is a better
+        //  statement of what it carries than its localAddress alone -- a system
+        //  whose address is in one zone may still be configured to serve
+        //  another.
+        const zone = resolveNetworkDefaultZone(networks, name);
+        const zoneMatches = addr.zone === zone || addr.zone === local.zone;
+
+        let distance = 2;
+        if (zoneMatches) {
+            distance = addr.net === local.net ? 0 : 1;
+        }
+
+        scored.push({ name, address: local, distance });
+    });
+
+    if (0 === scored.length) {
+        return {};
+    }
+
+    const best = Math.min(...scored.map(s => s.distance));
+    const winners = scored.filter(s => s.distance === best);
+
+    const preferred = resolveDefaultNetworkName(networks, defaultNetwork);
+    const chosen = winners.find(w => w.name === preferred) || winners[0];
+
+    return {
+        name: chosen.name,
+        address: chosen.address,
+        distance: chosen.distance,
+        candidates: winners.map(w => w.name),
+    };
+}
+
+//
 //  ".<zzz>" suffix for |zone| within |networkName|, or "" when |zone| is that
 //  network's default zone. A network whose default zone can't be resolved is
 //  treated as matching nothing, so every zone gets an explicit suffix.
@@ -244,6 +322,7 @@ module.exports = {
     resolveDefaultNetworkName,
     resolveNetworkDefaultZone,
     resolveNetworkNameForZone,
+    selectLocalNetworkForAddress,
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
