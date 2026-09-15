@@ -109,6 +109,7 @@ Valid `ticAreas` members under a given node mapping are as follows:
 | `downlinks` | No | Addresses to forward this area's files on to. See [Forwarding to Downlinks](#forwarding-to-downlinks) |
 | `uplinks` | No | Addresses permitted to **publish** into this area. **Required if `downlinks` is set** — an area with downlinks and no uplinks forwards nothing |
 | `network` | No | Which network in `messageNetworks.ftn.networks` this area belongs to. Only needed when forwarding, and only strictly required if the downlinks' zone is claimed by more than one of your networks |
+| `areaDesc` | No | Description of the echo, written as `Areadesc` into TICs you [hatch](#hatching--originating-a-file). A forwarded TIC carries whatever the hatching system wrote, untouched |
 
 
 💡 Multiple TIC areas can be mapped to a single file base area.
@@ -261,10 +262,50 @@ Forwarding is gated more tightly than importing, because importing affects only 
 Each of these is logged at `warn` with the reason.
 
 ### Replaced files
+The same applies to a file you hatch yourself — see [Hatching](#hatching--originating-a-file).
+
 When a TIC's `Replaces` supersedes a file you have already queued for a downlink that has not yet collected it, the old file **and** its TIC are removed from that downlink's outbound. Anything already sent is left alone. Without this a downlink that polls infrequently would receive both, and the older one would in any case have been deleted locally by then.
 
 ### Checking your configuration
 Problems that would otherwise be silent are reported at startup — an area with `downlinks` but no `uplinks` (which forwards nothing), an area with no resolvable `network`, a downlink missing from `nodes`, a downlink with no `tic.password` (its TICs will carry no `Pw` line), or an area whose zone more than one of your networks claims. If an area imports fine but never forwards, look there first.
+
+## Hatching — Originating a File
+Forwarding passes on a file an uplink sent you. **Hatching** puts one of your own into an echo: your nodelist, your infopack, anything you produce. A hub that cannot hatch can only repeat what it is told.
+
+```bash
+oputil.js fb hatch AREA_TAG FILE [arguments]
+```
+
+`AREA_TAG` is the **FTN** area tag — a `ticAreas` key, i.e. what the echo is called on the network — not the local file base area tag. One local area may carry several echoes, and it is the echo you are publishing into.
+
+The file is copied into that echo's local file base area, scanned and persisted like any other upload, and then announced to every downlink configured for the echo. You are the `Origin`, the `Path` begins with your line, and the `Seenby` is you plus every downlink.
+
+| Argument | Purpose |
+|---|---|
+| `--desc TEXT` | Short description; becomes the TIC's `Desc` |
+| `--ldesc TEXT` | Long description. Repeat for more than one line — `Ldesc` is multi-line and blank lines are kept |
+| `--replaces PATTERN` | 8.3 pattern this file supersedes, e.g. `NODELIST.*` |
+| `--tags TAG1,TAG2` | Hashtags for the file base entry |
+| `--storage-tag TAG` | Storage location; default is the area's first, or the `ticAreas` entry's `storageTag` |
+| `--dry-run` | Print what would be hatched, and the TIC, without writing anything |
+
+### A weekly nodelist
+`--replaces` is what makes this work unattended. It supersedes the previous file **in the same area and from the same origin**, updates the file base entry in place rather than accumulating a second one, dequeues the old file and its TIC from any downlink that has not collected them, and removes the old physical file.
+
+```bash
+oputil.js fb hatch FSX_NODELIST /srv/staging/nodelist.246     --desc "fsxNet nodelist for day 246"     --replaces "NODELIST.*"
+```
+
+Run that from cron each week and downlinks receive exactly one nodelist, never a backlog.
+
+Only **one** match is accepted. A pattern matching several files is refused rather than guessed at, because picking wrong deletes a real file locally *and* pulls it out of every downlink's queue. A pattern matching nothing is fine — that is the first hatch.
+
+### Notes
+- The echo must name `downlinks`, or there is nobody to announce to and the hatch is refused.
+- The echo must name an `areaTag`, since the payload has to live somewhere. Passthrough areas are not yet supported.
+- A name that already exists in the area is refused unless `--replaces` matched it. Storing under one name while announcing another leaves the downlink an orphan it can never pair up, which is the same reason a collision-renamed import is never forwarded.
+- `--desc` and `--ldesc` come off a shell; a line terminator in either is neutralised rather than becoming a keyword line of its own.
+- The `File` keyword is the DOS 8.3 form, derived from the filename; the long name travels as `Lfile`.
 
 ## See Also
 [Message Networks](../messageareas/message-networks.md)

@@ -1887,7 +1887,11 @@
                                                 "type": "string"
                                             },
                                             "downlinks": {},
-                                            "uplinks": {}
+                                            "uplinks": {},
+                                            "areaDesc": {
+                                                "description": "Description of this file echo, written as \"Areadesc\" into TICs we hatch.",
+                                                "type": "string"
+                                            }
                                         },
                                         "patternProperties": {
                                             "^_": true

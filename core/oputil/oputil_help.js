@@ -197,6 +197,12 @@ Actions:
 
   import-areas FILEGATE.ZXX    Import file base areas using FileGate RAID type format
 
+  hatch AREA_TAG FILE          Originate FILE into a file echo we carry
+
+  AREA_TAG is the FTN area tag -- a ticAreas key, i.e. what the echo is called
+  on the network. The file is stored in that echo's local file base area and
+  announced to every downlink configured for it, with us as the Origin.
+
 scan arguments:
   --tags TAG1,TAG2,...         Specify hashtag(s) to assign to discovered entries
 
@@ -211,6 +217,20 @@ scan arguments:
 
 info arguments:
   --show-desc                  Display short description, if any
+
+hatch arguments:
+  --desc TEXT                  Short description (the TIC's Desc)
+  --ldesc TEXT                 Long description; repeat for more than one line
+  --replaces PATTERN           8.3 pattern this file supersedes, e.g. NODELIST.*
+  --tags TAG1,TAG2,...         Hashtag(s) for the file base entry
+  --storage-tag TAG            Storage location; default is the area's first
+  --dry-run                    Report what would be hatched and write nothing
+
+  --replaces is how a weekly nodelist works: it supersedes the previous file in
+  the same area from the same origin, and dequeues it from any downlink that
+  has not collected it yet. Only 0 or 1 match is accepted -- more is refused
+  rather than guessed at, since picking wrong pulls a real file out of every
+  downlink's queue.
 
 remove arguments:
   --phys-file                  Also remove underlying physical file

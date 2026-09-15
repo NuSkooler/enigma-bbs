@@ -1317,6 +1317,109 @@ function setFileDescription() {
     );
 }
 
+//
+//  ./oputil.js fb hatch AREA_TAG FILE [args]
+//
+//  Originate a file into a file echo we carry (#751). AREA_TAG is the *FTN*
+//  area tag -- a ticAreas key, i.e. what the echo is called on the network --
+//  not the local file base area tag, because that is the thing an operator
+//  configuring a hatch is looking at and one local area may carry several
+//  echoes.
+//
+//  The work is in core/tic_hatch.js; this parses arguments and reports. Kept
+//  that way deliberately: hatching needs a live ftn_bso instance and the whole
+//  TIC forwarding machinery, none of which belongs in a CLI wrapper.
+//
+function hatchFile() {
+    const externalAreaTag = argv._[2];
+    const filePath = argv._[3];
+
+    if (!externalAreaTag || !filePath) {
+        return printUsageAndSetExitCode(
+            getHelpFor('FileBase') + getHelpFor('FileOpsInfo'),
+            ExitCodes.BAD_ARGS
+        );
+    }
+
+    const dryRun = true === argv['dry-run'];
+
+    //  Repeatable, so a long description keeps its line breaks: FTS-5006 makes
+    //  Ldesc explicitly multi-line and the blank lines in one are content.
+    const ldesc = []
+        .concat(argv.ldesc === undefined ? [] : argv.ldesc)
+        .map(l => String(l));
+
+    async.waterfall(
+        [
+            callback => initConfigAndDatabases(callback),
+            callback => {
+                const { hatch } = require('../tic_hatch.js');
+                const { getModule } = require('../scanner_tossers/ftn_bso.js');
+
+                hatch(
+                    {
+                        externalAreaTag,
+                        filePath,
+                        ftnBso: new getModule(),
+                        desc: argv.desc,
+                        ldesc,
+                        replaces: argv.replaces,
+                        storageTag: argv['storage-tag'],
+                        hashTags: argv.tags
+                            ? new Set(
+                                  String(argv.tags)
+                                      .split(/[\s,]+/)
+                                      .filter(Boolean)
+                              )
+                            : undefined,
+                        dryRun,
+                    },
+                    callback
+                );
+            },
+        ],
+        (err, info) => {
+            if (err) {
+                process.exitCode = ExitCodes.ERROR;
+                return console.error(err.message);
+            }
+
+            console.info(
+                `${dryRun ? 'Would hatch' : 'Hatched'} ${info.fileName} into ${
+                    info.externalAreaTag
+                } (${info.localAreaTag})`
+            );
+            console.info(`  Origin      ${info.origin.toString('4D')}`);
+            console.info(`  Size        ${info.size}`);
+            if (info.longFileName !== info.fileName) {
+                console.info(`  Long name   ${info.longFileName}`);
+            }
+            if (info.replaced) {
+                console.info(`  Replaces    ${info.replaced.fileName}`);
+            }
+            console.info(
+                `  Downlinks   ${info.downlinks.length} configured for this echo`
+            );
+
+            if (dryRun) {
+                console.info('');
+                console.info('Nothing was written. The TIC would read:');
+                info.ticData
+                    .split('\r\n')
+                    .filter(l => l.length)
+                    .forEach(l => console.info(`  ${l}`));
+                console.info('');
+                console.info(
+                    '...plus Created, Crc, From, To, Pw, Path and Seenby, which are'
+                );
+                console.info(
+                    'generated per downlink. Re-run without --dry-run to hatch.'
+                );
+            }
+        }
+    );
+}
+
 function handleFileBaseCommand() {
     function errUsage() {
         return printUsageAndSetExitCode(
@@ -1348,6 +1451,8 @@ function handleFileBaseCommand() {
 
             desc: setFileDescription,
             description: setFileDescription,
+
+            hatch: hatchFile,
         }[action] || errUsage
     )();
 }
