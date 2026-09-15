@@ -263,6 +263,8 @@ Each of these is logged at `warn` with the reason.
 ### Replaced files
 When a TIC's `Replaces` supersedes a file you have already queued for a downlink that has not yet collected it, the old file **and** its TIC are removed from that downlink's outbound. Anything already sent is left alone. Without this a downlink that polls infrequently would receive both, and the older one would in any case have been deleted locally by then.
 
+The same pairing holds anywhere a reference leaves the outbound: [`oputil bso prune`](../admin/oputil.md) removes a payload and the `.tic` announcing it together. A payload removed on its own would leave the downlink an announcement for a file it never receives.
+
 ### Checking your configuration
 Problems that would otherwise be silent are reported at startup — an area with `downlinks` but no `uplinks` (which forwards nothing), an area with no resolvable `network`, a downlink missing from `nodes`, a downlink with no `tic.password` (its TICs will carry no `Pw` line), or an area whose zone more than one of your networks claims. If an area imports fine but never forwards, look there first.
 

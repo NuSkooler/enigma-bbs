@@ -20,6 +20,10 @@
  *   bso status                 Every node with outbound, and what is wrong
  *   bso list <address>         Every queued entry for one node
  *   bso prune <address>        Drop entries whose file is gone (--yes to write)
+ *
+ * A forwarded file is queued as its payload followed immediately by the TIC
+ * announcing it, so pruning one takes the other -- otherwise the downlink
+ * collects an announcement for a file we never send (#862).
  */
 
 const {
@@ -312,12 +316,22 @@ function cmdPrune(addressArg) {
             } for ${addr.toString()}:`
         );
         for (const entry of removed) {
-            console.info(`  ${entry.path}`);
+            //  A generated TIC that goes with the payload above it. Say so:
+            //  an operator who asked to drop one missing file and sees two
+            //  paths needs to know the second was not a second missing file.
+            const note = 'companion' === entry.status ? '   (TIC announcing it)' : '';
+            console.info(`  ${entry.path}${note}`);
         }
 
         if (!write) {
             console.info('');
-            console.info('Nothing has been changed. Re-run with --yes to remove.');
+            console.info(
+                'Nothing has been changed. Re-run with --yes to remove. A forwarded'
+            );
+            console.info(
+                'payload is dequeued with the TIC announcing it, so more lines may go'
+            );
+            console.info('than are listed here.');
         }
     });
 }

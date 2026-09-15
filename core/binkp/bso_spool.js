@@ -13,6 +13,8 @@ const {
     outboundDirName,
     legacyOutboundDirName,
     DEFAULT_NETWORK_DIR_NAME,
+    withCompanionTicRefs,
+    flowRefBody,
 } = require('../bso_util');
 const bsoLock = require('../bso_lock');
 const { withFlowFileLock, isBusyError } = require('../bso_lock');
@@ -511,9 +513,17 @@ class BsoSpool {
     }
 
     //
-    //  Remove |entries| from |flowPath|. Called with the flow file's .bsy
-    //  lock held, so the read below is the file as it stands and nothing can
-    //  append between it and the write.
+    //  Remove |entries| from |flowPath|, each with the TIC queued alongside it.
+    //  Called with the flow file's .bsy lock held, so the read below is the
+    //  file as it stands and nothing can append between it and the write.
+    //
+    //  The companion rule is withCompanionTicRefs() in bso_util, shared with
+    //  ftn_bso's scrubFlowFileRefs(). It has to be shared: these are the only
+    //  two things that remove a reference from a flow file, and while only one
+    //  of them knew about companions, pruning a payload whose file had gone
+    //  left the '^...tic' announcing it queued and on disk. The downlink then
+    //  collects a TIC for a file it never receives -- #735, but inflicted on
+    //  someone else's system under our From and our Seenby. See #862.
     //
     async _pruneFromFlowFile(flowPath, entries) {
         const content = await fsp.readFile(flowPath, 'utf8').catch(() => null);
@@ -522,20 +532,55 @@ class BsoSpool {
         }
 
         const lines = content.split('\n');
-        const spliced = [];
+
+        //
+        //  Only entries still standing where the listing found them. The
+        //  listing was taken before the lock, so ftn_bso may have appended or
+        //  a session may have marked something since -- and a line that has
+        //  moved says nothing trustworthy about what follows it either, so it
+        //  contributes no companion.
+        //
+        const spliced = entries.filter(
+            e => e.lineIdx < lines.length && lines[e.lineIdx].trim() === e.line
+        );
+
+        const { indices, ticPaths } = withCompanionTicRefs(
+            lines,
+            spliced.map(e => e.lineIdx)
+        );
+
+        //  Report the companions too. An operator told "removed 1" while two
+        //  lines went has been told something false about their own spool.
+        for (const idx of indices) {
+            if (spliced.some(e => e.lineIdx === idx)) {
+                continue;
+            }
+            spliced.push({
+                kind: 'flow',
+                status: 'companion',
+                path: flowRefBody(lines[idx]),
+                size: null,
+                timestamp: null,
+                disposition: 'delete',
+                flowFile: flowPath,
+                lineIdx: idx,
+                line: lines[idx].trim(),
+            });
+        }
 
         //  Descending, so removing one cannot shift the index of the next.
-        for (const entry of entries.slice().sort((a, b) => b.lineIdx - a.lineIdx)) {
-            //  Only if the line is still the one we reported on -- the
-            //  listing was taken before the lock, so ftn_bso may have
-            //  appended or a session may have marked something since.
-            if (
-                entry.lineIdx < lines.length &&
-                lines[entry.lineIdx].trim() === entry.line
-            ) {
-                lines.splice(entry.lineIdx, 1);
-                spliced.push(entry);
-            }
+        for (const idx of Array.from(indices).sort((a, b) => b - a)) {
+            lines.splice(idx, 1);
+        }
+
+        //
+        //  The generated TICs are ours: '^' is delete-after-send, and with the
+        //  reference gone nothing will ever send them. Best effort -- failing
+        //  to unlink one must not cost us the rewrite, which is the half that
+        //  actually stops the downlink receiving it.
+        //
+        for (const ticPath of ticPaths) {
+            await fsp.unlink(ticPath).catch(() => {});
         }
 
         const hasLive = lines.some(l => {
