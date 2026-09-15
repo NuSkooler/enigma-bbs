@@ -8,7 +8,7 @@
 //      * http://ansi-bbs.org/
 //
 //  CTerm / SyncTERM
-//      * https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//      * https://syncterm.bbsdev.net/cterm.html
 //
 //  BananaCom
 //      * http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
@@ -224,7 +224,7 @@ function getBGColorValue(name) {
 //  An array of CTerm/SyncTERM font/encoding values. Each entry's index
 //  corresponds to it's escape sequence value (e.g. cp437 = 0)
 //
-//  See https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//  See https://syncterm.bbsdev.net/cterm.html
 //
 const SYNCTERM_FONT_AND_ENCODING_TABLE = [
     'cp437',
@@ -478,7 +478,7 @@ function goHome() {
 //
 //  See:
 //  http://stjarnhimlen.se/snippets/vt100.txt
-//  https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//  https://syncterm.bbsdev.net/cterm.html
 //
 //  WARNING:
 //  * Not honored by all clients
