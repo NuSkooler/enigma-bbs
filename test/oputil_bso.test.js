@@ -182,7 +182,47 @@ describe('oputil bso', function () {
         assert.ok(!/at .*\.js:\d+/.test(out), `expected no stack trace, got:\n${out}`);
     });
 
-    // ── 6. a live system holding the lock ─────────────────────────────────────
+    // ── 6. the companion TIC (#862) ───────────────────────────────────────────
+
+    it('prune takes the TIC announcing a payload that has gone', async () => {
+        //  End to end through the real CLI, because the defect was that this
+        //  path and ftn_bso's dequeue disagreed about whether companions
+        //  exist. A downlink collecting the leftover TIC gets an announcement
+        //  for a file we never send -- #735 done to somebody else.
+        const { root } = await makeFixture('companion');
+        const flowDir = path.join(root, 'ob', 'outbound');
+        const flowPath = path.join(flowDir, FLOW_NAME);
+
+        const gonePayload = path.join(root, 'filebase', 'NODELIST.246');
+        const ticPath = path.join(flowDir, '0a1b2c3d.tic');
+        await fsp.writeFile(ticPath, 'Area NODELIST\r\nFile NODELIST.246\r\n');
+        await fsp.writeFile(flowPath, `${gonePayload}\n^${ticPath}\n`);
+
+        const { code, out } = runOputil(root, ['prune', NODE, '--yes']);
+
+        assert.equal(code, 0);
+
+        const content = await fsp.readFile(flowPath, 'utf8').catch(() => '');
+        assert.ok(!content.includes(gonePayload), 'the missing payload must go');
+        assert.ok(!content.includes(ticPath), 'and the TIC announcing it');
+
+        assert.equal(
+            await fsp
+                .access(ticPath)
+                .then(() => true)
+                .catch(() => false),
+            false,
+            'the generated TIC must be unlinked, not left in the outbound'
+        );
+
+        assert.ok(
+            out.includes(ticPath),
+            `the operator must be told the TIC went too, got:\n${out}`
+        );
+        assert.match(out, /TIC announcing it/, 'and why it went');
+    });
+
+    // ── 7. a live system holding the lock ─────────────────────────────────────
 
     it('changes nothing while another process holds the node .bsy lock', async () => {
         //  This is the one the review caught: oputil is its own process, so

@@ -1207,6 +1207,147 @@ describe('BsoSpool — pruning missing references', () => {
     });
 });
 
+//
+//  #862. A forwarded file is queued as its payload followed immediately by the
+//  generated TIC announcing it. Only the payload can go missing -- the TIC sits
+//  in the outbound where we wrote it -- so pruning by "is the file gone?" takes
+//  the payload and leaves the announcement queued and sendable. The downlink
+//  then collects a TIC for a file it never receives.
+//
+describe('BsoSpool — pruning a forwarded file takes its TIC with it', () => {
+    beforeEach(cleanOutbound);
+
+    //  What forwardTicToOneDownlink() writes: payload with no directive (it
+    //  lives in our file base), then its TIC with '^' (disposable), in one
+    //  append so the pair stays adjacent.
+    async function seedForward({ payloadExists = false } = {}) {
+        const payload = path.join(tmpDir, 'filebase', 'NODELIST.246');
+        const ticPath = path.join(outboundDir(tmpDir), '0a1b2c3d.tic');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+
+        if (payloadExists) {
+            await fsp.mkdir(path.dirname(payload), { recursive: true });
+            await fsp.writeFile(payload, 'NODELIST');
+        }
+        await fsp.writeFile(ticPath, 'Area NODELIST\r\nFile NODELIST.246\r\n');
+        await fsp.writeFile(flowPath, `${payload}\n^${ticPath}\n`);
+
+        return { payload, ticPath, flowPath };
+    }
+
+    const exists = p =>
+        fsp
+            .access(p)
+            .then(() => true)
+            .catch(() => false);
+
+    it('dequeues the TIC announcing a payload that has gone', async () => {
+        const { payload, ticPath, flowPath } = await seedForward();
+
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        const content = await fsp.readFile(flowPath, 'utf8').catch(() => '');
+        assert.ok(!content.includes(payload), 'the missing payload must be gone');
+        assert.ok(
+            !content.includes(ticPath),
+            'and so must the TIC announcing it -- otherwise the downlink ' +
+                'receives an announcement for a file we never send'
+        );
+    });
+
+    it('unlinks the TIC, which nothing references any more', async () => {
+        const { ticPath } = await seedForward();
+
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.equal(
+            await exists(ticPath),
+            false,
+            "a '^' file with no reference left would sit in the outbound forever"
+        );
+    });
+
+    it('reports the TIC as well, so the operator is not told half a story', async () => {
+        const { payload, ticPath } = await seedForward();
+
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.deepEqual(
+            removed.map(e => e.path).sort(),
+            [payload, ticPath].sort(),
+            'both lines went, so both must be reported'
+        );
+        assert.deepEqual(
+            removed.filter(e => 'companion' === e.status).map(e => e.path),
+            [ticPath],
+            'the TIC is distinguishable from a second missing file'
+        );
+    });
+
+    it('leaves a forward whose payload is still there completely alone', async () => {
+        //  The ordinary case, and the one that must not regress: nothing is
+        //  missing, so nothing is pruned and the pair ships as queued.
+        const { payload, ticPath, flowPath } = await seedForward({
+            payloadExists: true,
+        });
+        const before = await fsp.readFile(flowPath, 'utf8');
+
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.deepEqual(removed, []);
+        assert.equal(await fsp.readFile(flowPath, 'utf8'), before);
+        assert.ok(await exists(ticPath), 'the TIC must still be on disk');
+        assert.ok(await exists(payload), 'and so must the payload');
+    });
+
+    it('does not take a TIC that has already been sent', async () => {
+        //  '~' means the downlink has it. Removing the line changes nothing
+        //  it holds, and unlinking the file destroys the record.
+        const payload = path.join(tmpDir, 'filebase', 'GONE.246');
+        const ticPath = path.join(outboundDir(tmpDir), 'deadbeef.tic');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+
+        //  Something still sendable, so the flow file survives the prune and
+        //  can be read back -- an all-'~' file is removed outright.
+        const live = path.join(outboundDir(tmpDir), 'live.pkt');
+        await fsp.writeFile(live, 'LIVE');
+        await fsp.writeFile(ticPath, 'Area NODELIST\r\n');
+        await fsp.writeFile(flowPath, `${payload}\n~${ticPath}\n^${live}\n`);
+
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.ok(await exists(ticPath), 'a sent TIC must survive');
+        assert.ok(
+            (await fsp.readFile(flowPath, 'utf8')).includes(`~${ticPath}`),
+            'and so must its sent marker'
+        );
+    });
+
+    it('takes only the TIC belonging to the payload that went', async () => {
+        const keep = path.join(tmpDir, 'filebase', 'KEEP.ZIP');
+        const keepTic = path.join(outboundDir(tmpDir), '11111111.tic');
+        const gone = path.join(tmpDir, 'filebase', 'GONE.ZIP');
+        const goneTic = path.join(outboundDir(tmpDir), '22222222.tic');
+        const flowPath = path.join(outboundDir(tmpDir), '00680001.flo');
+
+        await fsp.mkdir(path.dirname(keep), { recursive: true });
+        await fsp.writeFile(keep, 'KEEP');
+        await fsp.writeFile(keepTic, 'Area A\r\n');
+        await fsp.writeFile(goneTic, 'Area A\r\n');
+        await fsp.writeFile(flowPath, `${keep}\n^${keepTic}\n${gone}\n^${goneTic}\n`);
+
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        const content = await fsp.readFile(flowPath, 'utf8');
+        assert.ok(content.includes(keep), 'the live payload must survive');
+        assert.ok(content.includes(keepTic), 'and the TIC announcing it');
+        assert.ok(!content.includes(gone), 'the missing payload must go');
+        assert.ok(!content.includes(goneTic), 'and the TIC announcing it');
+        assert.ok(await exists(keepTic), 'the live TIC must still be on disk');
+        assert.equal(await exists(goneTic), false, 'the dequeued one must not');
+    });
+});
+
 describe('BsoSpool — upper case outbound (FTS-5005.003 §2)', () => {
     beforeEach(cleanOutbound);
 
