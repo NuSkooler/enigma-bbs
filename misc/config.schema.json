@@ -1667,6 +1667,11 @@
                                     "type": "string",
                                     "$comment": "Default: <installation directory>/mail/reject/"
                                 },
+                                "ticTransit": {
+                                    "description": "Payloads for passthrough file echoes, kept only while a downlink still owes them.",
+                                    "type": "string",
+                                    "$comment": "Default: <installation directory>/mail/ftn_tic_transit/"
+                                },
                                 "retain": {
                                     "description": "Copy processed packets here; debugging aid.",
                                     "type": "string"
@@ -1887,7 +1892,11 @@
                                                 "type": "string"
                                             },
                                             "downlinks": {},
-                                            "uplinks": {}
+                                            "uplinks": {},
+                                            "passthrough": {
+                                                "description": "Carry this echo in transit for downlinks rather than storing it in the local file base.",
+                                                "type": "boolean"
+                                            }
                                         },
                                         "patternProperties": {
                                             "^_": true
