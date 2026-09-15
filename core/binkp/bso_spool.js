@@ -13,6 +13,7 @@ const {
     outboundDirName,
     legacyOutboundDirName,
     DEFAULT_NETWORK_DIR_NAME,
+    canonicalNetworkNameForAddress,
 } = require('../bso_util');
 const bsoLock = require('../bso_lock');
 const { withFlowFileLock, isBusyError } = require('../bso_lock');
@@ -593,10 +594,9 @@ class BsoSpool {
     //  canonical directory the per-node .bsy lock lives in -- file lookup goes
     //  through _candidateDirsForZone() instead, which doesn't have to guess.
     _networkNameForAddr(addr) {
-        for (const [name] of Object.entries(this._networks)) {
-            if (addr.zone === this._defaultZone(name)) return name;
-        }
-        return this._defaultNetworkName();
+        //  Shared with the tosser via core/bso_util.js so the directory a file
+        //  is written to and the directory its .bsy is taken in cannot drift.
+        return canonicalNetworkNameForAddress(this._networks, this._defaultNetwork, addr);
     }
 
     //  Canonical directory for |addr|. Deterministic -- the .bsy lock must
