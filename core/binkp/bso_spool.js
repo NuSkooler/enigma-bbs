@@ -14,6 +14,7 @@ const {
     legacyOutboundDirName,
     DEFAULT_NETWORK_DIR_NAME,
     withCompanionTicRefs,
+    companionTicPath,
     flowRefBody,
 } = require('../bso_util');
 const bsoLock = require('../bso_lock');
@@ -549,16 +550,25 @@ class BsoSpool {
             spliced.map(e => e.lineIdx)
         );
 
+        //
         //  Report the companions too. An operator told "removed 1" while two
         //  lines went has been told something false about their own spool.
+        //
+        //  Inserted in line order rather than appended, so the listing reads
+        //  the way the flow file does -- a payload followed by the TIC that
+        //  announces it. Appending them all at the end put two payloads above
+        //  two TICs, and the CLI's "(TIC announcing it)" then named the wrong
+        //  file.
+        //
+        const companions = [];
         for (const idx of indices) {
             if (spliced.some(e => e.lineIdx === idx)) {
                 continue;
             }
-            spliced.push({
+            companions.push({
                 kind: 'flow',
                 status: 'companion',
-                path: flowRefBody(lines[idx]),
+                path: companionTicPath(flowPath, flowRefBody(lines[idx])),
                 size: null,
                 timestamp: null,
                 disposition: 'delete',
@@ -568,19 +578,12 @@ class BsoSpool {
             });
         }
 
+        spliced.push(...companions);
+        spliced.sort((a, b) => a.lineIdx - b.lineIdx);
+
         //  Descending, so removing one cannot shift the index of the next.
         for (const idx of Array.from(indices).sort((a, b) => b - a)) {
             lines.splice(idx, 1);
-        }
-
-        //
-        //  The generated TICs are ours: '^' is delete-after-send, and with the
-        //  reference gone nothing will ever send them. Best effort -- failing
-        //  to unlink one must not cost us the rewrite, which is the half that
-        //  actually stops the downlink receiving it.
-        //
-        for (const ticPath of ticPaths) {
-            await fsp.unlink(ticPath).catch(() => {});
         }
 
         const hasLive = lines.some(l => {
@@ -594,6 +597,25 @@ class BsoSpool {
             //  Nothing left to send; ftn_bso recreates the flow file next
             //  time it queues something, same as a normal drain.
             await fsp.unlink(flowPath).catch(() => {});
+        }
+
+        //
+        //  The generated TICs are ours: '^' is delete-after-send, and with the
+        //  reference gone nothing will ever send them.
+        //
+        //  *After* the rewrite, deliberately. Unlinking first and then failing
+        //  to write (ENOSPC, EROFS, EACCES) would leave the flow file naming
+        //  files that no longer exist, which is the dangling reference #735 is
+        //  about -- and the caller reports the entries as busy, so an operator
+        //  is told nothing happened. This way a failed rewrite leaves
+        //  everything exactly as it was. Best effort in the other direction:
+        //  failing to unlink one leaves litter, not a broken queue.
+        //
+        for (const ref of ticPaths) {
+            const ticPath = companionTicPath(flowPath, ref);
+            if (ticPath) {
+                await fsp.unlink(ticPath).catch(() => {});
+            }
         }
 
         //  Only what actually went. Reporting an entry we decided not to
