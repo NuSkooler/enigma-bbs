@@ -25,10 +25,10 @@ const packageJson = require('../package.json');
 //
 //  Resources
 //  * https://github.com/NuSkooler/ansi-bbs/tree/master/docs/dropfile_formats
-//  * http://goldfndr.home.mindspring.com/dropfile/
+//  * https://web.archive.org/web/20161021073653/http://goldfndr.home.mindspring.com/dropfile/
 //  * https://en.wikipedia.org/wiki/Talk%3ADropfile
-//  * http://thoughtproject.com/libraries/bbs/Sysop/Doors/DropFiles/index.htm
-//  * http://thebbs.org/bbsfaq/ch06.02.htm
+//  * https://web.archive.org/web/20150929184521/http://thoughtproject.com/libraries/bbs/Sysop/Doors/DropFiles/index.htm
+//  * https://web.archive.org/web/20230326180735/http://thebbs.org/bbsfaq/ch06.02.htm
 //  * http://lord.lordlegacy.com/dosemu/
 //
 
@@ -456,7 +456,6 @@ module.exports = class DropFile {
     getDoor32Buffer() {
         //
         //  Resources:
-        //  * http://wiki.bbses.info/index.php/DOOR32.SYS
         //  * https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
         //
         const commType = {
@@ -503,7 +502,7 @@ module.exports = class DropFile {
     getDoorInfoDefBuffer() {
         //
         //  Resources:
-        //  * http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm
+        //  * https://web.archive.org/web/20160321190038/http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm
         //
         //  Note that usernames are just used for first/last names here
         //

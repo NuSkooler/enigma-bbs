@@ -292,7 +292,7 @@ function parseAreasBbsLine(line, entries, skipped) {
     //
     //  Various formats for AREAS.BBS exist; we support as much as possible.
     //
-    //  SBBS http://www.synchro.net/docs/sbbsecho.html#AREAS.BBS
+    //  SBBS http://wiki.synchro.net/util:sbbsecho#area_file
     //  CODE    TAG     UPLINKS
     //
     //  VADV https://www.vadvbbs.com/products/vadv/support/docs/docs_vfido.php#AREAS.BBS

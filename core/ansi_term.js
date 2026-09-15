@@ -15,7 +15,7 @@
 //
 //  ANSI.SYS
 //      * http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/ansisys.txt
-//      * http://academic.evergreen.edu/projects/biophysics/technotes/program/ansi_esc.htm
+//      * https://web.archive.org/web/20171127212404/http://academic.evergreen.edu/projects/biophysics/technotes/program/ansi_esc.htm
 //
 //  Modern Windows (Win10+)
 //      * https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences

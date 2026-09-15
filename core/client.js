@@ -178,7 +178,7 @@ function Client(/*input, output*/) {
     //
     this.getTermClient = function (deviceAttr) {
         let termClient = {
-            '63;1;2': 'arctel', //  http://www.fbl.cz/arctel/download/techman.pdf - Irssi ConnectBot (Android)
+            '63;1;2': 'arctel', //  https://web.archive.org/web/20190828112223/http://www.fbl.cz/arctel/download/techman.pdf - Irssi ConnectBot (Android)
             '50;86;84;88': 'vtx', //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
         }[deviceAttr];
 
@@ -389,7 +389,7 @@ function Client(/*input, output*/) {
                 //  - ANSI-BBS uses 0x7f for DEL
                 //  - xterm et. al clients send 0x7f for backspace... ugg.
                 //
-                //  See http://www.hypexr.org/linux_ruboff.php
+                //  See https://www.hypexr.org/linux_ruboff.html
                 //  And a great discussion @ https://lists.debian.org/debian-i18n/1998/04/msg00015.html
                 //
                 if (self.term.isNixTerm()) {

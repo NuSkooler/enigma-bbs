@@ -216,7 +216,7 @@ function FTNMessageScanTossModule() {
         //  *   HEX UNIX timestamp
         //  *   Mystic at least at one point, used Hex8(day of month + seconds past midnight + hundredths of second)
         //      See https://groups.google.com/forum/#!searchin/alt.bbs.mystic/netmail$20filename/alt.bbs.mystic/m1xLnY8i1pU/YnG2excdl6MJ
-        //  *   SBBSEcho uses DDHHMMSS - see https://github.com/ftnapps/pkg-sbbs/blob/master/docs/fidonet.txt
+        //  *   SBBSEcho uses DDHHMMSS - see https://gitlab.synchro.net/main/sbbs/-/blob/master/docs/fidonet.txt
         //  *   We already have a system for 8-character serial number gernation that is
         //      used for e.g. in FTS-0009.001 MSGIDs... let's use that!
         //
@@ -510,7 +510,7 @@ function FTNMessageScanTossModule() {
 
             //
             //  We need to set INTL, and possibly FMPT and/or TOPT
-            //  See http://retro.fidoweb.ru/docs/index=ftsc&doc=FTS-4001&enc=mac
+            //  See http://ftsc.org/docs/fts-4001.001
             //
             message.meta.FtnKludge.INTL = ftnUtil.getIntl(
                 options.destAddress,
