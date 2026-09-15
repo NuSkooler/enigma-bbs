@@ -327,7 +327,16 @@ class BsoSpool {
     //  'missing' entry is one whose reference resolves to no file on disk,
     //  which is the condition that never resolves itself.
     //
-    async inspectOutbound() {
+    //
+    //  |options.onUnreadable| is called with the path of any flow file that
+    //  could not be read at all. This is a *report*: it skips what it cannot
+    //  read and carries on, which is right for an operator listing and wrong
+    //  for anything that deletes based on the answer. A caller doing the latter
+    //  -- the passthrough transit sweep -- has to know the picture is
+    //  incomplete, because a node whose flow file we could not read contributes
+    //  zero references and its files then look unwanted.
+    //
+    async inspectOutbound(options = {}) {
         const byNode = new Map();
 
         const add = (addr, entry) => {
@@ -358,6 +367,9 @@ class BsoSpool {
 
             const content = await fsp.readFile(filePath, 'utf8').catch(() => null);
             if (null === content) {
+                if (options.onUnreadable) {
+                    options.onUnreadable(filePath);
+                }
                 return;
             }
 

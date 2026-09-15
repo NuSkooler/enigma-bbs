@@ -72,6 +72,14 @@ module.exports = class TicFileInfo {
             PayloadIncomplete: 'TIC_PAYLOAD_INCOMPLETE',
             //  present and complete-looking, but Size/CRC-32/SHA-256 disagree
             PayloadMismatch: 'TIC_PAYLOAD_MISMATCH',
+            //
+            //  Imported fine, but could not be queued for a single downlink --
+            //  every one of them was busy. Only meaningful for a passthrough
+            //  area, where the payload is not kept locally and "queued for
+            //  nobody" therefore means "about to be swept". Retry rather than
+            //  lose it.
+            //
+            ForwardDeferred: 'TIC_FORWARD_DEFERRED',
         };
     }
 
@@ -81,6 +89,22 @@ module.exports = class TicFileInfo {
     //  in a *later* mailer session than its announcement, and a mailer that writes
     //  straight into the inbound (binkd and friends) can be observed mid-transfer.
     //
+    //
+    //  Should |err| be held and retried on a later pass, rather than rejected?
+    //
+    //  Two quite different reasons land here: the payload has not arrived yet
+    //  (the common one, below) and a passthrough file that could not be queued
+    //  for any downlink because they were all busy. Both are transient, both
+    //  are bounded by tic.holdMaxAgeMs, and rejecting either loses a file that
+    //  would have gone out on the next pass.
+    //
+    static isRetryableError(err) {
+        if (TicFileInfo.isPayloadPendingError(err)) {
+            return true;
+        }
+        return !!err && TicFileInfo.ReasonCodes.ForwardDeferred === err.reasonCode;
+    }
+
     static isPayloadPendingError(err) {
         if (!err) {
             return false;
@@ -420,11 +444,28 @@ module.exports = class TicFileInfo {
                     stream.on('data', data => {
                         sizeActual += data.length;
 
-                        //  sha256 if possible, else crc32
+                        //
+                        //  Both, always. The CRC-32 is what *verifies* the file
+                        //  only when there is no Sha256 -- but it is also what
+                        //  the writer emits on every outgoing TIC, and it emits
+                        //  the computed value rather than the announced one
+                        //  precisely so we never vouch for a number nothing
+                        //  checked (see TicFileWriter.regeneratedKeywords).
+                        //
+                        //  Computing it only in the else branch left
+                        //  localInfo.crc32 undefined for any TIC carrying a
+                        //  Sha256. A stored area never noticed, because the
+                        //  scanner computes file_crc32 on the way into the file
+                        //  base and the writer prefers that; a passthrough area
+                        //  skips the scanner, so it forwarded with no Crc line
+                        //  at all -- and Crc is a required field, so every
+                        //  downlink rejected it.
+                        //
+                        //  One more pass over a buffer we already hold.
+                        //
+                        crc.update(data);
                         if (sha256) {
                             sha256.update(data);
-                        } else {
-                            crc.update(data);
                         }
                     });
 
@@ -455,6 +496,17 @@ module.exports = class TicFileInfo {
                         //  flight, and htick likewise re-queues on bad CRC. The
                         //  caller holds it, then rejects once the hold expires.
                         //
+                        //
+                        //  Always recorded; only *verified* against the
+                        //  announced value when there is no Sha256 to verify
+                        //  instead. A TIC carrying both has its Sha256 checked
+                        //  and its announced Crc ignored, which is deliberate:
+                        //  the stronger digest is the one we trust, and the
+                        //  weaker announced one is not worth failing over.
+                        //
+                        const crcActual = crc.finalize();
+                        localInfo.crc32 = crcActual;
+
                         if (sha256) {
                             const sha256Actual = sha256.digest('hex');
                             if (sha256Tic != sha256Actual) {
@@ -467,17 +519,13 @@ module.exports = class TicFileInfo {
                             }
 
                             localInfo.sha256 = sha256Actual;
-                        } else {
-                            const crcActual = crc.finalize();
-                            if (crcActual !== crcTic) {
-                                return callback(
-                                    Errors.Invalid(
-                                        `TIC "Crc" of ${crcTic} does not match actual CRC-32 of ${crcActual}`,
-                                        codes.PayloadMismatch
-                                    )
-                                );
-                            }
-                            localInfo.crc32 = crcActual;
+                        } else if (crcActual !== crcTic) {
+                            return callback(
+                                Errors.Invalid(
+                                    `TIC "Crc" of ${crcTic} does not match actual CRC-32 of ${crcActual}`,
+                                    codes.PayloadMismatch
+                                )
+                            );
                         }
 
                         return callback(null, localInfo);

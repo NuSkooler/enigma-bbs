@@ -2918,6 +2918,9 @@ function FTNMessageScanTossModule() {
             fileName,
             localInfo.externalAreaTag,
             isReferenced,
+            //  What a "Replaces" matched, if anything. findExistingItem() has
+            //  already resolved it; a same-name supersede is not a duplicate.
+            localInfo.oldPath,
             (err, finalPath) => {
                 if (err) {
                     return cb(err);
@@ -2957,9 +2960,31 @@ function FTNMessageScanTossModule() {
             defaultNetwork: _.get(config, 'scannerTossers.ftn_bso.defaultNetwork'),
         });
 
+        //
+        //  A flow file we could not read contributes no references, which is
+        //  indistinguishable from a node that owes nothing -- and both callers
+        //  of this treat "unreferenced" as permission to destroy something. So
+        //  an incomplete answer is no answer.
+        //
+        //  Not hypothetical: _applyFlowDispositionLocked() and
+        //  _pruneFromFlowFile() rewrite a flow file with a plain writeFile,
+        //  which truncates in place, and inspectOutbound() reads without the
+        //  .bsy lock. A read landing mid-rewrite returns ''. performImport runs
+        //  on NewInboundBSO, i.e. during exactly that activity.
+        //
+        const unreadable = [];
+
         spool
-            .inspectOutbound()
+            .inspectOutbound({ onUnreadable: p => unreadable.push(p) })
             .then(nodes => {
+                if (unreadable.length > 0) {
+                    return cb(
+                        Errors.General(
+                            `${unreadable.length} flow file(s) could not be read; the outbound picture is incomplete`
+                        )
+                    );
+                }
+
                 const referenced = new Set();
                 nodes.forEach(node =>
                     node.entries.forEach(entry => {
@@ -3052,10 +3077,16 @@ function FTNMessageScanTossModule() {
                             .getAsString('Area')
                             .toUpperCase();
 
-                        //  We may need to map |localAreaTag| back to real areaTag if it's a mapping/alias
-                        const mappedLocalAreaTag = _.get(
-                            Config().scannerTossers.ftn_bso,
-                            ['ticAreas', localInfo.areaTag]
+                        //
+                        //  We may need to map |localAreaTag| back to real
+                        //  areaTag if it's a mapping/alias. Matched case
+                        //  insensitively, as forwarding and the publish check
+                        //  both do -- see ticForward.areaConfigFor() for what
+                        //  the three of them disagreeing used to cost.
+                        //
+                        const mappedLocalAreaTag = ticForward.areaConfigFor(
+                            _.get(Config(), 'scannerTossers.ftn_bso.ticAreas'),
+                            localInfo.areaTag
                         );
 
                         if (mappedLocalAreaTag) {
@@ -3406,8 +3437,58 @@ function FTNMessageScanTossModule() {
                     //  must not turn a successful import into a rejection, which
                     //  would archive the TIC and its payload.
                     //
-                    self.forwardTicToDownlinks(ticFileInfo, localInfo, () => {
-                        return callback(null, localInfo);
+                    self.forwardTicToDownlinks(ticFileInfo, localInfo, (_e, result) => {
+                        //
+                        //  A stored area is done here either way: the payload
+                        //  is in the file base, and a downlink we could not
+                        //  queue for simply missed this file.
+                        //
+                        if (!localInfo.passthrough) {
+                            return callback(null, localInfo);
+                        }
+
+                        //
+                        //  A passthrough area keeps no local copy, so a file
+                        //  queued for nobody is a file about to be swept. If we
+                        //  tried every downlink and got none of them -- all
+                        //  busy, which is the ordinary state of a node that is
+                        //  mid-session, and performImport runs on exactly that
+                        //  event -- then finishing "successfully" here unlinks
+                        //  the inbound TIC and payload and the sweep destroys
+                        //  the last copy. Silently, with no retry.
+                        //
+                        //  So: take the transit copy back out (nothing
+                        //  references it, by definition of queued === 0) and
+                        //  hold the TIC for the next pass, the same way a
+                        //  payload that has not arrived yet is held. Bounded by
+                        //  tic.holdMaxAgeMs like any other hold.
+                        //
+                        const stalled =
+                            result && result.attempted > 0 && 0 === result.queued;
+
+                        if (!stalled) {
+                            return callback(null, localInfo);
+                        }
+
+                        Log.info(
+                            {
+                                tic: ticFileInfo.path,
+                                area: localInfo.externalAreaTag,
+                                downlinks: result.attempted,
+                            },
+                            'No downlink could be queued for this passthrough file; holding it for the next pass'
+                        );
+
+                        return fs.unlink(localInfo.newPath, () =>
+                            callback(
+                                Errors.General(
+                                    `Could not queue "${paths.basename(
+                                        localInfo.newPath
+                                    )}" for any downlink of ${localInfo.externalAreaTag}`,
+                                    TicFileInfo.ReasonCodes.ForwardDeferred
+                                )
+                            )
+                        );
                     });
                 },
                 function cleanupOldFile(localInfo, callback) {
@@ -3460,9 +3541,7 @@ function FTNMessageScanTossModule() {
                     //  whether to hold or reject and says so at a useful level;
                     //  logging it as a failure here would only be noise.
                     //
-                    const level = TicFileInfo.isPayloadPendingError(err)
-                        ? 'debug'
-                        : 'error';
+                    const level = TicFileInfo.isRetryableError(err) ? 'debug' : 'error';
 
                     Log[level](
                         {
@@ -3680,9 +3759,19 @@ function FTNMessageScanTossModule() {
             return cb(null);
         }
 
-        if (oldPath === localInfo.newPath) {
-            return cb(null); //  replaced in place; the reference is still good
-        }
+        //
+        //  A file replaced *in place* keeps its path, so the queued reference
+        //  still resolves -- but the TIC queued alongside it announces the old
+        //  file's Crc, Size and Desc for bytes that are now the new file's. A
+        //  downlink that has not collected yet would be offered both
+        //  announcements for one payload and reject the stale one outright.
+        //
+        //  So the pair still has to be dequeued; the new one is appended
+        //  immediately afterwards by queueTicForDownlinks(). This used to
+        //  return early here, which was right about the reference and wrong
+        //  about what it references. Anything already sent is marked '~' and is
+        //  left alone by scrubFlowFileRefs() either way.
+        //
 
         async.eachSeries(
             downlinks,
@@ -3838,15 +3927,19 @@ function FTNMessageScanTossModule() {
     //
     this.forwardTicToDownlinks = function (ticFileInfo, localInfo, cb) {
         const config = Config();
-        const ticAreaConfig = _.get(config.scannerTossers.ftn_bso, [
-            'ticAreas',
-            localInfo.externalAreaTag.toLowerCase(),
-        ]);
+        const ticAreaConfig = ticForward.areaConfigFor(
+            _.get(config, 'scannerTossers.ftn_bso.ticAreas'),
+            localInfo.externalAreaTag
+        );
+
+        //  Nothing was attempted on any of the early returns below, which is
+        //  what distinguishes "not owed to anybody" from "owed and not queued".
+        const nothingAttempted = () => cb(null, { attempted: 0, queued: 0 });
 
         const downlinks = ticForward.downlinksOf(ticAreaConfig);
         if (0 === downlinks.length) {
             //  The ordinary case for a leaf system. Not worth a log line per file.
-            return cb(null);
+            return nothingAttempted();
         }
 
         const gate = self.canForwardTic(ticFileInfo, localInfo, ticAreaConfig);
@@ -3860,7 +3953,7 @@ function FTNMessageScanTossModule() {
                 },
                 'Not forwarding TIC to downlinks'
             );
-            return cb(null);
+            return nothingAttempted();
         }
 
         //
@@ -3881,7 +3974,7 @@ function FTNMessageScanTossModule() {
                 },
                 'Not forwarding TIC; the file collided and was stored under another name'
             );
-            return cb(null);
+            return nothingAttempted();
         }
 
         const networkName =
@@ -3899,7 +3992,7 @@ function FTNMessageScanTossModule() {
                 },
                 'Cannot forward TIC: no usable local address for this area\'s network; set "network" on the ticAreas entry'
             );
-            return cb(null);
+            return nothingAttempted();
         }
 
         const defaultZone = self.getDefaultZone(networkName) || ourAddress.zone;
@@ -3924,7 +4017,9 @@ function FTNMessageScanTossModule() {
         });
 
         if (0 === candidates.length) {
-            return cb(null);
+            //  Every downlink already has it, or is the sender. Genuinely owed
+            //  to nobody, so a passthrough copy is correctly swept.
+            return nothingAttempted();
         }
 
         //
@@ -3974,6 +4069,8 @@ function FTNMessageScanTossModule() {
         //  outbound directory, and serialising keeps their flow file appends
         //  from contending for the same .bsy.
         //
+        let queued = 0;
+
         async.eachSeries(
             candidates,
             (downlink, nextDownlink) => {
@@ -3994,13 +4091,23 @@ function FTNMessageScanTossModule() {
                                 },
                                 'Failed forwarding TIC to downlink'
                             );
+                        } else {
+                            queued++;
                         }
                         return nextDownlink(null);
                     }
                 );
             },
             () => {
-                return cb(null);
+                //
+                //  What actually got queued. A stored area does not care --
+                //  the payload is in the file base either way and a missed
+                //  downlink is a missed downlink. A passthrough area very much
+                //  does: it keeps no local copy, so "attempted some, queued
+                //  none" means nothing references the transit file and the
+                //  sweep is about to delete it. See forwardToDownlinks().
+                //
+                return cb(null, { attempted: candidates.length, queued });
             }
         );
     };
@@ -5056,7 +5163,7 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function (
                             //  next pass rather than rejecting the announcement
                             //  and orphaning the file that follows it.
                             //
-                            if (!TicFileInfo.isPayloadPendingError(err)) {
+                            if (!TicFileInfo.isRetryableError(err)) {
                                 return reject();
                             }
 
@@ -5129,10 +5236,10 @@ FTNMessageScanTossModule.prototype.authorizeTicSenderForArea = function (ticFile
 
     const externalAreaTag = (ticFileInfo.getAsString('Area') || '').toUpperCase();
 
-    const ticAreaConfig = _.get(Config().scannerTossers.ftn_bso, [
-        'ticAreas',
-        externalAreaTag.toLowerCase(),
-    ]);
+    const ticAreaConfig = ticForward.areaConfigFor(
+        _.get(Config(), 'scannerTossers.ftn_bso.ticAreas'),
+        externalAreaTag
+    );
 
     const uplinks = ticForward.uplinksOf(ticAreaConfig);
 
@@ -5179,6 +5286,24 @@ FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
         //  "no downlinks" as "nothing to do", which is right for a stored area
         //  and wrong for this one.
         //
+        //
+        //  No local area and no "passthrough": every TIC for this echo will
+        //  fail in store(), which is the behaviour that predates passthrough
+        //  and is not obviously wrong -- but it is silent, and the operator
+        //  almost certainly meant one thing or the other.
+        //
+        if (
+            !ticPassthrough.isPassthroughArea(areaConfig) &&
+            _.isObject(areaConfig) &&
+            !_.isString(areaConfig.areaTag) &&
+            !getFileAreaByTag(externalTag)
+        ) {
+            Log.warn(
+                { ticArea: externalTag },
+                'TIC area names no "areaTag" and is not marked "passthrough: true", so it has nowhere to put a file; every TIC for it will be rejected'
+            );
+        }
+
         if (ticPassthrough.isPassthroughArea(areaConfig) && 0 === downlinks.length) {
             Log.warn(
                 { ticArea: externalTag },

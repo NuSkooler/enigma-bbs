@@ -375,10 +375,13 @@ module.exports = {
                 network: { type: 'string' },
                 downlinks: {},
                 uplinks: {},
+                //
                 //  Carry this echo for downlinks without storing it locally
-                //  (#753). An absent areaTag means the same thing; the
-                //  explicit key is so the intent reads in config.hjson, and
-                //  so a *typo* in areaTag is not quietly reinterpreted.
+                //  (#753). Required explicitly and never inferred from an
+                //  absent areaTag: a ticAreas key is matched against
+                //  fileBase.areas too, so such an entry may well be a working
+                //  stored area that inference would turn into a deleting one.
+                //
                 passthrough: {
                     type: 'boolean',
                     description:

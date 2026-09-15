@@ -36,10 +36,27 @@ describe('tic_passthrough — recognising a transit echo', () => {
         assert.equal(ticPassthrough.isPassthroughArea({ passthrough: true }), true);
     });
 
-    it('takes an absent areaTag to mean the same thing', () => {
-        //  There is no local area to store into, which is what passthrough is.
-        assert.equal(ticPassthrough.isPassthroughArea({ downlinks: [DOWNLINK] }), true);
-        assert.equal(ticPassthrough.isPassthroughArea({ areaTag: '' }), true);
+    it('does NOT infer it from an absent areaTag', () => {
+        //
+        //  It looks like it should mean the same thing, and inferring it was
+        //  the original design. But this entry works today -- the key is
+        //  matched against fileBase.areas as well as ticAreas, so the echo is
+        //  stored there and its files stay:
+        //
+        //      fileBase: { areas:   { fsx_gen: {...} } }
+        //      ticAreas: { fsx_gen: { uplinks: [...], downlinks: [...] } }
+        //
+        //  Inferring passthrough would silently reinterpret that, on upgrade,
+        //  as "forward these and then delete them". A typo in areaTag would do
+        //  the same. When guessing wrong destroys files, the flag is explicit.
+        //
+        assert.equal(ticPassthrough.isPassthroughArea({ downlinks: [DOWNLINK] }), false);
+        assert.equal(ticPassthrough.isPassthroughArea({ areaTag: '' }), false);
+        assert.equal(
+            ticPassthrough.isPassthroughArea({ areaTgas: 'fsx_gen' }),
+            false,
+            'a misspelled areaTag must not become passthrough either'
+        );
     });
 
     it('does not treat a stored area as passthrough', () => {
@@ -60,10 +77,23 @@ describe('tic_passthrough — recognising a transit echo', () => {
             true
         );
     });
+
+    it('takes only a literal true, not anything truthy', () => {
+        //  hjson will hand us a string for an unquoted value, and "false"
+        //  is truthy. Turning a file echo into a deleting one on the strength
+        //  of that is not a trade worth making.
+        for (const v of ['true', 'false', 1, 'yes', {}]) {
+            assert.equal(
+                ticPassthrough.isPassthroughArea({ passthrough: v }),
+                false,
+                JSON.stringify(v)
+            );
+        }
+    });
 });
 
 describe('tic_passthrough — the Replaces glob', () => {
-    const matches = (glob, name) => ticPassthrough.globToRegExp(glob).test(name);
+    const matches = (glob, name) => ticPassthrough.globMatches(glob, name);
 
     it("matches '*' and '?' the way a DOS pattern does", () => {
         assert.ok(matches('NODELIST.*', 'nodelist.246'));
@@ -86,7 +116,49 @@ describe('tic_passthrough — the Replaces glob', () => {
         assert.ok(!matches('A.ZIP', 'AXZIP'));
         assert.ok(matches('A.ZIP', 'A.ZIP'));
         assert.doesNotThrow(() => matches('bad(pattern[', 'anything'));
+        assert.ok(matches('bad(pattern[', 'bad(pattern['));
         assert.ok(matches('cost$100.zip', 'cost$100.zip'));
+    });
+
+    it('handles the degenerate patterns without special-casing them', () => {
+        assert.ok(matches('*', 'anything'));
+        assert.ok(matches('**', 'x'));
+        assert.ok(matches('*X', 'X'), 'a leading star may match nothing');
+        assert.ok(matches('X*', 'X'), 'and so may a trailing one');
+        assert.ok(matches('', ''));
+        assert.ok(!matches('', 'x'));
+        assert.ok(!matches('?', ''), "'?' requires a character");
+    });
+
+    it('matches a run of wildcards in linear time, not exponential', () => {
+        //
+        //  The reason this is a scanner and not a RegExp. Mapping '*' to '.*'
+        //  backtracks catastrophically: against this same 34-character name,
+        //  six stars took 43ms, eight took 1.5s and ten took 36s -- about 5x
+        //  per added star. "Replaces" comes off a peer's TIC and is matched
+        //  synchronously inside an import pass, so that is a remote peer
+        //  wedging the event loop for as long as it likes. Not even the import
+        //  watchdog fires, because its setTimeout cannot run either.
+        //
+        //  A generous budget: the point is the difference between milliseconds
+        //  and minutes, not a precise timing assertion on a shared CI box.
+        //
+        const name = 'FSXNET-2026-01-01-NODELIST-BIG.ZIP';
+        const started = Date.now();
+
+        for (const stars of [10, 20, 40, 60]) {
+            assert.equal(
+                matches('*'.repeat(stars) + 'zz', name),
+                false,
+                `${stars} stars should simply not match`
+            );
+        }
+
+        const elapsed = Date.now() - started;
+        assert.ok(
+            elapsed < 1000,
+            `four hostile patterns should take milliseconds, took ${elapsed}ms`
+        );
     });
 });
 
@@ -214,6 +286,7 @@ describe('TIC passthrough end to end', function () {
         fileName = 'COOLAPP.ZIP',
         content = 'payload v1',
         replaces,
+        sha256 = false,
     } = {}) {
         const d = dirs();
         fs.writeFileSync(paths.join(d.secInbound, fileName), content);
@@ -235,6 +308,17 @@ describe('TIC passthrough end to end', function () {
         ];
         if (replaces) {
             fields.splice(7, 0, `Replaces ${replaces}`);
+        }
+
+        //  Mystic and tickit send this; htick does not. When it is present our
+        //  reader verifies it and ignores the announced Crc.
+        if (sha256) {
+            fields.push(
+                `Sha256 ${require('crypto')
+                    .createHash('sha256')
+                    .update(Buffer.from(content))
+                    .digest('hex')}`
+            );
         }
 
         const ticPath = paths.join(d.secInbound, `T000000${seq++}.TIC`);
@@ -377,6 +461,40 @@ describe('TIC passthrough end to end', function () {
             );
         });
 
+        it('sweeps nothing when a flow file cannot be read', async () => {
+            //
+            //  inspectOutbound() is a report: it skips what it cannot read and
+            //  carries on. A node whose flow file we could not read therefore
+            //  contributes zero references, which looks exactly like a node
+            //  that owes nothing -- and the sweep would delete every file that
+            //  node was still owed. An incomplete answer has to be no answer.
+            //
+            deliver();
+            await importOnce();
+            assert.deepEqual(transitFiles(), ['COOLAPP.ZIP']);
+
+            const { dir, flowName } = await spoolState();
+            const flowPath = paths.join(dir, flowName);
+            const saved = fs.readFileSync(flowPath);
+
+            //  Unreadable rather than absent: absent means the node genuinely
+            //  owes nothing, which is the case the sweep is *for*.
+            fs.chmodSync(flowPath, 0o000);
+
+            try {
+                await importOnce();
+            } finally {
+                fs.chmodSync(flowPath, 0o644);
+                fs.writeFileSync(flowPath, saved);
+            }
+
+            assert.deepEqual(
+                transitFiles(),
+                ['COOLAPP.ZIP'],
+                'a file we cannot prove is unwanted must be kept'
+            );
+        });
+
         it('leaves another echo’s transit files alone', async () => {
             deliver();
             await importOnce();
@@ -392,6 +510,186 @@ describe('TIC passthrough end to end', function () {
             //  other_echo is not a configured passthrough area, so the sweep
             //  must not walk it at all.
             assert.deepEqual(fs.readdirSync(otherDir), ['THEIRS.ZIP']);
+        });
+    });
+
+    it('forwards a Sha256-bearing TIC with a Crc line', async () => {
+        //
+        //  validate() verifies whichever digest is stronger and used to record
+        //  only that one. A stored area never noticed the gap, because the
+        //  scanner computes file_crc32 on the way into the file base and the
+        //  writer prefers it. A passthrough area skips the scanner, so it
+        //  forwarded with no Crc at all -- and Crc is a required field, so
+        //  every downlink rejected the TIC outright. Silent non-delivery.
+        //
+        const payload = 'sha256 payload bytes';
+        deliver({ content: payload, sha256: true });
+        await importOnce();
+
+        const { dir, tics } = await spoolState();
+        assert.equal(tics.length, 1);
+
+        const content = fs.readFileSync(paths.join(dir, tics[0]), 'utf8');
+        const crc = content.split('\r\n').find(l => l.startsWith('Crc '));
+
+        assert.ok(crc, `the forwarded TIC must carry a Crc, got:\n${content}`);
+
+        //
+        //  The *right* Crc, not merely a line shaped like one. Asserting only
+        //  the shape passes when the digest is never fed any data: an unfed
+        //  CRC-32 finalises to 00000000, which is eight hex digits and a lie.
+        //  Every htick and Mystic downlink verifies this number and rejects the
+        //  file with our name on the From line when it disagrees.
+        //
+        const expected = new CRC32();
+        expected.update(Buffer.from(payload));
+        assert.equal(
+            crc,
+            `Crc ${`00000000${expected.finalize().toString(16)}`
+                .slice(-8)
+                .toUpperCase()}`,
+            'the Crc must be computed from the payload we actually forward'
+        );
+    });
+
+    it('does not stall the import on a hostile Replaces pattern', async () => {
+        //
+        //  The pattern reaches us from a peer's TIC and is matched
+        //  synchronously inside the import pass. With a regex built by mapping
+        //  '*' to '.*', ten stars against a name this length took 36 seconds of
+        //  blocked event loop -- every user session, the web server and every
+        //  timer with it, and not even the import watchdog fires because its
+        //  setTimeout cannot run either.
+        //
+        //  Driven through the real import path rather than the matcher alone,
+        //  because the matcher being linear is only useful if it is the thing
+        //  actually called.
+        //
+        push({ tic: { allowReplace: true } });
+
+        deliver({ fileName: 'FSXNET-2026-01-01-NODELIST-BIG.ZIP', content: 'a' });
+        await importOnce();
+        assert.deepEqual(transitFiles(), ['FSXNET-2026-01-01-NODELIST-BIG.ZIP']);
+
+        deliver({
+            fileName: 'OTHER.ZIP',
+            content: 'b',
+            replaces: '*'.repeat(30) + 'zz',
+        });
+
+        const started = Date.now();
+        await importOnce();
+        const elapsed = Date.now() - started;
+
+        assert.ok(
+            elapsed < 5000,
+            `a hostile pattern must not stall the pass, took ${elapsed}ms`
+        );
+    });
+
+    describe('a downlink that is busy must not cost us the file', () => {
+        //
+        //  The file base is what makes a failed forward survivable for a
+        //  stored area: the payload stays put and the downlink simply missed
+        //  it. A passthrough area has no such copy, so "queued for nobody" and
+        //  "swept" are the same thing -- and a node holding its FTS-5005 .bsy
+        //  is the ordinary state of one that is mid-session, which is exactly
+        //  when performImport runs (NewInboundBSO triggers it).
+        //
+        const bsoLock = require('../core/bso_lock');
+
+        //  The canonical per-node lock a BinkP session would hold.
+        function lockPathFor(base) {
+            return paths.join(dirs().outbound, 'outbound', `${base}.bsy`);
+        }
+
+        it('keeps the file and holds the TIC when every downlink is busy', async () => {
+            const bsy = lockPathFor(FLOW_BASE);
+            await fsp.mkdir(paths.dirname(bsy), { recursive: true });
+            assert.equal(
+                await bsoLock.acquire(bsy, { staleMaxAgeMs: 600000 }),
+                true,
+                'the test could not take the lock it means to hold'
+            );
+
+            try {
+                deliver({ fileName: 'IMPORTANT.ZIP', content: 'irreplaceable' });
+                await importOnce();
+            } finally {
+                await bsoLock.release(bsy);
+            }
+
+            //  Nothing queued, so nothing may have been thrown away.
+            assert.deepEqual(
+                transitFiles(),
+                [],
+                'the transit copy goes, since nothing references it'
+            );
+            assert.deepEqual(
+                fs.readdirSync(dirs().reject),
+                [],
+                'and it must not be rejected -- a busy node is a deferral'
+            );
+
+            const inbound = fs.readdirSync(dirs().secInbound);
+            assert.ok(
+                inbound.includes('IMPORTANT.ZIP'),
+                `the payload must stay in the inbound, got ${inbound}`
+            );
+            assert.equal(
+                inbound.filter(f => f.toUpperCase().endsWith('.TIC')).length,
+                1,
+                'and so must the TIC announcing it, for the next pass'
+            );
+        });
+
+        it('delivers it on the next pass once the lock is released', async () => {
+            const bsy = lockPathFor(FLOW_BASE);
+            await fsp.mkdir(paths.dirname(bsy), { recursive: true });
+            await bsoLock.acquire(bsy, { staleMaxAgeMs: 600000 });
+
+            try {
+                deliver({ fileName: 'IMPORTANT.ZIP', content: 'irreplaceable' });
+                await importOnce();
+            } finally {
+                await bsoLock.release(bsy);
+            }
+
+            await importOnce();
+
+            assert.deepEqual(transitFiles(), ['IMPORTANT.ZIP']);
+            assert.deepEqual(fs.readdirSync(dirs().secInbound), []);
+
+            const { flow, tics } = await spoolState();
+            assert.equal(tics.length, 1);
+            assert.ok(flow.includes('IMPORTANT.ZIP'));
+        });
+
+        it('still sweeps a file that is genuinely owed to nobody', async () => {
+            //  The distinction the fix turns on: "we tried every downlink and
+            //  got none" is a deferral, but "every downlink already has it" is
+            //  success, and that file is correctly swept.
+            push({
+                ticAreas: {
+                    fsx_gen: {
+                        passthrough: true,
+                        network: 'fsxnet',
+                        uplinks: [UPLINK],
+                        //  the only downlink is the sender, so it is skipped
+                        downlinks: [UPLINK],
+                    },
+                },
+            });
+
+            deliver();
+            await importOnce();
+
+            assert.deepEqual(transitFiles(), [], 'owed to nobody, so not kept');
+            assert.deepEqual(
+                fs.readdirSync(dirs().secInbound),
+                [],
+                'and not held for a retry that would never differ'
+            );
         });
     });
 
@@ -482,6 +780,55 @@ describe('TIC passthrough end to end', function () {
             const lines = after.flow.trim().split('\n');
             assert.equal(lines.length, 2, 'exactly the new pair is queued');
             assert.ok(lines[0].endsWith('COOLAPP2.ZIP'));
+        });
+
+        it('supersedes a file under the same name, which is the weekly case', async () => {
+            //
+            //  The single most routine thing in a file echo: a nodelist or
+            //  infopack re-hatched every week under the name it always has.
+            //  It lands on the same name as the copy already in transit, so a
+            //  plain duplicate check refuses it -- and then the downlink
+            //  receives week 1 forever, with every later week rejected, for as
+            //  long as it stays offline. The stored path overwrites in place;
+            //  so does this.
+            //
+            push({ tic: { allowReplace: true } });
+
+            deliver({ fileName: 'FSXNET.ZIP', content: 'week 1' });
+            await importOnce();
+            assert.deepEqual(transitFiles(), ['FSXNET.ZIP']);
+
+            const first = await spoolState();
+            assert.equal(first.tics.length, 1, 'week 1 is queued and uncollected');
+
+            deliver({
+                fileName: 'FSXNET.ZIP',
+                content: 'week 2',
+                replaces: 'FSXNET.ZIP',
+            });
+            await importOnce();
+
+            assert.deepEqual(
+                fs.readdirSync(dirs().reject),
+                [],
+                'a supersede is not a duplicate and must not be rejected'
+            );
+            assert.equal(
+                fs.readFileSync(
+                    paths.join(dirs().ticTransit, 'fsx_gen', 'FSXNET.ZIP'),
+                    'utf8'
+                ),
+                'week 2',
+                'the downlink must end up owed the new file, not the old one'
+            );
+
+            //  And the stale announcement must not still be queued alongside it.
+            const after = await spoolState();
+            assert.equal(
+                after.tics.length,
+                1,
+                `exactly one TIC should be queued, got ${after.tics.length}`
+            );
         });
 
         it('refuses a pattern matching more than one transit file', async () => {
