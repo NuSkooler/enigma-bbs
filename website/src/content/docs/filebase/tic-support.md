@@ -103,13 +103,13 @@ Valid `ticAreas` members under a given node mapping are as follows:
 
 | Item | Required | Description |
 |--------|---------------|------------------|
-| `areaTag` | Usually | Specifies the local areaTag in which to place TIC attachments. Omit it (or set `passthrough`) to carry the echo in transit instead — see [Passthrough areas](#passthrough-transit-areas) |
+| `areaTag` | Usually | Specifies the local areaTag in which to place TIC attachments. Not needed for a [passthrough area](#passthrough-transit-areas), which stores nothing locally |
 | `storageTag` | No | Optionally, set a specific storageTag. If not set, the default for this area will be used. |
 | `hashTags` | No | One or more optional hash tags to assign TIC attachments in this area. |
 | `downlinks` | No | Addresses to forward this area's files on to. See [Forwarding to Downlinks](#forwarding-to-downlinks) |
 | `uplinks` | No | Addresses permitted to **publish** into this area. **Required if `downlinks` is set** — an area with downlinks and no uplinks forwards nothing |
 | `network` | No | Which network in `messageNetworks.ftn.networks` this area belongs to. Only needed when forwarding, and only strictly required if the downlinks' zone is claimed by more than one of your networks |
-| `passthrough` | No | Carry the echo for downlinks without storing it locally. See [Passthrough areas](#passthrough-transit-areas). An absent `areaTag` means the same thing |
+| `passthrough` | No | Set to `true` to carry the echo for downlinks without storing it locally. See [Passthrough areas](#passthrough-transit-areas). Must be set explicitly — an absent `areaTag` does **not** imply it |
 
 
 💡 Multiple TIC areas can be mapped to a single file base area.
@@ -289,7 +289,14 @@ scannerTossers: {
 }
 ```
 
-Omitting `areaTag` means the same thing — there is no local area to store into, which is what passthrough *is*. The explicit key exists so the intent reads in `config.hjson`, and so a **typo** in `areaTag` is not quietly reinterpreted as "carry this in transit".
+`passthrough: true` is required and is not inferred. Omitting `areaTag` looks like it should mean the same thing — there is no local area to store into — but the inference is not safe. This entry works today and stores into the file base, because a `ticAreas` key is matched against `fileBase.areas` as well:
+
+```hjson
+fileBase: { areas:   { fsx_gen: { ... } } }
+ticAreas: { fsx_gen: { uplinks: [ "21:1/100" ], downlinks: [ "21:1/200" ] } }
+```
+
+Inferring passthrough would silently reinterpret that on upgrade as "forward these and then delete them", and so would a typo in `areaTag`. When guessing wrong destroys files, the flag is explicit. An entry with neither a usable `areaTag` nor `passthrough: true` has nowhere to put a file and is reported at startup.
 
 The payload goes to a per-echo directory under `ticTransit` and is queued for downlinks from there. Forwarding is otherwise identical: `Origin` stays whoever hatched the file, your `Path` line is appended, and `Seenby` gains you and your downlinks.
 
@@ -300,16 +307,24 @@ When no flow file references it any more. That is an exact answer, not a policy:
 
 A reference marked sent (`~`) still counts as a reference. Those lines are history and the flow file drains on its own; deleting underneath one buys nothing and makes "why is this gone?" unanswerable.
 
+If any flow file cannot be read — a permissions problem, a volume that is not mounted — the sweep does not run at all that pass. A node whose queue we cannot read looks identical to one that owes nothing, and the difference decides whether a file is deleted.
+
 This deliberately has no age threshold and needs none. A link that is merely offline still has live references, so its files are kept for exactly as long as it takes — which is the behaviour an expiry rule would be trying to approximate.
 
 ### A re-announced file
-In a stored area, a second announcement of a name you already hold is caught by the file base: the file is stored under a renamed copy and forwarding refuses it, because announcing one name while shipping another leaves the downlink an orphan. A transit file must be stored under exactly the name it was announced as, so there is no rename to fall back on — and the two cases are treated differently:
+In a stored area, a second announcement of a name you already hold is caught by the file base: the file is stored under a renamed copy and forwarding refuses it, because announcing one name while shipping another leaves the downlink an orphan. A transit file must be stored under exactly the name it was announced as, so there is no rename to fall back on — and three cases are separated:
 
-- **Still queued for some downlink.** Refused and archived to `reject`. Overwriting would change the bytes under a reference that is already queued, and the downlink would receive the new file under the old announcement's CRC.
-- **Referenced by nobody.** A leftover the sweep has not reached. Replaced.
+- **Superseding the file of that name**, i.e. the TIC's `Replaces` matched it. Not a duplicate at all: the uplink is telling you this replaces what you hold. Overwritten in place, exactly as a stored area does. This is the weekly-nodelist case and the most common thing in a file echo.
+- **A different file, still queued for some downlink.** Refused and archived to `reject`. Overwriting would change the bytes under a reference that is already queued, and the downlink would receive the new file under the old announcement's CRC.
+- **A different file, referenced by nobody.** A leftover the sweep has not reached. Replaced.
 
 ### `Replaces`
-Works as it does for a stored area, matched by name inside the echo's own transit directory rather than against file base metadata. The superseded file is dequeued from every downlink that has not collected it, its generated TIC is removed, and the file is deleted. A pattern matching more than one transit file is refused rather than guessed at.
+Matched by name inside the echo's own transit directory rather than against file base metadata, because a transit file has no database row. The superseded file is dequeued from every downlink that has not collected it, its generated TIC is removed, and — when the replacement has a different name — the old file is deleted. A pattern matching more than one transit file is refused rather than guessed at.
+
+The pattern comes from a remote peer, so it is matched with a linear scanner rather than a regular expression; a run of `*` in a pattern compiled to a regex backtracks catastrophically and would let an uplink stall the whole system.
+
+### When a downlink is busy
+An FTS-5005 `.bsy` lock means a node is mid-session and its flow file must not be touched. For a stored area that is merely a missed forward — the payload is in the file base and goes out next time. A transit file has no such copy, so if **no** downlink could be queued the import is deferred instead of completed: the transit copy is removed and the TIC and its payload stay in the inbound to be retried, bounded by `tic.holdMaxAgeMs` like any other hold. If some downlinks were queued and others were not, the file stays for the ones that have it queued and the rest miss it, exactly as a stored area behaves.
 
 ## See Also
 [Message Networks](../messageareas/message-networks.md)
