@@ -50,24 +50,34 @@ const DEFAULT_TRANSIT_DIR_NAME = 'ftn_tic_transit';
 //
 //  Is this echo carried in transit rather than stored?
 //
-//  Two spellings, because they say the same thing and an operator will reach
-//  for either: an explicit "passthrough: true", or simply no "areaTag" -- there
-//  is no local area to store into, which is what passthrough means. The
-//  explicit form exists so the intent is readable in config.hjson and so a
-//  *typo* in areaTag is not silently reinterpreted as "carry this in transit".
+//  Only ever when the operator says so. An absent "areaTag" looks like it means
+//  the same thing -- there is no local area to store into, which is what
+//  passthrough is -- and inferring it from that was the original design. It is
+//  wrong, because the inference is not confined to new configurations:
+//
+//      fileBase:  { areas:    { fsx_gen: { ... } } }
+//      ticAreas:  { fsx_gen:  { uplinks: [...], downlinks: [...] } }
+//
+//  That entry has no "areaTag" and works perfectly well today -- the key is
+//  matched against fileBase.areas as well as ticAreas (getLocalAreaTagsForTic),
+//  so the echo is stored in fsx_gen and its files stay there. Inferring
+//  passthrough would silently reinterpret it, on upgrade, as "forward these and
+//  then delete them", and the operator's users would find the area emptying
+//  itself. The same goes for a plain typo in "areaTag".
+//
+//  When the consequence of guessing is destroying files, the flag is explicit.
+//  An entry with no usable local area and no "passthrough" keeps failing the
+//  way it does today, and logTicForwardingDiagnostics() says which key is
+//  missing.
 //
 function isPassthroughArea(ticAreaConfig) {
+    //  A bare string ticAreas value is shorthand for { areaTag: <it> }, which
+    //  is by definition not passthrough.
     if (!ticAreaConfig || !_.isObject(ticAreaConfig)) {
-        //  A bare string ticAreas value is shorthand for { areaTag: <it> },
-        //  which is by definition not passthrough.
         return false;
     }
 
-    if (true === ticAreaConfig.passthrough) {
-        return true;
-    }
-
-    return !_.isString(ticAreaConfig.areaTag) || 0 === ticAreaConfig.areaTag.length;
+    return true === ticAreaConfig.passthrough;
 }
 
 //
@@ -163,7 +173,23 @@ function listTransitFiles(cb) {
 //  |isReferenced| answers that; the caller supplies it because only the caller
 //  has the spool.
 //
-function storeTransitFile(sourcePath, fileName, externalAreaTag, isReferenced, cb) {
+//  |supersedes| is the path a "Replaces" matched, when this file is superseding
+//  one we already hold. A same-name supersede -- a weekly nodelist re-hatched
+//  under the name it always has, which is the single most routine case in a
+//  file echo -- lands on exactly the name-already-present branch above, and
+//  refusing it would reject every week's file for as long as one downlink
+//  stayed offline. It is not a duplicate: the operator upstream told us it
+//  replaces what we hold, and the stored path handles it by overwriting in
+//  place (copyTicAttachment with isUpdate). Same answer here.
+//
+function storeTransitFile(
+    sourcePath,
+    fileName,
+    externalAreaTag,
+    isReferenced,
+    supersedes,
+    cb
+) {
     const dir = transitDirFor(externalAreaTag);
 
     fs.mkdir(dir, { recursive: true }, err => {
@@ -196,6 +222,23 @@ function storeTransitFile(sourcePath, fileName, externalAreaTag, isReferenced, c
                         }
                         return cb(null, finalPath);
                     }
+                );
+            }
+
+            //
+            //  A supersede of this very file. Not a re-announcement of
+            //  something already in flight, so the reference check below does
+            //  not apply -- the caller has already matched a "Replaces" against
+            //  it, and dequeueReplacedForDownlinks() deals with whatever is
+            //  still queued for it.
+            //
+            if (supersedes && paths.resolve(supersedes) === paths.resolve(dst)) {
+                Log.debug(
+                    { path: dst, area: externalAreaTag },
+                    'Superseding a transit file in place'
+                );
+                return safeCopyFile(sourcePath, dst, { overwrite: true }, copyErr =>
+                    cb(copyErr, dst)
                 );
             }
 
@@ -254,8 +297,7 @@ function findReplacedTransitFile(replaces, externalAreaTag, cb) {
             return cb(null, null); //  nothing carried yet
         }
 
-        const re = globToRegExp(replaces);
-        const matches = entries.filter(name => re.test(name));
+        const matches = entries.filter(name => globMatches(replaces, name));
 
         if (0 === matches.length) {
             return cb(null, null);
@@ -274,14 +316,65 @@ function findReplacedTransitFile(replaces, externalAreaTag, cb) {
 }
 
 //
-//  A DOS style glob ('*' and '?') as an anchored, case insensitive RegExp.
+//  Does |name| match the DOS style glob |pattern| ('*' and '?')?
 //
-//  Every other character is escaped, so a pattern is matched as a pattern and
-//  never as a regular expression -- "Replaces" arrives from a peer's TIC.
+//  Matched with a linear scanner rather than a RegExp, and that is the whole
+//  point of it. The obvious implementation maps '*' to '.*' and hands the
+//  result to `new RegExp`, which backtracks catastrophically on a run of them:
+//  against a 34 character filename, '*'x6 took 43ms, '*'x8 took 1.5s and
+//  '*'x10 took 36s -- roughly 5x per added star. "Replaces" arrives from a
+//  peer's TIC and is matched here synchronously, inside an import pass, so a
+//  peer could wedge the event loop for as long as it liked: every user session,
+//  the web server and every timer with it. Not even the import watchdog would
+//  fire, since its setTimeout cannot run either.
 //
-function globToRegExp(glob) {
-    const escaped = String(glob).replace(/[.+^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
+//  The stored-area path does the same job through SQL LIKE (see
+//  FileEntry.findFiles), which has no backtracking; this keeps passthrough from
+//  being the weaker door.
+//
+//  The algorithm is the standard greedy backtrack-once scan: remember where the
+//  last '*' was and what it had consumed, and on a mismatch resume from there
+//  with the star eating one more character. O(len(name) * len(pattern)) worst
+//  case, no recursion, no exponential behaviour.
+//
+function globMatches(pattern, name) {
+    const p = String(pattern).toLowerCase();
+    const n = String(name).toLowerCase();
+
+    let pi = 0;
+    let ni = 0;
+    let starAt = -1;
+    let matchAt = 0;
+
+    while (ni < n.length) {
+        if (pi < p.length && ('?' === p[pi] || p[pi] === n[ni])) {
+            pi++;
+            ni++;
+            continue;
+        }
+
+        if (pi < p.length && '*' === p[pi]) {
+            starAt = pi++;
+            matchAt = ni;
+            continue;
+        }
+
+        if (starAt >= 0) {
+            //  Back up to the last '*' and let it consume one more character.
+            pi = starAt + 1;
+            ni = ++matchAt;
+            continue;
+        }
+
+        return false;
+    }
+
+    //  Trailing stars match the empty string.
+    while (pi < p.length && '*' === p[pi]) {
+        pi++;
+    }
+
+    return pi === p.length;
 }
 
 //
@@ -354,6 +447,6 @@ module.exports = {
     listTransitFiles,
     storeTransitFile,
     findReplacedTransitFile,
-    globToRegExp,
+    globMatches,
     sweepTransit,
 };

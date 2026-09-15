@@ -277,6 +277,31 @@ function isAuthorizedSender(from, uplinks, options = {}) {
     });
 }
 
+//
+//  The ticAreas entry for |externalAreaTag|, matched case insensitively.
+//
+//  ticAreas is keyed by the external FTN area tag, which arrives from a peer's
+//  TIC upper-cased. The key in config.hjson is whatever the operator typed.
+//  Three places look this entry up and they did not agree: the import mapped it
+//  with the key as configured, while forwarding and the publish check both
+//  lower-cased it first. An entry written "FSX_GEN" therefore imported fine and
+//  forwarded to nobody, with no log line -- "no downlinks" is the ordinary case
+//  for a leaf and is deliberately silent.
+//
+//  Harmless-looking until a passthrough area reaches the same fork, where "no
+//  downlinks" means the file is stored in transit, never forwarded, and then
+//  swept. One spelling of a config key turned relaying into deletion.
+//
+function areaConfigFor(ticAreas, externalAreaTag) {
+    if (!ticAreas || !_.isObject(ticAreas) || !externalAreaTag) {
+        return undefined;
+    }
+
+    const wanted = String(externalAreaTag).toLowerCase();
+    const key = Object.keys(ticAreas).find(k => k.toLowerCase() === wanted);
+    return key ? ticAreas[key] : undefined;
+}
+
 function addressListOf(ticAreaConfig, key) {
     if (!ticAreaConfig || !_.isObject(ticAreaConfig)) {
         return [];
@@ -296,6 +321,7 @@ function downlinksOf(ticAreaConfig) {
 
 module.exports = {
     SkipReasons,
+    areaConfigFor,
     uplinksOf,
     isAuthorizedSender,
     seenbyOf,
