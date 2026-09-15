@@ -197,7 +197,7 @@ doorWithBivrost: {
 
 See the [bivrost!](https://github.com/NuSkooler/bivrost) documentation for details. Pre-built binaries are also available via [Phenom Productions](https://www.phenomprod.com/) on various boards.
 
-Alternative workarounds: [Telnet Bridge](telnet-bridge.md), or [NET2BBS](http://pcmicro.com/netfoss/guide/net2bbs.html).
+Alternative workarounds: [Telnet Bridge](telnet-bridge.md), or [NET2BBS](https://web.archive.org/web/20260308035453/http://pcmicro.com/netfoss/guide/net2bbs.html).
 
 ---
 

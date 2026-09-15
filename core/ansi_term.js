@@ -153,7 +153,7 @@ const CONTROL = {
 
 //
 //  Select Graphics Rendition
-//  See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
+//  See https://syncterm.bbsdev.net/cterm.html
 //
 const SGRValues = {
     reset: 0,
@@ -211,7 +211,7 @@ function getBGColorValue(name) {
     return SGRValues[name + 'BG'];
 }
 
-//  See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
+//  See https://syncterm.bbsdev.net/cterm.html
 //  :TODO: document
 //  :TODO: Create mappings for aliases... maybe make this a map to values instead
 //  :TODO: Break this up in to two parts:

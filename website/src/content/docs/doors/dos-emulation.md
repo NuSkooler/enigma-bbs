@@ -47,7 +47,7 @@ lredir.com x: linux\fs\home\enigma\DOS\X
 unix -e
 ```
 
-[BNU](http://www.pcmicro.com/bnu/) is a FOSSIL driver installed here at `C:\BNU\`. A FOSSIL driver is required by most classic DOS doors.
+[BNU](https://defsol.com/files/fossil/bnu170.zip) is a FOSSIL driver installed here at `C:\BNU\`. A FOSSIL driver is required by most classic DOS doors.
 
 ### Step 3: Menu Entry
 

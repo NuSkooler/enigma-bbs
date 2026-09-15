@@ -16,9 +16,9 @@ Below are just some of the features ENiGMA½ supports out of the box:
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * Built-in [web server](https://enigma-bbs.github.io/servers/contentservers/web-server/) with HTTP(S) support — powers temporary download URLs, file browsing, and more
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output with **wide character support** — CJK, Hangul, fullwidth forms, and similar scripts display and edit correctly
- * [SyncTERM](http://syncterm.bbsdev.net/) style font support. Display PC/DOS and Amiga style artwork as it should be! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
+ * [SyncTERM](http://syncterm.bbsdev.net/) style font support. Display PC/DOS and Amiga style artwork as it should be! In general, ANSI-BBS / [CTerm](https://syncterm.bbsdev.net/cterm.html) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * Baud emulation. View ANSI like the block gods intended.
- * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support.
+ * Full [SAUCE](https://github.com/radman1/sauce) support.
  * Renegade style [pipe color codes](https://enigma-bbs.github.io/art/colour-codes/).
  * [MCI support](https://enigma-bbs.github.io/art/mci/) for lightbars, toggles, input areas, and so on plus many other bells and whistles
  * [Message networks](https://enigma-bbs.github.io/messageareas/message-networks/) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export, and **MRC** (Multi-Relay Chat)
@@ -74,15 +74,15 @@ ENiGMA has been tested with many terminals. [IcyTERM](https://github.com/mkruege
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
-* [Caphood](http://www.reddit.com/user/Caphood), supreme SysOp of [BLACK ƒlag](http://www.bbsnexus.com/directory/listing/blackflag.html) BBS. May he rest in peace 🪦
-* [Luciano Ayres](http://www.lucianoayres.com.br/) of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
+* [Caphood](http://www.reddit.com/user/Caphood), supreme SysOp of [BLACK ƒlag](https://www.telnetbbsguide.com/bbs/black-flag-bbs/) BBS. May he rest in peace 🪦
+* [Luciano Ayres](https://16colo.rs/artist/luciano+ayres) of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
 * Sudndeath for Xibalba ANSI work!
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
 * Avon of [Agency BBS](http://bbs.nz/) and [fsxNet](https://fsxnet.nz) for putting up with my experiments to his system and for FSX_ENG!
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
 * Apam of [Magicka](https://magickabbs.com/)
-* [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!
-* [Whazzit/blocktronics](http://blocktronics.org/tag/whazzit/) for the amazing Mayan ANSI pieces scattered about Xibalba BBS!
+* [nail/blocktronics](https://16colo.rs/artist/nail) for the [sickmade Xibalba logo](https://16colo.rs/pack/blocktronics-420/N-XBALBA.ANS)!
+* [Whazzit/blocktronics](https://16colo.rs/artist/whazzit) for the amazing Mayan ANSI pieces scattered about Xibalba BBS!
 * [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?
 * Al's Geek Lab for the [installation video](https://youtu.be/WnN-ucVi3ZU) and of course the [Back to the BBS - Part one: The return to being online](https://www.youtube.com/watch?reload=9&v=n0OwGSX2IiQ) documentary!
 * Alpha for the [FTN-style configuration guide](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d)!

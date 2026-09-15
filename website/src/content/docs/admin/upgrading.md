@@ -35,7 +35,7 @@ After an upgrade, **it is possible that your system is missing new features expo
 
 #### 💡Tips
 * Create a clean checkout of ENiGMA via `git clone https://github.com/NuSkooler/enigma-bbs.git enigma-bbs-clean` and run it to see any new features within the default configuration!
-* As the template files described above are likely what you built your system from, a visual diff viewer such as [DiffMerge](https://www.sourcegear.com/diffmerge/downloads.php) (free, works on all major platforms) can be very helpful for the tasks outlined above!
+* As the template files described above are likely what you built your system from, a visual diff viewer such as [DiffMerge](https://github.com/sourcegear/diffmerge/releases) (free, works on all major platforms) can be very helpful for the tasks outlined above!
 
 
 :::tip
