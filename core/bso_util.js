@@ -3,6 +3,9 @@
 
 const Address = require('./ftn_address.js');
 
+//  deps
+const paths = require('path');
+
 //
 //  Shared BSO (Binkley Style Outbound) spool path resolution.
 //
@@ -202,6 +205,111 @@ function legacyOutboundDirName(networks, defaultNetwork, networkName, zone) {
 }
 
 //
+//  Flow file reference lines, for the two things that rewrite one.
+//
+//  FTS-5005.003 §3.1: each line is an absolute path, optionally prefixed with
+//  a directive -- '^' delete after send, '#' truncate, '-' leave, '~' already
+//  sent, '!' skip.
+//
+function flowRefIsSent(line) {
+    return line.trim().startsWith('~');
+}
+
+function flowRefBody(line) {
+    return line.trim().replace(/^[\^#~!-]/, '');
+}
+
+//
+//  The generated TIC queued alongside a payload reference, if there is one.
+//
+//  ftn_bso's forwardTicToOneDownlink() queues a forwarded file as a single
+//  append of two lines: the payload with no directive ("send and keep", it
+//  lives in our file base) immediately followed by its generated TIC with '^'
+//  ("delete after send"). FSC-0087 requires that order -- "The associated file
+//  [...] should always be sent FIRST" -- and adjacency holds because the whole
+//  pair goes down in one write under the flow file's .bsy lock.
+//
+//  So a '^...tic' line immediately after a payload line belongs to it. Removing
+//  the payload without it leaves the downlink an announcement for a file we
+//  will never send, which is #735 inflicted on someone else's system; leaving
+//  the .tic on disk litters the outbound with a file nothing references.
+//
+//  Returns the companion's index, or -1. A line already marked sent is never a
+//  companion: it has gone, and rewriting history helps nobody.
+//
+function companionTicIndex(lines, idx) {
+    const next = lines[idx + 1];
+    if (!next || flowRefIsSent(next) || !next.trim().startsWith('^')) {
+        return -1;
+    }
+
+    //  extname(), not a bare /\.tic$/: the latter treats a dotfile named
+    //  ".tic" as having that extension, which the form this replaced did not.
+    return '.tic' === paths.extname(flowRefBody(next)).toLowerCase() ? idx + 1 : -1;
+}
+
+//
+//  Expand a set of flow file line indices with the companion TIC of each.
+//
+//  |lines| is the flow file as split, |indices| the lines being removed.
+//  Returns { indices, ticPaths }: the complete set to remove, and the paths of
+//  the generated TICs among them -- those are ours and are the caller's to
+//  unlink.
+//
+//  Computed against |lines| as they stand, so callers that splice must do so
+//  afterwards and in descending order.
+//
+//
+//  The path to unlink for a companion TIC reference in |flowFilePath|.
+//
+//  Not simply the text of the reference. A flow file carries an absolute path,
+//  and BsoSpool's resolveFlowRef() deliberately falls back to looking for the
+//  referenced *basename* beside the flow file when that path no longer resolves
+//  -- a relocated outbound tree, or a sysop recovering mail filed in the wrong
+//  directory. Unlinking the raw text therefore missed the file in exactly the
+//  case the fallback exists to handle, leaving the very orphan the dequeue is
+//  meant to remove.
+//
+//  A generated TIC is always written to the same directory as the flow file
+//  that references it (forwardTicToOneDownlink builds both from one
+//  |outgoingDir|), so a sibling is both the correct fallback and a containment
+//  rule: this never returns a path outside the flow file's own directory, and
+//  the callers unlink nothing else. That matters because the reference is the
+//  one part of a flow file we did not necessarily write, and oputil runs as
+//  whatever user the operator is, from an arbitrary working directory.
+//
+function companionTicPath(flowFilePath, ref) {
+    const dir = paths.dirname(flowFilePath);
+    const base = paths.basename(String(ref));
+
+    if (!base || '.' === base || '..' === base) {
+        return undefined;
+    }
+
+    return paths.join(dir, base);
+}
+
+function withCompanionTicRefs(lines, indices) {
+    const all = new Set(indices);
+
+    //  A companion already being removed in its own right -- its own file went
+    //  missing too, say -- is still ours to unlink, but only once.
+    const ticPaths = new Set();
+
+    for (const idx of indices) {
+        const companion = companionTicIndex(lines, idx);
+        if (companion < 0) {
+            continue;
+        }
+
+        all.add(companion);
+        ticPaths.add(flowRefBody(lines[companion]));
+    }
+
+    return { indices: all, ticPaths: Array.from(ticPaths) };
+}
+
+//
 //  Configuration problems that make outbound spool paths ambiguous or
 //  unresolvable. Returns an array of { code, ... } objects, empty when all is
 //  well. Intended to be called once at startup and logged; the resolvers above
@@ -247,4 +355,9 @@ module.exports = {
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
+    flowRefIsSent,
+    flowRefBody,
+    companionTicIndex,
+    companionTicPath,
+    withCompanionTicRefs,
 };
