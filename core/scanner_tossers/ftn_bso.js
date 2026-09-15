@@ -3979,6 +3979,44 @@ function FTNMessageScanTossModule() {
             return nothingAttempted();
         }
 
+        return self.announceTicToDownlinks(
+            ticFileInfo,
+            localInfo,
+            ticAreaConfig,
+            downlinks,
+            cb
+        );
+    };
+
+    //
+    //  Queue |ticFileInfo| and its payload for every downlink of this area that
+    //  should have it.
+    //
+    //  Shared by the two things that put a file into an echo: forwarding one an
+    //  uplink sent us, and hatching one of our own (#751). Everything from here
+    //  down is identical for both -- the network and our address for it, the
+    //  loop guard, the Replaces dequeue, the per-downlink TIC and flow file
+    //  append. What differs is entirely upstream: a forward must pass
+    //  canForwardTic() because a third party is asking us to re-announce their
+    //  file under our name, while a hatch is the operator at the console and
+    //  has no sender to authenticate.
+    //
+    //  Never calls back an error. Announcing is best effort per downlink and
+    //  must not turn a successful import -- or a successful hatch -- into a
+    //  failure.
+    //
+    this.announceTicToDownlinks = function (
+        ticFileInfo,
+        localInfo,
+        ticAreaConfig,
+        downlinks,
+        cb
+    ) {
+        //  The same result contract the forward path has: "attempted 0" is
+        //  owed to nobody, which is what lets a passthrough sweep tell that
+        //  from "owed and not queued" (#753). A hatch ignores it.
+        const nothingAttempted = () => cb(null, { attempted: 0, queued: 0 });
+
         //
         //  The area's own network, which is what an inbound 2D address is read
         //  against and which supplies the fallback when a downlink resolves to
@@ -4000,7 +4038,7 @@ function FTNMessageScanTossModule() {
                     area: localInfo.externalAreaTag,
                     network: areaNetworkName,
                 },
-                'Cannot forward TIC: no usable local address for this area\'s network; set "network" on the ticAreas entry'
+                'Cannot announce TIC: no usable local address for this area\'s network; set "network" on the ticAreas entry'
             );
             return nothingAttempted();
         }

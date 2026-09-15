@@ -387,6 +387,15 @@ module.exports = {
                     description:
                         'Carry this echo in transit for downlinks rather than storing it in the local file base.',
                 },
+
+                //  FTS-5006 "Areadesc", written into a TIC we hatch (#751).
+                //  Only ever originated -- a forwarded TIC carries whatever
+                //  the hatching system wrote, passed through untouched.
+                areaDesc: {
+                    type: 'string',
+                    description:
+                        'Description of this file echo, written as "Areadesc" into TICs we hatch.',
+                },
             },
         },
     },

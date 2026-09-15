@@ -1896,6 +1896,10 @@
                                             "passthrough": {
                                                 "description": "Carry this echo in transit for downlinks rather than storing it in the local file base.",
                                                 "type": "boolean"
+                                            },
+                                            "areaDesc": {
+                                                "description": "Description of this file echo, written as \"Areadesc\" into TICs we hatch.",
+                                                "type": "string"
                                             }
                                         },
                                         "patternProperties": {
