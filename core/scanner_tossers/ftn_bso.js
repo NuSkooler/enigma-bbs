@@ -39,6 +39,7 @@ const {
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
+    selectLocalNetworkForAddress,
     withCompanionTicRefs,
     companionTicPath,
     flowRefIsSent,
@@ -3749,6 +3750,14 @@ function FTNMessageScanTossModule() {
     //  than one hit is already refused. So a hostile "Replaces *" cannot
     //  dequeue an area's worth of pending traffic.
     //
+    //
+    //  |networkName| is the area's network and is now only a fallback: the
+    //  outbound directory a downlink's reference lives in follows the AKA we
+    //  queued it under, so a hub presenting different AKAs to different links
+    //  (#757) must look for each one where it actually put it. Scrubbing the
+    //  area's directory for all of them would silently leave the superseded
+    //  file queued for every downlink filed elsewhere.
+    //
     this.dequeueReplacedForDownlinks = function (localInfo, downlinks, networkName, cb) {
         if (!localInfo.existingFileId || !localInfo.oldPath) {
             return cb(null);
@@ -3773,6 +3782,11 @@ function FTNMessageScanTossModule() {
         //  left alone by scrubFlowFileRefs() either way.
         //
 
+        const ticAreaConfig = _.get(Config().scannerTossers.ftn_bso, [
+            'ticAreas',
+            String(localInfo.externalAreaTag || '').toLowerCase(),
+        ]);
+
         async.eachSeries(
             downlinks,
             (downlink, nextDownlink) => {
@@ -3788,8 +3802,17 @@ function FTNMessageScanTossModule() {
                     _.get(nodeConfig, 'tic.exportType') || self.getExportType(nodeConfig)
                 ).toLowerCase();
 
+                const identity = self.localIdentityForDownlink(
+                    addr,
+                    ticAreaConfig,
+                    localInfo.externalAreaTag
+                );
+
                 const flowFilePath = self.getOutgoingFlowFileName(
-                    self.getOutgoingEchoMailPacketDir(networkName, addr),
+                    self.getOutgoingEchoMailPacketDir(
+                        identity.networkName || networkName,
+                        addr
+                    ),
                     addr,
                     'ref',
                     exportType,
@@ -3977,25 +4000,33 @@ function FTNMessageScanTossModule() {
             return nothingAttempted();
         }
 
-        const networkName =
+        //
+        //  The area's own network, which is what an inbound 2D address is read
+        //  against and which supplies the fallback when a downlink resolves to
+        //  nothing. Per-downlink AKA selection happens below; this is the one
+        //  answer that really is per area.
+        //
+        const areaNetworkName =
             (ticAreaConfig && ticAreaConfig.network) ||
             self.getNetworkNameForTicArea(localInfo, downlinks);
 
-        const network = networkName ? self.getNetworkConfig(networkName) : undefined;
-        const ourAddress = network && Address.fromString(network.localAddress);
+        const areaNetwork = areaNetworkName
+            ? self.getNetworkConfig(areaNetworkName)
+            : undefined;
+        const areaAddress = areaNetwork && Address.fromString(areaNetwork.localAddress);
 
-        if (!ourAddress || !ourAddress.isValid()) {
+        if (!areaAddress || !areaAddress.isValid()) {
             Log.warn(
                 {
                     area: localInfo.externalAreaTag,
-                    network: networkName,
+                    network: areaNetworkName,
                 },
                 'Cannot forward TIC: no usable local address for this area\'s network; set "network" on the ticAreas entry'
             );
             return nothingAttempted();
         }
 
-        const defaultZone = self.getDefaultZone(networkName) || ourAddress.zone;
+        const defaultZone = self.getDefaultZone(areaNetworkName) || areaAddress.zone;
         const ourAddresses = self.getLocalAddresses();
 
         const { candidates, skipped } = ticForward.selectDownlinks({
@@ -4023,46 +4054,179 @@ function FTNMessageScanTossModule() {
         }
 
         //
+        //  One AKA per downlink (#757). A file echo carried on two networks --
+        //  or a hub with several AKAs -- must present the right identity to
+        //  each link, and previously could not: the network came from the
+        //  *first* downlink's zone and then signed every downlink with it.
+        //
+        const routes = candidates.map(downlink => ({
+            downlink,
+            ...self.localIdentityForDownlink(
+                downlink,
+                ticAreaConfig,
+                localInfo.externalAreaTag
+            ),
+        }));
+
+        //
         //  A replacement supersedes whatever is still queued for the old file.
         //  Do this before queueing the new one so a downlink cannot end up
         //  holding both, and so the reference cleanupOldFile() is about to
         //  invalidate does not dangle.
         //
-        self.dequeueReplacedForDownlinks(localInfo, downlinks, networkName, () => {
+        //  Every configured downlink, not only the candidates: one skipped as
+        //  already having the file still has the *old* one queued.
+        //
+        self.dequeueReplacedForDownlinks(localInfo, downlinks, areaNetworkName, () => {
             self.queueTicForDownlinks(
                 ticFileInfo,
                 localInfo,
                 {
-                    candidates,
+                    routes,
                     downlinks,
-                    ourAddress,
                     defaultZone,
-                    networkName,
+                    areaAddress,
                 },
                 cb
             );
         });
     };
 
+    //
+    //  Which of our addresses signs traffic to |downlink|, and which network's
+    //  outbound it is filed under.
+    //
+    //  Precedence, most specific first:
+    //
+    //    1. nodes.<downlink>.tic.network  -- htick's per-link |ourAka|, scoped
+    //       to TIC so it cannot disturb NetMail routing
+    //    2. nodes.<downlink>.network      -- the node's network, which already
+    //       exists and is already used for NetMail
+    //    3. ticAreas.<tag>.network        -- the per-area override, unchanged:
+    //       a configuration setting it today keeps behaving exactly as it did
+    //    4. closest AKA by zone/net       -- tickit's distance matching, and
+    //       the only one of these that can differ per downlink on its own
+    //
+    //  3 sits above 4 deliberately. It is the knob #743 shipped and the one an
+    //  operator has already used to pin an area; silently letting distance
+    //  matching override it would change behaviour under a configuration that
+    //  was explicit about what it wanted.
+    //
+    this.localIdentityForDownlink = function (downlink, ticAreaConfig, areaTag) {
+        const networks = self.getNetworks();
+        const nodeConfig = self.getNodeConfigByAddress(downlink) || {};
+
+        const explicit =
+            _.get(nodeConfig, 'tic.network') ||
+            _.get(nodeConfig, 'network') ||
+            (ticAreaConfig && ticAreaConfig.network);
+
+        if (explicit) {
+            const canonical = canonicalNetworkName(networks, explicit);
+            const address =
+                canonical && Address.fromString(networks[canonical].localAddress);
+
+            if (address && address.isValid()) {
+                return { networkName: canonical, ourAddress: address };
+            }
+
+            Log.warn(
+                { area: areaTag, downlink: downlink.toString('5D'), network: explicit },
+                'Configured network for this downlink is not usable; falling back to the closest AKA'
+            );
+        }
+
+        const best = selectLocalNetworkForAddress(
+            networks,
+            self.getConfiguredDefaultNetwork(),
+            downlink
+        );
+
+        if (!best.name) {
+            return {};
+        }
+
+        //
+        //  Distance 2 means no AKA shares the downlink's zone, so we are about
+        //  to introduce ourselves with an address from a different network
+        //  entirely. That works only if the link already knows us by it, which
+        //  is exactly the case an operator should be naming explicitly.
+        //
+        if (best.distance > 1) {
+            Log.warn(
+                {
+                    area: areaTag,
+                    downlink: downlink.toString('5D'),
+                    using: best.address.toString('5D'),
+                },
+                'No local address shares this downlink\'s zone; set "network" on the node or the ticAreas entry'
+            );
+        } else if (best.candidates.length > 1) {
+            Log.debug(
+                {
+                    area: areaTag,
+                    downlink: downlink.toString('5D'),
+                    using: best.name,
+                    candidates: best.candidates,
+                },
+                'More than one local address is equally close to this downlink'
+            );
+        }
+
+        return { networkName: best.name, ourAddress: best.address };
+    };
+
     this.queueTicForDownlinks = function (ticFileInfo, localInfo, opts, cb) {
-        const { candidates, downlinks, ourAddress, defaultZone, networkName } = opts;
+        const { routes, downlinks, defaultZone, areaAddress } = opts;
+
+        //
+        //  Every AKA we are about to present in this echo, deduped -- not just
+        //  the one address the area resolved to.
+        //
+        //  Seenby is the loop guard and a peer matches it against the address
+        //  *it* knows us by, by literal string equality in tickit's case. An
+        //  echo carried on two networks reaches a system that may know us under
+        //  either AKA, and a Seenby naming only one of them lets it forward the
+        //  file straight back at the other. All of them have genuinely seen it,
+        //  so listing all of them is both true and the safe direction to err.
+        //
+        //  Scoped to the AKAs actually in play rather than every address we
+        //  own: an address belonging to a network this echo is not carried on
+        //  has nothing to do with this file, and naming it would be noise in
+        //  every downstream TIC. A single-network system is unaffected --
+        //  there is one AKA and it is this one.
+        //
+        const ourAddresses = [];
+        const seenKeys = new Set();
+        routes.forEach(route => {
+            const addr = route.ourAddress || areaAddress;
+            const key = addr.toString('4D');
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                ourAddresses.push(addr);
+            }
+        });
 
         const seenby = ticForward.buildSeenby({
             ticFileInfo,
             downlinks,
-            ourAddresses: [ourAddress],
+            ourAddresses,
             defaultZone,
         });
 
+        //
+        //  A Path line per AKA, because Path records *which* system handled the
+        //  file and a downlink should see the address it knows us by. The
+        //  timestamp is shared: this is one pass over one file, and a Path
+        //  whose seconds drifted between downlinks would be a lie about that.
+        //
         //  4D is deliberate and not the link's |addressDimensions| -- see
         //  TicFileWriter.pathEntry(). Both reference implementations keep the
         //  domain off their own Path line on purpose.
-        const pathEntry = TicFileWriter.pathEntry(
-            ourAddress,
-            new Date(),
-            ftnUtil.getProductIdentifier(),
-            '4D'
-        );
+        //
+        const now = new Date();
+        const pathEntryFor = addr =>
+            TicFileWriter.pathEntry(addr, now, ftnUtil.getProductIdentifier(), '4D');
 
         //
         //  eachSeries, not each: two downlinks in the same zone share an
@@ -4072,12 +4236,34 @@ function FTNMessageScanTossModule() {
         let queued = 0;
 
         async.eachSeries(
-            candidates,
-            (downlink, nextDownlink) => {
+            routes,
+            (route, nextDownlink) => {
+                const { downlink, networkName } = route;
+                const ourAddress = route.ourAddress;
+
+                if (!ourAddress || !networkName) {
+                    //  Reported in full by localIdentityForDownlink(); this is
+                    //  the consequence, which is that the link gets nothing.
+                    Log.warn(
+                        {
+                            downlink: downlink.toString('5D'),
+                            area: localInfo.externalAreaTag,
+                        },
+                        'No usable local address for this downlink; not forwarding to it'
+                    );
+                    return nextDownlink(null);
+                }
+
                 self.forwardTicToOneDownlink(
                     ticFileInfo,
                     localInfo,
-                    { downlink, ourAddress, seenby, pathEntry, networkName },
+                    {
+                        downlink,
+                        ourAddress,
+                        seenby,
+                        pathEntry: pathEntryFor(ourAddress),
+                        networkName,
+                    },
                     err => {
                         if (err) {
                             //  log and carry on: disk full at downlink 20 of 40
@@ -5402,6 +5588,50 @@ FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
                 Log.info(
                     { ticArea: externalTag, downlink, nodePattern: best.pattern },
                     'TIC area downlink has no tic.password; its outgoing TICs will carry no "Pw" line'
+                );
+            }
+
+            //
+            //  Which AKA this downlink will be addressed from (#757). Said at
+            //  startup as well as at forward time, because the answer is a
+            //  property of the configuration and an operator should be able to
+            //  see it before a file arrives rather than after one went out
+            //  under the wrong name.
+            //
+            const identity = this.localIdentityForDownlink(addr, areaConfig, externalTag);
+            if (!identity.ourAddress) {
+                Log.warn(
+                    { ticArea: externalTag, downlink },
+                    'No local address can be resolved for this downlink; it will receive nothing'
+                );
+            } else if (
+                _.isNumber(addr.zone) &&
+                identity.ourAddress.zone !== addr.zone &&
+                !areaConfig.network &&
+                !_.get(best.value, 'network') &&
+                !_.get(best.value, 'tic.network')
+            ) {
+                //  Nothing shares its zone and nothing said which to use, so
+                //  we will introduce ourselves with an address from another
+                //  network entirely. That works only if the link already knows
+                //  us by it.
+                Log.warn(
+                    {
+                        ticArea: externalTag,
+                        downlink,
+                        using: identity.ourAddress.toString('5D'),
+                    },
+                    'No local address shares this downlink\'s zone; set "network" on the node or on the ticAreas entry to choose deliberately'
+                );
+            } else {
+                Log.debug(
+                    {
+                        ticArea: externalTag,
+                        downlink,
+                        from: identity.ourAddress.toString('5D'),
+                        network: identity.networkName,
+                    },
+                    'TIC area downlink will be addressed from this AKA'
                 );
             }
         });
