@@ -1083,6 +1083,10 @@ module.exports = () => {
                     inbound: paths.join(__dirname, './../mail/ftn_in/'),
                     secInbound: paths.join(__dirname, './../mail/ftn_secin/'),
                     reject: paths.join(__dirname, './../mail/reject/'), //  bad pkt, bundles, TIC attachments that fail any check, etc.
+                    //  Payloads for passthrough (transit) file echoes: carried
+                    //  for downlinks, never stored in the local file base, and
+                    //  swept once no flow file references them. See #753.
+                    ticTransit: paths.join(__dirname, './../mail/ftn_tic_transit/'),
                     //outboundNetMail   : paths.join(__dirname, './../mail/ftn_netmail_out/'),
                     //  set 'retain' to a valid path to keep good pkt files
                 },
