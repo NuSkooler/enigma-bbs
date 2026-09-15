@@ -313,6 +313,10 @@ indistinguishable from a deleted one here, and dropping the entry would
 discard mail that would otherwise have gone out once the file returned.
 Check that the file is really gone before pruning its reference.
 
+A forwarded file echo entry is queued as its payload followed by the TIC
+announcing it, and the two are pruned together. Dropping the payload alone
+would leave the node an announcement for a file it never receives.
+
 Examples:
   oputil.js bso status
   oputil.js bso list 1:218/701

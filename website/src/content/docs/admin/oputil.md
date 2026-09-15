@@ -431,6 +431,13 @@ pruning and the next poll ships it.
 Entries already sent are left alone, and a flow file with nothing left to send is removed
 entirely, exactly as it would be after a normal successful transfer.
 
+A forwarded file echo entry is queued as its payload immediately followed by the `.tic`
+announcing it, so pruning one removes the other and deletes the generated `.tic` from the
+outbound. Dropping the payload on its own would leave the downlink an announcement for a
+file it never receives — see [TIC support](../filebase/tic-support.md). Prune may
+therefore remove more lines than the dry run listed; the write pass names each one, and
+marks the ones that went as a companion.
+
 Pruning takes the node's FTS-5005 `.bsy` lock first, so it is safe to run against a live
 system: if a mail session or the tosser is working on that node, prune says so and changes
 nothing rather than writing over what they are doing.

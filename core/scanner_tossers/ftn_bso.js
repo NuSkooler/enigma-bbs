@@ -39,6 +39,9 @@ const {
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
+    withCompanionTicRefs,
+    flowRefIsSent,
+    flowRefBody,
 } = require('../bso_util.js');
 const { withFlowFileLock, isBusyError } = require('../bso_lock.js');
 const TicFileWriter = require('../tic_file_writer.js');
@@ -3366,15 +3369,14 @@ function FTNMessageScanTossModule() {
     //  silently receives neither.
     //
     //  A reference already marked '~' is left alone: it has been sent, and
-    //  rewriting history helps nobody. We queue a payload and its TIC in one
-    //  append, adjacent and in that order, so a '^...tic' line immediately
-    //  following a matched payload belongs to it and goes too -- otherwise it
-    //  would sit in the outbound forever with nothing referencing it.
+    //  rewriting history helps nobody. The companion rule -- a payload and its
+    //  TIC are queued in one append, adjacent and in that order, so a '^...tic'
+    //  line immediately following a matched payload goes too -- lives in
+    //  bso_util's withCompanionTicRefs(), shared with the prune path in
+    //  bso_spool. It was written here only, and the other path leaked TICs
+    //  announcing files it had just dequeued; see #862.
     //
     this.scrubFlowFileRefs = function (flowFilePath, targetPath, cb) {
-        const isSent = line => line.trim().startsWith('~');
-        const bodyOf = line => line.trim().replace(/^[\^#~!-]/, '');
-
         withFlowFileLock(
             flowFilePath,
             {
@@ -3393,39 +3395,24 @@ function FTNMessageScanTossModule() {
                     }
 
                     const lines = content.split('\n');
-                    const keep = [];
-                    const orphanedTics = [];
-                    let removed = 0;
 
-                    for (let i = 0; i < lines.length; ++i) {
-                        const line = lines[i];
-
-                        if (isSent(line) || bodyOf(line) !== targetPath) {
-                            keep.push(line);
-                            continue;
+                    const matched = [];
+                    lines.forEach((line, i) => {
+                        if (!flowRefIsSent(line) && flowRefBody(line) === targetPath) {
+                            matched.push(i);
                         }
+                    });
 
-                        removed++;
-
-                        //  its companion TIC, if we wrote one
-                        const next = lines[i + 1];
-                        if (
-                            next &&
-                            !isSent(next) &&
-                            next.trim().startsWith('^') &&
-                            '.tic' === paths.extname(bodyOf(next)).toLowerCase()
-                        ) {
-                            orphanedTics.push(bodyOf(next));
-                            i++;
-                        }
-                    }
-
-                    if (0 === removed) {
+                    if (0 === matched.length) {
                         return done(null);
                     }
 
+                    const { indices, ticPaths } = withCompanionTicRefs(lines, matched);
+                    const removed = matched.length;
+                    const keep = lines.filter((_line, i) => !indices.has(i));
+
                     async.each(
-                        orphanedTics,
+                        ticPaths,
                         (ticPath, nextTic) => fs.unlink(ticPath, () => nextTic(null)),
                         () => {
                             Log.debug(

@@ -11,6 +11,10 @@ const {
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
+    flowRefIsSent,
+    flowRefBody,
+    companionTicIndex,
+    withCompanionTicRefs,
 } = require('../core/bso_util.js');
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
@@ -333,6 +337,130 @@ describe('bso_util — outbound spool path resolution', () => {
             assert.equal(issues.length, 1);
             assert.equal(issues[0].code, 'reservedNetworkName');
             assert.equal(issues[0].network, 'Outbound');
+        });
+    });
+});
+
+//
+//  The companion rule: a forwarded payload and the TIC announcing it are
+//  queued in one append, adjacent and in that order, so removing one must
+//  remove the other. This lives here because it is shared -- ftn_bso's
+//  scrubFlowFileRefs() knew it and bso_spool's prune path did not, which left
+//  downlinks holding TICs for files they would never receive (#862).
+//
+describe('bso_util — flow file reference lines', () => {
+    const PAYLOAD = '/files/nodelist/NODELIST.246';
+    const TIC = '/ob/outbound/0a1b2c3d.tic';
+
+    describe('flowRefIsSent / flowRefBody', () => {
+        it('reads the directive off each of the FTS-5005 prefixes', () => {
+            for (const prefix of ['^', '#', '-', '!', '']) {
+                assert.equal(flowRefBody(`${prefix}${PAYLOAD}`), PAYLOAD, prefix);
+                assert.equal(flowRefIsSent(`${prefix}${PAYLOAD}`), false, prefix);
+            }
+            assert.equal(flowRefBody(`~${PAYLOAD}`), PAYLOAD);
+            assert.equal(flowRefIsSent(`~${PAYLOAD}`), true);
+        });
+
+        it('ignores surrounding whitespace, which real flow files carry', () => {
+            assert.equal(flowRefBody(`  ^${PAYLOAD}\r`), PAYLOAD);
+            assert.equal(flowRefIsSent(`  ~${PAYLOAD}\r`), true);
+        });
+    });
+
+    describe('companionTicIndex', () => {
+        it('finds the TIC queued immediately after a payload', () => {
+            assert.equal(companionTicIndex([PAYLOAD, `^${TIC}`], 0), 1);
+        });
+
+        it('is case insensitive about the extension', () => {
+            assert.equal(companionTicIndex([PAYLOAD, '^/ob/0A1B2C3D.TIC'], 0), 1);
+        });
+
+        it('does not claim a TIC that is not adjacent', () => {
+            assert.equal(
+                companionTicIndex([PAYLOAD, '/files/other.zip', `^${TIC}`], 0),
+                -1
+            );
+        });
+
+        it('does not claim a line without the delete-after-send directive', () => {
+            //  Only a TIC we generated carries '^'. One queued any other way
+            //  is a payload in its own right and is not ours to remove.
+            assert.equal(companionTicIndex([PAYLOAD, TIC], 0), -1);
+            assert.equal(companionTicIndex([PAYLOAD, `-${TIC}`], 0), -1);
+        });
+
+        it('does not claim a TIC that has already been sent', () => {
+            //  It has gone; rewriting history helps nobody.
+            assert.equal(companionTicIndex([PAYLOAD, `~${TIC}`], 0), -1);
+        });
+
+        it('does not claim a file that merely follows, whatever its name', () => {
+            assert.equal(companionTicIndex([PAYLOAD, '^/ob/bundle.su0'], 0), -1);
+            assert.equal(companionTicIndex([PAYLOAD, '^/ob/notatic'], 0), -1);
+        });
+
+        it('copes with the payload being the last line', () => {
+            assert.equal(companionTicIndex([PAYLOAD], 0), -1);
+            assert.equal(companionTicIndex([PAYLOAD, ''], 0), -1);
+        });
+    });
+
+    describe('withCompanionTicRefs', () => {
+        const sorted = result => Array.from(result.indices).sort((a, b) => a - b);
+
+        it('takes the TIC with its payload, and reports it for unlinking', () => {
+            const lines = [PAYLOAD, `^${TIC}`, '/files/keep.zip'];
+            const result = withCompanionTicRefs(lines, [0]);
+
+            assert.deepEqual(sorted(result), [0, 1]);
+            assert.deepEqual(result.ticPaths, [TIC]);
+        });
+
+        it('leaves a payload queued without a TIC alone', () => {
+            //  A link configured noTic gets the file bare.
+            const lines = ['/files/a.zip', '/files/b.zip'];
+            const result = withCompanionTicRefs(lines, [0]);
+
+            assert.deepEqual(sorted(result), [0]);
+            assert.deepEqual(result.ticPaths, []);
+        });
+
+        it('pairs each payload with its own TIC across several forwards', () => {
+            const lines = [
+                '/files/a.zip',
+                '^/ob/aaaaaaaa.tic',
+                '/files/b.zip',
+                '^/ob/bbbbbbbb.tic',
+                '/files/c.zip',
+                '^/ob/cccccccc.tic',
+            ];
+            const result = withCompanionTicRefs(lines, [0, 4]);
+
+            assert.deepEqual(sorted(result), [0, 1, 4, 5]);
+            assert.deepEqual(result.ticPaths, ['/ob/aaaaaaaa.tic', '/ob/cccccccc.tic']);
+            assert.ok(
+                !result.indices.has(2) && !result.indices.has(3),
+                'the forward in between must be untouched'
+            );
+        });
+
+        it('still unlinks a TIC the caller had already selected in its own right', () => {
+            //  Both the payload and its generated TIC gone from disk: the
+            //  prune path reports each as missing, so both indices arrive
+            //  here. The TIC is named once, not twice.
+            const lines = [PAYLOAD, `^${TIC}`];
+            const result = withCompanionTicRefs(lines, [0, 1]);
+
+            assert.deepEqual(sorted(result), [0, 1]);
+            assert.deepEqual(result.ticPaths, [TIC]);
+        });
+
+        it('returns the input untouched when nothing is being removed', () => {
+            const result = withCompanionTicRefs([PAYLOAD, `^${TIC}`], []);
+            assert.deepEqual(sorted(result), []);
+            assert.deepEqual(result.ticPaths, []);
         });
     });
 });
