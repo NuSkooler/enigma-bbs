@@ -306,10 +306,13 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         });
     }
 
+    _statusView() {
+        const mainVc = _.get(this.viewControllers, 'main');
+        return mainVc && mainVc.getView(MciViewIds.main.status);
+    }
+
     _updateStatus(status) {
-        const statusView =
-            _.get(this.viewControllers, 'main') &&
-            this.viewControllers.main.getView(MciViewIds.main.status);
+        const statusView = this._statusView();
         if (statusView) {
             statusView.setText(status);
         }
@@ -645,6 +648,24 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         if (this.tempRecvDirectory) {
             fse.remove(this.tempRecvDirectory, () => {});
         }
-        return this.prevMenu();
+
+        //
+        //  A menu with no art has no status view, which is what the shipped
+        //  one is: the caller would watch their packet upload and then be
+        //  returned to the message menu with no word of whether anything was
+        //  posted. Say it on the terminal instead, and hold it there long
+        //  enough to read.
+        //
+        if (this._statusView()) {
+            return this.prevMenu();
+        }
+
+        const { imported, rejected } = this.summary;
+        const summary = rejected
+            ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
+            : `Imported ${imported} message(s)`;
+
+        this.client.term.write(`\n${summary}\n`);
+        return this.pausePrompt(() => this.prevMenu());
     }
 };

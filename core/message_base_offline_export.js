@@ -188,6 +188,15 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     }
 
                     if (err) {
+                        //  said out loud: this used to return the caller to
+                        //  the previous menu with no record of why, which
+                        //  looks from the outside like the export doing
+                        //  nothing at all
+                        this.client.log.warn(
+                            { error: err.message, reasonCode: err.reasonCode },
+                            `${this.packetFormatName} export failed`
+                        );
+
                         //  :TODO: doesn't do anything currently:
                         if ('NORESULTS' === err.reasonCode) {
                             return this.gotoMenu(
@@ -205,7 +214,13 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
     }
 
     finishedLoading() {
-        this.prevMenu();
+        if (!this.finalStatus) {
+            return this.prevMenu();
+        }
+
+        //  no status view to have shown this, so say it and hold it
+        this.client.term.write(`\n${this.finalStatus}\n`);
+        return this.pausePrompt(() => this.prevMenu());
     }
 
     //
@@ -359,6 +374,19 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         const updateStatus = status => {
             if (statusView) {
                 statusView.setText(status);
+            }
+        };
+
+        //
+        //  What the caller is told at the end. With a status view they have
+        //  been watching it all along; without one -- which is what the
+        //  shipped menu is -- the export would otherwise finish in silence.
+        //
+        this.finalStatus = null;
+        const finalStatus = status => {
+            updateStatus(status);
+            if (!statusView) {
+                this.finalStatus = status;
             }
         };
 
@@ -628,11 +656,11 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                 this.client.removeListener('key press', keyPressHandler);
 
                 if (!err) {
-                    updateStatus(
+                    finalStatus(
                         `A ${this.packetFormatName} packet has been placed in your download queue`
                     );
                 } else if (err.code === Errors.NothingToDo().code) {
-                    updateStatus('No messages to export with current criteria');
+                    finalStatus('No messages to export with current criteria');
                     err = null;
                 }
 
