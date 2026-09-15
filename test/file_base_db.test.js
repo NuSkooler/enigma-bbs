@@ -763,3 +763,152 @@ describe('FileEntry.findFiles() — values are bound, not escaped', function () 
         });
     });
 });
+
+//  #864. A TIC's "Replaces" is a DOS style glob matched against the stored
+//  |short_file_name| meta. findFiles() converted '*' to '%' and then ran the
+//  result through sanitizeString(), which escapes '%' for literal values -- so
+//  every wildcard came back out as the literal two characters "\%", and with no
+//  ESCAPE clause on the LIKE, SQLite read that backslash literally. A wildcard
+//  Replaces matched nothing, allowReplace stored a duplicate rather than
+//  superseding, and the old file stayed queued for every downlink.
+//
+//
+//  The fix itself arrived via #868, which binds values instead of escaping
+//  them and pairs the LIKE with an explicit ESCAPE. These are the regression
+//  tests for the wildcard path, which that change left uncovered.
+describe('FileEntry.findFiles() — wildcard metaPairs (#864)', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM file_meta; DELETE FROM file;');
+        done();
+    });
+
+    //  A file carrying the two meta a TIC "Replaces" is matched on.
+    function persistWithMeta(fileName, meta, cb) {
+        const entry = makeEntry({ areaTag: 'nodelists', fileName, meta });
+        entry.desc = fileName;
+        entry.persist(err => cb(err, entry));
+    }
+
+    const findByReplaces = (replaces, cb) =>
+        FileEntry.findFiles(
+            {
+                areaTag: 'nodelists',
+                metaPairs: [
+                    { name: 'short_file_name', value: replaces, wildcards: true },
+                ],
+            },
+            cb
+        );
+
+    it("matches a '*' wildcard, which is the form Replaces exists for", done => {
+        persistWithMeta(
+            'nodelist.246',
+            { short_file_name: 'NODELIST.246' },
+            (err, entry) => {
+                assert.ifError(err);
+                findByReplaces('NODELIST.*', (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.deepEqual(
+                        ids,
+                        [entry.fileId],
+                        'a weekly nodelist hatch supersedes nothing without this'
+                    );
+                    done();
+                });
+            }
+        );
+    });
+
+    it("matches a '?' wildcard", done => {
+        persistWithMeta(
+            'nodelist.246',
+            { short_file_name: 'NODELIST.246' },
+            (err, entry) => {
+                assert.ifError(err);
+                findByReplaces('NODELIST.2?6', (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.deepEqual(ids, [entry.fileId]);
+                    done();
+                });
+            }
+        );
+    });
+
+    it('still matches an exact name carrying no wildcard at all', done => {
+        persistWithMeta(
+            'nodelist.246',
+            { short_file_name: 'NODELIST.246' },
+            (err, entry) => {
+                assert.ifError(err);
+                findByReplaces('NODELIST.246', (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.deepEqual(ids, [entry.fileId]);
+                    done();
+                });
+            }
+        );
+    });
+
+    it('does not match a file the pattern does not name', done => {
+        persistWithMeta('readme.txt', { short_file_name: 'README.TXT' }, err => {
+            assert.ifError(err);
+            findByReplaces('NODELIST.*', (findErr, ids) => {
+                assert.ifError(findErr);
+                assert.deepEqual(ids, []);
+                done();
+            });
+        });
+    });
+
+    it('finds every file a pattern spans, so an ambiguous one can be refused', done => {
+        //  The caller's safety check depends on this: dequeueReplaced* only
+        //  runs for exactly one match, and reporting one of three would delete
+        //  a real file and pull it out of every downlink's queue.
+        persistWithMeta('nodelist.239', { short_file_name: 'NODELIST.239' }, e1 => {
+            assert.ifError(e1);
+            persistWithMeta('nodelist.246', { short_file_name: 'NODELIST.246' }, e2 => {
+                assert.ifError(e2);
+                findByReplaces('NODELIST.*', (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.equal(ids.length, 2);
+                    done();
+                });
+            });
+        });
+    });
+
+    it("treats a literal '%' in the pattern as a literal, not a wildcard", done => {
+        //  '%' is legal in a DOS 8.3 name. Escaping the caller's own
+        //  metacharacters is the first half of the fix; without it "100%.ZIP"
+        //  would match anything beginning "100".
+        persistWithMeta('100pct.zip', { short_file_name: '100PCT.ZIP' }, e1 => {
+            assert.ifError(e1);
+            persistWithMeta('100%.zip', { short_file_name: '100%.ZIP' }, (e2, pct) => {
+                assert.ifError(e2);
+                findByReplaces('100%.ZIP', (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.deepEqual(ids, [pct.fileId], "'%' must not act as a wildcard");
+                    done();
+                });
+            });
+        });
+    });
+
+    it('does not mutate the caller’s metaPairs', done => {
+        //  The old form assigned the converted value back into mp.value, so a
+        //  filter used twice was converted twice.
+        persistWithMeta('nodelist.246', { short_file_name: 'NODELIST.246' }, err => {
+            assert.ifError(err);
+            const metaPairs = [
+                { name: 'short_file_name', value: 'NODELIST.*', wildcards: true },
+            ];
+            FileEntry.findFiles({ areaTag: 'nodelists', metaPairs }, findErr => {
+                assert.ifError(findErr);
+                assert.equal(metaPairs[0].value, 'NODELIST.*');
+                done();
+            });
+        });
+    });
+});
