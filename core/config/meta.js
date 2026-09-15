@@ -375,6 +375,15 @@ module.exports = {
                 network: { type: 'string' },
                 downlinks: {},
                 uplinks: {},
+                //  Carry this echo for downlinks without storing it locally
+                //  (#753). An absent areaTag means the same thing; the
+                //  explicit key is so the intent reads in config.hjson, and
+                //  so a *typo* in areaTag is not quietly reinterpreted.
+                passthrough: {
+                    type: 'boolean',
+                    description:
+                        'Carry this echo in transit for downlinks rather than storing it in the local file base.',
+                },
             },
         },
     },
@@ -463,6 +472,11 @@ module.exports = {
     'scannerTossers.ftn_bso.paths.retain': {
         type: 'string',
         description: 'Copy processed packets here; debugging aid.',
+    },
+    'scannerTossers.ftn_bso.paths.ticTransit': {
+        type: 'string',
+        description:
+            'Payloads for passthrough file echoes, kept only while a downlink still owes them.',
     },
 
     //  ── Content servers ──────────────────────────────────────────────────
