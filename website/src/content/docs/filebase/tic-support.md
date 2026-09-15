@@ -406,7 +406,9 @@ Only **one** match is accepted. A pattern matching several files is refused rath
 - The echo must name an `areaTag`, since the payload has to live somewhere. Passthrough areas are not yet supported.
 - A name that already exists in the area is refused unless `--replaces` matched it. Storing under one name while announcing another leaves the downlink an orphan it can never pair up, which is the same reason a collision-renamed import is never forwarded.
 - `--desc` and `--ldesc` come off a shell; a line terminator in either is neutralised rather than becoming a keyword line of its own.
-- The `File` keyword is the DOS 8.3 form, derived from the filename; the long name travels as `Lfile`.
+- The file is **stored and sent under its DOS 8.3 name**, which is what the TIC's `File` announces; the long name travels as `Lfile` for receivers that honour it. The two must agree: BinkP offers a file by its basename and htick pairs a payload strictly by `File`, so announcing one name while shipping another leaves the downlink an orphan it can never pair up. `fsxnet-infopack.zip` is therefore stored and announced as `FSXNET-I.ZIP`.
+- A symlink source is resolved before copying, so hatching from a `nodelist.latest` pointer stores the file it points at rather than a link that will dangle. The *name* still comes from the path you gave.
+- `--dry-run` writes nothing at all and prints the TIC it would have produced.
 
 ## See Also
 [Message Networks](../messageareas/message-networks.md)

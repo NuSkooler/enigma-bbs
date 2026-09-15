@@ -62,7 +62,20 @@ const FILE_WELL_KNOWN_META = {
 function likePatternFromGlob(glob) {
     return (
         String(glob)
-            //  LIKE metacharacters and the escape character itself. Whatever
+            //  Control characters, which sanitizeString() escaped and this
+            //  does not. A TIC's "Replaces" is never run through
+            //  isSafeFileName(), unlike File/Lfile/Fullname, so a peer can
+            //  send one carrying anything.
+            //
+            //  Since #868 the pattern is a bound parameter rather than
+            //  statement text, so a NUL can no longer truncate the query --
+            //  the hazard this originally guarded against. Kept because none
+            //  of these can legitimately appear in a DOS 8.3 name, so a
+            //  pattern carrying one is malformed and has no business being
+            //  handed to LIKE as written.
+            // eslint-disable-next-line no-control-regex
+            .replace(/[\u0000-\u001f\u007f]/g, '')
+            //  LIKE metacharacters, and the escape character itself. Whatever
             //  the caller wrote here, they meant literally.
             .replace(/[\\%_]/g, c => `\\${c}`)
             //  ...then the glob's own wildcards, which must stay live.

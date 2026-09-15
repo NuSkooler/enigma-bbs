@@ -1343,6 +1343,20 @@ function hatchFile() {
 
     const dryRun = true === argv['dry-run'];
 
+    //
+    //  A value flag given with no value is boolean true, and passing that on
+    //  writes "Replaces true" into the TIC or hands `true` to a SQL bind. Say
+    //  so instead.
+    //
+    for (const name of ['desc', 'replaces', 'tags', 'storage-tag']) {
+        if (undefined !== argv[name] && !_.isString(argv[name])) {
+            return printUsageAndSetExitCode(
+                `--${name} needs a value`,
+                ExitCodes.BAD_ARGS
+            );
+        }
+    }
+
     //  Repeatable, so a long description keeps its line breaks: FTS-5006 makes
     //  Ldesc explicitly multi-line and the blank lines in one are content.
     const ldesc = []
