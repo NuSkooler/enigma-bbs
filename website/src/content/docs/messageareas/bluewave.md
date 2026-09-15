@@ -56,6 +56,15 @@ bluewaveExport: {
 
 A menu with no art has no status or progress view. The export still runs and the packet still arrives; the caller just sees nothing while it works, and `progBarChar` has nothing to draw into. A caller who presses <kbd>ESC</kbd> during the export cancels it. The finished packet is placed in their download queue and is valid until the session ends.
 
+The caller fetches it with <kbd>E</kbd> from the message base menu, listed in the stock theme as `e download queue`. A board configured before this landed needs the submit entry added to its message base menu, and its own `MSGMNU` art needs the line, the same as for the export:
+
+```hjson
+{
+    value: { command: "E" }
+    action: @menu:fileBaseDownloadManager
+}
+```
+
 ### What a Caller Gets
 * Every message area they can read is listed in the packet, whether or not it had new mail.
 * Their private mail is included as its own area.

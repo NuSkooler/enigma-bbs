@@ -1415,7 +1415,15 @@ class QWKPacketWriter extends EventEmitter {
                     packetPath,
                     files,
                     this.workDir,
-                    () => {
+                    err => {
+                        //  Report why the archiver failed. Ignoring it left
+                        //  the stat below to report ENOENT on the archive
+                        //  that was never written, which says nothing about
+                        //  a missing or misconfigured archiver.
+                        if (err) {
+                            return cb(err);
+                        }
+
                         fs.stat(packetPath, (err, stats) => {
                             if (stats) {
                                 this.emit('packet', { stats, path: packetPath });

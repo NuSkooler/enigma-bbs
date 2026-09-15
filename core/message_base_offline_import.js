@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule, MenuFlags } = require('./menu_module.js');
+const { MenuModule } = require('./menu_module.js');
 const Message = require('./message.js');
 const { Errors } = require('./enig_error.js');
 const {
@@ -175,7 +175,16 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.setMergedFlag(MenuFlags.NoHistory);
+        //
+        //  Deliberately NOT MenuFlags.NoHistory, which upload.js carries.
+        //  MenuStack.goto() pops a NoHistory module as it leaves, so this one
+        //  would be off the stack by the time the transfer finished, and the
+        //  prevMenu() that hands the upload back would land on the menu below
+        //  it instead -- no import, and the caller dropped a menu too far.
+        //  upload.js gets away with it because protocol selection re-enters it
+        //  by name rather than by returning. This module removes itself when
+        //  it is done, so it leaves nothing behind either way.
+        //
         this.interrupt = MenuModule.InterruptTypes.Never;
 
         this.config = Object.assign(
@@ -252,13 +261,25 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
             });
         }
 
+        //
+        //  Re-entered with a temp directory already restored and nothing
+        //  received: protocol selection binds ESC to prevMenu(), which pops
+        //  it and lands back here. Asking for another transfer would put the
+        //  caller straight back on that menu -- no way out but to start a
+        //  transfer and abort it, and a temp directory abandoned each time
+        //  around.
+        //
+        if (this.tempRecvDirectory) {
+            return this._finish('No packet was uploaded');
+        }
+
         return this._receivePacket(err => {
             if (err) {
                 this.client.log.warn(
                     { error: err.message },
                     'Could not start an offline mail upload'
                 );
-                return this._finish();
+                return this._finish('The upload could not be started -- see the log');
             }
         });
     }
@@ -283,6 +304,13 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
                     extraArgs: {
                         recvDirectory: this.tempRecvDirectory,
                         direction: 'recv',
+                        //
+                        //  Without this, protocol selection hands the upload
+                        //  to the file base pipeline instead of back here --
+                        //  which then finds no upload area, does nothing, and
+                        //  leaves the caller on its processing screen.
+                        //
+                        returnToCaller: true,
                     },
                 },
                 cb
@@ -291,9 +319,7 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     }
 
     _updateStatus(status) {
-        const statusView =
-            _.get(this.viewControllers, 'main') &&
-            this.viewControllers.main.getView(MciViewIds.main.status);
+        const statusView = this.getView('main', MciViewIds.main.status);
         if (statusView) {
             statusView.setText(status);
         }
@@ -623,12 +649,37 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         //  intentionally nothing; see above
     }
 
-    _finish() {
-        this.client.log.info(this.summary, 'Offline mail import complete');
+    //
+    //  |outcome| is for the paths that never reached an import: the summary
+    //  would otherwise report "Imported 0 message(s)", which says the packet
+    //  held nothing rather than that there was no packet.
+    //
+    _finish(outcome) {
+        this.client.log.info(this.summary, outcome || 'Offline mail import complete');
         this.temptmp.cleanup();
         if (this.tempRecvDirectory) {
             fse.remove(this.tempRecvDirectory, () => {});
         }
-        return this.prevMenu();
+
+        //
+        //  A menu with no art has no status view, which is what the shipped
+        //  one is: the caller would watch their packet upload and then be
+        //  returned to the message menu with no word of whether anything was
+        //  posted. Say it on the terminal instead, and hold it there long
+        //  enough to read.
+        //
+        if (this.getView('main', MciViewIds.main.status)) {
+            return this.prevMenu();
+        }
+
+        const { imported, rejected } = this.summary;
+        const summary =
+            outcome ||
+            (rejected
+                ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
+                : `Imported ${imported} message(s)`);
+
+        this.client.term.write(`\n${summary}\n`);
+        return this.pausePrompt(() => this.prevMenu());
     }
 };

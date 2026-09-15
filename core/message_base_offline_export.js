@@ -123,21 +123,41 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             async.waterfall(
                 [
                     callback => {
+                        //
+                        //  A menu with no art produces no MCI map, and a view
+                        //  controller refuses to load without one. The menu
+                        //  this module ships on carries no art, so preparing
+                        //  views unconditionally failed the export before it
+                        //  started -- and so does validating them, which is
+                        //  why both sit behind the one guard. A format that
+                        //  requires views (QWK does; Blue Wave overrides
+                        //  requiredViewIds() to none) would otherwise still
+                        //  bail with 'Form does not exist: main'.
+                        //
+                        if (!mciData.menu) {
+                            return callback(null);
+                        }
+
                         this.prepViewController(
                             'main',
                             FormIds.main,
                             mciData.menu,
                             err => {
-                                return callback(err);
+                                if (err) {
+                                    return callback(err);
+                                }
+
+                                const required = this.requiredViewIds();
+                                if (!required.length) {
+                                    return callback(null);
+                                }
+                                return this.validateMCIByViewIds(
+                                    'main',
+                                    required,
+                                    callback
+                                );
                             }
                         );
-                    },
-                    callback => {
-                        const required = this.requiredViewIds();
-                        if (!required.length) {
-                            return callback(null);
-                        }
-                        return this.validateMCIByViewIds('main', required, callback);
                     },
                     callback => {
                         this.temptmp = temptmp.createTrackedSession('offlineexport');
@@ -169,9 +189,22 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     },
                 ],
                 err => {
-                    this.temptmp.cleanup();
+                    //  an error before the session was created leaves nothing
+                    //  to clean up, and cleaning it anyway threw over the top
+                    //  of the real error
+                    if (this.temptmp) {
+                        this.temptmp.cleanup();
+                    }
 
                     if (err) {
+                        //  packetFormatName is not named here: it is a getter
+                        //  the base class throws from, and an incomplete
+                        //  format is one of the errors that lands here
+                        this.client.log.warn(
+                            { error: err.message, reasonCode: err.reasonCode },
+                            'Offline mail export failed'
+                        );
+
                         //  :TODO: doesn't do anything currently:
                         if ('NORESULTS' === err.reasonCode) {
                             return this.gotoMenu(
@@ -180,16 +213,30 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             );
                         }
 
-                        return this.prevMenu();
+                        //  a failed export used to return the caller with no
+                        //  word of why; finishedLoading() says it
+                        this.finalStatus = 'The export failed -- see the log';
                     }
-                    return cb(err);
+                    return cb(null);
                 }
             );
         });
     }
 
     finishedLoading() {
-        this.prevMenu();
+        if (!this.finalStatus) {
+            return this.prevMenu();
+        }
+
+        //  hold it long enough to read either way: in the status view on a
+        //  menu with art, on the terminal on one without
+        const statusView = this.getView('main', MciViewIds.main.status);
+        if (statusView) {
+            statusView.setText(this.finalStatus);
+        } else {
+            this.client.term.write(`\n${this.finalStatus}\n`);
+        }
+        return this.pausePrompt(() => this.prevMenu());
     }
 
     //
@@ -335,16 +382,31 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             return cb(missingHook);
         }
 
-        const statusView = this.viewControllers.main.getView(MciViewIds.main.status);
+        //  A menu with no art has no views at all, not merely missing ones --
+        //  the export still runs, the caller just watches nothing happen.
+        const mainVc = this.viewControllers.main;
+
+        const statusView = this.getView('main', MciViewIds.main.status);
         const updateStatus = status => {
             if (statusView) {
                 statusView.setText(status);
             }
         };
 
-        const progBarView = this.viewControllers.main.getView(
-            MciViewIds.main.progressBar
-        );
+        //
+        //  What the caller is told at the end. With a status view they have
+        //  been watching it all along; without one -- which is what the
+        //  shipped menu is -- the export would otherwise finish in silence.
+        //
+        this.finalStatus = null;
+        const finalStatus = status => {
+            updateStatus(status);
+            if (!statusView) {
+                this.finalStatus = status;
+            }
+        };
+
+        const progBarView = mainVc && mainVc.getView(MciViewIds.main.progressBar);
         const updateProgressBar = (curr, total) => {
             if (progBarView) {
                 const prog = Math.floor((curr / total) * progBarView.dimens.width);
@@ -610,11 +672,15 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                 this.client.removeListener('key press', keyPressHandler);
 
                 if (!err) {
-                    updateStatus(
+                    finalStatus(
                         `A ${this.packetFormatName} packet has been placed in your download queue`
                     );
                 } else if (err.code === Errors.NothingToDo().code) {
-                    updateStatus('No messages to export with current criteria');
+                    finalStatus('No messages to export with current criteria');
+                    err = null;
+                } else if (err.code === Errors.UserInterrupt().code) {
+                    //  ESC during the export: asked for, not a failure
+                    finalStatus('Export canceled');
                     err = null;
                 }
 
