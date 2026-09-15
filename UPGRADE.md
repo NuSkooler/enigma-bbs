@@ -22,6 +22,33 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **Four editors were never migrated to the `%SB1` footer** — `privateMailMenuCreateMessage`, `newUserFeedbackToSysOp`, `messageAreaReplyPost` and `preAuthFeedback` draw `MSGEFTR`, whose art has carried a single `%SB1` since 0.1.0, but never configured it. Three still had the retired `TLTL` block on form `2`, naming `%TL1` and `%TL2` views the art no longer has; the reply editor had no form `2` at all.
+
+  `core/fse.js` drives that bar with `setPanel('pos')` and `setPanel('mode')`, and `StatusBarView.setPanel()` returns early unless the view was built with a `panels` array — which only a form `2` `SB1` block supplies. So those four editors have shown an **empty footer**: no cursor position, no INS/OVR indicator, nothing logged. `oputil.js config validate` cannot report it either, since MCI blocks belong to the modules that read them and are deliberately left unchecked.
+
+  The shipped templates are fixed, so a new installation is correct. **Your `menu.hjson` is yours and is never rewritten**, so an existing board keeps the broken block until you replace it.
+
+  **Action:** in each of those menus, replace form `2` — or add one, if like `messageAreaReplyPost` it has none — with:
+
+  ```hjson
+  2: {
+      mci: {
+          SB1: {
+              width:     9
+              anchor:    left
+              justify:   left
+              separator: " "
+              panels: [
+                  { name: mode, width: 3, justify: right }
+                  { name: pos,  width: 5, justify: left  }
+              ]
+          }
+      }
+  }
+  ```
+
+  The other editors — `mainMenuFeedbackToSysOp`, `messageBaseNewPost` and `activityPubCompose` — were already correct and need nothing. If your theme still carries a form `2` `TL1`/`TL2` customization for any of the four above, it has been matching nothing and can go.
+
 * **Achievement totals earned before 0.5.1-beta may be too high** ([#843](https://github.com/NuSkooler/enigma-bbs/pull/843)). Until the duplicate-award fix, crossing a new tier of a retroactive achievement re-counted every lower tier the user already held: the running `achievement_total_count` / `achievement_total_points` properties were incremented before `INSERT OR IGNORE` dropped the duplicate row. The `user_achievement` records were never wrong, only the running totals, and only upward. Boards that have been up for a while will see this in "Top Achievements" rankings and in the header of the Achievements screen, which can claim more achievements than the list below it shows.
 
   No new drift accrues once you are on this version.

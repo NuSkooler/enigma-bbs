@@ -167,3 +167,48 @@ describe('@reference specs in the shipped menu templates', () => {
         assert.ok(referenced > 25, `expected many references, found ${referenced}`);
     });
 });
+
+//
+//  The full screen editor's footer was two text labels -- %TL1 for the cursor
+//  position and %TL2 for INS/OVR, configured through a "TLTL" block on form 2
+//  -- until a single %SB1 StatusBarView with named panels replaced them. The
+//  shipped art moved; three of these menus did not, and nothing said so.
+//
+//  core/fse.js drives the bar with setPanel('pos') and setPanel('mode'), and
+//  StatusBarView.setPanel() returns early unless the view was built with a
+//  panels array, which only a form 2 SB1 block supplies. A menu still carrying
+//  TLTL therefore renders an empty footer: no position, no INS/OVR, nothing
+//  logged. The config validator cannot catch it either -- MCI blocks belong to
+//  the modules that read them and are deliberately left unchecked.
+//
+describe('editor footers in the shipped menu templates', () => {
+    const config = generatedMenuConfig();
+
+    //  an editor menu is one that names footer art to draw
+    const editorMenus = Object.entries(config.menus || {}).filter(([, menu]) =>
+        _.isString(_.get(menu, 'config.art.footerEditor'))
+    );
+
+    it('is reading something', () => {
+        assert.ok(
+            editorMenus.length > 3,
+            `expected several editor menus, found ${editorMenus.length}`
+        );
+    });
+
+    it('every editor footer configures the status bar', () => {
+        const missing = editorMenus
+            .filter(([, menu]) => !_.get(menu, 'form.2.mci.SB1'))
+            .map(([name]) => name);
+
+        assert.deepEqual(missing, []);
+    });
+
+    it('no editor still carries the retired TLTL block', () => {
+        const stale = editorMenus
+            .filter(([, menu]) => _.has(menu, 'form.2.TLTL'))
+            .map(([name]) => name);
+
+        assert.deepEqual(stale, []);
+    });
+});

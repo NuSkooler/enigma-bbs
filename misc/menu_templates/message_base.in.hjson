@@ -882,6 +882,29 @@
                     ]
                 }
 
+                2: {
+                    mci: {
+                        SB1: {
+                            width:     9
+                            anchor:    left
+                            justify:   left
+                            separator: " "
+                            panels: [
+                                {
+                                    name:    mode
+                                    width:   3
+                                    justify: right
+                                }
+                                {
+                                    name:    pos
+                                    width:   5
+                                    justify: left
+                                }
+                            ]
+                        }
+                    }
+                }
+
                 3: {
                     mci: {
                         HM1: {
