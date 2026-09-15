@@ -75,6 +75,15 @@ const FILE_WELL_KNOWN_META = {
 function likePatternFromGlob(glob) {
     return (
         String(glob)
+            //  Control characters, which sanitizeString() escaped and this
+            //  does not. A NUL reaches better-sqlite3 as a C string terminator
+            //  and truncates the statement, so the query fails to parse and
+            //  the error aborts the import waterfall -- a TIC's "Replaces" is
+            //  never run through isSafeFileName(), unlike File/Lfile/Fullname,
+            //  so a peer can send one. Replaced rather than escaped: none of
+            //  them can legitimately appear in a DOS 8.3 name.
+            // eslint-disable-next-line no-control-regex
+            .replace(/[\u0000-\u001f\u007f]/g, '')
             //  LIKE metacharacters, and the escape character itself. Whatever
             //  the caller wrote here, they meant literally.
             .replace(/[\\%_]/g, c => `\\${c}`)

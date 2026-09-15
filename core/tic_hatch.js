@@ -343,17 +343,33 @@ function findReplacedEntry(replaces, { localAreaTag, origin }, cb) {
             );
         }
 
-        FileEntry.loadBasicEntry(fileIds[0], {}, (err, info) => {
-            if (err || !info) {
-                return cb(null, null);
+        //
+        //  A full load, not loadBasicEntry(): FileEntry.filePath resolves
+        //  storage_tag_rel_path as well as the storage directory, and carries a
+        //  traversal guard. Joining the storage directory to the file name by
+        //  hand gets a wildcard/recursive storage tag wrong, and a wrong
+        //  |oldPath| means the downlink dequeue scrubs a path no flow file
+        //  contains -- so the superseded file stays queued *and* the new one is
+        //  added -- while the physical cleanup unlinks nothing.
+        //
+        const entry = new FileEntry();
+        entry.load(fileIds[0], err => {
+            if (err) {
+                //  Not "nothing to replace": that would hatch this as a new
+                //  file and reproduce the duplicate-and-never-dequeue symptom
+                //  #864 was about.
+                return cb(
+                    Errors.General(
+                        `Could not load the entry "${replaces}" matched: ${err.message}`
+                    )
+                );
             }
 
-            const dir = getAreaStorageDirectoryByTag(info.storageTag);
             return cb(null, {
-                fileId: fileIds[0],
-                fileName: info.fileName,
-                storageTag: info.storageTag,
-                path: dir ? paths.join(dir, info.fileName) : undefined,
+                fileId: entry.fileId,
+                fileName: entry.fileName,
+                storageTag: entry.storageTag,
+                path: entry.filePath,
             });
         });
     });
@@ -419,18 +435,64 @@ function hatch(opts, cb) {
                             Errors.Invalid(`${filePath} is not a regular file`)
                         );
                     }
-                    return callback(null, stats);
+
+                    //
+                    //  fs.stat() followed a symlink to get here, but fs-extra's
+                    //  copy does not -- it copies the *link*, target string and
+                    //  all. A relative one ("nodelist.latest" -> "nodelist.246")
+                    //  then dangles in the file base, and an absolute one goes
+                    //  stale the moment the operator repoints it, taking the
+                    //  size and CRC we announced with it.
+                    //
+                    //  Hatching from a "latest" pointer is an obvious thing to
+                    //  want, so resolve it for reading. The *name* still comes
+                    //  from the path the operator gave: guessing that they
+                    //  wanted the target's name instead would be less
+                    //  predictable than doing what they typed.
+                    //
+                    fs.realpath(filePath, (realErr, resolved) => {
+                        return callback(null, stats, realErr ? filePath : resolved);
+                    });
                 });
             },
-            function findReplaced(stats, callback) {
+            function findReplaced(stats, source, callback) {
                 findReplacedEntry(
                     opts.replaces,
                     { localAreaTag: target.localAreaTag, origin },
-                    (err, replaced) => callback(err, stats, replaced)
+                    (err, replaced) => callback(err, stats, source, replaced)
                 );
             },
-            function describe(stats, replaced, callback) {
+            function describe(stats, source, replaced, callback) {
                 const longName = paths.basename(filePath);
+                const shortName = dosFileName(longName);
+
+                //
+                //  The name we ship under has to be the name we announce.
+                //
+                //  FTS-5006's "File" is the name as *transmitted*; "Lfile" is
+                //  the long name the receiver should store it under. BinkP
+                //  offers a file by its actual basename, and htick pairs a
+                //  payload strictly by "File" -- adaptcase() for case and
+                //  nothing else, with no Lfile fallback in its parser at all.
+                //  Our own reader does the same (resolveFilePath). So storing
+                //  under the long name while announcing the 8.3 one leaves
+                //  every downlink an orphan it can never pair up, which is
+                //  precisely what forwardTicToDownlinks() refuses to do for a
+                //  collision-renamed import.
+                //
+                //  So the file base copy is named for "File", and the long name
+                //  travels in "Lfile" for receivers that honour it. htick
+                //  ignores Lfile and stores the 8.3 name; tickit and Mystic
+                //  store the long one. Both pair correctly, which is the half
+                //  that matters.
+                //
+                if (shortName !== longName) {
+                    Log.info(
+                        { hatching: longName, announcedAs: shortName },
+                        'Hatched file will be sent under its 8.3 name; the long name travels as Lfile'
+                    );
+                }
+
                 const info = {
                     externalAreaTag: target.externalAreaTag,
                     localAreaTag: target.localAreaTag,
@@ -439,7 +501,7 @@ function hatch(opts, cb) {
                     origin,
                     downlinks: target.downlinks,
                     longFileName: longName,
-                    fileName: dosFileName(longName),
+                    fileName: shortName,
                     size: stats.size,
                     date: Math.floor(stats.mtimeMs / 1000),
                     replaced,
@@ -447,12 +509,12 @@ function hatch(opts, cb) {
 
                 if (opts.dryRun) {
                     //  Everything above is a read. Stop before the first write.
-                    return callback(null, info, null);
+                    return callback(null, info, null, null);
                 }
 
-                return callback(null, info, true);
+                return callback(null, info, source, true);
             },
-            function storeInFileBase(info, proceed, callback) {
+            function storeInFileBase(info, source, proceed, callback) {
                 if (!proceed) {
                     return callback(null, info, null);
                 }
@@ -466,12 +528,14 @@ function hatch(opts, cb) {
                 //  name while shipping another leaves the downlink an orphan it
                 //  can never pair up.
                 //
-                const dst = paths.join(target.storageDir, info.longFileName);
+                //  The announced name, not the long one -- see the note in
+                //  describe(). This is the basename BinkP will offer.
+                const dst = paths.join(target.storageDir, info.fileName);
                 const isUpdate = !!info.replaced;
 
                 const collided = () =>
                     Errors.General(
-                        `${info.longFileName} already exists in ${target.localAreaTag}. Use --replaces to supersede it, or hatch it under another name.`
+                        `${info.fileName} already exists in ${target.localAreaTag}. Use --replaces to supersede it, or hatch it under another name.`
                     );
 
                 const copied = (err, finalPath) => {
@@ -496,12 +560,22 @@ function hatch(opts, cb) {
                     return callback(null, info, finalPath);
                 };
 
-                if (isUpdate) {
-                    return safeCopyFile(filePath, dst, { overwrite: true }, err =>
+                //
+                //  An update overwrites, but only the file it is superseding.
+                //  |dst| is derived from the *new* file's name and has nothing
+                //  to do with the entry --replaces matched, so hatching
+                //  readme.txt with "--replaces NODELIST.*" would overwrite an
+                //  unrelated readme.txt belonging to another entry -- leaving
+                //  that entry's row describing bytes that no longer exist, and
+                //  two rows sharing one physical file.
+                //
+                if (isUpdate && info.replaced.path === dst) {
+                    return safeCopyFile(source, dst, { overwrite: true }, err =>
                         copied(err, dst)
                     );
                 }
-                return copyFileWithCollisionHandling(filePath, dst, copied);
+
+                return copyFileWithCollisionHandling(source, dst, copied);
             },
             function scanAndPersist(info, newPath, callback) {
                 if (!newPath) {
@@ -528,14 +602,33 @@ function hatch(opts, cb) {
                     scanOpts.meta.tic_desc = opts.desc;
                 }
 
+                //
+                //  Anything that fails from here on has already put a file in
+                //  the area's storage directory. Take it back out, or the
+                //  operator is left with a file no database row and no TIC
+                //  names -- found by hand, if at all. The collision path is
+                //  careful about exactly this; the scan and persist path was
+                //  not.
+                //
+                //  Only for a new file. An update overwrote the superseded
+                //  bytes in place, and unlinking would then destroy the entry
+                //  we were replacing as well as the one we failed to create.
+                //
+                const abort = (err, done) => {
+                    if (info.replaced) {
+                        return done(err);
+                    }
+                    return fs.unlink(newPath, () => done(err));
+                };
+
                 scanFile(newPath, scanOpts, (err, fileEntry) => {
                     if (err) {
-                        return callback(err);
+                        return abort(err, callback);
                     }
 
                     fileEntry.areaTag = target.localAreaTag;
                     fileEntry.storageTag = target.storageTag;
-                    fileEntry.fileName = info.longFileName;
+                    fileEntry.fileName = info.fileName;
 
                     if (opts.desc) {
                         fileEntry.desc = opts.desc;
@@ -551,7 +644,9 @@ function hatch(opts, cb) {
                     info.crc32 = _.get(fileEntry, 'meta.file_crc32');
                     info.fileEntry = fileEntry;
 
-                    fileEntry.persist(!!info.replaced, err => callback(err, info));
+                    fileEntry.persist(!!info.replaced, err =>
+                        err ? abort(err, callback) : callback(null, info)
+                    );
                 });
             },
             function announce(info, callback) {

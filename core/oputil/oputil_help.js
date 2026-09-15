@@ -226,6 +226,10 @@ hatch arguments:
   --storage-tag TAG            Storage location; default is the area's first
   --dry-run                    Report what would be hatched and write nothing
 
+  The file is stored and sent under its DOS 8.3 name, which is what the TIC's
+  "File" announces; the long name travels as "Lfile". The two must agree, or a
+  downlink is left with a payload it cannot pair to its announcement.
+
   --replaces is how a weekly nodelist works: it supersedes the previous file in
   the same area from the same origin, and dequeues it from any downlink that
   has not collected it yet. Only 0 or 1 match is accepted -- more is refused
