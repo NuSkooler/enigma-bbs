@@ -1323,6 +1323,111 @@ describe('BsoSpool — pruning a forwarded file takes its TIC with it', () => {
         );
     });
 
+    it('unlinks the TIC even when the outbound tree has moved', async () => {
+        //
+        //  resolveFlowRef() deliberately falls back to the referenced basename
+        //  beside the flow file when the stored absolute path no longer
+        //  resolves -- a relocated outbound, or a sysop recovering mail filed
+        //  in the wrong directory. Unlinking the raw reference text therefore
+        //  missed the file in exactly the case that fallback exists for,
+        //  dequeuing the line and leaving the orphan this is meant to remove.
+        //
+        const dir = outboundDir(tmpDir);
+        const flowPath = path.join(dir, '00680001.flo');
+
+        //  Both references carry a path from the *old* location; only the TIC
+        //  is actually present, beside the flow file.
+        const stalePayload = '/old/enigma/filebase/NODELIST.246';
+        const staleTic = '/old/enigma/outbound/0a1b2c3d.tic';
+        const realTic = path.join(dir, '0a1b2c3d.tic');
+        await fsp.writeFile(realTic, 'Area NODELIST\r\n');
+        await fsp.writeFile(flowPath, `${stalePayload}\n^${staleTic}\n`);
+
+        const { removed } = await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.equal(
+            await exists(realTic),
+            false,
+            'the TIC beside the flow file is the one the reference resolves to'
+        );
+        assert.deepEqual(
+            removed.filter(e => 'companion' === e.status).map(e => e.path),
+            [realTic],
+            'and the operator is shown the path that actually went'
+        );
+    });
+
+    it("never unlinks outside the flow file's own directory", async () => {
+        //
+        //  A generated TIC is always written beside its flow file, so that is
+        //  both the right fallback and a containment rule. The reference is the
+        //  one part of a flow file we did not necessarily write, and oputil runs
+        //  as whatever user the operator is, from an arbitrary directory.
+        //
+        const dir = outboundDir(tmpDir);
+        const flowPath = path.join(dir, '00680001.flo');
+
+        const outsider = path.join(tmpDir, 'passwd.tic');
+        await fsp.writeFile(outsider, 'NOT OURS');
+
+        await fsp.writeFile(
+            flowPath,
+            `${path.join(tmpDir, 'gone', 'x.zip')}\n^../passwd.tic\n`
+        );
+
+        await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+
+        assert.ok(
+            await exists(outsider),
+            'a traversing reference must not reach outside the outbound directory'
+        );
+    });
+
+    it('leaves the flow file alone when the rewrite fails', async () => {
+        //
+        //  Unlinking before writing meant a failed rewrite left the flow file
+        //  naming TICs that no longer existed -- the dangling reference #735 is
+        //  about -- while the caller reported the entries as merely busy.
+        //
+        const dir = outboundDir(tmpDir);
+        const flowPath = path.join(dir, '00680001.flo');
+        const ticPath = path.join(dir, 'deadbeef.tic');
+        const gone = path.join(tmpDir, 'gone', 'vanished.zip');
+        const live = path.join(dir, 'live.pkt');
+
+        await fsp.writeFile(live, 'LIVE');
+        await fsp.writeFile(ticPath, 'Area A\r\n');
+        await fsp.writeFile(flowPath, `${gone}\n^${ticPath}\n^${live}\n`);
+        const before = await fsp.readFile(flowPath, 'utf8');
+
+        //  Make the rewrite fail the way a full or read-only volume would.
+        const realWriteFile = fsp.writeFile;
+        fsp.writeFile = async (p, ...rest) => {
+            if (p === flowPath) {
+                const err = new Error('ENOSPC: no space left on device');
+                err.code = 'ENOSPC';
+                throw err;
+            }
+            return realWriteFile(p, ...rest);
+        };
+
+        try {
+            await spool.pruneMissingRefs(TEST_ADDR, { dryRun: false });
+        } finally {
+            fsp.writeFile = realWriteFile;
+        }
+
+        assert.equal(
+            await fsp.readFile(flowPath, 'utf8'),
+            before,
+            'the flow file must be untouched'
+        );
+        assert.ok(
+            await exists(ticPath),
+            'and its TIC must still exist, or the reference dangles'
+        );
+    });
+
     it('takes only the TIC belonging to the payload that went', async () => {
         const keep = path.join(tmpDir, 'filebase', 'KEEP.ZIP');
         const keepTic = path.join(outboundDir(tmpDir), '11111111.tic');

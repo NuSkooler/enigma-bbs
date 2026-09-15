@@ -40,6 +40,7 @@ const {
     legacyOutboundDirName,
     validateOutboundConfig,
     withCompanionTicRefs,
+    companionTicPath,
     flowRefIsSent,
     flowRefBody,
 } = require('../bso_util.js');
@@ -3411,25 +3412,47 @@ function FTNMessageScanTossModule() {
                     const removed = matched.length;
                     const keep = lines.filter((_line, i) => !indices.has(i));
 
-                    async.each(
-                        ticPaths,
-                        (ticPath, nextTic) => fs.unlink(ticPath, () => nextTic(null)),
-                        () => {
-                            Log.debug(
-                                {
-                                    flowFile: flowFilePath,
-                                    file: paths.basename(targetPath),
-                                    removed,
-                                },
-                                'Dequeued superseded file from downlink outbound'
-                            );
-
-                            const remaining = keep.join('\n');
-                            if (!remaining.trim()) {
-                                return fs.unlink(flowFilePath, () => done(null));
+                    //
+                    //  Rewrite first, then unlink. The other order leaves the
+                    //  flow file naming files that no longer exist if the write
+                    //  fails, which is the dangling reference #735 is about.
+                    //
+                    //  companionTicPath() rather than the raw reference text:
+                    //  resolveFlowRef() falls back to the basename beside the
+                    //  flow file when the stored path no longer resolves, so
+                    //  unlinking the literal text missed the file in exactly
+                    //  that case -- and it is also the containment rule, since
+                    //  a generated TIC is always a sibling of its flow file.
+                    //
+                    const unlinkCompanions = () =>
+                        async.each(
+                            ticPaths,
+                            (ref, nextTic) => {
+                                const ticPath = companionTicPath(flowFilePath, ref);
+                                if (!ticPath) {
+                                    return nextTic(null);
+                                }
+                                fs.unlink(ticPath, () => nextTic(null));
+                            },
+                            () => {
+                                Log.debug(
+                                    {
+                                        flowFile: flowFilePath,
+                                        file: paths.basename(targetPath),
+                                        removed,
+                                    },
+                                    'Dequeued superseded file from downlink outbound'
+                                );
+                                return done(null);
                             }
-                            return fs.writeFile(flowFilePath, remaining, done);
-                        }
+                        );
+
+                    const remaining = keep.join('\n');
+                    if (!remaining.trim()) {
+                        return fs.unlink(flowFilePath, unlinkCompanions);
+                    }
+                    return fs.writeFile(flowFilePath, remaining, err =>
+                        err ? done(err) : unlinkCompanions()
                     );
                 });
             },

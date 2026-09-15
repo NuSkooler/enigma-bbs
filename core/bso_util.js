@@ -3,6 +3,9 @@
 
 const Address = require('./ftn_address.js');
 
+//  deps
+const paths = require('path');
+
 //
 //  Shared BSO (Binkley Style Outbound) spool path resolution.
 //
@@ -240,7 +243,9 @@ function companionTicIndex(lines, idx) {
         return -1;
     }
 
-    return /\.tic$/i.test(flowRefBody(next)) ? idx + 1 : -1;
+    //  extname(), not a bare /\.tic$/: the latter treats a dotfile named
+    //  ".tic" as having that extension, which the form this replaced did not.
+    return '.tic' === paths.extname(flowRefBody(next)).toLowerCase() ? idx + 1 : -1;
 }
 
 //
@@ -254,6 +259,36 @@ function companionTicIndex(lines, idx) {
 //  Computed against |lines| as they stand, so callers that splice must do so
 //  afterwards and in descending order.
 //
+//
+//  The path to unlink for a companion TIC reference in |flowFilePath|.
+//
+//  Not simply the text of the reference. A flow file carries an absolute path,
+//  and BsoSpool's resolveFlowRef() deliberately falls back to looking for the
+//  referenced *basename* beside the flow file when that path no longer resolves
+//  -- a relocated outbound tree, or a sysop recovering mail filed in the wrong
+//  directory. Unlinking the raw text therefore missed the file in exactly the
+//  case the fallback exists to handle, leaving the very orphan the dequeue is
+//  meant to remove.
+//
+//  A generated TIC is always written to the same directory as the flow file
+//  that references it (forwardTicToOneDownlink builds both from one
+//  |outgoingDir|), so a sibling is both the correct fallback and a containment
+//  rule: this never returns a path outside the flow file's own directory, and
+//  the callers unlink nothing else. That matters because the reference is the
+//  one part of a flow file we did not necessarily write, and oputil runs as
+//  whatever user the operator is, from an arbitrary working directory.
+//
+function companionTicPath(flowFilePath, ref) {
+    const dir = paths.dirname(flowFilePath);
+    const base = paths.basename(String(ref));
+
+    if (!base || '.' === base || '..' === base) {
+        return undefined;
+    }
+
+    return paths.join(dir, base);
+}
+
 function withCompanionTicRefs(lines, indices) {
     const all = new Set(indices);
 
@@ -323,5 +358,6 @@ module.exports = {
     flowRefIsSent,
     flowRefBody,
     companionTicIndex,
+    companionTicPath,
     withCompanionTicRefs,
 };

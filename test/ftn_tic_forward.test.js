@@ -438,6 +438,32 @@ describe('TIC forwarding to downlinks', function () {
             assert.ok(!fs.existsSync(oldTic), 'and the orphan TIC removed');
         });
 
+        it('rewrites the flow file, keeping everything it did not match', async () => {
+            //
+            //  The scrub has two endings: unlink the flow file when nothing
+            //  live is left, or rewrite it with the survivors. Every other case
+            //  here leaves nothing live, so only the unlink branch was ever
+            //  taken -- the rewrite could have been removed entirely and the
+            //  suite would not have noticed.
+            //
+            const { oldPayload, oldTic, flowPath, dir } = await queueOld();
+
+            //  An unrelated file queued for the same downlink.
+            const other = paths.join(dir, 'other.pkt');
+            await fsp.writeFile(other, 'OTHER');
+            await fsp.writeFile(flowPath, `${oldPayload}\n^${oldTic}\n^${other}\n`);
+
+            await forward(replacing(oldPayload));
+
+            const flow = await fsp.readFile(flowPath, 'utf8');
+            assert.ok(!flow.includes(oldPayload), 'the superseded payload goes');
+            assert.ok(!flow.includes(oldTic), 'and the TIC announcing it');
+            assert.ok(
+                flow.includes(`^${other}`),
+                'while an unrelated queued file must survive the rewrite'
+            );
+        });
+
         it('queues the replacement in its place', async () => {
             const { oldPayload, flowPath } = await queueOld();
             const info = replacing(oldPayload);
