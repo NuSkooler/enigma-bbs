@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule, MenuFlags } = require('./menu_module.js');
+const { MenuModule } = require('./menu_module.js');
 const Message = require('./message.js');
 const { Errors } = require('./enig_error.js');
 const {
@@ -175,7 +175,16 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.setMergedFlag(MenuFlags.NoHistory);
+        //
+        //  Deliberately NOT MenuFlags.NoHistory, which upload.js carries.
+        //  MenuStack.goto() pops a NoHistory module as it leaves, so this one
+        //  would be off the stack by the time the transfer finished, and the
+        //  prevMenu() that hands the upload back would land on the menu below
+        //  it instead -- no import, and the caller dropped a menu too far.
+        //  upload.js gets away with it because protocol selection re-enters it
+        //  by name rather than by returning. This module removes itself when
+        //  it is done, so it leaves nothing behind either way.
+        //
         this.interrupt = MenuModule.InterruptTypes.Never;
 
         this.config = Object.assign(
@@ -283,6 +292,13 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
                     extraArgs: {
                         recvDirectory: this.tempRecvDirectory,
                         direction: 'recv',
+                        //
+                        //  Without this, protocol selection hands the upload
+                        //  to the file base pipeline instead of back here --
+                        //  which then finds no upload area, does nothing, and
+                        //  leaves the caller on its processing screen.
+                        //
+                        returnToCaller: true,
                     },
                 },
                 cb

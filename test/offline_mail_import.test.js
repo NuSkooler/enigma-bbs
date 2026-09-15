@@ -212,3 +212,40 @@ describe('advertising that replies are accepted', () => {
         assert.equal(exporter.acceptsReplies.call({ client: {} }), false);
     });
 });
+
+//
+//  Protocol selection routes an upload to the file base pipeline unless the
+//  caller asks for it back. Without that, the packet reaches the file base
+//  upload module, which has no area to put it in, does nothing, and leaves
+//  the caller on a processing screen that never finishes.
+//
+describe('handing the upload back', () => {
+    const receiveWith = (overrides, cb) => {
+        const context = Object.assign(
+            {
+                config: {},
+                temptmp: { mkdir: (opts, done) => done(null, '/tmp/enig-import-test') },
+                gotoMenu: (name, options) => cb(name, options),
+            },
+            overrides
+        );
+        importer._receivePacket.call(context, () => {});
+    };
+
+    it('asks protocol selection to return here', done => {
+        receiveWith({}, (name, options) => {
+            assert.equal(name, 'fileTransferProtocolSelection');
+            assert.equal(options.extraArgs.returnToCaller, true);
+            assert.equal(options.extraArgs.direction, 'recv');
+            assert.ok(options.extraArgs.recvDirectory);
+            done();
+        });
+    });
+
+    it('takes the protocol selection menu from config when given one', done => {
+        receiveWith({ config: { fileTransferProtocolSelection: 'myOwnMenu' } }, name => {
+            assert.equal(name, 'myOwnMenu');
+            done();
+        });
+    });
+});
