@@ -791,12 +791,27 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     optionalMoveToPosition(position) {
-        if (position) {
-            position.x = position.row || position.x || 1;
-            position.y = position.col || position.y || 1;
-
-            this.client.term.rawWrite(ansi.goto(position.x, position.y));
+        if (!position) {
+            return;
         }
+
+        //  initSequence() spells the column 'column', _applyPausePosition
+        //  'col', and a caller may hand us x/y
+        const row = position.row || position.x;
+        const col = position.col || position.column || position.y;
+
+        //
+        //  No coordinates means "wherever the cursor is". Defaulting them to
+        //  1 instead put a pause prompt at the top of the screen, above the
+        //  line the caller had just been shown -- which is what every
+        //  pausePrompt(cb) caller gets, since an unconfigured position
+        //  resolves to an empty object.
+        //
+        if (!row && !col) {
+            return;
+        }
+
+        this.client.term.rawWrite(ansi.goto(row || 1, col || 1));
     }
 
     pausePrompt(position, cb, type = 'end') {

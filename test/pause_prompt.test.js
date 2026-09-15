@@ -316,3 +316,48 @@ describe('MenuModule._applyPausePosition', () => {
         assert.equal(base.row, 20); //  original unchanged
     });
 });
+
+describe('MenuModule.optionalMoveToPosition', () => {
+    const movesOf = (m, position) => {
+        const moves = [];
+        m.client.term.rawWrite = data => moves.push(data);
+        m.optionalMoveToPosition(position);
+        return moves;
+    };
+
+    //  a pause prompt drawn at 1,1 lands above the text it is pausing on
+    it('does not move for a position with no coordinates', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), {}), []);
+    });
+
+    it('does not move for a position whose row and col are zero', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), { row: 0, col: 0 }), []);
+    });
+
+    //  what initSequence() hands it for a menu with no art
+    it('does not move for a position whose row and column are zero', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), { row: 0, column: 0 }), []);
+    });
+
+    //  initSequence() spells it 'column'; _applyPausePosition spells it 'col'
+    it('moves to the column under either spelling', () => {
+        assert.match(movesOf(makeMenuModule(), { row: 20, column: 5 })[0], /\[20;5H$/);
+        assert.match(movesOf(makeMenuModule(), { row: 20, col: 5 })[0], /\[20;5H$/);
+    });
+
+    it('does not move when given nothing at all', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), null), []);
+    });
+
+    it('moves to the row it is given', () => {
+        const moves = movesOf(makeMenuModule(), { row: 20 });
+        assert.equal(moves.length, 1);
+        assert.match(moves[0], /\[20;1H$/);
+    });
+
+    it('moves to the row and column it is given', () => {
+        const moves = movesOf(makeMenuModule(), { row: 20, col: 5 });
+        assert.equal(moves.length, 1);
+        assert.match(moves[0], /\[20;5H$/);
+    });
+});
