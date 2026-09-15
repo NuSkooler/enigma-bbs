@@ -249,3 +249,42 @@ describe('handing the upload back', () => {
         });
     });
 });
+
+//
+//  ESC out of protocol selection pops it and re-enters this module, since it
+//  stays on the stack for the return trip. Asking for another transfer there
+//  is a loop the caller cannot leave.
+//
+describe('backing out of protocol selection', () => {
+    const enterWith = state => {
+        const calls = { finished: [], received: 0 };
+        const context = Object.assign(
+            {
+                isFileTransferComplete: importer.isFileTransferComplete,
+                _finish: outcome => calls.finished.push(outcome),
+                _receivePacket: () => (calls.received += 1),
+            },
+            state
+        );
+        importer.finishedLoading.call(context);
+        return calls;
+    };
+
+    it('starts the transfer on the way in', () => {
+        const calls = enterWith({});
+        assert.equal(calls.received, 1);
+        assert.equal(calls.finished.length, 0);
+    });
+
+    it('finishes rather than asking for another transfer', () => {
+        const calls = enterWith({ tempRecvDirectory: '/tmp/enig-import-test/' });
+        assert.equal(calls.received, 0);
+        assert.equal(calls.finished.length, 1);
+    });
+
+    //  "Imported 0 message(s)" would say the packet was empty
+    it('says no packet was uploaded rather than reporting an empty import', () => {
+        const calls = enterWith({ tempRecvDirectory: '/tmp/enig-import-test/' });
+        assert.match(calls.finished[0], /no packet/i);
+    });
+});

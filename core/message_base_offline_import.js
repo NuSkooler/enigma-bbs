@@ -261,13 +261,25 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
             });
         }
 
+        //
+        //  Re-entered with a temp directory already restored and nothing
+        //  received: protocol selection binds ESC to prevMenu(), which pops
+        //  it and lands back here. Asking for another transfer would put the
+        //  caller straight back on that menu -- no way out but to start a
+        //  transfer and abort it, and a temp directory abandoned each time
+        //  around.
+        //
+        if (this.tempRecvDirectory) {
+            return this._finish('No packet was uploaded');
+        }
+
         return this._receivePacket(err => {
             if (err) {
                 this.client.log.warn(
                     { error: err.message },
                     'Could not start an offline mail upload'
                 );
-                return this._finish();
+                return this._finish('The upload could not be started -- see the log');
             }
         });
     }
@@ -642,8 +654,13 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         //  intentionally nothing; see above
     }
 
-    _finish() {
-        this.client.log.info(this.summary, 'Offline mail import complete');
+    //
+    //  |outcome| is for the paths that never reached an import: the summary
+    //  would otherwise report "Imported 0 message(s)", which says the packet
+    //  held nothing rather than that there was no packet.
+    //
+    _finish(outcome) {
+        this.client.log.info(this.summary, outcome || 'Offline mail import complete');
         this.temptmp.cleanup();
         if (this.tempRecvDirectory) {
             fse.remove(this.tempRecvDirectory, () => {});
@@ -661,9 +678,11 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         }
 
         const { imported, rejected } = this.summary;
-        const summary = rejected
-            ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
-            : `Imported ${imported} message(s)`;
+        const summary =
+            outcome ||
+            (rejected
+                ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
+                : `Imported ${imported} message(s)`);
 
         this.client.term.write(`\n${summary}\n`);
         return this.pausePrompt(() => this.prevMenu());
