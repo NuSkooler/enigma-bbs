@@ -40,6 +40,7 @@ const {
     legacyOutboundDirName,
     validateOutboundConfig,
     selectLocalNetworkForAddress,
+    canonicalNetworkNameForAddress,
     withCompanionTicRefs,
     companionTicPath,
     flowRefIsSent,
@@ -3750,14 +3751,6 @@ function FTNMessageScanTossModule() {
     //  than one hit is already refused. So a hostile "Replaces *" cannot
     //  dequeue an area's worth of pending traffic.
     //
-    //
-    //  |networkName| is the area's network and is now only a fallback: the
-    //  outbound directory a downlink's reference lives in follows the AKA we
-    //  queued it under, so a hub presenting different AKAs to different links
-    //  (#757) must look for each one where it actually put it. Scrubbing the
-    //  area's directory for all of them would silently leave the superseded
-    //  file queued for every downlink filed elsewhere.
-    //
     this.dequeueReplacedForDownlinks = function (localInfo, downlinks, networkName, cb) {
         if (!localInfo.existingFileId || !localInfo.oldPath) {
             return cb(null);
@@ -3782,11 +3775,6 @@ function FTNMessageScanTossModule() {
         //  left alone by scrubFlowFileRefs() either way.
         //
 
-        const ticAreaConfig = _.get(Config().scannerTossers.ftn_bso, [
-            'ticAreas',
-            String(localInfo.externalAreaTag || '').toLowerCase(),
-        ]);
-
         async.eachSeries(
             downlinks,
             (downlink, nextDownlink) => {
@@ -3802,17 +3790,8 @@ function FTNMessageScanTossModule() {
                     _.get(nodeConfig, 'tic.exportType') || self.getExportType(nodeConfig)
                 ).toLowerCase();
 
-                const identity = self.localIdentityForDownlink(
-                    addr,
-                    ticAreaConfig,
-                    localInfo.externalAreaTag
-                );
-
                 const flowFilePath = self.getOutgoingFlowFileName(
-                    self.getOutgoingEchoMailPacketDir(
-                        identity.networkName || networkName,
-                        addr
-                    ),
+                    self.ticOutboundDirForDownlink(addr),
                     addr,
                     'ref',
                     exportType,
@@ -4059,12 +4038,31 @@ function FTNMessageScanTossModule() {
         //  each link, and previously could not: the network came from the
         //  *first* downlink's zone and then signed every downlink with it.
         //
+        //
+        //  Identity only. The outbound *directory* stays the area's, which is
+        //  what it has always been and deliberately so: BsoSpool derives the
+        //  canonical per-node .bsy lock path from the address alone
+        //  (_networkNameForAddr, by zone) and is constructed with networks and
+        //  paths and nothing else -- it cannot see a node's tic.network or a
+        //  ticAreas entry, so it could not agree with a per-downlink choice
+        //  even in principle. Filing a flow file where the lock resolver does
+        //  not expect it means the tosser and a live BinkP session take
+        //  *different* .bsy files, which is the FTS-5005 exclusion #749 exists
+        //  to provide. A per-node lock cannot be derived from a per-area choice
+        //  in any case: one node may be a downlink of several areas.
+        //
+        //  Nothing is lost by the split. An outbound BinkP session presents
+        //  every one of our addresses in the handshake (localAddresses, in
+        //  core/binkp/util.js), so the directory a file sits in has never had
+        //  anything to do with the identity we announce it under.
+        //
         const routes = candidates.map(downlink => ({
             downlink,
-            ...self.localIdentityForDownlink(
+            ourAddress: self.localAddressForDownlink(
                 downlink,
                 ticAreaConfig,
-                localInfo.externalAreaTag
+                localInfo.externalAreaTag,
+                areaAddress
             ),
         }));
 
@@ -4093,33 +4091,62 @@ function FTNMessageScanTossModule() {
     };
 
     //
-    //  Which of our addresses signs traffic to |downlink|, and which network's
-    //  outbound it is filed under.
+    //  Which of our addresses signs traffic to |downlink|?
+    //
+    //  Identity only -- the From line, our Path line, and our entry in Seenby.
+    //  The outbound directory is the area's and is not decided here; see the
+    //  note in forwardTicToDownlinks() for why the two must not be tied
+    //  together.
     //
     //  Precedence, most specific first:
     //
     //    1. nodes.<downlink>.tic.network  -- htick's per-link |ourAka|, scoped
-    //       to TIC so it cannot disturb NetMail routing
-    //    2. nodes.<downlink>.network      -- the node's network, which already
-    //       exists and is already used for NetMail
-    //    3. ticAreas.<tag>.network        -- the per-area override, unchanged:
-    //       a configuration setting it today keeps behaving exactly as it did
-    //    4. closest AKA by zone/net       -- tickit's distance matching, and
-    //       the only one of these that can differ per downlink on its own
+    //       to TIC so it cannot disturb anything else
+    //    2. ticAreas.<tag>.network        -- the per-area override, unchanged
+    //    3. closest AKA by zone/net       -- tickit's distance matching
     //
-    //  3 sits above 4 deliberately. It is the knob #743 shipped and the one an
-    //  operator has already used to pin an area; silently letting distance
-    //  matching override it would change behaviour under a configuration that
-    //  was explicit about what it wanted.
+    //  nodes.<downlink>.network is deliberately *not* a layer. It exists today
+    //  and is read for NetMail routing, so treating it as a TIC setting would
+    //  change the identity announced to a link under a configuration nobody
+    //  edited. A sysop who wants that for file echoes says so with tic.network.
     //
-    this.localIdentityForDownlink = function (downlink, ticAreaConfig, areaTag) {
+    //  |areaAddress| is the fallback, and falling back is the point: an address
+    //  with no zone -- a 2D "103/999", which is legal and which selectDownlinks
+    //  handles deliberately -- matches no network here, and dropping it would
+    //  quietly stop forwarding to a configured downlink.
+    //
+    //
+    //  The outbound directory a TIC and its payload are queued in for
+    //  |downlink|, and therefore where its .bsy lock is taken.
+    //
+    //  Canonical, by the downlink's zone, which is the same rule BsoSpool uses
+    //  to find the lock. Deliberately *not* the area's network and not the AKA
+    //  we sign with: those may differ per area and per link, and a per-node
+    //  lock that is derived differently by the writer and the mailer excludes
+    //  nothing. See canonicalNetworkNameForAddress().
+    //
+    this.ticOutboundDirForDownlink = function (downlink) {
+        return self.getOutgoingEchoMailPacketDir(
+            canonicalNetworkNameForAddress(
+                self.getNetworks(),
+                self.getConfiguredDefaultNetwork(),
+                downlink
+            ),
+            downlink
+        );
+    };
+
+    this.localAddressForDownlink = function (
+        downlink,
+        ticAreaConfig,
+        areaTag,
+        areaAddress
+    ) {
         const networks = self.getNetworks();
         const nodeConfig = self.getNodeConfigByAddress(downlink) || {};
 
         const explicit =
-            _.get(nodeConfig, 'tic.network') ||
-            _.get(nodeConfig, 'network') ||
-            (ticAreaConfig && ticAreaConfig.network);
+            _.get(nodeConfig, 'tic.network') || (ticAreaConfig && ticAreaConfig.network);
 
         if (explicit) {
             const canonical = canonicalNetworkName(networks, explicit);
@@ -4127,7 +4154,7 @@ function FTNMessageScanTossModule() {
                 canonical && Address.fromString(networks[canonical].localAddress);
 
             if (address && address.isValid()) {
-                return { networkName: canonical, ourAddress: address };
+                return address;
             }
 
             Log.warn(
@@ -4143,7 +4170,8 @@ function FTNMessageScanTossModule() {
         );
 
         if (!best.name) {
-            return {};
+            //  No zone to match on, or no usable network at all.
+            return areaAddress;
         }
 
         //
@@ -4173,7 +4201,7 @@ function FTNMessageScanTossModule() {
             );
         }
 
-        return { networkName: best.name, ourAddress: best.address };
+        return best.address;
     };
 
     this.queueTicForDownlinks = function (ticFileInfo, localInfo, opts, cb) {
@@ -4238,21 +4266,13 @@ function FTNMessageScanTossModule() {
         async.eachSeries(
             routes,
             (route, nextDownlink) => {
-                const { downlink, networkName } = route;
-                const ourAddress = route.ourAddress;
+                const { downlink } = route;
 
-                if (!ourAddress || !networkName) {
-                    //  Reported in full by localIdentityForDownlink(); this is
-                    //  the consequence, which is that the link gets nothing.
-                    Log.warn(
-                        {
-                            downlink: downlink.toString('5D'),
-                            area: localInfo.externalAreaTag,
-                        },
-                        'No usable local address for this downlink; not forwarding to it'
-                    );
-                    return nextDownlink(null);
-                }
+                //  localAddressForDownlink() always answers -- it falls back
+                //  to the area's address, which forwardTicToDownlinks() has
+                //  already validated. Deliberately not defaulted a second time
+                //  here: two fallbacks mean neither can be tested.
+                const ourAddress = route.ourAddress;
 
                 self.forwardTicToOneDownlink(
                     ticFileInfo,
@@ -4262,7 +4282,6 @@ function FTNMessageScanTossModule() {
                         ourAddress,
                         seenby,
                         pathEntry: pathEntryFor(ourAddress),
-                        networkName,
                     },
                     err => {
                         if (err) {
@@ -4342,7 +4361,10 @@ function FTNMessageScanTossModule() {
 
     //  Generate a TIC for |downlink| and queue it, with its payload, for send.
     this.forwardTicToOneDownlink = function (ticFileInfo, localInfo, opts, cb) {
-        const { downlink, ourAddress, seenby, pathEntry, networkName } = opts;
+        //  No networkName: the outbound directory is canonical, by the
+        //  downlink's zone, so that the mailer's .bsy resolves to the same
+        //  place. See ticOutboundDirForDownlink().
+        const { downlink, ourAddress, seenby, pathEntry } = opts;
         const config = Config();
 
         const nodeConfig = self.getNodeConfigByAddress(downlink) || {};
@@ -4356,7 +4378,7 @@ function FTNMessageScanTossModule() {
                   ? generalTic[key]
                   : fallback;
 
-        const outgoingDir = self.getOutgoingEchoMailPacketDir(networkName, downlink);
+        const outgoingDir = self.ticOutboundDirForDownlink(downlink);
         const exportType = (
             ticConfig.exportType || self.getExportType(nodeConfig)
         ).toLowerCase();
@@ -5598,17 +5620,28 @@ FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
             //  see it before a file arrives rather than after one went out
             //  under the wrong name.
             //
-            const identity = this.localIdentityForDownlink(addr, areaConfig, externalTag);
-            if (!identity.ourAddress) {
+            const areaNetwork = areaConfig.network
+                ? this.getNetworkConfig(areaConfig.network)
+                : undefined;
+            const areaAddress =
+                areaNetwork && Address.fromString(areaNetwork.localAddress);
+
+            const ourAddress = this.localAddressForDownlink(
+                addr,
+                areaConfig,
+                externalTag,
+                areaAddress
+            );
+
+            if (!ourAddress) {
                 Log.warn(
                     { ticArea: externalTag, downlink },
                     'No local address can be resolved for this downlink; it will receive nothing'
                 );
             } else if (
                 _.isNumber(addr.zone) &&
-                identity.ourAddress.zone !== addr.zone &&
+                ourAddress.zone !== addr.zone &&
                 !areaConfig.network &&
-                !_.get(best.value, 'network') &&
                 !_.get(best.value, 'tic.network')
             ) {
                 //  Nothing shares its zone and nothing said which to use, so
@@ -5619,17 +5652,16 @@ FTNMessageScanTossModule.prototype.logTicForwardingDiagnostics = function () {
                     {
                         ticArea: externalTag,
                         downlink,
-                        using: identity.ourAddress.toString('5D'),
+                        using: ourAddress.toString('5D'),
                     },
-                    'No local address shares this downlink\'s zone; set "network" on the node or on the ticAreas entry to choose deliberately'
+                    'No local address shares this downlink\'s zone; set "tic.network" on the node or "network" on the ticAreas entry to choose deliberately'
                 );
             } else {
                 Log.debug(
                     {
                         ticArea: externalTag,
                         downlink,
-                        from: identity.ourAddress.toString('5D'),
-                        network: identity.networkName,
+                        from: ourAddress.toString('5D'),
                     },
                     'TIC area downlink will be addressed from this AKA'
                 );

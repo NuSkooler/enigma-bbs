@@ -173,9 +173,15 @@ function resolveNetworkNameForZone(networks, defaultNetwork, zone) {
 //    2   neither                  -- a last resort, and usually a
 //                                    misconfiguration rather than a choice
 //
-//  Ties go to |defaultNetwork| and then to configuration order, matching
-//  resolveNetworkNameForZone(), so the two cannot disagree about which network
-//  owns a zone that more than one claims.
+//  Ties -- candidates at the same distance -- go to |defaultNetwork| and then
+//  to configuration order, which is how resolveNetworkNameForZone() breaks its
+//  own ties. The two functions still answer differently, and are meant to:
+//  distance resolves on *net* before any tie-break is reached, so for networks
+//  { neta: 1:100/1, netb: 1:200/1 } and a downlink 1:200/5 this picks netb
+//  while resolveNetworkNameForZone(1) picks neta. That is the point -- this one
+//  chooses an identity per link, and that one names the single canonical
+//  directory for a zone. Only the latter may decide where a file is filed; see
+//  canonicalNetworkNameForAddress().
 //
 //  Returns { name, address, distance, candidates }, or an empty object when no
 //  network is usable. |candidates| is every network at the winning distance, so
@@ -225,6 +231,43 @@ function selectLocalNetworkForAddress(networks, defaultNetwork, addr) {
         distance: chosen.distance,
         candidates: winners.map(w => w.name),
     };
+}
+
+//
+//  Which network owns the single canonical outbound directory for |addr|?
+//
+//  This is *not* the same question as selectLocalNetworkForAddress() above.
+//  That one asks which of our AKAs should sign traffic to a link, and may
+//  legitimately answer differently per link. This one asks where a node's mail
+//  physically sits, and there has to be exactly one answer -- because the
+//  FTS-5005 .bsy lock lives beside it, and a lock only excludes anything if
+//  every party derives the same path.
+//
+//  Zone alone, therefore: it is all an address carries, and it is all the
+//  mailer has. BsoSpool is constructed with networks and paths and nothing
+//  else, so it cannot consult a node's configuration or an area's -- and a
+//  per-node lock could not be derived from a per-area choice in any case, since
+//  one node may be a downlink of several areas.
+//
+//  Shared so the writer and the mailer cannot drift, which is the whole reason
+//  this module exists (#719). Before it was shared, TIC forwarding filed a
+//  downlink's flow file under its *area's* network while BsoSpool locked the
+//  zone's canonical directory; for any downlink outside the area's network
+//  those are different files, and the tosser and a live session stopped
+//  excluding each other.
+//
+function canonicalNetworkNameForAddress(networks, defaultNetwork, addr) {
+    const names = networkNames(networks);
+    if (0 === names.length) {
+        return undefined;
+    }
+
+    const zone = addr && addr.zone;
+    const byZone = names.find(name => resolveNetworkDefaultZone(networks, name) === zone);
+
+    //  An address belonging to no configured network still needs somewhere to
+    //  live; the default network is where it goes.
+    return byZone || resolveDefaultNetworkName(networks, defaultNetwork) || names[0];
 }
 
 //
@@ -429,6 +472,7 @@ module.exports = {
     resolveNetworkDefaultZone,
     resolveNetworkNameForZone,
     selectLocalNetworkForAddress,
+    canonicalNetworkNameForAddress,
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,

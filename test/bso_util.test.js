@@ -11,6 +11,7 @@ const {
     resolveNetworkDefaultZone,
     resolveNetworkNameForZone,
     selectLocalNetworkForAddress,
+    canonicalNetworkNameForAddress,
     outboundDirName,
     legacyOutboundDirName,
     validateOutboundConfig,
@@ -526,10 +527,13 @@ describe('bso_util — choosing an AKA per link', () => {
         assert.equal(pick(networks, undefined, '42:10/20').name, 'odd');
     });
 
-    it('breaks a tie with defaultNetwork, as the zone resolver does', () => {
-        //  Two networks claiming one zone is the configuration
-        //  resolveNetworkNameForZone() already warns about; the two must not
-        //  disagree about which one wins.
+    it('breaks a genuine tie with defaultNetwork, then config order', () => {
+        //
+        //  Both in net 1, so both are distance 0 and the tie-break is what
+        //  decides. Note the fixture has to be built this way *on purpose*: if
+        //  the two networks were in different nets, distance would resolve it
+        //  first and this would pass no matter what the tie-break did.
+        //
         const networks = {
             first: { localAddress: '21:1/100' },
             second: { localAddress: '21:1/200' },
@@ -540,6 +544,40 @@ describe('bso_util — choosing an AKA per link', () => {
             'first',
             'second',
         ]);
+    });
+
+    it('lets distance win before any tie-break is reached', () => {
+        //
+        //  And here is the case the fixture above cannot show. These two
+        //  networks both claim zone 1, so resolveNetworkNameForZone() answers
+        //  'neta' -- defaultNetwork/first. Distance answers 'netb', because we
+        //  are a neighbour in that downlink's own net.
+        //
+        //  The two disagreeing is correct and load bearing: one picks an
+        //  identity per link, the other names the single canonical directory
+        //  for a zone. Only the second may decide where a file is filed.
+        //
+        const networks = {
+            neta: { localAddress: '1:100/1' },
+            netb: { localAddress: '1:200/1' },
+        };
+
+        assert.equal(pick(networks, undefined, '1:200/5').name, 'netb');
+        assert.equal(pick(networks, undefined, '1:200/5').distance, 0);
+        assert.equal(
+            resolveNetworkNameForZone(networks, undefined, 1).name,
+            'neta',
+            'the zone resolver still answers for the directory'
+        );
+        assert.equal(
+            canonicalNetworkNameForAddress(
+                networks,
+                undefined,
+                Address.fromString('1:200/5')
+            ),
+            'neta',
+            'and the canonical directory follows the zone, not the identity'
+        );
     });
 
     it('ignores a network whose localAddress will not parse', () => {

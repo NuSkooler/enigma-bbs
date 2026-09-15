@@ -21,6 +21,7 @@ const fsp = require('fs/promises');
 const os = require('os');
 const paths = require('path');
 
+const Address = require('../core/ftn_address.js');
 const configModule = require('../core/config.js');
 const TicFileInfo = require('../core/tic_file_info.js');
 
@@ -214,29 +215,90 @@ describe('TIC forwarding across two networks', function () {
             assert.ok(fidoPath[1].startsWith(`${FIDO_US} `));
         });
 
-        it('files each downlink under its own network’s outbound', async () => {
-            //  The From line and the directory the file is queued in have to
-            //  agree, or the mailer dials the right node from the wrong
-            //  identity.
+        it('files every downlink where the mailer will look for it', async () => {
             //
-            //  fidonet is first listed and no defaultNetwork is set, so it owns
-            //  the bare "outbound" directory (FTS-5005 / bso_util); fsxnet gets
-            //  its own. Two directories is the point -- one would mean one AKA.
+            //  Identity is per downlink; the outbound *directory* is not, and
+            //  must not be.
+            //
+            //  BsoSpool derives the canonical per-node .bsy lock path from the
+            //  address alone and is constructed with networks and paths and
+            //  nothing else -- it cannot see a node's tic.network or a ticAreas
+            //  entry. Filing a flow file anywhere but where that resolver
+            //  expects means the tosser and a live BinkP session take different
+            //  .bsy files, and the FTS-5005 exclusion #749 exists to provide
+            //  silently stops excluding anything.
+            //
+            //  Asserted against BsoSpool itself rather than a literal path, so
+            //  the two cannot drift apart without this failing.
+            //
+            const { BsoSpool } = require('../core/binkp/bso_spool');
+            const spool = new BsoSpool({
+                paths: { outbound: outboundDir },
+                networks: configModule.get().messageNetworks.ftn.networks,
+                defaultNetwork: configModule.get().scannerTossers.ftn_bso.defaultNetwork,
+            });
+
             await forward();
             const tics = await ticsByRecipient();
 
-            assert.equal(paths.basename(tics[FSX_DOWN].dir), 'fsxnet');
-            assert.equal(paths.basename(tics[FIDO_DOWN].dir), 'outbound');
-            assert.notEqual(tics[FSX_DOWN].dir, tics[FIDO_DOWN].dir);
+            for (const [to, tic] of Object.entries(tics)) {
+                const addr = Address.fromString(to);
+                const lockDir = paths.dirname(spool._bsyPath(addr));
+                assert.equal(
+                    tic.dir,
+                    lockDir,
+                    `${to} is filed in ${tic.dir} but its .bsy resolves to ${lockDir}`
+                );
+            }
         });
 
-        it('follows defaultNetwork when it names the other one', async () => {
-            push({ defaultNetwork: 'fsxnet' });
+        it('varies the identity within a zone without moving the outbound', async () => {
+            //
+            //  Two of our networks in one zone, and two downlinks in it -- one
+            //  a neighbour of each. The AKAs differ; the directory cannot,
+            //  because zone is all the lock resolver has to go on.
+            //
+            //  This is the shape that used to break the lock: per-downlink
+            //  directory selection put these two in different places while
+            //  BsoSpool took one .bsy for both.
+            //
+            const LOCAL_US = '1:9999/1';
+            const LOCAL_DOWN = '1:9999/50';
+
+            push({
+                networks: {
+                    fidonet: { localAddress: FIDO_US, defaultZone: 1 },
+                    mylocal: { localAddress: LOCAL_US },
+                },
+                ticAreas: {
+                    multi_gen: {
+                        areaTag: 'multiGeneral',
+                        uplinks: [UPLINK],
+                        downlinks: [FIDO_DOWN, LOCAL_DOWN],
+                    },
+                },
+                nodes: {
+                    [UPLINK]: { tic: { password: 'UPPASS' } },
+                    [FIDO_DOWN]: { tic: { password: 'FIDOPASS' } },
+                    [LOCAL_DOWN]: { tic: { password: 'LOCALPASS' } },
+                },
+            });
+
             await forward();
             const tics = await ticsByRecipient();
 
-            assert.equal(paths.basename(tics[FSX_DOWN].dir), 'outbound');
-            assert.equal(paths.basename(tics[FIDO_DOWN].dir), 'fidonet');
+            assert.deepEqual(Object.keys(tics).sort(), [FIDO_DOWN, LOCAL_DOWN].sort());
+            assert.equal(
+                value(tics[FIDO_DOWN].content, 'From'),
+                FIDO_US,
+                'each is addressed from the AKA in its own net'
+            );
+            assert.equal(value(tics[LOCAL_DOWN].content, 'From'), LOCAL_US);
+            assert.equal(
+                tics[FIDO_DOWN].dir,
+                tics[LOCAL_DOWN].dir,
+                'while both sit in the one canonical directory for zone 1'
+            );
         });
 
         it('gives each its own password', async () => {
@@ -310,6 +372,51 @@ describe('TIC forwarding across two networks', function () {
         });
     });
 
+    it('still forwards to a downlink written 2D', async () => {
+        //
+        //  "103/999" with no zone is legal, and selectDownlinks/withZone/
+        //  addressKey all handle it deliberately -- Address.isValid() needs
+        //  only net and node. But it matches no network by zone, so an AKA
+        //  chooser that resolves on zone answers nothing for it. Skipping the
+        //  downlink on that basis would quietly stop forwarding to a link the
+        //  operator had configured; the area's own address is the answer.
+        //
+        //  No area network on purpose: with one set, localAddressForDownlink
+        //  returns on the explicit branch and the fallback is never reached --
+        //  the test would pass without it existing.
+        push({
+            ticAreas: {
+                multi_gen: {
+                    areaTag: 'multiGeneral',
+                    uplinks: [UPLINK],
+                    downlinks: [FSX_DOWN, '103/999'],
+                },
+            },
+            nodes: {
+                [UPLINK]: { tic: { password: 'UPPASS' } },
+                [FSX_DOWN]: { tic: { password: 'FSXPASS' } },
+                '103/999': { tic: { password: 'TWODPASS' } },
+            },
+        });
+
+        await forward();
+        const tics = await ticsByRecipient();
+
+        assert.equal(
+            Object.keys(tics).length,
+            2,
+            `both downlinks must be forwarded to, got ${Object.keys(tics)}`
+        );
+
+        const twoD = Object.entries(tics).find(([to]) => to.includes('103/999'));
+        assert.ok(twoD, 'the 2D downlink must have received a TIC');
+        assert.equal(
+            value(twoD[1].content, 'From'),
+            FSX_US,
+            "the area's address, since no AKA shares a zone it does not state"
+        );
+    });
+
     describe('overrides', () => {
         it('lets a node name the AKA to address it from', async () => {
             //  htick's per-link |ourAka|. The link knows us by our Fidonet
@@ -328,7 +435,15 @@ describe('TIC forwarding across two networks', function () {
             assert.equal(value(tics[FIDO_DOWN].content, 'From'), FIDO_US);
         });
 
-        it('honours a node-level network as well as a tic-scoped one', async () => {
+        it("does not repurpose the node-level network key, which is NetMail's", async () => {
+            //
+            //  nodes.<addr>.network exists today and is read for NetMail
+            //  routing. Treating it as a TIC setting would change the identity
+            //  announced to a link -- and, before the directory was decoupled,
+            //  where its files were filed -- under a configuration nobody
+            //  edited. A sysop who wants that for file echoes says so with
+            //  tic.network.
+            //
             push({
                 nodes: {
                     [UPLINK]: { tic: { password: 'UPPASS' } },
@@ -339,7 +454,11 @@ describe('TIC forwarding across two networks', function () {
 
             await forward();
             const tics = await ticsByRecipient();
-            assert.equal(value(tics[FSX_DOWN].content, 'From'), FIDO_US);
+            assert.equal(
+                value(tics[FSX_DOWN].content, 'From'),
+                FSX_US,
+                'the closest AKA, not the one NetMail routes by'
+            );
         });
 
         it('keeps an area-level network meaning exactly what it did', async () => {

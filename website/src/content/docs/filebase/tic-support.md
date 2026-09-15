@@ -56,7 +56,7 @@ Valid `tic` members:
 | `addressDimensions` | No | Dimensions to write `From` and `To` in — `3D`, `4D` (default) or `5D`. **`Seenby` is always written 4D** regardless: it is the loop guard, and some processors match it by exact string, so a `@domain` there can cause a downlink to send a file back to a system that already has it |
 | `fileCase` | No | Case of generated `.tic` filenames — `lower` (default) or `upper` |
 | `allowUnverifiedForward` | No | Forward files received from this node even though it has no `password`, i.e. was never authenticated. Defaults to `false` |
-| `network` | No | Address this link from your AKA in the named network, whatever its own zone suggests. htick's per-link `ourAka`. See [Areas on more than one network](#areas-on-more-than-one-network) |
+| `network` | No | Address this link from your AKA in the named network, whatever its own zone suggests. htick's per-link `ourAka`. This is `tic.network`; the node-level `network` key is NetMail's and is not consulted. See [Areas on more than one network](#areas-on-more-than-one-network) |
 
 The `password`, `uploadBy`, `allowReplace` and `descPriority` members may also be
 set once for all nodes under `scannerTossers.ftn_bso.tic`, where the following
@@ -287,13 +287,19 @@ The AKA is chosen by closeness to the downlink, which is what Synchronet's ticki
 Most specific wins:
 
 1. `nodes.<address>.tic.network` — this link, for file echoes only
-2. `nodes.<address>.network` — this link, the key NetMail routing already uses
-3. `ticAreas.<tag>.network` — every downlink of this area
-4. Closest AKA, as above
+2. `ticAreas.<tag>.network` — every downlink of this area
+3. Closest AKA, as above
 
-`ticAreas.<tag>.network` keeps meaning exactly what it always did: it pins the whole area. A configuration that already uses it is not second-guessed by closeness matching. A node-level setting is more specific and overrides it, which is how you carve one link out of a pinned area.
+`ticAreas.<tag>.network` keeps meaning exactly what it always did: it pins the whole area. A configuration that already uses it is not second-guessed by closeness matching. `nodes.<address>.tic.network` is more specific and overrides it, which is how you carve one link out of a pinned area.
 
-A network name that is not configured falls back to the closest AKA rather than dropping the file, and says so.
+`nodes.<address>.network` is **not** consulted. That key exists for NetMail routing, and treating it as a file-echo setting would change the identity announced to a link under a configuration nobody edited. Say `tic.network` if you mean file echoes.
+
+A network name that is not configured falls back to the closest AKA rather than dropping the file, and says so. A downlink written 2D (`103/999`, with no zone) matches no network by zone and is addressed from the area's own address rather than being skipped.
+
+### What this does *not* change
+Only the identity — `From`, your `Path` line, and your entry in `Seenby`. The outbound directory a downlink's files are queued in is unaffected: it follows the downlink's **zone**, which is the one canonical answer the mailer can derive from an address alone, and the FTS-5005 `.bsy` lock lives beside it. A per-link directory would mean the tosser and a live mail session taking different lock files.
+
+Nothing is lost by that split — an outbound session presents *every* one of your addresses in the handshake, so where a file sits has never had anything to do with the identity you announce it under.
 
 ### Seenby
 `Seenby` names every AKA you present in the echo, not just one. It is the loop guard, and a peer matches it against the address **it** knows you by — Synchronet's tickit compares by literal string equality — so a peer that knows you by your Fidonet address would not recognise an fsxNet-only `Seenby` and would forward the file straight back at you.
