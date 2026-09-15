@@ -47,6 +47,46 @@ const FILE_WELL_KNOWN_META = {
     desc_long_sauce: s => JSON.parse(s) || {},
 };
 
+//
+//  A SQLite LIKE pattern from a DOS style glob ('*' and '?'), for matching a
+//  TIC's "Replaces" against a stored short_file_name.
+//
+//  Two layers of escaping meet here and the order is the whole of it. The old
+//  form converted the glob first and ran the result through sanitizeString(),
+//  which escapes '%' because it is built for *literal* values -- so every
+//  wildcard the conversion had just introduced came back out as the literal
+//  two characters "\%":
+//
+//      NODELIST.*  ->  NODELIST.%  ->  LIKE 'NODELIST.\%'
+//
+//  SQLite's LIKE has no default escape character, so that backslash was a
+//  literal backslash and the query asked for a file named exactly
+//  "NODELIST.\%". A wildcard "Replaces" therefore never matched anything, and
+//  tic.allowReplace stored a second copy instead of superseding -- leaving the
+//  old file live in the base and still queued for every downlink that had not
+//  collected it. An exact "Replaces NODELIST.246" worked, and so did
+//  "NODELIST.2?6" (sanitizeString does not escape '_'), which is what made the
+//  failure so quiet. See #864.
+//
+//  So: escape what the caller meant literally, introduce our own wildcards,
+//  then quote for the string literal. The caller's metaPair is left alone --
+//  the old form assigned back into mp.value, converting a reused filter twice.
+//
+function likePatternFromGlob(glob) {
+    return (
+        String(glob)
+            //  LIKE metacharacters, and the escape character itself. Whatever
+            //  the caller wrote here, they meant literally.
+            .replace(/[\\%_]/g, c => `\\${c}`)
+            //  ...then the glob's own wildcards, which must stay live.
+            //  https://www.sqlite.org/lang_expr.html
+            .replace(/\*/g, '%')
+            .replace(/\?/g, '_')
+            //  A SQLite string literal escapes exactly one thing: the quote.
+            .replace(/'/g, "''")
+    );
+}
+
 module.exports = class FileEntry {
     constructor(options) {
         options = options || {};
@@ -675,15 +715,13 @@ module.exports = class FileEntry {
             filter.metaPairs.forEach(mp => {
                 const safeName = sanitizeString(mp.name);
                 if (mp.wildcards) {
-                    //  convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
-                    mp.value = mp.value.replace(/\*/g, '%').replace(/\?/g, '_');
                     appendWhereClause(
                         `f.file_id IN (
                             SELECT file_id
                             FROM file_meta
-                            WHERE meta_name = '${safeName}' AND meta_value LIKE '${sanitizeString(
+                            WHERE meta_name = '${safeName}' AND meta_value LIKE '${likePatternFromGlob(
                                 mp.value
-                            )}'
+                            )}' ESCAPE '\\'
                         )`
                     );
                 } else {
