@@ -417,6 +417,7 @@ describe('config schema against config_default.js', () => {
             'scannerTossers.ftn_bso.packetAnsiMsgEncoding',
             'scannerTossers.ftn_bso.packetMsgEncoding',
             'scannerTossers.ftn_bso.packetTargetByteSize',
+            'scannerTossers.ftn_bso.paths.ticTransit',
             'scannerTossers.ftn_bso.tic.addressDimensions',
             'scannerTossers.ftn_bso.tic.allowReplace',
             'scannerTossers.ftn_bso.tic.descPriority',

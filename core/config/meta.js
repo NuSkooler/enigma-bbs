@@ -375,6 +375,18 @@ module.exports = {
                 network: { type: 'string' },
                 downlinks: {},
                 uplinks: {},
+                //
+                //  Carry this echo for downlinks without storing it locally
+                //  (#753). Required explicitly and never inferred from an
+                //  absent areaTag: a ticAreas key is matched against
+                //  fileBase.areas too, so such an entry may well be a working
+                //  stored area that inference would turn into a deleting one.
+                //
+                passthrough: {
+                    type: 'boolean',
+                    description:
+                        'Carry this echo in transit for downlinks rather than storing it in the local file base.',
+                },
             },
         },
     },
@@ -463,6 +475,11 @@ module.exports = {
     'scannerTossers.ftn_bso.paths.retain': {
         type: 'string',
         description: 'Copy processed packets here; debugging aid.',
+    },
+    'scannerTossers.ftn_bso.paths.ticTransit': {
+        type: 'string',
+        description:
+            'Payloads for passthrough file echoes, kept only while a downlink still owes them.',
     },
 
     //  ── Content servers ──────────────────────────────────────────────────
