@@ -976,15 +976,19 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         const views = [];
 
+        //  a menu with no art has no view controller at all, as getCustomView()
+        //  just above already allows for
+        const form = this.viewControllers[formName];
+        if (!form) {
+            return views;
+        }
+
         let view;
         let customMciId = startId;
         const config = this.menuConfig.config;
         const endId = options.endId || 99; //  we'll fail to get a view before 99
 
-        while (
-            customMciId <= endId &&
-            (view = this.viewControllers[formName].getView(customMciId))
-        ) {
+        while (customMciId <= endId && (view = form.getView(customMciId))) {
             const key = `${formName}InfoFormat${customMciId}`; //  e.g. "mainInfoFormat10"
             const format = config[key];
 

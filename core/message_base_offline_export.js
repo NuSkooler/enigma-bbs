@@ -123,6 +123,17 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             async.waterfall(
                 [
                     callback => {
+                        //
+                        //  A menu with no art produces no MCI map, and a view
+                        //  controller refuses to load without one. The menu
+                        //  this module ships on carries no art, so preparing
+                        //  views unconditionally failed the export before it
+                        //  started.
+                        //
+                        if (!mciData.menu) {
+                            return callback(null);
+                        }
+
                         this.prepViewController(
                             'main',
                             FormIds.main,
@@ -169,7 +180,12 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     },
                 ],
                 err => {
-                    this.temptmp.cleanup();
+                    //  an error before the session was created leaves nothing
+                    //  to clean up, and cleaning it anyway threw over the top
+                    //  of the real error
+                    if (this.temptmp) {
+                        this.temptmp.cleanup();
+                    }
 
                     if (err) {
                         //  :TODO: doesn't do anything currently:
@@ -335,16 +351,18 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             return cb(missingHook);
         }
 
-        const statusView = this.viewControllers.main.getView(MciViewIds.main.status);
+        //  A menu with no art has no views at all, not merely missing ones --
+        //  the export still runs, the caller just watches nothing happen.
+        const mainVc = this.viewControllers.main;
+
+        const statusView = mainVc && mainVc.getView(MciViewIds.main.status);
         const updateStatus = status => {
             if (statusView) {
                 statusView.setText(status);
             }
         };
 
-        const progBarView = this.viewControllers.main.getView(
-            MciViewIds.main.progressBar
-        );
+        const progBarView = mainVc && mainVc.getView(MciViewIds.main.progressBar);
         const updateProgressBar = (curr, total) => {
             if (progBarView) {
                 const prog = Math.floor((curr / total) * progBarView.dimens.width);
