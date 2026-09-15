@@ -307,6 +307,19 @@ A list in a format that cannot be recognised — including the reversed-column `
 
 The above command will process FILEGATE.ZXX creating areas and backing directories. Directories created are relative to the `fileBase.areaStoragePrefix` `config.hjson` setting.
 
+### Hatching Into a File Echo
+`fb hatch` originates one of your own files into a file echo you carry — a nodelist, an infopack — storing it in the echo's local area and announcing it to every downlink with you as the `Origin`.
+
+```bash
+./oputil.js fb hatch FSX_NODELIST /srv/staging/nodelist.246 \
+    --desc "fsxNet nodelist for day 246" \
+    --replaces "NODELIST.*"
+```
+
+`--replaces` supersedes the previous file from the same origin in the same area: the file base entry is updated rather than duplicated, and the old file and its TIC are dequeued from any downlink that has not collected them. `--dry-run` prints the TIC that would be written and changes nothing.
+
+The area tag is the **FTN** area tag — a `ticAreas` key — not the local file base area tag. See [TIC support](../filebase/tic-support.md) for the full argument list and the rules.
+
 ## Message Base Management
 The `mb` command provides various Message Base related tools:
 

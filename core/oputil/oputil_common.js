@@ -46,7 +46,15 @@ const argv = (exports.argv = require('minimist')(process.argv.slice(2), {
         c: 'config',
         n: 'no-prompt',
     },
-    boolean: ['quick', 'full', 'verbose', 'update', 'yes', 'check-env'],
+    //
+    //  A flag missing from this list is not treated as a flag: minimist binds
+    //  the next positional to it as a *value*. "fb hatch AREA FILE --dry-run"
+    //  happens to fail safe (no positional left, so usage), but
+    //  "--dry-run AREA FILE" makes dry-run the string "AREA" -- and
+    //  `true === argv['dry-run']` is then false, so the operator gets a real
+    //  hatch when they asked to be shown one.
+    //
+    boolean: ['quick', 'full', 'verbose', 'update', 'yes', 'check-env', 'dry-run'],
 }));
 
 function printUsageAndSetExitCode(errMsg, exitCode) {

@@ -3683,6 +3683,39 @@ function FTNMessageScanTossModule() {
             return cb(null);
         }
 
+        return self.announceTicToDownlinks(
+            ticFileInfo,
+            localInfo,
+            ticAreaConfig,
+            downlinks,
+            cb
+        );
+    };
+
+    //
+    //  Queue |ticFileInfo| and its payload for every downlink of this area that
+    //  should have it.
+    //
+    //  Shared by the two things that put a file into an echo: forwarding one an
+    //  uplink sent us, and hatching one of our own (#751). Everything from here
+    //  down is identical for both -- the network and our address for it, the
+    //  loop guard, the Replaces dequeue, the per-downlink TIC and flow file
+    //  append. What differs is entirely upstream: a forward must pass
+    //  canForwardTic() because a third party is asking us to re-announce their
+    //  file under our name, while a hatch is the operator at the console and
+    //  has no sender to authenticate.
+    //
+    //  Never calls back an error. Announcing is best effort per downlink and
+    //  must not turn a successful import -- or a successful hatch -- into a
+    //  failure.
+    //
+    this.announceTicToDownlinks = function (
+        ticFileInfo,
+        localInfo,
+        ticAreaConfig,
+        downlinks,
+        cb
+    ) {
         const networkName =
             (ticAreaConfig && ticAreaConfig.network) ||
             self.getNetworkNameForTicArea(localInfo, downlinks);
@@ -3696,7 +3729,7 @@ function FTNMessageScanTossModule() {
                     area: localInfo.externalAreaTag,
                     network: networkName,
                 },
-                'Cannot forward TIC: no usable local address for this area\'s network; set "network" on the ticAreas entry'
+                'Cannot announce TIC: no usable local address for this area\'s network; set "network" on the ticAreas entry'
             );
             return cb(null);
         }

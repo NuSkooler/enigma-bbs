@@ -526,154 +526,174 @@ module.exports = class TicFileInfo {
                 return cb(err);
             }
 
-            const ticFileInfo = new TicFileInfo();
-            ticFileInfo.path = path;
-
-            //
-            //  Lines in a TIC file should be separated by CRLF (DOS) but
-            //  FTS-5006 2.2 asks readers to cope with "only a LF or CR" -- so a
-            //  lone CR ends a line here too.
-            //
-            //  That is not just leniency, it closes an injection. Splitting on
-            //  CRLF and LF alone left a bare CR *inside a value*, and the writer
-            //  passes values through verbatim: an uplink sending
-            //  "Ldesc harmless\rPw SOMETHING" got a literal "Pw SOMETHING" line
-            //  into the TIC we then signed with our own From and Path, for any
-            //  downstream tosser that breaks lines on CR -- which every C
-            //  implementation splitting on "\r\n" does. Treating CR as a
-            //  terminator means no value can contain one.
-            //
-            const lines = ticData.split(/\r\n|\r|\n/g);
-            let keyEnd;
-            let key;
-            let value;
-            let entry;
-
-            lines.forEach(line => {
-                keyEnd = line.search(/\s/);
-
-                if (keyEnd < 0) {
-                    keyEnd = line.length;
-                }
-
-                key = line.substr(0, keyEnd).toLowerCase();
-
-                if (0 === key.length) {
-                    return;
-                }
-
-                value = line.substr(keyEnd + 1);
-
-                //  don't trim Ldesc; may mess with FILE_ID.DIZ type descriptions
-                if ('ldesc' !== key) {
-                    value = value.trim();
-                }
-
-                //
-                //  Keep the line exactly as it arrived, in order.
-                //
-                //  Both specs require a forwarding processor to pass keywords
-                //  it does not understand through unchanged -- FTS-5006 2.2:
-                //  "the preferred way of dealing with it is to pass the line
-                //  'as is' to outgoing TIC files" -- and FSC-0087 additionally
-                //  requires grouped keywords (Desc, Ldesc, App) to keep their
-                //  order. Parsing into converted values loses the text a writer
-                //  would need to reproduce, so retain it here rather than
-                //  trying to reconstruct it later.
-                //
-                ticFileInfo.rawLines.push({ key, line });
-
-                //  convert well known keys to a more reasonable format
-                switch (key) {
-                    case 'origin':
-                    case 'from':
-                    case 'seenby':
-                    case 'to': {
-                        //
-                        //  Only the address part. FSC-0087 defines the From
-                        //  line as "FROM [Address] [Pwd]" -- an optional
-                        //  password after the address -- and our anchored
-                        //  FTN_ADDRESS_REGEXP rejected the whole thing, so
-                        //  "From 2:280/5555 SECRET" yielded no From at all and
-                        //  the TIC died as "required fields missing".
-                        //
-                        //  The spec calls that password "rarely used, IF AT
-                        //  ALL", and none of 1,769 real TICs from a live system
-                        //  carried one -- so this is conformance rather than a
-                        //  live problem. Taking the first token is also simply
-                        //  more tolerant for the other address keywords, which
-                        //  is the right posture for a reader.
-                        //
-                        //  Nothing leaks: FSC-0087 says the From password is
-                        //  never passed through, and "from" is in the writer's
-                        //  regeneratedKeywords, so the inbound line is dropped
-                        //  and rebuilt per downlink rather than forwarded.
-                        //
-                        //  Only "From". The spec allows a trailing token there
-                        //  and nowhere else, so a second token on Origin, To or
-                        //  Seenby is malformed -- taking the first silently
-                        //  would accept a broken TIC as though it were fine.
-                        //
-                        const addr = Address.fromString(
-                            'from' === key ? value.split(/\s+/)[0] : value
-                        );
-
-                        //
-                        //  An address we cannot parse is dropped, not stored.
-                        //
-                        //  Address.fromString() returns undefined on failure,
-                        //  and storing that put an undefined into e.g. the
-                        //  Seenby array -- where getAsString() calls
-                        //  v.toString() on every element and throws. Coming
-                        //  from a remote peer's control file, one malformed
-                        //  "Seenby" line was enough to throw inside an fs
-                        //  callback and hang the whole import pass: the same
-                        //  shape of failure #735 fixed for a missing "File".
-                        //
-                        //  htick does exactly this -- "TIC %s: Illegal value:
-                        //  'Seenby %s', ignored" -- and carries on. Required
-                        //  fields that end up absent are caught by
-                        //  hasRequiredFields() as they always were.
-                        //
-                        if (!addr) {
-                            ticFileInfo.parseWarnings.push({
-                                key,
-                                value,
-                                reason: 'unparsable FTN address',
-                            });
-                            return;
-                        }
-
-                        value = addr;
-                        break;
-                    }
-
-                    case 'crc':
-                        value = parseInt(value, 16);
-                        break;
-
-                    case 'size':
-                        value = parseInt(value, 10);
-                        break;
-
-                    default:
-                        break;
-                }
-
-                entry = ticFileInfo.entries.get(key);
-
-                if (entry) {
-                    if (!Array.isArray(entry)) {
-                        entry = [entry];
-                        ticFileInfo.entries.set(key, entry);
-                    }
-                    entry.push(value);
-                } else {
-                    ticFileInfo.entries.set(key, value);
-                }
-            });
-
-            return cb(null, ticFileInfo);
+            return cb(null, TicFileInfo.createFromString(ticData, path));
         });
+    }
+
+    //
+    //  Parse |ticData| that is not (yet) a file on disk.
+    //
+    //  Hatching builds a TIC from local metadata rather than receiving one
+    //  (#751), and the writer's pass-through model means the cleanest way to
+    //  produce one is to render the keywords we originate and read them back
+    //  with this same parser. A hatched TIC then reaches TicFileWriter in
+    //  exactly the shape a forwarded one does -- same |rawLines|, same
+    //  conversions, same tolerance -- so there is only ever one way a TIC gets
+    //  written, and no second path to keep in step.
+    //
+    //  |path| is optional and names the payload's directory for
+    //  resolveFilePath(); a hatch supplies the source file's directory.
+    //
+    static createFromString(ticData, path) {
+        const ticFileInfo = new TicFileInfo();
+        if (undefined !== path) {
+            ticFileInfo.path = path;
+        }
+
+        //
+        //  Lines in a TIC file should be separated by CRLF (DOS) but
+        //  FTS-5006 2.2 asks readers to cope with "only a LF or CR" -- so a
+        //  lone CR ends a line here too.
+        //
+        //  That is not just leniency, it closes an injection. Splitting on
+        //  CRLF and LF alone left a bare CR *inside a value*, and the writer
+        //  passes values through verbatim: an uplink sending
+        //  "Ldesc harmless\rPw SOMETHING" got a literal "Pw SOMETHING" line
+        //  into the TIC we then signed with our own From and Path, for any
+        //  downstream tosser that breaks lines on CR -- which every C
+        //  implementation splitting on "\r\n" does. Treating CR as a
+        //  terminator means no value can contain one.
+        //
+        const lines = ticData.split(/\r\n|\r|\n/g);
+        let keyEnd;
+        let key;
+        let value;
+        let entry;
+
+        lines.forEach(line => {
+            keyEnd = line.search(/\s/);
+
+            if (keyEnd < 0) {
+                keyEnd = line.length;
+            }
+
+            key = line.substr(0, keyEnd).toLowerCase();
+
+            if (0 === key.length) {
+                return;
+            }
+
+            value = line.substr(keyEnd + 1);
+
+            //  don't trim Ldesc; may mess with FILE_ID.DIZ type descriptions
+            if ('ldesc' !== key) {
+                value = value.trim();
+            }
+
+            //
+            //  Keep the line exactly as it arrived, in order.
+            //
+            //  Both specs require a forwarding processor to pass keywords
+            //  it does not understand through unchanged -- FTS-5006 2.2:
+            //  "the preferred way of dealing with it is to pass the line
+            //  'as is' to outgoing TIC files" -- and FSC-0087 additionally
+            //  requires grouped keywords (Desc, Ldesc, App) to keep their
+            //  order. Parsing into converted values loses the text a writer
+            //  would need to reproduce, so retain it here rather than
+            //  trying to reconstruct it later.
+            //
+            ticFileInfo.rawLines.push({ key, line });
+
+            //  convert well known keys to a more reasonable format
+            switch (key) {
+                case 'origin':
+                case 'from':
+                case 'seenby':
+                case 'to': {
+                    //
+                    //  Only the address part. FSC-0087 defines the From
+                    //  line as "FROM [Address] [Pwd]" -- an optional
+                    //  password after the address -- and our anchored
+                    //  FTN_ADDRESS_REGEXP rejected the whole thing, so
+                    //  "From 2:280/5555 SECRET" yielded no From at all and
+                    //  the TIC died as "required fields missing".
+                    //
+                    //  The spec calls that password "rarely used, IF AT
+                    //  ALL", and none of 1,769 real TICs from a live system
+                    //  carried one -- so this is conformance rather than a
+                    //  live problem. Taking the first token is also simply
+                    //  more tolerant for the other address keywords, which
+                    //  is the right posture for a reader.
+                    //
+                    //  Nothing leaks: FSC-0087 says the From password is
+                    //  never passed through, and "from" is in the writer's
+                    //  regeneratedKeywords, so the inbound line is dropped
+                    //  and rebuilt per downlink rather than forwarded.
+                    //
+                    //  Only "From". The spec allows a trailing token there
+                    //  and nowhere else, so a second token on Origin, To or
+                    //  Seenby is malformed -- taking the first silently
+                    //  would accept a broken TIC as though it were fine.
+                    //
+                    const addr = Address.fromString(
+                        'from' === key ? value.split(/\s+/)[0] : value
+                    );
+
+                    //
+                    //  An address we cannot parse is dropped, not stored.
+                    //
+                    //  Address.fromString() returns undefined on failure,
+                    //  and storing that put an undefined into e.g. the
+                    //  Seenby array -- where getAsString() calls
+                    //  v.toString() on every element and throws. Coming
+                    //  from a remote peer's control file, one malformed
+                    //  "Seenby" line was enough to throw inside an fs
+                    //  callback and hang the whole import pass: the same
+                    //  shape of failure #735 fixed for a missing "File".
+                    //
+                    //  htick does exactly this -- "TIC %s: Illegal value:
+                    //  'Seenby %s', ignored" -- and carries on. Required
+                    //  fields that end up absent are caught by
+                    //  hasRequiredFields() as they always were.
+                    //
+                    if (!addr) {
+                        ticFileInfo.parseWarnings.push({
+                            key,
+                            value,
+                            reason: 'unparsable FTN address',
+                        });
+                        return;
+                    }
+
+                    value = addr;
+                    break;
+                }
+
+                case 'crc':
+                    value = parseInt(value, 16);
+                    break;
+
+                case 'size':
+                    value = parseInt(value, 10);
+                    break;
+
+                default:
+                    break;
+            }
+
+            entry = ticFileInfo.entries.get(key);
+
+            if (entry) {
+                if (!Array.isArray(entry)) {
+                    entry = [entry];
+                    ticFileInfo.entries.set(key, entry);
+                }
+                entry.push(value);
+            } else {
+                ticFileInfo.entries.set(key, value);
+            }
+        });
+
+        return ticFileInfo;
     }
 };
