@@ -318,13 +318,8 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         });
     }
 
-    _statusView() {
-        const mainVc = _.get(this.viewControllers, 'main');
-        return mainVc && mainVc.getView(MciViewIds.main.status);
-    }
-
     _updateStatus(status) {
-        const statusView = this._statusView();
+        const statusView = this.getView('main', MciViewIds.main.status);
         if (statusView) {
             statusView.setText(status);
         }
@@ -673,7 +668,7 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         //  posted. Say it on the terminal instead, and hold it there long
         //  enough to read.
         //
-        if (this._statusView()) {
+        if (this.getView('main', MciViewIds.main.status)) {
             return this.prevMenu();
         }
 

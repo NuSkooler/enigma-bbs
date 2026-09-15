@@ -991,7 +991,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         const views = [];
 
-        //  a menu with no art has no view controller at all, as getCustomView()
+        //  a menu with no art has no view controller at all, as getView()
         //  just above already allows for
         const form = this.viewControllers[formName];
         if (!form) {
