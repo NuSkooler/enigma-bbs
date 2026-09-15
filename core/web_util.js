@@ -53,7 +53,7 @@ function getFullUrl(req) {
 function buildUrl(pathAndQuery) {
     //
     //  Create a URL such as
-    //  https://l33t.codes:44512/ + |pathAndQuery|
+    //  https://xibalba.vip:44512/ + |pathAndQuery|
     //
     //  Prefer HTTPS over HTTP. Be explicit about the port
     //  only if non-standard. Allow users to override full prefix in config.

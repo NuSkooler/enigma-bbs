@@ -56,7 +56,7 @@ const SKIP = [
     /^https?:\/\/good\.example\b/i,
     /^https?:\/\/[^/]*\/users\/(alice|victim)\b/i,
     /^https?:\/\/mastodon\.social\/(@|users\/)alice\b/i,
-    /^https?:\/\/l33t\.codes:\d+/i, //  web_util.js, illustrating URL construction
+    /^https?:\/\/xibalba\.vip:\d+/i, //  web_util.js, illustrating URL construction
     //  Namespace and JSON-LD context IRIs. Code never reaches this list -- only
     //  comments are read -- but comments quote payloads, and a quoted IRI is
     //  still an identifier rather than a citation. Whether it resolves is not
