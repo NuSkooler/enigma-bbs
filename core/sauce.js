@@ -22,7 +22,7 @@ exports.SAUCE_SIZE = SAUCE_SIZE;
 
 //
 //  See
-//  http://www.acid.org/info/sauce/sauce.htm
+//  https://github.com/radman1/sauce
 //
 const SAUCE_VALID_DATA_TYPES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 

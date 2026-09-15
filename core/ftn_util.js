@@ -259,7 +259,7 @@ function getVia(address) {
 
 //
 //  Creates a INTL kludge value as per FTS-4001
-//  http://retro.fidoweb.ru/docs/index=ftsc&doc=FTS-4001&enc=mac
+//  http://ftsc.org/docs/fts-4001.001
 //
 function getIntl(toAddress, fromAddress) {
     //
@@ -362,7 +362,7 @@ function serializeNetNodeLines(addresses) {
 //  See http://ftsc.org/docs/fts-0004.001
 //  and notes at http://ftsc.org/docs/fsc-0043.002.
 //
-//  For a great write up, see http://www.skepticfiles.org/aj/basics03.htm
+//  For a great write up, see https://web.archive.org/web/20151123064315/http://www.skepticfiles.org/aj/basics03.htm
 //
 //  This method returns an sorted array of values, but
 //  not the "SEEN-BY" prefix itself.

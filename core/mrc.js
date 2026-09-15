@@ -25,7 +25,7 @@ exports.moduleInfo = {
 
     // Whilst this module was put together by me (RiPuk), it should be noted that a lot of the ideas (and even some code snippets) were
     // borrowed from the Synchronet implementation of MRC by echicken. So...thanks, your code was very helpful in putting this together.
-    // Source at http://cvs.synchro.net/cgi-bin/viewcvs.cgi/xtrn/mrc/.
+    // Source at https://gitlab.synchro.net/main/sbbs/-/tree/master/xtrn/mrc.
 };
 
 const FormIds = {

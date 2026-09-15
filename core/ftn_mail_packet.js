@@ -1055,7 +1055,7 @@ function Packet(options) {
 //  http://ftsc.org/docs/fts-0001.016
 //
 //  See also:
-//  * http://www.skepticfiles.org/aj/basics03.htm
+//  * https://web.archive.org/web/20151123064315/http://www.skepticfiles.org/aj/basics03.htm
 //
 Packet.Attribute = {
     Private: 0x0001, //  Private message / NetMail

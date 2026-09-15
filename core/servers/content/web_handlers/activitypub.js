@@ -1433,7 +1433,7 @@ exports.getModule = class ActivityPubWebHandler extends WebHandlerModule {
         return this._actorCollectionRequest(Collections.Followers, req, resp);
     }
 
-    // https://docs.gotosocial.org/en/latest/federation/behaviors/outbox/
+    // https://docs.gotosocial.org/en/latest/federation/actors/#outbox
     _outboxGetHandler(req, resp) {
         this.log.debug({ url: req.url }, 'Request for "outbox"');
         return this._actorCollectionRequest(Collections.Outbox, req, resp);

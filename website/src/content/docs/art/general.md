@@ -47,7 +47,7 @@ A menu entry has a few elements that control how art is selected and displayed. 
 
 | Item | Description|
 |------|------------|
-| `font` | Sets the [SyncTERM](http://syncterm.bbsdev.net/) style font to use when displaying this art. If unset, the system will use the art's embedded [SAUCE](http://www.acid.org/info/sauce/sauce.htm) record if present or simply use the current font. See Fonts below. |
+| `font` | Sets the [SyncTERM](http://syncterm.bbsdev.net/) style font to use when displaying this art. If unset, the system will use the art's embedded [SAUCE](https://github.com/radman1/sauce) record if present or simply use the current font. See Fonts below. |
 | `pause` | Pause after displaying. `true` or `'end'` pauses at the end; `'pageBreak'` paginates the art screen-by-screen; a prompt name string uses that prompt in end mode. See [Pause Prompts](pause-prompts.md). |
 | `baudRate` | Throttle art display to simulate a modem connection at the given baud rate. Works with all terminal clients. See [Baud Rates](#baud-rates) below. |
 | `cls` | Clear the screen before display if set to `true`. |

@@ -265,7 +265,7 @@ class NNTPServer extends NNTPServerBase {
         //
         //  Resources:
         //  - https://tools.ietf.org/html/rfc5536#section-3.1
-        //  - https://github.com/ftnapps/jamnntpd/blob/master/src/nntpserv.c#L962
+        //  - https://github.com/BegemotIPryaniki/jamnntpd/blob/master/src/nntpserv.c#L962
         //
         const toName = this.getMessageTo(message);
         const fromName = this.getMessageFrom(message);

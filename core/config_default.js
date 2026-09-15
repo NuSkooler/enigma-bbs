@@ -98,7 +98,7 @@ module.exports = () => {
             //
             //  A great resource can be found at https://github.com/danielmiessler/SecLists
             //
-            //  Current list source: https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/probable-v2-top12000.txt
+            //  Current list source: https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/probable-v2_top-12000.txt
             //
             badPassFile: paths.join(__dirname, '../misc/bad_passwords.txt'),
 

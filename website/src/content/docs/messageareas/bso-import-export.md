@@ -7,7 +7,7 @@ sidebar:
 The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers.ftn_bso`.
 
 :::note
-ENiGMA½'s `ftn_bso` module handles message scanning and tossing only — **packet transport is handled separately**. You can use the built-in [native BinkP mailer](binkp.md) (no external software required) or an external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd).
+ENiGMA½'s `ftn_bso` module handles message scanning and tossing only — **packet transport is handled separately**. You can use the built-in [native BinkP mailer](binkp.md) (no external software required) or an external [mailer](http://wiki.synchro.net/resource:fidonet_mailer) such as [Binkd](https://github.com/pgul/binkd).
 :::
 
 ### Configuration
@@ -266,5 +266,5 @@ eventScheduler: {
 ```
 
 ## Additional Resources
-* [Blog entry on setting up ENiGMA + Binkd on CentOS7](https://l33t.codes/enigma-12-binkd-on-centos-7/). Note that this references an **older version**, so be wary of the `config.hjson` references!
+* [Blog entry on setting up ENiGMA + Binkd on CentOS7](https://l33t.codes/2016/03/31/Enigma-12-Binkd-On-Centos-7/). Note that this references an **older version**, so be wary of the `config.hjson` references!
 * [Setting up FTN-style message networks with ENiGMA½ BBS](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d) by Alpha.

@@ -1036,7 +1036,7 @@ function importFileAreas() {
     //
     //  FILEGATE.ZXX "RAID" format currently the only supported format.
     //
-    //  See http://www.filegate.net/info/filegate.zxx
+    //  See https://web.archive.org/web/20191121002854/http://www.filegate.net/info/filegate.zxx
     //  ...same format as FILEBONE.NA:
     //  http://wiki.mysticbbs.com/doku.php?id=mutil_import_filebone_na
     //

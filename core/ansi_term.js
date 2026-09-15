@@ -8,14 +8,14 @@
 //      * http://ansi-bbs.org/
 //
 //  CTerm / SyncTERM
-//      * https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//      * https://syncterm.bbsdev.net/cterm.html
 //
 //  BananaCom
 //      * http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
 //
 //  ANSI.SYS
 //      * http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/ansisys.txt
-//      * http://academic.evergreen.edu/projects/biophysics/technotes/program/ansi_esc.htm
+//      * https://web.archive.org/web/20171127212404/http://academic.evergreen.edu/projects/biophysics/technotes/program/ansi_esc.htm
 //
 //  Modern Windows (Win10+)
 //      * https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
@@ -153,7 +153,7 @@ const CONTROL = {
 
 //
 //  Select Graphics Rendition
-//  See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
+//  See https://syncterm.bbsdev.net/cterm.html
 //
 const SGRValues = {
     reset: 0,
@@ -211,7 +211,7 @@ function getBGColorValue(name) {
     return SGRValues[name + 'BG'];
 }
 
-//  See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
+//  See https://syncterm.bbsdev.net/cterm.html
 //  :TODO: document
 //  :TODO: Create mappings for aliases... maybe make this a map to values instead
 //  :TODO: Break this up in to two parts:
@@ -224,7 +224,7 @@ function getBGColorValue(name) {
 //  An array of CTerm/SyncTERM font/encoding values. Each entry's index
 //  corresponds to it's escape sequence value (e.g. cp437 = 0)
 //
-//  See https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//  See https://syncterm.bbsdev.net/cterm.html
 //
 const SYNCTERM_FONT_AND_ENCODING_TABLE = [
     'cp437',
@@ -478,7 +478,7 @@ function goHome() {
 //
 //  See:
 //  http://stjarnhimlen.se/snippets/vt100.txt
-//  https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//  https://syncterm.bbsdev.net/cterm.html
 //
 //  WARNING:
 //  * Not honored by all clients
