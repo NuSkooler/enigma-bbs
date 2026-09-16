@@ -3,7 +3,7 @@
 
 const fileDb = require('./database.js').dbs.file;
 const Errors = require('./enig_error.js').Errors;
-const { getISOTimestampString, sanitizeString, coerceToText } = require('./database.js');
+const { getISOTimestampString, coerceToText } = require('./database.js');
 const Config = require('./config.js').get;
 const { safeMoveFile } = require('./file_util.js');
 
@@ -46,6 +46,46 @@ const FILE_WELL_KNOWN_META = {
     desc_sauce: s => JSON.parse(s) || {},
     desc_long_sauce: s => JSON.parse(s) || {},
 };
+
+//
+//  A SQLite LIKE pattern from a DOS style glob ('*' and '?').
+//
+//  Two layers of escaping meet here and the order is the whole of it: escape
+//  what the caller meant literally, then introduce our own wildcards. Doing it
+//  the other way -- converting first and running the result through an escaper
+//  -- turns every wildcard back into a literal, which is what sanitizeString()
+//  did to a TIC's "Replaces": "NODELIST.*" became LIKE 'NODELIST.\%', and with
+//  no ESCAPE clause SQLite read that backslash literally and matched nothing.
+//
+//  Callers pair this with ESCAPE '\'.
+//
+function likePatternFromGlob(glob) {
+    return (
+        String(glob)
+            //  LIKE metacharacters and the escape character itself. Whatever
+            //  the caller wrote here, they meant literally.
+            .replace(/[\\%_]/g, c => `\\${c}`)
+            //  ...then the glob's own wildcards, which must stay live.
+            //  https://www.sqlite.org/lang_expr.html
+            .replace(/\*/g, '%')
+            .replace(/\?/g, '_')
+    );
+}
+
+//
+//  Columns a caller may sort by. A sort names a column and so cannot be a bound
+//  parameter; this is the allow-list that keeps the one remaining interpolation
+//  in findFiles() from being open-ended.
+//
+const SORTABLE_FILE_COLUMNS = [
+    'file_id',
+    'area_tag',
+    'file_name',
+    'storage_tag',
+    'desc',
+    'desc_long',
+    'upload_timestamp',
+];
 
 module.exports = class FileEntry {
     constructor(options) {
@@ -602,9 +642,36 @@ module.exports = class FileEntry {
         let sqlOrderBy;
         const sqlOrderDir = 'ascending' === filter.order ? 'ASC' : 'DESC';
 
+        //
+        //  Every value goes in as a bound parameter, never interpolated.
+        //
+        //  This used to build the statement by hand and run each value through
+        //  sanitizeString(), which escapes MySQL style: it doubles '"' and
+        //  backslash-escapes '\', '%' and the control characters. SQLite's only
+        //  string-literal escape is a doubled quote, so all of that arrived at
+        //  the database as *extra characters* -- a file named "100% Pure.zip"
+        //  or 'say "hi".txt' could not be found by its own name. (It was never
+        //  an injection: the one escape that mattered, '' for a quote, was
+        //  correct.) Binding removes the question entirely, and it is what
+        //  quickCheckExistsByPath() already does.
+        //
+        const params = [];
+
         if (moment.isMoment(filter.newerThanTimestamp)) {
             filter.newerThanTimestamp = getISOTimestampString(filter.newerThanTimestamp);
         }
+
+        //
+        //  A sort names a *column*, which cannot be a bound parameter. Every
+        //  caller passes a literal and the filter editor picks from a fixed
+        //  list, so nothing arbitrary reaches here today -- but this is now the
+        //  only place in the function where a value is interpolated, and an
+        //  allow-list is cheaper than remembering that.
+        //
+        const sortColumn =
+            filter.sort && SORTABLE_FILE_COLUMNS.includes(filter.sort)
+                ? filter.sort
+                : undefined;
 
         function getOrderByWithCast(ob) {
             if (['dl_count', 'est_release_year', 'byte_size'].indexOf(filter.sort) > -1) {
@@ -614,13 +681,16 @@ module.exports = class FileEntry {
             return `ORDER BY ${ob}`;
         }
 
-        function appendWhereClause(clause) {
+        //  |values| are appended to |params| in clause order, so the '?' in a
+        //  clause and its value cannot drift apart.
+        function appendWhereClause(clause, ...values) {
             if (sqlWhere) {
                 sqlWhere += ' AND ';
             } else {
                 sqlWhere += ' WHERE ';
             }
             sqlWhere += clause;
+            params.push(...values);
         }
 
         if (filter.sort && filter.sort.length > 0) {
@@ -630,7 +700,8 @@ module.exports = class FileEntry {
                     FROM file f, file_meta m`;
 
                 appendWhereClause(
-                    `f.file_id = m.file_id AND m.meta_name = '${filter.sort}'`
+                    'f.file_id = m.file_id AND m.meta_name = ?',
+                    filter.sort
                 );
 
                 sqlOrderBy = `${getOrderByWithCast('m.meta_value')} ${sqlOrderDir}`;
@@ -649,8 +720,12 @@ module.exports = class FileEntry {
                     sql = `SELECT DISTINCT f.file_id
                         FROM file f`;
 
+                    //  An unknown sort falls back to file_id rather than being
+                    //  pasted into the statement.
                     sqlOrderBy =
-                        getOrderByWithCast(`f.${filter.sort}`) + ' ' + sqlOrderDir;
+                        getOrderByWithCast(`f.${sortColumn || 'file_id'}`) +
+                        ' ' +
+                        sqlOrderDir;
                 }
             }
         } else {
@@ -662,67 +737,65 @@ module.exports = class FileEntry {
 
         if (filter.areaTag && filter.areaTag.length > 0) {
             if (Array.isArray(filter.areaTag)) {
-                const areaList = filter.areaTag
-                    .map(t => `'${sanitizeString(t)}'`)
-                    .join(', ');
-                appendWhereClause(`f.area_tag IN(${areaList})`);
+                appendWhereClause(
+                    `f.area_tag IN(${filter.areaTag.map(() => '?').join(', ')})`,
+                    ...filter.areaTag
+                );
             } else {
-                appendWhereClause(`f.area_tag = '${sanitizeString(filter.areaTag)}'`);
+                appendWhereClause('f.area_tag = ?', filter.areaTag);
             }
         }
 
         if (filter.metaPairs && filter.metaPairs.length > 0) {
             filter.metaPairs.forEach(mp => {
-                const safeName = sanitizeString(mp.name);
                 if (mp.wildcards) {
-                    //  convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
-                    mp.value = mp.value.replace(/\*/g, '%').replace(/\?/g, '_');
                     appendWhereClause(
                         `f.file_id IN (
                             SELECT file_id
                             FROM file_meta
-                            WHERE meta_name = '${safeName}' AND meta_value LIKE '${sanitizeString(
-                                mp.value
-                            )}'
-                        )`
+                            WHERE meta_name = ? AND meta_value LIKE ? ESCAPE '\\'
+                        )`,
+                        mp.name,
+                        likePatternFromGlob(mp.value)
                     );
                 } else {
                     appendWhereClause(
                         `f.file_id IN (
                             SELECT file_id
                             FROM file_meta
-                            WHERE meta_name = '${safeName}' AND meta_value = '${sanitizeString(
-                                mp.value
-                            )}'
-                        )`
+                            WHERE meta_name = ? AND meta_value = ?
+                        )`,
+                        mp.name,
+                        mp.value
                     );
                 }
             });
         }
 
         if (filter.storageTag && filter.storageTag.length > 0) {
-            appendWhereClause(`f.storage_tag='${sanitizeString(filter.storageTag)}'`);
+            appendWhereClause('f.storage_tag = ?', filter.storageTag);
         }
 
         if (filter.terms && filter.terms.length > 0) {
             const [terms, queryType] = FileEntry._normalizeFileSearchTerms(filter.terms);
 
             if ('fts_match' === queryType) {
-                //  Single-quoted: SQLITE_DQS=0 (better-sqlite3 v12) treats
-                //  double-quoted tokens as identifiers, breaking the MATCH.
                 appendWhereClause(
                     `f.file_id IN (
                         SELECT rowid
                         FROM file_fts
-                        WHERE file_fts MATCH ':${terms}'
-                    )`
+                        WHERE file_fts MATCH ?
+                    )`,
+                    `:${terms}`
                 );
             } else {
-                const safeTerms = sanitizeString(terms);
                 appendWhereClause(
-                    `(f.file_name LIKE '${safeTerms}' OR
-                    f.desc LIKE '${safeTerms}' OR
-                    f.desc_long LIKE '${safeTerms}')`
+                    `(f.file_name LIKE ? ESCAPE '\\' OR
+                    f.desc LIKE ? ESCAPE '\\' OR
+                    f.desc_long LIKE ? ESCAPE '\\')`,
+                    terms,
+                    terms,
+                    terms
                 );
             }
         }
@@ -730,9 +803,7 @@ module.exports = class FileEntry {
         if (_.isString(filter.fileName) && filter.fileName.length > 0) {
             const caseSensitive = _.get(filter, 'filenameCaseSensitive', false);
             const collate = caseSensitive ? '' : 'COLLATE NOCASE';
-            appendWhereClause(
-                `(f.file_name = '${sanitizeString(filter.fileName)}' ${collate})`
-            );
+            appendWhereClause(`(f.file_name = ? ${collate})`, filter.fileName);
         }
 
         //  handle e.g. 1998 -> "1998"
@@ -741,25 +812,27 @@ module.exports = class FileEntry {
         }
 
         if (filter.tags && filter.tags.length > 0) {
-            //  build list of quoted tags; filter.tags comes in as a space and/or comma separated values
+            //  filter.tags comes in as a space and/or comma separated value
             const tags = filter.tags
                 .replace(/,/g, ' ')
                 .replace(/\s{2,}/g, ' ')
                 .split(' ')
-                .map(tag => `'${sanitizeString(tag)}'`)
-                .join(',');
+                .filter(t => t.length > 0);
 
-            appendWhereClause(
-                `f.file_id IN (
+            if (tags.length > 0) {
+                appendWhereClause(
+                    `f.file_id IN (
                     SELECT file_id
                     FROM file_hash_tag
                     WHERE hash_tag_id IN (
                         SELECT hash_tag_id
                         FROM hash_tag
-                        WHERE hash_tag IN (${tags})
+                        WHERE hash_tag IN (${tags.map(() => '?').join(',')})
                     )
-                )`
-            );
+                )`,
+                    ...tags
+                );
+            }
         }
 
         if (
@@ -767,24 +840,27 @@ module.exports = class FileEntry {
             filter.newerThanTimestamp.length > 0
         ) {
             appendWhereClause(
-                `DATETIME(f.upload_timestamp) > DATETIME('${filter.newerThanTimestamp}', '+1 seconds')`
+                "DATETIME(f.upload_timestamp) > DATETIME(?, '+1 seconds')",
+                filter.newerThanTimestamp
             );
         }
 
         if (_.isNumber(filter.newerThanFileId)) {
-            appendWhereClause(`f.file_id > ${filter.newerThanFileId}`);
+            appendWhereClause('f.file_id > ?', filter.newerThanFileId);
         }
 
         sql += `${sqlWhere} ${sqlOrderBy}`;
 
-        if (_.isNumber(filter.limit)) {
-            sql += ` LIMIT ${filter.limit}`;
+        //  isNumber() is true for NaN, which would be pasted in as "LIMIT NaN".
+        if (_.isFinite(filter.limit)) {
+            sql += ' LIMIT ?';
+            params.push(filter.limit);
         }
 
         sql += ';';
 
         try {
-            const rows = fileDb.prepare(sql).all();
+            const rows = fileDb.prepare(sql).all(...params);
             if (!rows || 0 === rows.length) {
                 return cb(null, []); //  no matches
             }
@@ -886,9 +962,14 @@ module.exports = class FileEntry {
         );
     }
 
+    //
+    //  Returns [ value, 'fts_match' | 'like' ]. Both forms are bound as
+    //  parameters by the caller, so nothing is escaped for the *statement*
+    //  here -- only for LIKE, where the user's own '%' and '_' have to stay
+    //  literal while '*' and '?' become wildcards.
+    //
     static _normalizeFileSearchTerms(terms) {
-        //  ensure we have reasonable input to start with
-        terms = sanitizeString(terms.toString());
+        terms = terms.toString();
 
         //	No wildcards?
         const hasSingleCharWC = terms.indexOf('?') > -1;
@@ -897,8 +978,8 @@ module.exports = class FileEntry {
         }
 
         const prepareLike = () => {
-            //	Convert * and ? to SQL LIKE style
-            terms = terms.replace(/\*/g, '%').replace(/\?/g, '_');
+            //	Convert * and ? to SQL LIKE style, keeping literals literal
+            terms = likePatternFromGlob(terms);
             return terms;
         };
 
