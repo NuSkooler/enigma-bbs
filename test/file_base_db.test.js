@@ -588,3 +588,178 @@ describe('FileEntry.findFiles() — FTS terms search', function () {
         });
     });
 });
+
+//
+//  Values reach SQLite as bound parameters, not interpolated into the
+//  statement. They used to go through sanitizeString(), which escapes MySQL
+//  style -- doubling '"' and backslash-escaping '\', '%' and the control
+//  characters. SQLite's only string-literal escape is a doubled quote, so all
+//  of that arrived as extra characters and the value could not match itself.
+//
+//  Never an injection -- the one escape that mattered was correct -- but a file
+//  could not be found by its own name.
+//
+describe('FileEntry.findFiles() — values are bound, not escaped', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM file_meta; DELETE FROM file;');
+        done();
+    });
+
+    function persistNamed(fileName, meta, cb) {
+        const entry = makeEntry({ areaTag: 'pc_dos', fileName, meta });
+        entry.desc = fileName;
+        entry.persist(err => cb(err, entry));
+    }
+
+    //  Every one of these is a legal filename on the systems ENiGMA runs on.
+    const AWKWARD = [
+        ['percent', '100% Pure.zip'],
+        ['double quote', 'say "hi".txt'],
+        ['backslash', 'back\\slash.zip'],
+        ['single quote', "o'brien.zip"],
+        ['underscore', 'my_file.zip'],
+        ['newline', 'two\nlines.zip'],
+        ['tab', 'a\tb.zip'],
+    ];
+
+    AWKWARD.forEach(([label, fileName]) => {
+        it(`finds a file whose name contains a ${label}`, done => {
+            persistNamed(fileName, {}, (err, entry) => {
+                assert.ifError(err);
+                FileEntry.findFiles({ fileName }, (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.deepEqual(
+                        ids,
+                        [entry.fileId],
+                        `${JSON.stringify(fileName)} could not find itself`
+                    );
+                    done();
+                });
+            });
+        });
+    });
+
+    it('matches an areaTag exactly, without escaping it', done => {
+        persistNamed('a.zip', {}, (err, entry) => {
+            assert.ifError(err);
+            FileEntry.findFiles({ areaTag: 'pc_dos' }, (findErr, ids) => {
+                assert.ifError(findErr);
+                assert.deepEqual(ids, [entry.fileId]);
+                done();
+            });
+        });
+    });
+
+    //
+    //  Two different hazards, so two kinds of value. A '%' catches the old
+    //  escaping, which mangled it; an apostrophe catches raw interpolation,
+    //  which the old code got *right*. A test with only one of them passes
+    //  under the other mistake.
+    //
+    [
+        ['percent', '100%.ZIP'],
+        ['apostrophe', "O'BRIEN.ZIP"],
+        ['backslash', 'A\\B.ZIP'],
+    ].forEach(([label, value]) => {
+        it(`matches a meta value containing ${label === 'apostrophe' ? 'an' : 'a'} ${label}`, done => {
+            //  short_file_name is what a TIC's "Replaces" is matched against,
+            //  and all of these are legal in a DOS 8.3 name.
+            persistNamed(`m-${label}.zip`, { short_file_name: value }, (err, entry) => {
+                assert.ifError(err);
+                FileEntry.findFiles(
+                    {
+                        areaTag: 'pc_dos',
+                        metaPairs: [{ name: 'short_file_name', value }],
+                    },
+                    (findErr, ids) => {
+                        assert.ifError(findErr);
+                        assert.deepEqual(ids, [entry.fileId]);
+                        done();
+                    }
+                );
+            });
+        });
+    });
+
+    it('does not let a value act as SQL', done => {
+        //  Never was an injection; this is the regression guard for that.
+        persistNamed('safe.zip', {}, err => {
+            assert.ifError(err);
+            const hostile = [
+                "x' OR 1=1 --",
+                "x'; DROP TABLE file; --",
+                'x" OR 1=1 --',
+                "x\\' OR 1=1 --",
+            ];
+            let pending = hostile.length;
+            hostile.forEach(fileName => {
+                FileEntry.findFiles({ fileName }, (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.deepEqual(ids, [], fileName);
+                    if (0 === --pending) {
+                        const rows = _testDb
+                            .prepare(
+                                "SELECT COUNT(*) c FROM sqlite_master WHERE name='file'"
+                            )
+                            .get();
+                        assert.equal(rows.c, 1, 'the table must still exist');
+                        done();
+                    }
+                });
+            });
+        });
+    });
+
+    it('ignores a sort naming something that is not a column', done => {
+        //
+        //  A sort names a column and so cannot be bound; this is the allow-list.
+        //  The value has to be one that *fails* when pasted in -- an unknown
+        //  column is a SQLite error, whereas something like
+        //  "file_id, (SELECT 1) --" is valid SQL and would pass either way.
+        //
+        persistNamed('sorted.zip', {}, (err, entry) => {
+            assert.ifError(err);
+            FileEntry.findFiles(
+                { areaTag: 'pc_dos', sort: 'no_such_column' },
+                (findErr, ids) => {
+                    assert.ifError(findErr, 'an unknown sort must not reach the SQL');
+                    assert.deepEqual(ids, [entry.fileId], 'it falls back to file_id');
+                    done();
+                }
+            );
+        });
+    });
+
+    it('still sorts by a column it does know', done => {
+        persistNamed('a.zip', {}, e1 => {
+            assert.ifError(e1);
+            persistNamed('b.zip', {}, e2 => {
+                assert.ifError(e2);
+                FileEntry.findFiles(
+                    { areaTag: 'pc_dos', sort: 'file_name', order: 'ascending' },
+                    (findErr, ids) => {
+                        assert.ifError(findErr);
+                        assert.equal(ids.length, 2);
+                        done();
+                    }
+                );
+            });
+        });
+    });
+
+    it('treats a NaN limit as no limit rather than pasting it in', done => {
+        persistNamed('n.zip', {}, err => {
+            assert.ifError(err);
+            FileEntry.findFiles(
+                { areaTag: 'pc_dos', limit: Number('nope') },
+                (findErr, ids) => {
+                    assert.ifError(findErr, 'LIMIT NaN would be a syntax error');
+                    assert.equal(ids.length, 1);
+                    done();
+                }
+            );
+        });
+    });
+});

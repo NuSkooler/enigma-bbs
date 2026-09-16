@@ -20,7 +20,6 @@ exports.getModDatabasePath = getModDatabasePath;
 exports.loadDatabaseForMod = loadDatabaseForMod;
 exports.openDatabase = openDatabase;
 exports.getISOTimestampString = getISOTimestampString;
-exports.sanitizeString = sanitizeString;
 exports.coerceToText = coerceToText;
 exports.initializeDatabases = initializeDatabases;
 exports.scheduledEventOptimizeDatabases = scheduledEventOptimizeDatabases;
@@ -111,34 +110,6 @@ function getISOTimestampString(ts) {
         ts = moment();
     }
     return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
-}
-
-function sanitizeString(s) {
-    return String(s).replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
-        //  eslint-disable-line no-control-regex
-        switch (c) {
-            case '\0':
-                return '\\0';
-            case '\x08':
-                return '\\b';
-            case '\x09':
-                return '\\t';
-            case '\x1a':
-                return '\\z';
-            case '\n':
-                return '\\n';
-            case '\r':
-                return '\\r';
-
-            case '"':
-            case "'":
-                return `${c}${c}`;
-
-            case '\\':
-            case '%':
-                return `\\${c}`;
-        }
-    });
 }
 
 function initializeDatabases(cb) {
