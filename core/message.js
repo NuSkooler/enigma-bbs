@@ -6,7 +6,7 @@ const wordWrapText = require('./word_wrap.js').wordWrapText;
 const { createNamedUUID, parseUUID, unparseUUID } = require('./uuid_util.js');
 const Errors = require('./enig_error.js').Errors;
 const ANSI = require('./ansi_term.js');
-const { sanitizeString, getISOTimestampString, coerceToText } = require('./database.js');
+const { getISOTimestampString, coerceToText } = require('./database.js');
 const { isCP437Encodable } = require('./cp437util');
 const { containsNonLatinCodepoints } = require('./string_util');
 const MessageConst = require('./message_const');
@@ -35,6 +35,24 @@ const MESSAGE_ROW_MAP = {
     reply_to_message_id: 'replyToMsgId',
     modified_timestamp: 'modTimestamp',
 };
+
+//
+//  Columns a caller may add to the SELECT. These name columns, so they cannot
+//  be bound; the list is what keeps the only remaining interpolation in
+//  findMessages() from being open-ended.
+//
+const MESSAGE_SELECTABLE_COLUMNS = [
+    'message_id',
+    'area_tag',
+    'message_uuid',
+    'reply_to_message_id',
+    'to_user_name',
+    'from_user_name',
+    'subject',
+    'message',
+    'modified_timestamp',
+    'view_count',
+];
 
 module.exports = class Message {
     constructor({
@@ -302,7 +320,12 @@ module.exports = class Message {
 
         filter.resultType = filter.resultType || 'id';
         filter.extraFields = filter.extraFields || [];
-        filter.operator = filter.operator || 'AND';
+
+        //
+        //  A boolean keyword, not a value, so it cannot be bound. Anything but
+        //  AND or OR would be pasted straight into the statement.
+        //
+        filter.operator = 'OR' === _.toUpper(filter.operator) ? 'OR' : 'AND';
 
         if ('messageList' === filter.resultType) {
             filter.extraFields = [
@@ -331,9 +354,17 @@ module.exports = class Message {
             sql = `SELECT COUNT() AS count
                 FROM message m`;
         } else {
+            //
+            //  Column names, so these cannot be bound either. Every caller
+            //  passes literals; the allow-list is so that stays true.
+            //
+            const extraFields = filter.extraFields.filter(f =>
+                MESSAGE_SELECTABLE_COLUMNS.includes(f)
+            );
+
             let additionalFields =
-                filter.extraFields.length > 0
-                    ? ', ' + filter.extraFields.map(f => `m.${f}`).join(', ')
+                extraFields.length > 0
+                    ? ', ' + extraFields.map(f => `m.${f}`).join(', ')
                     : '';
 
             if (true === filter.genMissingSubjects) {
@@ -352,13 +383,22 @@ module.exports = class Message {
         let sqlOrderBy;
         let sqlWhere = '';
 
-        function appendWhereClause(clause, op) {
+        //
+        //  Every value is bound, never interpolated -- see the note in
+        //  FileEntry.findFiles() for what sanitizeString() was doing to them.
+        //  |values| are pushed in clause order so a '?' and its value cannot
+        //  drift apart.
+        //
+        const params = [];
+
+        function appendWhereClause(clause, values = [], op) {
             if (sqlWhere) {
                 sqlWhere += ` ${op || filter.operator} `;
             } else {
                 sqlWhere += ' WHERE ';
             }
             sqlWhere += clause;
+            params.push(...values);
         }
 
         //  currently only avail sort
@@ -369,22 +409,41 @@ module.exports = class Message {
         }
 
         if (Array.isArray(filter.ids)) {
-            appendWhereClause(`m.message_id IN (${filter.ids.join(', ')})`);
+            appendWhereClause(
+                `m.message_id IN (${filter.ids.map(() => '?').join(', ')})`,
+                filter.ids
+            );
         }
 
         if (Array.isArray(filter.uuids)) {
-            const uuidList = filter.uuids.map(u => `'${u}'`).join(', ');
-            appendWhereClause(`m.message_id IN (${uuidList})`);
+            //
+            //  m.message_id, not m.message_uuid -- preserved deliberately.
+            //  Comparing an INTEGER PRIMARY KEY against UUID text matches
+            //  nothing, so this filter has never selected anything, and its one
+            //  caller (NNTP) passes a bare string rather than an array so the
+            //  clause does not even fire. Both look like bugs; neither is this
+            //  change's business, and quietly making a dormant filter live
+            //  would alter behaviour nothing here tests.
+            //
+            appendWhereClause(
+                `m.message_id IN (${filter.uuids.map(() => '?').join(', ')})`,
+                filter.uuids
+            );
         }
 
         if (_.isNumber(filter.privateTagUserId)) {
-            appendWhereClause(`m.area_tag = '${Message.WellKnownAreaTags.Private}'`);
+            appendWhereClause('m.area_tag = ?', [Message.WellKnownAreaTags.Private]);
             appendWhereClause(
                 `m.message_id IN (
                     SELECT message_id
                     FROM message_meta
-                    WHERE meta_category = 'System' AND meta_name = '${Message.SystemMetaNames.LocalToUserID}' AND meta_value = ${filter.privateTagUserId}
-                )`
+                    WHERE meta_category = 'System' AND meta_name = ? AND meta_value = ?
+                )`,
+                [
+                    Message.SystemMetaNames.LocalToUserID,
+                    //  stored as text; a number would not compare equal
+                    filter.privateTagUserId.toString(),
+                ]
             );
         } else {
             if (filter.areaTag && filter.areaTag.length > 0) {
@@ -392,12 +451,14 @@ module.exports = class Message {
                     filter.areaTag = [filter.areaTag];
                 }
 
-                const areaList = filter.areaTag
-                    .filter(t => t !== Message.WellKnownAreaTags.Private)
-                    .map(t => `'${t}'`)
-                    .join(', ');
-                if (areaList.length > 0) {
-                    appendWhereClause(`m.area_tag IN(${areaList})`);
+                const areaTags = filter.areaTag.filter(
+                    t => t !== Message.WellKnownAreaTags.Private
+                );
+                if (areaTags.length > 0) {
+                    appendWhereClause(
+                        `m.area_tag IN(${areaTags.map(() => '?').join(', ')})`,
+                        areaTags
+                    );
                 } else {
                     //  nothing to do; no areas remain
                     return cb(null, []);
@@ -405,14 +466,15 @@ module.exports = class Message {
             } else {
                 //  explicit exclude of Private
                 appendWhereClause(
-                    `m.area_tag != '${Message.WellKnownAreaTags.Private}'`,
+                    'm.area_tag != ?',
+                    [Message.WellKnownAreaTags.Private],
                     'AND'
                 );
             }
         }
 
         if (_.isNumber(filter.replyToMessageId)) {
-            appendWhereClause(`m.reply_to_message_id=${filter.replyToMessageId}`);
+            appendWhereClause('m.reply_to_message_id = ?', [filter.replyToMessageId]);
         }
 
         ['toUserName', 'fromUserName'].forEach(field => {
@@ -424,15 +486,11 @@ module.exports = class Message {
                 val = [val];
             }
             if (Array.isArray(val)) {
-                val =
-                    '(' +
+                const column = `m.${_.snakeCase(field)}`;
+                appendWhereClause(
+                    '(' + val.map(() => `${column} LIKE ?`).join(' OR ') + ')',
                     val
-                        .map(v => {
-                            return `m.${_.snakeCase(field)} LIKE '${sanitizeString(v)}'`;
-                        })
-                        .join(' OR ') +
-                    ')';
-                appendWhereClause(val);
+                );
             }
         });
 
@@ -442,18 +500,17 @@ module.exports = class Message {
         ) {
             //  :TODO: should be using "localtime" here?
             appendWhereClause(
-                `DATETIME(m.modified_timestamp) > DATETIME('${filter.newerThanTimestamp}', '+1 seconds')`
+                "DATETIME(m.modified_timestamp) > DATETIME(?, '+1 seconds')",
+                [filter.newerThanTimestamp]
             );
         } else if (moment.isMoment(filter.date)) {
-            appendWhereClause(
-                `DATE(m.modified_timestamp, 'localtime') = DATE('${filter.date.format(
-                    'YYYY-MM-DD'
-                )}')`
-            );
+            appendWhereClause("DATE(m.modified_timestamp, 'localtime') = DATE(?)", [
+                filter.date.format('YYYY-MM-DD'),
+            ]);
         }
 
         if (_.isNumber(filter.newerThanMessageId)) {
-            appendWhereClause(`m.message_id > ${filter.newerThanMessageId}`);
+            appendWhereClause('m.message_id > ?', [filter.newerThanMessageId]);
         }
 
         if (filter.terms && filter.terms.length > 0) {
@@ -463,41 +520,44 @@ module.exports = class Message {
                 `m.message_id IN (
                     SELECT rowid
                     FROM message_fts
-                    WHERE message_fts MATCH ':${sanitizeString(filter.terms)}'
-                )`
+                    WHERE message_fts MATCH ?
+                )`,
+                [`:${filter.terms}`]
             );
         }
 
         if (Array.isArray(filter.metaTuples)) {
-            let sub = [];
-            filter.metaTuples.forEach(mt => {
-                sub.push(
-                    `(meta_category = '${mt.category}' AND meta_name = '${
-                        mt.name
-                    }' AND meta_value = '${sanitizeString(mt.value)}')`
-                );
-            });
-            sub = sub.join(` ${filter.operator} `);
+            const metaValues = [];
+            const sub = filter.metaTuples
+                .map(mt => {
+                    metaValues.push(mt.category, mt.name, mt.value);
+                    return '(meta_category = ? AND meta_name = ? AND meta_value = ?)';
+                })
+                .join(` ${filter.operator} `);
+
             appendWhereClause(
                 `m.message_id IN (
                     SELECT message_id
                     FROM message_meta
                     WHERE ${sub}
-                )`
+                )`,
+                metaValues
             );
         }
 
         sql += `${sqlWhere} ${sqlOrderBy}`;
 
-        if (_.isNumber(filter.limit)) {
-            sql += ` LIMIT ${filter.limit}`;
+        //  isNumber() is true for NaN, which would be pasted in as "LIMIT NaN".
+        if (_.isFinite(filter.limit)) {
+            sql += ' LIMIT ?';
+            params.push(filter.limit);
         }
 
         sql += ';';
 
         if ('count' === filter.resultType) {
             try {
-                const row = msgDb.prepare(sql).get();
+                const row = msgDb.prepare(sql).get(...params);
                 return cb(null, row ? row.count : 0);
             } catch (err) {
                 return cb(err);
@@ -512,7 +572,7 @@ module.exports = class Message {
                     : row => row;
 
             try {
-                const rows = msgDb.prepare(sql).all();
+                const rows = msgDb.prepare(sql).all(...params);
                 for (const row of rows) {
                     if (_.isObject(row)) {
                         matches.push(extra ? rowConv(row) : row[field]);

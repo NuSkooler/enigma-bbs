@@ -478,3 +478,140 @@ describe('Message.findMessages() — FTS terms search', function () {
         });
     });
 });
+
+//
+//  Values reach SQLite as bound parameters. They used to go through
+//  sanitizeString(), whose MySQL-style escaping SQLite reads as literal extra
+//  characters -- so a value could not match itself.
+//
+//  The sharpest case is ActivityPub: a Note id is a URL, percent-encoding in
+//  one is ordinary, and all three callers look a Note up in order to *update or
+//  delete* it. A miss there is a delete that silently does not delete.
+//
+describe('Message.findMessages() — values are bound, not escaped', function () {
+    before(done => applySchema(_testDb, done));
+
+    beforeEach(done => {
+        _testDb.exec('DELETE FROM message_meta; DELETE FROM message;');
+        done();
+    });
+
+    //
+    //  Two hazards, so two kinds of value. A '%' catches the old escaping,
+    //  which mangled it; an apostrophe catches raw interpolation, which the old
+    //  code handled correctly. A set with only one of them passes under the
+    //  other mistake.
+    //
+    const NOTE_IDS = [
+        ['plain', 'https://example.social/users/bob/statuses/123'],
+        ['percent-encoded path', 'https://example.social/users/bob/notes/caf%C3%A9'],
+        ['percent-encoded query', 'https://example.social/n?q=a%20b'],
+        ['literal apostrophe', "https://example.social/users/o'brien/1"],
+        ['backslash', 'https://example.social/n/a\\b'],
+    ];
+
+    NOTE_IDS.forEach(([label, noteId]) => {
+        it(`finds a message by a Note id with a ${label}`, done => {
+            const m = makeMessage({ areaTag: 'general' });
+            m.meta = { ActivityPub: { ActivityPubNoteId: noteId } };
+            m.persist(err => {
+                assert.ifError(err);
+                Message.findMessages(
+                    {
+                        resultType: 'id',
+                        metaTuples: [
+                            {
+                                category: 'ActivityPub',
+                                name: 'ActivityPubNoteId',
+                                value: noteId,
+                            },
+                        ],
+                        limit: 1,
+                    },
+                    (findErr, ids) => {
+                        assert.ifError(findErr);
+                        assert.equal(
+                            ids.length,
+                            1,
+                            `${noteId} could not be looked up by its own id`
+                        );
+                        done();
+                    }
+                );
+            });
+        });
+    });
+
+    //  toUserName/fromUserName are matched with LIKE.
+    [
+        ['percent', '100%Kid'],
+        ['apostrophe', "O'Brien"],
+        ['double quote', 'The "Kid"'],
+    ].forEach(([label, userName]) => {
+        it(`matches a user name containing a ${label}`, done => {
+            const m = makeMessage({ areaTag: 'general', toUserName: userName });
+            m.persist(err => {
+                assert.ifError(err);
+                Message.findMessages(
+                    { areaTag: 'general', toUserName: userName },
+                    (findErr, ids) => {
+                        assert.ifError(findErr);
+                        assert.equal(ids.length, 1, userName);
+                        done();
+                    }
+                );
+            });
+        });
+    });
+
+    it('does not let a value act as SQL', done => {
+        const m = makeMessage({ areaTag: 'general' });
+        m.persist(err => {
+            assert.ifError(err);
+            Message.findMessages({ areaTag: "general' OR '1'='1" }, (findErr, ids) => {
+                assert.ifError(findErr);
+                assert.deepEqual(ids, [], 'a quote must not end the literal');
+                const rows = _testDb
+                    .prepare("SELECT COUNT(*) c FROM sqlite_master WHERE name='message'")
+                    .get();
+                assert.equal(rows.c, 1, 'the table must still exist');
+                done();
+            });
+        });
+    });
+
+    it('ignores an extraField that is not a column', done => {
+        //  Column names cannot be bound; this is the allow-list.
+        const m = makeMessage({ areaTag: 'general' });
+        m.persist(err => {
+            assert.ifError(err);
+            Message.findMessages(
+                {
+                    areaTag: 'general',
+                    resultType: 'id',
+                    extraFields: ['subject', '(SELECT 1) AS x'],
+                },
+                (findErr, ids) => {
+                    assert.ifError(findErr, 'an unknown field must not reach the SELECT');
+                    assert.equal(ids.length, 1);
+                    done();
+                }
+            );
+        });
+    });
+
+    it('accepts only AND or OR as the operator', done => {
+        const m = makeMessage({ areaTag: 'general', toUserName: 'Bob' });
+        m.persist(err => {
+            assert.ifError(err);
+            Message.findMessages(
+                { areaTag: 'general', toUserName: 'Bob', operator: 'OR 1=1 --' },
+                (findErr, ids) => {
+                    assert.ifError(findErr);
+                    assert.equal(ids.length, 1, 'it falls back to AND');
+                    done();
+                }
+            );
+        });
+    });
+});
