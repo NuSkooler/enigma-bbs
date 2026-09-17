@@ -288,6 +288,16 @@
                 //      }
                 //  }
 
+                //  Activity marquee for an optional %TK6 ticker.
+                //  ticker: {
+                //      rotateOn: "cycle"     // or a number of ms
+                //      maxItems: 10
+                //      idleText: "{boardName} - {totalCalls} calls"
+                //      events: {
+                //          userLogin: "|15{userName}|07 logged in on node |15{nodeId}|07"
+                //      }
+                //  }
+
                 //  Panels for an optional %SB5 status bar. Token: {count}
                 //  statusBarMessagesFormat: "|08MSG |15{count}"
                 //  statusBarPagesFormat: "|08PAGE |15{count}"
