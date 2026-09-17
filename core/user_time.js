@@ -332,7 +332,10 @@ function checkTimeRemaining(client) {
     }
 
     const UserInterruptQueue = require('./user_interrupt_queue.js');
-    UserInterruptQueue.queue({ text, pause: false }, { clients: [client] });
+    UserInterruptQueue.queue(
+        { type: UserInterruptQueue.InterruptType.TimeWarning, text, pause: false },
+        { clients: [client] }
+    );
 
     return threshold;
 }

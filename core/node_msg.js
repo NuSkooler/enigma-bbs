@@ -9,6 +9,7 @@ const {
     UserMessageableConnections,
 } = require('./client_connections.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
+const { InterruptType } = UserInterruptQueue;
 const { getThemeArt } = require('./theme.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const stringFormat = require('./string_format.js');
@@ -172,6 +173,15 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             'Message from {fromUserName} on node {fromNodeId}:\r\n{message}';
 
         const item = {
+            type: InterruptType.NodeMsg,
+            //  Who sent it, so a reply can be addressed without re-parsing
+            //  |text|. See also #217 (quick replies).
+            from: {
+                userName: this.client.user.username,
+                realName: this.client.user.properties.real_name,
+                userId: this.client.user.userId,
+                nodeId: this.client.node,
+            },
             text: stringFormat(messageFormat, textFormatObj),
             pause: true,
         };
