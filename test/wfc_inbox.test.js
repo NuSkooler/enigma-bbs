@@ -170,3 +170,94 @@ describe('WFC interrupt routing', () => {
         assert.equal(WfcInbox.hasInbox(client), false);
     });
 });
+
+describe('WFC config cleanups', () => {
+    let previousConfig;
+
+    before(() => {
+        previousConfig = configModule._pushTestConfig({ menus: { cls: false } });
+    });
+
+    after(() => {
+        configModule._popTestConfig(previousConfig);
+    });
+
+    function makeWfcWithUser(configPatch, visible) {
+        const WfcModule = require('../core/wfc.js').getModule;
+        let current = visible;
+        const client = makeClient();
+        client.user = {
+            isVisible: () => current,
+            setVisibility: v => (current = v),
+        };
+        const instance = new WfcModule({
+            menuName: 'mainMenuWaitingForCaller',
+            menuConfig: { config: Object.assign({ acs: 'SCID1' }, configPatch) },
+            client,
+        });
+        return { instance, isVisible: () => current };
+    }
+
+    it('accepts the documented booleans for opVisibility', () => {
+        //  wfc.md documented a boolean while the code matched only strings, so
+        //  `opVisibility: false` was a silent no-op -- the form Xibalba uses.
+        const hidden = makeWfcWithUser({ opVisibility: false }, true);
+        hidden.instance._applyOpVisibility();
+        assert.equal(hidden.isVisible(), false);
+
+        const shown = makeWfcWithUser({ opVisibility: true }, false);
+        shown.instance._applyOpVisibility();
+        assert.equal(shown.isVisible(), true);
+    });
+
+    it('still accepts the string spellings, and leaves visibility alone by default', () => {
+        const hidden = makeWfcWithUser({ opVisibility: 'hidden' }, true);
+        hidden.instance._applyOpVisibility();
+        assert.equal(hidden.isVisible(), false);
+
+        const untouched = makeWfcWithUser({}, true);
+        untouched.instance._applyOpVisibility();
+        assert.equal(untouched.isVisible(), true);
+    });
+
+    it('warns about an unknown sink or notification type', () => {
+        const WfcModule = require('../core/wfc.js').getModule;
+        const client = makeClient();
+        const warnings = [];
+        client.log = {
+            trace: () => {},
+            debug: () => {},
+            warn: (obj, msg) => warnings.push(msg),
+        };
+
+        const instance = new WfcModule({
+            menuName: 'mainMenuWaitingForCaller',
+            menuConfig: {
+                config: {
+                    acs: 'SCID1',
+                    notifications: {
+                        nodeMsg: { sinks: ['inbx'] }, //  typo
+                        nodeMessage: { sinks: ['inbox'] }, //  wrong type name
+                        sysopPage: { sinks: 'inbox' }, //  not an array
+                    },
+                },
+            },
+            client,
+        });
+
+        instance._validateNotificationConfig();
+
+        assert.ok(
+            warnings.some(w => /unknown sink/.test(w)),
+            "no warning for a typo'd sink"
+        );
+        assert.ok(
+            warnings.some(w => /unknown notification type/.test(w)),
+            'no warning for an unknown type'
+        );
+        assert.ok(
+            warnings.some(w => /must be an array/.test(w)),
+            'no warning for a non-array sinks value'
+        );
+    });
+});

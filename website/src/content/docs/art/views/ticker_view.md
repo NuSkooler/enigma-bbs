@@ -83,6 +83,31 @@ Text-style effects and dynamic effects are independent axes — `l33t` + `rainbo
 
 ---
 
+## Events
+
+| Event | When |
+|-------|------|
+| `cycle complete` | The current text has finished one full pass and is about to repeat. |
+
+Use it to drive a rotating feed without cutting a message off mid-word:
+
+```js
+tickerView.on('cycle complete', () => {
+    const next = feed.shift();
+    if (next) {
+        tickerView.setText(next);
+    }
+});
+```
+
+Each motion has its own boundary: `left` / `right` fire when the scroll offset wraps; `reveal`, `typewriter`, `fallLeft` and `fallRight` fire when the hold phase ends and the cycle restarts; `bounce` fires on a full round trip back to the left edge.
+
+:::note
+`bounce` with text that fits the window never moves, so it has no round trip to complete. In that one case the event is emitted every `holdTicks` instead, so a feed cannot stall.
+:::
+
+---
+
 ## Examples
 
 <details>
