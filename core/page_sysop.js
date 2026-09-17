@@ -62,12 +62,9 @@ exports.getModule = class PageSysopModule extends MenuModule {
     }
 
     initSequence() {
+        //  MenuModule.enter() drains before calling us; see wfc.js.
         async.series(
-            [
-                callback => this.displayQueuedInterruptions(callback),
-                callback => this.beforeArt(callback),
-                callback => this._initMain(callback),
-            ],
+            [callback => this.beforeArt(callback), callback => this._initMain(callback)],
             () => this.finishedLoading()
         );
     }
