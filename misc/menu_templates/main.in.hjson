@@ -262,7 +262,43 @@
                     main: wfc
                     help: wfchelp
                     fullLog: wfcfulllog
+                    //  Message viewer. Needs %VM1 (list) and %MT2 (detail).
+                    //  Without the art file a plain text list is shown instead,
+                    //  so this works before the theme catches up.
+                    messages: wfcmessages
                 }
+
+                //  Where a notification goes when it reaches an +op sitting
+                //  here. Nothing is ever painted over the dashboard.
+                //  Sinks: inbox, statusBar, log, ticker, interrupt.
+                //  An empty list drops that kind entirely.
+                //  NOTE: HJSON will not accept bare words sharing a line
+                //  inside [ ], so keep one per line.
+                //  notifications: {
+                //      nodeMsg: {
+                //          sinks: [
+                //              inbox
+                //              statusBar
+                //          ]
+                //      }
+                //      achievementGlobal: {
+                //          sinks: [
+                //              log
+                //          ]
+                //      }
+                //  }
+
+                //  Panels for an optional %SB1 status bar. Token: {count}
+                //  statusBarMessagesFormat: "|08MSG |15{count}"
+                //  statusBarPagesFormat: "|08PAGE |15{count}"
+
+                //  Message viewer / inbox
+                //  inboxMaxItems: 50
+                //  messageAlert: true          // BEL on arrival
+                //  messagePreviewLength: 40
+                //  messageListFormat: "|08[|07{index}|08] |15{userName}|08/|07{nodeId} |08- |07{text}"
+                //  messageDetailFormat: "{text}"
+                //  noMessagesText: "|08No messages.|07"
 
                 //  Log level for the quick-log mini-view (defaults to system level)
                 //  quickLogLevel: info
@@ -317,6 +353,14 @@
                             keys: [ "l", "shift + l" ]
                             action: @method:displayFullLog
                         }
+                        {
+                            keys: [ "m", "shift + m" ]
+                            action: @method:displayMessages
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:sendNodeMessage
+                        }
 						@reference:common.quitToPrevEntry
 					]
 				}
@@ -345,6 +389,34 @@
                         {
                             keys: [ "escape", "q", "shift + q" ]
                             action: @method:exitFullLog
+                        }
+                    ]
+                }
+
+                //  Message viewer — VM1: message list (↑/↓); MT2: detail
+                4: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                        }
+                        MT2: {
+                            acceptsFocus: false
+                            acceptsInput: false
+                        }
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "r", "shift + r" ]
+                            action: @method:replySelectedMessage
+                        }
+                        {
+                            keys: [ "d", "shift + d", "del" ]
+                            action: @method:dismissSelectedMessage
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @method:exitMessages
                         }
                     ]
                 }
