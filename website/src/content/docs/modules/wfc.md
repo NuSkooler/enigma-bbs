@@ -61,7 +61,7 @@ The WFC `config` block allows for the following keys:
 | `confirmKickNodePrompt` | No | Override the prompt name used for the "Kick selected node?" prompt. Defaults to `confirmKickNodePrompt`. |
 | `pageIndicator` | No | String shown in the node list for nodes with a pending sysop chat page. Defaults to `!`. |
 | `chatMenuName` | No | Override the menu name used for sysop chat. Defaults to `sysopChat`. |
-| `nodeMessageMenuName` | No | Menu used when sending a node message from the WFC. Defaults to `nodeMessage`. |
+| `nodeMessageMenuName` | No | Menu used by `S` (send) and `R` (reply). Defaults to `wfcNodeMessage`, the +op-side copy of `nodeMessage` — separate so the sysop path can be themed without changing what users see. |
 | `notifications` | No | Where each kind of notification goes while you are at the WFC. See [Notifications](#notifications) below. |
 | `inboxMaxItems` | No | How many messages the inbox holds before evicting. Read items are evicted before unread. Defaults to `50`. |
 | `messageAlert` | No | Boolean. Send a BEL when a message arrives. Defaults to `true`. |
@@ -158,6 +158,12 @@ With the default key bindings:
 | `S` | Send a node message to the node selected in `VM1`. Selecting your own node sends to `-ALL-`. |
 
 Inside the viewer: `R` replies to the sender, `D` or `DEL` dismisses, `ESC`/`Q` returns to the dashboard.
+
+Both `S` and `R` go to `wfcNodeMessage` rather than the user-facing `nodeMessage`. It is the same module and form, shipping with the same art, but as its own menu entry you can retheme or reconfigure it without affecting the `msg` command users see. Override with `nodeMessageMenuName`.
+
+:::note
+Break-into-chat deliberately does **not** get its own menu. `sysopChat` is entered by *both* parties with a `role` in `extraArgs`, so it is genuinely shared rather than a sysop-side screen.
+:::
 
 The viewer uses the `messages` art spec with `%VM1` (list) and `%MT2` (detail). **If that art is missing, a plain text list is shown instead**, so the feature works before a theme provides art.
 
