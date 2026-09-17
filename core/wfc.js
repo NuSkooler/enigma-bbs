@@ -21,6 +21,9 @@ const { Errors } = require('./enig_error');
 const { pipeToAnsi } = require('./color_codes');
 const MultiLineEditTextView =
     require('./multi_line_edit_text_view').MultiLineEditTextView;
+const WfcInbox = require('./wfc_inbox');
+const { InterruptType } = require('./user_interrupt_queue');
+const ansi = require('./ansi_term');
 
 //  deps
 const async = require('async');
@@ -40,6 +43,7 @@ const FormIds = {
     help: 1,
     fullLog: 2,
     confirmKickPrompt: 3,
+    messages: 4,
 };
 
 const MciViewIds = {
@@ -48,6 +52,7 @@ const MciViewIds = {
         quickLogView: 2,
         selectedNodeStatusInfo: 3,
         confirmXy: 4,
+        statusBar: 5,
 
         customRangeStart: 10,
     },
@@ -57,6 +62,43 @@ const MciViewIds = {
 
         customRangeStart: 10,
     },
+    messages: {
+        messageList: 1,
+        messageDetail: 2,
+
+        customRangeStart: 10,
+    },
+};
+
+//
+//  Where a notification goes when it reaches an +op who is sitting at the WFC.
+//  A dashboard that gets painted over is not a dashboard, so nothing is ever
+//  drawn on top of it -- each kind of notification is routed instead.
+//
+const Sinks = {
+    Inbox: 'inbox', //  held for the op to read with the message key
+    StatusBar: 'statusBar', //  surfaces as a count only
+    Log: 'log', //  phase 4 -- no-op until then
+    Ticker: 'ticker', //  phase 5 -- no-op until then
+    Interrupt: 'interrupt', //  fall through to the normal queue
+};
+
+//
+//  Overridable per install via the `notifications` config block. A type routed
+//  to [] is deliberately dropped; an unknown/untagged type falls through to
+//  Interrupt so that today's behaviour is what you get when nothing matches.
+//
+const DefaultNotificationSinks = {
+    [InterruptType.NodeMsg]: [Sinks.Inbox, Sinks.StatusBar],
+    [InterruptType.Achievement]: [Sinks.Log],
+    [InterruptType.AchievementGlobal]: [Sinks.Log],
+    //  The UserPagedSysop event already puts pages in pendingPages, where they
+    //  drive {pendingPage*} and the node-list indicator. Queueing them again
+    //  would double-report. Unifying pendingPages into the inbox is deferred.
+    [InterruptType.SysopPage]: [],
+    //  Sysops are typically unlimited, and enter() stops the idle monitor.
+    [InterruptType.TimeWarning]: [],
+    [InterruptType.System]: [Sinks.Interrupt],
 };
 
 //  Secure + 2FA + root user + 'wfc' group.
@@ -194,7 +236,100 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 this.removeViewController('fullLog');
                 return this._displayMainPage(true, cb);
             },
+            displayMessages: (formData, extraArgs, cb) => {
+                return this._displayMessagesPage(cb);
+            },
+            sendNodeMessage: (formData, extraArgs, cb) => {
+                return this._sendMessageToSelectedNode(cb);
+            },
+            dismissSelectedMessage: (formData, extraArgs, cb) => {
+                const item = this._selectedMessage();
+                if (item) {
+                    this._inbox().remove(item.id);
+                }
+                return this._refreshMessageList(cb);
+            },
+            replySelectedMessage: (formData, extraArgs, cb) => {
+                return this._replyToSelectedMessage(cb);
+            },
+            exitMessages: (formData, extraArgs, cb) => {
+                this.removeViewController('messages');
+                return this._displayMainPage(true, cb);
+            },
         };
+    }
+
+    //
+    //  The base implementation paints every queued item full-screen with a
+    //  pause prompt. At the WFC that is an ambush on the way in -- anything
+    //  that piled up while the op was elsewhere lands before the dashboard is
+    //  even drawn. Route them instead; only what the config actually sends to
+    //  Interrupt is displayed.
+    //
+    displayQueuedInterruptions(cb) {
+        const queue = this.client.interruptQueue;
+        if (!queue || !queue.hasItems()) {
+            return cb(null);
+        }
+
+        const passthrough = [];
+        queue.queue.forEach(item => {
+            if (!this._routeInterruptItem(item)) {
+                passthrough.push(item);
+            }
+        });
+        queue.queue = passthrough;
+
+        return super.displayQueuedInterruptions(cb);
+    }
+
+    //
+    //  Nothing paints over the dashboard. Items are routed by type and eaten;
+    //  only a type routed to Interrupt is handed back to the queue.
+    //
+    attemptInterruptNow(interruptItem, cb) {
+        if (this._routeInterruptItem(interruptItem)) {
+            //  Reflect new counts without waiting for the next refresh tick.
+            this._refreshAll();
+            return cb(null, true); //  handled; do not queue
+        }
+        return cb(null, false); //  queue it for the next menu, as before
+    }
+
+    //  Returns true when the item was consumed here.
+    _sinksFor(type) {
+        const configured = _.get(this.config, ['notifications', type, 'sinks']);
+        if (Array.isArray(configured)) {
+            return configured;
+        }
+        const fallback = DefaultNotificationSinks[type];
+        return Array.isArray(fallback)
+            ? fallback
+            : DefaultNotificationSinks[InterruptType.System];
+    }
+
+    _routeInterruptItem(interruptItem) {
+        const type = interruptItem.type || InterruptType.System;
+        const sinks = this._sinksFor(type);
+
+        //  Interrupt means "behave as though we had never looked at it".
+        if (sinks.includes(Sinks.Interrupt)) {
+            return false;
+        }
+
+        if (sinks.includes(Sinks.Inbox)) {
+            WfcInbox.forClient(this.client, this.config.inboxMaxItems).add(interruptItem);
+            if (false !== this.config.messageAlert) {
+                this.client.term.rawWrite('\x07'); //  BEL
+            }
+        }
+
+        //  StatusBar needs no work of its own -- _refreshStats() reads the
+        //  inbox straight through on the next tick. Log and Ticker are phases
+        //  4 and 5; naming them now is deliberately inert rather than an error,
+        //  so a config written ahead of those phases still loads.
+
+        return true; //  eaten: sinks: [] means "drop it", which is still eaten
     }
 
     initSequence() {
@@ -291,6 +426,13 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this.client.stopIdleMonitor();
         this._applyOpVisibility();
 
+        //  Form 0 takes no typed input, and every refresh leaves the cursor
+        //  wherever the last view finished. Park it out of sight; a ticker
+        //  (phase 5) would otherwise drag it around ten times a second.
+        if (false !== this.config.hideCursor) {
+            this.client.term.rawWrite(ansi.hideCursor());
+        }
+
         Events.on(
             Events.getSystemEvents().ClientDisconnected,
             this._onClientDisconnectedBound
@@ -333,6 +475,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         );
 
         this._restoreOpVisibility();
+
+        if (false !== this.config.hideCursor) {
+            this.client.term.rawWrite(ansi.showCursor());
+        }
 
         this._stopRefreshing();
         this.client.startIdleMonitor();
@@ -395,6 +541,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const promptOptions = {
             clearAtSubmit: true,
             submitNotify: () => {
+                if (false !== this.config.hideCursor) {
+                    this.client.term.rawWrite(ansi.hideCursor());
+                }
                 this._startRefreshing();
             },
         };
@@ -404,6 +553,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
 
         this._stopRefreshing();
+        if (false !== this.config.hideCursor) {
+            this.client.term.rawWrite(ansi.showCursor());
+        }
         return this.promptForInput(
             {
                 formName: 'confirmKickPrompt',
@@ -564,8 +716,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _refreshAll(cb) {
-        //  Don't touch form 0 views while the fullLog viewer is active
-        if (this.viewControllers.fullLog) {
+        //  Don't touch form 0 views while a sub-viewer owns the screen
+        if (this.viewControllers.fullLog || this.viewControllers.messages) {
             if (cb) {
                 return cb(null);
             }
@@ -701,9 +853,62 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 this.pendingPages.length > 0 ? this.pendingPages[0].nodeId : '',
             pendingPageMessage:
                 this.pendingPages.length > 0 ? this.pendingPages[0].message : '',
+
+            //  Inbox -- same shape as the pendingPage* set above.
+            ...this._inboxStats(),
         };
 
+        this._updateStatusBarPanels();
+
         return cb(null);
+    }
+
+    _inbox() {
+        return WfcInbox.forClient(this.client, this.config.inboxMaxItems);
+    }
+
+    //  Note: every default format string here stays plain ASCII. These go
+    //  straight to a CP437 terminal, where a UTF-8 middle dot or ellipsis
+    //  renders as mojibake -- 'Â·' in testing.
+    _inboxStats() {
+        const inbox = this._inbox();
+        const latest = inbox.latestUnread();
+        const preview = latest ? latest.text.replace(/\r?\n/g, ' ').trim() : '';
+        const maxPreview = this.config.messagePreviewLength || 40;
+
+        return {
+            pendingNodeMessageCount: inbox.unreadCount(),
+            pendingNodeMessageTotal: inbox.count(),
+            pendingNodeMessageUser: latest ? latest.from.userName || '' : '',
+            pendingNodeMessageNode: latest ? latest.from.nodeId || '' : '',
+            pendingNodeMessagePreview:
+                preview.length > maxPreview
+                    ? `${preview.slice(0, maxPreview - 3)}...`
+                    : preview,
+        };
+    }
+
+    //
+    //  Status bar (%SB) panels are driven from code: a panel's own `text`
+    //  template only resolves predefined MCI, so it cannot see these.
+    //  Panels are addressed by name and are all optional.
+    //
+    _updateStatusBarPanels() {
+        const view = this.getView('main', MciViewIds.main.statusBar);
+        if (!view || !_.isFunction(view.setPanels)) {
+            return;
+        }
+
+        const inbox = this._inbox();
+        const fmt = name => this.config[`statusBar${_.upperFirst(name)}Format`];
+
+        const msgFmt = fmt('messages') || 'MSG {count}';
+        const pageFmt = fmt('pages') || 'PAGE {count}';
+
+        view.setPanels({
+            messages: stringFormat(msgFmt, { count: inbox.unreadCount() }),
+            pages: stringFormat(pageFmt, { count: this.pendingPages.length }),
+        });
     }
 
     _getNodeStatusIndexByNodeId(nodeStatusView, nodeId) {
@@ -837,6 +1042,207 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         quickLogView.redraw();
 
         return cb(null);
+    }
+
+    //
+    //  Message viewer -- mirrors the full-log viewer: its own form, refresh
+    //  stopped while it is up, and _displayMainPage(true) on the way out.
+    //
+    _displayMessagesPage(cb) {
+        this._stopRefreshing();
+
+        const artSpec = _.get(this.menuConfig, 'config.art.messages');
+        if (!artSpec) {
+            //  Usable before the theme has art for it: plain list + pause.
+            return this._displayMessagesFallback(cb);
+        }
+
+        async.series(
+            [
+                callback =>
+                    this.displayArtAndPrepViewController(
+                        'messages',
+                        FormIds.messages,
+                        { clearScreen: true },
+                        callback
+                    ),
+                callback => {
+                    const listView = this.getView(
+                        'messages',
+                        MciViewIds.messages.messageList
+                    );
+                    const detailView = this.getView(
+                        'messages',
+                        MciViewIds.messages.messageDetail
+                    );
+                    if (listView && detailView) {
+                        listView.on('index update', idx =>
+                            this._updateMessageDetail(detailView, this._messageAt(idx))
+                        );
+                    }
+                    return callback(null);
+                },
+                callback => this._refreshMessageList(callback),
+            ],
+            err => {
+                if (err) {
+                    //  Art named but not present, or missing its MCI: fall back
+                    //  to the plain list rather than bouncing the op straight
+                    //  back to the dashboard with nothing shown.
+                    this.client.log.debug(
+                        { error: err.message, art: artSpec },
+                        'WFC message viewer art unavailable; using text fallback'
+                    );
+                    this.removeViewController('messages');
+                    return this._displayMessagesFallback(cb);
+                }
+                return cb(null);
+            }
+        );
+    }
+
+    _displayMessagesFallback(cb) {
+        const items = this._inbox().all();
+        const fmt =
+            this.config.messageListFormat ||
+            '|08[|07{index}|08] |15{userName}|08/|07{nodeId} |08- |07{timestamp}\r\n    |07{text}';
+
+        let out = '';
+        if (!items.length) {
+            out += pipeToAnsi(
+                this.config.noMessagesText || '|08No messages.|07',
+                this.client
+            );
+        } else {
+            items.forEach((item, i) => {
+                out += pipeToAnsi(
+                    stringFormat(fmt, this._messageFormatObj(item, i)),
+                    this.client
+                );
+                out += '\r\n';
+            });
+        }
+
+        //  rawWrite() for the escape sequence, write() for the text: write()
+        //  is what runs the string through iconv into the client's encoding.
+        //  rawWrite()ing text emits UTF-8 at a CP437 terminal, which is how a
+        //  middle dot arrived on screen as 'A-circumflex dot'.
+        this.client.term.rawWrite(ansi.resetScreen());
+        this.client.term.write(`${out}\r\n`, true, () => {
+            this._inbox().markAllRead();
+            return this.pausePrompt({ row: this.client.term.termHeight }, () =>
+                this._displayMainPage(true, cb)
+            );
+        });
+        return;
+    }
+
+    _messageFormatObj(item, index) {
+        return {
+            index: index + 1,
+            id: item.id,
+            userName: item.from.userName || 'System',
+            realName: item.from.realName || '',
+            nodeId: item.from.nodeId || '',
+            type: item.type,
+            read: item.read,
+            timestamp: moment(item.timestamp).format(this.getDateTimeFormat('short')),
+            text: (item.text || '').replace(/\r?\n/g, ' ').trim(),
+        };
+    }
+
+    _messageAt(index) {
+        return this._inbox().all()[index];
+    }
+
+    _selectedMessage() {
+        const listView = this.getView('messages', MciViewIds.messages.messageList);
+        if (!listView) {
+            return null;
+        }
+        return this._messageAt(listView.getFocusItemIndex());
+    }
+
+    _updateMessageDetail(detailView, item) {
+        if (!detailView || !item) {
+            return;
+        }
+        this._inbox().markRead(item.id);
+
+        const fmt = this.config.messageDetailFormat || '{text}';
+        const text = stringFormat(fmt, this._messageFormatObj(item, 0));
+
+        if (detailView instanceof MultiLineEditTextView) {
+            detailView.setAnsi(pipeToAnsi(text, this.client));
+        } else {
+            detailView.setText(text);
+        }
+    }
+
+    _refreshMessageList(cb) {
+        const listView = this.getView('messages', MciViewIds.messages.messageList);
+        if (!listView) {
+            return cb ? cb(null) : undefined;
+        }
+
+        const fmt = this.config.messageListFormat || '{userName}: {text}';
+        const items = this._inbox()
+            .all()
+            .map((item, i) =>
+                Object.assign({}, this._messageFormatObj(item, i), {
+                    text: stringFormat(fmt, this._messageFormatObj(item, i)),
+                })
+            );
+
+        listView.setItems(items);
+        listView.redraw();
+
+        const detailView = this.getView('messages', MciViewIds.messages.messageDetail);
+        if (detailView) {
+            this._updateMessageDetail(detailView, this._messageAt(0));
+        }
+
+        return cb ? cb(null) : undefined;
+    }
+
+    //
+    //  Send a node message to whichever node is selected in the node list,
+    //  which is #438's "select a node and send a message".
+    //
+    _sendMessageToSelectedNode(cb) {
+        const nodeItem = this._getSelectedNodeItem();
+        let nodeId = nodeItem ? parseInt(nodeItem.node) : NaN;
+
+        //  Selecting your own node and pressing send means "to everyone":
+        //  node_msg filters our own node out of its list anyway, so passing it
+        //  would silently land on -ALL-. Be explicit about that rather than
+        //  relying on the fallback.
+        if (this.client.node === nodeId) {
+            nodeId = NaN;
+        }
+
+        this._stopRefreshing();
+        return this.gotoMenu(
+            this.config.nodeMessageMenuName || 'nodeMessage',
+            { extraArgs: { toNodeId: isNaN(nodeId) ? undefined : nodeId } },
+            cb
+        );
+    }
+
+    _replyToSelectedMessage(cb) {
+        const item = this._selectedMessage();
+        const toNodeId = item && item.from ? item.from.nodeId : undefined;
+        if (!toNodeId) {
+            return cb(null); //  nothing to reply to (system notice, or sender gone)
+        }
+
+        this.removeViewController('messages');
+        this._stopRefreshing();
+        return this.gotoMenu(
+            this.config.nodeMessageMenuName || 'nodeMessage',
+            { extraArgs: { toNodeId } },
+            cb
+        );
     }
 
     _dateTimeFormat(element) {

@@ -117,8 +117,24 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                         });
 
                         nodeSelectView.setItems(this.nodeList);
+
+                        //  A caller may name the node up front -- the WFC does,
+                        //  so an +op can pick a node on the dashboard and send
+                        //  to it without hunting through this list again.
+                        const toNodeId = _.get(this.config, 'extraArgs.toNodeId');
+                        let initialIndex = 0;
+                        if (!_.isUndefined(toNodeId)) {
+                            const found = this.nodeList.findIndex(
+                                n => n.node === toNodeId
+                            );
+                            if (found > -1) {
+                                initialIndex = found;
+                            }
+                        }
+
+                        nodeSelectView.setFocusItemIndex(initialIndex);
                         nodeSelectView.redraw();
-                        this.nodeListSelectionIndexUpdate(0);
+                        this.nodeListSelectionIndexUpdate(initialIndex);
                         return callback(null);
                     },
                     callback => {
