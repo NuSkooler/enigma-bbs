@@ -77,6 +77,7 @@ class TickerView extends View {
         this._motionPhase = 0; //  reveal/typewriter/fall: phase within the cycle
         this._motionTick = 0; //  reveal/typewriter/fall: ticks in current phase
         this._motionInitialized = false; //  deferred init so dimens.width is known
+        this._staticTicks = 0; //  bounce-with-short-text cycle fallback
         this._charPos = []; //  fall: current x-position of each character
         this._finalPos = []; //  fall: target x-position of each character
         this._timer = null;
@@ -159,6 +160,7 @@ class TickerView extends View {
     _resetMotion() {
         this._scrollOffset = 0;
         this._bounceDir = 1;
+        this._staticTicks = 0;
         this._motionPhase = 0;
         this._motionTick = 0;
         this._motionInitialized = false;
@@ -232,10 +234,16 @@ class TickerView extends View {
         const len = this._plainText.length;
         const width = this.dimens.width;
 
+        //  Set at each motion's natural wrap point and emitted below. A feed
+        //  driving this view swaps text on 'cycle complete' so a message is
+        //  never cut off mid-word.
+        let cycled = false;
+
         switch (this.motion) {
             case MOTION.RIGHT: {
                 const src = len + Math.min(width, 10);
                 this._scrollOffset = (this._scrollOffset - 1 + src) % src;
+                cycled = 0 === this._scrollOffset;
                 break;
             }
 
@@ -250,6 +258,11 @@ class TickerView extends View {
                     this._bounceDir = -1;
                 } else if (this._scrollOffset <= 0) {
                     this._scrollOffset = 0;
+                    //  We only arrive here travelling left, so reaching the
+                    //  left edge closes one full round trip. Unlike the other
+                    //  motions that is two direction changes rather than a
+                    //  single modulo wrap.
+                    cycled = -1 === this._bounceDir;
                     this._bounceDir = 1;
                 }
                 break;
@@ -274,6 +287,7 @@ class TickerView extends View {
                         if (++this._scrollOffset >= width) {
                             this._scrollOffset = width;
                             this._motionPhase = 0;
+                            cycled = true;
                         }
                         break;
                 }
@@ -299,6 +313,7 @@ class TickerView extends View {
                     case 2: //  instant clear → restart
                         this._scrollOffset = 0;
                         this._motionPhase = 0;
+                        cycled = true;
                         break;
                 }
                 break;
@@ -341,6 +356,7 @@ class TickerView extends View {
                         this._motionInitialized = false;
                         this._motionPhase = 0;
                         this._initMotion();
+                        cycled = true;
                         break;
                 }
                 break;
@@ -350,9 +366,24 @@ class TickerView extends View {
                 const src = len + Math.min(width, 10);
                 if (src > 0) {
                     this._scrollOffset = (this._scrollOffset + 1) % src;
+                    cycled = 0 === this._scrollOffset;
                 }
                 break;
             }
+        }
+
+        //  Bounce with text that fits the window never moves, so it would
+        //  never reach the boundary above and a feed would stall on one item.
+        //  Fall back to a hold-length timer for that case only.
+        if (MOTION.BOUNCE === this.motion && len <= width) {
+            if (++this._staticTicks >= Math.max(1, this.holdTicks)) {
+                this._staticTicks = 0;
+                cycled = true;
+            }
+        }
+
+        if (cycled) {
+            this.emit('cycle complete');
         }
 
         //  Color phase increments every tick for a smooth rainbow swim.

@@ -4,6 +4,7 @@ const fs = require('graceful-fs');
 const { MenuModule } = require('./menu_module');
 const stringFormat = require('./string_format');
 const Events = require('./events');
+const SysEvents = require('./system_events');
 const SysopChat = require('./sysop_chat');
 
 const {
@@ -53,6 +54,7 @@ const MciViewIds = {
         selectedNodeStatusInfo: 3,
         confirmXy: 4,
         statusBar: 5,
+        ticker: 6,
 
         customRangeStart: 10,
     },
@@ -100,6 +102,34 @@ const DefaultNotificationSinks = {
     [InterruptType.TimeWarning]: [],
     [InterruptType.System]: [Sinks.Interrupt],
 };
+
+//
+//  System events the activity ticker can show, mapped to the short key an op
+//  uses under `ticker.events`. Deliberately the same set sys_event_user_log
+//  already subscribes to -- if it is worth writing to a user's log it is worth
+//  putting on the marquee.
+//
+const TickerEventKeys = {
+    [SysEvents.UserLogin]: 'userLogin',
+    [SysEvents.UserLogoff]: 'userLogoff',
+    [SysEvents.UserUpload]: 'userUpload',
+    [SysEvents.UserDownload]: 'userDownload',
+    [SysEvents.UserPostMessage]: 'userPostMessage',
+    [SysEvents.UserSendMail]: 'userSendMail',
+    [SysEvents.UserRunDoor]: 'userRunDoor',
+    [SysEvents.UserSendNodeMsg]: 'userSendNodeMsg',
+    [SysEvents.UserAchievementEarned]: 'userAchievementEarned',
+};
+
+//  Shown unless the op configures otherwise. Anything without a format string
+//  is simply not shown, so ops opt in to the noisier ones.
+const DefaultTickerEventFormats = {
+    userLogin: '|15{userName}|07 logged in on node |15{nodeId}|07',
+    userAchievementEarned: '|15{userName}|07 earned |14{title}|07 (+{points})',
+    userUpload: '|15{userName}|07 uploaded |15{fileCount}|07 file(s)',
+};
+
+const DefaultTickerMaxItems = 10;
 
 //  Secure + 2FA + root user + 'wfc' group.
 const DefaultACS = 'SCAF2ID1GM[wfc]';
@@ -324,10 +354,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             }
         }
 
+        if (sinks.includes(Sinks.Ticker)) {
+            this._pushTicker((interruptItem.text || '').replace(/\r?\n/g, ' ').trim());
+        }
+
         //  StatusBar needs no work of its own -- _refreshStats() reads the
-        //  inbox straight through on the next tick. Log and Ticker are phases
-        //  4 and 5; naming them now is deliberately inert rather than an error,
-        //  so a config written ahead of those phases still loads.
+        //  inbox straight through on the next tick. Log is handled at the
+        //  source (achievements log themselves for every op), so naming it
+        //  here means "already in the log; surface nothing further".
 
         return true; //  eaten: sinks: [] means "drop it", which is still eaten
     }
@@ -412,6 +446,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 callback => {
                     return this._refreshAll(callback);
                 },
+                callback => {
+                    this._bindTicker();
+                    return callback(null);
+                },
             ],
             err => {
                 if (!err) {
@@ -438,6 +476,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             this._onClientDisconnectedBound
         );
         Events.on(Events.getSystemEvents().UserPagedSysop, this._onUserPagedSysopBound);
+
+        this._startActivityFeed();
+
         super.enter();
     }
 
@@ -473,6 +514,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             Events.getSystemEvents().UserPagedSysop,
             this._onUserPagedSysopBound
         );
+
+        this._stopActivityFeed();
 
         this._restoreOpVisibility();
 
@@ -670,6 +713,120 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
     }
 
+    //
+    //  Activity ticker. Subscribes through addMultipleEventListener(), which
+    //  hands back removable handles -- the .bind() shape that leaked a
+    //  ClientDisconnected listener per visit is exactly what this avoids.
+    //
+    _startActivityFeed() {
+        if (this._activityListeners) {
+            return;
+        }
+
+        this.tickerFeed = this.tickerFeed || [];
+
+        const formats = Object.assign(
+            {},
+            DefaultTickerEventFormats,
+            _.get(this.config, 'ticker.events', {})
+        );
+
+        this._activityListeners = Events.addMultipleEventListener(
+            Object.keys(TickerEventKeys),
+            (event, eventName) => {
+                const key = TickerEventKeys[eventName];
+                const format = key && formats[key];
+                if (!format) {
+                    return; //  not configured: not shown
+                }
+                this._pushTicker(stringFormat(format, this._tickerFormatObj(event)));
+            }
+        );
+    }
+
+    _stopActivityFeed() {
+        if (this._activityListeners) {
+            Events.removeMultipleEventListener(this._activityListeners);
+            delete this._activityListeners;
+        }
+    }
+
+    _tickerFormatObj(event) {
+        const user = event.user || {};
+        const files = Array.isArray(event.files) ? event.files : [];
+        return {
+            userName: user.username || '',
+            realName: _.isFunction(user.realName) ? user.realName(false) || '' : '',
+            nodeId: _.get(event, 'client.node', this.client.node),
+            title: event.title || '',
+            points: _.isUndefined(event.points) ? '' : event.points,
+            achievementTag: event.achievementTag || '',
+            areaTag: event.areaTag || '',
+            doorTag: event.doorTag || '',
+            fileCount: files.length,
+            minutesOnline: event.minutesOnline || 0,
+            boardName: _.get(Config(), 'general.boardName', ''),
+        };
+    }
+
+    _pushTicker(text) {
+        if (!text) {
+            return;
+        }
+        const max = _.get(this.config, 'ticker.maxItems', DefaultTickerMaxItems);
+        this.tickerFeed = this.tickerFeed || [];
+        this.tickerFeed.push(text);
+        while (this.tickerFeed.length > max) {
+            this.tickerFeed.shift();
+        }
+
+        //  If the view is sitting on idle text, bring this up now rather than
+        //  waiting for a cycle that may be a full scroll away.
+        if (this._tickerIdle) {
+            this._advanceTicker();
+        }
+    }
+
+    //  Called once per _displayMainPage() so the handler follows the new view.
+    _bindTicker() {
+        const view = this.getView('main', MciViewIds.main.ticker);
+        if (!view || !_.isFunction(view.setText)) {
+            return;
+        }
+
+        const rotateOn = _.get(this.config, 'ticker.rotateOn', 'cycle');
+        if (_.isNumber(rotateOn) && rotateOn > 0) {
+            //  bounce over short text never reaches a boundary; a timer is the
+            //  documented escape hatch.
+            clearInterval(this._tickerTimer);
+            this._tickerTimer = setInterval(() => this._advanceTicker(), rotateOn);
+        } else if (_.isFunction(view.on)) {
+            view.removeAllListeners('cycle complete');
+            view.on('cycle complete', () => this._advanceTicker());
+        }
+
+        this._advanceTicker();
+    }
+
+    _advanceTicker() {
+        const view = this.getView('main', MciViewIds.main.ticker);
+        if (!view || !_.isFunction(view.setText)) {
+            return;
+        }
+
+        const next = (this.tickerFeed || []).shift();
+        if (next) {
+            this._tickerIdle = false;
+            return view.setText(next);
+        }
+
+        const idle = _.get(this.config, 'ticker.idleText');
+        this._tickerIdle = true;
+        if (idle) {
+            view.setText(stringFormat(idle, this.stats || {}));
+        }
+    }
+
     _startRefreshing() {
         if (this.mainRefreshTimer) {
             this._stopRefreshing();
@@ -684,6 +841,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (this.mainRefreshTimer) {
             clearInterval(this.mainRefreshTimer);
             delete this.mainRefreshTimer;
+        }
+        if (this._tickerTimer) {
+            clearInterval(this._tickerTimer);
+            delete this._tickerTimer;
         }
     }
 

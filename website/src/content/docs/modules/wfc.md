@@ -71,6 +71,7 @@ The WFC `config` block allows for the following keys:
 | `noMessagesText` | No | Shown when the inbox is empty. |
 | `statusBarMessagesFormat` | No | `%SB1` messages panel. Token: `{count}`. Defaults to `MSG {count}`. |
 | `statusBarPagesFormat` | No | `%SB1` pages panel. Token: `{count}`. Defaults to `PAGE {count}`. |
+| `ticker` | No | Activity marquee config. See [Activity Ticker](#activity-ticker) below. |
 | `hideCursor` | No | Boolean. Hide the terminal cursor while on the dashboard, which otherwise parks wherever the last refresh finished drawing. Defaults to `true`. |
 
 
@@ -118,6 +119,34 @@ notifications: {
 
 :::caution
 HJSON will not accept bare words sharing a line inside `[ ]` — `sinks: [ inbox, statusBar ]` fails to parse. Keep one per line, or quote each element.
+:::
+
+## Activity Ticker
+Add a `%TK1` ticker to the WFC art and it becomes a board activity marquee, fed from the same system events that drive each user's log.
+
+```hjson
+ticker: {
+    //  'cycle' advances when the ticker finishes a pass, so a message is
+    //  never cut off. A number of milliseconds uses a timer instead.
+    rotateOn: "cycle"
+    maxItems: 10
+    idleText: "{boardName} - {totalCalls} calls, {callsToday} today"
+    events: {
+        userLogin:             "|15{userName}|07 logged in on node |15{nodeId}|07"
+        userAchievementEarned: "|15{userName}|07 earned |14{title}|07 (+{points})"
+        userUpload:            "|15{userName}|07 uploaded |15{fileCount}|07 file(s)"
+    }
+}
+```
+
+Available event keys: `userLogin`, `userLogoff`, `userUpload`, `userDownload`, `userPostMessage`, `userSendMail`, `userRunDoor`, `userSendNodeMsg`, `userAchievementEarned`. **An event with no format string is not shown**, so the noisier ones are opt-in. The three above are shown by default.
+
+Format tokens: `{userName}`, `{realName}`, `{nodeId}`, `{title}`, `{points}`, `{achievementTag}`, `{areaTag}`, `{doorTag}`, `{fileCount}`, `{minutesOnline}`, `{boardName}`. `idleText` is formatted against the same custom MCI values as the rest of the dashboard.
+
+Routing a notification type to the `ticker` sink puts it on the marquee too.
+
+:::note
+`rotateOn: "cycle"` relies on the ticker's `cycle complete` event. Quote the value — an unquoted HJSON string swallows a trailing `//` comment, so `rotateOn: cycle // note` silently becomes the whole line.
 :::
 
 ## Node Messages
