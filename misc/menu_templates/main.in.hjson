@@ -292,6 +292,10 @@
                 //  statusBarMessagesFormat: "|08MSG |15{count}"
                 //  statusBarPagesFormat: "|08PAGE |15{count}"
 
+                //  Menu used by S (send) and R (reply). Defaults to
+                //  wfcNodeMessage, the +op-side copy of nodeMessage.
+                //  nodeMessageMenuName: wfcNodeMessage
+
                 //  Message viewer / inbox
                 //  inboxMaxItems: 50
                 //  messageAlert: true          // BEL on arrival
@@ -803,6 +807,48 @@
         }
 
         nodeMessage: {
+            desc: Node Messaging
+            module: node_msg
+            art: NODEMSG
+            config: {
+                cls: true
+                art: {
+                    header: NODEMSGHDR
+                    footer: NODEMSGFTR
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        SM1: {
+                            argName: node
+                        }
+                        ET2: {
+                            argName: message
+                            submit: true
+                        }
+                    }
+                    actionKeys: @reference:common.escToPrev
+                    submit: {
+                        *: [
+                            {
+                                value: { message: null }
+                                action: @method:sendMessage
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        //
+        //  The WFC's own send/reply target. Same module and form as
+        //  nodeMessage above, but a separate entry so the +op path can be
+        //  themed and configured without touching what users see -- the WFC
+        //  reaches it with a node already chosen, which a user never does.
+        //  Ships pointing at the same art; give it its own when you want to.
+        //
+        wfcNodeMessage: {
             desc: Node Messaging
             module: node_msg
             art: NODEMSG
