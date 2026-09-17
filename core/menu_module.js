@@ -89,8 +89,29 @@ exports.MenuModule = class MenuModule extends PluginModule {
         };
     }
 
+    //
+    //  Queued interrupts are drained here -- on *arrival*, by the menu that is
+    //  about to own the screen -- and nowhere else.
+    //
+    //  They used to be drained on departure too, by prevMenu()/nextMenu()/
+    //  autoNextMenu(), which ran before menuStack reached leave(): the outgoing
+    //  menu's form was still attached to 'key press' while pausePrompt() waited
+    //  on a non-exclusive once('key press'), so the key dismissing an interrupt
+    //  also fired that menu's action keys, and any refresh timer it had kept
+    //  painting over the interrupt art.
+    //
+    //  enter() rather than initSequence() because ~29 modules override
+    //  initSequence() without draining, and would never show a queued item at
+    //  all. enter() is overridden by four modules and every one of them calls
+    //  super.enter(), so this reaches everything. A module that must not be
+    //  interrupted on arrival overrides displayQueuedInterruptions() (the WFC
+    //  routes instead of displaying; sysop_chat defers) or sets
+    //  `interrupt: never`, which displayQueuedInterruptions() short-circuits.
+    //
     enter() {
-        this.initSequence();
+        this.displayQueuedInterruptions(() => {
+            return this.initSequence();
+        });
     }
 
     leave() {
@@ -112,9 +133,6 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         async.waterfall(
             [
-                function beforeArtInterrupt(callback) {
-                    return self.displayQueuedInterruptions(callback);
-                },
                 function beforeDisplayArt(callback) {
                     return self.beforeArt(callback);
                 },
@@ -313,15 +331,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
             return this.prevMenu(cb); //  no next, go to prev
         }
 
-        this.displayQueuedInterruptions(() => {
-            return this.client.menuStack.next(cb);
-        });
+        //  No drain here: the destination drains on arrival. See enter().
+        return this.client.menuStack.next(cb);
     }
 
     prevMenu(cb) {
-        this.displayQueuedInterruptions(() => {
-            return this.client.menuStack.prev(cb);
-        });
+        return this.client.menuStack.prev(cb);
     }
 
     gotoMenu(name, options, cb) {
@@ -631,9 +646,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     autoNextMenu(cb) {
         const gotoNextMenu = () => {
             if (this.haveNext()) {
-                this.displayQueuedInterruptions(() => {
-                    return menuUtil.handleNext(this.client, this.menuConfig.next, {}, cb);
-                });
+                return menuUtil.handleNext(this.client, this.menuConfig.next, {}, cb);
             } else {
                 return this.prevMenu(cb);
             }

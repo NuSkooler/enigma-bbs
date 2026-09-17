@@ -159,17 +159,23 @@ exports.getModule = class SysopChatModule extends MenuModule {
     }
 
     //
-    //  MenuModule.prevMenu() drains the interrupt queue *before*
-    //  menuStack.prev() gets as far as leave(), so the chat form is still
-    //  attached to 'key press' while a pause prompt waits on a non-exclusive
-    //  once('key press') -- the key dismissing an interrupt also reaches our
-    //  action keys, where escape ends the chat that is already ending. Hand
-    //  the queue to the destination instead; its own initSequence() drains it
-    //  on arrival, so nothing is lost.
+    //  Nothing is drawn over a chat, arriving or leaving. MenuModule.enter()
+    //  drains queued interrupts on arrival, which for every other menu is
+    //  right -- here it would paint over the conversation before it is even
+    //  drawn. Defer instead: the queue is untouched and the next menu shows it.
+    //
+    displayQueuedInterruptions(cb) {
+        return cb(null);
+    }
+
+    //
+    //  The base no longer drains on departure, so this is only about handing
+    //  over cleanly: detach before the stack pops so nothing of ours is still
+    //  listening while the destination draws.
     //
     prevMenu(cb) {
         this.detachViewControllers();
-        return this.client.menuStack.prev(cb);
+        return super.prevMenu(cb);
     }
 
     _initChat(cb) {
