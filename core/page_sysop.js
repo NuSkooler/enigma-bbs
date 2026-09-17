@@ -13,7 +13,7 @@ const ansi = require('./ansi_term.js');
 const SysopChat = require('./sysop_chat.js');
 const Message = require('./message.js');
 const User = require('./user.js');
-const WfcModule = require('./wfc.js').getModule;
+const { InterruptType } = require('./user_interrupt_queue.js');
 
 //  deps
 const _ = require('lodash');
@@ -178,7 +178,8 @@ exports.getModule = class PageSysopModule extends MenuModule {
 
         this.client.log.info({ message }, `Sysop paged: "${message}"`);
 
-        //  Notify all online sysops (skip those already in WFC — they see it via event)
+        //  Notify all online sysops. Anyone at the WFC routes this by type
+        //  rather than having it painted over their dashboard.
         this._notifySysops(sessionId, message);
 
         //  Show confirmation art then return
@@ -279,16 +280,21 @@ exports.getModule = class PageSysopModule extends MenuModule {
                 c.term.rawWrite('\x07');
             }
 
-            //  Skip queuing the interrupt for sysops currently in WFC — they already
-            //  receive the page via the UserPagedSysop event and see it in the node list.
-            //  moduleInfo is on exports, not on instances, so use instanceof instead.
-            const isAtWfc = c.currentMenuModule instanceof WfcModule;
-            if (!isAtWfc) {
-                c.interruptQueue.queueItem({
-                    text: notifyText,
-                    pause: true,
-                });
-            }
+            //  Queue unconditionally. A sysop at the WFC routes this by type
+            //  -- SysopPage defaults to no sink there because the UserPagedSysop
+            //  event already puts it in pendingPages -- so the old
+            //  `instanceof WfcModule` exception is no longer needed here.
+            c.interruptQueue.queueItem({
+                type: InterruptType.SysopPage,
+                from: {
+                    userName: user.username,
+                    userId: user.userId,
+                    nodeId,
+                },
+                sessionId,
+                text: notifyText,
+                pause: true,
+            });
         });
     }
 };

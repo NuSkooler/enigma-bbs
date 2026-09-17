@@ -61,7 +61,78 @@ The WFC `config` block allows for the following keys:
 | `confirmKickNodePrompt` | No | Override the prompt name used for the "Kick selected node?" prompt. Defaults to `confirmKickNodePrompt`. |
 | `pageIndicator` | No | String shown in the node list for nodes with a pending sysop chat page. Defaults to `!`. |
 | `chatMenuName` | No | Override the menu name used for sysop chat. Defaults to `sysopChat`. |
+| `nodeMessageMenuName` | No | Menu used when sending a node message from the WFC. Defaults to `nodeMessage`. |
+| `notifications` | No | Where each kind of notification goes while you are at the WFC. See [Notifications](#notifications) below. |
+| `inboxMaxItems` | No | How many messages the inbox holds before evicting. Read items are evicted before unread. Defaults to `50`. |
+| `messageAlert` | No | Boolean. Send a BEL when a message arrives. Defaults to `true`. |
+| `messagePreviewLength` | No | Max length of `{pendingNodeMessagePreview}`. Defaults to `40`. |
+| `messageListFormat` | No | Format for each row of the message list. Tokens below. |
+| `messageDetailFormat` | No | Format for the detail pane. Defaults to `{text}`. |
+| `noMessagesText` | No | Shown when the inbox is empty. |
+| `statusBarMessagesFormat` | No | `%SB1` messages panel. Token: `{count}`. Defaults to `MSG {count}`. |
+| `statusBarPagesFormat` | No | `%SB1` pages panel. Token: `{count}`. Defaults to `PAGE {count}`. |
+| `hideCursor` | No | Boolean. Hide the terminal cursor while on the dashboard, which otherwise parks wherever the last refresh finished drawing. Defaults to `true`. |
 
+
+## Notifications
+An +op sitting at the WFC is a node like any other, so achievements, node messages and time warnings are all aimed at their terminal. Painting any of those over the dashboard would corrupt it, so each kind is **routed** instead of displayed.
+
+Routing is per notification type, and each type names zero or more *sinks*:
+
+| Sink | Effect |
+|------|--------|
+| `inbox` | Held for you to read with the message key. Sends a BEL unless `messageAlert` is `false`. |
+| `statusBar` | Surfaces as a count in a `%SB1` panel. |
+| `log` | Rely on the log and surface nothing further here. Achievements are logged by the achievement subsystem for every op, not only one sitting at the WFC, so this sink means "it is already in the quick log and full log viewers". |
+| `ticker` | Fed to a `%TK` ticker. |
+| `interrupt` | Fall through to normal behaviour — displayed full screen with a pause. |
+
+Defaults:
+
+| Type | Default sinks | Why |
+|------|---------------|-----|
+| `nodeMsg` | `inbox`, `statusBar` | Read them when you choose to. |
+| `achievement` | `log` | Decorative; the log already shows it. |
+| `achievementGlobal` | `log` | As above — a busy board earns a lot of these. |
+| `sysopPage` | *(none)* | Already surfaced via `{pendingPage*}` and the node list indicator. |
+| `timeWarning` | *(none)* | Sysops are typically unlimited. |
+| `system` | `interrupt` | Anything untagged behaves exactly as before. |
+
+Override in the WFC `config` block:
+
+```hjson
+notifications: {
+    nodeMsg: {
+        sinks: [
+            inbox
+            statusBar
+        ]
+    }
+    achievementGlobal: {
+        sinks: [
+            ticker
+        ]
+    }
+}
+```
+
+:::caution
+HJSON will not accept bare words sharing a line inside `[ ]` — `sinks: [ inbox, statusBar ]` fails to parse. Keep one per line, or quote each element.
+:::
+
+## Node Messages
+With the default key bindings:
+
+| Key | Action |
+|-----|--------|
+| `M` | Open the message viewer |
+| `S` | Send a node message to the node selected in `VM1`. Selecting your own node sends to `-ALL-`. |
+
+Inside the viewer: `R` replies to the sender, `D` or `DEL` dismisses, `ESC`/`Q` returns to the dashboard.
+
+The viewer uses the `messages` art spec with `%VM1` (list) and `%MT2` (detail). **If that art is missing, a plain text list is shown instead**, so the feature works before a theme provides art.
+
+Message list and detail format tokens: `{index}`, `{id}`, `{userName}`, `{realName}`, `{nodeId}`, `{type}`, `{read}`, `{timestamp}`, `{text}`.
 
 ## Theming
 The following MCI codes are available:
@@ -101,6 +172,7 @@ The following MCI codes are available:
     * `message`: Log message.
 * `MT3` or `ET3`: Selected node status information. May be a single or multi-line view.
     * Set `nodeStatusSelectionFormat` to the format desired, using `\n` for line feeds in an `MT` view. The available format keys are the same as the node status list above.
+* `SB5`: Optional status bar. Named panels `messages` and `pages` are driven from code; format them with `statusBarMessagesFormat` / `statusBarPagesFormat`. See [Status Bar View](../art/views/status_bar_view.md).
 * MCI 10...99: Custom entries with the following format keys available:
     * `nowDate`: Current date in the `dateFormat` style, defaulting to `short`.
     * `nowTime`: Current time in the `timeFormat` style, defaulting to `short`.
@@ -139,6 +211,11 @@ The following MCI codes are available:
     * `pendingPageUser`: Username of the most recent pending page, or empty.
     * `pendingPageNode`: Node ID of the most recent pending page, or empty.
     * `pendingPageMessage`: Message/reason of the most recent pending page, or empty.
+    * `pendingNodeMessageCount`: Number of **unread** messages in the inbox.
+    * `pendingNodeMessageTotal`: Total messages in the inbox, read or not.
+    * `pendingNodeMessageUser`: Username who sent the most recent unread message, or empty.
+    * `pendingNodeMessageNode`: Node ID of that sender, or empty.
+    * `pendingNodeMessagePreview`: Truncated text of that message. Length via `messagePreviewLength`.
 
 
 :::note

@@ -9,6 +9,7 @@ const {
     UserMessageableConnections,
 } = require('./client_connections.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
+const { InterruptType } = UserInterruptQueue;
 const { getThemeArt } = require('./theme.js');
 const { pipeToAnsi } = require('./color_codes.js');
 const stringFormat = require('./string_format.js');
@@ -116,8 +117,24 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                         });
 
                         nodeSelectView.setItems(this.nodeList);
+
+                        //  A caller may name the node up front -- the WFC does,
+                        //  so an +op can pick a node on the dashboard and send
+                        //  to it without hunting through this list again.
+                        const toNodeId = _.get(this.config, 'extraArgs.toNodeId');
+                        let initialIndex = 0;
+                        if (!_.isUndefined(toNodeId)) {
+                            const found = this.nodeList.findIndex(
+                                n => n.node === toNodeId
+                            );
+                            if (found > -1) {
+                                initialIndex = found;
+                            }
+                        }
+
+                        nodeSelectView.setFocusItemIndex(initialIndex);
                         nodeSelectView.redraw();
-                        this.nodeListSelectionIndexUpdate(0);
+                        this.nodeListSelectionIndexUpdate(initialIndex);
                         return callback(null);
                     },
                     callback => {
@@ -172,6 +189,15 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             'Message from {fromUserName} on node {fromNodeId}:\r\n{message}';
 
         const item = {
+            type: InterruptType.NodeMsg,
+            //  Who sent it, so a reply can be addressed without re-parsing
+            //  |text|. See also #217 (quick replies).
+            from: {
+                userName: this.client.user.username,
+                realName: this.client.user.properties.real_name,
+                userId: this.client.user.userId,
+                nodeId: this.client.node,
+            },
             text: stringFormat(messageFormat, textFormatObj),
             pause: true,
         };
