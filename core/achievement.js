@@ -10,6 +10,7 @@ const { getConfigPath } = require('./config_util');
 const UserDb = require('./database.js').dbs.user;
 const { getISOTimestampString, coerceToText } = require('./database.js');
 const UserInterruptQueue = require('./user_interrupt_queue.js');
+const { InterruptType } = UserInterruptQueue;
 const { getConnectionByUserId } = require('./client_connections.js');
 const UserProps = require('./user_property.js');
 const { Errors, ErrorReasons } = require('./enig_error.js');
@@ -704,6 +705,23 @@ class Achievements {
                         (headerArt, footerArt, callback) => {
                             const itemText = 'global' === itemType ? globalText : text;
                             interruptItems[itemType] = {
+                                type:
+                                    'global' === itemType
+                                        ? InterruptType.AchievementGlobal
+                                        : InterruptType.Achievement,
+                                //  Who earned it: the ticker and log sinks format
+                                //  on this rather than re-parsing |text|. Reads
+                                //  info.user / info.client.node exactly as
+                                //  getFormatObject() does -- both are always set
+                                //  on this path, including retroactive tiers,
+                                //  which Object.assign from the same basicInfo.
+                                from: {
+                                    userName: info.user.username,
+                                    userId: info.user.userId,
+                                    nodeId: info.client.node,
+                                },
+                                achievementTag: info.achievementTag,
+                                points: _.get(info, 'details.points', 0),
                                 title,
                                 achievText: itemText,
                                 text: `${title}\r\n${itemText}`,

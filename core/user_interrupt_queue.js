@@ -10,7 +10,26 @@ const { pipeToAnsi } = require('./color_codes.js');
 //  deps
 const _ = require('lodash');
 
-module.exports = class UserInterruptQueue {
+//
+//  What *produced* an interrupt item, carried on the item as |type|.
+//
+//  Not to be confused with MenuModule.InterruptTypes, which is the unrelated
+//  never/queued/realtime setting describing when a *menu* will show one.
+//
+//  Consumers may route on this -- the WFC, for example, wants to show a node
+//  message and ignore a global achievement rather than paint either over the
+//  dashboard. Items without a |type| are treated as System.
+//
+const InterruptType = {
+    NodeMsg: 'nodeMsg',
+    Achievement: 'achievement',
+    AchievementGlobal: 'achievementGlobal',
+    SysopPage: 'sysopPage',
+    TimeWarning: 'timeWarning',
+    System: 'system',
+};
+
+class UserInterruptQueue {
     constructor(client) {
         this.client = client;
         this.queue = [];
@@ -50,6 +69,10 @@ module.exports = class UserInterruptQueue {
 
         //  pause defaulted on
         interruptItem.pause = _.get(interruptItem, 'pause', true);
+
+        //  Every producer funnels through here, so this is the one place that
+        //  has to hold for an item to be routable by type.
+        interruptItem.type = _.get(interruptItem, 'type', InterruptType.System);
 
         try {
             this.client.currentMenuModule.attemptInterruptNow(
@@ -123,4 +146,10 @@ module.exports = class UserInterruptQueue {
             );
         }
     }
-};
+}
+
+//  The class stays the module export so every existing
+//  `require('./user_interrupt_queue.js')` call site is untouched; the type
+//  enum rides along as a static.
+module.exports = UserInterruptQueue;
+module.exports.InterruptType = InterruptType;

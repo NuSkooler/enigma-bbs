@@ -14,6 +14,7 @@ const SysopChat = require('./sysop_chat.js');
 const Message = require('./message.js');
 const User = require('./user.js');
 const WfcModule = require('./wfc.js').getModule;
+const { InterruptType } = require('./user_interrupt_queue.js');
 
 //  deps
 const _ = require('lodash');
@@ -285,6 +286,13 @@ exports.getModule = class PageSysopModule extends MenuModule {
             const isAtWfc = c.currentMenuModule instanceof WfcModule;
             if (!isAtWfc) {
                 c.interruptQueue.queueItem({
+                    type: InterruptType.SysopPage,
+                    from: {
+                        userName: user.username,
+                        userId: user.userId,
+                        nodeId,
+                    },
+                    sessionId,
                     text: notifyText,
                     pause: true,
                 });
