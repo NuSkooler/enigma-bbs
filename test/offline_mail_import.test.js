@@ -212,3 +212,79 @@ describe('advertising that replies are accepted', () => {
         assert.equal(exporter.acceptsReplies.call({ client: {} }), false);
     });
 });
+
+//
+//  Protocol selection routes an upload to the file base pipeline unless the
+//  caller asks for it back. Without that, the packet reaches the file base
+//  upload module, which has no area to put it in, does nothing, and leaves
+//  the caller on a processing screen that never finishes.
+//
+describe('handing the upload back', () => {
+    const receiveWith = (overrides, cb) => {
+        const context = Object.assign(
+            {
+                config: {},
+                temptmp: { mkdir: (opts, done) => done(null, '/tmp/enig-import-test') },
+                gotoMenu: (name, options) => cb(name, options),
+            },
+            overrides
+        );
+        importer._receivePacket.call(context, () => {});
+    };
+
+    it('asks protocol selection to return here', done => {
+        receiveWith({}, (name, options) => {
+            assert.equal(name, 'fileTransferProtocolSelection');
+            assert.equal(options.extraArgs.returnToCaller, true);
+            assert.equal(options.extraArgs.direction, 'recv');
+            assert.ok(options.extraArgs.recvDirectory);
+            done();
+        });
+    });
+
+    it('takes the protocol selection menu from config when given one', done => {
+        receiveWith({ config: { fileTransferProtocolSelection: 'myOwnMenu' } }, name => {
+            assert.equal(name, 'myOwnMenu');
+            done();
+        });
+    });
+});
+
+//
+//  ESC out of protocol selection pops it and re-enters this module, since it
+//  stays on the stack for the return trip. Asking for another transfer there
+//  is a loop the caller cannot leave.
+//
+describe('backing out of protocol selection', () => {
+    const enterWith = state => {
+        const calls = { finished: [], received: 0 };
+        const context = Object.assign(
+            {
+                isFileTransferComplete: importer.isFileTransferComplete,
+                _finish: outcome => calls.finished.push(outcome),
+                _receivePacket: () => (calls.received += 1),
+            },
+            state
+        );
+        importer.finishedLoading.call(context);
+        return calls;
+    };
+
+    it('starts the transfer on the way in', () => {
+        const calls = enterWith({});
+        assert.equal(calls.received, 1);
+        assert.equal(calls.finished.length, 0);
+    });
+
+    it('finishes rather than asking for another transfer', () => {
+        const calls = enterWith({ tempRecvDirectory: '/tmp/enig-import-test/' });
+        assert.equal(calls.received, 0);
+        assert.equal(calls.finished.length, 1);
+    });
+
+    //  "Imported 0 message(s)" would say the packet was empty
+    it('says no packet was uploaded rather than reporting an empty import', () => {
+        const calls = enterWith({ tempRecvDirectory: '/tmp/enig-import-test/' });
+        assert.match(calls.finished[0], /no packet/i);
+    });
+});
