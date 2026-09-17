@@ -205,7 +205,12 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             'Offline mail export failed'
                         );
 
-                        //  :TODO: doesn't do anything currently:
+                        //
+                        //  :TODO: doesn't do anything currently. Note that it
+                        //  cannot simply call cb() either: the init sequence
+                        //  would go on to finishedLoading(), whose prevMenu()
+                        //  would undo the gotoMenu() this just made.
+                        //
                         if ('NORESULTS' === err.reasonCode) {
                             return this.gotoMenu(
                                 this.menuConfig.config.noResultsMenu ||
@@ -213,29 +218,43 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             );
                         }
 
-                        //  a failed export used to return the caller with no
-                        //  word of why; finishedLoading() says it
+                        //  a failed export used to return the caller with
+                        //  no word of why
                         this.finalStatus = 'The export failed -- see the log';
                     }
+
+                    this._tellCaller();
                     return cb(null);
                 }
             );
         });
     }
 
-    finishedLoading() {
+    //
+    //  Said before the init sequence reaches its own pause step, so a menu
+    //  configured to pause holds the outcome rather than pausing on the
+    //  screen as it was just before it.
+    //
+    _tellCaller() {
         if (!this.finalStatus) {
-            return this.prevMenu();
+            return;
         }
 
-        //  hold it long enough to read either way: in the status view on a
-        //  menu with art, on the terminal on one without
         const statusView = this.getView('main', MciViewIds.main.status);
         if (statusView) {
             statusView.setText(this.finalStatus);
         } else {
             this.client.term.write(`\n${this.finalStatus}\n`);
         }
+    }
+
+    finishedLoading() {
+        //  a menu that pauses of its own accord has already held it
+        const menuPauses = this.shouldPause() && 'pageBreak' !== this.getPauseMode();
+        if (!this.finalStatus || menuPauses) {
+            return this.prevMenu();
+        }
+
         return this.pausePrompt(() => this.prevMenu());
     }
 
@@ -384,8 +403,6 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
 
         //  A menu with no art has no views at all, not merely missing ones --
         //  the export still runs, the caller just watches nothing happen.
-        const mainVc = this.viewControllers.main;
-
         const statusView = this.getView('main', MciViewIds.main.status);
         const updateStatus = status => {
             if (statusView) {
@@ -394,19 +411,17 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         };
 
         //
-        //  What the caller is told at the end. With a status view they have
-        //  been watching it all along; without one -- which is what the
-        //  shipped menu is -- the export would otherwise finish in silence.
+        //  What the caller is told at the end, and held on screen for them:
+        //  a status view they have been watching goes by as fast as every
+        //  other line did, and the shipped menu has no view at all.
         //
         this.finalStatus = null;
         const finalStatus = status => {
             updateStatus(status);
-            if (!statusView) {
-                this.finalStatus = status;
-            }
+            this.finalStatus = status;
         };
 
-        const progBarView = mainVc && mainVc.getView(MciViewIds.main.progressBar);
+        const progBarView = this.getView('main', MciViewIds.main.progressBar);
         const updateProgressBar = (curr, total) => {
             if (progBarView) {
                 const prog = Math.floor((curr / total) * progBarView.dimens.width);
