@@ -198,11 +198,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     initSequence() {
+        //  No displayQueuedInterruptions() here: MenuModule.enter() drains
+        //  before calling us, so a second pass would only ever find an empty
+        //  queue.
         async.series(
             [
-                callback => {
-                    return this.displayQueuedInterruptions(callback);
-                },
                 callback => {
                     return this.beforeArt(callback);
                 },
