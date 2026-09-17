@@ -1223,7 +1223,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         this._stopRefreshing();
         return this.gotoMenu(
-            this.config.nodeMessageMenuName || 'nodeMessage',
+            this.config.nodeMessageMenuName || 'wfcNodeMessage',
             { extraArgs: { toNodeId: isNaN(nodeId) ? undefined : nodeId } },
             cb
         );
@@ -1239,7 +1239,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this.removeViewController('messages');
         this._stopRefreshing();
         return this.gotoMenu(
-            this.config.nodeMessageMenuName || 'nodeMessage',
+            this.config.nodeMessageMenuName || 'wfcNodeMessage',
             { extraArgs: { toNodeId } },
             cb
         );
