@@ -72,7 +72,9 @@ module.exports = new (class Events extends events.EventEmitter {
     }
 
     removeMultipleEventListener(listeners) {
-        _trace({ events }, 'Removing listeners');
+        //  |events| here is the required Node module, not a parameter -- this
+        //  logged the module object rather than the event names being removed.
+        _trace({ events: listeners.map(l => l.eventName) }, 'Removing listeners');
         listeners.forEach(listener => {
             this.removeListener(listener.eventName, listener.listenWrapper);
         });

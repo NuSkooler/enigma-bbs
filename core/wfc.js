@@ -90,7 +90,12 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this.refreshing = false;
         this.pendingPages = []; //  [ { sessionId, userName, nodeId, message, timestamp } ]
 
-        //  Store bound ref so we can properly remove the listener in leave()
+        //  Store bound refs so we can properly remove the listeners in leave().
+        //  .bind() returns a new function every call, so binding again at removal
+        //  time never matches what was registered -- the listener then survives
+        //  leave() and the stale instance keeps painting the dashboard over
+        //  whatever menu the op moved on to, one more listener per visit.
+        this._onClientDisconnectedBound = this._clientDisconnected.bind(this);
         this._onUserPagedSysopBound = this._onUserPagedSysop.bind(this);
 
         this.menuMethods = {
@@ -288,20 +293,39 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         Events.on(
             Events.getSystemEvents().ClientDisconnected,
-            this._clientDisconnected.bind(this)
+            this._onClientDisconnectedBound
         );
         Events.on(Events.getSystemEvents().UserPagedSysop, this._onUserPagedSysopBound);
         super.enter();
     }
 
+    //
+    //  MenuModule.prevMenu() flushes the interrupt queue *before* menuStack.prev()
+    //  gets as far as leave(), so without this the refresh timer is still painting
+    //  the dashboard over the interrupt art, and our form is still attached to
+    //  'key press' -- pausePrompt() waits on a non-exclusive once('key press'), so
+    //  the key that dismisses an interrupt also reaches our action keys, where 'k'
+    //  opens the kick-node confirm. Shut both down before handing off.
+    //
+    prevMenu(cb) {
+        this._stopRefreshing();
+        this.detachViewControllers();
+        return super.prevMenu(cb);
+    }
+
     leave() {
-        _.remove(Log.log.streams, stream => {
-            return stream.name === 'wfc-ringbuffer';
-        });
+        //  Remove by stream identity, not by name: every WFC instance adds a
+        //  stream under the same 'wfc-ringbuffer' name, so a name match removed
+        //  *every* op's stream and silently froze the quick log of anyone else
+        //  still at the dashboard. bunyan shallow-copies the descriptor, so the
+        //  RingBuffer we passed is still the identity to match on.
+        if (this.logRingBuffer) {
+            _.remove(Log.log.streams, stream => stream.stream === this.logRingBuffer);
+        }
 
         Events.removeListener(
             Events.getSystemEvents().ClientDisconnected,
-            this._clientDisconnected.bind(this)
+            this._onClientDisconnectedBound
         );
         Events.removeListener(
             Events.getSystemEvents().UserPagedSysop,

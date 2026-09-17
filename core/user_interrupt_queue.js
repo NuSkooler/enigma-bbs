@@ -76,7 +76,9 @@ module.exports = class UserInterruptQueue {
             cb = options;
             options = {};
         }
-        const interruptItem = this.queue.pop();
+        //  FIFO: pop() showed the newest item first, so a run of node messages
+        //  was read back to front.
+        const interruptItem = this.queue.shift();
         if (!interruptItem) {
             return cb(null);
         }
