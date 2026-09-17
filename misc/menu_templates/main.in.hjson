@@ -474,7 +474,10 @@
             module: sysop_chat
             config: {
                 cls: true
-                interrupt: realtime
+                //  Deliberately not `interrupt: realtime`. A realtime interrupt
+                //  clears the screen and reloads the menu, which would throw
+                //  away the conversation so far. The module holds interrupts
+                //  for whatever menu you return to instead.
                 art: {
                     chat: SYSOPCHAT
                 }

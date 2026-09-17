@@ -143,6 +143,35 @@ exports.getModule = class SysopChatModule extends MenuModule {
         );
     }
 
+    //
+    //  A live chat must never be painted over, and unlike the WFC there is
+    //  nothing here to route an item into -- so hold everything for the
+    //  destination menu, which drains its queue in initSequence(). When that
+    //  destination is the WFC (the usual case, since the +op arrives here by
+    //  pressing B on the dashboard) it routes rather than displays.
+    //
+    //  This is explicit rather than inherited: the base returns false only
+    //  because `realTimeInterrupt` never reaches 'allowed' in a module that
+    //  overrides initSequence(), which is an accident we should not depend on.
+    //
+    attemptInterruptNow(interruptItem, cb) {
+        return cb(null, false);
+    }
+
+    //
+    //  MenuModule.prevMenu() drains the interrupt queue *before*
+    //  menuStack.prev() gets as far as leave(), so the chat form is still
+    //  attached to 'key press' while a pause prompt waits on a non-exclusive
+    //  once('key press') -- the key dismissing an interrupt also reaches our
+    //  action keys, where escape ends the chat that is already ending. Hand
+    //  the queue to the destination instead; its own initSequence() drains it
+    //  on arrival, so nothing is lost.
+    //
+    prevMenu(cb) {
+        this.detachViewControllers();
+        return this.client.menuStack.prev(cb);
+    }
+
     _initChat(cb) {
         async.series(
             [
