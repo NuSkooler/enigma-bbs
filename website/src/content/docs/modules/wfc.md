@@ -83,7 +83,7 @@ Routing is per notification type, and each type names zero or more *sinks*:
 |------|--------|
 | `inbox` | Held for you to read with the message key. Sends a BEL unless `messageAlert` is `false`. |
 | `statusBar` | Surfaces as a count in a `%SB1` panel. |
-| `log` | Written to the log, so it appears in the quick log and full log viewers. |
+| `log` | Rely on the log and surface nothing further here. Achievements are logged by the achievement subsystem for every op, not only one sitting at the WFC, so this sink means "it is already in the quick log and full log viewers". |
 | `ticker` | Fed to a `%TK` ticker. |
 | `interrupt` | Fall through to normal behaviour — displayed full screen with a pause. |
 

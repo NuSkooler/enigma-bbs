@@ -329,6 +329,29 @@ class Achievements {
             info.details.points
         );
 
+        //
+        //  Earning an achievement was previously recorded only in the
+        //  user_achievement table and the UserAchievementEarned event -- no
+        //  Log.* call anywhere -- so it was invisible in the rotating log and
+        //  in both WFC log views. `info` matches "User X logged in" and the
+        //  other per-user milestones already at that level; drop the whole
+        //  category with logging.rotatingFile.level if it is too chatty.
+        //
+        //  This is also what makes the WFC's `log` notification sink real: the
+        //  line is written here for every op, not only one sitting at the WFC.
+        //
+        Log.info(
+            {
+                userName: info.user.username,
+                userId: info.user.userId,
+                nodeId: info.client.node,
+                achievementTag: info.achievementTag,
+                points: info.details.points,
+                title: cleanTitle,
+            },
+            `User "${info.user.username}" earned achievement "${cleanTitle}"`
+        );
+
         events.emit(Events.getSystemEvents().UserAchievementEarned, {
             user: info.client.user,
             achievementTag: info.achievementTag,
