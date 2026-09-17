@@ -55,7 +55,7 @@ The WFC `config` block allows for the following keys:
 | Key | Required | Description |
 |-----|----------|-------------|
 | `acs` | Yes | See [Security](#security) above. |
-| `opVisibility` | No | Boolean. Set to `true` or `false` to change visibility when entering the WFC. |
+| `opVisibility` | No | Visibility on entering the WFC: `visible`, `hidden`, or `current` (default, leave as-is). `true`/`false` are accepted as aliases for `visible`/`hidden`. |
 | `quickLogLevel` | No | Sets the log level for the quick log view. Defaults to `info`. See also [Monitoring Logs](../troubleshooting/monitoring-logs.md). |
 | `art` | Yes | An object containing art specs: `main` for the WFC main view and `help` for a help screen. |
 | `confirmKickNodePrompt` | No | Override the prompt name used for the "Kick selected node?" prompt. Defaults to `confirmKickNodePrompt`. |

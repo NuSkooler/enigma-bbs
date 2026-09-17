@@ -477,6 +477,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         );
         Events.on(Events.getSystemEvents().UserPagedSysop, this._onUserPagedSysopBound);
 
+        this._validateNotificationConfig();
         this._startActivityFeed();
 
         super.enter();
@@ -694,7 +695,18 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _applyOpVisibility() {
         this.restoreUserIsVisible = this.client.user.isVisible();
 
-        const vis = this.config.opVisibility || 'current';
+        //  wfc.md has always documented this as a boolean while the code only
+        //  ever matched the strings, so `opVisibility: false` was a silent
+        //  no-op -- and that is the form people wrote, Xibalba included.
+        //  Accept both; strings stay the canonical spelling.
+        let vis = this.config.opVisibility;
+        if (true === vis) {
+            vis = 'visible';
+        } else if (false === vis) {
+            vis = 'hidden';
+        }
+        vis = vis || 'current';
+
         switch (vis) {
             case 'hidden':
                 this.client.user.setVisibility(false);
@@ -718,6 +730,49 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     //  hands back removable handles -- the .bind() shape that leaked a
     //  ClientDisconnected listener per visit is exactly what this avoids.
     //
+    //
+    //  core/config/menu_schema.js leaves a module's `config` block open
+    //  (closedKeys: false) because it is module specific, so a typo in a sink
+    //  name or a notification type loads silently and simply never matches.
+    //  That is the failure mode #281 exists to prevent, so check our own keys.
+    //
+    _validateNotificationConfig() {
+        const notifications = _.get(this.config, 'notifications');
+        if (!_.isObject(notifications)) {
+            return;
+        }
+
+        const knownTypes = Object.values(InterruptType);
+        const knownSinks = Object.values(Sinks);
+
+        Object.keys(notifications).forEach(type => {
+            if (!knownTypes.includes(type)) {
+                this.client.log.warn(
+                    { type, known: knownTypes },
+                    'WFC notifications: unknown notification type; it will never match'
+                );
+            }
+
+            const sinks = _.get(notifications, [type, 'sinks']);
+            if (!Array.isArray(sinks)) {
+                this.client.log.warn(
+                    { type },
+                    'WFC notifications: "sinks" must be an array; falling back to the default'
+                );
+                return;
+            }
+
+            sinks.forEach(sink => {
+                if (!knownSinks.includes(sink)) {
+                    this.client.log.warn(
+                        { type, sink, known: knownSinks },
+                        'WFC notifications: unknown sink; it will be ignored'
+                    );
+                }
+            });
+        });
+    }
+
     _startActivityFeed() {
         if (this._activityListeners) {
             return;
