@@ -361,3 +361,46 @@ describe('MenuModule.optionalMoveToPosition', () => {
         assert.match(moves[0], /\[20;5H$/);
     });
 });
+
+describe('MenuModule outcome helpers', () => {
+    it('shows the outcome in the status view when there is one', () => {
+        const m = makeMenuModule();
+        const shown = [];
+        m.client.term.write = () => assert.fail('wrote to the terminal');
+        m.showOutcome('Done', { setText: text => shown.push(text) });
+        assert.deepEqual(shown, ['Done']);
+    });
+
+    it('writes the outcome to the terminal when there is no view', () => {
+        const m = makeMenuModule();
+        const written = [];
+        m.client.term.write = data => written.push(data);
+        m.showOutcome('Done', undefined);
+        assert.deepEqual(written, ['\nDone\n']);
+    });
+
+    const pausedAt = afterArtPosition => {
+        const m = makeMenuModule();
+        m.afterArtPosition = afterArtPosition;
+        let position;
+        m.pausePrompt = (p, cb) => {
+            position = p;
+            cb();
+        };
+        m.pauseBelowArt(() => {});
+        return position;
+    };
+
+    //  not wherever the last view write left the cursor, inside the art
+    it('pauses on the row below the art', () => {
+        assert.equal(pausedAt({ row: 12, column: 0 }).row, 12);
+    });
+
+    it('keeps the pause on screen when the art fills it', () => {
+        assert.equal(pausedAt({ row: 40, column: 0 }).row, 25);
+    });
+
+    it('pauses where the cursor is on a menu with no art', () => {
+        assert.equal(pausedAt({ row: 0, column: 0 }).row, 0);
+    });
+});

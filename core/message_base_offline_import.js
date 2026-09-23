@@ -175,16 +175,8 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     constructor(options) {
         super(options);
 
-        //
-        //  Deliberately NOT MenuFlags.NoHistory, which upload.js carries.
-        //  MenuStack.goto() pops a NoHistory module as it leaves, so this one
-        //  would be off the stack by the time the transfer finished, and the
-        //  prevMenu() that hands the upload back would land on the menu below
-        //  it instead -- no import, and the caller dropped a menu too far.
-        //  upload.js gets away with it because protocol selection re-enters it
-        //  by name rather than by returning. This module removes itself when
-        //  it is done, so it leaves nothing behind either way.
-        //
+        //  not MenuFlags.NoHistory, unlike upload.js: goto() pops a NoHistory
+        //  module, and the transfer's prevMenu() has to land back here
         this.interrupt = MenuModule.InterruptTypes.Never;
 
         this.config = Object.assign(
@@ -250,6 +242,11 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     //
     finishedLoading() {
         if (this.isFileTransferComplete()) {
+            //  a protocol that exits cleanly having received nothing
+            if (!this.recvFilePaths.length) {
+                return this._finish('No packet was uploaded');
+            }
+
             return this._importReceivedPackets(err => {
                 if (err) {
                     this.client.log.warn(
@@ -261,14 +258,8 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
             });
         }
 
-        //
-        //  Re-entered with a temp directory already restored and nothing
-        //  received: protocol selection binds ESC to prevMenu(), which pops
-        //  it and lands back here. Asking for another transfer would put the
-        //  caller straight back on that menu -- no way out but to start a
-        //  transfer and abort it, and a temp directory abandoned each time
-        //  around.
-        //
+        //  ESC out of protocol selection pops back here with the temp dir
+        //  restored; asking again would loop
         if (this.tempRecvDirectory) {
             return this._finish('No packet was uploaded');
         }
@@ -337,6 +328,7 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
                             { error: err.message, path: packetPath },
                             'Could not import an offline mail packet'
                         );
+                        this.packetError = err.message;
                         this._updateStatus(err.message);
                     }
                     return nextPacket(null);
@@ -649,11 +641,7 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         //  intentionally nothing; see above
     }
 
-    //
-    //  |outcome| is for the paths that never reached an import: the summary
-    //  would otherwise report "Imported 0 message(s)", which says the packet
-    //  held nothing rather than that there was no packet.
-    //
+    //  |outcome| replaces the summary where there was nothing to import
     _finish(outcome) {
         this.client.log.info(this.summary, outcome || 'Offline mail import complete');
         this.temptmp.cleanup();
@@ -661,25 +649,18 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
             fse.remove(this.tempRecvDirectory, () => {});
         }
 
-        //
-        //  A menu with no art has no status view, which is what the shipped
-        //  one is: the caller would watch their packet upload and then be
-        //  returned to the message menu with no word of whether anything was
-        //  posted. Say it on the terminal instead, and hold it there long
-        //  enough to read.
-        //
-        if (this.getView('main', MciViewIds.main.status)) {
-            return this.prevMenu();
+        const { imported, rejected } = this.summary;
+        let summary = rejected
+            ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
+            : `Imported ${imported} message(s)`;
+        if (this.packetError) {
+            summary += `; ${this.packetError}`;
         }
 
-        const { imported, rejected } = this.summary;
-        const summary =
-            outcome ||
-            (rejected
-                ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
-                : `Imported ${imported} message(s)`);
-
-        this.client.term.write(`\n${summary}\n`);
-        return this.pausePrompt(() => this.prevMenu());
+        this.showOutcome(
+            outcome || summary,
+            this.getView('main', MciViewIds.main.status)
+        );
+        return this.pauseBelowArt(() => this.prevMenu());
     }
 };

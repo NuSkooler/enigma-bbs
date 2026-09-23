@@ -101,6 +101,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         const self = this;
         const mciData = {};
         let pausePosition = { row: 0, column: 0 };
+        this.afterArtPosition = pausePosition;
 
         const hasArt = () => {
             return (
@@ -800,18 +801,35 @@ exports.MenuModule = class MenuModule extends PluginModule {
         const row = position.row || position.x;
         const col = position.col || position.column || position.y;
 
-        //
-        //  No coordinates means "wherever the cursor is". Defaulting them to
-        //  1 instead put a pause prompt at the top of the screen, above the
-        //  line the caller had just been shown -- which is what every
-        //  pausePrompt(cb) caller gets, since an unconfigured position
-        //  resolves to an empty object.
-        //
+        //  no coordinates means wherever the cursor is
         if (!row && !col) {
             return;
         }
 
         this.client.term.rawWrite(ansi.goto(row || 1, col || 1));
+    }
+
+    //
+    //  For a module that finishes on its own rather than through a form: say
+    //  how it went in |statusView| when the menu's art has one, else on the
+    //  terminal. Then hold it with pauseBelowArt().
+    //
+    showOutcome(text, statusView) {
+        if (statusView) {
+            statusView.setText(text);
+        } else {
+            this.client.term.write(`\n${text}\n`);
+        }
+    }
+
+    //  below the art rather than wherever the last view write left the cursor
+    pauseBelowArt(cb) {
+        const position = Object.assign({}, this.afterArtPosition);
+        const termHeight = this.client.term.termHeight;
+        if (termHeight > 0 && position.row > termHeight) {
+            position.row = termHeight;
+        }
+        return this.pausePrompt(position, cb);
     }
 
     pausePrompt(position, cb, type = 'end') {

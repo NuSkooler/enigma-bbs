@@ -123,17 +123,8 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             async.waterfall(
                 [
                     callback => {
-                        //
-                        //  A menu with no art produces no MCI map, and a view
-                        //  controller refuses to load without one. The menu
-                        //  this module ships on carries no art, so preparing
-                        //  views unconditionally failed the export before it
-                        //  started -- and so does validating them, which is
-                        //  why both sit behind the one guard. A format that
-                        //  requires views (QWK does; Blue Wave overrides
-                        //  requiredViewIds() to none) would otherwise still
-                        //  bail with 'Form does not exist: main'.
-                        //
+                        //  a menu with no art (the shipped one) has no MCI
+                        //  map, so no views to prepare or validate
                         if (!mciData.menu) {
                             return callback(null);
                         }
@@ -205,12 +196,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             'Offline mail export failed'
                         );
 
-                        //
-                        //  :TODO: doesn't do anything currently. Note that it
-                        //  cannot simply call cb() either: the init sequence
-                        //  would go on to finishedLoading(), whose prevMenu()
-                        //  would undo the gotoMenu() this just made.
-                        //
+                        //  :TODO: doesn't do anything currently:
                         if ('NORESULTS' === err.reasonCode) {
                             return this.gotoMenu(
                                 this.menuConfig.config.noResultsMenu ||
@@ -218,8 +204,6 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             );
                         }
 
-                        //  a failed export used to return the caller with
-                        //  no word of why
                         this.finalStatus = 'The export failed -- see the log';
                     }
 
@@ -230,21 +214,14 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         });
     }
 
-    //
-    //  Said before the init sequence reaches its own pause step, so a menu
-    //  configured to pause holds the outcome rather than pausing on the
-    //  screen as it was just before it.
-    //
+    //  said before the init sequence's own pause step, so a menu configured
+    //  to pause holds it
     _tellCaller() {
-        if (!this.finalStatus) {
-            return;
-        }
-
-        const statusView = this.getView('main', MciViewIds.main.status);
-        if (statusView) {
-            statusView.setText(this.finalStatus);
-        } else {
-            this.client.term.write(`\n${this.finalStatus}\n`);
+        if (this.finalStatus) {
+            this.showOutcome(
+                this.finalStatus,
+                this.getView('main', MciViewIds.main.status)
+            );
         }
     }
 
@@ -255,7 +232,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             return this.prevMenu();
         }
 
-        return this.pausePrompt(() => this.prevMenu());
+        return this.pauseBelowArt(() => this.prevMenu());
     }
 
     //
@@ -410,11 +387,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             }
         };
 
-        //
-        //  What the caller is told at the end, and held on screen for them:
-        //  a status view they have been watching goes by as fast as every
-        //  other line did, and the shipped menu has no view at all.
-        //
+        //  what the caller is told at the end, and held for them
         this.finalStatus = null;
         const finalStatus = status => {
             updateStatus(status);

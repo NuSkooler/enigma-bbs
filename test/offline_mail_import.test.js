@@ -263,6 +263,7 @@ describe('backing out of protocol selection', () => {
                 isFileTransferComplete: importer.isFileTransferComplete,
                 _finish: outcome => calls.finished.push(outcome),
                 _receivePacket: () => (calls.received += 1),
+                _importReceivedPackets: () => (calls.imported = true),
             },
             state
         );
@@ -285,6 +286,16 @@ describe('backing out of protocol selection', () => {
     //  "Imported 0 message(s)" would say the packet was empty
     it('says no packet was uploaded rather than reporting an empty import', () => {
         const calls = enterWith({ tempRecvDirectory: '/tmp/enig-import-test/' });
+        assert.match(calls.finished[0], /no packet/i);
+    });
+
+    //  a protocol that exits cleanly having received nothing
+    it('says no packet was uploaded when the transfer brought nothing', () => {
+        const calls = enterWith({
+            tempRecvDirectory: '/tmp/enig-import-test/',
+            recvFilePaths: [],
+        });
+        assert.equal(calls.imported, undefined);
         assert.match(calls.finished[0], /no packet/i);
     });
 });
