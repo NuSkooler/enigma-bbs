@@ -40,7 +40,7 @@ An area tag reaches the packet as an echotag, which is what a reply is routed by
 ```
 
 ### Menu Configuration
-A new installation reaches the export with <kbd>B</kbd> from the message base menu, where the stock theme lists it as `b blue wave export`. A theme of your own needs that line added to its `MSGMNU` art, and a board configured before this landed keeps the menus it already has, so add the entry below to one of them.
+A new installation reaches the export with <kbd>B</kbd> from the message base menu, where the stock theme lists it as `b blue wave export`. A theme of your own needs that line added to its `MSGMNU` art, and a board configured before 0.5.1-beta keeps the menus it already has, so add the entry below to one of them.
 
 The export is a menu module, so it can go on any menu:
 
@@ -56,7 +56,7 @@ bluewaveExport: {
 
 A menu with no art has no status or progress view. The export still runs and the packet still arrives; the caller just sees nothing while it works, and `progBarChar` has nothing to draw into. A caller who presses <kbd>ESC</kbd> during the export cancels it. The finished packet is placed in their download queue and is valid until the session ends.
 
-The caller fetches it with <kbd>E</kbd> from the message base menu, listed in the stock theme as `e download queue`. A board configured before this landed needs the submit entry added to its message base menu, and its own `MSGMNU` art needs the line, the same as for the export:
+The caller fetches it with <kbd>E</kbd> from the message base menu, listed in the stock theme as `e download queue`. A board configured before 0.5.1-beta needs the submit entry added to its message base menu, and its own `MSGMNU` art needs the line, the same as for the export:
 
 ```hjson
 {
