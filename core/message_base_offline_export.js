@@ -123,21 +123,32 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             async.waterfall(
                 [
                     callback => {
+                        //  a menu with no art (the shipped one) has no MCI
+                        //  map, so no views to prepare or validate
+                        if (!mciData.menu) {
+                            return callback(null);
+                        }
+
                         this.prepViewController(
                             'main',
                             FormIds.main,
                             mciData.menu,
                             err => {
-                                return callback(err);
+                                if (err) {
+                                    return callback(err);
+                                }
+
+                                const required = this.requiredViewIds();
+                                if (!required.length) {
+                                    return callback(null);
+                                }
+                                return this.validateMCIByViewIds(
+                                    'main',
+                                    required,
+                                    callback
+                                );
                             }
                         );
-                    },
-                    callback => {
-                        const required = this.requiredViewIds();
-                        if (!required.length) {
-                            return callback(null);
-                        }
-                        return this.validateMCIByViewIds('main', required, callback);
                     },
                     callback => {
                         this.temptmp = temptmp.createTrackedSession('offlineexport');
@@ -169,9 +180,22 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                     },
                 ],
                 err => {
-                    this.temptmp.cleanup();
+                    //  an error before the session was created leaves nothing
+                    //  to clean up, and cleaning it anyway threw over the top
+                    //  of the real error
+                    if (this.temptmp) {
+                        this.temptmp.cleanup();
+                    }
 
                     if (err) {
+                        //  packetFormatName is not named here: it is a getter
+                        //  the base class throws from, and an incomplete
+                        //  format is one of the errors that lands here
+                        this.client.log.warn(
+                            { error: err.message, reasonCode: err.reasonCode },
+                            'Offline mail export failed'
+                        );
+
                         //  :TODO: doesn't do anything currently:
                         if ('NORESULTS' === err.reasonCode) {
                             return this.gotoMenu(
@@ -180,16 +204,35 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                             );
                         }
 
-                        return this.prevMenu();
+                        this.finalStatus = 'The export failed -- see the log';
                     }
-                    return cb(err);
+
+                    this._tellCaller();
+                    return cb(null);
                 }
             );
         });
     }
 
+    //  said before the init sequence's own pause step, so a menu configured
+    //  to pause holds it
+    _tellCaller() {
+        if (this.finalStatus) {
+            this.showOutcome(
+                this.finalStatus,
+                this.getView('main', MciViewIds.main.status)
+            );
+        }
+    }
+
     finishedLoading() {
-        this.prevMenu();
+        //  a menu that pauses of its own accord has already held it
+        const menuPauses = this.shouldPause() && 'pageBreak' !== this.getPauseMode();
+        if (!this.finalStatus || menuPauses) {
+            return this.prevMenu();
+        }
+
+        return this.pauseBelowArt(() => this.prevMenu());
     }
 
     //
@@ -335,16 +378,23 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
             return cb(missingHook);
         }
 
-        const statusView = this.viewControllers.main.getView(MciViewIds.main.status);
+        //  A menu with no art has no views at all, not merely missing ones --
+        //  the export still runs, the caller just watches nothing happen.
+        const statusView = this.getView('main', MciViewIds.main.status);
         const updateStatus = status => {
             if (statusView) {
                 statusView.setText(status);
             }
         };
 
-        const progBarView = this.viewControllers.main.getView(
-            MciViewIds.main.progressBar
-        );
+        //  what the caller is told at the end, and held for them
+        this.finalStatus = null;
+        const finalStatus = status => {
+            updateStatus(status);
+            this.finalStatus = status;
+        };
+
+        const progBarView = this.getView('main', MciViewIds.main.progressBar);
         const updateProgressBar = (curr, total) => {
             if (progBarView) {
                 const prog = Math.floor((curr / total) * progBarView.dimens.width);
@@ -610,11 +660,15 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                 this.client.removeListener('key press', keyPressHandler);
 
                 if (!err) {
-                    updateStatus(
+                    finalStatus(
                         `A ${this.packetFormatName} packet has been placed in your download queue`
                     );
                 } else if (err.code === Errors.NothingToDo().code) {
-                    updateStatus('No messages to export with current criteria');
+                    finalStatus('No messages to export with current criteria');
+                    err = null;
+                } else if (err.code === Errors.UserInterrupt().code) {
+                    //  ESC during the export: asked for, not a failure
+                    finalStatus('Export canceled');
                     err = null;
                 }
 

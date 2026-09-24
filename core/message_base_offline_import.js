@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule, MenuFlags } = require('./menu_module.js');
+const { MenuModule } = require('./menu_module.js');
 const Message = require('./message.js');
 const { Errors } = require('./enig_error.js');
 const {
@@ -175,7 +175,8 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.setMergedFlag(MenuFlags.NoHistory);
+        //  not MenuFlags.NoHistory, unlike upload.js: goto() pops a NoHistory
+        //  module, and the transfer's prevMenu() has to land back here
         this.interrupt = MenuModule.InterruptTypes.Never;
 
         this.config = Object.assign(
@@ -241,6 +242,11 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     //
     finishedLoading() {
         if (this.isFileTransferComplete()) {
+            //  a protocol that exits cleanly having received nothing
+            if (!this.recvFilePaths.length) {
+                return this._finish('No packet was uploaded');
+            }
+
             return this._importReceivedPackets(err => {
                 if (err) {
                     this.client.log.warn(
@@ -252,13 +258,19 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
             });
         }
 
+        //  ESC out of protocol selection pops back here with the temp dir
+        //  restored; asking again would loop
+        if (this.tempRecvDirectory) {
+            return this._finish('No packet was uploaded');
+        }
+
         return this._receivePacket(err => {
             if (err) {
                 this.client.log.warn(
                     { error: err.message },
                     'Could not start an offline mail upload'
                 );
-                return this._finish();
+                return this._finish('The upload could not be started -- see the log');
             }
         });
     }
@@ -283,6 +295,13 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
                     extraArgs: {
                         recvDirectory: this.tempRecvDirectory,
                         direction: 'recv',
+                        //
+                        //  Without this, protocol selection hands the upload
+                        //  to the file base pipeline instead of back here --
+                        //  which then finds no upload area, does nothing, and
+                        //  leaves the caller on its processing screen.
+                        //
+                        returnToCaller: true,
                     },
                 },
                 cb
@@ -291,9 +310,7 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
     }
 
     _updateStatus(status) {
-        const statusView =
-            _.get(this.viewControllers, 'main') &&
-            this.viewControllers.main.getView(MciViewIds.main.status);
+        const statusView = this.getView('main', MciViewIds.main.status);
         if (statusView) {
             statusView.setText(status);
         }
@@ -311,6 +328,7 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
                             { error: err.message, path: packetPath },
                             'Could not import an offline mail packet'
                         );
+                        this.packetError = err.message;
                         this._updateStatus(err.message);
                     }
                     return nextPacket(null);
@@ -623,12 +641,26 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         //  intentionally nothing; see above
     }
 
-    _finish() {
-        this.client.log.info(this.summary, 'Offline mail import complete');
+    //  |outcome| replaces the summary where there was nothing to import
+    _finish(outcome) {
+        this.client.log.info(this.summary, outcome || 'Offline mail import complete');
         this.temptmp.cleanup();
         if (this.tempRecvDirectory) {
             fse.remove(this.tempRecvDirectory, () => {});
         }
-        return this.prevMenu();
+
+        const { imported, rejected } = this.summary;
+        let summary = rejected
+            ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
+            : `Imported ${imported} message(s)`;
+        if (this.packetError) {
+            summary += `; ${this.packetError}`;
+        }
+
+        this.showOutcome(
+            outcome || summary,
+            this.getView('main', MciViewIds.main.status)
+        );
+        return this.pauseBelowArt(() => this.prevMenu());
     }
 };

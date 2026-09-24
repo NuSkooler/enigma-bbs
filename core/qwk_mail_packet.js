@@ -1415,12 +1415,20 @@ class QWKPacketWriter extends EventEmitter {
                     packetPath,
                     files,
                     this.workDir,
-                    () => {
+                    archiveErr => {
                         fs.stat(packetPath, (err, stats) => {
-                            if (stats) {
-                                this.emit('packet', { stats, path: packetPath });
+                            if (!stats) {
+                                //  why the archiver failed, not ENOENT
+                                return cb(archiveErr || err);
                             }
-                            return cb(err);
+
+                            //  some archivers exit non-zero on a warning (7z
+                            //  does) having written the archive anyway
+                            if (archiveErr) {
+                                this.emit('warning', archiveErr);
+                            }
+                            this.emit('packet', { stats, path: packetPath });
+                            return cb(null);
                         });
                     }
                 );
