@@ -4312,7 +4312,7 @@ function FTNMessageScanTossModule() {
                 //  none" means nothing references the transit file and the
                 //  sweep is about to delete it. See forwardToDownlinks().
                 //
-                return cb(null, { attempted: candidates.length, queued });
+                return cb(null, { attempted: routes.length, queued });
             }
         );
     };
