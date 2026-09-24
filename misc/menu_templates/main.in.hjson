@@ -288,7 +288,7 @@
                 //      }
                 //  }
 
-                //  Panels for an optional %SB1 status bar. Token: {count}
+                //  Panels for an optional %SB5 status bar. Token: {count}
                 //  statusBarMessagesFormat: "|08MSG |15{count}"
                 //  statusBarPagesFormat: "|08PAGE |15{count}"
 

@@ -69,8 +69,8 @@ The WFC `config` block allows for the following keys:
 | `messageListFormat` | No | Format for each row of the message list. Tokens below. |
 | `messageDetailFormat` | No | Format for the detail pane. Defaults to `{text}`. |
 | `noMessagesText` | No | Shown when the inbox is empty. |
-| `statusBarMessagesFormat` | No | `%SB1` messages panel. Token: `{count}`. Defaults to `MSG {count}`. |
-| `statusBarPagesFormat` | No | `%SB1` pages panel. Token: `{count}`. Defaults to `PAGE {count}`. |
+| `statusBarMessagesFormat` | No | `%SB5` messages panel. Token: `{count}`. Defaults to `MSG {count}`. |
+| `statusBarPagesFormat` | No | `%SB5` pages panel. Token: `{count}`. Defaults to `PAGE {count}`. |
 | `hideCursor` | No | Boolean. Hide the terminal cursor while on the dashboard, which otherwise parks wherever the last refresh finished drawing. Defaults to `true`. |
 
 
@@ -82,7 +82,7 @@ Routing is per notification type, and each type names zero or more *sinks*:
 | Sink | Effect |
 |------|--------|
 | `inbox` | Held for you to read with the message key. Sends a BEL unless `messageAlert` is `false`. |
-| `statusBar` | Surfaces as a count in a `%SB1` panel. |
+| `statusBar` | Surfaces as a count in a `%SB5` panel. |
 | `log` | Rely on the log and surface nothing further here. Achievements are logged by the achievement subsystem for every op, not only one sitting at the WFC, so this sink means "it is already in the quick log and full log viewers". |
 | `ticker` | Fed to a `%TK` ticker. |
 | `interrupt` | Fall through to normal behaviour — displayed full screen with a pause. |
