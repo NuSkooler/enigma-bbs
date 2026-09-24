@@ -101,6 +101,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         const self = this;
         const mciData = {};
         let pausePosition = { row: 0, column: 0 };
+        this.afterArtPosition = pausePosition;
 
         const hasArt = () => {
             return (
@@ -791,12 +792,44 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     optionalMoveToPosition(position) {
-        if (position) {
-            position.x = position.row || position.x || 1;
-            position.y = position.col || position.y || 1;
-
-            this.client.term.rawWrite(ansi.goto(position.x, position.y));
+        if (!position) {
+            return;
         }
+
+        //  initSequence() spells the column 'column', _applyPausePosition
+        //  'col', and a caller may hand us x/y
+        const row = position.row || position.x;
+        const col = position.col || position.column || position.y;
+
+        //  no coordinates means wherever the cursor is
+        if (!row && !col) {
+            return;
+        }
+
+        this.client.term.rawWrite(ansi.goto(row || 1, col || 1));
+    }
+
+    //
+    //  For a module that finishes on its own rather than through a form: say
+    //  how it went in |statusView| when the menu's art has one, else on the
+    //  terminal. Then hold it with pauseBelowArt().
+    //
+    showOutcome(text, statusView) {
+        if (statusView) {
+            statusView.setText(text);
+        } else {
+            this.client.term.write(`\n${text}\n`);
+        }
+    }
+
+    //  below the art rather than wherever the last view write left the cursor
+    pauseBelowArt(cb) {
+        const position = Object.assign({}, this.afterArtPosition);
+        const termHeight = this.client.term.termHeight;
+        if (termHeight > 0 && position.row > termHeight) {
+            position.row = termHeight;
+        }
+        return this.pausePrompt(position, cb);
     }
 
     pausePrompt(position, cb, type = 'end') {
@@ -976,15 +1009,19 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         const views = [];
 
+        //  a menu with no art has no view controller at all, as getView()
+        //  just above already allows for
+        const form = this.viewControllers[formName];
+        if (!form) {
+            return views;
+        }
+
         let view;
         let customMciId = startId;
         const config = this.menuConfig.config;
         const endId = options.endId || 99; //  we'll fail to get a view before 99
 
-        while (
-            customMciId <= endId &&
-            (view = this.viewControllers[formName].getView(customMciId))
-        ) {
+        while (customMciId <= endId && (view = form.getView(customMciId))) {
             const key = `${formName}InfoFormat${customMciId}`; //  e.g. "mainInfoFormat10"
             const format = config[key];
 

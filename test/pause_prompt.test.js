@@ -316,3 +316,91 @@ describe('MenuModule._applyPausePosition', () => {
         assert.equal(base.row, 20); //  original unchanged
     });
 });
+
+describe('MenuModule.optionalMoveToPosition', () => {
+    const movesOf = (m, position) => {
+        const moves = [];
+        m.client.term.rawWrite = data => moves.push(data);
+        m.optionalMoveToPosition(position);
+        return moves;
+    };
+
+    //  a pause prompt drawn at 1,1 lands above the text it is pausing on
+    it('does not move for a position with no coordinates', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), {}), []);
+    });
+
+    it('does not move for a position whose row and col are zero', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), { row: 0, col: 0 }), []);
+    });
+
+    //  what initSequence() hands it for a menu with no art
+    it('does not move for a position whose row and column are zero', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), { row: 0, column: 0 }), []);
+    });
+
+    //  initSequence() spells it 'column'; _applyPausePosition spells it 'col'
+    it('moves to the column under either spelling', () => {
+        assert.match(movesOf(makeMenuModule(), { row: 20, column: 5 })[0], /\[20;5H$/);
+        assert.match(movesOf(makeMenuModule(), { row: 20, col: 5 })[0], /\[20;5H$/);
+    });
+
+    it('does not move when given nothing at all', () => {
+        assert.deepEqual(movesOf(makeMenuModule(), null), []);
+    });
+
+    it('moves to the row it is given', () => {
+        const moves = movesOf(makeMenuModule(), { row: 20 });
+        assert.equal(moves.length, 1);
+        assert.match(moves[0], /\[20;1H$/);
+    });
+
+    it('moves to the row and column it is given', () => {
+        const moves = movesOf(makeMenuModule(), { row: 20, col: 5 });
+        assert.equal(moves.length, 1);
+        assert.match(moves[0], /\[20;5H$/);
+    });
+});
+
+describe('MenuModule outcome helpers', () => {
+    it('shows the outcome in the status view when there is one', () => {
+        const m = makeMenuModule();
+        const shown = [];
+        m.client.term.write = () => assert.fail('wrote to the terminal');
+        m.showOutcome('Done', { setText: text => shown.push(text) });
+        assert.deepEqual(shown, ['Done']);
+    });
+
+    it('writes the outcome to the terminal when there is no view', () => {
+        const m = makeMenuModule();
+        const written = [];
+        m.client.term.write = data => written.push(data);
+        m.showOutcome('Done', undefined);
+        assert.deepEqual(written, ['\nDone\n']);
+    });
+
+    const pausedAt = afterArtPosition => {
+        const m = makeMenuModule();
+        m.afterArtPosition = afterArtPosition;
+        let position;
+        m.pausePrompt = (p, cb) => {
+            position = p;
+            cb();
+        };
+        m.pauseBelowArt(() => {});
+        return position;
+    };
+
+    //  not wherever the last view write left the cursor, inside the art
+    it('pauses on the row below the art', () => {
+        assert.equal(pausedAt({ row: 12, column: 0 }).row, 12);
+    });
+
+    it('keeps the pause on screen when the art fills it', () => {
+        assert.equal(pausedAt({ row: 40, column: 0 }).row, 25);
+    });
+
+    it('pauses where the cursor is on a menu with no art', () => {
+        assert.equal(pausedAt({ row: 0, column: 0 }).row, 0);
+    });
+});

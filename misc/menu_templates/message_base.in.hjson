@@ -68,6 +68,13 @@
                     value: { command: "U" }
                     action: @menu:offlineMailImport
                 }
+                //  an export leaves the packet in the caller's download
+                //  queue; this is how they get it without a trip to the
+                //  file base
+                {
+                    value: { command: "E" }
+                    action: @menu:fileBaseDownloadManager
+                }
                 {
                     value: { command: "Q" }
                     action: @systemMethod:prevMenu
