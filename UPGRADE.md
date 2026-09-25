@@ -139,6 +139,122 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   The shipped `MSGLIST.ANS` and `MYMSGLST.ANS` name the key in their legend; a theme of your own needs the line adding to its own art.
 
+* **`opVisibility: false` on the WFC now does what it says** — this one affects you whether or not you change anything. `wfc.md` has documented the option as a boolean since it existed, while the code matched only the strings `'hidden'` and `'visible'` — so `opVisibility: false` fell through the switch and did nothing, and that is the form people wrote. Booleans are now accepted, which means an +op who has always stayed *visible* despite the setting will start being hidden on the next `git pull`.
+
+  That is more than cosmetic: an invisible +op is excluded from `getActiveConnections({visibleOnly: true})`, so they receive **no broadcast notifications at all** — no global achievements, no `-ALL-` node messages.
+
+  **Action:** none required if you meant it. If you did not, either remove the setting or write the string form, which stays canonical:
+
+  ```hjson
+  mainMenuWaitingForCaller: {
+      config: {
+          //  or: visible | hidden
+          opVisibility: current
+      }
+  }
+  ```
+
+* **The WFC's message keys and its `wfcNodeMessage` menu reach new installations only** ([#438](https://github.com/NuSkooler/enigma-bbs/issues/438), [#217](https://github.com/NuSkooler/enigma-bbs/issues/217)). The routing itself works on an upgraded board — node messages stop painting over the dashboard the moment you pull — but there is no way to *read* them until you add the keys, because your `menu.hjson` is yours and is never rewritten. Without this the messages accumulate in the inbox unread, and the status bar count is the only sign they exist.
+
+  **Action:** three additions to `mainMenuWaitingForCaller` in your `menu.hjson`. First, the two keys on form `0`, alongside the ones already there:
+
+  ```hjson
+  {
+      keys: [ "m", "shift + m" ]
+      action: @method:displayMessages
+  }
+  {
+      keys: [ "s", "shift + s" ]
+      action: @method:sendNodeMessage
+  }
+  ```
+
+  Second, a new form `4` for the viewer itself:
+
+  ```hjson
+  4: {
+      mci: {
+          VM1: { focus: true }
+          MT2: {
+              acceptsFocus: false
+              acceptsInput: false
+          }
+      }
+
+      actionKeys: [
+          {
+              keys: [ "r", "shift + r" ]
+              action: @method:replySelectedMessage
+          }
+          {
+              keys: [ "d", "shift + d", "del" ]
+              action: @method:dismissSelectedMessage
+          }
+          {
+              keys: [ "escape", "q", "shift + q" ]
+              action: @method:exitMessages
+          }
+      ]
+  }
+  ```
+
+  Third, the menu <kbd>S</kbd> and <kbd>R</kbd> go to. It is the same module and art as `nodeMessage`, as its own entry so the sysop path can be rethemed without changing what callers see:
+
+  ```hjson
+  wfcNodeMessage: {
+      desc: Node Messaging
+      module: node_msg
+      art: NODEMSG
+      config: {
+          cls: true
+          art: {
+              header: NODEMSGHDR
+              footer: NODEMSGFTR
+          }
+      }
+      form: {
+          0: {
+              mci: {
+                  SM1: {
+                      argName: node
+                  }
+                  ET2: {
+                      argName: message
+                      submit: true
+                  }
+              }
+              actionKeys: @reference:common.escToPrev
+              submit: {
+                  *: [
+                      {
+                          value: {
+                              message: null
+                          }
+                          action: @method:sendMessage
+                      }
+                  ]
+              }
+          }
+      }
+  }
+  ```
+
+  Set `nodeMessageMenuName` on the WFC if you would rather point <kbd>S</kbd> and <kbd>R</kbd> at your existing `nodeMessage` and skip the separate entry.
+
+* **A theme of your own needs a `wfcNodeMessage` block, or its node list will look wrong.** Theme customization is keyed by menu name, and `wfcNodeMessage` is a new name that inherits none of `nodeMessage`'s formatting. Without a block the node selector renders as a bare `2` instead of `node 2 (Umbra)`. Nothing errors and nothing is logged — it just looks wrong, and only if you happen to look at it.
+
+  `luciano_blocktronics` has been given a matching block, and two tests now guard the pattern so the next one is caught by CI: menu names that a module falls back to in code are checked against the shipped templates, and a sysop-side variant is checked against its original for the same module and the same MCI codes.
+
+  **Action:** copy your theme's `nodeMessage` block to `wfcNodeMessage`. If you customize neither, there is nothing to do.
+
+* **New WFC art is optional, and the features degrade rather than break without it.** Three additions, none required:
+
+  * `wfcmessages` art with `%VM1` (message list) and `%MT2` (detail). Without it <kbd>M</kbd> shows a plain text list instead, which works — but the fallback has no selection, so <kbd>R</kbd> and <kbd>D</kbd> do nothing until the art exists.
+  * `%TK6` in your WFC art turns on the activity ticker. Without it the feed accumulates, bounded by `ticker.maxItems`, and nothing renders.
+  * `%SB5` gives you the message and page count panels.
+
+  Those view IDs are not interchangeable: the WFC looks the ticker up as ID **6** and the status bar as ID **5**. ID 1 is already `%VM1`, the node status list, and `ViewController` keys views by ID with a plain assignment — so `%TK1` or `%SB1` in WFC art would replace the node list rather than quietly do nothing.
+
 * **Eight customizations in the `luciano_blocktronics` theme were named wrongly and have been corrected.** `ThemeManager` starts from your `menu.hjson` and looks each menu up in the theme, so a customization naming a menu that does not exist is never consulted — it silently does nothing. Seven menu blocks and one prompt block in the theme we ship named nothing at all. Three were renamed to the menus they were meant for and four were removed.
 
   **This only affects you if you use `luciano_blocktronics` unmodified *and* your `menu.hjson` predates the menu renames.** If so, these blocks stop applying to your board:
@@ -213,6 +329,36 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
   * **TICs from the unsecure inbound are never forwarded**, even where you have set `tic.secureInOnly` to `false` in order to import from there.
 
   One behaviour changes whether or not you forward anything: a **TIC addressed to a system that is not you** — one being routed *through* you — is still imported as before, but is now logged as not forwarded. Routing such files onward is not implemented; if you see this, that echo is not reaching whoever is downstream of you and never was.
+
+* **A hub with more than one AKA now signs each downlink from the nearest one** ([#757](https://github.com/NuSkooler/enigma-bbs/issues/757)). This changes behaviour without any configuration change on your part. TIC forwarding previously took the network from the *first* downlink's zone and signed **every** downlink with it, so a system carrying an echo to links on two networks announced the wrong identity to some of them.
+
+  Each downlink is now addressed from your closest AKA by zone and net, and `Seenby` lists every AKA in play rather than only one. If you have a single address, nothing changes.
+
+  **Action:** none, unless you were relying on the old behaviour — in which case pin it explicitly, either per area or per link:
+
+  ```hjson
+  ticAreas: {
+      fsx_gen: {
+          //  every downlink of this area
+          network: fsxnet
+      }
+  }
+
+  nodes: {
+      "21:1/100": {
+          //  just this link
+          tic: {
+              network: fsxnet
+          }
+      }
+  }
+  ```
+
+  The outbound *directory* is deliberately unaffected and stays the area's: the per-node `.bsy` lock is derived from the address by zone, and filing a flow file anywhere else would mean the tosser and a live BinkP session take different locks.
+
+* **Hatching and passthrough areas are both new and both off** ([#751](https://github.com/NuSkooler/enigma-bbs/issues/751), [#753](https://github.com/NuSkooler/enigma-bbs/issues/753)). Nothing changes on an existing board. `oputil.js fb hatch` is there when you want it, and a `ticAreas` entry carries files in transit only once you set `passthrough: true`.
+
+  `passthrough` is **required explicitly and is never inferred** from a missing `areaTag`. That is deliberate and worth knowing: a `ticAreas` key is matched against `fileBase.areas` too, so an entry without an `areaTag` may well be a working stored area — inferring passthrough would have turned it into one that deletes its files after the last downlink collects them.
 
 * **Queueing outbound now respects the FTS-5005 `.bsy` lock, as it always should have.** ENiGMA½ appended to BSO flow files without taking the per-node lock, so an append landing while the BinkP side was rewriting the same file was silently lost and that file never shipped. **No action is required** and no configuration changes; the new `scannerTossers.ftn_bso.flowLockTimeoutMs` defaults to 5 seconds.
 

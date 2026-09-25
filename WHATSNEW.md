@@ -102,6 +102,47 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
   The same problems are now also reported **at startup and when you edit a running board** — on the console at startup, since the log is not open yet, and to the log on a hot reload. Neither ever stops anything: a configuration with problems is still applied, exactly as before. Set `general.configValidation` to `off` to stay silent; `oputil.js config validate` keeps working either way. There is deliberately no strict mode.
 
+* **Notifications reach an +op at the WFC without wrecking the dashboard** ([#438](https://github.com/NuSkooler/enigma-bbs/issues/438), [#217](https://github.com/NuSkooler/enigma-bbs/issues/217)) — an +op sitting at the waiting-for-caller screen is a node like any other, so achievements, node messages and time warnings were all aimed at their terminal. The WFC queues rather than displays, so nothing appeared at the time; the items were then flushed on the way *out*, painting over whatever menu the op had moved to. A dashboard that gets painted over is not a dashboard, so nothing is drawn on top of it any more — each notification is **routed** instead.
+
+  Every interrupt item now carries a `type` (`nodeMsg`, `achievement`, `achievementGlobal`, `sysopPage`, `timeWarning`, `system`) and, where a person is involved, a `from` naming them. Each type is routed to zero or more *sinks*:
+
+  | Type | Default sinks | Why |
+  |---|---|---|
+  | `nodeMsg` | `inbox`, `statusBar` | read on the op's terms |
+  | `achievement` / `achievementGlobal` | `log` | decorative; the shipped `achievements.hjson` has 125 `globalText` entries |
+  | `sysopPage` | *(none)* | `pendingPages` and the node-list indicator already show it |
+  | `timeWarning` | *(none)* | sysops are typically unlimited |
+  | `system` / untagged | `interrupt` | anything unforeseen behaves exactly as before |
+
+  An untagged item is `system` and therefore still interrupts, so nothing a third-party module queues can be silently swallowed. Override any of it per install with a `notifications` block on the menu.
+
+  <kbd>M</kbd> opens a message viewer (<kbd>R</kbd> reply, <kbd>D</kbd>/<kbd>DEL</kbd> dismiss), and <kbd>S</kbd> sends to the node highlighted in the node list — #438's "select a node and send". Both go to a new `wfcNodeMessage` menu rather than the `nodeMessage` users reach with `msg`: the same module and art, but its own entry, so the sysop path can be rethemed without changing what callers see. The inbox hangs off the connection rather than the module instance, because leaving the WFC destroys and rebuilds that instance — an inbox on it would lose anything unread the moment the op stepped away.
+
+  Earning an achievement produced **no** `Log` call anywhere, so it was invisible in the rotating log and both WFC log views. It is logged now, which is what makes the `log` sink mean anything.
+
+  An existing board keeps the menus it has, so see [UPGRADE.md](UPGRADE.md) for the keys and menu entry to add.
+
+  See [WFC](https://enigma-bbs.github.io/modules/wfc/).
+
+* **Four bugs behind "the WFC gets corrupted when another node earns an achievement"** — the framing turned out to be wrong: an achievement arriving while an +op sits at the WFC writes **zero** bytes at the time. The corruption came from four separate defects, each now with a targeted test.
+
+  * **The WFC leaked its `ClientDisconnected` listener.** `enter()` registered a bound function and `leave()` removed a *freshly* bound one, which never matches — one listener per visit. Since `View.destroy()` is a no-op, those stale instances kept running their refresh and painting the node list, quick log and stat views over whatever menu the op had since moved to. Reproducible on an unrelated telnet client dropping.
+  * **The interrupt queue was flushed while the outgoing menu was still live**, so a refresh timer was still repainting over the interrupt art and the key that dismissed it also reached the departing menu's action keys — where <kbd>K</kbd> opens the kick-node confirm.
+  * **The queue was LIFO**, so a run of node messages was read newest-first.
+  * **Two +ops collided over the quick log.** Each WFC instance added a bunyan stream under the same name, and `leave()` removed streams *by* that name — so the first op to leave silently and permanently froze the other's quick log, with nothing on screen to say so.
+
+  `sysop_chat` had the second of those in its own exit path and now holds interrupts for the destination menu instead.
+
+* **Queued interrupts are drained on arrival only** — the queue was drained at four sites: once on arrival, and three times on *departure*, in `prevMenu()`, `nextMenu()` and `autoNextMenu()`. The departure drains are the defect above, and they ran before the outgoing menu's `leave()`, so its form was still bound to key presses while the interrupt waited for one.
+
+  Draining now happens only on arrival, where the destination owns the screen and nothing is attached. This is **more** coverage than before, not less: 29 modules override `initSequence()` without draining, so a queued item was never shown while inside any of them; the drain moved to `enter()`, which only four modules override and all four call `super`. A module that must not be interrupted while arriving overrides `displayQueuedInterruptions()` or sets `interrupt: never`.
+
+* **A WFC activity ticker** — add a `%TK6` ticker to the WFC art and it becomes a board activity marquee, fed from the same nine system events that already drive each user's log: if it is worth writing to a user's log it is worth putting on the marquee. `userLogin`, `userAchievementEarned` and `userUpload` have default formats and the rest are opt-in, since an event with no format string is not shown. `ticker.rotateOn` takes `"cycle"` or a number of milliseconds, and `ticker.idleText` covers a dry feed so the row is never blank. Routing a notification type to the `ticker` sink puts it on the marquee too.
+
+  `TickerView` gained a **`cycle complete`** event for this, emitted at each motion's natural boundary — when a scroll offset wraps, when a hold phase ends, when a bounce completes its round trip. A feed that swaps text on that event never cuts a message off mid-word, which a plain timer would. Useful to anything driving a ticker, not only the WFC.
+
+* **`opVisibility` accepts the booleans it was always documented as taking** — `wfc.md` has described a boolean since the option existed while the code matched only `'hidden'` and `'visible'`, so `opVisibility: false` fell through the switch and did nothing. That is the form people wrote. It matters because an invisible +op is excluded from `getActiveConnections({visibleOnly: true})` and therefore receives no broadcast notifications at all. Strings stay canonical; **this changes behaviour on an existing board**, so see [UPGRADE.md](UPGRADE.md).
+
 * **TIC-announced files were lost whenever the file arrived after its announcement** ([#735](https://github.com/NuSkooler/enigma-bbs/issues/735)) — a `.tic` control file and the file it announces routinely arrive in *separate* mailer sessions; a peer running HTick was observed announcing a full Zone 1 nodelist 15–20 minutes ahead of the payload. ENiGMA½ processed the `.tic` the moment it landed, could not find the file, archived the announcement to `reject/` and unlinked it. The file then arrived with nothing left to pair it with and sat in the secure inbound indefinitely. For that peer and that file it failed every single time, and recovery meant finding the orphan by hand and forcing a rescan.
 
   A TIC whose file is not here yet is now **held** and retried on later import passes — the same disposition HTick uses (`TIC_NotRecvd`, "has not been received, waiting") — rather than rejected. Because an import pass already runs the instant a BinkP session delivers files, the pairing normally completes within seconds of the file landing. A TIC that is never satisfied is given up on after `tic.holdMaxAgeMs` (48 hours by default) and rejected as before, so nothing accumulates forever.
@@ -182,6 +223,28 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   Problems that would otherwise be silent are reported at startup: an area with downlinks but no resolvable network, a downlink missing from `nodes`, or one with no TIC password.
 
   * **A system carrying file echoes and no message areas can now import at all.** The import pass was gated on having `messageNetworks.ftn.areas` configured, which TIC processing has nothing to do with — so a file-echo-only system logged "EchoMail export disabled" and then silently did nothing with every file its uplink sent. That configuration was barely reachable before this feature existed; it is the obvious one to try now.
+
+* **Hatching — you can put your own file into an echo you carry** ([#751](https://github.com/NuSkooler/enigma-bbs/issues/751)) — forwarding passes on a file an uplink sent you; hatching originates one. A hub that cannot hatch cannot ship its own nodelist or infopack — it can only repeat what it is told.
+
+  ```
+  oputil.js fb hatch <areaTag> <file> [--desc ...] [--replaces ...]
+  ```
+
+  The area tag is the FTN one, a `ticAreas` key, because that is what an operator configuring a hatch is looking at and one local area may carry several echoes. Deliberately thin: the per-downlink TIC generation, the loop guard, the unique 8.3 naming, the payload-then-TIC append and the `Replaces` dequeue are all reached through the same code a forward uses, now shared rather than duplicated. A `ticAreas` entry may carry an `areaDesc`, written as FTS-5006 `Areadesc` into TICs you hatch; a forwarded TIC carries whatever the hatching system wrote, untouched.
+
+  See [oputil](https://enigma-bbs.github.io/admin/oputil/) and [TIC Support](https://enigma-bbs.github.io/filebase/tic-support/).
+
+* **Passthrough file areas — carry an echo without storing it** ([#753](https://github.com/NuSkooler/enigma-bbs/issues/753)) — a hub may carry an echo purely for its downlinks, with no interest in keeping the files. `store()` required a local file base area and hard-failed without one, so a hub had to keep an area per echo for files its own users would never browse.
+
+  Set `passthrough: true` on the `ticAreas` entry and the file is held in a transit directory only as long as a downlink still references it, then swept. It is **required explicitly and never inferred** from a missing `areaTag`: a `ticAreas` key is matched against `fileBase.areas` too, so an entry without one may well be a working stored area that inference would quietly turn into a deleting one.
+
+* **An echo carried on more than one network addresses each downlink correctly** ([#757](https://github.com/NuSkooler/enigma-bbs/issues/757)) — TIC forwarding took the network from the *first* downlink's zone and then signed every downlink with it. A hub with several AKAs, or an area carried on two networks, therefore presented the wrong identity to some of its links.
+
+  Each downlink is now addressed from our closest AKA by zone and net, with `nodes.<addr>.tic.network` and then the area's `network` as overrides. `Seenby` lists every AKA in play rather than only one, because a peer matches it against the address *it* knows us by — a `Seenby` naming one address lets a system that knows us by another forward the file straight back.
+
+  The outbound *directory* deliberately stays the area's and is not tied to that choice: the per-node `.bsy` lock is derived from the address by zone, and a flow file written where the lock resolver does not expect it means the tosser and a live BinkP session take *different* locks — which is the whole exclusion [FTS-5005](http://ftsc.org/docs/fts-5005.003) exists to provide. Nothing is lost, since an outbound session presents every one of our addresses in the handshake anyway.
+
+* **A forwarded file and the TIC announcing it are now pruned together** ([#862](https://github.com/NuSkooler/enigma-bbs/issues/862)) — the two are queued in one append, adjacent and in that order, so removing one must remove the other. The tosser's `scrubFlowFileRefs()` knew that; the BinkP side's prune path did not. Pruning a missing payload therefore left its TIC queued, and downlinks were handed TICs announcing files they would never receive. The companion rule now lives in one shared place used by both.
 
 * **Outbound could be dropped on the floor while a mail session was running** — ENiGMA½ appended reference records to BSO flow files without taking the flow file's `.bsy` lock, while the BinkP side rewrites those same files as entries are sent: it reads the whole file, marks a line done, and writes it back. An append landing between that read and that write was **silently discarded**. No error, no log — the queued file simply never shipped, and with nothing left referencing it, its packet sat in the outbound indefinitely. The busier the system, the more often it happened.
 
@@ -301,6 +364,12 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
   * **Point addresses are now polled and shipped** — §2 puts a point's flow and control files in a `NNNNnnnn.pnt` subdirectory of the boss node's outbound. `ftn_bso` has always written that layout, but the native BinkP mailer had no knowledge of it: point mail was never sent, and polling a point address served it the boss node's mail instead. Points are now scanned, shipped, and locked in their own subdirectory.
 
 * **Multi-network BSO outbound fix** — `ftn_bso` (the scanner/tosser) and the native BinkP mailer used two independent rules to decide which FTN network owns the bare `outbound/` spool directory. With two or more networks configured and no explicit `scannerTossers.ftn_bso.defaultNetwork`, the two disagreed: outbound NetMail and EchoMail for the first-listed network was written to `mail/ftn_out/<network>/` but looked for in `mail/ftn_out/outbound/`, so it was never sent — and never logged an error. Both sides now share a single resolver (`defaultNetwork` when set, otherwise the first listed network), network names are matched case-insensitively, and mail already queued under the previous layout is picked up and sent automatically. See [UPGRADE.md](UPGRADE.md) for details.
+
+* **A file could not be found by its own name** — `FileEntry.findFiles()` and the message base ran query *values* through a `sanitizeString()` that escapes MySQL style: doubling `"` and backslash-escaping `\`, `%` and the control characters. SQLite's only string-literal escape is a doubled quote, so all of that arrived as **extra characters** and a value could not match itself. A file named `100% Pure.zip` or `back\slash.zip` was simply not findable.
+
+  Never an injection — the one escape that mattered was correct — but wrong, so values are now bound parameters rather than interpolated into the statement. The one interpolation that remains, a sort column, is checked against an allow-list, since a column name cannot be a bound parameter.
+
+  A wildcard `Replaces` was the same bug with teeth ([#864](https://github.com/NuSkooler/enigma-bbs/issues/864)): a TIC's `Replaces` is a DOS glob matched against the stored short file name, and the conversion turned `*` into `%` before handing the result to the escaper — so every wildcard came back out as the literal two characters `\%`, and with no `ESCAPE` clause SQLite read that backslash literally. `Replaces NODELIST.*` therefore matched nothing, `tic.allowReplace` stored a **second copy** instead of superseding, and the old file stayed live in the base and queued for every downlink that had not collected it. An exact `Replaces NODELIST.246` worked, and so did `NODELIST.2?6`, which is what made it so quiet.
 
 ## 0.5.0-beta
 
