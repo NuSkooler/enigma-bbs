@@ -34,10 +34,6 @@
                     value: { command: "DP" }
                     action: @menu:doorPartyExample
                 }
-                {
-                    value: { command: "EXODUS" }
-                    action: @menu:doorExodusCataclysm
-                }
                 //
                 //  v86 native DOS emulation example
                 //  See: doors/v86.md
@@ -152,21 +148,6 @@
                 //  memoryMb: 64      // optional, default 64
                 //  biosPath: /path/to/seabios.bin      // default: misc/v86_bios/seabios.bin
                 //  vgaBiosPath: /path/to/vgabios.bin   // default: misc/v86_bios/vgabios.bin
-            }
-        }
-
-        //
-        //  Exodus Example (cataclysm)
-        //  Register @ https://oddnetwork.org/exodus/
-        //
-        doorExodusCataclysm: {
-            desc: Cataclysm
-            module: exodus
-            config: {
-                rejectUnauthorized: false
-                board: XXX
-                key: XXXXXXXX
-                door: cataclysm
             }
         }
 	}

@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Exodus has shut down; the module (`exodus.js`) has been removed** ([#857](https://github.com/NuSkooler/enigma-bbs/issues/857)). Both ports the module needs refuse connections and every documented URL is gone, so there was nothing left to point it at. See [UPGRADE](UPGRADE.md) if your `menu.hjson` still carries an Exodus menu.
+
 * **Daily time limits** ([#795](https://github.com/NuSkooler/enigma-bbs/issues/795)) — ENiGMA½ can now meter how long a user spends on the board each day and cut them off when their allowance runs out.
 
   **Nothing is metered until you say so.** No allowance ships configured, every user is unlimited, and upgrading an existing board changes nothing. Time used today is tracked regardless, so `oputil.js user info` and the new `TD` MCI code tell the truth even where nothing is enforced — it is the "time on today" figure ENiGMA½ has never had.
