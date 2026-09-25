@@ -20,6 +20,11 @@ const UserProps = require('./user_property.js');
 const UserTime = require('./user_time.js');
 const SysProps = require('./system_property.js');
 const { TelnetSocket } = require('telnet-socket');
+const {
+    isTelnetBasedClient,
+    escapeIacs,
+    createIacDeEscaper,
+} = require('./telnet_iac.js');
 
 //  deps
 const async = require('async');
@@ -361,38 +366,27 @@ exports.getModule = class TransferFileModule extends MenuModule {
         //  support for handlers that need IACs taken care of over Telnet/etc.
         const configProcessIACs = external.processIACs || external.escapeTelnet; //  deprecated name
 
-        //  Only process IACs for Telnet-based connections (Telnet, WebSocket), not SSH
-        //  Use robust detection instead of fragile constructor.name checking
-        let isTelnetBased = false;
-
         if (!this.client || typeof this.client !== 'object') {
             Log.warn('Invalid client object in file transfer');
             return cb(new Error('Invalid client object'));
         }
 
-        //  Check if client uses TelnetSocket (most reliable indicator)
-        if (this.client.socket && this.client.socket instanceof TelnetSocket) {
-            isTelnetBased = true;
-        }
-        //  Fallback: Check if client has telnet-specific methods/properties
-        else if (this.client.banner && typeof this.client.banner === 'function') {
-            //  TelnetClient and WebSocketClient have banner() method, SSH clients don't
-            isTelnetBased = true;
-        }
-        //  Additional fallback: Check for telnet-specific socket methods
-        else if (
-            this.client.socket &&
-            typeof this.client.socket.writeData === 'function' &&
-            typeof this.client.socket.negotiateOptions === 'function'
-        ) {
-            //  These are TelnetSocket-specific methods
-            isTelnetBased = true;
-        }
-
+        //
+        //  Only Telnet-based transports (Telnet, WebSocket) escape IACs; over SSH
+        //  0xFF is ordinary data and touching it corrupts the stream. The transforms
+        //  themselves live in telnet_iac.js so they can be unit tested -- nothing
+        //  here is reachable from a test, since this method spawns a pty.
+        //
+        const isTelnetBased = isTelnetBasedClient(this.client);
         const processIACs = configProcessIACs && isTelnetBased;
 
-        const IAC = Buffer.from([255]);
-        const EscapedIAC = Buffer.from([255, 255]);
+        //
+        //  Stateful by necessity: an escaped pair can straddle two chunks, and the
+        //  de-escaper holds the undecided byte until the next one arrives. The
+        //  previous inline version searched each chunk on its own and let split
+        //  pairs through doubled, which is what broke large transfers.
+        //
+        const iacDeEscaper = processIACs ? createIacDeEscaper() : null;
 
         this.client.log.debug(
             {
@@ -429,28 +423,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
             updateActivity();
 
             //  needed for things like sz/rz
-            if (processIACs) {
-                let iacPos = data.indexOf(EscapedIAC);
-                if (-1 === iacPos) {
-                    return externalProc.write(data);
+            if (iacDeEscaper) {
+                const deEscaped = iacDeEscaper.transform(data);
+                if (deEscaped.length) {
+                    externalProc.write(deEscaped);
                 }
-
-                //  at least one double (escaped) IAC
-                let lastPos = 0;
-                while (iacPos > -1) {
-                    let rem = iacPos - lastPos;
-                    if (rem >= 0) {
-                        externalProc.write(data.slice(lastPos, iacPos + 1));
-                    }
-                    lastPos = iacPos + 2;
-                    iacPos = data.indexOf(EscapedIAC, lastPos);
-                }
-
-                if (lastPos < data.length) {
-                    externalProc.write(data.slice(lastPos));
-                }
-                // const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
-                // externalProc.write(Buffer.from(tmp, 'binary'));
             } else {
                 externalProc.write(data);
             }
@@ -460,33 +437,27 @@ exports.getModule = class TransferFileModule extends MenuModule {
             updateActivity();
 
             //  needed for things like sz/rz
-            if (processIACs) {
-                let iacPos = data.indexOf(IAC);
-                if (-1 === iacPos) {
-                    return this.client.term.rawWrite(data);
-                }
-
-                //  Has at least a single IAC
-                let lastPos = 0;
-                while (iacPos !== -1) {
-                    if (iacPos - lastPos > 0) {
-                        this.client.term.rawWrite(data.slice(lastPos, iacPos));
-                    }
-                    this.client.term.rawWrite(EscapedIAC);
-                    lastPos = iacPos + 1;
-                    iacPos = data.indexOf(IAC, lastPos);
-                }
-
-                if (lastPos < data.length) {
-                    this.client.term.rawWrite(data.slice(lastPos));
-                }
-            } else {
-                this.client.term.rawWrite(data);
-            }
+            this.client.term.rawWrite(processIACs ? escapeIacs(data) : data);
         });
 
         externalProc.onExit(exitEvent => {
             const { exitCode, signal } = exitEvent;
+
+            //
+            //  A still-pending IAC means the client's stream ended mid-sequence: a
+            //  lone 0xFF is either half of an escaped pair or the start of a
+            //  command, so it is never a complete message on its own. The byte is
+            //  of no use to a process that has already exited, but it is worth
+            //  recording -- it points at a truncated transfer rather than a clean one.
+            //
+            if (iacDeEscaper && iacDeEscaper.hasPendingIac) {
+                iacDeEscaper.flush();
+                this.client.log.debug(
+                    { cmd: cmd },
+                    'Transfer stream ended on an incomplete IAC sequence'
+                );
+            }
+
             this.client.log.debug(
                 { cmd: cmd, args: args, exitCode, signal },
                 'Process exited'
