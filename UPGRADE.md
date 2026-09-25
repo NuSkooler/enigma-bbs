@@ -22,6 +22,18 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **Nodemailer moved from 8.x to 10.x** to clear a high severity advisory (see [#860](https://github.com/NuSkooler/enigma-bbs/issues/860)). Nothing in ENiGMA½'s own use of it changed — composing and sending produce byte-identical headers — but **one upstream change can affect a sysop's configuration**.
+
+  Since nodemailer 9.0.0, HTTPS requests made *while fetching remote content* validate the server's TLS certificate by default. That covers three things ENiGMA½ can be configured into:
+
+  * an **OAuth2 token endpoint**, if your `email.transport` authenticates that way,
+  * an **HTTP/HTTPS proxy** reached with `CONNECT`,
+  * an attachment supplied by `href` or a URL `path`.
+
+  A host with a self-signed, expired, or hostname-mismatched certificate that worked before will now fail. This does **not** change how the SMTP connection itself is secured — only those content fetches.
+
+  **Action:** none for most boards. If you authenticate to your mail provider with OAuth2 through an internal endpoint, or send mail through a proxy with a private CA, and outbound mail stops working, set `tls: { rejectUnauthorized: false }` in the relevant transport options — or, better, trust the CA properly.
+
 * **Four editors were never migrated to the `%SB1` footer** — `privateMailMenuCreateMessage`, `newUserFeedbackToSysOp`, `messageAreaReplyPost` and `preAuthFeedback` draw `MSGEFTR`, whose art has carried a single `%SB1` since 0.1.0, but never configured it. Three still had the retired `TLTL` block on form `2`, naming `%TL1` and `%TL2` views the art no longer has; the reply editor had no form `2` at all.
 
   `core/fse.js` drives that bar with `setPanel('pos')` and `setPanel('mode')`, and `StatusBarView.setPanel()` returns early unless the view was built with a `panels` array — which only a form `2` `SB1` block supplies. So those four editors have shown an **empty footer**: no cursor position, no INS/OVR indicator, nothing logged. `oputil.js config validate` cannot report it either, since MCI blocks belong to the modules that read them and are deliberately left unchecked.
