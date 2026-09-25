@@ -105,7 +105,8 @@
     "overrides": {
         "avatar-generator": {
             "sharp": "^0.35.4"
-        }
+        },
+        "micromatch": "^4.0.8"
     },
     "engines": {
         "node": ">=22"
