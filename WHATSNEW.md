@@ -3,6 +3,12 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **File transfers through the Telnet bridge now work over SSH** ([#266](https://github.com/NuSkooler/enigma-bbs/issues/266)). Downloading from a remote board reached via `telnet_bridge` failed a few chunks in with `recv_header timeout` if you had connected to ENiGMA½ over SSH, while the same download over Telnet was fine.
+
+  The bridge piped bytes between the two sides untouched. That is correct for a Telnet or WebSocket caller, whose own client speaks Telnet and undoes the escaping itself — but an SSH caller has no Telnet layer, so the remote's doubled `0xFF` bytes arrived doubled and its negotiation landed in the middle of the download. The bridge now terminates Telnet itself for those callers: it de-escapes the data, keeps negotiation out of the stream, and answers that negotiation on the caller's behalf. Telnet and WebSocket callers are unchanged.
+
+* **Large and binary uploads no longer corrupt on Telnet and WebSocket connections.** An escaped `0xFF` pair split across two reads was not recognised as a pair, so both bytes reached `sz`/`rz` and the transfer failed. Small files often contained no `0xFF` at all and were unaffected, which is why this showed up as "works for small files, fails at 12MB+". Images were worst hit — JPEG is saturated with `0xFF`.
+
 * **Exodus has shut down; the module (`exodus.js`) has been removed** ([#857](https://github.com/NuSkooler/enigma-bbs/issues/857)). Both ports the module needs refuse connections and every documented URL is gone, so there was nothing left to point it at. See [UPGRADE](UPGRADE.md) if your `menu.hjson` still carries an Exodus menu.
 
 * **Daily time limits** ([#795](https://github.com/NuSkooler/enigma-bbs/issues/795)) — ENiGMA½ can now meter how long a user spends on the board each day and cut them off when their allowance runs out.
