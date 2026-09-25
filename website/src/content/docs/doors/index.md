@@ -4,7 +4,7 @@ description: "Run door games on your board — DOS via v86 or an external emulat
 sidebar:
     order: 1
 ---
-ENiGMA½ supports running local BBS door games through several approaches. In addition to the [many built-in door server modules](door-servers.md) (DoorParty, BBSLink, Exodus, etc.), local doors run directly on your server.
+ENiGMA½ supports running local BBS door games through several approaches. In addition to the [many built-in door server modules](door-servers.md) (DoorParty, BBSLink, etc.), local doors run directly on your server.
 
 :::note
 See also [Let's add a DOS door to Enigma½ BBS](https://medium.com/retro-future/lets-add-a-dos-game-to-enigma-1-2-41f257deaa3c) by Robbie Whiting for a great writeup on adding doors!
@@ -60,7 +60,7 @@ Each of the older formats carries a field naming the connection the door has bee
 ---
 
 ## See Also
-* [Door Servers](door-servers.md) — DoorParty, BBSLink, Exodus, and other hosted door services
+* [Door Servers](door-servers.md) — DoorParty, BBSLink, and other hosted door services
 * [Telnet Bridge](telnet-bridge.md)
 * [Scripts & Native Binaries](scripts-and-binaries.md)
 * [External DOS Emulators](dos-emulation.md)

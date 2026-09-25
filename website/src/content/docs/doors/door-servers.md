@@ -1,6 +1,6 @@
 ---
 title: Door Servers
-description: "Connect to hosted door services: BBSLink, DoorParty and Exodus."
+description: "Connect to hosted door services: BBSLink and DoorParty."
 sidebar:
     order: 6
 ---
@@ -57,6 +57,3 @@ password: "@file:/run/secrets/doorparty_pass"
 ```
 See [Configuration Files — Secret Files](../configuration/config-files.md#secret-files) for details.
 :::
-
-## The Exodus Module
-TBC

@@ -22,6 +22,19 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **The Exodus door module has been removed** ([#857](https://github.com/NuSkooler/enigma-bbs/issues/857)). The service is gone: `oddnetwork.org/exodus/` and its sysop signup return 404, and both ports `exodus.js` needs -- 1984 for a ticket and 22 for the session -- refuse connections. There is no replacement host to point the module at, so it follows CombatNet out of the tree rather than staying as a module that cannot connect.
+
+  The shipped templates no longer offer it, so a new installation is unaffected. **Your `menu.hjson` is yours and is never rewritten**, so a board that configured Exodus still names a module that no longer exists.
+
+  **Action:** remove the Exodus menu and whatever points at it. If you used the shipped example, that is the `doorExodusCataclysm` menu and the `EXODUS` entry in your doors menu's `submit` list.
+
+  You do not have to hunt for it. `oputil.js config validate` names it exactly, and startup reports the same thing:
+
+  ```
+  error    menus.doorExodusCataclysm.module
+           menu module "exodus" is not defined in the core modules -- no "exodus.js" there, nor "exodus/exodus.js"
+  ```
+
 * **Nodemailer moved from 8.x to 10.x** to clear a high severity advisory (see [#860](https://github.com/NuSkooler/enigma-bbs/issues/860)). Nothing in ENiGMA½'s own use of it changed — composing and sending produce byte-identical headers — but **one upstream change can affect a sysop's configuration**.
 
   Since nodemailer 9.0.0, HTTPS requests made *while fetching remote content* validate the server's TLS certificate by default. That covers three things ENiGMA½ can be configured into:
