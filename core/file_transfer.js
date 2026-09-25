@@ -24,6 +24,7 @@ const {
     isTelnetBasedClient,
     escapeIacs,
     createIacDeEscaper,
+    applyTransportFlags,
 } = require('./telnet_iac.js');
 
 //  deps
@@ -378,7 +379,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
         //  here is reachable from a test, since this method spawns a pty.
         //
         const isTelnetBased = isTelnetBasedClient(this.client);
-        const processIACs = configProcessIACs && isTelnetBased;
+        //  coerced: the SEXYZ protocols configure neither flag, and an undefined
+        //  here drops the field out of the diagnostic log entirely rather than
+        //  recording it as false
+        const processIACs = !!(configProcessIACs && isTelnetBased);
 
         //
         //  Stateful by necessity: an escaped pair can straddle two chunks, and the
@@ -387,6 +391,21 @@ exports.getModule = class TransferFileModule extends MenuModule {
         //  pairs through doubled, which is what broke large transfers.
         //
         const iacDeEscaper = processIACs ? createIacDeEscaper() : null;
+
+        //
+        //  Handlers that do their own Telnet framing -- sexyz -- take the
+        //  transport from their arguments, and the shipped lists say `-telnet`
+        //  for everyone. Correct it to match how this caller actually connected,
+        //  or an SSH transfer never starts. See telnet_iac.js.
+        //
+        const originalArgs = args;
+        args = applyTransportFlags(args, isTelnetBased);
+        if (args !== originalArgs) {
+            this.client.log.debug(
+                { from: originalArgs, to: args, isTelnetBased },
+                'Adjusted transfer protocol transport flag'
+            );
+        }
 
         this.client.log.debug(
             {

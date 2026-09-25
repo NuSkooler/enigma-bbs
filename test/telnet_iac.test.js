@@ -9,6 +9,7 @@ const {
     isTelnetBasedClient,
     escapeIacs,
     createIacDeEscaper,
+    applyTransportFlags,
 } = require('../core/telnet_iac.js');
 
 const hex = buf => [...buf].map(b => b.toString(16).padStart(2, '0')).join(' ');
@@ -223,15 +224,88 @@ describe('telnet_iac', () => {
         });
 
         it('handles runs of consecutive IACs', () => {
-            //  Verified against the reference rather than hand-computed.
-            for (let n = 0; n <= 8; ++n) {
+            //
+            //  Verified against the reference rather than hand-computed. The
+            //  upper bound is not arbitrary: a 20MB PDF used to validate this
+            //  live carried a run of 22, so real input goes well past the 8 an
+            //  earlier review brute-forced. One byte of carry is length
+            //  independent -- a run is pairs plus at most one leftover -- but
+            //  the test should still cover what the world actually sends.
+            //
+            for (let n = 0; n <= 32; ++n) {
                 const run = Buffer.alloc(n, 0xff);
                 assert.deepEqual(
                     feedChunks([run]),
                     referenceDeEscape(run),
                     `run of ${n} IACs`
                 );
+
+                //  and the same run split at every single byte, which is where
+                //  the carry actually has to work
+                const byteChunks = [...run].map(b => Buffer.from([b]));
+                assert.deepEqual(
+                    feedChunks(byteChunks),
+                    referenceDeEscape(run),
+                    `run of ${n} IACs, delivered one byte per chunk`
+                );
             }
+        });
+    });
+
+    //
+    //  sexyz takes its transport from the command line, and config_default.js
+    //  hardcodes -telnet for every SEXYZ protocol. Over SSH that made sexyz
+    //  escape IACs onto a connection with nothing to unescape them, and the
+    //  transfer never started -- silently, on the default protocol.
+    //
+    describe('applyTransportFlags()', () => {
+        const ZMODEM_SEXYZ = ['-telnet', '-8', 'sz', '@/tmp/list'];
+
+        it('rewrites -telnet to -ssh for a non-Telnet caller', () => {
+            assert.deepEqual(applyTransportFlags(ZMODEM_SEXYZ, false), [
+                '-ssh',
+                '-8',
+                'sz',
+                '@/tmp/list',
+            ]);
+        });
+
+        it('leaves -telnet alone for a Telnet caller', () => {
+            const out = applyTransportFlags(ZMODEM_SEXYZ, true);
+            assert.deepEqual(out, ZMODEM_SEXYZ);
+            assert.equal(out, ZMODEM_SEXYZ, 'unchanged args keep their identity');
+        });
+
+        it('rewrites the other disable-Telnet spellings too', () => {
+            //  an operator may have written any of these by hand
+            for (const flag of ['-rlogin', '-raw', '-ssh']) {
+                assert.deepEqual(applyTransportFlags([flag, 'rz', '/tmp'], true), [
+                    '-telnet',
+                    'rz',
+                    '/tmp',
+                ]);
+            }
+        });
+
+        it('does NOT introduce a flag where none existed', () => {
+            //  lrzsz has no transport flag; ENiGMA does its escaping instead
+            const lrzsz = ['--zmodem', '--binary', '--restricted'];
+            const out = applyTransportFlags(lrzsz, false);
+            assert.deepEqual(out, lrzsz);
+            assert.equal(out, lrzsz);
+        });
+
+        it('rewrites every occurrence, not just the first', () => {
+            assert.deepEqual(applyTransportFlags(['-telnet', 'x', '-telnet'], false), [
+                '-ssh',
+                'x',
+                '-ssh',
+            ]);
+        });
+
+        it('tolerates args that are not an array', () => {
+            assert.equal(applyTransportFlags(undefined, true), undefined);
+            assert.equal(applyTransportFlags(null, false), null);
         });
     });
 

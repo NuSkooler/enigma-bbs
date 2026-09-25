@@ -168,9 +168,57 @@ function createIacDeEscaper() {
     };
 }
 
+//
+//  Transfer utilities that speak Telnet themselves take the transport from
+//  their command line. sexyz is the one that ships here:
+//
+//      -telnet                 enable Telnet mode (IAC escaping)
+//      -ssh / -rlogin / -raw   disable it
+//
+//  config_default.js hardcodes `-telnet` for every SEXYZ protocol, so an SSH
+//  caller had sexyz escaping IACs onto a connection with no Telnet layer to
+//  undo them. The transfer never started, silently, on the protocol that sorts
+//  first -- i.e. the default on amd64.
+//
+//  Rewriting the flag rather than adding a config token is deliberate: every
+//  operator who copied these argument lists into their own config carries the
+//  same hardcoded `-telnet`, and a token-based fix would leave them broken with
+//  nothing to tell them why.
+//
+const TransportFlags = ['-telnet', '-ssh', '-rlogin', '-raw'];
+
+//
+//  Returns |args| with any transport flag corrected for the client's actual
+//  transport. Arguments carrying no such flag -- lrzsz, for instance -- are
+//  returned untouched; we never introduce a flag that was not already there.
+//
+//  The original array is returned by identity when nothing changed, so a caller
+//  can test `result !== args` to decide whether to log the substitution.
+//
+function applyTransportFlags(args, isTelnetBased) {
+    if (!Array.isArray(args)) {
+        return args;
+    }
+
+    const wanted = isTelnetBased ? '-telnet' : '-ssh';
+    let changed = false;
+
+    const adjusted = args.map(arg => {
+        if (TransportFlags.includes(arg) && arg !== wanted) {
+            changed = true;
+            return wanted;
+        }
+        return arg;
+    });
+
+    return changed ? adjusted : args;
+}
+
 module.exports = {
     IAC,
+    TransportFlags,
     isTelnetBasedClient,
     escapeIacs,
     createIacDeEscaper,
+    applyTransportFlags,
 };
