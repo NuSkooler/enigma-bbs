@@ -3,6 +3,12 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **SEXYZ file transfers now work over SSH** ([#353](https://github.com/NuSkooler/enigma-bbs/issues/353)). Any transfer using a SEXYZ protocol — including **ZModem 8k (SEXYZ)**, the default on x86-64 — failed for callers connected over SSH. The transfer simply never started, with nothing in the log to explain it.
+
+  `sexyz` takes its transport from its command line: `-telnet` turns Telnet IAC escaping on, `-ssh` turns it off. ENiGMA½ passed `-telnet` to every caller, so over SSH `sexyz` escaped `0xFF` bytes onto a connection with no Telnet layer to unescape them. The flag is now chosen from how the caller actually connected. Nothing to configure — this applies to customised protocol definitions too, so a board that copied the shipped argument lists is fixed by upgrading.
+
+  Confirmed against SyncTERM, NetRunner, IcyTerm and TERMinator, with matching SHA-256 sums before and after.
+
 * **File transfers through the Telnet bridge now work over SSH** ([#266](https://github.com/NuSkooler/enigma-bbs/issues/266)). Downloading from a remote board reached via `telnet_bridge` failed a few chunks in with `recv_header timeout` if you had connected to ENiGMA½ over SSH, while the same download over Telnet was fine.
 
   The bridge piped bytes between the two sides untouched. That is correct for a Telnet or WebSocket caller, whose own client speaks Telnet and undoes the escaping itself — but an SSH caller has no Telnet layer, so the remote's doubled `0xFF` bytes arrived doubled and its negotiation landed in the middle of the download. The bridge now terminates Telnet itself for those callers: it de-escapes the data, keeps negotiation out of the stream, and answers that negotiation on the caller's behalf. Telnet and WebSocket callers are unchanged.
