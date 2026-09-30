@@ -230,6 +230,17 @@ module.exports = () => {
             cls: true, //  Clear screen before each menu by default?
         },
 
+        doors: {
+            //  Stop reading a door's output while its caller is this far
+            //  behind, so a fast door (a sixel game, say) runs at the caller's
+            //  pace instead of queueing everything in memory.
+            outputBackpressure: {
+                enabled: true,
+                highWaterBytes: 256 * 1024,
+                lowWaterBytes: 64 * 1024,
+            },
+        },
+
         paths: {
             config: paths.join(__dirname, './../config/'),
             security: paths.join(__dirname, './../config/security'), //  certs, keys, etc.

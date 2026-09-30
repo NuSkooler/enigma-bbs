@@ -3,6 +3,10 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Doors now run at the caller's pace.** A door that writes faster than its caller can take it in — a sixel game, a terminal slow to render, a slow link — used to have every byte queued in ENiGMA½'s memory, with nothing to stop it. The caller fell further and further behind until the door looked frozen, while the backlog grew without limit. A test door flooding a caller who drains 100 KB/s piled up over 500 MB in six seconds.
+
+  ENiGMA½ now stops reading a door's output while too much is waiting to be sent to the caller, and starts again once they have caught up. The door's own writes block in the meantime, so it simply runs at the caller's speed. Input is never held back. It is on by default, applies to `io: stdio` and `io: socket` doors alike, and only engages when a caller is actually behind. See `doors.outputBackpressure` in [Scripts & Native Binaries](website/src/content/docs/doors/scripts-and-binaries.md) to tune or disable it.
+
 * **SEXYZ file transfers now work over SSH** ([#353](https://github.com/NuSkooler/enigma-bbs/issues/353)). Any transfer using a SEXYZ protocol — including **ZModem 8k (SEXYZ)**, the default on x86-64 — failed for callers connected over SSH. The transfer simply never started, with nothing in the log to explain it.
 
   `sexyz` takes its transport from its command line: `-telnet` turns Telnet IAC escaping on, `-ssh` turns it off. ENiGMA½ passed `-telnet` to every caller, so over SSH `sexyz` escaped `0xFF` bytes onto a connection with no Telnet layer to unescape them. The flag is now chosen from how the caller actually connected. Nothing to configure — this applies to customised protocol definitions too, so a board that copied the shipped argument lists is fixed by upgrading.

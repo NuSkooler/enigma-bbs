@@ -107,6 +107,24 @@ args: [
 ]
 ```
 
+#### Output Backpressure
+
+A door can produce output faster than its caller takes it in -- a sixel game on a slow link, or a terminal that is slow to render. Rather than queue everything in memory while the caller falls further behind, ENiGMA½ stops reading the door's output once too much is waiting to be sent, and starts again when the caller has caught up. The door's own writes block in the meantime, so it runs at the caller's pace. Input to the door is never held back.
+
+This applies to every `abracadabra` door, under both `io: stdio` and `io: socket`, and is set once for the system in `config.hjson`:
+
+```hjson
+doors: {
+    outputBackpressure: {
+        enabled: true
+        highWaterBytes: 262144   //  pause at 256 KiB waiting to be sent
+        lowWaterBytes: 65536     //  resume under 64 KiB
+    }
+}
+```
+
+`enabled: false` turns it off. `lowWaterBytes` must be less than `highWaterBytes`; a pair that is not is logged and the door runs unthrottled. When a door exits, a `Door output backpressure summary` line in the log gives how many times it was paused, for how long in total, and the largest backlog seen.
+
 ---
 
 ### Examples

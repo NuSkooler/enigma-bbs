@@ -4,6 +4,7 @@
 const stringFormat = require('./string_format.js');
 const { Errors } = require('./enig_error.js');
 const Events = require('./events');
+const Config = require('./config.js').get;
 
 //  deps
 const pty = require('node-pty');
@@ -13,10 +14,24 @@ const paths = require('path');
 const _ = require('lodash');
 const async = require('async');
 
+//
+//  Output backpressure. A door can produce far faster than its caller drains
+//  -- a sixel game on a slow link, or a terminal slow to render -- and
+//  term.write() never waits, so without this every byte is queued in memory
+//  and the caller falls ever further behind. Past |highWaterBytes| of backlog
+//  we stop reading the door: its own write() then blocks in the kernel and it
+//  runs at the caller's pace. We start reading again under |lowWaterBytes|.
+//  Input to the door is never held back.
+//
+const BackpressurePollMs = 50;
+
 module.exports = class Door {
     constructor(client) {
         this.client = client;
         this.restored = false;
+        this.backpressure = null; //  { high, low } once run(); null = off
+        this.outputPausedAt = 0;
+        this.outputStats = { pauses: 0, pausedMs: 0, maxBacklog: 0 };
     }
 
     prepare(ioType, cb) {
@@ -43,6 +58,7 @@ module.exports = class Door {
             this.sockServer.getConnections((err, count) => {
                 //  We expect only one connection from our DOOR/emulator/etc.
                 if (!err && count <= 1) {
+                    this.doorSockConn = conn;
                     this.client.term.output.pipe(conn);
                     conn.on('data', this.doorDataHandler.bind(this));
                 }
@@ -56,6 +72,7 @@ module.exports = class Door {
 
     run(exeInfo, cb) {
         this.encoding = (exeInfo.encoding || 'cp437').toLowerCase();
+        this.backpressure = this.backpressureSettings();
 
         if ('socket' === this.io) {
             if (!this.sockServer) {
@@ -161,6 +178,8 @@ module.exports = class Door {
                     );
 
                     const exitHandler = () => {
+                        this.stopOutputBackpressure();
+
                         if (this.sockServer) {
                             this.sockServer.close();
                         }
@@ -232,10 +251,119 @@ module.exports = class Door {
 
     doorDataHandler(data) {
         this.client.term.write(decode(data, this.encoding));
+        this.checkOutputBackpressure();
+    }
+
+    backpressureSettings() {
+        return Door.parseBackpressureSettings(
+            _.get(Config(), 'doors.outputBackpressure'),
+            this.client.log
+        );
+    }
+
+    //  |settings| is doors.outputBackpressure; null means do not throttle.
+    static parseBackpressureSettings(settings, log) {
+        if (!settings || !settings.enabled) {
+            return null;
+        }
+
+        const high = settings.highWaterBytes;
+        const low = settings.lowWaterBytes;
+        if (!(high > 0) || !(low >= 0) || low >= high) {
+            log.warn(
+                { highWaterBytes: high, lowWaterBytes: low },
+                'Invalid doors.outputBackpressure; door output will not be throttled'
+            );
+            return null;
+        }
+
+        return { high, low };
+    }
+
+    //
+    //  Bytes written for the caller that have not left this process yet: what
+    //  the output stream is holding (for SSH, whatever the caller's window has
+    //  not accepted) plus what the TCP socket underneath is holding. For telnet
+    //  the two can count the same bytes; that only makes us pause a little
+    //  sooner.
+    //
+    outputBacklog() {
+        const output = this.client.term.output;
+        const rawSocket = this.client.rawSocket;
+
+        let backlog = (output && output.writableLength) || 0;
+        if (rawSocket && rawSocket !== output) {
+            backlog += rawSocket.writableLength || 0;
+        }
+
+        this.outputStats.maxBacklog = Math.max(this.outputStats.maxBacklog, backlog);
+        return backlog;
+    }
+
+    doorOutputSource() {
+        return 'socket' === this.io ? this.doorSockConn : this.doorPty;
+    }
+
+    checkOutputBackpressure() {
+        if (!this.backpressure || this.outputPausedAt) {
+            return;
+        }
+
+        const backlog = this.outputBacklog();
+        const source = this.doorOutputSource();
+        if (backlog < this.backpressure.high || !source) {
+            return;
+        }
+
+        source.pause();
+        this.outputPausedAt = Date.now();
+        this.outputStats.pauses += 1;
+        this.client.log.debug({ backlog }, 'Caller is behind; pausing door output');
+
+        this.outputResumeTimer = setInterval(() => {
+            if (this.outputBacklog() <= this.backpressure.low) {
+                this.resumeDoorOutput();
+            }
+        }, BackpressurePollMs);
+    }
+
+    resumeDoorOutput() {
+        if (!this.outputPausedAt) {
+            return;
+        }
+
+        clearInterval(this.outputResumeTimer);
+        delete this.outputResumeTimer;
+
+        const pausedMs = Date.now() - this.outputPausedAt;
+        this.outputStats.pausedMs += pausedMs;
+        this.outputPausedAt = 0;
+
+        const source = this.doorOutputSource();
+        if (source) {
+            source.resume();
+        }
+
+        this.client.log.debug({ pausedMs }, 'Caller caught up; resuming door output');
+    }
+
+    //  The door is gone: never leave a timer running or a source paused.
+    stopOutputBackpressure() {
+        this.resumeDoorOutput();
+
+        if (this.backpressure && !this.outputStatsLogged) {
+            this.outputStatsLogged = true;
+            this.client.log.info(
+                Object.assign({}, this.outputStats, this.backpressure),
+                'Door output backpressure summary'
+            );
+        }
     }
 
     restoreIo(piped) {
         if (!this.restored) {
+            this.stopOutputBackpressure();
+
             if (this.doorPty) {
                 this.doorPty.kill();
             }
