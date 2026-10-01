@@ -22,6 +22,23 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **A door's `io: socket` server now listens on loopback only** ([#885](https://github.com/NuSkooler/enigma-bbs/issues/885)). The temporary TCP server an `abracadabra` door connects back to used to be bound to every interface, and the first connection to arrive -- from anywhere -- was handed the caller's session. It now binds `127.0.0.1`.
+
+  **Action:** none if the door, launch script or emulator already connects to `localhost` or `127.0.0.1` on the same machine, which covers the shipped examples, bivrost! and the documented QEMU and DOSEMU setups. Two cases need a change:
+
+  * **A connect-back host that is not loopback.** A script or emulator argument naming the machine's LAN address, hostname, or a Docker/container address will no longer connect, and the door will hang waiting. Change it to `127.0.0.1` -- preferably spelled numerically, since `localhost` can resolve to `::1` first and a client that does not try every resolved address will miss the listener.
+
+  * **An emulator or bridge on a different machine.** Set `socketBindAddress` in that door's `config` block to the address on this machine it should reach:
+
+    ```hjson
+    io: socket
+    socketBindAddress: 10.0.0.5
+    ```
+
+    This reopens the exposure above to that network -- any host that can reach the port can take over the caller's session during the door's start-up -- so restrict the port with a host firewall. Every start of such a door logs a warning naming the address.
+
+  `io: stdio` doors, `v86_door`, the telnet bridge and the door networks (BBSLink, DoorParty!, etc.) are unaffected.
+
 * **The Exodus door module has been removed** ([#857](https://github.com/NuSkooler/enigma-bbs/issues/857)). The service is gone: `oddnetwork.org/exodus/` and its sysop signup return 404, and both ports `exodus.js` needs -- 1984 for a ticket and 22 for the session -- refuse connections. There is no replacement host to point the module at, so it follows CombatNet out of the tree rather than staying as a module that cannot connect.
 
   The shipped templates no longer offer it, so a new installation is unaffected. **Your `menu.hjson` is yours and is never rewritten**, so a board that configured Exodus still names a module that no longer exists.
