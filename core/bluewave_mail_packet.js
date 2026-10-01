@@ -274,6 +274,7 @@ class BlueWavePacketWriter extends EventEmitter {
 
         entry = {
             areaTag,
+            scanning: false,
             number: this._areaNumberFor(configured.number),
             echoTag: configured.echotag || echoTagFor(areaTag),
             title: configured.title || (area ? area.name : areaTag),
@@ -337,13 +338,22 @@ class BlueWavePacketWriter extends EventEmitter {
         return number;
     }
 
-    //  an area the caller can reach, whether or not it has new mail
-    addArea(areaTag) {
-        this._areaFor(areaTag);
+    //
+    //  An area the caller can reach, whether or not it has new mail.
+    //  |scanning| is INF_SCANNING: whether the caller has the area in their
+    //  packet. A reader lists every area either way and lets the caller turn
+    //  one on or off, which comes back in the reply packet's offline
+    //  configuration -- so an area the caller dropped still has to be listed,
+    //  or they could never ask for it again.
+    //
+    addArea(areaTag, { scanning = true } = {}) {
+        const entry = this._areaFor(areaTag);
+        entry.scanning = entry.scanning || scanning;
     }
 
     appendMessage(message) {
         const entry = this._areaFor(message.areaTag);
+        entry.scanning = true;
 
         if (entry.messages.length >= MaxMessagesPerArea) {
             if (!entry.overflowed) {
@@ -632,7 +642,10 @@ class BlueWavePacketWriter extends EventEmitter {
             writeFixed(rec, 6, entry.echoTag, 21);
             writeFixed(rec, 27, entry.title, 50);
             const kind = areaKindFor(entry.areaTag, entry.area);
-            rec.writeUInt16LE(AreaFlags.Scanning | AreaFlags.Post | kind.flags, 77);
+            rec.writeUInt16LE(
+                (entry.scanning ? AreaFlags.Scanning : 0) | AreaFlags.Post | kind.flags,
+                77
+            );
             rec.writeUInt8(kind.networkType, 79);
             areas.push(rec);
         });
@@ -788,6 +801,139 @@ const readFixed = (buf, offset, length) => {
     return iconv.decode(slice.slice(0, -1 === end ? slice.length : end), 'cp437').trim();
 };
 
+//
+//  Offline configuration
+//
+//  A reader lets the caller turn areas on and off and sends the result back
+//  as a *.OLC (level 3) or, from an older reader, a *.PDQ. Either one is the
+//  complete list of areas the caller wants, not a list of changes: the kit's
+//  notes on *.PDQ say the Blue Wave door turns off every area that was active
+//  and then turns on the ones named. A reader may write both, and the kit
+//  says to read the *.PDQ only when there is no *.OLC.
+//
+//  The kit names *.OLC as CRLF text and defers its layout to a developer's
+//  kit document that is not part of it. What follows is what the readers
+//  that write one actually write -- bluemail, MultiMail and Wolverine -- and
+//  what MBSE BBS, a door that reads one, accepts:
+//
+//      [Global Mail Host Configuration]
+//      AreaChanges = ON
+//
+//      [FIDO_GENERAL]
+//      Scan = ALL
+//
+//  Without AreaChanges set the file carries only door settings (hot keys,
+//  expert menus and the like), none of which mean anything here.
+//
+const OlcGlobalSection = 'global mail host configuration';
+
+//  PDQ_HEADER: keywords[10][21], filters[10][21], macros[3][78],
+//  password[21], passtype, then the flags word
+const PdqRecordLength = {
+    Header: 678,
+    Rec: 21,
+};
+const PdqFlagsOffset = 676;
+const PdqAreaChanges = 0x0004;
+
+const isOn = value => ['YES', 'ON', 'TRUE'].includes(_.toString(value).toUpperCase());
+
+//
+//  { areaChanges, areas: [ { echoTag, scan } ] }, |scan| being the area's
+//  Scan value as written (ALL, PERSONLY, PERS+ALL...) or null.
+//
+const parseOlc = buf => {
+    const result = { areaChanges: false, areas: [] };
+    const seen = new Set();
+    let section = null;
+    let area = null;
+
+    iconv
+        .decode(buf, 'cp437')
+        .split(/\r\n|\r|\n/)
+        .forEach(rawLine => {
+            const line = rawLine.trim();
+            if (!line) {
+                return;
+            }
+
+            if ('[' === line[0]) {
+                //  to the last ']', as bluemail reads it
+                const close = line.lastIndexOf(']');
+                section = (close > 0 ? line.slice(1, close) : line.slice(1)).trim();
+                area = null;
+
+                if (section.toLowerCase() === OlcGlobalSection || !section) {
+                    return;
+                }
+
+                const key = section.toUpperCase();
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    area = { echoTag: section, scan: null };
+                    result.areas.push(area);
+                }
+                return;
+            }
+
+            const equals = line.indexOf('=');
+            if (equals < 0) {
+                return;
+            }
+            const key = line.slice(0, equals).trim().toLowerCase();
+            const value = line.slice(equals + 1).trim();
+
+            if (area) {
+                if ('scan' === key) {
+                    area.scan = value.toUpperCase();
+                }
+                return;
+            }
+
+            //  a global setting: in the global section, or ahead of any section
+            if (
+                'areachanges' === key &&
+                (!section || section.toLowerCase() === OlcGlobalSection)
+            ) {
+                result.areaChanges = isOn(value);
+            }
+        });
+
+    return result;
+};
+
+//  the same shape as parseOlc(); a PDQ_REC carries nothing but the echotag
+const parsePdq = buf => {
+    if (buf.length < PdqRecordLength.Header) {
+        return {
+            areaChanges: false,
+            areas: [],
+            error: 'Truncated Blue Wave .PDQ header',
+        };
+    }
+
+    const result = {
+        areaChanges: 0 !== (buf.readUInt16LE(PdqFlagsOffset) & PdqAreaChanges),
+        areas: [],
+    };
+    const seen = new Set();
+
+    const count = Math.floor((buf.length - PdqRecordLength.Header) / PdqRecordLength.Rec);
+    for (let i = 0; i < count; ++i) {
+        const echoTag = readFixed(
+            buf,
+            PdqRecordLength.Header + i * PdqRecordLength.Rec,
+            PdqRecordLength.Rec
+        );
+        if (echoTag && !seen.has(echoTag.toUpperCase())) {
+            seen.add(echoTag.toUpperCase());
+            result.areas.push({ echoTag, scan: null });
+        }
+    }
+
+    return result;
+};
+
 //  Every echotag a packet from this system would have carried. Each one
 //  depends on its area tag alone, so the map does not have to reproduce the
 //  walk the export made.
@@ -902,6 +1048,8 @@ class BlueWavePacketReader extends EventEmitter {
             const upi = byExt('.UPI')[0];
             const net = byExt('.NET')[0];
             const req = byExt('.REQ')[0];
+            const olc = byExt('.OLC')[0];
+            const pdq = byExt('.PDQ')[0];
 
             if (!upl && !upi && !net) {
                 return cb(
@@ -942,6 +1090,25 @@ class BlueWavePacketReader extends EventEmitter {
                             return callback(null);
                         }
                         return this._readReq(pathOf(req), callback);
+                    },
+                    callback => {
+                        if (olc) {
+                            return this._readOfflineConfig(
+                                pathOf(olc),
+                                'OLC',
+                                parseOlc,
+                                callback
+                            );
+                        }
+                        if (pdq) {
+                            return this._readOfflineConfig(
+                                pathOf(pdq),
+                                'PDQ',
+                                parsePdq,
+                                callback
+                            );
+                        }
+                        return callback(null);
                     },
                 ],
                 err => cb(err)
@@ -1116,6 +1283,22 @@ class BlueWavePacketReader extends EventEmitter {
             }
 
             return this._emitReplies(records, cb);
+        });
+    }
+
+    //
+    //  Emitted as read rather than applied: what the caller may have turned
+    //  on is the board's to decide, and a reader has no idea what this board
+    //  calls its areas.
+    //
+    _readOfflineConfig(configPath, format, parse, cb) {
+        fs.readFile(configPath, (err, buf) => {
+            if (err) {
+                return cb(err);
+            }
+
+            this.emit('offline config', Object.assign({ format }, parse(buf)));
+            return cb(null);
         });
     }
 
@@ -1360,4 +1543,7 @@ module.exports = {
     ReplyRecordLength,
     echoTagFor,
     buildEchoTagMap,
+    parseOlc,
+    parsePdq,
+    PdqRecordLength,
 };
