@@ -25,6 +25,15 @@ const async = require('async');
 //
 const BackpressurePollMs = 50;
 
+//
+//  Where a door's socket server listens. The door -- or the emulator bridging
+//  its COM port -- runs on this machine, so loopback is the only interface it
+//  needs. The first connection to arrive is handed the caller's session, so a
+//  wider bind hands that session to whichever host on the network connects
+//  first. A door config can still ask for one with |socketBindAddress|.
+//
+const DefaultSocketBindAddress = '127.0.0.1';
+
 module.exports = class Door {
     constructor(client) {
         this.client = client;
@@ -34,7 +43,18 @@ module.exports = class Door {
         this.outputStats = { pauses: 0, pausedMs: 0, maxBacklog: 0 };
     }
 
-    prepare(ioType, cb) {
+    //
+    //  |options.bindAddress| is the door config's |socketBindAddress|: the
+    //  interface the temporary server for |io: socket| listens on. Loopback
+    //  unless the sysop explicitly asks for something else.
+    //
+    prepare(ioType, options, cb) {
+        if (_.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
+        options = options || {};
+
         this.io = ioType;
 
         //  we currently only have to do any real setup for 'socket'
@@ -65,7 +85,39 @@ module.exports = class Door {
             });
         });
 
-        this.sockServer.listen(0, () => {
+        this.sockServerBindAddress = Door.socketBindAddress(
+            options.bindAddress,
+            this.client.log
+        );
+
+        //
+        //  A |socketBindAddress| this machine does not hold fails the listen()
+        //  rather than calling back, which would leave the door waiting on a
+        //  server that is never coming. Report it instead; past that point an
+        //  error on the server is only logged.
+        //
+        let listening = false;
+        this.sockServer.on('error', err => {
+            this.client.log.warn(
+                { error: err.message, bindAddress: this.sockServerBindAddress },
+                'Door socket server'
+            );
+
+            if (!listening) {
+                listening = true;
+                return cb(
+                    Errors.General(
+                        `Door socket server could not listen on ${this.sockServerBindAddress}: ${err.message}`
+                    )
+                );
+            }
+        });
+
+        this.sockServer.listen(0, this.sockServerBindAddress, () => {
+            if (listening) {
+                return;
+            }
+            listening = true;
             return cb(null);
         });
     }
@@ -229,6 +281,7 @@ module.exports = class Door {
                     } else if ('socket' === this.io) {
                         this.client.log.debug(
                             {
+                                srvHost: this.sockServer.address().address,
                                 srvPort: this.sockServer.address().port,
                                 srvSocket: this.sockServerSocket,
                             },
@@ -258,6 +311,38 @@ module.exports = class Door {
         return Door.parseBackpressureSettings(
             _.get(Config(), 'doors.outputBackpressure'),
             this.client.log
+        );
+    }
+
+    //
+    //  A door's |socketBindAddress|, or loopback when it has none. Anything
+    //  other than loopback is a session the network can take over, so it is
+    //  honoured but logged every time a door starts.
+    //
+    static socketBindAddress(bindAddress, log) {
+        const address = _.isString(bindAddress) ? bindAddress.trim() : '';
+        if (!address) {
+            return DefaultSocketBindAddress;
+        }
+
+        if (!Door.isLoopbackBindAddress(address) && log) {
+            log.warn(
+                { bindAddress: address },
+                'Door "socketBindAddress" is not loopback; any host that can reach it may take over the caller\'s session'
+            );
+        }
+
+        return address;
+    }
+
+    static isLoopbackBindAddress(address) {
+        const lower = address.toLowerCase();
+        return (
+            lower.startsWith('127.') ||
+            '::1' === lower ||
+            '[::1]' === lower ||
+            '::ffff:127.0.0.1' === lower ||
+            'localhost' === lower
         );
     }
 

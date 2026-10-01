@@ -32,10 +32,33 @@ The `abracadabra` `config` block supports the following fields:
 | `tooManyArt` | No | Art spec to display when `nodeMax` is exceeded. |
 | `minTimeLeftMinutes` | No | Refuse to start the door unless the user has at least this many minutes left in today's [time budget](../configuration/time-limits.md). Unset means no check; a user with no limit always passes. |
 | `notEnoughTimeArt` | No | Art spec to display when `minTimeLeftMinutes` is not met. |
-| `io` | No | I/O mode: `stdio` (default) or `socket`. When `socket`, ENiGMA½ spawns a temporary TCP server on `{srvPort}` that the door process connects back to. |
+| `io` | No | I/O mode: `stdio` (default) or `socket`. When `socket`, ENiGMA½ spawns a temporary TCP server on `127.0.0.1:{srvPort}` that the door process connects back to. See [Socket I/O and the Connect-Back Server](#socket-io-and-the-connect-back-server). |
+| `socketBindAddress` | No | Interface the `io: socket` server listens on. Defaults to `127.0.0.1` (loopback). Only set this if the door or emulator genuinely runs on another machine — see [Socket I/O and the Connect-Back Server](#socket-io-and-the-connect-back-server). |
 | `commType` | No | What the drop file tells the door it is talking to: `local`, `serial`, or `socket`, defaulting to `socket` when `io: socket` and `local` otherwise. `dropFileType: BBSDEV` takes a wider set with a different default — see [BBSDEV.DRP](#bbsdevdrp). |
 | `commParams` | No | The descriptor, handle, UART base and IRQ, or FOSSIL port belonging to `commType`. Read only for `dropFileType: BBSDEV`. See [BBSDEV.DRP](#bbsdevdrp) below. |
 | `encoding` | No | The door process's text encoding. Defaults to `cp437`. Linux-native binaries often use `utf8`. |
+
+#### Socket I/O and the Connect-Back Server
+
+With `io: socket`, ENiGMA½ listens on an ephemeral port for the duration of the session and gives it to you as `{srvPort}`. The door — or the emulator bridging the port onto a guest COM port — dials that port, and ENiGMA½ pipes the caller's session to it.
+
+**The server listens on `127.0.0.1` only.** Whatever connects first is handed the caller's session, so point your launch script, emulator or bridge at `127.0.0.1` and nothing else:
+
+- Spell it `127.0.0.1`, not `localhost`. `localhost` can resolve to `::1` first, and the listener is not there. Clients that try every resolved address do get through, but there is no reason to depend on it.
+- A LAN address of the machine, or a container's address, will **not** connect. Earlier versions of ENiGMA½ listened on every interface, so a setup that used one of those happened to work; it was also a way for anyone who could reach the box to pick up the caller's session, and it no longer binds that way.
+
+:::caution
+Loopback still means *any local process*: the first connection in gets the session, whether or not it is the door. Keep the door's scripts and binaries owned by the account ENiGMA½ runs as, and treat shell access on a door server as access to callers' sessions.
+:::
+
+`socketBindAddress` exists for the one setup loopback cannot serve — an emulator or bridge on a different machine:
+
+```hjson
+io: socket
+socketBindAddress: 10.0.0.5   //  only this host's own address, never 0.0.0.0
+```
+
+Anything other than loopback is logged as a warning each time the door starts, and leaves the window above open to that network. Restrict the port with a host firewall if you must use it.
 
 #### Comm Type
 
@@ -169,7 +192,7 @@ doorPythonGame: {
 
 #### Socket-Based Door
 
-Some doors require a socket connection rather than stdio. ENiGMA½ starts a temporary TCP server and passes the port to your script:
+Some doors require a socket connection rather than stdio. ENiGMA½ starts a temporary TCP server on `127.0.0.1` and passes the port to your script, which must connect back to `127.0.0.1:{srvPort}`:
 
 ```hjson
 doorSocketGame: {
@@ -212,6 +235,8 @@ doorWithBivrost: {
     }
 }
 ```
+
+bivrost! connects to the port on the local machine, so it needs no host argument and the loopback default suits it. It has no way to reach a `socketBindAddress` elsewhere.
 
 See the [bivrost!](https://github.com/NuSkooler/bivrost) documentation for details. Pre-built binaries are also available via [Phenom Productions](https://www.phenomprod.com/) on various boards.
 
