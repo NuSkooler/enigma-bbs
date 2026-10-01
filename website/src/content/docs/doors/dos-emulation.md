@@ -124,14 +124,14 @@ EOF
 unix2dos /home/enigma/dos/go/node$NODE/GO.BAT
 
 qemu-system-i386 -localtime /home/enigma/dos/images/freedos_c.img \
-    -chardev socket,port=$SRVPORT,nowait,host=localhost,id=s0 \
+    -chardev socket,port=$SRVPORT,nowait,host=127.0.0.1,id=s0 \
     -device isa-serial,chardev=s0 \
     -hdb fat:/home/enigma/drop/node$NODE \
     -hdc fat:/home/enigma/dos/go/node$NODE \
     -nographic
 ```
 
-- `-chardev socket,...` connects COM1 to ENiGMA½'s socket server on `$SRVPORT`
+- `-chardev socket,...` connects COM1 to ENiGMA½'s socket server on `$SRVPORT`. ENiGMA½ listens on `127.0.0.1` only, so spell the host that way rather than `localhost` (which may resolve to `::1`) or the machine's LAN address (which will not connect). QEMU has to run on the same machine as ENiGMA½ unless the door's [`socketBindAddress`](scripts-and-binaries.md#socket-io-and-the-connect-back-server) says otherwise.
 - `-hdb fat:...` exposes the drop file directory as `D:`
 - `-hdc fat:...` exposes the `GO.BAT` directory as `E:`
 - `-nographic` runs headless

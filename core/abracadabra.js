@@ -39,7 +39,7 @@ exports.moduleInfo = {
                 "-localtime",
                 "freedos.img",
                 "-chardev",
-                "socket,port={srvPort},nowait,host=localhost,id=s0",
+                "socket,port={srvPort},nowait,host=127.0.0.1,id=s0",
                 "-device",
                 "isa-serial,chardev=s0"
             ]
@@ -258,7 +258,17 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                 },
                 function prepareDoor(callback) {
                     self.doorInstance = new Door(self.client);
-                    return self.doorInstance.prepare(self.doorIo, callback);
+                    //
+                    //  |socketBindAddress| is for the unusual setup whose
+                    //  emulator or bridge is not on this machine; everything
+                    //  else wants the loopback default, since the first
+                    //  connection in gets the caller's session.
+                    //
+                    return self.doorInstance.prepare(
+                        self.doorIo,
+                        { bindAddress: self.config.socketBindAddress },
+                        callback
+                    );
                 },
                 function generateDropfile(callback) {
                     if (
