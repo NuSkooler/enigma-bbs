@@ -68,6 +68,21 @@
                 io: socket
 
                 //
+                //  With io: socket, ENiGMA listens on 127.0.0.1 and hands the
+                //  port to the launcher above as {srvPort}. Whatever connects
+                //  first is given the caller's session, so the launcher (or the
+                //  emulator it starts) must dial 127.0.0.1 -- spelled that way
+                //  rather than "localhost", which can resolve to ::1 and miss
+                //  the listener. A LAN address of this machine will not
+                //  connect.
+                //
+                //  socketBindAddress is only for a door or emulator running on
+                //  another machine; it exposes the caller's session to that
+                //  network. See doors/scripts-and-binaries.md
+                //
+                //socketBindAddress: 10.0.0.5
+
+                //
                 //  What the drop file tells the door it is talking to:
                 //  local, serial, or socket. Defaults to socket here because
                 //  of io above; set it to serial if an emulator bridges the

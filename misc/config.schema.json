@@ -487,6 +487,41 @@
             },
             "additionalProperties": false
         },
+        "doors": {
+            "type": "object",
+            "properties": {
+                "outputBackpressure": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "description": "Pause reading a door's output while its caller is behind, so the door runs at the caller's pace.",
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "highWaterBytes": {
+                            "description": "Unsent bytes queued for the caller at which door output is paused. Must be greater than lowWaterBytes.",
+                            "type": "number",
+                            "minimum": 1,
+                            "default": 262144
+                        },
+                        "lowWaterBytes": {
+                            "description": "Unsent bytes queued for the caller at which door output resumes.",
+                            "type": "number",
+                            "minimum": 0,
+                            "default": 65536
+                        }
+                    },
+                    "patternProperties": {
+                        "^_": true
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "patternProperties": {
+                "^_": true
+            },
+            "additionalProperties": false
+        },
         "paths": {
             "type": "object",
             "properties": {

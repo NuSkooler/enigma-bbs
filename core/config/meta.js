@@ -161,6 +161,22 @@ module.exports = {
         min: 0,
         description: 'Idle timeout once logged in. 0 never disconnects.',
     },
+    'doors.outputBackpressure.enabled': {
+        type: 'boolean',
+        description:
+            "Pause reading a door's output while its caller is behind, so the door runs at the caller's pace.",
+    },
+    'doors.outputBackpressure.highWaterBytes': {
+        type: 'number',
+        min: 1,
+        description:
+            'Unsent bytes queued for the caller at which door output is paused. Must be greater than lowWaterBytes.',
+    },
+    'doors.outputBackpressure.lowWaterBytes': {
+        type: 'number',
+        min: 0,
+        description: 'Unsent bytes queued for the caller at which door output resumes.',
+    },
     //  The shipped default is [], which carries no item type of its own.
     'users.timeLimits': {
         type: 'array',
