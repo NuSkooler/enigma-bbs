@@ -3,6 +3,14 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Blue Wave readers can now choose a caller's areas offline** ([#883](https://github.com/NuSkooler/enigma-bbs/issues/883)), **and an offline mail upload says where each message went** ([#882](https://github.com/NuSkooler/enigma-bbs/issues/882)). A Blue Wave reader lets the caller turn areas on and off, and sends the result back in the reply packet as a `*.OLC` (or a `*.PDQ` from an older reader). ENiGMA½ used to unpack that file and ignore it. Callers who unsubscribed from echoes in their reader kept getting them, and nothing told them why.
+
+  The file is now applied. It is the caller's whole list of areas rather than a set of changes, as the Blue Wave door treated it, so an area left off the list leaves their packet. An area turned on starts from the upload rather than from the area's whole history. Only areas the caller can see can be turned on; any other is refused and named. A list that would leave no areas at all is not applied, because a caller with nothing selected would never get another packet to undo it from.
+
+  The packet now lists every area the caller can read, with the ones they have not selected unflagged, so a reader can offer to turn them back on. It used to list only the selected areas, which, once drops took effect, would have left a dropped area with no way back.
+
+  After an upload of either format, QWK or Blue Wave, the caller now sees a line per area with its count, where they used to see only `Imported 1 message(s)`. Any area changes follow (`Added to packet: FIDO_TECH`, `Removed from packet: FIDO_GENERAL`, `Not available here: ...`). See [Choosing Areas Offline](website/src/content/docs/messageareas/bluewave.md#choosing-areas-offline).
+
 * **Security: a door's socket server no longer listens on every interface** ([#885](https://github.com/NuSkooler/enigma-bbs/issues/885)). With `io: socket`, ENiGMA½ stands up a temporary TCP server for the door -- or for the emulator bridging the door's COM port -- to connect back to, and pipes the caller's session to the first connection that arrives. That server was started with no address, so Node bound the unspecified address: every interface on a dual-stack machine. Anyone who could reach the box and connect before the door did received the caller's keystrokes and could write to their terminal, with no authentication anywhere in it, and the door itself then got nothing. The window is however long the door or emulator takes to start -- seconds, for DOSEMU, QEMU or DOSBox -- and while the port is ephemeral, scanning a range is cheap.
 
   The server now binds `127.0.0.1`. `io: stdio` doors never had a server and were never affected.

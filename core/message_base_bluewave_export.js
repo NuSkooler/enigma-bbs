@@ -4,6 +4,10 @@
 //  ENiGMA½
 const MessageBaseOfflineExport = require('./message_base_offline_export.js');
 const { BlueWavePacketWriter } = require('./bluewave_mail_packet.js');
+const {
+    BlueWaveExportAreasProperty,
+    blueWaveListedAreaTags,
+} = require('./offline_mail_areas.js');
 const Config = require('./config.js').get;
 
 //  deps
@@ -18,7 +22,8 @@ const ImportModuleName = 'message_base_offline_import';
 
 const UserProperties = {
     ExportOptions: 'bluewave_export_options',
-    ExportAreas: 'bluewave_export_msg_areas',
+    //  the import replaces this from a reply packet's offline configuration
+    ExportAreas: BlueWaveExportAreasProperty,
 };
 
 exports.moduleInfo = {
@@ -79,10 +84,23 @@ exports.getModule = class MessageBaseBlueWaveExport extends MessageBaseOfflineEx
     }
 
     //
-    //  Blue Wave lists every area the caller can reach, not only those that
-    //  had new mail, so a reader can post into a quiet one offline.
+    //  Blue Wave lists every area the caller can reach, not only those they
+    //  selected, so a reader can offer to turn one on. Listed in the board's
+    //  order and before anything is gathered, so the .INF follows that order
+    //  however the caller's selection happens to be stored.
+    //
+    prepareExport(packetWriter, { exportAreas }) {
+        const selected = new Set(exportAreas.map(exportArea => exportArea.areaTag));
+        blueWaveListedAreaTags(this.client).forEach(areaTag => {
+            packetWriter.addArea(areaTag, { scanning: selected.has(areaTag) });
+        });
+    }
+
+    //
+    //  ...and every area selected is scanning, whether or not it had new
+    //  mail, so a reader can post into a quiet one offline.
     //
     prepareAreaForExport(packetWriter, { areaTag }) {
-        packetWriter.addArea(areaTag);
+        packetWriter.addArea(areaTag, { scanning: true });
     }
 };
