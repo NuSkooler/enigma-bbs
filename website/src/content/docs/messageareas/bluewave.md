@@ -134,4 +134,7 @@ A packet built for a different login changes nothing, as with its replies.
 | Software | Status | Notes |
 |----------|--------|-------|
 | [NoCarrierMail](https://github.com/andy5995/NoCarrierMail) v0.55 | Tested | Reads the packet, lists every area, counts personal mail, and renders CP437 text |
-| [MultiMail](https://wmcbrine.com/mmail/) | Untested | NoCarrierMail is a fork of it and shares the Blue Wave reader |
+| [MultiMail](https://wmcbrine.com/mmail/) v0.52 | Tested (scripted) | Reads the packet, drops and adds areas offline, and writes a reply; the reply packet's `*.OLC` and reply were imported. NoCarrierMail is a fork of it and shares this code |
+| [blueMail](https://github.com/thecivvie/bluemail) 1.4 | Tested (scripted) | As MultiMail. It writes both `*.OLC` and `*.PDQ`, and its reply as both `*.UPL` and `*.UPI`; each is read once |
+
+MultiMail ignores `INF_SCANNING` and treats an area as selected only if the packet indexes it in `*.MIX`. So every area a caller has selected is indexed, mail or no mail, as the format specifies. Otherwise MultiMail would leave a selected area that had no new mail out of its `*.OLC`, and it would be turned off.

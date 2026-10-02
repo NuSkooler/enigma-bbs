@@ -516,13 +516,20 @@ class BlueWavePacketWriter extends EventEmitter {
     //  of them begins. MultiMail walks the two lists together rather than
     //  searching, so the areas must appear in the same order in both.
     //
+    //  The kit gives .MIX "one record for every message area that was
+    //  scanned" -- every area the caller selected, mail or no mail -- and
+    //  MultiMail relies on it: it ignores INF_SCANNING and takes an area as
+    //  subscribed only if it has a .MIX record. Without one, a selected area
+    //  that had no new mail looks dropped, so it is left out of the .OLC the
+    //  reader writes, and the import turns it off.
+    //
     _writeIndexes(cb) {
         const fti = [];
         const mix = [];
         let ftiOffset = 0;
 
         this.areas.forEach(entry => {
-            if (!entry.messages.length) {
+            if (!entry.scanning) {
                 return;
             }
 
