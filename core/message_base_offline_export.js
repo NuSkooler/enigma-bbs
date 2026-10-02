@@ -9,7 +9,6 @@ const {
     getMessageAreaByTag,
     getMessageConferenceByTag,
     hasMessageConfAndAreaRead,
-    getAllAvailableMessageAreaTags,
 } = require('./message_area.js');
 const FileArea = require('./file_base_area.js');
 const { renderSubstr } = require('./string_util.js');
@@ -17,6 +16,7 @@ const FileEntry = require('./file_entry.js');
 const DownloadQueue = require('./download_queue.js');
 const { getISOTimestampString } = require('./database.js');
 const { safeMoveFile } = require('./file_util.js');
+const { getUserExportAreas } = require('./offline_mail_areas.js');
 
 //  deps
 const async = require('async');
@@ -25,7 +25,6 @@ const fse = require('fs-extra');
 const temptmp = require('temptmp');
 const paths = require('path');
 const { randomUUID } = require('crypto');
-const moment = require('moment');
 
 const FormIds = {
     main: 0,
@@ -105,6 +104,13 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
     //  a reader can still post into it.
     //
     prepareAreaForExport(/*packetWriter, { areaTag, area, conf }*/) {}
+
+    //
+    //  Once, before any area is gathered, with every area the caller has
+    //  selected. Blue Wave lists the areas the caller has not selected here
+    //  too, so a reader can offer to turn them on.
+    //
+    prepareExport(/*packetWriter, { exportAreas }*/) {}
 
     //  the extension the writer chose is kept: it is part of what a reader
     //  recognizes
@@ -263,27 +269,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
     }
 
     _getUserExportAreas() {
-        let exportAreas = this.client.user.getProperty(this.userProperties.ExportAreas);
-        try {
-            exportAreas = JSON.parse(exportAreas).map(exportArea => {
-                if (exportArea.newerThanTimestamp) {
-                    exportArea.newerThanTimestamp = moment(exportArea.newerThanTimestamp);
-                }
-                return exportArea;
-            });
-        } catch (e) {
-            //  default to all public and private without 'since'
-            exportAreas = getAllAvailableMessageAreaTags(this.client).map(areaTag => {
-                return { areaTag };
-            });
-
-            //  Include user's private area
-            exportAreas.push({
-                areaTag: Message.WellKnownAreaTags.Private,
-            });
-        }
-
-        return exportAreas;
+        return getUserExportAreas(this.client, this.userProperties.ExportAreas);
     }
 
     //  a writer that fails here must end the wait, not leave the caller on
@@ -534,6 +520,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
                 callback => {
                     //  For each public area -> for each message
                     const userExportAreas = this._getUserExportAreas();
+                    this.prepareExport(packetWriter, { exportAreas: userExportAreas });
 
                     const publicExportAreas = userExportAreas.filter(exportArea => {
                         return exportArea.areaTag !== Message.WellKnownAreaTags.Private;

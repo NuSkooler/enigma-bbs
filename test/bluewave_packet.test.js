@@ -215,25 +215,29 @@ describe('Blue Wave packet', () => {
     });
 
     //
-    //  Every area the caller can reach is listed in the .INF, so a reader can
-    //  post into one that had no new mail; only areas that took messages get
-    //  a .MIX record.
+    //  Every area the caller can reach is listed in the .INF. The kit gives
+    //  .MIX "one record for every message area that was scanned", so a
+    //  selected area gets one even with no new mail -- MultiMail takes an
+    //  area with no .MIX record as unsubscribed, and drops it from the .OLC
+    //  it writes. An area the caller has not selected gets none.
     //
-    it('lists every area, and indexes only the ones with messages', done => {
+    it('lists every area, and indexes every selected one', done => {
         buildPacket(
             writer => {
                 writer.addArea('general');
                 writer.addArea('quiet_area');
+                writer.addArea('not_selected', { scanning: false });
                 writer.appendMessage(makeMessage('general'));
                 writer.appendMessage(makeMessage('general'));
             },
             ({ inf, mix }) => {
                 const areaCount =
                     (inf.length - RecordLength.InfHeader) / RecordLength.InfArea;
-                assert.equal(areaCount, 2);
-                assert.equal(mix.length / RecordLength.Mix, 1);
+                assert.equal(areaCount, 3);
+                assert.equal(mix.length / RecordLength.Mix, 2);
 
                 const first = inf.slice(RecordLength.InfHeader);
+                const second = inf.slice(RecordLength.InfHeader + RecordLength.InfArea);
                 assert.equal(str(first, InfArea.AreaNum, 6), '1');
                 assert.equal(str(first, InfArea.EchoTag, 21), 'GENERAL');
                 assert.equal(mix.readUInt16LE(Mix.TotMsgs), 2);
@@ -242,6 +246,10 @@ describe('Blue Wave packet', () => {
                     str(first, InfArea.AreaNum, 6),
                     'the .MIX joins to the .INF by area number'
                 );
+
+                const quiet = mix.slice(RecordLength.Mix);
+                assert.equal(str(quiet, Mix.AreaNum, 6), str(second, InfArea.AreaNum, 6));
+                assert.equal(quiet.readUInt16LE(Mix.TotMsgs), 0);
                 done();
             }
         );
@@ -490,7 +498,21 @@ describe('Blue Wave area numbers', () => {
                 }
 
                 assert.deepEqual(numbers, ['1', '2', '3']);
-                assert.equal(str(mix, Mix.AreaNum, 6), '3');
+
+                //  every selected area is indexed; the mail is under the third
+                const mixRecs = [];
+                for (let offset = 0; offset < mix.length; offset += RecordLength.Mix) {
+                    const rec = mix.slice(offset);
+                    mixRecs.push([
+                        str(rec, Mix.AreaNum, 6),
+                        rec.readUInt16LE(Mix.TotMsgs),
+                    ]);
+                }
+                assert.deepEqual(mixRecs, [
+                    ['1', 0],
+                    ['2', 0],
+                    ['3', 1],
+                ]);
                 done();
             }
         );

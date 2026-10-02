@@ -10,7 +10,16 @@ const {
     getMessageAreaByTag,
     getAllAvailableMessageAreaTags,
 } = require('./message_area.js');
-const { BlueWavePacketReader, buildEchoTagMap } = require('./bluewave_mail_packet.js');
+const {
+    BlueWavePacketReader,
+    buildEchoTagMap,
+    echoTagFor,
+} = require('./bluewave_mail_packet.js');
+const {
+    BlueWaveExportAreasProperty,
+    getUserExportAreas,
+    blueWaveListedAreaTags,
+} = require('./offline_mail_areas.js');
 const { QWKPacketReader, buildConferenceMap } = require('./qwk_mail_packet.js');
 const ArchiveUtil = require('./archive_util.js');
 const User = require('./user.js');
@@ -19,6 +28,7 @@ const SysProps = require('./system_property.js');
 const UserProps = require('./user_property.js');
 const Events = require('./events.js');
 const { pathWithTerminatingSeparator } = require('./file_util.js');
+const { getISOTimestampString } = require('./database.js');
 
 //  deps
 const async = require('async');
@@ -68,11 +78,7 @@ const PacketFormats = [
         //  reply naming it is not theirs to place.
         //
         createSource: (client, { packetDir, limits }) => {
-            const echoTagMap = buildEchoTagMap(
-                getAllAvailableMessageAreaTags(client).concat([
-                    Message.WellKnownAreaTags.Private,
-                ])
-            );
+            const echoTagMap = buildEchoTagMap(blueWaveListedAreaTags(client));
 
             const reader = new BlueWavePacketReader(null, {
                 areaTagForEchoTag: echoTag =>
@@ -85,6 +91,16 @@ const PacketFormats = [
             return {
                 reader,
                 start: cb => reader.readExtracted(packetDir, cb),
+                //  the same map: an area this caller's packet did not list is
+                //  not theirs to turn on
+                planAreaChanges: (config, now) =>
+                    planAreaChanges({
+                        current: getUserExportAreas(client, BlueWaveExportAreasProperty),
+                        requested: config.areas,
+                        echoTagMap,
+                        now,
+                    }),
+                exportAreasProperty: BlueWaveExportAreasProperty,
             };
         },
     },
@@ -154,6 +170,97 @@ const PacketFormats = [
 ];
 
 //
+//  A reply packet's offline configuration is the whole list of areas the
+//  caller wants in their packet -- every area that was on is turned off and
+//  the ones named are turned on, as the Blue Wave door did it -- so it
+//  replaces the caller's selection rather than adding to it.
+//
+//  |current| is the caller's stored selection and |requested| what the
+//  reader sent, as [ { echoTag, scan } ]. Only an echotag in |echoTagMap|,
+//  which holds exactly the areas the caller's packet listed, can be turned
+//  on; any other is refused and reported rather than dropped without a word.
+//
+//  An area that stays on keeps where its next packet starts. One turned on
+//  starts at |now|: a year of backlog arriving unasked in the next packet is
+//  a worse surprise than missing what was posted before the caller wanted it.
+//
+//  A list that would leave the caller with no area at all is not applied. An
+//  export with nothing in it delivers no packet, and nothing online edits
+//  this selection, so the caller could never get a packet to undo it from.
+//  The same rule catches a list in a form this board does not read --
+//  Wolverine names areas by number rather than echotag -- since none of it
+//  resolves.
+//
+//  Returns { exportAreas, added, removed, refused, notes, emptied }: the new
+//  selection (null when nothing is to change) and, as echotags, what changed.
+//
+const planAreaChanges = ({ current, requested, echoTagMap, now }) => {
+    //  what the caller saw each area called, for the report
+    const echoTagOf = new Map();
+    echoTagMap.forEach((areaTag, echoTag) => {
+        if (!echoTagOf.has(areaTag)) {
+            echoTagOf.set(areaTag, echoTag);
+        }
+    });
+    const nameOf = areaTag => echoTagOf.get(areaTag) || echoTagFor(areaTag);
+
+    const plan = {
+        exportAreas: null,
+        added: [],
+        removed: [],
+        refused: [],
+        notes: [],
+        emptied: false,
+    };
+
+    const wanted = new Set();
+    requested.forEach(({ echoTag, scan }) => {
+        const areaTag = echoTagMap.get(_.toString(echoTag).toUpperCase());
+        if (!areaTag) {
+            plan.refused.push(echoTag);
+            return;
+        }
+
+        wanted.add(areaTag);
+
+        //  the reader offered "personal mail only" and this board packs an
+        //  area whole; MBSE does the same
+        if ('PERSONLY' === scan) {
+            plan.notes.push(
+                `${nameOf(areaTag)}: personal-only is not supported; all messages will be included`
+            );
+        }
+    });
+
+    if (!wanted.size) {
+        plan.emptied = true;
+        return plan;
+    }
+
+    const currentTags = new Set(current.map(exportArea => exportArea.areaTag));
+    const listed = new Set(echoTagMap.values());
+
+    //  an area the caller can no longer see was not in their packet, so it
+    //  could not have been named; it goes, and is not reported as a change
+    plan.exportAreas = current.filter(exportArea => wanted.has(exportArea.areaTag));
+    current.forEach(exportArea => {
+        if (!wanted.has(exportArea.areaTag) && listed.has(exportArea.areaTag)) {
+            plan.removed.push(nameOf(exportArea.areaTag));
+        }
+    });
+
+    wanted.forEach(areaTag => {
+        if (!currentTags.has(areaTag)) {
+            plan.exportAreas.push({ areaTag, newerThanTimestamp: now });
+            plan.added.push(nameOf(areaTag));
+        }
+    });
+
+    return plan;
+};
+exports.planAreaChanges = planAreaChanges;
+
+//
 //  What a session will take in one packet. A reply packet is written by
 //  software on the caller's machine, so neither the record count nor the
 //  length of a message is anything this end should trust.
@@ -194,7 +301,9 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
             this.recvFilePaths = options.lastMenuResult.recvFilePaths;
         }
 
-        this.summary = { imported: 0, rejected: 0 };
+        //  |byArea| is areaTag -> count imported; |areaChanges| is what a
+        //  reply packet's offline configuration did, if it carried one
+        this.summary = { imported: 0, rejected: 0, byArea: {}, areaChanges: null };
 
         //  per session: a tracked session shared between callers would have
         //  one caller's cleanup take another's packet out from under them
@@ -408,8 +517,10 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         const source = format.createSource(this.client, context);
         const pending = [];
         let packetUser = null;
+        let offlineConfig = null;
 
         source.reader.on('packet user', user => (packetUser = user));
+        source.reader.on('offline config', config => (offlineConfig = config));
         source.reader.on('warning', warning => {
             this.summary.rejected += 1;
             this.client.log.info(
@@ -461,8 +572,69 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
                 );
             }
 
-            return this._persistMessages(pending, cb);
+            return this._persistMessages(pending, err => {
+                if (err) {
+                    return cb(err);
+                }
+                return this._applyOfflineConfig(source, offlineConfig, cb);
+            });
         });
+    }
+
+    //
+    //  Only once the packet is known to be this caller's: one built for
+    //  somebody else, or refused whole, changes nothing.
+    //
+    _applyOfflineConfig(source, config, cb) {
+        if (!config || !source.planAreaChanges) {
+            return cb(null);
+        }
+
+        if (config.error) {
+            this.client.log.info(
+                { reason: config.error, format: config.format },
+                'Offline configuration not applied'
+            );
+            return cb(null);
+        }
+
+        //  door settings only, none of which mean anything here
+        if (!config.areaChanges) {
+            return cb(null);
+        }
+
+        const plan = source.planAreaChanges(config, getISOTimestampString());
+        this.summary.areaChanges = plan;
+
+        this.client.log.info(
+            {
+                format: config.format,
+                added: plan.added,
+                removed: plan.removed,
+                refused: plan.refused,
+                emptied: plan.emptied,
+            },
+            'Offline configuration'
+        );
+
+        if (!plan.exportAreas) {
+            return cb(null);
+        }
+
+        return this.client.user.persistProperty(
+            source.exportAreasProperty,
+            JSON.stringify(plan.exportAreas),
+            err => {
+                if (err) {
+                    this.client.log.warn(
+                        { error: err.message },
+                        'Could not store the offline configuration'
+                    );
+                    this.packetError = 'Area changes could not be saved -- see the log';
+                }
+                return cb(null);
+            }
+        );
     }
 
     //
@@ -503,6 +675,8 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
                         );
                     } else {
                         this.summary.imported += 1;
+                        this.summary.byArea[message.areaTag] =
+                            (this.summary.byArea[message.areaTag] || 0) + 1;
                     }
 
                     this._updateStatus(
@@ -641,26 +815,90 @@ exports.getModule = class MessageBaseOfflineImport extends MenuModule {
         //  intentionally nothing; see above
     }
 
+    //
+    //  One line, for a status view in a theme's art: the counts, as it has
+    //  always said them.
+    //
+    _summaryHeadline() {
+        const { imported, rejected } = this.summary;
+        let headline = rejected
+            ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
+            : `Imported ${imported} message(s)`;
+        if (this.packetError) {
+            headline += `; ${this.packetError}`;
+        }
+        return headline;
+    }
+
+    //
+    //  The whole of it, for the terminal: where each message went, what was
+    //  refused, then what the packet's offline configuration changed. A
+    //  caller who sees only a count cannot tell a reply went where they meant
+    //  it to without opening the area and looking.
+    //
+    _summaryLines() {
+        const { imported, rejected, byArea, areaChanges } = this.summary;
+        const lines = [`Imported ${imported} message(s)`];
+
+        Object.keys(byArea).forEach(areaTag => {
+            const name = _.get(getMessageAreaByTag(areaTag), 'name') || areaTag;
+            lines.push(`  ${name}: ${byArea[areaTag]}`);
+        });
+
+        if (rejected) {
+            lines.push(`${rejected} not imported -- see the log`);
+        }
+        if (this.packetError) {
+            lines.push(this.packetError);
+        }
+
+        if (areaChanges) {
+            if (areaChanges.emptied) {
+                lines.push(
+                    'No areas would be left in your packet; area changes not applied'
+                );
+            }
+            if (areaChanges.added.length) {
+                lines.push(`Added to packet: ${areaChanges.added.join(', ')}`);
+            }
+            if (areaChanges.removed.length) {
+                lines.push(`Removed from packet: ${areaChanges.removed.join(', ')}`);
+            }
+            if (areaChanges.refused.length) {
+                lines.push(`Not available here: ${areaChanges.refused.join(', ')}`);
+            }
+            lines.push(...areaChanges.notes);
+        }
+
+        return lines;
+    }
+
     //  |outcome| replaces the summary where there was nothing to import
     _finish(outcome) {
-        this.client.log.info(this.summary, outcome || 'Offline mail import complete');
+        const { imported, rejected, byArea, areaChanges } = this.summary;
+        this.client.log.info(
+            {
+                imported,
+                rejected,
+                byArea,
+                added: _.get(areaChanges, 'added'),
+                removed: _.get(areaChanges, 'removed'),
+                refused: _.get(areaChanges, 'refused'),
+            },
+            outcome || 'Offline mail import complete'
+        );
         this.temptmp.cleanup();
         if (this.tempRecvDirectory) {
             fse.remove(this.tempRecvDirectory, () => {});
         }
 
-        const { imported, rejected } = this.summary;
-        let summary = rejected
-            ? `Imported ${imported} message(s); ${rejected} not imported -- see the log`
-            : `Imported ${imported} message(s)`;
-        if (this.packetError) {
-            summary += `; ${this.packetError}`;
-        }
+        //  a status view holds a line; the terminal takes the lot
+        const statusView = this.getView('main', MciViewIds.main.status);
+        const summary = statusView
+            ? this._summaryHeadline()
+            : this._summaryLines().join('\n');
 
-        this.showOutcome(
-            outcome || summary,
-            this.getView('main', MciViewIds.main.status)
-        );
+        this.showOutcome(outcome || summary, statusView);
         return this.pauseBelowArt(() => this.prevMenu());
     }
 };

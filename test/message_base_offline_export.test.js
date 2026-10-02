@@ -549,12 +549,69 @@ describe('Blue Wave export format', () => {
     //  new mail, so the hook has to reach the writer for an area that never
     //  produces a message.
     //
-    it('declares an area to the writer by tag', () => {
+    it('declares an area to the writer by tag, as scanning', () => {
         const declared = [];
         makeModule(BlueWaveExport).prepareAreaForExport(
-            { addArea: areaTag => declared.push(areaTag) },
+            { addArea: (areaTag, opts) => declared.push([areaTag, opts.scanning]) },
             { areaTag: 'general', area: { name: 'General' }, conf: { name: 'Local' } }
         );
-        assert.deepEqual(declared, ['general']);
+        assert.deepEqual(declared, [['general', true]]);
+    });
+
+    //
+    //  A reader can only turn on an area its packet listed, so every area the
+    //  caller can see is listed -- the ones they have not selected without
+    //  INF_SCANNING. Listing only the selected ones would let a caller drop
+    //  an area offline and never get it back.
+    //
+    describe('listing areas the caller has not selected', () => {
+        const { WellKnownConfTags } = require('../core/message_const.js');
+
+        let previousConfig;
+        before(() => {
+            previousConfig = configModule._pushTestConfig({
+                debug: { assertsEnabled: false },
+                menus: { cls: false },
+                general: { boardName: 'Test Board' },
+                messageConferences: {
+                    [WellKnownConfTags.SystemInternal]: {
+                        name: 'System Internal',
+                        areas: { private_mail: { name: 'Private Mail' } },
+                    },
+                    local: {
+                        name: 'Local',
+                        areas: {
+                            general: { name: 'General Chat' },
+                            fido_tech: { name: 'FidoNet Tech' },
+                            fido_quiet: { name: 'FidoNet Quiet' },
+                            secret: { name: 'Sysops Only', secret: true },
+                        },
+                    },
+                },
+            });
+        });
+        after(() => configModule._popTestConfig(previousConfig));
+
+        it('lists every area the caller can see, in board order', () => {
+            const mod = makeModule(BlueWaveExport);
+            mod.client.acs = {
+                hasMessageConfRead: () => true,
+                hasMessageAreaRead: area => !area.secret,
+            };
+
+            const declared = [];
+            mod.prepareExport(
+                { addArea: (areaTag, opts) => declared.push([areaTag, opts.scanning]) },
+                {
+                    exportAreas: [{ areaTag: 'fido_tech' }, { areaTag: 'private_mail' }],
+                }
+            );
+            assert.deepEqual(declared, [
+                ['general', false],
+                ['fido_tech', true],
+                ['fido_quiet', false],
+                ['private_mail', true],
+            ]);
+        });
     });
 });
