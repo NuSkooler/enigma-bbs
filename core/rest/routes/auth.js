@@ -13,9 +13,30 @@ const { issueTokenPair, rotateRefreshToken, revokeRefreshToken } = require('../a
 const User = require('../../user');
 
 const ROUTE_BASE = `${API_BASE}/auth`;
+const LEGACY_REFRESH_COOKIE_PATH = `${ROUTE_BASE}/refresh`;
+const REFRESH_COOKIE_ATTRIBUTES = 'HttpOnly; Secure; SameSite=Strict';
 
 //  Rate limit: 10 requests per 15 minutes per IP on login
 const LOGIN_RATE = { windowMs: 15 * 60 * 1000, maxRequests: 10 };
+
+function expiredRefreshCookie(path) {
+    return `enigma_refresh=; ${REFRESH_COOKIE_ATTRIBUTES}; Path=${path}; Max-Age=0`;
+}
+
+function setRefreshCookie(resp, tokens) {
+    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString();
+    resp.setHeader('Set-Cookie', [
+        expiredRefreshCookie(LEGACY_REFRESH_COOKIE_PATH),
+        `enigma_refresh=${tokens.refreshToken}; ${REFRESH_COOKIE_ATTRIBUTES}; Path=${ROUTE_BASE}; Expires=${expires}`,
+    ]);
+}
+
+function clearRefreshCookies(resp) {
+    resp.setHeader('Set-Cookie', [
+        expiredRefreshCookie(LEGACY_REFRESH_COOKIE_PATH),
+        expiredRefreshCookie(ROUTE_BASE),
+    ]);
+}
 
 exports.register = function register(webServer, log) {
     webServer.addRoute({
@@ -94,13 +115,7 @@ function _loginHandler(req, resp, webServer, log) {
                         }
 
                         //  Refresh token goes in an HttpOnly cookie; access token in response body
-                        const cookieExpires = new Date(
-                            Date.now() + 30 * 24 * 60 * 60 * 1000
-                        ).toUTCString();
-                        resp.setHeader(
-                            'Set-Cookie',
-                            `enigma_refresh=${tokens.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=${API_BASE}/auth/refresh; Expires=${cookieExpires}`
-                        );
+                        setRefreshCookie(resp, tokens);
 
                         log.info(
                             { userId: user.userId, username: user.username },
@@ -133,13 +148,7 @@ function _refreshHandler(req, resp, _log) {
             return problemDetail(resp, 401, 'Invalid Refresh Token', err.message);
         }
 
-        const cookieExpires = new Date(
-            Date.now() + 30 * 24 * 60 * 60 * 1000
-        ).toUTCString();
-        resp.setHeader(
-            'Set-Cookie',
-            `enigma_refresh=${tokens.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=${API_BASE}/auth/refresh; Expires=${cookieExpires}`
-        );
+        setRefreshCookie(resp, tokens);
 
         return jsonResponse(resp, 200, {
             accessToken: tokens.accessToken,
@@ -149,21 +158,29 @@ function _refreshHandler(req, resp, _log) {
     });
 }
 
-function _logoutHandler(req, resp, _log) {
+function _logoutHandler(req, resp, log) {
     applyCorsHeaders(req, resp);
 
     const cookie = req.headers['cookie'] || '';
     const match = /enigma_refresh=([^;]+)/.exec(cookie);
 
     if (!match) {
-        return jsonResponse(resp, 204, {});
+        clearRefreshCookies(resp);
+        resp.writeHead(204);
+        return resp.end();
     }
 
-    revokeRefreshToken(match[1], () => {
-        resp.setHeader(
-            'Set-Cookie',
-            `enigma_refresh=; HttpOnly; Secure; SameSite=Strict; Path=${API_BASE}/auth/refresh; Max-Age=0`
-        );
+    revokeRefreshToken(match[1], err => {
+        if (err) {
+            log.error('Failed to revoke refresh token');
+            return problemDetail(
+                resp,
+                500,
+                'Internal Server Error',
+                'Failed to end session'
+            );
+        }
+        clearRefreshCookies(resp);
         resp.writeHead(204);
         return resp.end();
     });
