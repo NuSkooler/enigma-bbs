@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **REST API logout now receives and revokes the browser's refresh token.** The refresh cookie previously used a path restricted to `/auth/refresh`, so browsers did not send it to the sibling `/auth/logout` route. Login and refresh now issue the cookie at `/auth`, retain `HttpOnly`, `Secure` and `SameSite=Strict`, and expire the legacy cookie. Logout clears both cookie paths. Existing sessions migrate on their next successful refresh or login; already-issued access tokens still expire after their normal 15-minute lifetime. See [UPGRADE](UPGRADE.md).
+
 * **Blue Wave readers can now choose a caller's areas offline** ([#883](https://github.com/NuSkooler/enigma-bbs/issues/883)), **and an offline mail upload says where each message went** ([#882](https://github.com/NuSkooler/enigma-bbs/issues/882)). A Blue Wave reader lets the caller turn areas on and off, and sends the result back in the reply packet as a `*.OLC` (or a `*.PDQ` from an older reader). ENiGMA½ used to unpack that file and ignore it. Callers who unsubscribed from echoes in their reader kept getting them, and nothing told them why.
 
   The file is now applied. It is the caller's whole list of areas rather than a set of changes, as the Blue Wave door treated it, so an area left off the list leaves their packet. An area turned on starts from the upload rather than from the area's whole history. Only areas the caller can see can be turned on; any other is refused and named. A list that would leave no areas at all is not applied, because a caller with nothing selected would never get another packet to undo it from.

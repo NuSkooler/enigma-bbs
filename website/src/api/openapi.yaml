@@ -352,6 +352,11 @@ paths:
       responses:
         "204":
           description: Logged out (refresh token revoked and cookie cleared)
+        "500":
+          description: Refresh token revocation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemDetail' }
 
   # ---------------------------------------------------------------------------
   # System
