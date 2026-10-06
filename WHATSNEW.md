@@ -3,6 +3,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.5.1-beta
 
+* **Offline mail packets can carry bulletins** ([#893](https://github.com/NuSkooler/enigma-bbs/issues/893)). Callers who only read packets used to miss what online callers see at logon. Files named in the new `messageNetworks.offlineMail` block (`hello`, `news`, `goodbye` and a `bulletins` list) are now packed into every QWK and Blue Wave packet, converted to CP437. See [Bulletins](website/src/content/docs/messageareas/bluewave.md#bulletins).
+
 * **Blue Wave readers can now choose a caller's areas offline** ([#883](https://github.com/NuSkooler/enigma-bbs/issues/883)), **and an offline mail upload says where each message went** ([#882](https://github.com/NuSkooler/enigma-bbs/issues/882)). A Blue Wave reader lets the caller turn areas on and off, and sends the result back in the reply packet as a `*.OLC` (or a `*.PDQ` from an older reader). ENiGMA½ used to unpack that file and ignore it. Callers who unsubscribed from echoes in their reader kept getting them, and nothing told them why.
 
   The file is now applied. It is the caller's whole list of areas rather than a set of changes, as the Blue Wave door treated it, so an area left off the list leaves their packet. An area turned on starts from the upload rather than from the area's whole history. Only areas the caller can see can be turned on; any other is refused and named. A list that would leave no areas at all is not applied, because a caller with nothing selected would never get another packet to undo it from.

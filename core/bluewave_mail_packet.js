@@ -20,6 +20,10 @@ const SysProps = require('./system_property.js');
 const ArchiveUtil = require('./archive_util.js');
 const { endWriteStream } = require('./file_util.js');
 const Address = require('./ftn_address.js');
+const {
+    BulletinNames,
+    writeOfflineMailBulletins,
+} = require('./offline_mail_bulletins.js');
 
 //  deps
 const fs = require('graceful-fs');
@@ -47,6 +51,10 @@ const crypto = require('crypto');
 //    revision 2 document, January 18 1994
 //
 const PacketLevel = 3;
+
+//  INF_HEADER.readerfiles[5][13]: the files a reader shows the caller
+const MaxReaderFiles = 5;
+const ReaderFileLength = 13;
 
 //  on-disk record sizes, written into the .INF header so a reader can seek
 //  past fields it does not know
@@ -204,6 +212,7 @@ class BlueWavePacketWriter extends EventEmitter {
         systemName = null,
         sysOpName = null,
         acceptsReplies = false,
+        bulletins = [],
     } = {}) {
         super();
 
@@ -214,6 +223,7 @@ class BlueWavePacketWriter extends EventEmitter {
             systemName,
             sysOpName,
             acceptsReplies,
+            bulletins,
         };
 
         this.temptmp = temptmp.createTrackedSession('bwpacketwriter');
@@ -488,6 +498,16 @@ class BlueWavePacketWriter extends EventEmitter {
             [
                 callback => endWriteStream(this.datStream, callback),
                 callback => this._writeIndexes(callback),
+                callback =>
+                    writeOfflineMailBulletins(
+                        this.workDir,
+                        this.options.bulletins,
+                        warning => this.emit('warning', warning),
+                        (err, written) => {
+                            this.readerFiles = written;
+                            return callback(err);
+                        }
+                    ),
                 callback => this._writeInf(callback),
             ],
             err => cb(err)
@@ -611,6 +631,9 @@ class BlueWavePacketWriter extends EventEmitter {
         const header = Buffer.alloc(RecordLength.InfHeader);
 
         header.writeUInt8(PacketLevel, 0);
+        this._readerFilesForInf().forEach((name, index) =>
+            writeFixed(header, 1 + index * ReaderFileLength, name, ReaderFileLength)
+        );
         header.writeUInt8(0, 75); //  mashtype: the reader fills this in
         writeFixed(header, 76, user ? user.username : '', 43); //  loginname
         writeFixed(header, 119, user ? user.realName(true) : '', 43); //  aliasname
@@ -662,6 +685,31 @@ class BlueWavePacketWriter extends EventEmitter {
             Buffer.concat([header, ...areas]),
             cb
         );
+    }
+
+    //
+    //  Past five, the last BLT-* files lose their slots rather than the
+    //  welcome or logoff screen. They are still packed, and readers that
+    //  look for BLT-* themselves show them.
+    //
+    _readerFilesForInf() {
+        const files = this.readerFiles;
+        const overflow = files.length - MaxReaderFiles;
+        if (overflow <= 0) {
+            return files;
+        }
+
+        const named = Object.values(BulletinNames);
+        const unlisted = files.filter(name => !named.includes(name)).slice(-overflow);
+        this.emit(
+            'warning',
+            Errors.General(
+                `Blue Wave lists ${MaxReaderFiles} bulletins; ${unlisted.join(
+                    ', '
+                )} packed but not listed`
+            )
+        );
+        return files.filter(name => !unlisted.includes(name));
     }
 
     _rootName() {

@@ -2,6 +2,7 @@
 
 const { strict: assert } = require('assert');
 const fs = require('fs');
+const os = require('os');
 const paths = require('path');
 const iconv = require('iconv-lite');
 
@@ -22,6 +23,7 @@ const {
 //
 const Inf = {
     Ver: 0,
+    ReaderFiles: 1,
     LoginName: 76,
     AliasName: 119,
     SysOp: 192,
@@ -211,6 +213,63 @@ describe('Blue Wave packet', () => {
                 done();
             },
             { acceptsReplies: false }
+        );
+    });
+
+    //
+    //  INF_HEADER.readerfiles has five 13 byte slots. A BLT-* file gives up
+    //  its slot before the logoff screen does, and is still packed, since
+    //  readers also pick up BLT-* on their own.
+    //
+    it('keeps the logoff screen listed when there are more than five', done => {
+        const sourceDir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enig-bw-blt-'));
+        const names = ['HELLO', 'BBSNEWS', 'BLT-0.1', 'BLT-0.2', 'BLT-0.3', 'GOODBYE'];
+        const bulletins = names.map(name => {
+            const path = paths.join(sourceDir, `${name}.txt`);
+            fs.writeFileSync(path, `${name}\n`);
+            return { name, path };
+        });
+        const warnings = [];
+
+        buildPacket(
+            writer => {
+                writer.on('warning', warning => warnings.push(warning));
+                writer.addArea('general');
+            },
+            ({ inf, writer }) => {
+                const listed = [0, 1, 2, 3, 4].map(i =>
+                    str(inf, Inf.ReaderFiles + i * 13, 13)
+                );
+                assert.deepEqual(listed, [
+                    'HELLO',
+                    'BBSNEWS',
+                    'BLT-0.1',
+                    'BLT-0.2',
+                    'GOODBYE',
+                ]);
+                assert.equal(
+                    fs.readFileSync(paths.join(writer.workDir, 'BLT-0.3')).toString(),
+                    'BLT-0.3\r\n'
+                );
+                assert.equal(warnings.length, 1);
+                fs.rmSync(sourceDir, { recursive: true, force: true });
+                done();
+            },
+            { bulletins }
+        );
+    });
+
+    it('leaves readerfiles empty when the board has no bulletins', done => {
+        buildPacket(
+            writer => writer.addArea('general'),
+            ({ inf }) => {
+                assert.ok(
+                    inf
+                        .subarray(Inf.ReaderFiles, Inf.ReaderFiles + 65)
+                        .every(b => 0 === b)
+                );
+                done();
+            }
         );
     });
 
