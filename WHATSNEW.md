@@ -15,6 +15,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 * **File Base handles bare `.gz` files as single compressed files.** It now lists and decompresses the inner file for description processing, while gzip-compressed tar archives keep using the tar handler.
 
+* **Offline mail packets can carry bulletins** ([#893](https://github.com/NuSkooler/enigma-bbs/issues/893)). Callers who only read packets used to miss what online callers see at logon. Files named in the new `messageNetworks.offlineMail` block (`hello`, `news`, `goodbye` and a `bulletins` list) are now packed into every QWK and Blue Wave packet, converted to CP437. See [Bulletins](website/src/content/docs/messageareas/bluewave.md#bulletins).
+
 ## 0.5.1-beta
 
 * **The file base can read ARC, PAK, ZOO, ACE, Squeeze It, UltraCompressor II, Unix `.Z`, xz, Zstandard and Microsoft Cabinet archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks** -- with [unarc](https://github.com/mkrueger/unarc-rs) installed. Uploads in these formats were treated as plain files, so nothing inside them was listed or used for a description. unarc is a single program that reads most archive formats found on BBSes; ENiGMA½ now lists their contents and takes descriptions from a `FILE_ID.DIZ` or `README` inside, as it does for ZIP. A DMS disk's attached `FILE_ID.DIZ` becomes its description. unarc is **not** shipped with ENiGMA½, and nothing changes until it is installed.

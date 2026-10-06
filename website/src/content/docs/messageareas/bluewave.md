@@ -40,6 +40,28 @@ An area tag reaches the packet as an echotag, which is what a reply is routed by
 }
 ```
 
+### Bulletins
+Files named in the `messageNetworks.offlineMail` block of `config.hjson` are packed into every Blue Wave and QWK packet, for the reader to show the caller. All keys are optional, and each takes the absolute path of a text or ANSI file; a relative path is resolved from the directory ENiGMA½ was started in.
+
+```hjson
+{
+    messageNetworks: {
+        offlineMail: {
+            hello: /enigma-bbs/art/offline/hello.ans      // packed as HELLO
+            news: /enigma-bbs/art/offline/news.ans        // packed as BBSNEWS
+            bulletins: [                                  // packed as BLT-0.1, BLT-0.2, ...
+                /enigma-bbs/art/offline/rules.txt
+            ]
+            goodbye: /enigma-bbs/art/offline/goodbye.ans  // packed as GOODBYE
+        }
+    }
+}
+```
+
+A Blue Wave packet lists them in the `.INF` header, which has room for five, in the order above. Past five, the last `BLT-*` files lose their place in the list, never the welcome or logoff screen. They are still packed, and readers that look for `BLT-*` files themselves show them. A QWK packet names `HELLO`, `BBSNEWS` and `GOODBYE` in `CONTROL.DAT` when they are packed, and readers pick up `BLT-*` files on their own.
+
+A file is sent as CP437 with CRLF line endings. One that is valid UTF-8 is converted; anything else, such as ANSI art drawn in CP437, is sent unchanged. A SAUCE record is cut off. A file that cannot be read is logged as a warning and left out of the packet. Every packet carries the bulletins, whether or not they have changed since the caller's last one.
+
 ### Menu Configuration
 A new installation reaches the export with <kbd>B</kbd> from the message base menu, where the stock theme lists it as `b blue wave export`. A theme of your own needs that line added to its `MSGMNU` art, and a board configured before 0.5.1-beta keeps the menus it already has, so add the entry below to one of them.
 

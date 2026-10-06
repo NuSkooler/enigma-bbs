@@ -17,6 +17,7 @@ const DownloadQueue = require('./download_queue.js');
 const { getISOTimestampString } = require('./database.js');
 const { safeMoveFile } = require('./file_util.js');
 const { getUserExportAreas } = require('./offline_mail_areas.js');
+const { offlineMailBulletins } = require('./offline_mail_bulletins.js');
 
 //  deps
 const async = require('async');
@@ -481,6 +482,7 @@ module.exports = class MessageBaseOfflineExport extends MenuModule {
         const packetWriter = this.createPacketWriter(
             Object.assign(this._getUserExportOptions(), {
                 user: this.client.user,
+                bulletins: offlineMailBulletins(),
             })
         );
 

@@ -37,6 +37,9 @@ Example:
 }
 ```
 
+### Bulletins
+A welcome screen, news, a logoff screen and further bulletins can be packed into every packet, as `HELLO`, `BBSNEWS`, `GOODBYE` and `BLT-0.1`, `BLT-0.2`, .... They are configured in `messageNetworks.offlineMail`, shared with Blue Wave; see [Bulletins](./bluewave.md#bulletins).
+
 ### Uploading Replies
 A caller who reads a QWK packet offline uploads the `*.REP` their reader wrote, with <kbd>U</kbd> from the message base menu (`message_base_offline_import`). Nothing asks them what format it is: a reply packet names itself from the inside, so a QWK one -- a lone `*.MSG` file and no `CONTROL.DAT` -- is read as QWK, and a Blue Wave one as Blue Wave.
 
