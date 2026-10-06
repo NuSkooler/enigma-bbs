@@ -10,6 +10,7 @@ const {
     getAllAvailableMessageAreaTags,
 } = require('./message_area');
 const StatLog = require('./stat_log');
+const { BulletinNames, writeOfflineMailBulletins } = require('./offline_mail_bulletins');
 const configModule = require('./config');
 //  Late bound for the same reason as message_area.js: configModule.get is
 //  replaced by the Config bootstrapper, so capturing it here would freeze
@@ -1033,6 +1034,7 @@ class QWKPacketWriter extends EventEmitter {
             user = null,
             archiveFormat = 'application/zip',
             forceEncoding = null,
+            bulletins = [],
         } = QWKPacketWriter.DefaultOptions
     ) {
         super();
@@ -1047,6 +1049,7 @@ class QWKPacketWriter extends EventEmitter {
             user,
             archiveFormat,
             forceEncoding: forceEncoding ? forceEncoding.toLowerCase() : null,
+            bulletins,
         };
 
         this.temptmp = temptmp.createTrackedSession('qwkpacketwriter');
@@ -1065,6 +1068,7 @@ class QWKPacketWriter extends EventEmitter {
             user: null,
             archiveFormat: 'application/zip',
             forceEncoding: null,
+            bulletins: [],
         };
     }
 
@@ -1332,6 +1336,17 @@ class QWKPacketWriter extends EventEmitter {
                     return endWriteStream(this.headersDatStream, callback);
                 },
                 callback => {
+                    return writeOfflineMailBulletins(
+                        this.workDir,
+                        this.options.bulletins,
+                        warning => this.emit('warning', warning),
+                        (err, written) => {
+                            this.bulletinFiles = written;
+                            return callback(err);
+                        }
+                    );
+                },
+                callback => {
                     return this._createControlData(callback);
                 },
                 callback => {
@@ -1567,10 +1582,13 @@ class QWKPacketWriter extends EventEmitter {
             controlStream.write(`${desc}\r\n`);
         });
 
-        //  :TODO: do we ever care here?!
-        ['HELLO', 'BBSNEWS', 'GOODBYE'].forEach(trailer => {
-            controlStream.write(`${trailer}\r\n`);
-        });
+        //  blank when not packed, so a reader is not sent looking for it
+        [BulletinNames.Hello, BulletinNames.News, BulletinNames.Goodbye].forEach(
+            trailer => {
+                const packed = this.bulletinFiles.includes(trailer);
+                controlStream.write(`${packed ? trailer : ''}\r\n`);
+            }
+        );
 
         return endWriteStream(controlStream, cb);
     }

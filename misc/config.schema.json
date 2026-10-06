@@ -2294,6 +2294,34 @@
                     },
                     "additionalProperties": false
                 },
+                "offlineMail": {
+                    "type": "object",
+                    "properties": {
+                        "bulletins": {
+                            "description": "Paths to further bulletins, packed as BLT-0.1, BLT-0.2, ...",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "goodbye": {
+                            "description": "Path to a logoff screen packed as GOODBYE.",
+                            "type": "string"
+                        },
+                        "hello": {
+                            "description": "Path to a welcome screen packed as HELLO.",
+                            "type": "string"
+                        },
+                        "news": {
+                            "description": "Path to a news bulletin packed as BBSNEWS.",
+                            "type": "string"
+                        }
+                    },
+                    "patternProperties": {
+                        "^_": true
+                    },
+                    "additionalProperties": false
+                },
                 "originLine": {
                     "description": "Origin line appended to exported FTN messages.",
                     "type": "string"
