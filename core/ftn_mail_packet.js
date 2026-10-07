@@ -668,19 +668,20 @@ function Packet(options) {
     this.parsePacketMessages = function (header, packetBuffer, iterator, cb) {
         //
         //  Check for end-of-messages marker up front before parse so we can easily
-        //  tell the difference between end and bad header
+        //  tell the difference between end and bad header. Whatever follows the
+        //  marker is ignored, and so is trailing padding where the marker should
+        //  be: packets padded out with NULs or DOS EOF (0x1A) bytes are common
+        //  in the wild.
         //
-        if (packetBuffer.length < 3) {
-            const peek = packetBuffer.slice(0, 2);
-            if (
-                peek.equals(Buffer.from([0x00])) ||
-                peek.equals(Buffer.from([0x00, 0x00]))
-            ) {
-                //  end marker - no more messages
-                return cb(null);
-            }
-            //  else fall through & hit exception below to log error
+        const atEndMarker =
+            packetBuffer.length >= 2 && 0 === packetBuffer.readUInt16LE(0);
+        const onlyPadding =
+            packetBuffer.length > 0 && packetBuffer.every(b => 0x00 === b || 0x1a === b);
+        if (atEndMarker || onlyPadding) {
+            //  end marker - no more messages
+            return cb(null);
         }
+        //  else fall through & hit exception below to log error
 
         let msgData;
         try {
@@ -742,6 +743,23 @@ function Packet(options) {
         ['modDateTime', 'toUserName', 'fromUserName', 'subject'].forEach(k => {
             msgData[k] = strUtil.stringFromNullTermBuffer(msgData[k], 'CP437');
         });
+
+        //
+        //  Names and subjects never contain line breaks. When they do, the
+        //  header is not a header at all: we have seen packets whose header
+        //  fields hold fragments of message text ("To: ...", "#123 reply to
+        //  #122"), which otherwise import as a garbage message.
+        //
+        const brokenField = ['toUserName', 'fromUserName', 'subject'].find(k =>
+            /[\r\n]/.test(msgData[k])
+        );
+        if (brokenField) {
+            return cb(
+                Errors.Invalid(
+                    `FTN packet ${brokenField} field contains a line break; header is malformed`
+                )
+            );
+        }
 
         //
         //  The message body itself is a special beast as it may
@@ -845,8 +863,10 @@ function Packet(options) {
             //  :TODO: Parser should give is this info:
             const bytesRead =
                 14 + //  fixed header size
-                msgData.modDateTime.length +
-                1 + //  +1 = NULL
+                //  modDateTime is a fixed 20 byte field, NULL included. It has
+                //  been converted to a string by now, which stops at the first
+                //  NULL, so its length here is short whenever the date is
+                20 +
                 msgData.toUserName.length +
                 1 + //  +1 = NULL
                 msgData.fromUserName.length +
