@@ -254,6 +254,71 @@ describe('parsePacketMessages — packet header origin recorded on the message',
     });
 });
 
+describe('parsePacketMessages — header fields holding message text', () => {
+    //
+    //  Modelled on a real fsxNet packet whose header fields held fragments of
+    //  message text. Byte for byte it parses, so only the content gives it away.
+    //
+    function packedMessage(toUserName, fromUserName, subject) {
+        const head = Buffer.alloc(14);
+        head.writeUInt16LE(2, 0); //  messageType
+        head.writeUInt16LE(100, 2);
+        head.writeUInt16LE(121, 4);
+        head.writeUInt16LE(1, 6);
+        head.writeUInt16LE(1, 8);
+
+        const date = Buffer.alloc(20);
+        date.write('00  00  00:00:00\x00', 'ascii');
+
+        const strings = Buffer.from(
+            `${toUserName}\x00${fromUserName}\x00${subject}\x00AREA:FSX_GEN\rBody\r\x00`,
+            'ascii'
+        );
+        return Buffer.concat([head, date, strings, Buffer.from([0x00, 0x00])]);
+    }
+
+    function parse(buf) {
+        return new Promise(resolve => {
+            const seen = [];
+            new Packet().parsePacketMessages(
+                new PacketHeader(),
+                buf,
+                (what, msg, next) => {
+                    seen.push(msg);
+                    next(null);
+                },
+                err => resolve({ err, seen })
+            );
+        });
+    }
+
+    it('rejects a line break in toUserName', async () => {
+        const { err, seen } = await parse(
+            packedMessage('77\r\nTo: Richard H', 'Someone', 'Subject')
+        );
+        assert.match(err.message, /toUserName field contains a line break/);
+        assert.equal(seen.length, 0);
+    });
+
+    it('rejects a line break in fromUserName', async () => {
+        const { err } = await parse(
+            packedMessage('All', '\r\n#194179 reply to #193982\r\nFm:', 'Subject')
+        );
+        assert.match(err.message, /fromUserName field contains a line break/);
+    });
+
+    it('rejects a line break in subject', async () => {
+        const { err } = await parse(packedMessage('All', 'Someone', 'one\rtwo'));
+        assert.match(err.message, /subject field contains a line break/);
+    });
+
+    it('accepts ordinary header fields', async () => {
+        const { err, seen } = await parse(packedMessage('All', 'Someone', 'Subject'));
+        assert.equal(err, null);
+        assert.equal(seen.length, 1);
+    });
+});
+
 describe('processMessageBody — kludge line parsing', () => {
     it('parses a standard Via kludge (mixed case)', async () => {
         const buf = makeMessageBody(['\x01Via 2:123/456.0 19960101.120000 ENiGMA 0.0']);

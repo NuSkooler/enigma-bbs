@@ -744,6 +744,23 @@ function Packet(options) {
         });
 
         //
+        //  Names and subjects never contain line breaks. When they do, the
+        //  header is not a header at all: we have seen packets whose header
+        //  fields hold fragments of message text ("To: ...", "#123 reply to
+        //  #122"), which otherwise import as a garbage message.
+        //
+        const brokenField = ['toUserName', 'fromUserName', 'subject'].find(k =>
+            /[\r\n]/.test(msgData[k])
+        );
+        if (brokenField) {
+            return cb(
+                Errors.Invalid(
+                    `FTN packet ${brokenField} field contains a line break; header is malformed`
+                )
+            );
+        }
+
+        //
         //  The message body itself is a special beast as it may
         //  contain an origin line, kludges, SAUCE in the case
         //  of ANSI files, etc.
@@ -845,8 +862,10 @@ function Packet(options) {
             //  :TODO: Parser should give is this info:
             const bytesRead =
                 14 + //  fixed header size
-                msgData.modDateTime.length +
-                1 + //  +1 = NULL
+                //  modDateTime is a fixed 20 byte field, NULL included. It has
+                //  been converted to a string by now, which stops at the first
+                //  NULL, so its length here is short whenever the date is
+                20 +
                 msgData.toUserName.length +
                 1 + //  +1 = NULL
                 msgData.fromUserName.length +
