@@ -668,19 +668,20 @@ function Packet(options) {
     this.parsePacketMessages = function (header, packetBuffer, iterator, cb) {
         //
         //  Check for end-of-messages marker up front before parse so we can easily
-        //  tell the difference between end and bad header
+        //  tell the difference between end and bad header. Whatever follows the
+        //  marker is ignored, and so is trailing padding where the marker should
+        //  be: packets padded out with NULs or DOS EOF (0x1A) bytes are common
+        //  in the wild.
         //
-        if (packetBuffer.length < 3) {
-            const peek = packetBuffer.slice(0, 2);
-            if (
-                peek.equals(Buffer.from([0x00])) ||
-                peek.equals(Buffer.from([0x00, 0x00]))
-            ) {
-                //  end marker - no more messages
-                return cb(null);
-            }
-            //  else fall through & hit exception below to log error
+        const atEndMarker =
+            packetBuffer.length >= 2 && 0 === packetBuffer.readUInt16LE(0);
+        const onlyPadding =
+            packetBuffer.length > 0 && packetBuffer.every(b => 0x00 === b || 0x1a === b);
+        if (atEndMarker || onlyPadding) {
+            //  end marker - no more messages
+            return cb(null);
         }
+        //  else fall through & hit exception below to log error
 
         let msgData;
         try {

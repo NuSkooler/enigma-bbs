@@ -319,6 +319,91 @@ describe('parsePacketMessages — header fields holding message text', () => {
     });
 });
 
+describe('parsePacketMessages — message framing', () => {
+    function packedMessage(date, toUserName) {
+        const head = Buffer.alloc(14);
+        head.writeUInt16LE(2, 0); //  messageType
+
+        //  the date field is always 20 bytes, whatever the date string's length
+        const dateField = Buffer.alloc(20);
+        dateField.write(date, 'ascii');
+
+        const strings = Buffer.from(
+            `${toUserName}\x00Someone\x00Subject\x00AREA:TEST\rBody\r\x00`,
+            'ascii'
+        );
+        return Buffer.concat([head, dateField, strings]);
+    }
+
+    function parse(buf) {
+        return new Promise(resolve => {
+            const seen = [];
+            new Packet().parsePacketMessages(
+                new PacketHeader(),
+                buf,
+                (what, msg, next) => {
+                    seen.push(msg.toUserName);
+                    next(null);
+                },
+                err => resolve({ err, seen })
+            );
+        });
+    }
+
+    const END = Buffer.from([0x00, 0x00]);
+
+    it('finds the next message after a short date', async () => {
+        //  the offset to the next message was once taken from the decoded date
+        //  string, so anything under 19 characters landed short of it
+        const { err, seen } = await parse(
+            Buffer.concat([
+                packedMessage('00  00  00:00:00', 'First'),
+                packedMessage('07 Oct 26  02:30:00', 'Second'),
+                END,
+            ])
+        );
+        assert.equal(err, null);
+        assert.deepEqual(seen, ['First', 'Second']);
+    });
+
+    it('finds the next message after a date filling all 20 bytes', async () => {
+        const { err, seen } = await parse(
+            Buffer.concat([
+                packedMessage('Wed  7 Oct 26 02:30x', 'First'),
+                packedMessage('07 Oct 26  02:30:00', 'Second'),
+                END,
+            ])
+        );
+        assert.equal(err, null);
+        assert.deepEqual(seen, ['First', 'Second']);
+    });
+
+    it('ignores padding after the end marker', async () => {
+        for (const pad of [
+            Buffer.alloc(16, 0x00),
+            Buffer.alloc(16, 0x1a),
+            Buffer.from('junk'),
+        ]) {
+            const { err, seen } = await parse(
+                Buffer.concat([packedMessage('07 Oct 26  02:30:00', 'First'), END, pad])
+            );
+            assert.equal(err, null, `padding ${pad.toString('hex')}`);
+            assert.deepEqual(seen, ['First']);
+        }
+    });
+
+    it('treats padding in place of the end marker as the end', async () => {
+        const { err, seen } = await parse(
+            Buffer.concat([
+                packedMessage('07 Oct 26  02:30:00', 'First'),
+                Buffer.from([0x1a]),
+            ])
+        );
+        assert.equal(err, null);
+        assert.deepEqual(seen, ['First']);
+    });
+});
+
 describe('processMessageBody — kludge line parsing', () => {
     it('parses a standard Via kludge (mixed case)', async () => {
         const buf = makeMessageBody(['\x01Via 2:123/456.0 19960101.120000 ENiGMA 0.0']);

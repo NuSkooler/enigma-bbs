@@ -38,7 +38,7 @@ function packedMessage(toUserName) {
     return Buffer.concat([head, date, strings]);
 }
 
-function writePacket(dir, toUserNames) {
+function writePacket(dir, toUserNames, trailer = Buffer.alloc(0)) {
     const ph = new PacketHeader();
     ph.origAddress = { zone: 21, net: 1, node: 100, point: 0 };
     ph.destAddress = { zone: 21, net: 1, node: 121, point: 0 };
@@ -50,6 +50,7 @@ function writePacket(dir, toUserNames) {
             new Packet().getPacketHeaderBuffer(ph),
             ...toUserNames.map(packedMessage),
             Buffer.from([0x00, 0x00]),
+            trailer,
         ])
     );
     return packetPath;
@@ -96,6 +97,14 @@ describe('FTN BSO packet import — rejected packets import nothing', () => {
             imported.map(m => m.toUserName),
             ['All', 'Nigel Reed']
         );
+    });
+
+    it('imports every message of a packet padded after its end marker', async () => {
+        const err = await importPacket(
+            writePacket(dir, ['All', 'Nigel Reed'], Buffer.alloc(32, 0x1a))
+        );
+        assert.ok(!err, err && err.message);
+        assert.equal(imported.length, 2);
     });
 
     it('imports nothing when a later message is malformed', async () => {

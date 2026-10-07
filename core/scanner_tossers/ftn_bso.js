@@ -2105,45 +2105,37 @@ function FTNMessageScanTossModule() {
     //      https://github.com/larsks/crashmail/blob/26e5374710c7868dab3d834be14bf4041041aae5/crashmail/handle.c
     //
     this.importMessagesFromPacketFile = function (packetPath, password, cb) {
-        fs.readFile(packetPath, (err, packetBuffer) => {
-            if (err) {
-                return cb(err);
-            }
+        //
+        //  Parse the whole packet before importing any of it. A packet that
+        //  fails part way through is rejected, and without this the messages
+        //  ahead of the failure would already be in the database -- including,
+        //  when the header layout is garbage, the garbage itself.
+        //
+        const packetOpts = { keepTearAndOrigin: false }; //  needed so we can calc message UUID without these; we'll add later
+        const entries = [];
 
-            //
-            //  Parse the whole packet before importing any of it. A packet that
-            //  fails part way through is rejected, and without this the messages
-            //  ahead of the failure would already be in the database -- including,
-            //  when the header layout is garbage, the garbage itself.
-            //
-            new ftnMailPacket.Packet({ keepTearAndOrigin: false }).read(
-                packetBuffer,
-                (entryType, entryData, next) => next(null),
-                err => {
-                    if (err) {
-                        Log.warn(
-                            { packetPath, error: err.message },
-                            `Packet ${paths.basename(
-                                packetPath
-                            )} is malformed; nothing imported`
-                        );
-                        return cb(err);
-                    }
-
-                    return self.importMessagesFromPacketBuffer(
-                        packetPath,
-                        packetBuffer,
-                        cb
+        new ftnMailPacket.Packet(packetOpts).read(
+            packetPath,
+            (entryType, entryData, next) => {
+                entries.push({ entryType, entryData });
+                return next(null);
+            },
+            err => {
+                if (err) {
+                    Log.warn(
+                        { packetPath, error: err.message },
+                        `Packet ${paths.basename(packetPath)} is malformed; nothing imported`
                     );
+                    return cb(err);
                 }
-            );
-        });
+
+                return self.importPacketEntries(packetPath, entries, cb);
+            }
+        );
     };
 
-    this.importMessagesFromPacketBuffer = function (packetPath, packetBuffer, cb) {
+    this.importPacketEntries = function (packetPath, entries, cb) {
         let packetHeader;
-
-        const packetOpts = { keepTearAndOrigin: false }; //  needed so we can calc message UUID without these; we'll add later
 
         let importStats = {
             packetPath,
@@ -2153,9 +2145,9 @@ function FTNMessageScanTossModule() {
             skipCount: 0, //  messages skipped (unknown area, non-private sans area tag)
         };
 
-        new ftnMailPacket.Packet(packetOpts).read(
-            packetBuffer,
-            (entryType, entryData, next) => {
+        async.eachSeries(
+            entries,
+            ({ entryType, entryData }, next) => {
                 if ('header' === entryType) {
                     packetHeader = entryData;
 
