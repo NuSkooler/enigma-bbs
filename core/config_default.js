@@ -629,7 +629,7 @@ module.exports = () => {
                 shortDescUtil: 'Exiftool2Desc',
                 longDescUtil: 'Exiftool',
             },
-            'video/x-matroska ': {
+            'video/x-matroska': {
                 desc: 'Matroska Video',
                 shortDescUtil: 'Exiftool2Desc',
                 longDescUtil: 'Exiftool',
