@@ -756,8 +756,10 @@ module.exports = () => {
                     list: {
                         cmd: '7za',
                         args: ['l', '{archivePath}'],
+                        //  Compressed is blank for all but the first entry of a
+                        //  solid block, so match its fixed-width column, not digits
                         entryMatch:
-                            '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
+                            '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+) [ 0-9]{12}  ([^\\r\\n]+)$',
                     },
                     extract: {
                         cmd: '7za',
