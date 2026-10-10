@@ -16,7 +16,7 @@ Before using features such as the [File Base](../filebase/index.md) or [File Tra
 On Linux, you can quickly check what is available in your PATH:
 
 ```sh
-command -v exiftool xdms pdftotext 7za zip unzip lha unlzx arj unrar tar atr sexyz sz rz
+command -v exiftool xdms pdftotext 7za zip unzip lha unlzx arj unrar tar atr unarc sexyz sz rz
 ```
 
 If a command is missing, see the tables below.
@@ -59,6 +59,7 @@ sudo dnf install -y \
 Notes:
 
 - `p7zip` / `p7zip-plugins` and `unrar` often require extra repositories (commonly EPEL and/or RPM Fusion), depending on distro/version.
+- On some releases (EL 10, for one) the package named `unrar` installs `unrar-free`, which ENiGMA½'s `Rar` archiver cannot drive. If `unrar --version` says `unrar-free`, install RARLAB's `unrar` (RPM Fusion's nonfree repository carries it), or read RAR archives with [unarc](archivers.md#unarc) instead.
 
 ### Manual installs
 
@@ -84,9 +85,10 @@ These defaults come from `core/config_default.js`, and can be overridden in your
 | `Lha` | `lha` | Often provided by `lhasa` on Debian/Ubuntu; may require manual build on EL |
 | `Lzx` | `unlzx` | `unlzx` is the extractor/list tool for Amiga `.lzx` |
 | `Arj` | `arj` |  |
-| `Rar` | `unrar` |  |
+| `Rar` | `unrar` | Must be RARLAB's `unrar`. `unrar-free` takes different arguments, and every list and extract fails |
 | `TarGz` | `tar` | Uses `tar` for list/extract |
 | `Atr` | `atr` | Uses `atr` for list/extract of Atari `.atr` images |
+| `Unarc` | `unarc` | Lists and extracts ARC/PAK, ZOO, ACE, SQZ, UC2 and `.Z`; see [unarc](archivers.md#unarc) |
 
 ### File transfer protocols (`fileTransferProtocols`)
 
@@ -117,8 +119,9 @@ Below is a table of pre-configured archivers. Remember that you can override set
 | `Lha` | .lza, .lzh, etc. | [Wikipedia](https://en.wikipedia.org/wiki/LHA_(file_format)) <br> https://fragglet.github.io/lhasa/ | `lhasa` (provides `lha`) | Often not packaged on modern EL; build from source if needed | [Win32 binaries](https://soulsphere.org/projects/lhasa/win32/) |
 | `Lzx` | .lzx | [Amiga LZX](https://en.wikipedia.org/wiki/LZX_(algorithm)#Amiga_LZX) | Often not packaged; build from source if needed | Often not packaged; build from source if needed | [Source](http://xavprods.free.fr/lzx/) |
 | `Rar` | .rar | [Wikipedia](https://en.wikipedia.org/wiki/RAR_(file_format)) | `unrar` (may require non-default repo) | `unrar` (may require non-default repo) | [RARLAB](https://www.rarlab.com/) |
-| `TarGz` | .tar.gz, .gzip | [Wikipedia](https://en.wikipedia.org/wiki/Gzip) | `tar` | `tar` | [TAR.EXE](https://ss64.com/nt/tar.html) |
+| `TarGz` | .tar, .tar.gz, .gzip | [Wikipedia](https://en.wikipedia.org/wiki/Gzip) | `tar` | `tar` | [TAR.EXE](https://ss64.com/nt/tar.html) |
 | `Atr` | .atr | ATR (Atari 8-bit disk image) <br> [atari-tools](https://github.com/jhallen/atari-tools) | Not typically packaged; build from source | Not typically packaged; build from source | Varies |
+| `Unarc` | .arc, .pak, .zoo, .ace, .sqz, .uc2, .Z | https://github.com/mkrueger/unarc-rs | `cargo install unarc-cli` | `cargo install unarc-cli` | `cargo install unarc-cli` |
 
 
 :::note

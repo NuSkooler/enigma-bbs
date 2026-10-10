@@ -647,6 +647,12 @@ module.exports = {
     //  ── Miscellaneous open maps ──────────────────────────────────────────
     fileTypes: { openMap: true }, //  keyed by MIME type
     'archives.archivers': { openMap: true },
+    'archives.archivers.*.list.outputFormat': {
+        type: 'string',
+        enum: ['json'],
+        description:
+            "'json' when list prints `unarc list --json` style output; entryMatch is then unused.",
+    },
     fileTransferProtocols: { openMap: true },
     'eventScheduler.events': { openMap: true },
     infoExtractUtils: { openMap: true },

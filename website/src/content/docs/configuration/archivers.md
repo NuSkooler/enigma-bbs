@@ -18,7 +18,7 @@ Generally you do not need to do anything beyond installing supporting binaries. 
 On Linux, you can quickly check what is available in your PATH:
 
 ```sh
-command -v 7za zip unzip lha unlzx arj unrar tar atr
+command -v 7za zip unzip lha unlzx arj unrar tar atr unarc
 ```
 
 ### Archiver Configuration
@@ -29,6 +29,8 @@ Archiver entries in `config.hjson` are mostly self explanatory with the exceptio
 * `{extractPath}` (decompress, extract): Path to extract *to*
 
 For `list` commands, the `entryMatch` key must be provided. This key should provide a regular expression that matches two sub groups: One for uncompressed file byte sizes (sub group 1) and the other for file names (sub group 2). An optional `entryGroupOrder` can be supplied to change the default sub group order.
+
+A `list` command that prints JSON in the form `unarc list --json` does sets `outputFormat: 'json'` instead of `entryMatch`. ENiGMA½ reads each entry's `name` and `size`, and skips entries whose `kind` is `directory`. See [unarc](#unarc) below.
 
 #### Example Archiver Configuration
 ```hjson
@@ -65,5 +67,33 @@ Many different types come pre-configured (see `core/config_default.js`).
 	sig: '504b0304' /* byte signature in HEX */
 	offset: 0
 	archiveHandler: 'InfoZip' /* points to a defined archiver */
+}
+```
+
+`sig` may also be a list of alternatives, all found at the same `offset`. LHA archives, for example, start with `-lh` or, for LArc, `-lz` at offset 2:
+
+```
+'application/x-lzh-compressed': {
+	desc: 'LHArc Archive'
+	sig: [ '2d6c68', '2d6c7a' ]
+	offset: 2
+	archiveHandler: 'Lha'
+}
+```
+
+## unarc
+[unarc](https://github.com/mkrueger/unarc-rs) is a single program that reads most of the archive formats found on BBSes: ARC and PAK, ZOO, ACE, Squeeze It (SQZ), UltraCompressor II (UC2), HA, HYP and Unix `.Z`, as well as ZIP, RAR (all versions), 7z, ARJ, LHA and tar. It is written in Rust and does not need any other archiver installed.
+
+ENiGMA½ uses it, through the `Unarc` archiver, for ARC/PAK, ZOO, ACE, SQZ, UC2 and `.Z` files. Install it with `cargo install unarc-cli`, which needs a version of unarc whose `list` command has the `--json` option.
+
+`unarc` cannot create archives, so it is not a choice for `compress`.
+
+Any other type can be pointed at it as well. For example, to read RAR archives with `unarc` rather than `unrar`:
+
+```hjson
+fileTypes: {
+	'application/x-rar-compressed': {
+		archiveHandler: 'Unarc'
+	}
 }
 ```
