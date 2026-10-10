@@ -10,7 +10,7 @@ const FileDb = require('./database.js').dbs.file;
 const ArchiveUtil = require('./archive_util.js');
 const CRC32 = require('./crc.js').CRC32;
 const Log = require('./logger.js').log;
-const resolveMimeType = require('./mime_util.js').resolveMimeType;
+const { resolveMimeType, findFileTypeByExtension } = require('./mime_util.js');
 const stringFormat = require('./string_format.js');
 const wordWrapText = require('./word_wrap.js').wordWrapText;
 const StatLog = require('./stat_log.js');
@@ -643,7 +643,7 @@ function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
 
     if (Array.isArray(fileType)) {
         //  further refine by extention
-        fileType = fileType.find(ft => paths.extname(filePath) === ft.ext);
+        fileType = findFileTypeByExtension(fileType, paths.extname(filePath));
     }
 
     if (!_.isObject(fileType)) {
