@@ -18,6 +18,11 @@ function startup(cb) {
         ans: 'text/x-ansi',
         gz: 'application/gzip', //  not in mime-types 2.1.15 :(
         lzx: 'application/x-lzx', //  :TODO: submit to mime-types
+        arc: 'application/x-arc', //  mime-db's .arc is FreeArc, a different format
+        zoo: 'application/x-zoo',
+        sqz: 'application/x-sqz',
+        uc2: 'application/x-uc2',
+        z: 'application/x-compress',
     };
 
     _.forEach(ADDITIONAL_EXT_MIMETYPES, (mimeType, ext) => {

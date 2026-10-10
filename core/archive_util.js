@@ -2,7 +2,9 @@
 'use strict';
 
 //  ENiGMA½
-const Config = require('./config.js').get;
+const configModule = require('./config.js');
+//  read per call: a module-load capture pins whichever config was installed first
+const Config = () => configModule.get();
 const stringFormat = require('./string_format.js');
 const Errors = require('./enig_error.js').Errors;
 const { resolveMimeType, findFileTypeByExtension } = require('./mime_util.js');
@@ -13,6 +15,7 @@ const fs = require('graceful-fs');
 const _ = require('lodash');
 const pty = require('node-pty');
 const paths = require('path');
+const { execFile } = require('child_process');
 
 let archiveUtil;
 
@@ -95,11 +98,12 @@ module.exports = class ArchiveUtil {
 
         if (_.isObject(config.fileTypes)) {
             const updateSig = ft => {
-                ft.sig = Buffer.from(ft.sig, 'hex');
+                //  |sig| may list alternatives, all at the same |offset|
+                ft.sig = _.castArray(ft.sig).map(sig => Buffer.from(sig, 'hex'));
                 ft.offset = ft.offset || 0;
 
                 //  :TODO: allow a negative offset (from EOF) for trailer signatures
-                const sigLen = ft.offset + ft.sig.length;
+                const sigLen = ft.offset + _.max(ft.sig.map(sig => sig.length));
                 if (sigLen > this.longestSignature) {
                     this.longestSignature = sigLen;
                 }
@@ -187,14 +191,14 @@ module.exports = class ArchiveUtil {
                             return false;
                         }
 
-                        const lenNeeded = fti.offset + fti.sig.length;
+                        return fti.sig.some(sig => {
+                            const lenNeeded = fti.offset + sig.length;
+                            if (bytesRead < lenNeeded) {
+                                return false;
+                            }
 
-                        if (bytesRead < lenNeeded) {
-                            return false;
-                        }
-
-                        const comp = buf.slice(fti.offset, fti.offset + fti.sig.length);
-                        return fti.sig.equals(comp);
+                            return sig.equals(buf.slice(fti.offset, lenNeeded));
+                        });
                     });
                 });
 
@@ -336,6 +340,10 @@ module.exports = class ArchiveUtil {
 
         const args = archiver.list.args.map(arg => stringFormat(arg, fmtObj));
 
+        if ('json' === archiver.list.outputFormat) {
+            return this.listJsonEntries(archiver.list.cmd, args, cb);
+        }
+
         let proc;
         try {
             proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
@@ -379,6 +387,39 @@ module.exports = class ArchiveUtil {
                     fileName: m[entryGroupOrder.fileName].trim(),
                 });
             }
+
+            return cb(null, entries);
+        });
+    }
+
+    //
+    //  A listing in the JSON form `unarc list --json` prints:
+    //  { entries : [ { name, kind, size, ... } ] }
+    //
+    //  It is parsed whole, so it is read without a pty: one would merge the
+    //  archiver's stderr into it.
+    //
+    listJsonEntries(cmd, args, cb) {
+        const options = { maxBuffer: 64 * 1024 * 1024, timeout: 60 * 1000 };
+        execFile(cmd, args, options, (err, stdout) => {
+            if (err) {
+                return cb(Errors.ExternalProcess(`List failed: ${err.message}`));
+            }
+
+            let listing;
+            try {
+                listing = JSON.parse(stdout);
+            } catch (e) {
+                return cb(Errors.Invalid(`List output is not JSON: ${e.message}`));
+            }
+
+            if (!Array.isArray(listing.entries)) {
+                return cb(Errors.Invalid('List output has no entries'));
+            }
+
+            const entries = listing.entries
+                .filter(entry => 'directory' !== entry.kind)
+                .map(entry => ({ byteSize: entry.size, fileName: entry.name }));
 
             return cb(null, entries);
         });

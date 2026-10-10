@@ -1428,6 +1428,13 @@
                                                 "type": "number"
                                             }
                                         }
+                                    },
+                                    "outputFormat": {
+                                        "description": "'json' when list prints `unarc list --json` style output; entryMatch is then unused.",
+                                        "type": "string",
+                                        "enum": [
+                                            "json"
+                                        ]
                                     }
                                 }
                             },

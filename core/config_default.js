@@ -704,7 +704,7 @@ module.exports = () => {
             },
             'application/x-lzh-compressed': {
                 desc: 'LHArc Archive',
-                sig: '2d6c68',
+                sig: ['2d6c68', '2d6c7a'], //  -lh?- or LArc's -lz?-
                 offset: 2,
                 archiveHandler: 'Lha',
             },
@@ -719,6 +719,65 @@ module.exports = () => {
                 sig: '377abcaf271c',
                 offset: 0,
                 archiveHandler: '7Zip',
+            },
+            'application/x-tar': {
+                desc: 'Tape Archive',
+                sig: '7573746172', //  ustar
+                offset: 257,
+                archiveHandler: 'TarGz',
+            },
+
+            //
+            //  Handled by unarc -- see archives.archivers.Unarc
+            //
+            'application/x-arc': {
+                desc: 'ARC Archive',
+                //  0x1a then a method: ARC 1-9, PAK 10-11
+                sig: [
+                    '1a01',
+                    '1a02',
+                    '1a03',
+                    '1a04',
+                    '1a05',
+                    '1a06',
+                    '1a07',
+                    '1a08',
+                    '1a09',
+                    '1a0a',
+                    '1a0b',
+                ],
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-zoo': {
+                desc: 'Zoo Archive',
+                sig: '5a4f4f20', //  "ZOO "
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-ace-compressed': {
+                desc: 'ACE Archive',
+                sig: '2a2a4143452a2a', //  **ACE**
+                offset: 7,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-sqz': {
+                desc: 'Squeeze It Archive',
+                sig: '484c53515a', //  HLSQZ
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-uc2': {
+                desc: 'UltraCompressor II Archive',
+                sig: ['5543321a', '554532'], //  UC2^Z, or UE2 when encrypted
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-compress': {
+                desc: 'Unix Compressed File',
+                sig: '1f9d',
+                offset: 0,
+                archiveHandler: 'Unarc',
             },
 
             //
@@ -937,6 +996,37 @@ module.exports = () => {
                             '-l',
                             '-o',
                             '{extractPath}',
+                            '{fileList}',
+                        ],
+                    },
+                },
+
+                Unarc: {
+                    //
+                    //  'unarc' reads ARC, PAK, ZOO, ACE, SQZ, UC2, HA, HYP and
+                    //  more, as well as ZIP, RAR, 7z, ARJ and LHA:
+                    //  * https://github.com/mkrueger/unarc-rs
+                    //  * cargo install unarc-cli
+                    //
+                    //  (compress not supported)
+                    //
+                    decompress: {
+                        cmd: 'unarc',
+                        args: ['extract', '-o', '{extractPath}', '--', '{archivePath}'],
+                    },
+                    list: {
+                        cmd: 'unarc',
+                        args: ['list', '--json', '{archivePath}'],
+                        outputFormat: 'json',
+                    },
+                    extract: {
+                        cmd: 'unarc',
+                        args: [
+                            'extract',
+                            '-o',
+                            '{extractPath}',
+                            '--',
+                            '{archivePath}',
                             '{fileList}',
                         ],
                     },
