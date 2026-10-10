@@ -59,7 +59,7 @@ sudo dnf install -y \
 Notes:
 
 - `p7zip` / `p7zip-plugins` and `unrar` often require extra repositories (commonly EPEL and/or RPM Fusion), depending on distro/version.
-- On some releases (EL 10, for one) the package named `unrar` installs `unrar-free`, which ENiGMA½'s `Rar` archiver cannot drive. If `unrar --version` says `unrar-free`, install RARLAB's `unrar` (RPM Fusion's nonfree repository carries it), or read RAR archives with [unarc](archivers.md#unarc) instead.
+- On some releases (EL 10, for one) the package named `unrar` installs `unrar-free`. It accepts the same commands but prints its listing in a different layout, so the `Rar` archiver finds no files in any RAR archive. If `unrar --version` says `unrar-free`, install RARLAB's `unrar` (RPM Fusion's nonfree repository carries it), or read RAR archives with [unarc](archivers.md#unarc) instead.
 
 ### Manual installs
 
@@ -85,7 +85,7 @@ These defaults come from `core/config_default.js`, and can be overridden in your
 | `Lha` | `lha` | Often provided by `lhasa` on Debian/Ubuntu; may require manual build on EL |
 | `Lzx` | `unlzx` | `unlzx` is the extractor/list tool for Amiga `.lzx` |
 | `Arj` | `arj` |  |
-| `Rar` | `unrar` | Must be RARLAB's `unrar`. `unrar-free` takes different arguments, and every list and extract fails |
+| `Rar` | `unrar` | Must be RARLAB's `unrar`. `unrar-free` lists in a different layout, so every RAR archive appears empty |
 | `TarGz` | `tar` | Uses `tar` for list/extract |
 | `Atr` | `atr` | Uses `atr` for list/extract of Atari `.atr` images |
 | `Unarc` | `unarc` | Lists and extracts ARC/PAK, ZOO, ACE, SQZ, UC2 and `.Z`; see [unarc](archivers.md#unarc) |
