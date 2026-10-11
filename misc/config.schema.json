@@ -1428,6 +1428,13 @@
                                                 "type": "number"
                                             }
                                         }
+                                    },
+                                    "outputFormat": {
+                                        "description": "'json' when list prints `unarc list --json` style output; entryMatch is then unused.",
+                                        "type": "string",
+                                        "enum": [
+                                            "json"
+                                        ]
                                     }
                                 }
                             },
@@ -1996,13 +2003,13 @@
                                 "type": "string"
                             },
                             "default": [
-                                "^.*FILE_ID.ANS$",
-                                "^.*FILE_ID.DIZ$",
-                                "^.*DESC.SDI$",
-                                "^.*DESCRIPT.ION$",
-                                "^.*FILE.DES$",
-                                "^.*FILE.SDI$",
-                                "^.*DISK.ID$"
+                                "^.*FILE_ID\\.ANS$",
+                                "^.*FILE_ID\\.DIZ$",
+                                "^.*DESC\\.SDI$",
+                                "^.*DESCRIPT\\.ION$",
+                                "^.*FILE\\.DES$",
+                                "^.*FILE\\.SDI$",
+                                "^.*DISK\\.ID$"
                             ]
                         },
                         "descLong": {
@@ -2011,14 +2018,14 @@
                                 "type": "string"
                             },
                             "default": [
-                                "^[^/]*.NFO$",
-                                "^.*README.1ST$",
-                                "^.*README.NOW$",
-                                "^.*README.TXT$",
-                                "^.*READ.ME$",
+                                "^[^/]*\\.NFO$",
+                                "^.*README\\.1ST$",
+                                "^.*README\\.NOW$",
+                                "^.*README\\.TXT$",
+                                "^.*READ\\.ME$",
                                 "^.*README$",
-                                "^.*README.md$",
-                                "^RELEASE-INFO.ASC$"
+                                "^.*README\\.md$",
+                                "^RELEASE-INFO\\.ASC$"
                             ]
                         }
                     },

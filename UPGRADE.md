@@ -22,6 +22,25 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
 ## 0.5.0-beta to 0.5.1-beta
 
+* **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.
+
+  **Action:** none required. To use the new formats, install unarc as [Archivers](website/src/content/docs/configuration/archivers.md#unarc) describes. It needs a version newer than 0.7.0, so build it from the repository until one is released.
+
+  * **Amiga LZX and Atari ATR** still use `unlzx` and `atr` by default, so a board with those keeps working unchanged. unarc reads both as well, including SpartaDOS ATR disks, which `atr` cannot. Once it is installed you can drop the two tools by pointing their archivers at it in `config.hjson`:
+
+    ```hjson
+    archives: {
+        archivers: {
+            Atr: "@reference:archives.archivers.Unarc"
+            Lzx: "@reference:archives.archivers.Unarc"
+        }
+    }
+    ```
+
+  * **An upload whose archiver cannot list it** is now handled as a plain file, where it used to keep an archive type with a listing that always failed. If an archiver you rely on is missing, those uploads now get a description from their file name until it is installed and the area is rescanned.
+
+  * **Long descriptions of Amiga uploads may change on rescan.** Description-file patterns now match a literal dot, so an Amiga `.info` icon is no longer taken for an `.NFO`. DMS disks listed through unarc take their long description from a README or NFO on the disk, where they had `xdms`'s table of track checksums.
+
 * **A door's `io: socket` server now listens on loopback only** ([#885](https://github.com/NuSkooler/enigma-bbs/issues/885)). The temporary TCP server an `abracadabra` door connects back to used to be bound to every interface, and the first connection to arrive -- from anywhere -- was handed the caller's session. It now binds `127.0.0.1`.
 
   **Action:** none if the door, launch script or emulator already connects to `localhost` or `127.0.0.1` on the same machine, which covers the shipped examples, bivrost! and the documented QEMU and DOSEMU setups. Two cases need a change:

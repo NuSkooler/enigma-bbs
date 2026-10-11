@@ -587,14 +587,19 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 
                     archiveUtil.listEntries(filePath, archiveType, (err, entries) => {
                         if (err) {
+                            //  Not an archive after all -- a misnamed file, or one
+                            //  the archiver cannot read. Fall back to treating it as
+                            //  a plain file rather than keep an archive type whose
+                            //  listing will always fail.
                             stepInfo.step = 'archive_list_failed';
+                            delete fileEntry.meta.archive_type;
                         } else {
                             stepInfo.step = 'archive_list_finish';
                             stepInfo.archiveEntries = entries || [];
                         }
 
                         iterator(iterErr => {
-                            return callback(iterErr, entries || []); //  ignore original |err| here
+                            return callback(iterErr || err, entries || []);
                         });
                     });
                 });
