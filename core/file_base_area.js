@@ -422,22 +422,23 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                                 return callback(err);
                             }
 
-                            const descFiles = {
-                                desc: shortDescFile
-                                    ? paths.join(
-                                          tempDir,
-                                          paths.basename(shortDescFile.fileName)
-                                      )
-                                    : null,
-                                descLong: longDescFile
-                                    ? paths.join(
-                                          tempDir,
-                                          paths.basename(longDescFile.fileName)
-                                      )
-                                    : null,
+                            //  a desc file the extraction did not produce is skipped
+                            const find = (entry, next) => {
+                                if (!entry) {
+                                    return next(null, null);
+                                }
+                                ArchiveUtil.findExtractedFile(
+                                    tempDir,
+                                    entry.fileName,
+                                    (err, path) => next(null, err ? null : path)
+                                );
                             };
 
-                            return callback(null, descFiles);
+                            find(shortDescFile, (err, desc) => {
+                                find(longDescFile, (err, descLong) => {
+                                    return callback(null, { desc, descLong });
+                                });
+                            });
                         }
                     );
                 });
@@ -550,7 +551,11 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
                                 return callback(err);
                             }
 
-                            return callback(null, paths.join(tempDir, extractList[0]));
+                            return ArchiveUtil.findExtractedFile(
+                                tempDir,
+                                extractList[0],
+                                callback
+                            );
                         }
                     );
                 });

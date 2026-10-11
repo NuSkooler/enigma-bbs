@@ -156,6 +156,73 @@ describe('ArchiveUtil', () => {
         });
     });
 
+    describe('findExtractedFile()', () => {
+        let outside;
+
+        beforeEach(() => {
+            //  a file next to the extraction directory, which must never be returned
+            fs.mkdirSync(paths.join(dir, 'x'));
+            outside = writeFile('secret.pdf', 'private');
+        });
+
+        const find = (entryName, cb) =>
+            ArchiveUtil.findExtractedFile(paths.join(dir, 'x'), entryName, cb);
+        const realX = () => fs.realpathSync(paths.join(dir, 'x'));
+
+        it('finds an entry extracted with its path', done => {
+            fs.mkdirSync(paths.join(dir, 'x', 'sub'));
+            fs.writeFileSync(paths.join(dir, 'x', 'sub', 'FILE_ID.DIZ'), 'diz');
+            find('sub/FILE_ID.DIZ', (err, path) => {
+                assert.ifError(err);
+                assert.equal(path, paths.join(realX(), 'sub', 'FILE_ID.DIZ'));
+                done();
+            });
+        });
+
+        //  7za e, unrar e and arj e drop the path
+        it('finds an entry extracted without its path', done => {
+            fs.writeFileSync(paths.join(dir, 'x', 'FILE_ID.DIZ'), 'diz');
+            find('sub/FILE_ID.DIZ', (err, path) => {
+                assert.ifError(err);
+                assert.equal(path, paths.join(realX(), 'FILE_ID.DIZ'));
+                done();
+            });
+        });
+
+        it('never climbs out of the directory', done => {
+            find('../secret.pdf', err => {
+                assert.ok(err);
+                done();
+            });
+        });
+
+        //  the flattened copy is the archive's own file; the outside one is not read
+        it('reads a flattened copy rather than the file a ".." name points at', done => {
+            fs.writeFileSync(paths.join(dir, 'x', 'secret.pdf'), 'from the archive');
+            find('../secret.pdf', (err, path) => {
+                assert.ifError(err);
+                assert.equal(path, paths.join(realX(), 'secret.pdf'));
+                assert.notEqual(path, fs.realpathSync(outside));
+                done();
+            });
+        });
+
+        it('treats an absolute name as relative to the directory', done => {
+            find(outside, err => {
+                assert.ok(err);
+                done();
+            });
+        });
+
+        it('does not follow a symbolic link out of the directory', done => {
+            fs.symlinkSync(outside, paths.join(dir, 'x', 'linked.pdf'));
+            find('linked.pdf', err => {
+                assert.ok(err);
+                done();
+            });
+        });
+    });
+
     describe('listEntries() with a JSON listing', () => {
         const listing = entries => JSON.stringify({ format: 'FAKE', entries }, null, 2);
 
