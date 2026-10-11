@@ -223,6 +223,57 @@ module.exports = class ArchiveUtil {
         );
     }
 
+    //
+    //  Finds the file an extraction wrote for archive entry |entryName| in |dir|.
+    //
+    //  Archivers disagree on keeping an entry's path -- unzip and tar do; 7za e,
+    //  unrar e and arj e flatten it -- so both places are tried. The name comes
+    //  from the uploaded archive and may climb out with "..", or the archive may
+    //  hold a symbolic link: only a regular file whose real path lies inside |dir|
+    //  is ever returned, so nothing outside the extraction can be read through it.
+    //
+    static findExtractedFile(dir, entryName, cb) {
+        fs.realpath(dir, (err, root) => {
+            if (err) {
+                return cb(err);
+            }
+
+            const candidates = _.uniq([
+                paths.join(root, entryName),
+                paths.join(root, paths.basename(entryName)),
+            ]);
+
+            const isInside = path => path.startsWith(root + paths.sep);
+
+            const tryNext = index => {
+                if (index >= candidates.length) {
+                    return cb(
+                        Errors.DoesNotExist(`No extracted file for entry "${entryName}"`)
+                    );
+                }
+
+                const candidate = candidates[index];
+                if (!isInside(candidate)) {
+                    return tryNext(index + 1);
+                }
+
+                fs.realpath(candidate, (err, real) => {
+                    if (err || !isInside(real)) {
+                        return tryNext(index + 1);
+                    }
+
+                    fs.lstat(real, (err, stats) => {
+                        return !err && stats.isFile()
+                            ? cb(null, real)
+                            : tryNext(index + 1);
+                    });
+                });
+            };
+
+            return tryNext(0);
+        });
+    }
+
     spawnHandler(proc, action, cb) {
         //  pty.js doesn't currently give us a error when things fail,
         //  so we have this horrible, horrible hack:
