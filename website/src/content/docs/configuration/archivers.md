@@ -110,7 +110,7 @@ archives: {
 }
 ```
 
-ENiGMA½ needs a version of `unarc` whose `list` command has the `--json` option. Until one newer than 0.7.0 is released on crates.io, install it from the repository (DMS, LZX and ATR support are being added there; until they land, an `unarc` without them lists those files as unreadable, and they are handled as plain files):
+ENiGMA½ needs a version of `unarc` whose `list` command has the `--json` option. Until one newer than 0.7.0 is released on crates.io, install it from the repository, which also has the DMS, LZX and ATR support:
 
 ```sh
 cargo install --git https://github.com/mkrueger/unarc-rs unarc-cli
