@@ -44,7 +44,7 @@ For `list` commands, the `entryMatch` key must be provided. This key should prov
 	list: {
 		cmd: '7za',
 		args: [ 'l', '{archivePath}' ]
-		entryMatch: "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$",
+		entryMatch: "^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+) [ 0-9]{12}  ([^\\r\\n]+)$",
 	}
 	extract: {
 		cmd: '7za',

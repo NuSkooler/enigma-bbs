@@ -5,7 +5,7 @@
 const Config = require('./config.js').get;
 const stringFormat = require('./string_format.js');
 const Errors = require('./enig_error.js').Errors;
-const resolveMimeType = require('./mime_util.js').resolveMimeType;
+const { resolveMimeType, findFileTypeByExtension } = require('./mime_util.js');
 const Events = require('./events.js');
 
 //  base/modules
@@ -98,7 +98,7 @@ module.exports = class ArchiveUtil {
                 ft.sig = Buffer.from(ft.sig, 'hex');
                 ft.offset = ft.offset || 0;
 
-                //  :TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
+                //  :TODO: allow a negative offset (from EOF) for trailer signatures
                 const sigLen = ft.offset + ft.sig.length;
                 if (sigLen > this.longestSignature) {
                     this.longestSignature = sigLen;
@@ -137,7 +137,7 @@ module.exports = class ArchiveUtil {
                 return;
             }
             //  further refine by extention
-            fileType = fileType.find(ft => justExtention === ft.ext);
+            fileType = findFileTypeByExtension(fileType, justExtention);
         }
 
         if (!_.isObject(fileType)) {
