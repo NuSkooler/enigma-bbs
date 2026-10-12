@@ -8,6 +8,7 @@ const mimeTypes = require('mime-types');
 
 exports.startup = startup;
 exports.resolveMimeType = resolveMimeType;
+exports.findFileTypeByExtension = findFileTypeByExtension;
 
 function startup(cb) {
     //
@@ -17,12 +18,21 @@ function startup(cb) {
         ans: 'text/x-ansi',
         gz: 'application/gzip', //  not in mime-types 2.1.15 :(
         lzx: 'application/x-lzx', //  :TODO: submit to mime-types
+        arc: 'application/x-arc', //  mime-db's .arc is FreeArc, a different format
+        zoo: 'application/x-zoo',
+        sqz: 'application/x-sqz',
+        uc2: 'application/x-uc2',
+        z: 'application/x-compress',
+        zst: 'application/zstd',
+        t64: 'application/x-t64',
+        lnx: 'application/x-lnx',
+        d64: 'application/x-d64',
     };
 
     _.forEach(ADDITIONAL_EXT_MIMETYPES, (mimeType, ext) => {
         //  don't override any entries
         if (!_.isString(mimeTypes.types[ext])) {
-            mimeTypes[ext] = mimeType;
+            mimeTypes.types[ext] = mimeType;
         }
 
         if (!mimeTypes.extensions[mimeType]) {
@@ -39,4 +49,12 @@ function resolveMimeType(query) {
     }
 
     return mimeTypes.lookup(query) || undefined; //  lookup() returns false; we want undefined
+}
+
+//  A fileTypes entry keyed by a generic MIME type (e.g. application/octet-stream)
+//  is an array refined by extension. Uploads keep whatever case they were sent
+//  with, so match case-insensitively: a DOS-style FOO.DMS is still a .dms
+function findFileTypeByExtension(fileTypes, ext) {
+    ext = (ext || '').toLowerCase();
+    return fileTypes.find(ft => ext === ft.ext);
 }

@@ -629,7 +629,7 @@ module.exports = () => {
                 shortDescUtil: 'Exiftool2Desc',
                 longDescUtil: 'Exiftool',
             },
-            'video/x-matroska ': {
+            'video/x-matroska': {
                 desc: 'Matroska Video',
                 shortDescUtil: 'Exiftool2Desc',
                 longDescUtil: 'Exiftool',
@@ -704,7 +704,7 @@ module.exports = () => {
             },
             'application/x-lzh-compressed': {
                 desc: 'LHArc Archive',
-                sig: '2d6c68',
+                sig: ['2d6c68', '2d6c7a'], //  -lh?- or LArc's -lz?-
                 offset: 2,
                 archiveHandler: 'Lha',
             },
@@ -712,13 +712,110 @@ module.exports = () => {
                 desc: 'LZX Archive',
                 sig: '4c5a5800',
                 offset: 0,
-                archiveHandler: 'Lzx',
+                archiveHandler: 'Lzx', //  unarc reads these too; see the Archivers docs
             },
             'application/x-7z-compressed': {
                 desc: '7-Zip Archive',
                 sig: '377abcaf271c',
                 offset: 0,
                 archiveHandler: '7Zip',
+            },
+            'application/x-tar': {
+                desc: 'Tape Archive',
+                sig: '7573746172', //  ustar
+                offset: 257,
+                archiveHandler: 'TarGz',
+            },
+
+            //
+            //  Handled by unarc -- see archives.archivers.Unarc
+            //
+            'application/x-arc': {
+                desc: 'ARC Archive',
+                //  0x1a then a method: ARC 1-9, PAK 10-11
+                sig: [
+                    '1a01',
+                    '1a02',
+                    '1a03',
+                    '1a04',
+                    '1a05',
+                    '1a06',
+                    '1a07',
+                    '1a08',
+                    '1a09',
+                    '1a0a',
+                    '1a0b',
+                ],
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-zoo': {
+                desc: 'Zoo Archive',
+                sig: '5a4f4f20', //  "ZOO "
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-ace-compressed': {
+                desc: 'ACE Archive',
+                sig: '2a2a4143452a2a', //  **ACE**
+                offset: 7,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-sqz': {
+                desc: 'Squeeze It Archive',
+                sig: '484c53515a', //  HLSQZ
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-uc2': {
+                desc: 'UltraCompressor II Archive',
+                sig: ['5543321a', '554532'], //  UC2^Z, or UE2 when encrypted
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-compress': {
+                desc: 'Unix Compressed File',
+                sig: '1f9d',
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-xz': {
+                desc: 'XZ Compressed File',
+                sig: 'fd377a585a00',
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/zstd': {
+                desc: 'Zstandard Compressed File',
+                sig: '28b52ffd',
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/vnd.ms-cab-compressed': {
+                desc: 'Microsoft Cabinet',
+                sig: '4d534346', //  MSCF
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            'application/x-t64': {
+                desc: 'C64 Tape Image',
+                sig: ['433634532074617065', '4336342074617065'], //  "C64S tape", "C64 tape"
+                offset: 0,
+                archiveHandler: 'Unarc',
+            },
+            //
+            //  No fixed signature: taken from the extension when no signature
+            //  matches, and unarc decides when listing whether the file really is one
+            //
+            'application/x-lnx': {
+                desc: 'C64 Lynx Archive',
+                ext: '.lnx',
+                archiveHandler: 'Unarc',
+            },
+            'application/x-d64': {
+                desc: 'C64 1541 Disk Image',
+                ext: '.d64',
+                archiveHandler: 'Unarc',
             },
 
             //
@@ -729,6 +826,9 @@ module.exports = () => {
                     desc: 'Amiga DISKMASHER',
                     sig: '444d5321', //  DMS!
                     ext: '.dms',
+                    //  lists the files on the disk, and its attached FILE_ID.DIZ
+                    archiveHandler: 'Unarc',
+                    //  used when unarc cannot list it
                     shortDescUtil: 'XDMS2Desc',
                     longDescUtil: 'XDMS2LongDesc',
                 },
@@ -736,7 +836,7 @@ module.exports = () => {
                     desc: 'SIO2PC Atari Disk Image',
                     sig: '9602', //  16bit sum of "NICKATARI"
                     ext: '.atr',
-                    archiveHandler: 'Atr',
+                    archiveHandler: 'Atr', //  unarc reads these too; see the Archivers docs
                 },
             ],
         },
@@ -756,8 +856,10 @@ module.exports = () => {
                     list: {
                         cmd: '7za',
                         args: ['l', '{archivePath}'],
+                        //  Compressed is blank for all but the first entry of a
+                        //  solid block, so match its fixed-width column, not digits
                         entryMatch:
-                            '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
+                            '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+) [ 0-9]{12}  ([^\\r\\n]+)$',
                     },
                     extract: {
                         cmd: '7za',
@@ -935,6 +1037,37 @@ module.exports = () => {
                             '-l',
                             '-o',
                             '{extractPath}',
+                            '{fileList}',
+                        ],
+                    },
+                },
+
+                Unarc: {
+                    //
+                    //  'unarc' reads ARC, PAK, ZOO, ACE, SQZ, UC2, HA, HYP and
+                    //  more, as well as ZIP, RAR, 7z, ARJ and LHA:
+                    //  * https://github.com/mkrueger/unarc-rs
+                    //  * cargo install unarc-cli
+                    //
+                    //  (compress not supported)
+                    //
+                    decompress: {
+                        cmd: 'unarc',
+                        args: ['extract', '-o', '{extractPath}', '--', '{archivePath}'],
+                    },
+                    list: {
+                        cmd: 'unarc',
+                        args: ['list', '--json', '{archivePath}'],
+                        outputFormat: 'json',
+                    },
+                    extract: {
+                        cmd: 'unarc',
+                        args: [
+                            'extract',
+                            '-o',
+                            '{extractPath}',
+                            '--',
+                            '{archivePath}',
                             '{fileList}',
                         ],
                     },
@@ -1398,26 +1531,28 @@ module.exports = () => {
                 //  These are NOT case sensitive
                 //  FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
                 //  Some groups include a FILE_ID.ANS. We try to use that over FILE_ID.DIZ if available.
+                //  '\\.' reaches the RegExp as '\.', a literal dot. Unescaped, '.NFO'
+                //  matched Amiga '.info' icon files, which most Amiga archives hold.
                 desc: [
-                    '^.*FILE_ID.ANS$',
-                    '^.*FILE_ID.DIZ$', //  eslint-disable-line no-useless-escape
-                    '^.*DESC.SDI$', //  eslint-disable-line no-useless-escape
-                    '^.*DESCRIPT.ION$', //  eslint-disable-line no-useless-escape
-                    '^.*FILE.DES$', //  eslint-disable-line no-useless-escape
-                    '^.*FILE.SDI$', //  eslint-disable-line no-useless-escape
-                    '^.*DISK.ID$', //  eslint-disable-line no-useless-escape
+                    '^.*FILE_ID\\.ANS$',
+                    '^.*FILE_ID\\.DIZ$',
+                    '^.*DESC\\.SDI$',
+                    '^.*DESCRIPT\\.ION$',
+                    '^.*FILE\\.DES$',
+                    '^.*FILE\\.SDI$',
+                    '^.*DISK\\.ID$',
                 ],
 
                 //  common README filename - https://en.wikipedia.org/wiki/README
                 descLong: [
-                    '^[^/]*.NFO$', //  eslint-disable-line no-useless-escape
-                    '^.*README.1ST$', //  eslint-disable-line no-useless-escape
-                    '^.*README.NOW$', //  eslint-disable-line no-useless-escape
-                    '^.*README.TXT$', //  eslint-disable-line no-useless-escape
-                    '^.*READ.ME$', //  eslint-disable-line no-useless-escape
-                    '^.*README$', //  eslint-disable-line no-useless-escape
-                    '^.*README.md$', //  eslint-disable-line no-useless-escape
-                    '^RELEASE-INFO.ASC$', //  eslint-disable-line no-useless-escape
+                    '^[^/]*\\.NFO$',
+                    '^.*README\\.1ST$',
+                    '^.*README\\.NOW$',
+                    '^.*README\\.TXT$',
+                    '^.*READ\\.ME$',
+                    '^.*README$',
+                    '^.*README\\.md$',
+                    '^RELEASE-INFO\\.ASC$',
                 ],
             },
 

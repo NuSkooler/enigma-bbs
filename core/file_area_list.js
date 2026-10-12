@@ -14,7 +14,7 @@ const Config = require('./config.js').get;
 const DownloadQueue = require('./download_queue.js');
 const FileAreaWeb = require('./file_area_web.js');
 const FileBaseFilters = require('./file_base_filter.js');
-const resolveMimeType = require('./mime_util.js').resolveMimeType;
+const { resolveMimeType, findFileTypeByExtension } = require('./mime_util.js');
 const isAnsi = require('./string_util.js').isAnsi;
 const controlCodesToAnsi = require('./color_codes.js').controlCodesToAnsi;
 
@@ -292,8 +292,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 
                 if (Array.isArray(fileType)) {
                     //  further refine by extention
-                    fileType = fileType.find(
-                        ft => paths.extname(currEntry.fileName) === ft.ext
+                    fileType = findFileTypeByExtension(
+                        fileType,
+                        paths.extname(currEntry.fileName)
                     );
                 }
                 desc = fileType && fileType.desc;

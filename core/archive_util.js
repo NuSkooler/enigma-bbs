@@ -2,10 +2,12 @@
 'use strict';
 
 //  ENiGMA½
-const Config = require('./config.js').get;
+const configModule = require('./config.js');
+//  read per call: a module-load capture pins whichever config was installed first
+const Config = () => configModule.get();
 const stringFormat = require('./string_format.js');
 const Errors = require('./enig_error.js').Errors;
-const resolveMimeType = require('./mime_util.js').resolveMimeType;
+const { resolveMimeType, findFileTypeByExtension } = require('./mime_util.js');
 const Events = require('./events.js');
 
 //  base/modules
@@ -13,6 +15,7 @@ const fs = require('graceful-fs');
 const _ = require('lodash');
 const pty = require('node-pty');
 const paths = require('path');
+const { execFile } = require('child_process');
 
 let archiveUtil;
 
@@ -95,11 +98,12 @@ module.exports = class ArchiveUtil {
 
         if (_.isObject(config.fileTypes)) {
             const updateSig = ft => {
-                ft.sig = Buffer.from(ft.sig, 'hex');
+                //  |sig| may list alternatives, all at the same |offset|
+                ft.sig = _.castArray(ft.sig).map(sig => Buffer.from(sig, 'hex'));
                 ft.offset = ft.offset || 0;
 
-                //  :TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
-                const sigLen = ft.offset + ft.sig.length;
+                //  :TODO: allow a negative offset (from EOF) for trailer signatures
+                const sigLen = ft.offset + _.max(ft.sig.map(sig => sig.length));
                 if (sigLen > this.longestSignature) {
                     this.longestSignature = sigLen;
                 }
@@ -137,7 +141,7 @@ module.exports = class ArchiveUtil {
                 return;
             }
             //  further refine by extention
-            fileType = fileType.find(ft => justExtention === ft.ext);
+            fileType = findFileTypeByExtension(fileType, justExtention);
         }
 
         if (!_.isObject(fileType)) {
@@ -178,7 +182,7 @@ module.exports = class ArchiveUtil {
                     return cb(err);
                 }
 
-                const archFormat = _.findKey(Config().fileTypes, fileTypeInfo => {
+                let archFormat = _.findKey(Config().fileTypes, fileTypeInfo => {
                     const fileTypeInfos = Array.isArray(fileTypeInfo)
                         ? fileTypeInfo
                         : [fileTypeInfo];
@@ -187,20 +191,86 @@ module.exports = class ArchiveUtil {
                             return false;
                         }
 
-                        const lenNeeded = fti.offset + fti.sig.length;
+                        return fti.sig.some(sig => {
+                            const lenNeeded = fti.offset + sig.length;
+                            if (bytesRead < lenNeeded) {
+                                return false;
+                            }
 
-                        if (bytesRead < lenNeeded) {
-                            return false;
-                        }
-
-                        const comp = buf.slice(fti.offset, fti.offset + fti.sig.length);
-                        return fti.sig.equals(comp);
+                            return sig.equals(buf.slice(fti.offset, lenNeeded));
+                        });
                     });
                 });
 
                 closeFile(fd);
+                archFormat = archFormat || this.detectTypeByExtension(path);
                 return cb(archFormat ? null : Errors.General('Unknown type'), archFormat);
             });
+        });
+    }
+
+    //
+    //  Some formats (C64 Lynx, D64) have no signature at a fixed offset. Their
+    //  file types carry |ext| and no |sig|, and are only considered once no
+    //  signature has matched. Listing tells whether the file really is one.
+    //
+    detectTypeByExtension(path) {
+        const ext = paths.extname(path).toLowerCase();
+        return _.findKey(Config().fileTypes, fileTypeInfo =>
+            _.castArray(fileTypeInfo).some(
+                fti => fti.archiveHandler && !fti.sig && fti.ext && ext === fti.ext
+            )
+        );
+    }
+
+    //
+    //  Finds the file an extraction wrote for archive entry |entryName| in |dir|.
+    //
+    //  Archivers disagree on keeping an entry's path -- unzip and tar do; 7za e,
+    //  unrar e and arj e flatten it -- so both places are tried. The name comes
+    //  from the uploaded archive and may climb out with "..", or the archive may
+    //  hold a symbolic link: only a regular file whose real path lies inside |dir|
+    //  is ever returned, so nothing outside the extraction can be read through it.
+    //
+    static findExtractedFile(dir, entryName, cb) {
+        fs.realpath(dir, (err, root) => {
+            if (err) {
+                return cb(err);
+            }
+
+            const candidates = _.uniq([
+                paths.join(root, entryName),
+                paths.join(root, paths.basename(entryName)),
+            ]);
+
+            const isInside = path => path.startsWith(root + paths.sep);
+
+            const tryNext = index => {
+                if (index >= candidates.length) {
+                    return cb(
+                        Errors.DoesNotExist(`No extracted file for entry "${entryName}"`)
+                    );
+                }
+
+                const candidate = candidates[index];
+                if (!isInside(candidate)) {
+                    return tryNext(index + 1);
+                }
+
+                fs.realpath(candidate, (err, real) => {
+                    if (err || !isInside(real)) {
+                        return tryNext(index + 1);
+                    }
+
+                    fs.lstat(real, (err, stats) => {
+                        return !err && stats.isFile()
+                            ? cb(null, real)
+                            : tryNext(index + 1);
+                    });
+                });
+            };
+
+            return tryNext(0);
         });
     }
 
@@ -336,6 +406,10 @@ module.exports = class ArchiveUtil {
 
         const args = archiver.list.args.map(arg => stringFormat(arg, fmtObj));
 
+        if ('json' === archiver.list.outputFormat) {
+            return this.listJsonEntries(archiver.list.cmd, args, cb);
+        }
+
         let proc;
         try {
             proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
@@ -379,6 +453,39 @@ module.exports = class ArchiveUtil {
                     fileName: m[entryGroupOrder.fileName].trim(),
                 });
             }
+
+            return cb(null, entries);
+        });
+    }
+
+    //
+    //  A listing in the JSON form `unarc list --json` prints:
+    //  { entries : [ { name, kind, size, ... } ] }
+    //
+    //  It is parsed whole, so it is read without a pty: one would merge the
+    //  archiver's stderr into it.
+    //
+    listJsonEntries(cmd, args, cb) {
+        const options = { maxBuffer: 64 * 1024 * 1024, timeout: 60 * 1000 };
+        execFile(cmd, args, options, (err, stdout) => {
+            if (err) {
+                return cb(Errors.ExternalProcess(`List failed: ${err.message}`));
+            }
+
+            let listing;
+            try {
+                listing = JSON.parse(stdout);
+            } catch (e) {
+                return cb(Errors.Invalid(`List output is not JSON: ${e.message}`));
+            }
+
+            if (!Array.isArray(listing.entries)) {
+                return cb(Errors.Invalid('List output has no entries'));
+            }
+
+            const entries = listing.entries
+                .filter(entry => 'directory' !== entry.kind)
+                .map(entry => ({ byteSize: entry.size, fileName: entry.name }));
 
             return cb(null, entries);
         });

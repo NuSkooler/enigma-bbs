@@ -10,7 +10,7 @@ const FileDb = require('./database.js').dbs.file;
 const ArchiveUtil = require('./archive_util.js');
 const CRC32 = require('./crc.js').CRC32;
 const Log = require('./logger.js').log;
-const resolveMimeType = require('./mime_util.js').resolveMimeType;
+const { resolveMimeType, findFileTypeByExtension } = require('./mime_util.js');
 const stringFormat = require('./string_format.js');
 const wordWrapText = require('./word_wrap.js').wordWrapText;
 const StatLog = require('./stat_log.js');
@@ -422,22 +422,23 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                                 return callback(err);
                             }
 
-                            const descFiles = {
-                                desc: shortDescFile
-                                    ? paths.join(
-                                          tempDir,
-                                          paths.basename(shortDescFile.fileName)
-                                      )
-                                    : null,
-                                descLong: longDescFile
-                                    ? paths.join(
-                                          tempDir,
-                                          paths.basename(longDescFile.fileName)
-                                      )
-                                    : null,
+                            //  a desc file the extraction did not produce is skipped
+                            const find = (entry, next) => {
+                                if (!entry) {
+                                    return next(null, null);
+                                }
+                                ArchiveUtil.findExtractedFile(
+                                    tempDir,
+                                    entry.fileName,
+                                    (err, path) => next(null, err ? null : path)
+                                );
                             };
 
-                            return callback(null, descFiles);
+                            find(shortDescFile, (err, desc) => {
+                                find(longDescFile, (err, descLong) => {
+                                    return callback(null, { desc, descLong });
+                                });
+                            });
                         }
                     );
                 });
@@ -550,7 +551,11 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
                                 return callback(err);
                             }
 
-                            return callback(null, paths.join(tempDir, extractList[0]));
+                            return ArchiveUtil.findExtractedFile(
+                                tempDir,
+                                extractList[0],
+                                callback
+                            );
                         }
                     );
                 });
@@ -587,14 +592,19 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 
                     archiveUtil.listEntries(filePath, archiveType, (err, entries) => {
                         if (err) {
+                            //  Not an archive after all -- a misnamed file, or one
+                            //  the archiver cannot read. Fall back to treating it as
+                            //  a plain file rather than keep an archive type whose
+                            //  listing will always fail.
                             stepInfo.step = 'archive_list_failed';
+                            delete fileEntry.meta.archive_type;
                         } else {
                             stepInfo.step = 'archive_list_finish';
                             stepInfo.archiveEntries = entries || [];
                         }
 
                         iterator(iterErr => {
-                            return callback(iterErr, entries || []); //  ignore original |err| here
+                            return callback(iterErr || err, entries || []);
                         });
                     });
                 });
@@ -643,7 +653,7 @@ function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
 
     if (Array.isArray(fileType)) {
         //  further refine by extention
-        fileType = fileType.find(ft => paths.extname(filePath) === ft.ext);
+        fileType = findFileTypeByExtension(fileType, paths.extname(filePath));
     }
 
     if (!_.isObject(fileType)) {
