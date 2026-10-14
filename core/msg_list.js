@@ -264,8 +264,8 @@ exports.getModule = class MessageListModule extends (
         const msgListView = this.viewControllers.allViews.getView(
             MciViewIds.allViews.msgList
         );
-        //  Recompute against the entry-time read state, not the restore-focus
-        //  index, which changes when a message is opened or a post is started.
+        //  Find unread messages independently of initialFocusIndex, which changes
+        //  when the caller opens a message or starts a post.
         const firstUnreadIndex = this.config.messageList.findIndex(item =>
             _.isBoolean(item.isNew) ? item.isNew : item.messageId > this.lastReadId
         );
