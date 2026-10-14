@@ -126,9 +126,13 @@ function rotateRefreshToken(rawRefresh, cb) {
 
 function revokeRefreshToken(rawRefresh, cb) {
     const tokenHash = _hashToken(rawRefresh);
-    dbs.user
-        .prepare('UPDATE api_refresh_tokens SET revoked = 1 WHERE token_hash = ?')
-        .run(tokenHash);
+    try {
+        dbs.user
+            .prepare('UPDATE api_refresh_tokens SET revoked = 1 WHERE token_hash = ?')
+            .run(tokenHash);
+    } catch (err) {
+        return cb(err);
+    }
     return cb(null);
 }
 

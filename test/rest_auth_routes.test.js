@@ -1,17 +1,20 @@
 'use strict';
 
 const { strict: assert } = require('assert');
-const fs = require('fs');
-const paths = require('path');
-const vm = require('vm');
+const Database = require('better-sqlite3');
+const { EventEmitter } = require('events');
+const configModule = require('../core/config');
+const { applyUserSchema, applySystemSchema } = require('./helpers/rest_auth_schema');
+
+const dbModule = require('../core/database');
 
 const API_BASE = '/_enig/api/v1';
 const AUTH_PATH = `${API_BASE}/auth`;
 const LEGACY_PATH = `${AUTH_PATH}/refresh`;
 
 // A small cookie jar implementing RFC 6265 path matching. Fixtures never
-// contain real credentials. The handlers themselves are production source;
-// account lookup and token storage are isolated so these tests need no server.
+// contain real credentials. Route handlers use the real token store in an
+// in-memory database; only login account authentication is stubbed.
 class CookieJar {
     constructor() {
         this.cookies = new Map();
@@ -49,77 +52,15 @@ class CookieJar {
     }
 }
 
+let auth;
+let User;
+let userDb;
+let testUserId;
+
 function makeRoutes() {
     const routes = [];
-    const tokens = new Set();
-    let sequence = 0;
-    let revokeError;
-    const issue = cb => {
-        const refreshToken = `fixture-${++sequence}`;
-        tokens.add(refreshToken);
-        cb(null, { refreshToken, accessToken: 'fixture-access', expiresIn: 900 });
-    };
-    const dependencies = {
-        '../util': {
-            API_BASE,
-            applyCorsHeaders() {},
-            parseJsonBody(req, cb) {
-                cb(null, req.body);
-            },
-            jsonResponse(resp, status, body) {
-                resp.status = status;
-                resp.body = body;
-            },
-            problemDetail(resp, status) {
-                resp.status = status;
-            },
-        },
-        '../auth': {
-            issueTokenPair(_id, _username, _groups, cb) {
-                issue(cb);
-            },
-            rotateRefreshToken(token, cb) {
-                if (!tokens.delete(token)) {
-                    return cb(new Error('Invalid fixture'));
-                }
-                issue(cb);
-            },
-            revokeRefreshToken(token, cb) {
-                if (revokeError) {
-                    return cb(revokeError);
-                }
-                tokens.delete(token);
-                cb(null);
-            },
-        },
-        '../../user': {
-            getUserByUsername(_username, cb) {
-                cb(null, {
-                    userId: 1,
-                    username: 'fixture',
-                    groups: [],
-                    authenticated: true,
-                    authenticateFactor1(_info, next) {
-                        next(null);
-                    },
-                });
-            },
-        },
-    };
-    const exports = {};
-    vm.runInNewContext(
-        fs.readFileSync(paths.join(__dirname, '../core/rest/routes/auth.js'), 'utf8'),
-        {
-            exports,
-            require(name) {
-                assert.ok(name in dependencies);
-                return dependencies[name];
-            },
-            Date,
-        },
-        { filename: 'core/rest/routes/auth.js' }
-    );
-    exports.register(
+    const errors = [];
+    require('../core/rest/routes/auth').register(
         {
             addRoute(route) {
                 routes.push(route);
@@ -128,98 +69,189 @@ function makeRoutes() {
                 return true;
             },
         },
-        { info() {}, error() {} }
+        {
+            info() {},
+            error(...args) {
+                errors.push(args);
+            },
+        }
     );
     const jar = new CookieJar();
     return {
         jar,
-        tokens,
+        errors,
+        tokens: {
+            get size() {
+                return userDb
+                    .prepare(
+                        'SELECT count(*) AS count FROM api_refresh_tokens WHERE revoked = 0'
+                    )
+                    .get().count;
+            },
+        },
         failRevocation() {
-            revokeError = new Error('Fixture storage failure');
+            userDb.exec(`CREATE TRIGGER fail_revocation BEFORE UPDATE ON api_refresh_tokens
+                BEGIN SELECT RAISE(ABORT, 'Fixture storage failure'); END`);
         },
         request(action) {
-            const url = `${AUTH_PATH}/${action}`;
-            const resp = {
-                headers: {},
-                setHeader(name, value) {
-                    this.headers[name] = value;
-                },
-                writeHead(status) {
-                    this.status = status;
-                },
-                end() {},
-            };
-            const req = {
-                url,
-                headers: { cookie: jar.header(url) },
-                body: { username: 'fixture', password: 'fixture' },
-            };
-            routes.find(r => r.path.test(url)).handler(req, resp);
-            jar.apply(resp);
-            return resp;
+            return new Promise((resolve, reject) => {
+                const url = `${AUTH_PATH}/${action}`;
+                const resp = {
+                    headers: {},
+                    setHeader(name, value) {
+                        this.headers[name] = value;
+                    },
+                    writeHead(status, headers) {
+                        this.status = status;
+                        Object.assign(this.headers, headers);
+                    },
+                    end(body) {
+                        this.body = body;
+                        jar.apply(this);
+                        resolve(this);
+                    },
+                };
+                const req = new EventEmitter();
+                req.url = url;
+                req.headers = { cookie: jar.header(url) };
+                try {
+                    routes.find(r => r.path.test(url)).handler(req, resp);
+                    req.emit(
+                        'data',
+                        JSON.stringify({ username: 'fixture', password: 'fixture' })
+                    );
+                    req.emit('end');
+                } catch (err) {
+                    reject(err);
+                }
+            });
         },
         seedLegacy() {
-            tokens.add('fixture-legacy');
-            jar.apply({
-                headers: {
-                    'Set-Cookie': `enigma_refresh=fixture-legacy; Path=${LEGACY_PATH}`,
-                },
+            auth.issueTokenPair(testUserId, 'fixture', [], (err, tokens) => {
+                assert.ifError(err);
+                jar.apply({
+                    headers: {
+                        'Set-Cookie': `enigma_refresh=${tokens.refreshToken}; Path=${LEGACY_PATH}`,
+                    },
+                });
             });
         },
     };
 }
 
 describe('REST auth routes: refresh cookie lifecycle', () => {
-    it('revokes and clears the login session on logout', () => {
+    let originalUserDb, originalSystemDb, originalLookup, originalConfig;
+
+    beforeEach(() => {
+        originalConfig = configModule._pushTestConfig({
+            debug: { assertsEnabled: false },
+        });
+        originalUserDb = dbModule.dbs.user;
+        originalSystemDb = dbModule.dbs.system;
+        userDb = new Database(':memory:');
+        userDb.pragma('foreign_keys = ON');
+        dbModule.dbs.user = userDb;
+        dbModule.dbs.system = new Database(':memory:');
+        applyUserSchema(userDb);
+        applySystemSchema(dbModule.dbs.system);
+        testUserId = userDb
+            .prepare("INSERT INTO user (user_name) VALUES ('fixture')")
+            .run().lastInsertRowid;
+        for (const path of [
+            '../core/user_group',
+            '../core/user',
+            '../core/rest/auth',
+            '../core/rest/routes/auth',
+            '../core/rest/util',
+        ]) {
+            delete require.cache[require.resolve(path)];
+        }
+        auth = require('../core/rest/auth');
+        User = require('../core/user');
+        originalLookup = User.getUserByUsername;
+        User.getUserByUsername = (_username, cb) =>
+            cb(null, {
+                userId: testUserId,
+                username: 'fixture',
+                groups: [],
+                authenticated: true,
+                authenticateFactor1(_info, next) {
+                    next(null);
+                },
+            });
+    });
+
+    afterEach(() => {
+        configModule._popTestConfig(originalConfig);
+        if (User) User.getUserByUsername = originalLookup;
+        if (userDb?.open) userDb.close();
+        if (dbModule.dbs.system !== originalSystemDb) dbModule.dbs.system.close();
+        dbModule.dbs.user = originalUserDb;
+        dbModule.dbs.system = originalSystemDb;
+        for (const path of [
+            '../core/user_group',
+            '../core/user',
+            '../core/rest/auth',
+            '../core/rest/routes/auth',
+            '../core/rest/util',
+        ]) {
+            delete require.cache[require.resolve(path)];
+        }
+    });
+    it('revokes and clears the login session on logout', async () => {
         const ctx = makeRoutes();
-        assert.equal(ctx.request('login').status, 200);
-        assert.equal(ctx.request('logout').status, 204);
+        assert.equal((await ctx.request('login')).status, 200);
+        const logout = await ctx.request('logout');
+        assert.equal(logout.status, 204);
+        assert.equal(logout.body, undefined);
         assert.equal(ctx.tokens.size, 0);
         assert.equal(ctx.jar.cookies.size, 0);
     });
 
-    it('revokes the rotated session on logout', () => {
+    it('revokes the rotated session on logout', async () => {
         const ctx = makeRoutes();
-        ctx.request('login');
-        assert.equal(ctx.request('refresh').status, 200);
-        assert.equal(ctx.request('logout').status, 204);
+        await ctx.request('login');
+        assert.equal((await ctx.request('refresh')).status, 200);
+        const logout = await ctx.request('logout');
+        assert.equal(logout.status, 204);
+        assert.equal(logout.body, undefined);
         assert.equal(ctx.tokens.size, 0);
         assert.equal(ctx.jar.cookies.size, 0);
-        assert.equal(ctx.request('refresh').status, 401);
+        assert.equal((await ctx.request('refresh')).status, 401);
     });
 
-    it('migrates a legacy cookie on refresh and logs the new session out', () => {
+    it('migrates a legacy cookie on refresh and logs the new session out', async () => {
         const ctx = makeRoutes();
         ctx.seedLegacy();
-        assert.equal(ctx.request('refresh').status, 200);
+        assert.equal((await ctx.request('refresh')).status, 200);
         assert.equal(ctx.jar.cookies.has(`enigma_refresh:${LEGACY_PATH}`), false);
         assert.equal(ctx.jar.cookies.has(`enigma_refresh:${AUTH_PATH}`), true);
-        ctx.request('logout');
+        await ctx.request('logout');
         assert.equal(ctx.tokens.size, 0);
         assert.equal(ctx.jar.cookies.size, 0);
     });
 
-    it('expires a legacy cookie when logging in again', () => {
+    it('expires a legacy cookie when logging in again', async () => {
         const ctx = makeRoutes();
         ctx.seedLegacy();
-        ctx.request('login');
+        await ctx.request('login');
         assert.equal(ctx.jar.cookies.has(`enigma_refresh:${LEGACY_PATH}`), false);
         assert.equal(ctx.jar.cookies.size, 1);
     });
 
-    it('clears both cookie paths on logout, including without a matching cookie', () => {
+    it('clears both cookie paths on logout, including without a matching cookie', async () => {
         const ctx = makeRoutes();
         ctx.seedLegacy();
-        const resp = ctx.request('logout');
+        const resp = await ctx.request('logout');
         assert.equal(resp.status, 204);
         assert.equal(ctx.jar.cookies.size, 0);
-        assert.equal(ctx.request('logout').status, 204);
+        assert.equal((await ctx.request('logout')).status, 204);
     });
 
-    it('preserves HttpOnly, Secure and SameSite=Strict on issued and rotated cookies', () => {
+    it('preserves HttpOnly, Secure and SameSite=Strict on issued and rotated cookies', async () => {
         const ctx = makeRoutes();
         for (const action of ['login', 'refresh']) {
-            const value = ctx.request(action).headers['Set-Cookie'];
+            const value = (await ctx.request(action)).headers['Set-Cookie'];
             const headers = Array.isArray(value) ? value : [value];
             const issued = headers.find(header => !header.includes('Max-Age=0'));
             assert.ok(issued.includes(`Path=${AUTH_PATH};`));
@@ -234,11 +266,18 @@ describe('REST auth routes: refresh cookie lifecycle', () => {
         }
     });
 
-    it('does not claim successful logout when token revocation fails', () => {
+    it('does not claim successful logout when token revocation fails', async () => {
         const ctx = makeRoutes();
-        ctx.request('login');
+        await ctx.request('login');
         ctx.failRevocation();
-        assert.equal(ctx.request('logout').status, 500);
+        const resp = await ctx.request('logout');
+        assert.equal(resp.status, 500);
+        assert.equal(JSON.parse(resp.body).detail, 'Failed to end session');
+        assert.equal(resp.headers['Set-Cookie'], undefined);
         assert.equal(ctx.tokens.size, 1);
+        assert.equal(ctx.jar.cookies.size, 1);
+        const [fields, message] = ctx.errors[0];
+        assert.equal(fields.err.message, 'Fixture storage failure');
+        assert.equal(message, 'Failed to revoke refresh token');
     });
 });

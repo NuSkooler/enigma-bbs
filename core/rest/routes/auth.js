@@ -172,7 +172,7 @@ function _logoutHandler(req, resp, log) {
 
     revokeRefreshToken(match[1], err => {
         if (err) {
-            log.error('Failed to revoke refresh token');
+            log.error({ err }, 'Failed to revoke refresh token');
             return problemDetail(
                 resp,
                 500,
