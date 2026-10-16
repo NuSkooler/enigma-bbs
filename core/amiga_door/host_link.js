@@ -99,7 +99,127 @@ function amigaCsiToAnsi(buf) {
     return out;
 }
 
+//
+//  Amiga console control sequences a PC terminal does not share, translated
+//  on the byte stream so a caller sees what an Amiga caller would:
+//
+//    FF (0x0C)        the Amiga console clears the screen and homes the
+//                     cursor. A PC terminal treats a form feed as something
+//                     else (SyncTERM also drops the current font), so it
+//                     becomes `ESC[2J ESC[H`.
+//    CSI 0 SP p       cursor off  -> `ESC[?25l`
+//    CSI [1] SP p     cursor on   -> `ESC[?25h`
+//    ESC c            reset       -> attributes off, clear, home (keeps the font)
+//    0x9B             the single-byte CSI -> `ESC [`
+//
+//  Everything else passes through untouched. A CSI sequence can be split
+//  across two chunks, so the unfinished tail is held until it completes; a
+//  tail that outgrows any real sequence is passed through as it is.
+//
+const FORM_FEED = 0x0c;
+const CSI_MAX = 32;
+const CLEAR_HOME = Buffer.from('\x1b[2J\x1b[H', 'latin1');
+const RESET = Buffer.from('\x1b[0m\x1b[2J\x1b[H', 'latin1');
+const CURSOR_OFF = Buffer.from('\x1b[?25l', 'latin1');
+const CURSOR_ON = Buffer.from('\x1b[?25h', 'latin1');
+
+class AmigaConsoleTranslator {
+    constructor() {
+        this.pending = null; //  bytes of an unfinished ESC sequence (starts with ESC)
+    }
+
+    //  Returns the translated bytes; may be empty while a sequence is pending.
+    push(bytes) {
+        const parts = [];
+        let plain = []; //  bytes since the last special byte
+
+        const flushPlain = () => {
+            if (plain.length) {
+                parts.push(Buffer.from(plain));
+                plain = [];
+            }
+        };
+
+        let i = 0;
+        const n = bytes.length;
+        while (i < n) {
+            if (this.pending) {
+                //  continue an unfinished sequence
+                const b = bytes[i++];
+                this.pending.push(b);
+                const done = this._sequenceDone();
+                if (done) {
+                    flushPlain();
+                    parts.push(this._translateSequence(Buffer.from(this.pending)));
+                    this.pending = null;
+                } else if (this.pending.length > CSI_MAX) {
+                    flushPlain();
+                    parts.push(Buffer.from(this.pending));
+                    this.pending = null;
+                }
+                continue;
+            }
+
+            const b = bytes[i];
+            if (AMIGA_CSI === b) {
+                this.pending = [ESC, LEFT_BRACKET];
+                i++;
+            } else if (ESC === b) {
+                this.pending = [ESC];
+                i++;
+            } else if (FORM_FEED === b) {
+                flushPlain();
+                parts.push(CLEAR_HOME);
+                i++;
+            } else {
+                plain.push(b);
+                i++;
+            }
+        }
+        flushPlain();
+        return 1 === parts.length ? parts[0] : Buffer.concat(parts);
+    }
+
+    //  Whatever is still held, untranslated (the door is gone).
+    flush() {
+        if (!this.pending) {
+            return Buffer.alloc(0);
+        }
+        const out = Buffer.from(this.pending);
+        this.pending = null;
+        return out;
+    }
+
+    _sequenceDone() {
+        const p = this.pending;
+        if (p.length < 2) {
+            return false;
+        }
+        if (LEFT_BRACKET !== p[1]) {
+            return true; //  ESC + one byte (ESC c, ESC d, ...)
+        }
+        //  CSI: parameters 0x30-0x3F, intermediates 0x20-0x2F, final 0x40-0x7E
+        const last = p[p.length - 1];
+        return p.length > 2 && last >= 0x40 && last <= 0x7e;
+    }
+
+    _translateSequence(seq) {
+        if (2 === seq.length) {
+            return 0x63 === seq[1] ? RESET : seq; //  ESC c
+        }
+        const final = seq[seq.length - 1];
+        const space = 0x20 === seq[seq.length - 2];
+        if (0x70 === final && space) {
+            //  CSI Pn SP p : cursor visibility
+            const params = seq.subarray(2, seq.length - 2).toString('latin1');
+            return '0' === params ? CURSOR_OFF : CURSOR_ON;
+        }
+        return seq;
+    }
+}
+
 module.exports = {
     HostLink,
+    AmigaConsoleTranslator,
     amigaCsiToAnsi,
 };

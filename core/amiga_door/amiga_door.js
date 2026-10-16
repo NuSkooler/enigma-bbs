@@ -77,7 +77,7 @@ const UserTime = require('../user_time.js');
 const UserProps = require('../user_property.js');
 const Events = require('../events.js');
 const protocol = require('./protocol.js');
-const { amigaCsiToAnsi } = require('./host_link.js');
+const { AmigaConsoleTranslator } = require('./host_link.js');
 const { SnapshotCache, DefaultMaxEntries } = require('./snapshot_cache.js');
 
 //  Late bound: config.js replaces its |get| when the system configuration is
@@ -467,6 +467,7 @@ class AmigaDoorSession extends EventEmitter {
         this.cache = cache;
         this.rawOutput = !!rawOutput;
         this.encoding = config.encoding;
+        this.translator = new AmigaConsoleTranslator();
 
         this.lastTimeLeft = sessionKeys ? sessionKeys.timeleft : undefined;
         this.lastSize = sessionKeys
@@ -797,14 +798,28 @@ class AmigaDoorSession extends EventEmitter {
             this.emit('firstOutput');
         }
 
-        bytes = amigaCsiToAnsi(bytes);
+        bytes = this.translator.push(bytes);
+        this._writeTranslated(bytes);
+        this.checkBackpressure();
+    }
+
+    //  A sequence the door never finished is shown as it is.
+    flushOutput() {
+        if (this.disconnectReason || !this.client.term.output) {
+            return;
+        }
+        this._writeTranslated(this.translator.flush());
+    }
+
+    _writeTranslated(bytes) {
+        if (!bytes.length) {
+            return;
+        }
         if (this.rawOutput) {
             this.client.term.rawWrite(bytes);
         } else {
             this.client.term.write(iconv.decode(bytes, this.encoding), false);
         }
-
-        this.checkBackpressure();
     }
 
     checkResize() {
@@ -1246,6 +1261,9 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
             return;
         }
 
+        if (this.session) {
+            this.session.flushOutput();
+        }
         this._restoreFont();
 
         //  clean up what a door may have left behind, as abracadabra does

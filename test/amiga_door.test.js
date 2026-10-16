@@ -9,7 +9,11 @@ const path = require('path');
 //  No emulator anywhere in here: the worker is faked, and the shim's side of
 //  the link is built with protocol.js.
 const protocol = require('../core/amiga_door/protocol.js');
-const { HostLink, amigaCsiToAnsi } = require('../core/amiga_door/host_link.js');
+const {
+    HostLink,
+    AmigaConsoleTranslator,
+    amigaCsiToAnsi,
+} = require('../core/amiga_door/host_link.js');
 const { SnapshotCache } = require('../core/amiga_door/snapshot_cache.js');
 const { _test } = require('../core/amiga_door/amiga_door.js');
 const {
@@ -244,6 +248,67 @@ describe('amiga_door config', () => {
             Object.assign({}, BASE, { cpu: 'z80', fastKb: 9999, crlf: 'yes' })
         );
         assert.equal(problems.length, 3, problems.join('; '));
+    });
+});
+
+// ─── Amiga console translation ────────────────────────────────────────────────
+
+describe('amiga_door Amiga console translation', () => {
+    const t = () => new AmigaConsoleTranslator();
+    const latin1 = s => Buffer.from(s, 'latin1');
+
+    it('turns a form feed into clear screen and home', () => {
+        const out = t().push(latin1('ab\x0ccd'));
+        assert.strictEqual(out.toString('latin1'), 'ab\x1b[2J\x1b[Hcd');
+    });
+
+    it('maps the Amiga cursor off and on sequences', () => {
+        const tr = t();
+        assert.strictEqual(tr.push(latin1('\x1b[0 p')).toString('latin1'), '\x1b[?25l');
+        assert.strictEqual(tr.push(latin1('\x1b[1 p')).toString('latin1'), '\x1b[?25h');
+        assert.strictEqual(tr.push(latin1('\x1b[ p')).toString('latin1'), '\x1b[?25h');
+    });
+
+    it('translates the single-byte CSI and leaves other sequences alone', () => {
+        const out = t().push(
+            Buffer.from([
+                0x9b, 0x31, 0x6d, 0x41, 0x1b, 0x5b, 0x32, 0x36, 0x3b, 0x30, 0x48,
+            ])
+        );
+        assert.strictEqual(out.toString('latin1'), '\x1b[1mA\x1b[26;0H');
+    });
+
+    it('resets without touching the font', () => {
+        assert.strictEqual(
+            t().push(latin1('x\x1bcy')).toString('latin1'),
+            'x\x1b[0m\x1b[2J\x1b[Hy'
+        );
+    });
+
+    it('holds a sequence split across chunks and emits it whole', () => {
+        const tr = t();
+        assert.strictEqual(tr.push(latin1('A\x1b[0')).toString('latin1'), 'A');
+        assert.strictEqual(tr.push(latin1(' ')).toString('latin1'), '');
+        assert.strictEqual(tr.push(latin1('pB')).toString('latin1'), '\x1b[?25lB');
+        assert.strictEqual(tr.flush().length, 0);
+    });
+
+    it('passes an unfinished sequence through on flush', () => {
+        const tr = t();
+        tr.push(latin1('\x1b[3'));
+        assert.strictEqual(tr.flush().toString('latin1'), '\x1b[3');
+        assert.strictEqual(tr.flush().length, 0);
+    });
+
+    it('gives up on a sequence that grows past any real one', () => {
+        const out = t().push(latin1('\x1b[' + '1;'.repeat(20) + 'X'));
+        assert.ok(out.length > 0);
+        assert.ok(out.toString('latin1').startsWith('\x1b[1;1;'));
+    });
+
+    it('keeps Latin-1 text bytes untouched', () => {
+        const bytes = Buffer.from([0xe9, 0xb7, 0xa4, 0x0d, 0x0a]);
+        assert.deepStrictEqual(t().push(bytes), bytes);
     });
 });
 
