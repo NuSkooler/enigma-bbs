@@ -1,0 +1,14 @@
+; S:Startup-Sequence for an ENiGMA½ Amiga door image.
+;
+; Boots straight into the host shim, which owns the serial port, says hello and
+; ready to ENiGMA, then runs whichever door each session names (BBS:Doors/...).
+; Doors look for the BBS under BBS:, so BBS: is the boot volume.  A minimal image
+; has no C:Assign; axshim then makes BBS: (SYS:) and DOORS: (SYS:Doors) itself.
+; Nothing after C:axshim runs: it never returns while the machine is up.
+FailAt 21
+Stack 32768
+If EXISTS C:Assign
+    C:Assign >NIL: BBS: SYS:
+    C:Assign >NIL: DOORS: SYS:Doors
+EndIf
+C:axshim 115200
