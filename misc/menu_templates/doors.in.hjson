@@ -42,6 +42,14 @@
                     value: { command: "MYGAME" }
                     action: @menu:doorMyGameV86
                 }
+                //
+                //  Amiga (AmiExpress /X XIM) door in the built-in vAmiga emulator
+                //  See: doors/amiga.md
+                //
+                {
+                    value: { command: "MYAMIGA" }
+                    action: @menu:doorMyGameAmiga
+                }
             ]
         }
 
@@ -163,6 +171,47 @@
                 //  memoryMb: 64      // optional, default 64
                 //  biosPath: /path/to/seabios.bin      // default: misc/v86_bios/seabios.bin
                 //  vgaBiosPath: /path/to/vgabios.bin   // default: misc/v86_bios/vgabios.bin
+            }
+        }
+
+        //
+        //  Amiga door (AmiExpress /X "XIM") via the built-in vAmiga emulator --
+        //  no external emulator, Kickstart or Workbench required.
+        //
+        //  Prerequisites:
+        //    1. The enigma-vamiga npm package (installed with ENiGMA's dependencies);
+        //       it bundles the AROS ROM.
+        //    2. A door image (.hdf): a small FFS disk holding the host shim, the
+        //       door library, a startup sequence and the door. Build one with
+        //       misc/amiga_door/image/make_image.sh
+        //
+        //  The door path is the Amiga path of the door inside the image.
+        //
+        //  Each session restores a snapshot of the booted machine, so starting
+        //  is fast after the first caller. Writes the door makes are saved to
+        //  the image after a clean exit. A door that keeps state all callers
+        //  share (high scores, a wall) should set sharedState: true, which
+        //  allows one caller at a time unless nodeMax says otherwise.
+        //
+        //  See doors/amiga.md for full setup instructions.
+        //
+        doorMyGameAmiga: {
+            desc: My Amiga Door
+            module: amiga_door
+            config: {
+                name: MyAmigaGame
+                image: /path/to/images/mygame.hdf
+                door: BBS:Doors/MyGame/mygame.xim
+                sharedState: true
+                tooManyArt: DOORMANY
+                //  doorArgs: -x                 // extra arguments after the node number
+                //  rom: /path/to/kick31.rom     // default: bundled AROS ROM
+                //  cpu: 68EC020                 // 68000 | 68010 | 68EC020
+                //  fastKb: 8192                 // 0..8192
+                //  font: topaz                  // SyncTERM font, or none
+                //  minTimeLeftMinutes: 10
+                //  notEnoughTimeArt: DOORTIME
+                //  persist: true                // save the door's writes
             }
         }
 	}
