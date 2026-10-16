@@ -1,0 +1,1298 @@
+/* jslint node: true */
+'use strict';
+
+/**
+ * amiga_door.js — ENiGMA½ Amiga door emulation module
+ *
+ * Runs an AmiExpress (/X) XIM door inside an embedded Amiga emulator
+ * (enigma-vamiga, the vAmiga core as WebAssembly) in a worker thread, and
+ * bridges the caller to it. No external emulator, Kickstart or Workbench is
+ * required: the emulator package bundles the AROS ROM.
+ *
+ * Amiga doors are clients of a live BBS node, not standalone programs, so the
+ * door image boots a small host shim (axshim, misc/amiga_door/) that
+ * impersonates an /X node for the door. ENiGMA hands the shim the user block
+ * over the emulated serial port when the session starts (the drop file
+ * analogue) and gets an exit report back; see
+ * core/amiga_door/protocol.js and the "Amiga Door Emulation - Shim Protocol"
+ * design note.
+ *
+ * Sessions restore a snapshot of the booted machine (tens of milliseconds);
+ * the first session of a door boots it and fills the snapshot cache.
+ * Persistence is "Model A": after a clean door exit the image file gets the
+ * disk chunks the session changed and the door's snapshots are dropped.
+ * Sessions are independent copies of the disk, so a door that writes shared
+ * state (high scores, a wall) must run one node at a time: set |sharedState|.
+ *
+ * Config (menu.hjson):
+ *   module: amiga_door
+ *   config: {
+ *     name:               string   - door name (required; instance tracking key)
+ *     image:              string   - path to the door's HDF image (required)
+ *     door:               string   - Amiga path of the door executable inside the
+ *                                    image (required), e.g. BBS:Doors/DreamSweeper/dreamsweeper.xim
+ *     doorDir:            string   - door's current directory (default: its own)
+ *     doorStack:          number   - door stack size in bytes (default: 32768)
+ *     doorArgs:           string   - extra arguments after the node number
+ *     mainline:           string   - the /X command line the caller "typed" (BB_MAINLINE;
+ *                                    some doors parse it, e.g. Wallhall); default empty
+ *     rom:                string   - Kickstart ROM path (default: bundled AROS)
+ *     extRom:             string   - extension ROM path (default: bundled AROS ext with
+ *                                    the bundled ROM, none otherwise)
+ *     cpu:                string   - 68000 | 68010 | 68EC020 (default: 68EC020)
+ *     chipKb:             number   - 256 | 512 | 1024 | 2048 (default: 512)
+ *     slowKb:             number   - 0..1536, multiple of 256 (default: 512)
+ *     fastKb:             number   - 0..8192, multiple of 64 (default: 8192)
+ *     overclock:          number   - 1..16 (default: 1)
+ *     nodeMax:            number   - max concurrent sessions, 0 = unlimited (default: 0)
+ *     sharedState:        boolean  - the door writes state all callers share; makes
+ *                                    nodeMax 1 when nodeMax is not set (default: false)
+ *     tooManyArt:         string   - art shown when nodeMax is reached
+ *     minTimeLeftMinutes: number   - refuse to start with less time left today
+ *     notEnoughTimeArt:   string   - art shown when minTimeLeftMinutes refuses
+ *     encoding:           string   - door output encoding (default: latin1)
+ *     font:               string   - SyncTERM font for the door's duration (default:
+ *                                    topaz); 'none' leaves the caller's font alone
+ *     persist:            boolean  - write the door's disk changes back (default: true)
+ *     persistOn:          [string] - X statuses after which to persist (default: ['ok'])
+ *     log:                boolean  - log every door request at debug level (default: false)
+ *     warpBootSeconds:    number   - first boot runs flat out this long (default: 30)
+ *     regTimeoutSeconds:  number   - the door must register within this; 0 = forever (default: 30)
+ *     inputTimeoutSeconds:number   - a door waiting this long for a key gives up
+ *                                    (default: users.idleLogoutSeconds, or the shim's 300)
+ *     crlf:               boolean  - LF in door output goes out as CR LF (default: true)
+ *     timezoneMinutes:    number   - minutes east of UTC for the Amiga clock (default: host's)
+ *   }
+ *
+ * System settings: doors.amiga.snapshotCacheEntries (config_default.js).
+ */
+
+const { MenuModule } = require('../menu_module.js');
+const { Errors } = require('../enig_error.js');
+const { trackDoorRunBegin, trackDoorRunEnd } = require('../door_util.js');
+const Door = require('../door.js');
+const theme = require('../theme.js');
+const ansi = require('../ansi_term.js');
+const UserTime = require('../user_time.js');
+const UserProps = require('../user_property.js');
+const Events = require('../events.js');
+const protocol = require('./protocol.js');
+const { amigaCsiToAnsi } = require('./host_link.js');
+const { SnapshotCache, DefaultMaxEntries } = require('./snapshot_cache.js');
+
+//  Late bound: config.js replaces its |get| when the system configuration is
+//  created, so capturing it at require time would pin whichever was first.
+const configModule = require('../config.js');
+const Config = () => configModule.get();
+
+//  deps
+const async = require('async');
+const _ = require('lodash');
+const paths = require('path');
+const fs = require('fs');
+const iconv = require('iconv-lite');
+const { EventEmitter } = require('events');
+const { Worker } = require('worker_threads');
+
+const WORKER_PATH = paths.join(__dirname, 'amiga_worker.js');
+
+//  shim protocol v1, section 8.3: no X within this long of `d` -> drop the worker
+const ExitAfterDisconnectMs = 2000;
+//  boot (warp) or restore to the shim having been sent `s`
+const ReadyTimeoutMs = 60 * 1000;
+//  the worker settles 3 s of Amiga time and writes a few chunks; generous
+const PersistTimeoutMs = 30 * 1000;
+const ResizePollMs = 1000;
+const TimePollMs = 5000;
+const BackpressurePollMs = 50;
+
+//  The same ceiling drop files use (dropfile.js MaxDropFileMinutes): /X keeps
+//  time in seconds, and 546 x 60 fits a signed 16-bit field.
+const MaxDoorMinutes = 546;
+
+const CPU_MODELS = ['68000', '68010', '68EC020']; //  enigma-vamiga's CPU_MODELS
+const CHIP_KB = [256, 512, 1024, 2048];
+const EXIT_STATUSES = ['ok', 'carrier', 'timeout', 'break', 'error'];
+
+const Defaults = {
+    cpu: '68EC020',
+    chipKb: 512,
+    slowKb: 512,
+    fastKb: 8192,
+    overclock: 1,
+    nodeMax: 0,
+    encoding: 'latin1',
+    font: 'topaz',
+    persist: true,
+    persistOn: ['ok'],
+    sharedState: false,
+    log: false,
+    warpBootSeconds: 30,
+    regTimeoutSeconds: 30,
+    crlf: true,
+};
+
+//  Track active instances per door name (mirrors abracadabra / v86_door)
+const activeDoorInstances = {};
+
+//  Booted-machine snapshots shared by every session in this process
+const snapshotCache = new SnapshotCache();
+
+//  One persist at a time per image file: image path -> promise chain
+const imageLocks = new Map();
+
+//  enigma-vamiga's compiled WebAssembly module, compiled once per process
+let compiledModulePromise = null;
+
+function getCompiledModule() {
+    if (!compiledModulePromise) {
+        compiledModulePromise = Promise.resolve()
+            .then(() => require('enigma-vamiga').VAmiga.compile())
+            .catch(err => {
+                compiledModulePromise = null; //  let a later session try again
+                throw err;
+            });
+    }
+    return compiledModulePromise;
+}
+
+function withImageLock(image, fn) {
+    const key = paths.resolve(image);
+    const prev = imageLocks.get(key) || Promise.resolve();
+    const next = prev.then(fn, fn);
+    const tail = next.catch(() => {});
+    imageLocks.set(key, tail);
+    tail.then(() => {
+        if (imageLocks.get(key) === tail) {
+            imageLocks.delete(key);
+        }
+    });
+    return next;
+}
+
+function snapshotCacheEntries() {
+    const n = _.get(Config(), 'doors.amiga.snapshotCacheEntries');
+    return Number.isInteger(n) && n >= 0 ? n : DefaultMaxEntries;
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+//  Minutes east of UTC, as the shim's `tz` wants it
+function hostTimezoneMinutes() {
+    return -new Date().getTimezoneOffset();
+}
+
+function isLatin1(encoding) {
+    const e = String(encoding || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+    return ['latin1', 'iso88591', 'l1', 'binary', 'cp819', 'ibm819'].includes(e);
+}
+
+//
+//  Validate a door's config block and fill in defaults. Returns
+//  { config, problems }: |problems| lists everything wrong (empty when the
+//  config is usable), so a sysop sees every mistake in one log line.
+//
+function normalizeConfig(raw) {
+    const c = Object.assign({}, raw || {});
+    const problems = [];
+    const rawCpu = c.cpu;
+
+    const isInt = v => Number.isInteger(v);
+    const intIn = (key, min, max, extra) => {
+        const v = c[key];
+        if (!isInt(v) || v < min || v > max || (extra && !extra(v))) {
+            return false;
+        }
+        return true;
+    };
+
+    for (const key of ['name', 'image', 'door']) {
+        if (!_.isString(c[key]) || 0 === c[key].trim().length) {
+            problems.push(`"${key}" is required (a string)`);
+        }
+    }
+
+    for (const key of [
+        'doorDir',
+        'doorArgs',
+        'mainline',
+        'rom',
+        'extRom',
+        'tooManyArt',
+        'notEnoughTimeArt',
+    ]) {
+        if (undefined !== c[key] && !_.isString(c[key])) {
+            problems.push(`"${key}" must be a string`);
+        }
+    }
+
+    //  everything that ends up in the `s` frame must be a single line
+    for (const key of ['door', 'doorDir', 'doorArgs', 'mainline']) {
+        if (_.isString(c[key]) && /[\r\n]/.test(c[key])) {
+            problems.push(`"${key}" must not contain a line break`);
+        }
+    }
+
+    if (undefined !== c.doorStack && !intIn('doorStack', 4096, 1024 * 1024)) {
+        problems.push('"doorStack" must be an integer from 4096 to 1048576 (bytes)');
+    }
+
+    //  machine
+    c.cpu = undefined === c.cpu ? Defaults.cpu : String(c.cpu).toUpperCase();
+    if (!CPU_MODELS.includes(c.cpu)) {
+        problems.push(`"cpu" must be one of ${CPU_MODELS.join(', ')}, got "${rawCpu}"`);
+    }
+    for (const key of ['chipKb', 'slowKb', 'fastKb', 'overclock']) {
+        if (undefined === c[key]) {
+            c[key] = Defaults[key];
+        }
+    }
+    if (!CHIP_KB.includes(c.chipKb)) {
+        problems.push(`"chipKb" must be one of ${CHIP_KB.join(', ')}`);
+    }
+    if (!intIn('slowKb', 0, 1536, v => 0 === v % 256)) {
+        problems.push('"slowKb" must be 0 to 1536, a multiple of 256');
+    }
+    if (!intIn('fastKb', 0, 8192, v => 0 === v % 64)) {
+        problems.push(
+            '"fastKb" must be 0 to 8192, a multiple of 64 (the core supports at most 8 MB of fast RAM)'
+        );
+    }
+    if (!intIn('overclock', 1, 16)) {
+        problems.push('"overclock" must be an integer from 1 to 16');
+    }
+    if (
+        !c.rom &&
+        isInt(c.chipKb) &&
+        isInt(c.slowKb) &&
+        isInt(c.fastKb) &&
+        c.chipKb + c.slowKb + c.fastKb < 1024
+    ) {
+        problems.push(
+            'the AROS ROM needs at least 1 MB of RAM in total (chip + slow + fast)'
+        );
+    }
+
+    //  node and time limits
+    if (undefined !== c.sharedState && !_.isBoolean(c.sharedState)) {
+        problems.push('"sharedState" must be true or false');
+    }
+    c.sharedState = true === c.sharedState;
+    if (undefined === c.nodeMax || null === c.nodeMax) {
+        c.nodeMax = c.sharedState ? 1 : Defaults.nodeMax;
+    } else if (!intIn('nodeMax', 0, Number.MAX_SAFE_INTEGER)) {
+        problems.push('"nodeMax" must be a whole number (0 = unlimited)');
+    }
+    if (
+        undefined !== c.minTimeLeftMinutes &&
+        !intIn('minTimeLeftMinutes', 0, Number.MAX_SAFE_INTEGER)
+    ) {
+        problems.push('"minTimeLeftMinutes" must be a whole number of minutes');
+    }
+
+    //  terminal
+    c.encoding = undefined === c.encoding ? Defaults.encoding : c.encoding;
+    if (!_.isString(c.encoding) || !iconv.encodingExists(c.encoding)) {
+        problems.push(`"encoding" "${c.encoding}" is not an encoding iconv-lite knows`);
+    }
+    c.font = undefined === c.font ? Defaults.font : c.font;
+    if (!_.isString(c.font)) {
+        problems.push('"font" must be a SyncTERM font name or alias, or "none"');
+    } else if (
+        'none' !== c.font.toLowerCase() &&
+        !ansi.setSyncTermFontWithAlias(c.font)
+    ) {
+        problems.push(
+            `"font" "${c.font}" is not a SyncTERM font name or alias (or "none")`
+        );
+    }
+
+    //  persistence
+    if (undefined === c.persist) {
+        c.persist = Defaults.persist;
+    } else if (!_.isBoolean(c.persist)) {
+        problems.push('"persist" must be true or false');
+    }
+    if (undefined === c.persistOn) {
+        c.persistOn = Defaults.persistOn.slice();
+    } else {
+        const list = _.isString(c.persistOn) ? [c.persistOn] : c.persistOn;
+        if (!Array.isArray(list) || !list.every(s => EXIT_STATUSES.includes(s))) {
+            problems.push(
+                `"persistOn" must be a list of exit statuses (${EXIT_STATUSES.join(', ')})`
+            );
+        } else {
+            c.persistOn = list.slice();
+        }
+    }
+
+    //  shim session options
+    for (const key of ['log', 'crlf']) {
+        if (undefined === c[key]) {
+            c[key] = Defaults[key];
+        } else if (!_.isBoolean(c[key])) {
+            problems.push(`"${key}" must be true or false`);
+        }
+    }
+    for (const [key, min, max] of [
+        ['warpBootSeconds', 0, 3600],
+        ['regTimeoutSeconds', 0, 86400],
+    ]) {
+        if (undefined === c[key]) {
+            c[key] = Defaults[key];
+        } else if (!intIn(key, min, max)) {
+            problems.push(`"${key}" must be an integer from ${min} to ${max}`);
+        }
+    }
+    if (undefined !== c.inputTimeoutSeconds && !intIn('inputTimeoutSeconds', 1, 86400)) {
+        problems.push('"inputTimeoutSeconds" must be an integer from 1 to 86400');
+    }
+    if (undefined !== c.timezoneMinutes && !intIn('timezoneMinutes', -720, 840)) {
+        problems.push(
+            '"timezoneMinutes" must be an integer from -720 to 840 (minutes east of UTC)'
+        );
+    }
+
+    return { config: c, problems };
+}
+
+function shouldPersist(config, status) {
+    return true === config.persist && (config.persistOn || []).includes(status);
+}
+
+//
+//  The `s` frame: the user block the shim answers DT_* requests from, plus
+//  the door to run and session options. `now` is added by the worker when the
+//  frame is actually sent.
+//
+function buildSessionKeys(client, config) {
+    const user = client.user;
+    const prop = name => user.getProperty(name);
+    const num = name => parseInt(prop(name), 10) || 0;
+    const unix = ts => {
+        const ms = ts ? Date.parse(ts) : NaN;
+        return isNaN(ms) ? undefined : Math.floor(ms / 1000);
+    };
+
+    const timeLeft = UserTime.getTimeLeftMinutes(client);
+    const allowed = UserTime.getAllowedMinutesToday(client);
+    const clampMinutes = m => Math.min(null === m ? Infinity : m, MaxDoorMinutes);
+
+    let inputTimeout = config.inputTimeoutSeconds;
+    if (undefined === inputTimeout) {
+        const idle = _.get(Config(), 'users.idleLogoutSeconds');
+        inputTimeout = idle > 0 ? idle : undefined; //  else the shim's 300
+    }
+
+    //  late: stat_log reads the system database
+    const StatLog = require('../stat_log.js');
+    const SysProps = require('../system_property.js');
+
+    return {
+        version: protocol.PROTOCOL_VERSION,
+        door: config.door,
+        dir: config.doorDir,
+        stack: config.doorStack,
+        args: config.doorArgs,
+        node: client.node,
+        name: user.getSanitizedName(),
+        realname: user.getSanitizedName('real'),
+        location: prop(UserProps.Location) || '',
+        level: user.getLegacySecurityLevel(),
+        timeleft: clampMinutes(timeLeft),
+        timeused: UserTime.getTimeUsedTodayMinutes(user),
+        timelimit: clampMinutes(allowed),
+        calls: num(UserProps.LoginCount),
+        posts: num(UserProps.MessagePostCount),
+        uploads: num(UserProps.FileUlTotalCount),
+        downloads: num(UserProps.FileDlTotalCount),
+        ulbytes: num(UserProps.FileUlTotalBytes),
+        dlbytes: num(UserProps.FileDlTotalBytes),
+        laston: unix(prop(UserProps.PrevLoginTs) || prop(UserProps.LastLoginTs)),
+        expert: 0,
+        ansi: 1,
+        rows: client.term.termHeight || 24,
+        cols: client.term.termWidth || 80,
+        bbsname: _.get(Config(), 'general.boardName') || 'ENiGMA',
+        sysop: StatLog.getSystemStat(SysProps.SysOpUsername) || 'SysOp',
+        mainline: config.mainline || '',
+        timeout: inputTimeout,
+        log: config.log ? 1 : 0,
+        regtimeout: config.regTimeoutSeconds,
+        crlf: config.crlf ? 1 : 0,
+        tz: _.isNumber(config.timezoneMinutes)
+            ? config.timezoneMinutes
+            : hostTimezoneMinutes(),
+        slot: 1,
+    };
+}
+
+// ─── Session ──────────────────────────────────────────────────────────────────
+
+//
+//  One door session: the worker's messages, the caller's input, the host
+//  frames ENiGMA sends (t, d, w, e), the exit and persist decision.
+//
+//  Emits 'firstOutput' once, then 'done' exactly once with
+//  { status, keys, persisted, error, reason }.
+//
+class AmigaDoorSession extends EventEmitter {
+    constructor({
+        client,
+        config,
+        worker,
+        cacheKey,
+        cache,
+        sessionKeys,
+        rawOutput,
+        timeouts,
+    }) {
+        super();
+        //  overridable for tests only
+        this.timeouts = Object.assign(
+            {
+                ready: ReadyTimeoutMs,
+                exitAfterDisconnect: ExitAfterDisconnectMs,
+                persist: PersistTimeoutMs,
+            },
+            timeouts
+        );
+        this.client = client;
+        this.log = client.log;
+        this.config = config;
+        this.worker = worker;
+        this.cacheKey = cacheKey;
+        this.cache = cache;
+        this.rawOutput = !!rawOutput;
+        this.encoding = config.encoding;
+
+        this.lastTimeLeft = sessionKeys ? sessionKeys.timeleft : undefined;
+        this.lastSize = sessionKeys
+            ? { rows: sessionKeys.rows, cols: sessionKeys.cols }
+            : null;
+
+        this.ready = false;
+        this.disconnectReason = null; //  set once `d` has been sent
+        this.exitInfo = null; //  the X frame, once seen
+        this.persisting = false;
+        this.finished = false;
+        this.firstOutput = true;
+        this.timers = {};
+
+        this.backpressure = Door.parseBackpressureSettings(
+            _.get(Config(), 'doors.outputBackpressure'),
+            this.log
+        );
+        this.outputPausedAt = 0;
+        this.outputStats = { pauses: 0, pausedMs: 0 };
+    }
+
+    start() {
+        this.onWorkerMessageBound = msg => this.onWorkerMessage(msg);
+        this.onWorkerErrorBound = err =>
+            this.finish({ error: `worker thread error: ${err.message}` });
+        this.onWorkerExitBound = code => {
+            if (!this.finished) {
+                this.finish({ error: `worker exited unexpectedly (code ${code})` });
+            }
+        };
+        this.worker.on('message', this.onWorkerMessageBound);
+        this.worker.on('error', this.onWorkerErrorBound);
+        this.worker.on('exit', this.onWorkerExitBound);
+
+        //  kept: client.end() clears term.output before leave() reaches us
+        this.inputSource = this.client.term.output;
+        this.onInputBound = data => this.onInput(data);
+        if (this.inputSource) {
+            this.inputSource.on('data', this.onInputBound);
+        }
+
+        this.onTimeUpBound = () => this.disconnect('timeup');
+        this.client.on('time up', this.onTimeUpBound);
+
+        this.onClientDisconnectedBound = evt => {
+            if (
+                _.get(evt, 'client.session.uniqueId') ===
+                _.get(this.client, 'session.uniqueId')
+            ) {
+                this.disconnect('hangup');
+            }
+        };
+        Events.on(
+            Events.getSystemEvents().ClientDisconnected,
+            this.onClientDisconnectedBound
+        );
+
+        this.timers.ready = setTimeout(() => {
+            this.finish({
+                error: `the emulator did not become ready within ${this.timeouts.ready} ms`,
+            });
+        }, this.timeouts.ready);
+
+        return this;
+    }
+
+    post(msg) {
+        if (!this.finished) {
+            this.worker.postMessage(msg);
+        }
+    }
+
+    sendFrame(type, keys) {
+        this.post({ type: 'frame', frame: { type, keys } });
+    }
+
+    onInput(data) {
+        if (this.disconnectReason || this.exitInfo || this.finished) {
+            return;
+        }
+        this.post({ type: 'input', data });
+    }
+
+    onWorkerMessage(msg) {
+        if (this.finished) {
+            return;
+        }
+
+        switch (msg.type) {
+            case 'snapshot':
+                return this.onSnapshot(msg);
+            case 'ready':
+                return this.onReady(msg);
+            case 'output':
+                return this.writeOutput(Buffer.from(msg.data));
+            case 'frame':
+                return this.onFrame(msg.frame);
+            case 'exit':
+                return this.onExit(msg);
+            case 'persisted':
+                return this.onPersisted(msg);
+            case 'error':
+                return this.onWorkerError(msg);
+            default:
+                return;
+        }
+    }
+
+    onSnapshot(msg) {
+        if (!this.cache || !this.cacheKey) {
+            return;
+        }
+        this.cache.maxEntries = snapshotCacheEntries();
+        const stored = this.cache.set(this.cacheKey, msg.snapshot);
+        this.log.info(
+            {
+                name: this.config.name,
+                bytes: msg.snapshot.length,
+                snapshotMs: Math.round(msg.ms),
+                cached: !!stored,
+                entries: this.cache.size,
+            },
+            stored
+                ? 'Amiga door snapshot cached'
+                : 'Amiga door snapshot not cached (doors.amiga.snapshotCacheEntries is 0)'
+        );
+    }
+
+    onReady(msg) {
+        this.ready = true;
+        clearTimeout(this.timers.ready);
+        this.log.info(
+            {
+                name: this.config.name,
+                restored: msg.restored,
+                readyMs: Math.round(msg.ms),
+                restoreMs: null === msg.restoreMs ? undefined : +msg.restoreMs.toFixed(1),
+                shim: _.get(msg, 'hello.shim'),
+                wasmMemoryBytes: _.get(msg, 'stats.wasmMemoryBytes'),
+            },
+            msg.restored
+                ? 'Amiga door restored from snapshot; session started'
+                : 'Amiga door booted; session started'
+        );
+
+        this.timers.resize = setInterval(() => this.checkResize(), ResizePollMs);
+        this.timers.time = setInterval(() => this.checkTimeLeft(), TimePollMs);
+    }
+
+    onFrame(frame) {
+        const keys = frame.keys || {};
+        switch (frame.type) {
+            case 'H':
+                return this.log.debug(
+                    { name: this.config.name, hello: keys },
+                    'Amiga shim hello'
+                );
+
+            case 'L':
+                return this.log.info(
+                    { name: this.config.name, door: keys.door },
+                    'Amiga door launched'
+                );
+
+            case 'C':
+                if (this.config.log) {
+                    this.log.debug(
+                        {
+                            name: this.config.name,
+                            cmd: keys.cmd,
+                            data: keys.data,
+                            len: keys.len,
+                            str: keys.str,
+                        },
+                        'Amiga door request'
+                    );
+                }
+                return;
+
+            case 'E':
+                //  JH_EF: handing the editor to ENiGMA's FSE is future work
+                this.log.info(
+                    { name: this.config.name, file: keys.file },
+                    'Amiga door asked for the message editor; refused'
+                );
+                return this.sendFrame('e', { status: 'refused' });
+
+            default:
+                return;
+        }
+    }
+
+    onExit(msg) {
+        this.exitInfo = msg;
+        clearTimeout(this.timers.disconnect);
+        this.stopPolling();
+
+        const status = msg.status;
+        const persist = shouldPersist(this.config, status);
+        const logFn = 'error' === status ? this.log.warn : this.log.info;
+        logFn.call(
+            this.log,
+            {
+                name: this.config.name,
+                exit: msg.keys,
+                inputDropped: msg.inputDropped || undefined,
+                persist,
+            },
+            `Amiga door exited (status=${status})`
+        );
+
+        if (!persist) {
+            return this.finish({ status, keys: msg.keys, persisted: false });
+        }
+
+        this.persisting = true;
+        withImageLock(
+            this.config.image,
+            () =>
+                new Promise(resolve => {
+                    //  queued behind another session's persist and gone since
+                    if (this.finished) {
+                        return resolve();
+                    }
+                    this.persistResolve = resolve;
+                    this.timers.persist = setTimeout(() => {
+                        this.finish({
+                            status,
+                            keys: msg.keys,
+                            persisted: false,
+                            error: `persist did not finish within ${this.timeouts.persist} ms`,
+                        });
+                    }, this.timeouts.persist);
+                    this.post({ type: 'persist', path: this.config.image });
+                })
+        );
+    }
+
+    onPersisted(msg) {
+        clearTimeout(this.timers.persist);
+        let invalidated = 0;
+        if (msg.chunks > 0 && this.cache) {
+            invalidated = this.cache.invalidateImage(this.config.image);
+        }
+        this.log.info(
+            {
+                name: this.config.name,
+                image: this.config.image,
+                chunks: msg.chunks,
+                bytes: msg.bytes,
+                persistMs: Math.round(msg.ms),
+                snapshotsDropped: invalidated,
+            },
+            msg.chunks > 0
+                ? 'Amiga door disk changes persisted'
+                : 'Amiga door left its disk unchanged'
+        );
+        this.finish({
+            status: this.exitInfo.status,
+            keys: this.exitInfo.keys,
+            persisted: true,
+            chunks: msg.chunks,
+        });
+    }
+
+    onWorkerError(msg) {
+        const err = { name: this.config.name, error: msg.message, code: msg.code };
+        if (msg.during) {
+            err.during = msg.during;
+        }
+        if (false === msg.fatal) {
+            return this.log.warn(err, 'Amiga door worker problem');
+        }
+        this.log.warn(err, 'Amiga door worker error');
+        this.finish({
+            status: this.exitInfo ? this.exitInfo.status : undefined,
+            keys: this.exitInfo ? this.exitInfo.keys : undefined,
+            persisted: false,
+            error: msg.message,
+            code: msg.code,
+        });
+    }
+
+    //
+    //  End the session from our side: hangup, timeup or break. The shim answers
+    //  with X once the door has gone (or after its own 30 s grace); we give it
+    //  ExitAfterDisconnectMs and then drop the worker regardless. Without an X
+    //  nothing is persisted.
+    //
+    disconnect(reason) {
+        if (this.finished || this.disconnectReason || this.exitInfo) {
+            return;
+        }
+        this.disconnectReason = reason;
+        this.stopPolling();
+        this.resumeOutput();
+
+        this.log.info(
+            { name: this.config.name, reason },
+            `Ending Amiga door session (d reason=${reason})`
+        );
+
+        if (!this.ready) {
+            return this.finish({ persisted: false, reason });
+        }
+
+        this.sendFrame('d', { reason });
+        this.timers.disconnect = setTimeout(() => {
+            this.log.info(
+                { name: this.config.name, reason },
+                `No X within ${this.timeouts.exitAfterDisconnect} ms of d; dropping the Amiga door worker`
+            );
+            this.finish({ persisted: false, reason });
+        }, this.timeouts.exitAfterDisconnect);
+    }
+
+    writeOutput(bytes) {
+        //  after `d` the caller is gone or being shown something else
+        if (this.disconnectReason || !this.client.term.output) {
+            return;
+        }
+
+        if (this.firstOutput) {
+            this.firstOutput = false;
+            this.emit('firstOutput');
+        }
+
+        bytes = amigaCsiToAnsi(bytes);
+        if (this.rawOutput) {
+            this.client.term.rawWrite(bytes);
+        } else {
+            this.client.term.write(iconv.decode(bytes, this.encoding), false);
+        }
+
+        this.checkBackpressure();
+    }
+
+    checkResize() {
+        const rows = this.client.term.termHeight;
+        const cols = this.client.term.termWidth;
+        if (!(rows > 0 && cols > 0)) {
+            return;
+        }
+        if (this.lastSize && rows === this.lastSize.rows && cols === this.lastSize.cols) {
+            return;
+        }
+        this.lastSize = { rows, cols };
+        this.sendFrame('w', { rows, cols });
+    }
+
+    checkTimeLeft() {
+        const timeLeft = UserTime.getTimeLeftMinutes(this.client);
+        if (null === timeLeft) {
+            return; //  unlimited: the shim keeps the ceiling it was given
+        }
+        const minutes = Math.min(timeLeft, MaxDoorMinutes);
+        if (minutes === this.lastTimeLeft) {
+            return;
+        }
+        this.lastTimeLeft = minutes;
+        this.sendFrame('t', { timeleft: minutes });
+    }
+
+    stopPolling() {
+        clearInterval(this.timers.resize);
+        clearInterval(this.timers.time);
+    }
+
+    //
+    //  Output back-pressure, as door.js does for a pty: past
+    //  doors.outputBackpressure.highWaterBytes of unsent output we stop the
+    //  emulator (the door's writes then simply wait, as a real one's would on
+    //  a slow line), and start it again under lowWaterBytes.
+    //
+    outputBacklog() {
+        const output = this.client.term.output;
+        const rawSocket = this.client.rawSocket;
+        let backlog = (output && output.writableLength) || 0;
+        if (rawSocket && rawSocket !== output) {
+            backlog += rawSocket.writableLength || 0;
+        }
+        return backlog;
+    }
+
+    checkBackpressure() {
+        if (!this.backpressure || this.outputPausedAt) {
+            return;
+        }
+        const backlog = this.outputBacklog();
+        if (backlog < this.backpressure.high) {
+            return;
+        }
+        this.post({ type: 'pause' });
+        this.outputPausedAt = Date.now();
+        this.outputStats.pauses += 1;
+        this.log.debug({ backlog }, 'Caller is behind; pausing Amiga door');
+
+        this.timers.backpressure = setInterval(() => {
+            if (this.outputBacklog() <= this.backpressure.low) {
+                this.resumeOutput();
+            }
+        }, BackpressurePollMs);
+    }
+
+    resumeOutput() {
+        if (!this.outputPausedAt) {
+            return;
+        }
+        clearInterval(this.timers.backpressure);
+        const pausedMs = Date.now() - this.outputPausedAt;
+        this.outputStats.pausedMs += pausedMs;
+        this.outputPausedAt = 0;
+        this.post({ type: 'resume' });
+        this.log.debug({ pausedMs }, 'Caller caught up; resuming Amiga door');
+    }
+
+    finish(result) {
+        if (this.finished) {
+            return;
+        }
+        this.resumeOutput();
+        this.finished = true;
+
+        for (const t of Object.values(this.timers)) {
+            clearTimeout(t);
+            clearInterval(t);
+        }
+
+        if (this.persistResolve) {
+            this.persistResolve();
+        }
+
+        this.worker.removeListener('message', this.onWorkerMessageBound);
+        this.worker.removeListener('error', this.onWorkerErrorBound);
+        this.worker.removeListener('exit', this.onWorkerExitBound);
+        if (this.inputSource) {
+            this.inputSource.removeListener('data', this.onInputBound);
+        }
+        this.client.removeListener('time up', this.onTimeUpBound);
+        Events.removeListener(
+            Events.getSystemEvents().ClientDisconnected,
+            this.onClientDisconnectedBound
+        );
+
+        //  Model A: a worker is never reused (shim protocol v1, 8.4)
+        try {
+            this.worker.terminate();
+        } catch (e) {
+            //  already gone
+        }
+
+        if (this.outputStats.pauses > 0) {
+            this.log.info(
+                Object.assign({ name: this.config.name }, this.outputStats),
+                'Amiga door output backpressure summary'
+            );
+        }
+
+        this.emit('done', Object.assign({ reason: this.disconnectReason }, result));
+    }
+}
+
+// ─── Menu module ──────────────────────────────────────────────────────────────
+
+exports.moduleInfo = {
+    name: 'AmigaDoor',
+    desc: 'Amiga Door Emulation via vAmiga',
+    author: 'NuSkooler',
+};
+
+exports.getModule = class AmigaDoorModule extends MenuModule {
+    constructor(options) {
+        super(options);
+        this.config = options.menuConfig.config || {};
+    }
+
+    initSequence() {
+        const self = this;
+
+        async.series(
+            [
+                function validateConfig(callback) {
+                    return self.validateConfigFields(
+                        { name: 'string', image: 'string', door: 'string' },
+                        callback
+                    );
+                },
+
+                function normalize(callback) {
+                    const { config, problems } = normalizeConfig(self.config);
+                    if (problems.length > 0) {
+                        return callback(
+                            Errors.Invalid(
+                                `amiga_door "${self.config.name}": ${problems.join('; ')}`
+                            )
+                        );
+                    }
+                    self.config = config;
+                    return callback(null);
+                },
+
+                function checkFiles(callback) {
+                    for (const [label, p] of [
+                        ['image', self.config.image],
+                        ['rom', self.config.rom],
+                        ['extRom', self.config.extRom],
+                    ]) {
+                        if (p && !fs.existsSync(p)) {
+                            return callback(
+                                Errors.MissingConfig(
+                                    `amiga_door: ${label} not found: ${p}`
+                                )
+                            );
+                        }
+                    }
+                    return callback(null);
+                },
+
+                function validateNodeCount(callback) {
+                    const name = self.config.name;
+                    if (
+                        self.config.nodeMax > 0 &&
+                        _.isNumber(activeDoorInstances[name]) &&
+                        activeDoorInstances[name] + 1 > self.config.nodeMax
+                    ) {
+                        self.client.log.info(
+                            { name, activeCount: activeDoorInstances[name] },
+                            `Too many active instances of door "${name}"`
+                        );
+
+                        const denied = () =>
+                            callback(Errors.AccessDenied('Too many active instances'));
+
+                        if (_.isString(self.config.tooManyArt)) {
+                            return theme.displayThemeArt(
+                                { client: self.client, name: self.config.tooManyArt },
+                                () => self.pausePrompt(denied)
+                            );
+                        }
+
+                        self.client.term.write(
+                            '\nToo many active instances. Try again later.\n'
+                        );
+                        return self.pausePrompt(denied);
+                    }
+
+                    self._incrementInstances();
+                    return callback(null);
+                },
+
+                function validateTimeRemaining(callback) {
+                    //  as abracadabra: opt-in per door, unlimited always passes
+                    const minTimeLeft = self.config.minTimeLeftMinutes;
+                    if (UserTime.hasTimeFor(self.client, minTimeLeft)) {
+                        return callback(null);
+                    }
+
+                    const timeLeft = UserTime.getTimeLeftMinutes(self.client);
+                    self.client.log.info(
+                        { name: self.config.name, timeLeft, minTimeLeft },
+                        `Not enough time remaining for door "${self.config.name}"`
+                    );
+
+                    const denied = () =>
+                        callback(Errors.AccessDenied('Not enough time remaining'));
+
+                    if (_.isString(self.config.notEnoughTimeArt)) {
+                        return theme.displayThemeArt(
+                            { client: self.client, name: self.config.notEnoughTimeArt },
+                            () => self.pausePrompt(denied)
+                        );
+                    }
+
+                    self.client.term.write(
+                        `\nYou need at least ${minTimeLeft} minute(s) remaining today for this. You have ${timeLeft}.\n`
+                    );
+                    return self.pausePrompt(denied);
+                },
+            ],
+            err => {
+                if (err) {
+                    self.client.log.warn(
+                        { error: err.message },
+                        'Could not start Amiga door'
+                    );
+                    self.lastError = err;
+                    self._decrementInstances();
+                    return self.prevMenu();
+                }
+                return self.finishedLoading();
+            }
+        );
+    }
+
+    finishedLoading() {
+        this.runDoor();
+    }
+
+    runDoor() {
+        const config = this.config;
+        const doorName = config.name;
+        const doorTracking = trackDoorRunBegin(this.client, doorName);
+
+        let stat;
+        try {
+            stat = fs.statSync(config.image);
+        } catch (err) {
+            return this._doorFinished(doorTracking, { error: err.message });
+        }
+
+        const cacheKey = SnapshotCache.keyFor(config.image, stat, config);
+        const snapshot = snapshotCache.get(cacheKey) || null;
+
+        //  Loading spinner, shown until the door's first output
+        const SPINNER_FRAMES = ['|', '/', '-', '\\'];
+        let spinnerIdx = 0;
+        this.client.term.write(ansi.resetScreen());
+        this.client.term.write(`\r\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`);
+        this.spinnerInterval = setInterval(() => {
+            spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
+            this.client.term.rawWrite(
+                Buffer.from(`\r  Loading ${doorName}... ${SPINNER_FRAMES[spinnerIdx]}`)
+            );
+        }, 150);
+
+        getCompiledModule()
+            .then(wasmModule => {
+                if (this.left) {
+                    return this._doorFinished(doorTracking, { reason: 'hangup' });
+                }
+
+                const sessionKeys = buildSessionKeys(this.client, config);
+                const workerData = {
+                    module: wasmModule,
+                    snapshot,
+                    image: config.image,
+                    rom: config.rom,
+                    extRom: config.extRom,
+                    machine: {
+                        cpu: config.cpu,
+                        chipKb: config.chipKb,
+                        slowKb: config.slowKb,
+                        fastKb: config.fastKb,
+                        overclock: config.overclock,
+                    },
+                    warpBootSeconds: config.warpBootSeconds,
+                    session: sessionKeys,
+                };
+
+                const worker = new Worker(WORKER_PATH, { workerData });
+
+                this._switchFont();
+
+                this.session = new AmigaDoorSession({
+                    client: this.client,
+                    config,
+                    worker,
+                    cacheKey,
+                    cache: snapshotCache,
+                    sessionKeys,
+                    rawOutput: this.fontSwitched && this._rawOutputOk(),
+                });
+
+                this.session.once('firstOutput', () => this._stopSpinner(true));
+                this.session.once('done', result => {
+                    this.session = null;
+                    this._doorFinished(doorTracking, result);
+                });
+
+                this.client.log.info(
+                    {
+                        name: doorName,
+                        door: config.door,
+                        image: config.image,
+                        snapshot: snapshot ? 'restore' : 'boot',
+                    },
+                    'Starting Amiga door'
+                );
+
+                this.session.start();
+            })
+            .catch(err => {
+                this._doorFinished(doorTracking, {
+                    error: `cannot start the emulator: ${err.message}`,
+                    code: err.code,
+                });
+            });
+    }
+
+    //  Topaz (or the configured font) for the door's duration, when the
+    //  caller's terminal does SyncTERM fonts at all.
+    _switchFont() {
+        const font = this.config.font;
+        if (!font || 'none' === font.toLowerCase()) {
+            return;
+        }
+        if (!this.client.term.syncTermFontsEnabled) {
+            return;
+        }
+        const seq = ansi.setSyncTermFontWithAlias(font);
+        if (!seq) {
+            return;
+        }
+        this.client.term.rawWrite(seq);
+        this.fontSwitched = true;
+        this.client.log.debug(
+            { name: this.config.name, font, seq: JSON.stringify(seq) },
+            'Switched caller to the door font'
+        );
+    }
+
+    _restoreFont() {
+        if (!this.fontSwitched) {
+            return;
+        }
+        this.fontSwitched = false;
+        const current = this.client.term.currentSyncFont;
+        const restoreTo = current && 'not_set' !== current ? current : 'cp437';
+        const seq = ansi.setSyncTermFont(restoreTo);
+        if (seq) {
+            this.client.term.rawWrite(seq);
+            this.client.log.debug(
+                { name: this.config.name, font: restoreTo, seq: JSON.stringify(seq) },
+                'Restored caller font'
+            );
+        }
+    }
+
+    //
+    //  With an Amiga font on screen the terminal draws ISO-8859-1, which is
+    //  what the doors write: pass the bytes through. Transcoding them to the
+    //  caller's CP437 would put CP437 code points under a Latin-1 font. A
+    //  UTF-8 terminal, or a door with some other encoding, is transcoded.
+    //
+    _rawOutputOk() {
+        return (
+            isLatin1(this.config.encoding) && 'utf8' !== this.client.term.outputEncoding
+        );
+    }
+
+    _stopSpinner(clear) {
+        if (!this.spinnerInterval) {
+            return;
+        }
+        clearInterval(this.spinnerInterval);
+        this.spinnerInterval = null;
+        if (clear && this.client.term.output) {
+            this.client.term.write(ansi.resetScreen());
+        }
+    }
+
+    _doorFinished(doorTracking, result) {
+        this._stopSpinner(false);
+        trackDoorRunEnd(doorTracking);
+        this._decrementInstances();
+
+        if (result.error) {
+            this.client.log.warn(
+                { name: this.config.name, error: result.error, code: result.code },
+                'Amiga door error'
+            );
+        }
+
+        //  The caller hung up, or time-up took them elsewhere: nothing to show
+        if (this.left || !this.client.term.output) {
+            return;
+        }
+
+        this._restoreFont();
+
+        //  clean up what a door may have left behind, as abracadabra does
+        this.client.term.rawWrite(
+            ansi.normal() +
+                ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
+                ansi.setScrollRegion() +
+                ansi.goto(this.client.term.termHeight, 0) +
+                '\r\n\r\n'
+        );
+
+        const failed = result.error || 'error' === result.status;
+        if (failed) {
+            this.client.term.write(
+                `\n  ${this.config.name} could not be run. Please let the sysop know.\n`
+            );
+            return this.pausePrompt(() => this.autoNextMenu(() => {}));
+        }
+
+        //  explicit no-op cb: see abracadabra.js
+        return this.autoNextMenu(() => {});
+    }
+
+    leave() {
+        super.leave();
+        this.left = true;
+        this._stopSpinner(false);
+        if (this.session) {
+            this.session.disconnect(this.client.timeUpEmitted ? 'timeup' : 'hangup');
+        }
+        this._decrementInstances();
+    }
+
+    _incrementInstances() {
+        const name = this.config.name;
+        activeDoorInstances[name] = (activeDoorInstances[name] || 0) + 1;
+        this._instanceIncremented = true;
+    }
+
+    _decrementInstances() {
+        if (this._instanceIncremented) {
+            const name = this.config.name;
+            activeDoorInstances[name] = Math.max(0, (activeDoorInstances[name] || 1) - 1);
+            this._instanceIncremented = false;
+        }
+    }
+};
+
+//  Exported for unit tests only — not part of the public API
+exports._test = {
+    normalizeConfig,
+    shouldPersist,
+    buildSessionKeys,
+    isLatin1,
+    AmigaDoorSession,
+    snapshotCache,
+    withImageLock,
+    Defaults,
+    MaxDoorMinutes,
+};

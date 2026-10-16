@@ -177,6 +177,13 @@ module.exports = {
         min: 0,
         description: 'Unsent bytes queued for the caller at which door output resumes.',
     },
+    'doors.amiga.snapshotCacheEntries': {
+        type: 'number',
+        min: 0,
+        max: 64,
+        description:
+            'Booted Amiga door snapshots kept in memory (about 1.5 MB each, one per door image and machine). 0 boots every session.',
+    },
     //  The shipped default is [], which carries no item type of its own.
     'users.timeLimits': {
         type: 'array',

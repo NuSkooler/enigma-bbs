@@ -239,6 +239,14 @@ module.exports = () => {
                 highWaterBytes: 256 * 1024,
                 lowWaterBytes: 64 * 1024,
             },
+
+            //  Amiga doors (core/amiga_door/): booted-machine snapshots kept
+            //  in memory, about 1.5 MB each, one per door image and machine
+            //  configuration. A door without one boots (well under a second)
+            //  instead of restoring (tens of milliseconds). 0 disables.
+            amiga: {
+                snapshotCacheEntries: 4,
+            },
         },
 
         paths: {
