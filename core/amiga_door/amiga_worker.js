@@ -216,8 +216,10 @@ function onFrame({ warping }) {
         //  door bytes outside a session (there should be none) are dropped
     }
     if (data.length) {
-        const buf = 1 === data.length ? data[0] : Buffer.concat(data);
-        post({ type: 'output', data: buf });
+        //  An exact-size copy, transferred: posting a Buffer would clone the
+        //  whole (pooled, 8 KB) ArrayBuffer behind it.
+        const bytes = new Uint8Array(1 === data.length ? data[0] : Buffer.concat(data));
+        post({ type: 'output', data: bytes }, [bytes.buffer]);
     }
 
     if ('warpEnding' === state && !warping) {

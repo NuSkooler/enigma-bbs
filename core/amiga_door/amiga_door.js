@@ -562,7 +562,9 @@ class AmigaDoorSession extends EventEmitter {
             case 'ready':
                 return this.onReady(msg);
             case 'output':
-                return this.writeOutput(Buffer.from(msg.data));
+                return this.writeOutput(
+                    Buffer.from(msg.data.buffer, msg.data.byteOffset, msg.data.length)
+                );
             case 'frame':
                 return this.onFrame(msg.frame);
             case 'exit':
@@ -815,6 +817,10 @@ class AmigaDoorSession extends EventEmitter {
             return;
         }
         this.lastSize = { rows, cols };
+        this.log.debug(
+            { name: this.config.name, rows, cols },
+            'Amiga door window resized (w)'
+        );
         this.sendFrame('w', { rows, cols });
     }
 
@@ -828,6 +834,10 @@ class AmigaDoorSession extends EventEmitter {
             return;
         }
         this.lastTimeLeft = minutes;
+        this.log.debug(
+            { name: this.config.name, timeLeft: minutes },
+            'Amiga door time left changed (t)'
+        );
         this.sendFrame('t', { timeleft: minutes });
     }
 
@@ -1085,7 +1095,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         const SPINNER_FRAMES = ['|', '/', '-', '\\'];
         let spinnerIdx = 0;
         this.client.term.write(ansi.resetScreen());
-        this.client.term.write(`\r\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`);
+        this.client.term.write(`\n  Loading ${doorName}... ${SPINNER_FRAMES[0]}`);
         this.spinnerInterval = setInterval(() => {
             spinnerIdx = (spinnerIdx + 1) % SPINNER_FRAMES.length;
             this.client.term.rawWrite(
