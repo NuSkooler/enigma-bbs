@@ -1,0 +1,381 @@
+/* jslint node: true */
+'use strict';
+
+/**
+ * amiga_worker.js
+ *
+ * Worker thread that runs one emulated Amiga (enigma-vamiga) for a single
+ * Amiga door session. Spawned by amiga_door.js via worker_threads; one worker
+ * per session, never reused (shim protocol v1, section 8).
+ *
+ * The emulated Amiga runs the host shim (axshim, misc/amiga_door/), which
+ * impersonates an AmiExpress node for the door and talks to us over the
+ * emulated serial port: door terminal bytes unframed, control messages framed
+ * (core/amiga_door/protocol.js).
+ *
+ * workerData shape:
+ * {
+ *   module:          WebAssembly.Module - enigma-vamiga's, compiled once by the parent
+ *   snapshot:        Uint8Array|null    - booted machine to restore (SharedArrayBuffer backed);
+ *                                         null to boot from the image
+ *   image:           string             - HDF path; the persist baseline
+ *   rom, extRom:     string|undefined   - Kickstart override paths (boot only)
+ *   machine:         { cpu, chipKb, slowKb, fastKb, overclock } (boot only)
+ *   warpBootSeconds: number             - first boot runs flat out this long
+ *   session:         { ... }            - `s` frame keys; `now` is added when it is sent
+ * }
+ *
+ * MessagePort protocol (worker -> parent):
+ *   { type: 'snapshot', snapshot: Uint8Array, ms }      - booted, idle, warp over: cache me
+ *   { type: 'ready', restored, ms, restoreMs, hello, stats } - `s` has been sent
+ *   { type: 'output', data: Uint8Array }                - door bytes (frames removed), per frame batch
+ *   { type: 'frame', frame: { type, keys } }            - H, R, L, C, E (protocol frames)
+ *   { type: 'exit', status, keys }                      - the shim's X frame
+ *   { type: 'persisted', chunks, bytes, ms }            - answer to 'persist'
+ *   { type: 'error', message, code, fatal }             - see below
+ *   { type: 'stopped' }                                 - answer to 'stop', worker exits
+ *
+ * MessagePort protocol (parent -> worker):
+ *   { type: 'input', data }                - caller bytes (escaped here)
+ *   { type: 'frame', frame: { type, keys } } - send a host frame (t, d, w, e); `d` drops queued input
+ *   { type: 'pause' } / { type: 'resume' } - output back-pressure: stop / restart the emulator
+ *   { type: 'persist', path }              - after X: settle, then write changed HDF chunks
+ *   { type: 'stop' }                       - shut down
+ */
+
+const { isMainThread, workerData, parentPort } = require('worker_threads');
+
+//  module_util.js' initializeModules() require()s every *.js under core/ (and
+//  one directory down) to look for an optional moduleInitialize export.
+//  Without this guard the worker setup below would run in the main thread.
+if (isMainThread) {
+    return;
+}
+
+const protocol = require('./protocol.js');
+const { HostLink } = require('./host_link.js');
+
+//  Caller typeahead we hold while the guest drains its 8 KB receive buffer.
+//  The shim drops keystrokes the door is not reading anyway (X `indrop`).
+const MaxInputQueueBytes = 64 * 1024;
+
+//  Amiga time to let the guest's file system flush before persisting: X comes
+//  after the door has exited plus the shim's 2 s drain, and AmigaOS writes
+//  back dirty buffers within a few seconds. 150 frames = 3 s, computed flat
+//  out (about 0.15 s of host time).
+const PersistSettleFrames = 150;
+
+const t0 = performance.now();
+
+let emu = null;
+let pacer = null;
+let link = null;
+let state = 'starting'; //  starting | booting | warpEnding | session | exited | stopping
+let inQueue = Buffer.alloc(0);
+let inputDropped = 0;
+let restoreMs = null;
+
+function post(msg, transfer) {
+    try {
+        parentPort.postMessage(msg, transfer);
+    } catch (e) {
+        //  parent gone; nothing to tell
+    }
+}
+
+function postError(err, extra = {}) {
+    post(
+        Object.assign(
+            {
+                type: 'error',
+                message: err.message || String(err),
+                code: err.code,
+                name: err.name,
+            },
+            extra
+        )
+    );
+}
+
+function queueInput(bytes) {
+    if (state === 'exited' || state === 'stopping') {
+        return;
+    }
+    const room = MaxInputQueueBytes - inQueue.length;
+    if (room <= 0) {
+        inputDropped += bytes.length;
+        return;
+    }
+    if (bytes.length > room) {
+        inputDropped += bytes.length - room;
+        bytes = bytes.subarray(0, room);
+    }
+    inQueue = inQueue.length ? Buffer.concat([inQueue, bytes]) : Buffer.from(bytes);
+}
+
+function sendHostFrame(frame) {
+    if (!frame || !frame.type) {
+        return;
+    }
+    const bytes = protocol.encode(frame.type, frame.keys || {});
+    if ('d' === frame.type) {
+        //  carrier is gone or time is up: whatever the caller typed before
+        //  that is moot, and the shim drops bytes after `d` anyway
+        inQueue = Buffer.from(bytes);
+        return;
+    }
+    inQueue = inQueue.length ? Buffer.concat([inQueue, bytes]) : Buffer.from(bytes);
+}
+
+function startSession() {
+    state = 'session';
+
+    //  A restored snapshot's clock is the snapshot's: `now` (and `tz`) set it.
+    const keys = Object.assign({}, workerData.session, {
+        now: Math.floor(Date.now() / 1000),
+    });
+    const sFrame = protocol.encode('s', keys);
+
+    //  typeahead that arrived while we booted goes after `s`
+    inQueue = inQueue.length ? Buffer.concat([sFrame, inQueue]) : sFrame;
+
+    let stats = null;
+    try {
+        stats = emu.stats();
+    } catch (e) {
+        //  informational only
+    }
+
+    post({
+        type: 'ready',
+        restored: !!workerData.snapshot,
+        ms: performance.now() - t0,
+        restoreMs,
+        hello: link.hello,
+        stats,
+    });
+}
+
+function takeSnapshot() {
+    const ts = performance.now();
+    let snapshot;
+    try {
+        const { Compressor } = require('enigma-vamiga');
+        snapshot = emu.takeSnapshot({ compressor: Compressor.LZ4 });
+    } catch (e) {
+        //  not fatal: this session runs, the next one boots again
+        postError(e, { during: 'snapshot', fatal: false });
+        return;
+    }
+    const copy = new Uint8Array(snapshot); //  own ArrayBuffer, safe to transfer
+    post({ type: 'snapshot', snapshot: copy, ms: performance.now() - ts }, [copy.buffer]);
+}
+
+function handleFrame(frame) {
+    switch (frame.type) {
+        case 'R':
+            if ('booting' === state) {
+                //  Booted and idle. Stop warping now and snapshot once a
+                //  frame has run at real speed: a snapshot taken inside the
+                //  warp window restores into a 20x guest clock. setWarp(false)
+                //  does not end a warp boot on this core; zeroing the option
+                //  does, on the next frame.
+                emu.setOption('AMIGA.WARP_BOOT', 0);
+                state = 'warpEnding';
+            }
+            break;
+
+        case 'X':
+            state = 'exited';
+            inQueue = Buffer.alloc(0);
+            post({
+                type: 'exit',
+                status: frame.keys.status,
+                keys: frame.keys,
+                inputDropped,
+            });
+            return;
+
+        default:
+            break;
+    }
+
+    post({ type: 'frame', frame: { type: frame.type, keys: frame.keys } });
+}
+
+function onFrame({ warping }) {
+    //  shim -> host
+    const out = emu.serialRead();
+    const data = [];
+    for (const e of link.push(out)) {
+        if (e.frame) {
+            handleFrame(e.frame);
+        } else if ('session' === state) {
+            data.push(e.data);
+        }
+        //  door bytes outside a session (there should be none) are dropped
+    }
+    if (data.length) {
+        const buf = 1 === data.length ? data[0] : Buffer.concat(data);
+        post({ type: 'output', data: buf });
+    }
+
+    if ('warpEnding' === state && !warping) {
+        takeSnapshot();
+        startSession();
+    }
+
+    //  host -> shim, as much as the guest's receive buffer takes; nothing
+    //  before `s` (startSession() puts it at the head of the queue)
+    if ('session' === state && inQueue.length) {
+        const n = emu.serialWrite(inQueue);
+        inQueue = n >= inQueue.length ? Buffer.alloc(0) : inQueue.subarray(n);
+    }
+}
+
+function persist(path) {
+    const ts = performance.now();
+    try {
+        if (pacer) {
+            pacer.stop();
+        }
+        emu.runFrames(PersistSettleFrames);
+        emu.serialRead(); //  the shim's R after X; nobody is listening
+        const { chunksWritten, bytesWritten } = emu.persistHdf(path);
+        post({
+            type: 'persisted',
+            chunks: chunksWritten,
+            bytes: bytesWritten,
+            ms: performance.now() - ts,
+        });
+    } catch (e) {
+        postError(e, { during: 'persist', fatal: true });
+    }
+}
+
+function stop() {
+    if ('stopping' === state) {
+        return;
+    }
+    state = 'stopping';
+    try {
+        if (pacer) {
+            pacer.stop();
+        }
+        if (emu) {
+            emu.destroy();
+        }
+    } catch (e) {
+        //  going away regardless
+    }
+    post({ type: 'stopped' });
+    process.exit(0);
+}
+
+parentPort.on('message', msg => {
+    switch (msg.type) {
+        case 'input':
+            return queueInput(protocol.escapeData(Buffer.from(msg.data)));
+
+        case 'frame':
+            if (state === 'exited' || state === 'stopping') {
+                return;
+            }
+            return sendHostFrame(msg.frame);
+
+        case 'pause':
+            if (pacer && 'session' === state) {
+                pacer.stop();
+            }
+            return;
+
+        case 'resume':
+            if (pacer && !pacer.running && ('session' === state || 'exited' === state)) {
+                pacer.start();
+            }
+            return;
+
+        case 'persist':
+            return persist(msg.path);
+
+        case 'stop':
+            return stop();
+
+        default:
+            return;
+    }
+});
+
+async function main() {
+    let VAmiga;
+    let Pacer;
+    try {
+        ({ VAmiga, Pacer } = require('enigma-vamiga'));
+    } catch (e) {
+        postError(new Error(`Cannot load enigma-vamiga: ${e.message}`), { fatal: true });
+        return process.exit(1);
+    }
+
+    try {
+        if (workerData.snapshot) {
+            //  RAM sizes are irrelevant here (the snapshot brings its own
+            //  configuration); a small one keeps the peak down
+            emu = await VAmiga.create({
+                module: workerData.module,
+                fastKb: 0,
+                slowKb: 0,
+            });
+            const tr = performance.now();
+            emu.loadSnapshot(workerData.snapshot);
+            //  persist against the image file, not the snapshot's disk
+            emu.markHdfClean(workerData.image);
+            restoreMs = performance.now() - tr;
+            link = new HostLink({ helloSeen: true });
+        } else {
+            const m = workerData.machine || {};
+            emu = await VAmiga.create({
+                module: workerData.module,
+                hdf: workerData.image,
+                rom: workerData.rom,
+                ext: workerData.extRom,
+                cpu: m.cpu,
+                chipKb: m.chipKb,
+                slowKb: m.slowKb,
+                fastKb: m.fastKb,
+                overclock: m.overclock,
+                warpBootSeconds: workerData.warpBootSeconds,
+            });
+            link = new HostLink();
+        }
+    } catch (e) {
+        //  ConfigError (EVAMIGA_CONFIG) or VAmigaError (EVAMIGA_CORE)
+        postError(e, { during: 'create', fatal: true });
+        return process.exit(1);
+    }
+
+    emu.on('message', m => {
+        if ('CPU_HALT' === m.name) {
+            postError(new Error('The emulated CPU halted'), {
+                code: 'CPU_HALT',
+                fatal: true,
+            });
+            if (pacer) {
+                pacer.stop();
+            }
+        }
+    });
+
+    if (workerData.snapshot) {
+        startSession();
+    } else {
+        emu.powerOn();
+        state = 'booting';
+    }
+
+    pacer = new Pacer(emu, {
+        onFrame,
+        onError: err => postError(err, { during: 'run', fatal: true }),
+    }).start();
+}
+
+main();
