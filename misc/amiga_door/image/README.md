@@ -6,6 +6,19 @@ the shim, the door library, the startup sequence and the door itself. Until
 `oputil` can write FFS images, use [amitools](https://github.com/cnvogelg/amitools)'
 `xdftool` (`pip install amitools`).
 
+## Script
+
+`make_image.sh` does the recipe below for you, for one or more door directories:
+
+```sh
+python3 -m venv ~/amitools-venv && ~/amitools-venv/bin/pip install amitools
+XDFTOOL=~/amitools-venv/bin/xdftool \
+    misc/amiga_door/image/make_image.sh [-s 4M] [-n BBS] [-f] ~/amiga/doors.hdf ~/doors/dreamsweeper
+```
+
+Each door directory is copied, layout kept, to `Doors/<directory name>/` in the
+image (here `BBS:Doors/dreamsweeper/...`). `-f` replaces an existing image.
+
 ## Recipe
 
 From the ENiGMA½ checkout, for a door unpacked in `~/doors/dreamsweeper/`:
