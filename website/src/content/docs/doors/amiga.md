@@ -160,6 +160,7 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `log` | No | XIM and ARexx doors: log every request the door makes at debug level. Default: `false`. |
 | `warpBootSeconds` | No | How long the first boot runs flat out, 0 to 3600. Default: `30`. |
 | `regTimeoutSeconds` | No | XIM doors: the door must register with the shim within this many seconds, 0 to 86400; `0` waits for ever. Default: `30`. |
+| `disconnectGraceSeconds` | No | After a hangup, time-up or break, how long ENiGMA½ waits for the door to finish and the shim to report its exit, 1 to 3600. The shim itself gives a door 30 seconds and then reports it gone, so keep this above 30. With no report in time nothing is saved. Default: `35`. |
 | `inputTimeoutSeconds` | No | A door waiting this long for a key gives up, 1 to 86400. Default: `users.idleLogoutSeconds`, or the shim's 300 seconds. |
 | `crlf` | No | A line feed in the door's output goes out as CR LF, as /X does. Default: `true`. |
 | `timezoneMinutes` | No | Minutes east of UTC for the Amiga clock, -720 to 840. Default: the server's. |
@@ -203,7 +204,7 @@ Many Amiga BBS games, RPGs and strategy games among them, are not XIM doors but 
 
 - **Console mode.** The console starts in cooked mode: typed text is echoed, Backspace edits and Return ends a line, as in an Amiga Shell window. A door that wants single keys switches to raw mode itself. Some doors expect the BBS to have opened a raw console already ("run it through a RAW cli" in their notes) and never switch; set `consoleMode: raw` for those.
 
-- **Hangups.** When the caller hangs up or runs out of time, the door's input ends (end of file), its output is refused, and it gets a Ctrl-C, which is what Amiga BBSes did. A door that ignores all of that is stopped from the caller's side after 30 seconds, as for XIM doors; nothing is saved in that case.
+- **Hangups.** When the caller hangs up or runs out of time, the door's input ends (end of file), its output is refused, and it gets a Ctrl-C, which is what Amiga BBSes did. A door that ignores all of that is given up on after 30 seconds, as for XIM doors, and its exit is reported as `carrier` (or `timeout`); `persistOn` decides whether what it wrote is saved.
 
 - **Libraries.** A door may need libraries that are not in the AROS ROM. Doors compiled with DICE C (Battle Grounds, for one) quit at once, without a word, unless `mathieeedoubbas.library`, `mathieeedoubtrans.library` and `mathieeesingtrans.library` are in `BBS:Libs`. Copy them from the [AROS m68k distribution](https://aros.sourceforge.io) (`Libs/` on the boot ISO), or from your own Workbench disks when you use a Kickstart ROM.
 
@@ -311,6 +312,7 @@ The door's disk is the image file, and each session works on a copy of it. A doo
 
 - **After a clean exit** (the door ended normally, status `ok`), ENiGMA½ writes the disk blocks the session changed back into the image file. The next session starts from the saved disk.
 - **After anything else** (the caller hung up, the time ran out, an error), nothing is written, so a door that crashed or was cut off halfway leaves the image as it was. `persistOn` widens this if you want, for example `['ok', 'timeout']`.
+- **After a hangup** the door is told the carrier is gone and gets the shim's 30 seconds to save and quit; its exit is reported as `carrier`. ENiGMA½ waits for that report for `disconnectGraceSeconds` (35 by default), so a door that saves when the caller drops can be kept with `persistOn: ['ok', 'carrier']`. Only do that for doors that save cleanly on a hangup: what is written is whatever the door left on its disk.
 - **How it is written.** The changed blocks go into a copy of the image in the same directory, which is synced to disk and then renamed over the image. A server crash, a full disk or a stopped ENiGMA½ at any moment leaves either the old image or the new one, never a mix of the two. If the write takes longer than 30 seconds the caller is returned to the menu, but the write is left to finish (for up to five minutes) rather than being cut off. What gets saved is whatever the door left on its disk: a door that exits cleanly with its own files in a bad state is saved that way.
 - **When the disk changed**, the cached snapshots of that image are dropped, since they hold the old disk. The next session boots and caches a fresh one.
 - `persist: false` makes every session start from the image as it is, whatever the door writes.

@@ -82,6 +82,10 @@
  *     log:                boolean  - log every door request at debug level (default: false)
  *     warpBootSeconds:    number   - first boot runs flat out this long (default: 30)
  *     regTimeoutSeconds:  number   - the door must register within this; 0 = forever (default: 30)
+ *     disconnectGraceSeconds: number - after a hangup, time-up or break, how long to wait for
+ *                                    the door to finish and the shim to say X before the
+ *                                    worker is dropped unsaved (default: 35; the shim's own
+ *                                    grace is 30)
  *     inputTimeoutSeconds:number   - a door waiting this long for a key gives up
  *                                    (default: users.idleLogoutSeconds, or the shim's 300)
  *     crlf:               boolean  - LF in door output goes out as CR LF (default: true)
@@ -120,8 +124,10 @@ const { Worker } = require('worker_threads');
 
 const WORKER_PATH = paths.join(__dirname, 'amiga_worker.js');
 
-//  shim protocol v1, section 8.3: no X within this long of `d` -> drop the worker
-const ExitAfterDisconnectMs = 2000;
+//  shim protocol v1, section 8.3: no X within disconnectGraceSeconds of `d` ->
+//  drop the worker. The shim gives the door 30 s (CARRIER_GRACE in axshim.c)
+//  and then reports X itself; the default leaves room for that X to arrive.
+const ShimCarrierGraceSeconds = 30;
 //  boot (warp) or restore to the shim having been sent `s`
 const ReadyTimeoutMs = 60 * 1000;
 //  the worker settles 3 s of Amiga time, copies the image and writes a few
@@ -166,6 +172,7 @@ const Defaults = {
     log: false,
     warpBootSeconds: 30,
     regTimeoutSeconds: 30,
+    disconnectGraceSeconds: ShimCarrierGraceSeconds + 5,
     crlf: true,
 };
 
@@ -410,6 +417,7 @@ function normalizeConfig(raw) {
     }
     for (const [key, min, max] of [
         ['warpBootSeconds', 0, 3600],
+        ['disconnectGraceSeconds', 1, 3600],
         ['regTimeoutSeconds', 0, 86400],
     ]) {
         if (undefined === c[key]) {
@@ -576,7 +584,9 @@ class AmigaDoorSession extends EventEmitter {
         this.timeouts = Object.assign(
             {
                 ready: ReadyTimeoutMs,
-                exitAfterDisconnect: ExitAfterDisconnectMs,
+                exitAfterDisconnect:
+                    1000 *
+                    (config.disconnectGraceSeconds || Defaults.disconnectGraceSeconds),
                 persist: PersistTimeoutMs,
                 persistAbandon: PersistAbandonMs,
             },
@@ -933,8 +943,10 @@ class AmigaDoorSession extends EventEmitter {
     //
     //  End the session from our side: hangup, timeup or break. The shim answers
     //  with X once the door has gone (or after its own 30 s grace); we give it
-    //  ExitAfterDisconnectMs and then drop the worker regardless. Without an X
-    //  nothing is persisted.
+    //  disconnectGraceSeconds (35 by default, so the shim's X arrives) and
+    //  then drop the worker regardless. The X decides persisting as usual
+    //  (persistOn: ['ok', 'carrier'] keeps what a door saved on a hangup);
+    //  without one nothing is persisted.
     //
     disconnect(reason) {
         if (this.finished || this.disconnectReason || this.exitInfo) {

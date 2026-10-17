@@ -63,7 +63,10 @@ It:
   (window size) and `e` (editor answer) frames during the door;
 - ends the session with `X` when the door has shut down or its process ended
   (`status=ok|carrier|timeout|break|error`), within 30 seconds of a `d` whatever
-  the door does, then says `R` again.
+  the door does (`CARRIER_GRACE`), then says `R` again. ENiGMA waits
+  `disconnectGraceSeconds` (default 35) for that `X` before it drops the worker,
+  so the exit status, and with `persistOn` the persist, still apply after a
+  hangup.
 
 For a CLI door (`type=cli` in the session frame) it instead:
 

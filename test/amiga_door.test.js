@@ -213,6 +213,7 @@ describe('amiga_door config', () => {
         assert.equal(c.warpBootSeconds, 30);
         assert.equal(c.regTimeoutSeconds, 30);
         assert.equal(c.crlf, true);
+        assert.equal(c.disconnectGraceSeconds, 35);
         assert.equal(c.doorType, 'xim');
         assert.equal(c.consoleMode, 'cooked');
     });
@@ -843,6 +844,48 @@ describe('amiga_door session', () => {
         assert.equal(s.worker.frames('d').length, 0);
         s.session.disconnect('hangup');
         await s.done;
+    });
+
+    it('waits disconnectGraceSeconds (35 s by default) for X after d', () => {
+        const c = config();
+        const session = new AmigaDoorSession({
+            client: fakeClient(),
+            config: c,
+            worker: new FakeWorker(),
+            sessionKeys: null,
+        });
+        assert.equal(session.timeouts.exitAfterDisconnect, 35000);
+        const longer = new AmigaDoorSession({
+            client: fakeClient(),
+            config: config({ disconnectGraceSeconds: 90 }),
+            worker: new FakeWorker(),
+            sessionKeys: null,
+        });
+        assert.equal(longer.timeouts.exitAfterDisconnect, 90000);
+        assert.ok(
+            problemsOf({ disconnectGraceSeconds: 0 }).some(p =>
+                p.includes('"disconnectGraceSeconds"')
+            )
+        );
+    });
+
+    it('persistOn carrier persists what a door saved on a hangup', async () => {
+        const s = makeSession(
+            { persistOn: ['ok', 'carrier'] },
+            { timeouts: { exitAfterDisconnect: 5000 } }
+        );
+        s.session.disconnect('hangup');
+        //  the shim's X comes back well within the grace
+        deliver(s.worker, [
+            { type: 'exit', status: 'carrier', keys: { status: 'carrier' } },
+        ]);
+        await new Promise(r => setImmediate(r));
+        assert.equal(s.worker.sent('persist').length, 1);
+        s.worker.emit('message', { type: 'persisted', chunks: 1, bytes: 512, ms: 3 });
+        const result = await s.done;
+        assert.equal(result.status, 'carrier');
+        assert.equal(result.reason, 'hangup');
+        assert.equal(result.persisted, true);
     });
 
     it('drops the worker when no X follows d', async () => {
