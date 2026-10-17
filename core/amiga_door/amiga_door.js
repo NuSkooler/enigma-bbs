@@ -4,10 +4,11 @@
 /**
  * amiga_door.js — ENiGMA½ Amiga door emulation module
  *
- * Runs an AmiExpress (/X) XIM door inside an embedded Amiga emulator
- * (enigma-vamiga, the vAmiga core as WebAssembly) in a worker thread, and
- * bridges the caller to it. No external emulator, Kickstart or Workbench is
- * required: the emulator package bundles the AROS ROM.
+ * Runs an AmiExpress (/X) XIM door, or a plain AmigaDOS CLI (stdio) door,
+ * inside an embedded Amiga emulator (enigma-vamiga, the vAmiga core as
+ * WebAssembly) in a worker thread, and bridges the caller to it. No external
+ * emulator, Kickstart or Workbench is required: the emulator package bundles
+ * the AROS ROM.
  *
  * Amiga doors are clients of a live BBS node, not standalone programs, so the
  * door image boots a small host shim (axshim, misc/amiga_door/) that
@@ -16,6 +17,11 @@
  * analogue) and gets an exit report back; see
  * core/amiga_door/protocol.js and the "Amiga Door Emulation - Shim Protocol"
  * design note.
+ *
+ * A CLI door (doorType: 'cli') reads and writes its standard input and
+ * output; the shim is the console handler behind them (protocol section 11).
+ * Such a door gets no user block: what it knows about the caller is what
+ * doorArgs passes on its command line ({name}, {node}, {level}, {timeleft}).
  *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.
@@ -31,9 +37,15 @@
  *     image:              string   - path to the door's HDF image (required)
  *     door:               string   - Amiga path of the door executable inside the
  *                                    image (required), e.g. BBS:Doors/DreamSweeper/dreamsweeper.xim
+ *     doorType:           string   - xim | cli (default: xim). xim: an /X door that talks to
+ *                                    AEDoorPort<node>; cli: a program on Input()/Output()
+ *     consoleMode:        string   - cli only: cooked | raw, the console's mode until the
+ *                                    door calls SetMode() itself (default: cooked)
  *     doorDir:            string   - door's current directory (default: its own)
  *     doorStack:          number   - door stack size in bytes (default: 32768)
- *     doorArgs:           string   - extra arguments after the node number
+ *     doorArgs:           string   - xim: extra arguments after the node number; cli: the
+ *                                    door's whole argument line. {name}, {node}, {level} and
+ *                                    {timeleft} are replaced ({name} as one quoted argument)
  *     mainline:           string   - the /X command line the caller "typed" (BB_MAINLINE;
  *                                    some doors parse it, e.g. Wallhall); default empty
  *     rom:                string   - Kickstart ROM path (default: bundled AROS)
@@ -111,10 +123,16 @@ const BackpressurePollMs = 50;
 const MaxDoorMinutes = 546;
 
 const CPU_MODELS = ['68000', '68010', '68EC020']; //  enigma-vamiga's CPU_MODELS
+const DOOR_TYPES = ['xim', 'cli'];
+const CONSOLE_MODES = ['cooked', 'raw'];
+//  the shim keeps 199 bytes of a value
+const MaxArgsLength = 199;
 const CHIP_KB = [256, 512, 1024, 2048];
 const EXIT_STATUSES = ['ok', 'carrier', 'timeout', 'break', 'error'];
 
 const Defaults = {
+    doorType: 'xim',
+    consoleMode: 'cooked',
     cpu: '68EC020',
     chipKb: 512,
     slowKb: 512,
@@ -214,6 +232,20 @@ function normalizeConfig(raw) {
         }
     }
 
+    //  door type
+    if (undefined === c.doorType) {
+        c.doorType = Defaults.doorType;
+    } else if (!DOOR_TYPES.includes(c.doorType)) {
+        problems.push(`"doorType" must be one of ${DOOR_TYPES.join(', ')}`);
+    }
+    if (undefined === c.consoleMode) {
+        c.consoleMode = Defaults.consoleMode;
+    } else if (!CONSOLE_MODES.includes(c.consoleMode)) {
+        problems.push(`"consoleMode" must be one of ${CONSOLE_MODES.join(', ')}`);
+    } else if ('cli' !== c.doorType) {
+        problems.push('"consoleMode" applies to doorType "cli" only');
+    }
+
     for (const key of [
         'doorDir',
         'doorArgs',
@@ -232,6 +264,21 @@ function normalizeConfig(raw) {
     for (const key of ['door', 'doorDir', 'doorArgs', 'mainline']) {
         if (_.isString(c[key]) && /[\r\n]/.test(c[key])) {
             problems.push(`"${key}" must not contain a line break`);
+        }
+    }
+
+    if (_.isString(c.doorArgs)) {
+        const unknown = (c.doorArgs.match(/\{[^}]*\}/g) || []).filter(
+            p => !Object.prototype.hasOwnProperty.call(ArgSubstitutions, p.slice(1, -1))
+        );
+        if (unknown.length > 0) {
+            problems.push(
+                `"doorArgs" has unknown placeholders ${unknown.join(' ')} (known: ${Object.keys(
+                    ArgSubstitutions
+                )
+                    .map(k => `{${k}}`)
+                    .join(' ')})`
+            );
         }
     }
 
@@ -358,6 +405,41 @@ function normalizeConfig(raw) {
     return { config: c, problems };
 }
 
+//
+//  doorArgs placeholders. The argument line goes through the Amiga shell, so a
+//  value from the user record must not be able to quote, redirect, comment,
+//  substitute (` and $) or add keywords: {name} keeps only characters the
+//  shell treats as plain text and is passed as one quoted argument (so "Joe
+//  ACCESS 255" stays a name and cannot become a ReadArgs keyword). The numbers
+//  are numbers.
+//
+const ShellUnsafe = /["*`$;<>|\\\x00-\x1f\x7f-\x9f]/g;
+
+function quoteArg(value) {
+    const s = String(value)
+        .replace(/[^\x00-\xff]/g, '?') //  the s frame is Latin-1
+        .replace(ShellUnsafe, '_');
+    return `"${s}"`;
+}
+
+const ArgSubstitutions = {
+    name: ({ client }) => quoteArg(client.user.getSanitizedName()),
+    node: ({ client }) => String(client.node),
+    level: ({ client }) => String(client.user.getLegacySecurityLevel()),
+    timeleft: ({ timeLeft }) => String(timeLeft),
+};
+
+function expandDoorArgs(template, ctx) {
+    if (!template) {
+        return template;
+    }
+    return template.replace(/\{([a-z]+)\}/g, (match, key) =>
+        Object.prototype.hasOwnProperty.call(ArgSubstitutions, key)
+            ? ArgSubstitutions[key](ctx)
+            : match
+    );
+}
+
 function shouldPersist(config, status) {
     return true === config.persist && (config.persistOn || []).includes(status);
 }
@@ -379,6 +461,19 @@ function buildSessionKeys(client, config) {
     const timeLeft = UserTime.getTimeLeftMinutes(client);
     const allowed = UserTime.getAllowedMinutesToday(client);
     const clampMinutes = m => Math.min(null === m ? Infinity : m, MaxDoorMinutes);
+    const cli = 'cli' === config.doorType;
+
+    let args = expandDoorArgs(config.doorArgs, {
+        client,
+        timeLeft: clampMinutes(timeLeft),
+    });
+    if (args && args.length > MaxArgsLength) {
+        (client.log || { warn: () => {} }).warn(
+            { name: config.name, length: args.length },
+            `Amiga door arguments are longer than ${MaxArgsLength} characters; cut short`
+        );
+        args = args.slice(0, MaxArgsLength);
+    }
 
     let inputTimeout = config.inputTimeoutSeconds;
     if (undefined === inputTimeout) {
@@ -392,10 +487,12 @@ function buildSessionKeys(client, config) {
 
     return {
         version: protocol.PROTOCOL_VERSION,
+        type: config.doorType || Defaults.doorType,
+        console: cli ? config.consoleMode || Defaults.consoleMode : undefined,
         door: config.door,
         dir: config.doorDir,
         stack: config.doorStack,
-        args: config.doorArgs,
+        args,
         node: client.node,
         name: user.getSanitizedName(),
         realname: user.getSanitizedName('real'),
@@ -1170,6 +1267,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     {
                         name: doorName,
                         door: config.door,
+                        doorType: config.doorType,
                         image: config.image,
                         snapshot: snapshot ? 'restore' : 'boot',
                     },
@@ -1321,6 +1419,8 @@ exports._test = {
     normalizeConfig,
     shouldPersist,
     buildSessionKeys,
+    expandDoorArgs,
+    quoteArg,
     isLatin1,
     AmigaDoorSession,
     snapshotCache,

@@ -20,6 +20,8 @@ const {
     normalizeConfig,
     shouldPersist,
     buildSessionKeys,
+    expandDoorArgs,
+    quoteArg,
     isLatin1,
     AmigaDoorSession,
     withImageLock,
@@ -185,6 +187,40 @@ describe('amiga_door config', () => {
         assert.equal(c.warpBootSeconds, 30);
         assert.equal(c.regTimeoutSeconds, 30);
         assert.equal(c.crlf, true);
+        assert.equal(c.doorType, 'xim');
+        assert.equal(c.consoleMode, 'cooked');
+    });
+
+    it('takes doorType xim or cli, and consoleMode only with cli', () => {
+        assert.equal(config({ doorType: 'cli' }).doorType, 'cli');
+        assert.equal(config({ doorType: 'cli', consoleMode: 'raw' }).consoleMode, 'raw');
+        assert.ok(
+            problemsOf({ doorType: 'paragon' }).some(p => p.includes('"doorType"'))
+        );
+        assert.ok(
+            problemsOf({ doorType: 'cli', consoleMode: 'line' }).some(p =>
+                p.includes('"consoleMode"')
+            )
+        );
+        assert.ok(
+            problemsOf({ consoleMode: 'raw' }).some(p =>
+                p.includes('doorType "cli" only')
+            )
+        );
+    });
+
+    it('knows the doorArgs placeholders', () => {
+        assert.deepEqual(
+            problemsOf({
+                doorArgs: '{name} ACCESS {level} TIMELEFT {timeleft} NODE {node}',
+            }),
+            []
+        );
+        assert.ok(
+            problemsOf({ doorArgs: '{name} {realname}' }).some(
+                p => p.includes('"doorArgs"') && p.includes('{realname}')
+            )
+        );
     });
 
     it('refuses a CPU the core does not have', () => {
@@ -854,6 +890,70 @@ describe('amiga_door session keys', () => {
         assert.equal(keys.tz, -new Date().getTimezoneOffset());
         assert.equal(keys.mainline, '');
         assert.equal(keys.stack, undefined); //  left to the shim
+    });
+
+    it('says type=xim and no console mode for an XIM door', () => {
+        const keys = buildSessionKeys(stubClient(), config({ doorArgs: '-x' }));
+        assert.equal(keys.type, 'xim');
+        assert.equal(keys.console, undefined);
+        assert.equal(keys.args, '-x');
+        assert.ok(!protocol.encode('s', keys).toString('latin1').includes('console='));
+    });
+
+    it('a CLI door gets type=cli, its console mode and doorArgs filled in', () => {
+        const keys = buildSessionKeys(
+            stubClient(),
+            config({
+                doorType: 'cli',
+                consoleMode: 'raw',
+                doorArgs: '{name} ACCESS {level} TIMELEFT {timeleft} NODE {node}',
+            })
+        );
+        assert.equal(keys.type, 'cli');
+        assert.equal(keys.console, 'raw');
+        assert.equal(keys.args, `"Handle" ACCESS 30 TIMELEFT ${MaxDoorMinutes} NODE 2`);
+        const payload = protocol.parseKeys(
+            protocol.encode('s', keys).subarray(4) //  RS type len_hi len_lo
+        );
+        assert.equal(payload.type, 'cli');
+        assert.equal(payload.console, 'raw');
+        assert.equal(payload.args, keys.args);
+        assert.equal(payload.door, BASE.door);
+    });
+
+    it('a CLI door defaults to the cooked console', () => {
+        const keys = buildSessionKeys(stubClient(), config({ doorType: 'cli' }));
+        assert.equal(keys.console, 'cooked');
+        assert.equal(keys.args, undefined);
+    });
+
+    it('keeps the Amiga shell out of {name}', () => {
+        //  quoting, the escape char, command and variable substitution, comments,
+        //  redirection, pipes, control bytes; one argument, so no ReadArgs keywords
+        assert.equal(
+            quoteArg('Joe "x" *N `rm` $v; >f <g |h\x07'),
+            '"Joe _x_ _N _rm_ _v_ _f _g _h_"'
+        );
+        assert.equal(quoteArg('Joe ACCESS 255'), '"Joe ACCESS 255"');
+        assert.equal(quoteArg('Zoë 雪'), '"Zoë ?"');
+        const client = stubClient();
+        client.user.getSanitizedName = () => 'Bob`Delete SYS:#?`';
+        assert.equal(
+            expandDoorArgs('{name} {name}', { client, timeLeft: 5 }),
+            '"Bob_Delete SYS:#?_" "Bob_Delete SYS:#?_"'
+        );
+        assert.equal(
+            expandDoorArgs('{timeleft}m {other}', { client, timeLeft: 5 }),
+            '5m {other}'
+        );
+    });
+
+    it('cuts arguments past what the shim keeps', () => {
+        const keys = buildSessionKeys(
+            stubClient(),
+            config({ doorType: 'cli', doorArgs: 'x'.repeat(250) })
+        );
+        assert.equal(keys.args.length, 199);
     });
 });
 
