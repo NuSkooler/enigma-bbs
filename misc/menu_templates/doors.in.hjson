@@ -214,6 +214,9 @@
                 //  doorType: aim                // an /X ARexx script (door: its path, e.g.
                 //                               // BBS:Doors/KickBox.Rexx); the image needs
                 //                               // your Workbench 3.1's ARexx (make_image.sh -w)
+                //  doorType: tim                // a Paragon / MAX's BBS door (/X TYPE=TIM)
+                //  assigns: { MSE: "BBS:Doors/MSE" }  // assigns its install notes ask for
+                //  env: { MSE: "" }             // ENV: variables it reads
                 //  consoleMode: raw             // CLI doors: cooked (default) or raw
                 //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
                 //                               // also {node} and {level}

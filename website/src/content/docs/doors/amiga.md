@@ -1,6 +1,6 @@
 ---
 title: Amiga Doors
-description: "Run AmiExpress (/X) XIM doors, /X ARexx doors and AmigaDOS CLI doors in the built-in vAmiga emulator, with no external emulator on the server."
+description: "Run AmiExpress (/X) XIM doors, /X ARexx doors, Paragon doors and AmigaDOS CLI doors in the built-in vAmiga emulator, with no external emulator on the server."
 sidebar:
     order: 3
 ---
@@ -12,7 +12,7 @@ ENiGMA½ can run Amiga BBS doors written for [AmiExpress](https://www.aminet.net
 An Amiga door is not a standalone program. An XIM door is a client of a running /X node: it asks the BBS for the user's name, the time left, a key, a line of input, or to print something. ENiGMA½ boots a small host shim (`axshim`) inside the emulated Amiga that impersonates a node for the door and relays everything to ENiGMA½ over the emulated serial port. The shim and its library are in the repository (`misc/amiga_door/`); you only need to put a door on a disk image.
 :::
 
-ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keyboard and write the screen through their standard input and output, the way many Amiga BBS games were written. See [CLI Doors](#cli-doors). And it runs **ARexx doors**, the /X scripts marked `TYPE=AIM`, on an image that carries ARexx from your own Workbench 3.1; see [ARexx Doors](#arexx-doors).
+ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keyboard and write the screen through their standard input and output, the way many Amiga BBS games were written. See [CLI Doors](#cli-doors). It runs **ARexx doors**, the /X scripts marked `TYPE=AIM`, on an image that carries ARexx from your own Workbench 3.1; see [ARexx Doors](#arexx-doors). And it runs **Paragon doors**, written for Paragon, StarNet and MAX's BBS (and run by /X as `TYPE=TIM`); see [Paragon Doors](#paragon-doors).
 
 ---
 
@@ -124,7 +124,7 @@ Doors that read files straight from an /X install's own data (`BBS:user.data`, `
 
 #### Finding doors
 
-/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community; the [Up Rough door repository](https://doors.uprough.net) collects thousands of Amiga BBS door archives. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`, /X ARexx doors and CLI doors (below). It does not run doors written for the message ports of other BBS software (Paragon, CNet, including CNet's ARexx doors).
+/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community; the [Up Rough door repository](https://doors.uprough.net) collects thousands of Amiga BBS door archives. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`, /X ARexx doors, CLI doors and Paragon doors (below); Paragon and MAX's BBS doors are on Aminet under `comm/maxs`. It does not run doors written for CNet's message ports, including CNet's ARexx doors.
 
 ---
 
@@ -309,6 +309,54 @@ doorHacker: {
 
 Hacker runs `avail flush` after every command and stops with an error if the image has no `C:Avail`, so build its image with `-w`. Its archive ships the author's own players: leave out `hackerdata/users/*` and `hackerdata/userlist` for a fresh game.
 
+### Paragon Doors
+
+Paragon, StarNet and MAX's BBS had a door protocol of their own, which AmiExpress also ran (`TYPE=TIM` in a door's icon) and DLG, Xenolink and DayDream emulated. A Paragon door finds the BBS's `DoorControl<line>` port and sends it its requests: print this, read a line, read a key, the caller's name, time left, show a file, add some minutes. The shim publishes that port and answers, from the same user information XIM doors get. Set `doorType: tim`. Aminet's `comm/maxs` directory holds a few hundred of these doors and utilities for MAX's BBS, games among them (Master Space Empire, The Land of VEX, Sector Wars II, AndroFight, Hamurabi, Killer Instinct, Global War 1.18), and many /X boards ran Paragon doors as `TYPE=TIM`.
+
+- **The line number.** A Paragon door reads its line from the first character of its argument, so it is started as `<door> <digit>`: the last digit of the caller's node. Each caller has an emulated machine of their own, so the lines never collide. Doors that take more arguments get them after it, from `doorArgs`.
+- **Install notes.** Paragon doors were installed with an assign or two and sometimes an environment variable in the sysop's `S:Startup-Sequence`, which a door image does not have. Put them in the door's config: `assigns: { MSE: "BBS:Doors/MSE" }` and `env: { MSE: "" }` make `MSE:` and the file `ENV:MSE` for each session. `DOORS:` (`BBS:Doors`) and `PGDOORS:` (the door path Paragon doors are told) are always there. Some doors also look for a file naming the BBS type (The Land of VEX reads `DOORS:bbstype.dat`, which says `maxs`).
+- **Characters.** Most of these doors draw with PC characters: set `encoding: cp437` and `font: none`. Line ends are taken care of: Paragon doors end lines with a carriage return, a line feed or both, and each reaches the caller as one new line.
+- **Hangups and time.** When the caller hangs up, runs out of time or leaves the door waiting for a key longer than `inputTimeoutSeconds`, every answer the door gets says the carrier is lost, as a Paragon BBS said; doors check that after every request and save and quit. One that carries on gets a Ctrl-C.
+- **What a door changes** in the user's record (time it adds, an access level it sets) lasts for the session only; ENiGMA½'s user record is not changed. A door asking for the BBS's editor is refused, as for XIM doors.
+- **Libraries.** As with CLI doors, a door that needs `mathieeedoubbas.library` or the like needs it in the image's `Libs/` (the AROS ones serve). Doors compiled with HiSoft BASIC need HiSoft's `hisoftbasic.library` or `hbasic2.library`, which are not freely available; they do not run without them.
+
+#### Example: Master Space Empire and The Land of VEX
+
+Master Space Empire 2.35 (Robert Masters, 1993; Aminet `comm/maxs/mse_2.35.lha`) is a multi-player space strategy game played a few turns a day; The Land of VEX 1.2 (Aminet `comm/maxs/VEXv1_2.lha`) is a fantasy role-playing game in the manner of Legend of the Red Dragon. Put MSE's files in `Doors/MSE/` and VEX's `lod` directory in `Doors/lod/`, with its `bbstype.dat` in `Doors/`, and the AROS `mathieeedoubbas` and `mathieeedoubtrans` libraries in `Libs/` for VEX.
+
+```hjson
+doorMSE: {
+    desc: Playing Master Space Empire
+    module: amiga_door
+    config: {
+        name: MasterSpaceEmpire
+        image: /home/enigma/amiga/paragon-doors.hdf
+        door: BBS:Doors/MSE/MSE
+        doorType: tim
+        assigns: { MSE: "BBS:Doors/MSE" }
+        env: { MSE: "" }
+        encoding: cp437
+        font: none
+        sharedState: true
+    }
+}
+doorVEX: {
+    desc: Playing The Land of VEX
+    module: amiga_door
+    config: {
+        name: LandOfVEX
+        image: /home/enigma/amiga/paragon-doors.hdf
+        door: BBS:Doors/lod/Awarrior
+        doorType: tim
+        encoding: cp437
+        font: none
+        sharedState: true
+    }
+}
+```
+
+MSE's `env` value holds its options (`FAST`, `TIME`, `INVITE`; see its readme); empty is none. Leave out `PARAGON`, which asks for the BBS's editor.
+
 ---
 
 ### Persistence
@@ -350,7 +398,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 - **No transfers from doors.** A door cannot start a ZMODEM (or any other) file transfer to the caller.
 - **No sysop break.** There is no way for the sysop to break into a running door's session from the door.
 - **No `JH_EF` editor.** A door that asks the BBS for its full-screen editor is refused, and the door carries on without it.
-- **XIM, ARexx and CLI doors only.** Doors written for other BBS software's message ports (Paragon, CNet, CNet's ARexx doors) are not supported.
+- **XIM, ARexx, Paragon and CLI doors only.** Doors written for CNet's message ports (CNet's C and ARexx doors) are not supported.
 - **CLI doors have no window.** A CLI door that asks its console for the window size gets no answer; it should take the screen length from its command line.
 
 ---
@@ -362,6 +410,8 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 **A CLI door ends at once, with no output.** It could not start or quit before printing anything, usually for want of a library. The exit is logged with the door's return code (`rc`). Check the libraries the door needs (see [CLI Doors](#cli-doors)) and that its configuration files are where its documentation says.
 
 **An ARexx door ends at once.** The log line for the exit says why. `error=no rexxsyslib`: the image has no ARexx; build it with `make_image.sh -w`. `ARexx is not running`: RexxMast is not on the image or did not start. `script ended without a host command` with an `out=` text: the script stopped before it said anything, usually an ARexx error (shown) or a missing `ADDLIB` library.
+
+**A Paragon door ends at once.** The exit is logged with `door exited without a DoorControl request` and the first line the door printed, often its own complaint: a port it could not find (the door wants another BBS type or a line argument of its own; see its notes), a missing assign or library. A door that waits for something before its first request is reported after `regTimeoutSeconds`.
 
 **A CLI door waits for Return after every key.** It expects a raw console and never asks for one; set `consoleMode: raw`.
 
