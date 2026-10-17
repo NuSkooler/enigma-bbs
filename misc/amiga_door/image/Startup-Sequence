@@ -11,4 +11,10 @@ If EXISTS C:Assign
     C:Assign >NIL: BBS: SYS:
     C:Assign >NIL: DOORS: SYS:Doors
 EndIf
+; ARexx (AIM) doors: the ARexx master must run before the shim so that it is
+; part of the machine ENiGMA snapshots.  Only an image built with the sysop's
+; own Workbench 3.1 (make_image.sh -w) has it; AROS has no ARexx.
+If EXISTS SYS:System/RexxMast
+    SYS:System/RexxMast >NIL:
+EndIf
 C:axshim 115200

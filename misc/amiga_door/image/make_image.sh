@@ -2,7 +2,7 @@
 #
 # Build an ENiGMA½ Amiga door image (a bare FFS hard-disk image, volume BBS).
 #
-#   make_image.sh [-s SIZE] [-n VOLUME] [-x XDFTOOL] [-f] IMAGE DOORDIR...
+#   make_image.sh [-s SIZE] [-n VOLUME] [-x XDFTOOL] [-w ADF] [-f] IMAGE DOORDIR...
 #
 #   IMAGE      image file to create, e.g. ~/amiga/dreamsweeper.hdf
 #   DOORDIR    a door's directory on this machine; its contents are copied to
@@ -12,6 +12,11 @@
 #   -s SIZE    image size (default 4M); anything xdftool's size= accepts
 #   -n VOLUME  volume name (default BBS)
 #   -x PATH    xdftool to use (default: $XDFTOOL, else xdftool on PATH)
+#   -w ADF     add ARexx, which ARexx (AIM) doors need and AROS does not have,
+#              from your own Workbench 3.1 disk image: RexxMast, rexxsyslib and
+#              rexxsupport.library, the IEEE math libraries rexxsyslib needs,
+#              SYS:Rexxc and the C: commands scripts run with ADDRESS COMMAND.
+#              Those files are licensed: the image is for your board only.
 #   -f         replace IMAGE if it exists
 #
 # xdftool comes from amitools:
@@ -31,17 +36,29 @@ size=4M
 volume=BBS
 xdftool=${XDFTOOL:-xdftool}
 force=0
+workbench=
+
+# what -w copies from the Workbench disk (same path on the disk and in the image)
+wb_files=(
+    System/RexxMast
+    Libs/rexxsyslib.library Libs/rexxsupport.library
+    Libs/mathieeedoubbas.library Libs/mathieeedoubtrans.library Libs/mathieeesingtrans.library
+    Rexxc/RX Rexxc/RXC Rexxc/RXSET Rexxc/RXLIB Rexxc/HI Rexxc/TS Rexxc/TE Rexxc/TCO Rexxc/TCC
+    Rexxc/WaitForPort
+    C/Avail C/Copy C/Date C/Delete C/List C/MakeDir C/Rename C/Type C/Wait
+)
 
 usage() {
-    sed -n '3,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-2}"
 }
 
-while getopts "s:n:x:fh" opt; do
+while getopts "s:n:x:w:fh" opt; do
     case $opt in
         s) size=$OPTARG ;;
         n) volume=$OPTARG ;;
         x) xdftool=$OPTARG ;;
+        w) workbench=$OPTARG ;;
         f) force=1 ;;
         h) usage 0 ;;
         *) usage ;;
@@ -64,6 +81,11 @@ for f in bin/axshim bin/AEDoor.library image/Startup-Sequence; do
         exit 1
     }
 done
+
+[ -z "$workbench" ] || [ -f "$workbench" ] || {
+    echo "make_image.sh: no such Workbench disk image: $workbench" >&2
+    exit 1
+}
 
 for d in "$@"; do
     [ -d "$d" ] || {
@@ -88,6 +110,25 @@ args=(
     + write "$amiga_dir/bin/AEDoor.library" Libs/AEDoor.library
     + write "$here/Startup-Sequence" S/Startup-Sequence
 )
+
+if [ -n "$workbench" ]; then
+    wbdir=$(mktemp -d)
+    trap 'rm -rf "$wbdir"' EXIT
+    reads=("$workbench")
+    for i in "${!wb_files[@]}"; do
+        reads+=(read "${wb_files[$i]}" "$wbdir/$i" +)
+    done
+    unset 'reads[${#reads[@]}-1]'
+    "$xdftool" "${reads[@]}" > /dev/null
+    args+=(+ makedir System + makedir Rexxc)
+    for i in "${!wb_files[@]}"; do
+        [ -f "$wbdir/$i" ] || {
+            echo "make_image.sh: ${wb_files[$i]} is not on $workbench (a Workbench 3.1 disk?)" >&2
+            exit 1
+        }
+        args+=(+ write "$wbdir/$i" "${wb_files[$i]}")
+    done
+fi
 
 for d in "$@"; do
     d=${d%/}

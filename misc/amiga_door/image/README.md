@@ -13,11 +13,12 @@ the shim, the door library, the startup sequence and the door itself. Until
 ```sh
 python3 -m venv ~/amitools-venv && ~/amitools-venv/bin/pip install amitools
 XDFTOOL=~/amitools-venv/bin/xdftool \
-    misc/amiga_door/image/make_image.sh [-s 4M] [-n BBS] [-f] ~/amiga/doors.hdf ~/doors/dreamsweeper
+    misc/amiga_door/image/make_image.sh [-s 4M] [-n BBS] [-w WB.adf] [-f] ~/amiga/doors.hdf ~/doors/dreamsweeper
 ```
 
 Each door directory is copied, layout kept, to `Doors/<directory name>/` in the
 image (here `BBS:Doors/dreamsweeper/...`). `-f` replaces an existing image.
+`-w` adds ARexx from your Workbench 3.1 disk, for ARexx doors (see below).
 
 ## Recipe
 
@@ -93,10 +94,47 @@ documentation for:
 The command line is `doorArgs` in the door's menu entry; see the documentation
 page for the placeholders.
 
+## ARexx (AIM) doors
+
+An ARexx door (`doorType: aim`, /X's `TYPE=AIM`) is a script, and running it
+needs ARexx in the image. **ARexx doors need your own Workbench 3.1; AROS has no
+ARexx.** Give `make_image.sh` your Workbench 3.1 disk image (an ADF of the
+"Workbench3.1" disk) with `-w`:
+
+```sh
+XDFTOOL=~/amitools-venv/bin/xdftool \
+    misc/amiga_door/image/make_image.sh -w ~/amiga/Workbench3.1.adf -s 4M \
+    ~/amiga/kickboxing.hdf ~/doors/Kickboxing
+```
+
+`-w` copies, from the same paths on the Workbench disk:
+
+| Files | Why |
+|---|---|
+| `System/RexxMast` | the ARexx server; the image's `S:Startup-Sequence` starts it before the shim |
+| `Libs/rexxsyslib.library`, `Libs/rexxsupport.library` | ARexx itself, and the support functions many scripts `ADDLIB` |
+| `Libs/mathieeedoubbas.library`, `mathieeedoubtrans`, `mathieeesingtrans` | rexxsyslib will not start without `mathieeedoubbas`; neither the AROS ROM nor Kickstart 3.1 has it |
+| `Rexxc/RX` and the rest of `Rexxc/` | the shim starts every script with `SYS:Rexxc/RX` |
+| `C/Avail`, `Copy`, `Date`, `Delete`, `List`, `MakeDir`, `Rename`, `Type`, `Wait` | commands scripts run with `ADDRESS COMMAND` (Hacker runs `avail flush` after every move and ends with an error without it) |
+
+These files are Commodore's (now Cloanto's), licensed with your Workbench: an
+image built with `-w` is for your own board, do not pass it on. The same image
+works with the bundled AROS ROM and with a Kickstart 3.1 ROM: Workbench 3.1's
+ARexx runs on both.
+
+Put the script where its documentation says, or anywhere: its own data paths
+(`doors:Kickboxing/...`) are what matter, and the door config names the script
+(`door: BBS:Doors/Kickboxing/KickBox.Rexx`). Scripts that `ADDLIB` a third-party
+library (The Death Game: `rexxarplib.library`) need it in `Libs/` too.
+
+Without `-w`, `doorType: aim` sessions end at once with
+`error=no rexxsyslib` (the ENiGMA log says so); XIM and CLI doors are not affected.
+
 ## Startup-Sequence
 
 `Startup-Sequence` here is the template: it sets `FailAt` and `Stack`, makes the
 `BBS:` and `DOORS:` assigns when `C:Assign` exists (axshim makes them otherwise),
-and starts `C:axshim 115200`, which never returns. Doors need nothing else from
+starts `SYS:System/RexxMast` when the image has it (ARexx doors), and starts
+`C:axshim 115200`, which never returns. Doors need nothing else from
 Workbench on AROS; on Kickstart 3.1 the same image boots as long as the door does
 not open disk libraries that are not on it.

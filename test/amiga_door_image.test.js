@@ -86,6 +86,51 @@ describe('amiga_door make_image.sh', function () {
         assert.ok(args.includes('Doors/My Door/data'));
         assert.ok(args.includes('Doors/My Door/data/scores.dat'));
     });
+
+    it("-w copies ARexx from the sysop's Workbench disk", () => {
+        const door = path.join(dir, 'Kickboxing');
+        fs.mkdirSync(door, { recursive: true });
+        fs.writeFileSync(path.join(door, 'KickBox.Rexx'), '/* */');
+        const adf = path.join(dir, 'Workbench3.1.adf');
+        fs.writeFileSync(adf, '');
+
+        //  a stand-in xdftool: records its arguments and "reads" empty files
+        const log = path.join(dir, 'wb-args.txt');
+        const fake = path.join(dir, 'fake-wb-xdftool.sh');
+        fs.writeFileSync(
+            fake,
+            `#!/bin/sh\nprintf '%s\\n' "$@" >> '${log}'\n` +
+                'while [ $# -gt 0 ]; do\n' +
+                '  if [ "$1" = read ]; then : > "$3"; shift 3; else shift; fi\n' +
+                'done\n',
+            { mode: 0o755 }
+        );
+
+        const r = run(['-w', adf, path.join(dir, 'wb.hdf'), door], { XDFTOOL: fake });
+        assert.equal(r.status, 0, r.stderr);
+        const args = fs.readFileSync(log, 'utf8').split('\n');
+        assert.ok(args.includes(adf));
+        for (const f of [
+            'System/RexxMast',
+            'Libs/rexxsyslib.library',
+            'Libs/rexxsupport.library',
+            'Libs/mathieeedoubbas.library',
+            'Rexxc/RX',
+            'C/Avail',
+            'C/Delete',
+            'Doors/Kickboxing/KickBox.Rexx',
+        ]) {
+            assert.ok(args.includes(f), `${f} not handed to xdftool`);
+        }
+    });
+
+    it('-w refuses a Workbench disk that is not there', () => {
+        const r = run(['-w', path.join(dir, 'nope.adf'), path.join(dir, 'b.hdf'), dir], {
+            XDFTOOL: 'true',
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /no such Workbench disk/);
+    });
 });
 
 describe('amiga_door menu template', () => {
