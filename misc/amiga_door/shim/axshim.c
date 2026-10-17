@@ -13,6 +13,14 @@
  * the fake console handler in NilBBS's src/node/door.c (MIT, see the notice at
  * "CLI doors" below).
  *
+ * An ARexx (AIM) door (`type=aim`, protocol section 12) is an ARexx script written for
+ * AmiExpress's REXXDOOR: the shim publishes the ARexx host port AERexxControl<node>, runs
+ * `SYS:Rexxc/RX <script> <node>` and answers the script's host commands (GETUSER, PUTUSTR/
+ * PUTUSER, TRANSMIT, SENDSTRING, GETCHAR, PROMPT, ...) from the same tables the XIM path uses.
+ * It needs ARexx in the guest (RexxMast, rexxsyslib.library: Workbench 3.1, not AROS); the
+ * library is opened only when an AIM session starts.  The command set follows NilBBS's
+ * aim_command (src/node/door.c, MIT, notice at "ARexx (AIM) doors" below).
+ *
  *   boot -> H -> R -> (s from the host) -> L -> door traffic, C, E/e -> X -> R ...
  *
  * Door terminal traffic is unframed in both directions; control messages are
@@ -65,16 +73,26 @@
 #include <dos/dostags.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <rexx/storage.h>
+#include <rexx/rxslib.h>
+/* our own base, not libnix's RexxSysBase: referencing that one makes libnix open
+ * rexxsyslib.library at start-up, and fail to start on an image without ARexx */
+#define REXXSYSLIB_BASE_NAME axRexxBase
+#define __NOLIBBASE__
+#include <proto/rexxsyslib.h>
+#undef __NOLIBBASE__
 #include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 
-#define SHIM_VERSION    "1.1"
+#define SHIM_VERSION    "1.2"
 #define PROTO_VERSION   1
 static const char __attribute__((used)) verstag[] = "$VER: axshim " SHIM_VERSION " (16.10.2026)";
 
 extern struct ExecBase *SysBase;
+static struct Library *axRexxBase;    /* rexxsyslib: opened by the first AIM session, kept */
 
 /* ---- JHMessage and command numbers (AmiExpress axcommon.e) ------------------------- */
 
@@ -629,6 +647,8 @@ static ULONG hgen;              /* CLI session generation, kept in the handles' 
 #define H_ID(a)     ((ULONG)(a) & 15)
 #define H_GEN(a)    ((ULONG)(a) >> 4)
 static char  portname[24];
+static struct MsgPort *aport;   /* AERexxControl<node>, lives as long as an AIM script may use it */
+static char  aportname[24];
 static BYTE  extsig = -1;       /* JH_SIGBIT: a door Signal()s it to wake a JH_ExtHK */
 
 struct Session {
@@ -692,6 +712,22 @@ struct Session {
         LONG  opens;            /* Open("*") handles still open */
         ULONG last_key, want_at, dead_at, sig_at;
     } cli;
+    /* an ARexx (AIM) door (type=aim): the host side of the script's AERexxControl<node> */
+    struct {
+        BOOL  on;
+        struct RexxMsg *waiting;        /* GETCHAR / PROMPT / QUERY waiting for the caller */
+        UBYTE wait_kind;                /* WK_HK one key, WK_LINE a line */
+        char  obj[200];                 /* PUTUSTR: what the next PUTUSER stores */
+        LONG  qmax;                     /* RECEIVE n: QUERY / PROMPT take n-1 characters (100) */
+        struct Task *script;            /* the script's process (it sends the commands) */
+        BOOL  shutdown;                 /* SHUTDOWN seen */
+        ULONG shutdown_at;
+        BOOL  timedout;                 /* keyboard timeout: every later command gets rc 10 */
+        BOOL  broken;                   /* dead (d, time up, timeout): CTRL-C until it ends */
+        ULONG dead_at, sig_at;
+        char  verbs[200];               /* distinct verbs, for X verbs= */
+        char  unknown[128];             /* distinct unknown verbs, for X unknown= */
+    } aim;
 };
 static struct Session S;
 
@@ -854,6 +890,7 @@ static void ae_ctime(ULONG ae, char *out)
 /* ---- door process ----------------------------------------------------------------------- */
 
 #define DOOR_OUT "RAM:axshim.out"
+#define RX_CMD   "SYS:Rexxc/RX"     /* runs an AIM door's script, as /X's REXXDOOR did */
 
 static void launcher(void)
 {
@@ -901,6 +938,27 @@ static void door_stdout(char *out, int max)
     Close(fh);
 }
 
+/* AIM: the line of RX's / ARexx's output that says what went wrong: the first "+++" line
+ * ("+++ Error 41 in line 51: Invalid expression", "+++ Command returned 10"), else the last */
+static void script_stdout(char *out, int max)
+{
+    char line[160];
+    BPTR fh = Open((STRPTR)DOOR_OUT, MODE_OLDFILE);
+    out[0] = 0;
+    if (!fh) return;
+    while (FGets(fh, (STRPTR)line, sizeof(line))) {
+        char *p = line;
+        int n = strlen(line);
+        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p) continue;
+        strncpy(out, p, max - 1);
+        out[max - 1] = 0;
+        if (!strncmp(p, "+++", 3)) break;
+    }
+    Close(fh);
+}
+
 /* every path component shorter than LONGNAME: the AROS 20250219 afs.handler hangs for good
  * on a lookup of a name of 33 or more characters instead of failing */
 static BOOL path_ok(const char *path)
@@ -928,6 +986,20 @@ static BOOL port_open(LONG node)
 }
 
 static void zombie_reply(struct JHMessage *m);
+static void aim_reply(struct RexxMsg *m, LONG rc, const char *res, LONG len);
+
+/* the AIM host port: after its session every command gets rc 10 (REXXDOOR is gone) */
+static void aport_close(void)
+{
+    struct RexxMsg *m;
+    if (!aport) return;
+    Forbid();
+    RemPort(aport);
+    while ((m = (struct RexxMsg *)GetMsg(aport))) aim_reply(m, 10, NULL, 0);
+    Permit();
+    DeleteMsgPort(aport);
+    aport = NULL;
+}
 
 static void port_close(void)
 {
@@ -947,7 +1019,7 @@ static void reap(void)
     if (!LN.busy || !LN.done) return;
     if (LN.donesig >= 0) { FreeSignal(LN.donesig); LN.donesig = -1; }
     LN.busy = FALSE;
-    if (state != ST_SESSION) { port_close(); DeleteFile((STRPTR)DOOR_OUT); }
+    if (state != ST_SESSION) { port_close(); aport_close(); DeleteFile((STRPTR)DOOR_OUT); }
 }
 
 /* XIM: `"door" <node> args`.  CLI: `"door" args` (no node number; a CLI door takes what
@@ -963,7 +1035,12 @@ static BOOL launch(const char *door, BPTR in, BPTR out)
     LN.console = hport;
     LN.self = NULL;
     if (LN.cli) snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %s", door, get("args", ""));
-    else snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %ld %s", door, (long)S.node, get("args", ""));
+    else if (S.aim.on) {        /* REXXDOOR's "RX <script> <node>"; no trailing blank: PARSE ARG
+                                 * NODE keeps it, and "AERexxControl0 " names no port */
+        const char *args = get("args", "");
+        snprintf(LN.cmd, sizeof(LN.cmd), strchr(door, ' ') ? "%s \"%s\" %ld%s%s" : "%s %s %ld%s%s",
+                 RX_CMD, door, (long)S.node, *args ? " " : "", args);
+    } else snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %ld %s", door, (long)S.node, get("args", ""));
     if (dir && *dir) {
         strncpy(LN.dir, dir, sizeof(LN.dir) - 1);
         LN.dir[sizeof(LN.dir) - 1] = 0;
@@ -1107,6 +1184,7 @@ static void end_session(const char *status, const char *error)
     if (S.waiting) fail_waiting(FALSE);
     if (S.editing) { S.editing->Data = -1; reply(S.editing); S.editing = NULL; }
     if (S.cli.on) cli_flush();  /* reads EOF; later packets get the zombie answers */
+    if (S.aim.waiting) { aim_reply(S.aim.waiting, 10, NULL, 0); S.aim.waiting = NULL; }
     changed[0] = 0;
     if (S.launched) {           /* a walk even after a DT write: changed= names a file */
         BOOL files = scan_writes();
@@ -1133,12 +1211,24 @@ static void end_session(const char *status, const char *error)
     f_kvn("wrote", S.wrote ? 1 : 0);
     /* additions to the spec's set (adding keys does not bump the version) */
     if (S.launched) f_kvn("rc", LN.done ? LN.rc : -1);
-    if (S.nunknown) {
+    if (S.nunknown || S.aim.unknown[0]) {
         f_kv("unknown", "");
         o = flen;
         for (i = 0; i < S.nunknown; i++) {
             sprintf(b, "%s%ld", flen > o ? " " : "", (long)S.unknown[i]);
             f_str(b);
+        }
+        if (S.aim.unknown[0]) {         /* AIM: verbs the shim does not know */
+            if (flen > o) f_byte(' ');
+            f_str(S.aim.unknown);
+        }
+    }
+    if (S.aim.on) {
+        f_kv("verbs", S.aim.verbs);
+        if (S.launched && LN.done && LN.rc) {   /* what RX or ARexx said (+++ Error ...) */
+            char out[160];
+            script_stdout(out, sizeof(out));
+            if (out[0]) f_kv("out", out);
         }
     }
     if (changed[0]) f_kv("changed", changed);
@@ -1150,15 +1240,18 @@ static void end_session(const char *status, const char *error)
     state = ST_READY;
     inq_head = inq_tail = 0;
     if (LN.busy && LN.done) reap();
-    if (!LN.busy) { port_close(); DeleteFile((STRPTR)DOOR_OUT); }
+    if (!LN.busy) { port_close(); aport_close(); DeleteFile((STRPTR)DOOR_OUT); }
     /* else the door outlived the session: the port stays up and answers "carrier lost" */
     if (S.cli.on && LN.busy && !LN.done) { cli_zombie = S.cli.door; cli_zombie_sig = now_s; }
+    if (S.aim.on && LN.busy && !LN.done) { cli_zombie = S.aim.script; cli_zombie_sig = now_s; }
     memset(&S, 0, sizeof(S));
     nkv = 0;
     emit_ready();
 }
 
 static void error_session(const char *error) { end_session("error", error); }
+
+static const char *aim_open(LONG node);
 
 static void start_session(void)
 {
@@ -1178,6 +1271,7 @@ static void start_session(void)
     if (!v || atol(v) != PROTO_VERSION) { error_session("version"); return; }
     type = get("type", "xim");
     if (!strcmp(type, "cli")) S.cli.on = TRUE;
+    else if (!strcmp(type, "aim")) S.aim.on = TRUE;
     else if (*type && strcmp(type, "xim")) { error_session("unknown door type"); return; }
     if (S.cli.on) {                     /* the console's mode before the door's first SetMode() */
         v = get("console", "cooked");
@@ -1227,13 +1321,17 @@ static void start_session(void)
             error_session("cannot make the door's console handles");
             return;
         }
+    } else if (S.aim.on) {
+        const char *err = aim_open(S.node);
+        if (err) { error_session(err); return; }
     } else if (!port_open(S.node)) { error_session("door port busy"); return; }
     if (!launch(door, in, out)) {
         if (S.cli.on) {
             FreeDosObject(DOS_FILEHANDLE, BADDR(in));
             FreeDosObject(DOS_FILEHANDLE, BADDR(out));
             S.cli.on = FALSE;
-        } else port_close();
+        } else if (S.aim.on) aport_close();
+        else port_close();
         error_session("cannot start the launcher");
         return;
     }
@@ -1467,15 +1565,13 @@ static void park_input(struct JHMessage *m, UBYTE kind)
     service_input();
 }
 
-static void xim_command(struct JHMessage *m)
+/* answer m in place; FALSE: it waits (input, JH_EF) and is replied to later */
+static BOOL xim_answer(struct JHMessage *m)
 {
     LONG cmd = m->Command, linenum = m->LineNum;
     UWORD len = m->msg.mn_Length;
     char s[220];
 
-    S.cmds++;
-    mark_seen(cmd);
-    if (S.log) log_cmd(m);
     m->LineNum = 0;             /* as NilBBS; an unknown command gets it back below */
 
     switch (cmd) {
@@ -1505,7 +1601,7 @@ static void xim_command(struct JHMessage *m)
     case JH_HK:
         out_str(m->String);
         park_input(m, WK_HK);
-        return;
+        return FALSE;
     case JH_PM: case JH_LI:
         if (!S.waiting) {
             S.maxlen = m->Data > 0 && m->Data < 200 ? m->Data : 199;
@@ -1519,9 +1615,9 @@ static void xim_command(struct JHMessage *m)
             }
         }
         park_input(m, WK_LINE);
-        return;
-    case JH_ExtHK:      park_input(m, WK_EXTHK); return;
-    case JH_20: case QUICK_KEY: park_input(m, WK_RAWKEY); return;
+        return FALSE;
+    case JH_ExtHK:      park_input(m, WK_EXTHK); return FALSE;
+    case JH_20: case QUICK_KEY: park_input(m, WK_RAWKEY); return FALSE;
     case JH_FetchKey: {                 /* a poll: Command 0 when no key */
         LONG c;
         if (input_dead()) { m->Command = -1; m->Data = -1; break; }
@@ -1552,7 +1648,7 @@ static void xim_command(struct JHMessage *m)
         f_begin('E');
         f_kv("file", m->String);
         f_end();
-        return;
+        return FALSE;
     case JH_BBSNAME:    sets(m, get("bbsname", "ENiGMA")); break;
     case JH_SYSOP:      sets(m, get("sysop", "SysOp")); break;
     case JH_SIGBIT:     m->Data = extsig >= 0 ? extsig : 0; break;
@@ -1618,7 +1714,15 @@ static void xim_command(struct JHMessage *m)
         m->LineNum = linenum;
         break;
     }
-    reply(m);
+    return TRUE;
+}
+
+static void xim_command(struct JHMessage *m)
+{
+    S.cmds++;
+    mark_seen(m->Command);
+    if (S.log) log_cmd(m);
+    if (xim_answer(m)) reply(m);
 }
 
 /* ---- CLI doors: the shim is the DOS handler behind the door's Input() and Output() ---------
@@ -1983,6 +2087,365 @@ static void cli_zombie_service(void)
     }
 }
 
+/* ---- ARexx (AIM) doors: the shim is AmiExpress's REXXDOOR -------------------------------
+ *
+ * An AIM door is an ARexx script.  /X ran it through REXXDOOR, which published the host port
+ * AERexxControl<node> and started the script with the node number as its argument; the script
+ * does
+ *
+ *   parse arg NODE; options results; address value "AERexxControl"NODE
+ *
+ * and then sends host commands.  The shim publishes the same port, runs "RX <script> <node>"
+ * on the launcher (so the script's end is RX's end) and answers:
+ *
+ *   GETUSER n          /X function n read (DT_NAME 100, JH_BBSNAME 11, ...) -> RESULT
+ *   PUTUSTR text       the value the next PUTUSER stores
+ *   PUTUSER n          /X function n written (136 RETURNCOMMAND, 4 JH_SM text, ...)
+ *   TRANSMIT text      text, then CR LF
+ *   SENDSTRING / SENDMESSAGE text   text as it is
+ *   GETCHAR            one key, not echoed -> RESULT
+ *   QUERY text         text, then an edited, echoed line of up to 99 characters -> RESULT
+ *   RECEIVE n          the next QUERY takes up to n-1 characters
+ *   PROMPT "text"      as QUERY (a later /X verb; a pair of double quotes is dropped)
+ *   SHOWFILE / SENDFILE / SHOWGFILE file   a text file (SHOWGFILE: .txt .ans .gr .asc too)
+ *   REMOVERESERVED s   s with / * ? # and blanks as _ (a file name from a user name) -> RESULT
+ *   VERREXXDOOR        "13"
+ *   BUFFERFLUSH        typed-ahead keys thrown away
+ *   FLAGFILE, EDITFILE accepted (no editor: the file stays as it is)
+ *   SHUTDOWN           the script is done (it should exit now)
+ *
+ * n goes through the XIM tables (xim_answer), so GETUSER and PUTUSER answer exactly what an XIM
+ * door's DT_* requests get.  After carrier loss, time-up or the keyboard timeout every command
+ * gets rc 10 (REXXDOOR's "carrier lost / timeout", after which it closed its ports), which
+ * SIGNAL ON ERROR scripts take as the cue to save and leave; a script still running 5 s later
+ * gets CTRL-C (ARexx halts it) every 10 s.  Unknown verbs get rc 0 and an empty RESULT.
+ *
+ * The verb table and the arguments' reading come from REXXDOOR 1.3 (Joseph Hodge; the verb
+ * strings and its dispatcher read from the binary, nothing of it copied): a verb is the start of
+ * the command line ("sm'x'" arrives as SENDMESSAGEx), the argument is the rest after one blank,
+ * as it is.  The host-port handling follows NilBBS's aim_command (src/node/door.c,
+ * https://github.com/lainejones/NilBBS), under the MIT licence quoted at "CLI doors" above
+ * (Copyright (c) 2026 Laine Jones).
+ */
+
+#define AIM_BREAK_AFTER 5       /* seconds from carrier loss / time-up to the first CTRL-C */
+#define AIM_EXIT_GRACE  10      /* seconds a script may run on after SHUTDOWN */
+
+static const char *const aim_verbs[] = {
+    "GETUSER", "PUTUSER", "PUTUSTR", "TRANSMIT", "SENDMESSAGE", "SENDSTRING", "GETCHAR", "PROMPT",
+    "QUERY", "RECEIVE", "SHOWFILE", "SENDFILE", "SHOWGFILE", "FLAGFILE", "SHUTDOWN", "BUFFERFLUSH",
+    "REMOVERESERVED", "VERREXXDOOR", "EDITFILE", NULL
+};
+
+static int upc(int c) { return c >= 'a' && c <= 'z' ? c - 32 : c; }
+
+static BOOL prefix_icase(const char *s, LONG n, const char *w)
+{
+    LONG i;
+    for (i = 0; w[i]; i++) if (i >= n || upc((UBYTE)s[i]) != w[i]) return FALSE;
+    return TRUE;
+}
+
+static void aim_reply(struct RexxMsg *m, LONG rc, const char *res, LONG len)
+{
+    m->rm_Result1 = rc;
+    m->rm_Result2 = 0;
+    if (rc == 0 && res && axRexxBase && (m->rm_Action & RXFF_RESULT))
+        m->rm_Result2 = (LONG)CreateArgstring((STRPTR)res, len);
+    ReplyMsg((struct Message *)m);
+}
+
+/* a word into a space-separated set (X verbs= / unknown=) */
+static void word_note(char *set, int size, const char *w)
+{
+    int n = strlen(w), sl = strlen(set);
+    const char *p = set;
+    while ((p = strstr(p, w))) {
+        if ((p == set || p[-1] == ' ') && (p[n] == ' ' || !p[n])) return;
+        p++;
+    }
+    if (sl + n + 2 > size) return;
+    if (sl) set[sl++] = ' ';
+    strcpy(set + sl, w);
+}
+
+static BOOL aim_dead(void) { return S.lost || S.timeup || S.dtr || S.aim.timedout; }
+
+/* the session's AERexxControl<node>, and ARexx itself */
+static const char *aim_open(LONG node)
+{
+    struct MsgPort *rexx;
+    BPTR l;
+    int i;
+    if (!axRexxBase && !(axRexxBase = OpenLibrary((STRPTR)"rexxsyslib.library", 0)))
+        return "no rexxsyslib";
+    if (!(l = Lock((STRPTR)RX_CMD, ACCESS_READ))) return "no " RX_CMD;
+    UnLock(l);
+    for (i = 0;; i++) {
+        Forbid();
+        rexx = FindPort((STRPTR)"REXX");
+        Permit();
+        if (rexx) break;
+        if (i == 0 && (l = Lock((STRPTR)"SYS:System/RexxMast", ACCESS_READ))) {
+            UnLock(l);          /* the image's S:Startup-Sequence should have started it */
+            SystemTags((STRPTR)"SYS:System/RexxMast >NIL:", TAG_END);
+        }
+        if (i >= 10) return "ARexx is not running (no REXX port)";
+        Delay(25);
+        pump();
+    }
+    sprintf(aportname, "AERexxControl%ld", (long)node);
+    Forbid();
+    if (FindPort((STRPTR)aportname)) { Permit(); return "door port busy"; }
+    if ((aport = CreateMsgPort())) {
+        aport->mp_Node.ln_Name = aportname;
+        aport->mp_Node.ln_Pri = 0;
+        AddPort(aport);
+    }
+    Permit();
+    return aport ? NULL : "door port busy";
+}
+
+/* codes that would wait for input, register or hand over in the XIM tables: GETCHAR and PROMPT
+ * are the script's input, and REXXDOOR itself was the registered door */
+static BOOL aim_refused(LONG n)
+{
+    switch (n) {
+    case JH_LI: case JH_REGISTER: case JH_SHUTDOWN: case JH_PM: case JH_HK: case JH_EF:
+    case JH_ExtHK: case JH_FetchKey: case JH_20: case QUICK_KEY: case CHAIN:
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+
+/* GETUSER n / PUTUSER n through the XIM tables */
+static void aim_user(struct RexxMsg *m, BOOL get, LONG n)
+{
+    struct JHMessage jm;
+    char out[24];
+    mark_seen(n);
+    if (aim_refused(n)) { aim_reply(m, 0, "", 0); return; }
+    memset(&jm, 0, sizeof(jm));
+    jm.msg.mn_Length = sizeof(jm);
+    jm.Command = n;
+    if (get) jm.Data = 1;
+    else strcpy(jm.String, S.aim.obj);
+    xim_answer(&jm);            /* never parks: aim_refused() took those */
+    if (!get) { aim_reply(m, 0, "", 0); return; }
+    switch (n) {                /* the answers XIM doors find in Data */
+    case BB_LOGONTYPE: case BB_SCRWIDTH: case BB_SCRHEIGHT: case DT_ISANSI: case GET_XIMPORT:
+    case JH_SIGBIT: case MOD_TYPE:
+        sprintf(out, "%ld", (long)jm.Data);
+        aim_reply(m, 0, out, strlen(out));
+        break;
+    default:
+        aim_reply(m, 0, jm.String, strlen(jm.String));
+        break;
+    }
+}
+
+/* the caller typed something: finish a waiting GETCHAR / PROMPT / QUERY */
+static void aim_service_input(void)
+{
+    struct RexxMsg *m = S.aim.waiting;
+    LONG c;
+    if (!m) return;
+    if (aim_dead()) { aim_reply(m, 10, NULL, 0); S.aim.waiting = NULL; return; }
+    if (S.aim.wait_kind == WK_HK) {
+        char b;
+        do c = next_key(); while (c == -2);
+        if (c < 0) return;
+        b = (char)c;
+        aim_reply(m, 0, &b, 1);
+        S.aim.waiting = NULL;
+        return;
+    }
+    while ((c = next_key()) != -1) {
+        if (c == -2) continue;
+        S.wait_since = now_s;   /* the keyboard timeout counts from the last key */
+        if (c == '\r' || c == '\n') {
+            out_bytes("\r\n", 2);
+            aim_reply(m, 0, S.line, S.len);
+            S.aim.waiting = NULL;
+            return;
+        } else if (c == 8 || c == 127) {
+            if (S.len > 0) { S.len--; out_bytes("\b \b", 3); }
+        } else if (c == 21 || c == 24) {
+            while (S.len > 0) { S.len--; out_bytes("\b \b", 3); }
+        } else if (c >= 32 && S.len < S.maxlen) {
+            char b = (char)c;
+            S.line[S.len++] = b;
+            out_bytes(&b, 1);
+        }
+    }
+}
+
+static void aim_park(struct RexxMsg *m, UBYTE kind)
+{
+    if (S.aim.waiting) { aim_reply(m, 10, NULL, 0); return; }     /* one at a time */
+    S.aim.waiting = m;
+    S.aim.wait_kind = kind;
+    S.wait_since = now_s;
+    S.len = 0;
+    S.maxlen = S.aim.qmax > 0 && S.aim.qmax < 200 ? S.aim.qmax : 100;
+    aim_service_input();
+}
+
+static void aim_command(struct RexxMsg *m)
+{
+    const char *a = (const char *)m->rm_Args[0], *arg, *w = NULL;
+    LONG len, arglen, wl = 0, n = -1;
+    char t[200];
+    int i;
+
+    if ((m->rm_Action & RXCODEMASK) != RXCOMM || !a) { aim_reply(m, 20, NULL, 0); return; }
+    if (m->rm_Node.mn_ReplyPort && m->rm_Node.mn_ReplyPort->mp_SigTask)
+        S.aim.script = (struct Task *)m->rm_Node.mn_ReplyPort->mp_SigTask;
+    S.cmds++;
+    len = ((const struct RexxArg *)(a - offsetof(struct RexxArg, ra_Buff)))->ra_Length;
+
+    /* the verb: the first word, or the longest verb the line starts with ("sm'x'" arrives as
+     * SENDMESSAGEx, "query'>'" as QUERY>: ARexx glues a command to a string right after it) */
+    while (wl < len && a[wl] != ' ') wl++;
+    for (i = 0; aim_verbs[i]; i++)
+        if ((LONG)strlen(aim_verbs[i]) == wl && prefix_icase(a, len, aim_verbs[i])) { w = aim_verbs[i]; break; }
+    if (!w) {
+        int best = 0;
+        for (i = 0; aim_verbs[i]; i++) {
+            int l = strlen(aim_verbs[i]);
+            if (l > best && prefix_icase(a, len, aim_verbs[i])) { w = aim_verbs[i]; best = l; }
+        }
+        if (w) wl = best;
+    }
+    arg = a + wl;
+    arglen = len - wl;
+    if (w && arglen > 0 && *arg == ' ') { arg++; arglen--; }
+    /* REXXDOOR takes the rest of the line as it is; only PROMPT (a later verb, documented as
+     * PROMPT "text") drops a pair of double quotes around it */
+    if (w && !strcmp(w, "PROMPT") && arglen >= 2 && arg[0] == '"' && arg[arglen - 1] == '"') { arg++; arglen -= 2; }
+    i = arglen < (LONG)sizeof(t) - 1 ? arglen : (LONG)sizeof(t) - 1;
+    memcpy(t, arg, i);
+    t[i] = 0;
+    if (w && (!strcmp(w, "GETUSER") || !strcmp(w, "PUTUSER"))) n = atol(t);
+
+    if (S.log) {
+        f_begin('C');
+        if (w) f_kv("verb", w);
+        else { char u[16]; for (i = 0; i < 15 && i < wl; i++) u[i] = upc((UBYTE)a[i]); u[i] = 0; f_kv("verb", u); }
+        if (n >= 0) f_kvn("cmd", n);
+        f_kv_escaped("str", arg, arglen < 200 ? arglen : 200);
+        f_end();
+    }
+    if (!w) {
+        char u[16];
+        for (i = 0; i < 15 && i < wl; i++) u[i] = upc((UBYTE)a[i]);
+        u[i] = 0;
+        word_note(S.aim.unknown, sizeof(S.aim.unknown), u[0] ? u : "?");
+        aim_reply(m, aim_dead() ? 10 : 0, "", 0);
+        return;
+    }
+    word_note(S.aim.verbs, sizeof(S.aim.verbs), w);
+    if (aim_dead()) { aim_reply(m, 10, NULL, 0); return; }
+
+    if (!strcmp(w, "GETUSER") || !strcmp(w, "PUTUSER")) aim_user(m, w[0] == 'G', n);
+    else if (!strcmp(w, "PUTUSTR")) {
+        strcpy(S.aim.obj, t);
+        aim_reply(m, 0, "", 0);
+    } else if (!strcmp(w, "TRANSMIT")) {
+        out_bytes(arg, arglen);
+        out_bytes("\r\n", 2);
+        aim_reply(m, 0, "", 0);
+    } else if (!strcmp(w, "SENDSTRING") || !strcmp(w, "SENDMESSAGE")) {
+        out_bytes(arg, arglen);
+        aim_reply(m, 0, "", 0);
+    } else if (!strcmp(w, "GETCHAR")) {
+        aim_park(m, WK_HK);
+    } else if (!strcmp(w, "PROMPT") || !strcmp(w, "QUERY")) {
+        out_bytes(arg, arglen);
+        aim_park(m, WK_LINE);
+    } else if (!strcmp(w, "RECEIVE")) {         /* the next QUERY's length (REXXDOOR: n - 1) */
+        S.aim.qmax = atol(t) - 1;
+        aim_reply(m, 0, "", 0);
+    } else if (!strcmp(w, "REMOVERESERVED")) {  /* a file name from a user name: / * ? # and
+                                                 * blanks become _ (REXXDOOR 1.3) */
+        for (i = 0; t[i]; i++) if (strchr("/*?# ", t[i])) t[i] = '_';
+        aim_reply(m, 0, t, strlen(t));
+    } else if (!strcmp(w, "VERREXXDOOR")) {
+        aim_reply(m, 0, "13", 2);               /* REXXDOOR 1.3, the version described here */
+    } else if (!strcmp(w, "SHOWFILE") || !strcmp(w, "SENDFILE") || !strcmp(w, "SHOWGFILE")) {
+        static const char *ext[] = { "", ".txt", ".ans", ".gr", ".asc", NULL };
+        char f[210];
+        BOOL ok = FALSE;
+        for (i = 0; ext[i] && !ok; i++) {
+            if (w[4] != 'G' && i > 0) break;
+            snprintf(f, sizeof(f), "%s%s", t, ext[i]);
+            ok = show_file(f);
+        }
+        aim_reply(m, 0, "", 0);
+    } else if (!strcmp(w, "BUFFERFLUSH")) {
+        pump();
+        inq_head = inq_tail = 0;
+        aim_reply(m, 0, "", 0);
+    } else if (!strcmp(w, "SHUTDOWN")) {
+        if (!S.aim.shutdown) { S.aim.shutdown = TRUE; S.aim.shutdown_at = now_s; }
+        aim_reply(m, 0, "", 0);
+    } else aim_reply(m, 0, "", 0);      /* FLAGFILE; EDITFILE (no editor: the file is left as it is) */
+}
+
+/* a command after the session that ran it: REXXDOOR has gone */
+static void aim_zombie(struct RexxMsg *m) { aim_reply(m, 10, NULL, 0); }
+
+/* the AIM half of session_service(): input, timeouts, the script's end, X */
+static void aim_session_service(void)
+{
+    struct RexxMsg *m;
+    BOOL ended = FALSE;
+
+    if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
+    if (S.aim.waiting && !aim_dead() && S.timeout > 0 && now_s - S.wait_since >= (ULONG)S.timeout) {
+        S.aim.timedout = TRUE;  /* REXXDOOR: the keyboard timeout ends the door */
+        S.input_failed = TRUE;
+    }
+    aim_service_input();
+
+    if (aim_dead()) {
+        if (!S.aim.broken) {
+            S.aim.broken = TRUE;
+            S.aim.dead_at = now_s;
+        } else if (!LN.done && now_s - S.aim.dead_at >= AIM_BREAK_AFTER
+                   && (!S.aim.sig_at || now_s - S.aim.sig_at >= BREAK_REPEAT)) {
+            S.aim.sig_at = now_s;       /* ARexx halts a script on CTRL-C */
+            cli_signal(S.aim.script, SIGBREAKF_CTRL_C);
+        }
+    }
+
+    if (LN.done) {              /* RX returned: the script has ended */
+        while (aport && (m = (struct RexxMsg *)GetMsg(aport))) aim_command(m);
+        if (!S.cmds && LN.rc && !S.lost) {
+            char out[120], err[200];
+            script_stdout(out, sizeof(out));
+            snprintf(err, sizeof(err), "script ended without a host command (rc=%ld)%s%s", (long)LN.rc,
+                     out[0] ? ": " : "", out);
+            reap();
+            error_session(err);
+            return;
+        }
+        ended = TRUE;
+    } else if (S.aim.shutdown && now_s - S.aim.shutdown_at >= AIM_EXIT_GRACE) {
+        ended = TRUE;
+    } else if (S.aim.broken && now_s - S.aim.dead_at >= CARRIER_GRACE) {
+        ended = TRUE;
+    }
+    if (!ended) return;
+
+    if (S.lost == LOST_HANGUP) end_session("carrier", NULL);
+    else if (S.lost == LOST_TIMEUP) end_session("timeout", NULL);
+    else if (S.lost == LOST_BREAK) end_session("break", NULL);
+    else if (S.timeup || S.aim.timedout) end_session("timeout", NULL);
+    else end_session("ok", NULL);
+}
+
 /* ---- the session's clock work: input, editor, exit ------------------------------------ */
 
 static void session_service(void)
@@ -1991,6 +2454,7 @@ static void session_service(void)
     BOOL ended = FALSE;
 
     if (S.cli.on) { cli_session_service(); return; }
+    if (S.aim.on) { aim_session_service(); return; }
 
     if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
 
@@ -2050,6 +2514,7 @@ static void session_service(void)
 static void step(void)
 {
     struct JHMessage *m;
+    struct RexxMsg *rm;
     int pass;
     timer_poll();
     pump();
@@ -2057,6 +2522,7 @@ static void step(void)
     for (pass = 0; pass < 2; pass++) {  /* a session that ends here may already have its next s */
         if (state == ST_READY) {
             if (port) while ((m = (struct JHMessage *)GetMsg(port))) zombie_reply(m);
+            if (aport) while ((rm = (struct RexxMsg *)GetMsg(aport))) aim_zombie(rm);
             cli_zombie_service();
             if (LN.busy && LN.done) reap();
             if (s_pending) {
@@ -2067,6 +2533,10 @@ static void step(void)
         if (state == ST_SESSION) {
             if (port) while ((m = (struct JHMessage *)GetMsg(port))) {
                 xim_command(m);
+                pump();
+            }
+            if (aport) while ((rm = (struct RexxMsg *)GetMsg(aport))) {
+                if (S.aim.on) aim_command(rm); else aim_zombie(rm);
                 pump();
             }
             session_service();
@@ -2111,6 +2581,7 @@ int main(int argc, char **argv)
     for (;;) {
         ULONG sigs = rx.sigmask | timer_sigmask() | SIGBREAKF_CTRL_C, got;
         if (port) sigs |= 1UL << port->mp_SigBit;
+        if (aport) sigs |= 1UL << aport->mp_SigBit;
         if (LN.busy && LN.donesig >= 0) sigs |= 1UL << LN.donesig;
         if (extsig >= 0) sigs |= 1UL << extsig;
         if (hport) sigs |= (1UL << hport->mp_SigBit) | wait_sigmask();
