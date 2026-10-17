@@ -215,7 +215,7 @@ XDFTOOL=~/amitools-venv/bin/xdftool misc/amiga_door/image/make_image.sh \
 
 - **Where the script goes.** Anywhere on the image: a script finds its data through its own paths (KickBoxing uses `doors:Kickboxing/...`; `DOORS:` is `BBS:Doors`), and `door` names the script.
 - **Hangups and time.** When the caller hangs up, runs out of time or leaves the door waiting for a key longer than `inputTimeoutSeconds`, every command the script sends fails with return code 10, as under AmiExpress. Scripts written for /X take that as the cue to save and stop (many set `SIGNAL ON ERROR`); one that carries on gets a Ctrl-C, which stops an ARexx script.
-- **Libraries.** A script that `ADDLIB`s a library not on the Workbench disk (The Death Game wants `rexxarplib.library` for its daily reset) needs it in the image's `Libs/`.
+- **Libraries.** A script that `ADDLIB`s a library not on the Workbench disk needs it, and whatever that library opens, in the image's `Libs/`. The Death Game plays without `rexxarplib.library` until its once-a-day reset, which needs rexxarplib together with `screenshare.library`, `diskfont.library` and ARP's `arp.library`.
 - **What a script changes in the user record** (`PUTUSER`, for example The Death Game's upload credits) lasts for the session only; ENiGMA½'s user record is not changed.
 - **Errors.** An ARexx error in the script (`+++ Error 41 in line 51: Invalid expression`) is logged with the door's exit. Without ARexx on the image, the session ends at once and the log says `no rexxsyslib`.
 

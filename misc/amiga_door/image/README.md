@@ -125,7 +125,9 @@ ARexx runs on both.
 Put the script where its documentation says, or anywhere: its own data paths
 (`doors:Kickboxing/...`) are what matter, and the door config names the script
 (`door: BBS:Doors/Kickboxing/KickBox.Rexx`). Scripts that `ADDLIB` a third-party
-library (The Death Game: `rexxarplib.library`) need it in `Libs/` too.
+library need it in `Libs/` too, with the libraries it opens (The Death Game's
+daily reset: `rexxarplib.library`, `screenshare.library`, `diskfont.library` and
+`arp.library`).
 
 Without `-w`, `doorType: aim` sessions end at once with
 `error=no rexxsyslib` (the ENiGMA log says so); XIM and CLI doors are not affected.
