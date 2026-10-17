@@ -389,6 +389,26 @@ describe('amiga_door config', () => {
         assert.ok(problemsOf({ mainline: 'G\nX' }).some(p => p.includes('"mainline"')));
     });
 
+    it('warns about keys nothing reads, with a likely meaning', () => {
+        const { problems, warnings } = normalizeConfig(
+            Object.assign({}, BASE, {
+                persistOnn: ['ok', 'carrier'],
+                nodemax: 2,
+                frobnicate: true,
+                _comment: 'ignored',
+                cls: true, //  MenuModule's
+                menuFlags: [],
+            })
+        );
+        assert.deepEqual(problems, []);
+        assert.deepEqual(warnings, [
+            'unknown key "persistOnn"; did you mean "persistOn"?',
+            'unknown key "nodemax"; did you mean "nodeMax"?',
+            'unknown key "frobnicate"',
+        ]);
+        assert.deepEqual(normalizeConfig(BASE).warnings, []);
+    });
+
     it('reports every problem at once', () => {
         const { problems } = normalizeConfig(
             Object.assign({}, BASE, { cpu: 'z80', fastKb: 9999, crlf: 'yes' })

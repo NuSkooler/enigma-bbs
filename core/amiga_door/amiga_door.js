@@ -170,6 +170,58 @@ const PlaceholderWidths = { node: 5, level: 5, timeleft: 3, name: 10 };
 const CHIP_KB = [256, 512, 1024, 2048];
 const EXIT_STATUSES = ['ok', 'carrier', 'timeout', 'break', 'error'];
 
+//  Every key this module reads from its config block (see the header)...
+const ConfigKeys = [
+    'name',
+    'image',
+    'door',
+    'doorType',
+    'consoleMode',
+    'doorDir',
+    'doorStack',
+    'doorArgs',
+    'mainline',
+    'rom',
+    'extRom',
+    'cpu',
+    'chipKb',
+    'slowKb',
+    'fastKb',
+    'overclock',
+    'nodeMax',
+    'sharedState',
+    'tooManyArt',
+    'minTimeLeftMinutes',
+    'notEnoughTimeArt',
+    'encoding',
+    'amigaConsole',
+    'font',
+    'persist',
+    'persistOn',
+    'log',
+    'warpBootSeconds',
+    'regTimeoutSeconds',
+    'disconnectGraceSeconds',
+    'inputTimeoutSeconds',
+    'crlf',
+    'timezoneMinutes',
+];
+//  ...and the ones MenuModule reads from any menu's config block
+const MenuConfigKeys = [
+    'cls',
+    'interrupt',
+    'menuFlags',
+    'art',
+    'encodedAs',
+    'nextTimeout',
+    'pause',
+    'pausePosition',
+    'pausePrompt',
+    'dateFormat',
+    'dateTimeFormat',
+    'timeFormat',
+];
+
 const Defaults = {
     doorType: 'xim',
     consoleMode: 'cooked',
@@ -250,13 +302,32 @@ function isLatin1(encoding) {
 
 //
 //  Validate a door's config block and fill in defaults. Returns
-//  { config, problems }: |problems| lists everything wrong (empty when the
-//  config is usable), so a sysop sees every mistake in one log line.
+//  { config, problems, warnings }: |problems| lists everything wrong (empty
+//  when the config is usable), so a sysop sees every mistake in one log line;
+//  |warnings| lists keys nothing reads, with a likely meaning when there is
+//  one (a misspelt persistOn is otherwise silently the default).
 //
 function normalizeConfig(raw) {
     const c = Object.assign({}, raw || {});
     const problems = [];
+    const warnings = [];
     const rawCpu = c.cpu;
+
+    const unknown = Object.keys(c).filter(
+        k => !k.startsWith('_') && !ConfigKeys.includes(k) && !MenuConfigKeys.includes(k)
+    );
+    if (unknown.length > 0) {
+        //  late: only needed when there is something to say
+        const { suggestKey } = require('../config/validate.js');
+        for (const key of unknown) {
+            const near = suggestKey(key, ConfigKeys);
+            warnings.push(
+                near
+                    ? `unknown key "${key}"; did you mean "${near}"?`
+                    : `unknown key "${key}"`
+            );
+        }
+    }
 
     const isInt = v => Number.isInteger(v);
     const intIn = (key, min, max, extra) => {
@@ -492,7 +563,7 @@ function normalizeConfig(raw) {
         );
     }
 
-    return { config: c, problems };
+    return { config: c, problems, warnings };
 }
 
 //
@@ -1374,7 +1445,13 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                 },
 
                 function normalize(callback) {
-                    const { config, problems } = normalizeConfig(self.config);
+                    const { config, problems, warnings } = normalizeConfig(self.config);
+                    if (warnings.length > 0) {
+                        self.client.log.warn(
+                            { name: self.config.name, warnings },
+                            `amiga_door "${self.config.name}": ${warnings.join('; ')}`
+                        );
+                    }
                     if (problems.length > 0) {
                         return callback(
                             Errors.Invalid(
