@@ -136,12 +136,14 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 |------|----------|-------------|
 | `name` | Yes | Door name. Used as a key for tracking concurrent sessions. |
 | `image` | Yes | Path to the door's `.hdf` image. |
-| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. For an ARexx door, the script's full path (`BBS:Doors/Kickboxing/KickBox.Rexx`), with no blanks, quotes or shell characters. XIM and CLI door paths may have blanks but none of the shell characters `"` `*` `` ` `` `$` `;` `<` `>` `\|`. At most 199 characters, Latin-1, no control characters. |
-| `doorType` | No | `xim` for an AmiExpress XIM door, `aim` for an /X [ARexx door](#arexx-doors), `cli` for a [CLI door](#cli-doors). Default: `xim`. |
+| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. For an ARexx door, the script's full path (`BBS:Doors/Kickboxing/KickBox.Rexx`), with no blanks, quotes or shell characters. XIM, Paragon and CLI door paths may have blanks but none of the shell characters `"` `*` `` ` `` `$` `;` `<` `>` `\|`. At most 199 characters, Latin-1, no control characters. |
+| `doorType` | No | `xim` for an AmiExpress XIM door, `aim` for an /X [ARexx door](#arexx-doors), `tim` for a [Paragon door](#paragon-doors) (Paragon, StarNet, MAX's BBS; /X's `TYPE=TIM`), `cli` for a [CLI door](#cli-doors). Default: `xim`. |
 | `consoleMode` | No | CLI doors only: `cooked` (line input with echo, like an Amiga Shell window) or `raw` (each key as typed) until the door picks a mode itself. Default: `cooked`. |
 | `doorDir` | No | The door's current directory. Default: the door's own directory. |
-| `doorArgs` | No | XIM and ARexx doors: extra arguments after the node number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). The arguments may be at most 199 characters and the whole command line (door path, node number, arguments) 299, with placeholders counted at their widest; a longer setting is refused. |
+| `doorArgs` | No | XIM and ARexx doors: extra arguments after the node number; Paragon doors: after the line number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). The arguments may be at most 199 characters and the whole command line (door path, node number, arguments) 299, with placeholders counted at their widest; a longer setting is refused. |
 | `doorStack` | No | Door stack size in bytes, 4096 to 1048576. Default: `32768`. |
+| `assigns` | No | Assigns the door's installation asks for, as `{ NAME: 'PATH' }` (for example `{ MSE: 'BBS:Doors/MSE' }`), made for each session before the door's path is checked. Names are 1 to 30 letters, digits, `_`, `.` or `-`; paths are Amiga paths on the image, without `;`. A path that is not on the image ends the session with an error. Any door type. |
+| `env` | No | Environment variables the door reads from `ENV:`, as `{ NAME: 'value' }` (an empty value is allowed), set for each session; `ENV:` is made in `RAM:` when the image has none. Any door type. `assigns` and `env` each take at most 199 characters in all (`NAME=value` pairs joined with `;`). |
 | `mainline` | No | The /X command line the caller "typed". Some doors parse it. Default: empty. |
 | `rom` | No | Path to a Kickstart ROM. Default: the bundled AROS ROM. |
 | `extRom` | No | Path to an extension ROM. Default: the bundled AROS extension with the bundled ROM, none with your own `rom`. |
@@ -160,9 +162,9 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `font` | No | SyncTERM font for the door's duration: a font name or alias, or `none` to leave the caller's font alone. Default: `topaz`. |
 | `persist` | No | Write the door's disk changes back to the image. Default: `true`. |
 | `persistOn` | No | The exit statuses after which to persist: any of `ok`, `carrier`, `timeout`, `break`, `error`. Default: `['ok', 'carrier']` for `xim` doors, `['ok']` for `cli` and `aim` doors; a list you give always wins. `carrier`, `timeout` and `break` persist only if the door ended by itself (see [Persistence](#persistence)). |
-| `log` | No | XIM and ARexx doors: log every request the door makes at debug level. Default: `false`. |
+| `log` | No | XIM, ARexx and Paragon doors: log every request the door makes at debug level. Default: `false`. |
 | `warpBootSeconds` | No | How long the first boot runs flat out, 0 to 3600. Default: `30`. |
-| `regTimeoutSeconds` | No | XIM doors: the door must register with the shim within this many seconds, 0 to 86400; `0` waits for ever. Default: `30`. |
+| `regTimeoutSeconds` | No | XIM doors: the door must register with the shim within this many seconds (Paragon doors: send their first request), 0 to 86400; `0` waits for ever. Default: `30`. |
 | `disconnectGraceSeconds` | No | After a hangup, time-up or break, how long ENiGMA½ waits for the door to finish and the shim to report its exit, 1 to 3600. The shim itself gives a door 30 seconds and then reports it gone, so keep this above 30. With no report in time nothing is saved. Default: `35`. |
 | `inputTimeoutSeconds` | No | A door waiting this long for a key gives up, 1 to 86400. Default: `users.idleLogoutSeconds`, or the shim's 300 seconds. |
 | `crlf` | No | A line feed in the door's output goes out as CR LF, as /X does. Default: `true`. |

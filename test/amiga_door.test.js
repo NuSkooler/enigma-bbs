@@ -305,6 +305,64 @@ describe('amiga_door config', () => {
         );
     });
 
+    it('takes doorType tim (Paragon) with the door path quoted, as XIM', () => {
+        const c = config({ doorType: 'tim', door: 'BBS:Doors/MSE/MSE' });
+        assert.equal(c.doorType, 'tim');
+        assert.deepEqual(
+            problemsOf({ doorType: 'tim', door: 'BBS:Doors/Land of VEX/x' }),
+            []
+        );
+        for (const door of ['BBS:Doors/"x"', 'BBS:Doors/x;y', 'BBS:Doors/`x`']) {
+            assert.ok(
+                problemsOf({ doorType: 'tim', door }).some(p =>
+                    p.includes('shell characters')
+                ),
+                `no problem reported for ${door}`
+            );
+        }
+        assert.ok(
+            problemsOf({ doorType: 'tim', consoleMode: 'raw' }).some(p =>
+                p.includes('doorType "cli" only')
+            )
+        );
+    });
+
+    it('takes assigns and env as NAME: value objects the shim can hold', () => {
+        const { problems, warnings } = normalizeConfig(
+            Object.assign({}, BASE, {
+                doorType: 'tim',
+                assigns: { 'MSE:': 'BBS:Doors/MSE', T: 'RAM:' },
+                env: { MSE: '', 'Opts.1': 'FAST TIME' },
+            })
+        );
+        assert.deepEqual(problems, []);
+        assert.deepEqual(warnings, [], 'assigns and env are known keys');
+        //  any door type may use them
+        assert.deepEqual(problemsOf({ assigns: { MSE: 'BBS:Doors/MSE' } }), []);
+
+        const bad = [
+            [{ assigns: 'MSE=BBS:Doors/MSE' }, '"assigns" must be an object'],
+            [{ env: ['MSE'] }, '"env" must be an object'],
+            [{ assigns: { 'M S': 'BBS:' } }, 'name "M S"'],
+            [{ assigns: { 'a/b': 'BBS:' } }, 'name "a/b"'],
+            [{ env: { 'X:': 'y' } }, 'name "X:"'],
+            [{ env: { 'A=B': 'y' } }, 'name "A=B"'],
+            [{ assigns: { MSE: '' } }, '"assigns.MSE" must be an Amiga path'],
+            [{ assigns: { MSE: 'BBS:a;b' } }, '"assigns.MSE"'],
+            [{ env: { MSE: 'x\ny' } }, '"env.MSE"'],
+            [{ env: { MSE: 'x\x07' } }, '"env.MSE"'],
+            [{ env: { MSE: 7 } }, '"env.MSE"'],
+            [{ env: { MSE: '雪' } }, '"env.MSE"'],
+            [{ env: { A: 'x'.repeat(200) } }, 'the shim takes 199'],
+        ];
+        for (const [extra, want] of bad) {
+            assert.ok(
+                problemsOf(extra).some(p => p.includes(want)),
+                `${JSON.stringify(extra)}: ${problemsOf(extra)}`
+            );
+        }
+    });
+
     it('knows the doorArgs placeholders', () => {
         assert.deepEqual(
             problemsOf({
@@ -1670,6 +1728,44 @@ describe('amiga_door session keys', () => {
         const payload = protocol.parseKeys(protocol.encode('s', keys).subarray(4));
         assert.equal(payload.type, 'aim');
         assert.ok(!('console' in payload));
+    });
+
+    it('a Paragon door gets type=tim, the user block, args after the line, assign and env', () => {
+        const keys = buildSessionKeys(
+            stubClient(),
+            config({
+                doorType: 'tim',
+                door: 'BBS:Doors/MSE/MSE',
+                doorArgs: '{level}',
+                assigns: { 'MSE:': 'BBS:Doors/MSE', T: 'RAM:' },
+                env: { MSE: '', OPTS: 'FAST TIME' },
+            })
+        );
+        assert.equal(keys.type, 'tim');
+        assert.equal(keys.console, undefined);
+        assert.equal(keys.args, '30');
+        //  the door asks for user numbers and strings, so the block is there
+        assert.equal(keys.name, 'Handle');
+        assert.equal(keys.node, 2); //  the shim takes its last digit
+        assert.equal(keys.assign, 'MSE=BBS:Doors/MSE;T=RAM:');
+        assert.equal(keys.env, 'MSE=;OPTS=FAST TIME');
+        const payload = protocol.parseKeys(protocol.encode('s', keys).subarray(4));
+        assert.equal(payload.type, 'tim');
+        assert.equal(payload.assign, 'MSE=BBS:Doors/MSE;T=RAM:');
+        assert.equal(payload.env, 'MSE=;OPTS=FAST TIME');
+
+        //  without them, no keys at all (the shim then changes nothing)
+        const plain = buildSessionKeys(stubClient(), config({ doorType: 'tim' }));
+        assert.equal(plain.assign, undefined);
+        assert.equal(plain.env, undefined);
+        const text = protocol.encode('s', plain).toString('latin1');
+        assert.ok(!text.includes('assign=') && !text.includes('env='));
+    });
+
+    it('a Paragon door\'s command line is "door" <one digit>[ args]', () => {
+        const c = config({ doorType: 'tim', door: 'BBS:x' });
+        assert.equal(commandLength(c, '', 12), '"BBS:x" 2'.length);
+        assert.equal(commandLength(c, 'ab', 12345), '"BBS:x" 5 ab'.length);
     });
 
     it('a CLI door defaults to the cooked console', () => {
