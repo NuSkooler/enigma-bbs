@@ -24,9 +24,11 @@ const {
     quoteArg,
     isLatin1,
     AmigaDoorSession,
-    withImageLock,
+    activeImages,
+    activeDoorInstances,
     MaxDoorMinutes,
 } = _test;
+const AmigaDoorModule = require('../core/amiga_door/amiga_door.js').getModule;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,6 +158,30 @@ function makeSession(extraConfig, options = {}) {
 }
 
 const deliver = (worker, msgs) => msgs.forEach(m => worker.emit('message', m));
+
+//
+//  The menu module with the parts that need a live system stubbed: runDoor()
+//  (the emulator), pausePrompt() and prevMenu(). |outcome| settles with 'ran'
+//  or 'refused' when initSequence() is through.
+//
+function makeModule(extraConfig, client = fakeClient()) {
+    client.menuStack = { prev: () => {} };
+    const m = new AmigaDoorModule({
+        menuConfig: { config: Object.assign({}, BASE, extraConfig) },
+        client,
+    });
+    m.outcome = new Promise(resolve => {
+        m.runDoor = () => resolve('ran');
+        m.prevMenu = () => resolve('refused');
+    });
+    m.pausePrompt = (position, cb) => (cb || position)();
+    return m;
+}
+
+const startModule = m => {
+    m.initSequence();
+    return m.outcome;
+};
 
 // ─── config ───────────────────────────────────────────────────────────────────
 
@@ -597,17 +623,6 @@ describe('amiga_door persist decision', () => {
         assert.equal(shouldPersist(c, 'carrier'), true);
         assert.equal(shouldPersist(c, 'timeout'), false);
     });
-
-    it('serialises work on one image', async () => {
-        const order = [];
-        const slow = withImageLock('/doors/x.hdf', async () => {
-            await new Promise(r => setTimeout(r, 20));
-            order.push('first');
-        });
-        const fast = withImageLock('/doors/./x.hdf', async () => order.push('second'));
-        await Promise.all([slow, fast]);
-        assert.deepEqual(order, ['first', 'second']);
-    });
 });
 
 // ─── session (frame handling) ─────────────────────────────────────────────────
@@ -945,6 +960,117 @@ describe('amiga_door session', () => {
 function Events() {
     return require('../core/events.js');
 }
+
+// ─── one persisting session per image ─────────────────────────────────────────
+
+describe('amiga_door image lock', () => {
+    let dir;
+    let image;
+
+    beforeEach(() => {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amiga_door_lock_'));
+        image = path.join(dir, 'door.hdf');
+        fs.writeFileSync(image, Buffer.alloc(16));
+    });
+
+    afterEach(() => {
+        activeImages.clear();
+        for (const k of Object.keys(activeDoorInstances)) {
+            delete activeDoorInstances[k];
+        }
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('refuses a second persisting session on the same image, of any door', async () => {
+        const first = makeModule({ image });
+        assert.equal(await startModule(first), 'ran');
+
+        const same = makeModule({ image });
+        assert.equal(await startModule(same), 'refused');
+        assert.match(same.client.term.written.join(''), /Too many active instances/);
+
+        //  another door, the same file by another name
+        const other = makeModule({
+            name: 'OtherDoor',
+            image: path.join(dir, '.', 'door.hdf'),
+        });
+        assert.equal(await startModule(other), 'refused');
+        assert.equal(activeDoorInstances.OtherDoor || 0, 0, 'no slot kept');
+
+        //  a door that never persists is not held up
+        const readOnly = makeModule({ name: 'Viewer', image, persist: false });
+        assert.equal(await startModule(readOnly), 'ran');
+    });
+
+    it('follows a symlink to the image', async () => {
+        const link = path.join(dir, 'link.hdf');
+        fs.symlinkSync(image, link);
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+        assert.equal(
+            await startModule(makeModule({ name: 'B', image: link })),
+            'refused'
+        );
+    });
+
+    it('lets separate images run side by side', async () => {
+        const second = path.join(dir, 'other.hdf');
+        fs.writeFileSync(second, Buffer.alloc(16));
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+        assert.equal(await startModule(makeModule({ image: second })), 'ran');
+    });
+
+    it('shows tooManyArt for a busy image as for nodeMax', async () => {
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+        const m = makeModule({ image, tooManyArt: 'DOORMANY' });
+        const theme = require('../core/theme.js');
+        const saved = theme.displayThemeArt;
+        let shown;
+        theme.displayThemeArt = (opts, cb) => {
+            shown = opts.name;
+            cb();
+        };
+        try {
+            assert.equal(await startModule(m), 'refused');
+        } finally {
+            theme.displayThemeArt = saved;
+        }
+        assert.equal(shown, 'DOORMANY');
+    });
+
+    it('holds the slot and the image until the session is over, not until leave()', async () => {
+        const m = makeModule({ image });
+        assert.equal(await startModule(m), 'ran');
+        const s = makeSession({ image }, { client: m.client });
+        m._attachSession(s.session, null);
+        const closed = new Promise(r => s.session.once('closed', r));
+        m.autoNextMenu = () => {};
+
+        m.leave(); //  the caller hung up: d goes out, the door is still running
+        assert.deepEqual(s.worker.frames('d'), [
+            { type: 'd', keys: { reason: 'hangup' } },
+        ]);
+        assert.equal(activeDoorInstances[BASE.name], 1);
+        assert.equal(await startModule(makeModule({ image })), 'refused');
+
+        deliver(s.worker, [
+            { type: 'exit', status: 'carrier', keys: { status: 'carrier' } },
+        ]);
+        await s.done;
+        assert.equal(activeDoorInstances[BASE.name], 0, 'slot freed on done');
+        await closed;
+        assert.equal(activeImages.size, 0, 'image freed once the worker is gone');
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+    });
+
+    it('leave() before any session frees both at once', async () => {
+        const m = makeModule({ image });
+        assert.equal(await startModule(m), 'ran');
+        assert.equal(activeDoorInstances[BASE.name], 1);
+        m.leave();
+        assert.equal(activeDoorInstances[BASE.name], 0);
+        assert.equal(activeImages.size, 0);
+    });
+});
 
 // ─── user block ───────────────────────────────────────────────────────────────
 

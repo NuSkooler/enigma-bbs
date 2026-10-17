@@ -18,7 +18,7 @@ ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keybo
 
 ### How It Works
 
-1. A caller picks the menu entry. ENiGMA½ checks `nodeMax` and the caller's time left.
+1. A caller picks the menu entry. ENiGMA½ checks `nodeMax`, that no other session is using the door's image (for a door that saves its changes), and the caller's time left.
 2. The first session for a door image boots the emulator (at warp speed, about 0.4 seconds), waits for the shim to say it is ready, and keeps a snapshot of the booted machine in memory. Later sessions restore that snapshot in about 50 ms.
 3. ENiGMA½ hands the shim the user block (name, location, security level, time left, terminal size, and so on) and the door to run. This takes the place of a drop file.
 4. The door runs. Its output goes to the caller, and the caller's keys go to the door.
@@ -149,8 +149,8 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `fastKb` | No | Fast RAM, 0 to 8192 in steps of 64. Default: `8192`. The core supports at most 8 MB. |
 | `overclock` | No | CPU speed multiplier, 1 to 16. Default: `1`. |
 | `nodeMax` | No | Maximum concurrent sessions. `0` is unlimited. Default: `0`, or `1` when `sharedState` is true and `nodeMax` is not set. |
-| `sharedState` | No | The door writes state all callers share (high scores, a wall). Default: `false`. See [Persistence](#persistence). |
-| `tooManyArt` | No | Art spec shown when `nodeMax` is reached. |
+| `sharedState` | No | The door writes state all callers share (high scores, a wall): sets `nodeMax` to 1 when `nodeMax` is not set. A door that persists already runs one caller at a time per image. Default: `false`. See [Persistence](#persistence). |
+| `tooManyArt` | No | Art spec shown when `nodeMax` is reached or the door's image is in use by another session. |
 | `minTimeLeftMinutes` | No | Refuse to start if the caller has less time than this left today. |
 | `notEnoughTimeArt` | No | Art spec shown when `minTimeLeftMinutes` refuses. |
 | `encoding` | No | Encoding of the door's output. Default: `latin1`. Any encoding `iconv-lite` knows. |
@@ -315,9 +315,9 @@ The door's disk is the image file, and each session works on a copy of it. A doo
 - **When the disk changed**, the cached snapshots of that image are dropped, since they hold the old disk. The next session boots and caches a fresh one.
 - `persist: false` makes every session start from the image as it is, whatever the door writes.
 
-Because sessions are independent copies, two callers running a door at the same time cannot see each other's writes, and the second to finish would overwrite the first. A door with state all callers share wants `sharedState: true`, which allows one caller at a time unless you set `nodeMax` yourself. A door that keeps no shared state, a game of solitaire for example, can run on several nodes.
+Because sessions are independent copies, two callers on one image could not see each other's writes, and each would write back the disk blocks it changed over the other's (directory and allocation blocks among them). So a door that persists (the default) holds its image for the whole session: while one caller is in it, anyone who picks a door on the same image, this door or another, is told it is busy (`tooManyArt`, or "Too many active instances"), just as `nodeMax` refuses. The image is released once the door has exited and its changes are written. ENiGMA½ also checks, before writing, that the image file is still the one the session started from; if something else changed it meanwhile (a sysop's `xdftool`, a copy put in place), the session's changes are not written and the log says `NOT persisted`.
 
-Give each door that keeps shared state its own image. Two such doors on one image can run at the same moment under their own `nodeMax` limits, and each session then writes back the disk blocks it changed; where those blocks overlap, directory and allocation blocks among them, the session that finishes second undoes the first one's changes. One image per shared-state door avoids that entirely. Single-player doors with no shared files can share an image freely.
+Sharing an image therefore serialises callers: all the persisting doors on one image run one caller at a time between them. Give doors their own images when you want them to run side by side; separate images run in parallel. A door that keeps nothing between sessions (a single-player game with no saved files) can set `persist: false`: it then never holds its image and runs on as many nodes as `nodeMax` allows, every session starting from the image as it is.
 
 ---
 
@@ -364,7 +364,9 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 
 **The first caller waits a moment, later ones do not.** The first session boots the machine; the others restore a snapshot. A restart of ENiGMA½ empties the cache.
 
-**A door's changes vanish.** The session did not end cleanly (see `persistOn`), `persist` is `false`, or two callers ran the door at once. Set `sharedState: true`.
+**A door's changes vanish.** The session did not end cleanly (see `persistOn`), `persist` is `false`, or the image file was changed by something else while the door ran (the log says `NOT persisted`).
+
+**"Too many active instances" with nobody in the door.** Another door on the same image is in use: a door that persists holds its image for the whole session. Give the doors separate images to run them at the same time.
 
 **The door's screen looks wrong.** Try `font: none` for callers without SyncTERM fonts, or set `encoding` if the door writes something other than Latin-1.
 

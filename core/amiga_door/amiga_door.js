@@ -32,10 +32,12 @@
  *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.
- * Persistence is "Model A": after a clean door exit the image file gets the
- * disk chunks the session changed and the door's snapshots are dropped.
- * Sessions are independent copies of the disk, so a door that writes shared
- * state (high scores, a wall) must run one node at a time: set |sharedState|.
+ * Persistence is "Model A": after a clean door exit the disk chunks the
+ * session changed are written into a copy of the image, which is renamed over
+ * it, and the door's snapshots are dropped. Sessions are independent copies of
+ * the disk, so a persisting session holds its image (activeImages): a second
+ * persisting session on the same image, of any door, is refused as nodeMax
+ * refuses.
  *
  * Config (menu.hjson):
  *   module: amiga_door
@@ -65,10 +67,11 @@
  *     slowKb:             number   - 0..1536, multiple of 256 (default: 512)
  *     fastKb:             number   - 0..8192, multiple of 64 (default: 8192)
  *     overclock:          number   - 1..16 (default: 1)
- *     nodeMax:            number   - max concurrent sessions, 0 = unlimited (default: 0)
+ *     nodeMax:            number   - max concurrent sessions, 0 = unlimited (default: 0);
+ *                                    a persisting door is also one session per image
  *     sharedState:        boolean  - the door writes state all callers share; makes
  *                                    nodeMax 1 when nodeMax is not set (default: false)
- *     tooManyArt:         string   - art shown when nodeMax is reached
+ *     tooManyArt:         string   - art shown when nodeMax is reached or the image is busy
  *     minTimeLeftMinutes: number   - refuse to start with less time left today
  *     notEnoughTimeArt:   string   - art shown when minTimeLeftMinutes refuses
  *     encoding:           string   - door output encoding (default: latin1)
@@ -172,8 +175,14 @@ const activeDoorInstances = {};
 //  Booted-machine snapshots shared by every session in this process
 const snapshotCache = new SnapshotCache();
 
-//  One persist at a time per image file: image path -> promise chain
-const imageLocks = new Map();
+//
+//  Images held by a persisting session: real path -> { name, node }. A
+//  session that persists writes back the chunks that differ from the disk it
+//  started with; two of them on one image would each undo the other's
+//  directory and allocation blocks. So while one runs, every other persisting
+//  session on that image -- of any door -- is refused.
+//
+const activeImages = new Map();
 
 //  enigma-vamiga's compiled WebAssembly module, compiled once per process
 let compiledModulePromise = null;
@@ -190,18 +199,12 @@ function getCompiledModule() {
     return compiledModulePromise;
 }
 
-function withImageLock(image, fn) {
-    const key = paths.resolve(image);
-    const prev = imageLocks.get(key) || Promise.resolve();
-    const next = prev.then(fn, fn);
-    const tail = next.catch(() => {});
-    imageLocks.set(key, tail);
-    tail.then(() => {
-        if (imageLocks.get(key) === tail) {
-            imageLocks.delete(key);
-        }
-    });
-    return next;
+function imageKey(image) {
+    try {
+        return fs.realpathSync(image);
+    } catch (e) {
+        return paths.resolve(image);
+    }
 }
 
 function snapshotCacheEntries() {
@@ -815,18 +818,7 @@ class AmigaDoorSession extends EventEmitter {
             return this.finish({ status, keys: msg.keys, persisted: false });
         }
 
-        withImageLock(
-            this.config.image,
-            () =>
-                new Promise(resolve => {
-                    //  queued behind another session's persist and gone since
-                    if (this.finished) {
-                        return resolve();
-                    }
-                    this.persistResolve = resolve;
-                    this.startPersist(status, msg.keys);
-                })
-        );
+        this.startPersist(status, msg.keys);
     }
 
     //
@@ -863,10 +855,6 @@ class AmigaDoorSession extends EventEmitter {
 
     persistSettled() {
         this.persisting = false;
-        if (this.persistResolve) {
-            this.persistResolve();
-            this.persistResolve = null;
-        }
     }
 
     onPersisted(msg) {
@@ -1277,21 +1265,20 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                             { name, activeCount: activeDoorInstances[name] },
                             `Too many active instances of door "${name}"`
                         );
+                        return self._refuseBusy(callback);
+                    }
 
-                        const denied = () =>
-                            callback(Errors.AccessDenied('Too many active instances'));
-
-                        if (_.isString(self.config.tooManyArt)) {
-                            return theme.displayThemeArt(
-                                { client: self.client, name: self.config.tooManyArt },
-                                () => self.pausePrompt(denied)
-                            );
-                        }
-
-                        self.client.term.write(
-                            '\nToo many active instances. Try again later.\n'
+                    //  checked and taken in one step: nothing runs in between
+                    if (!self._holdImage()) {
+                        self.client.log.info(
+                            {
+                                name,
+                                image: self.config.image,
+                                heldBy: activeImages.get(imageKey(self.config.image)),
+                            },
+                            `Amiga door image is in use by another session; refusing door "${name}"`
                         );
-                        return self.pausePrompt(denied);
+                        return self._refuseBusy(callback);
                     }
 
                     self._incrementInstances();
@@ -1335,6 +1322,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     );
                     self.lastError = err;
                     self._decrementInstances();
+                    self._releaseImage();
                     return self.prevMenu();
                 }
                 return self.finishedLoading();
@@ -1344,6 +1332,44 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
 
     finishedLoading() {
         this.runDoor();
+    }
+
+    //  nodeMax reached, or the image busy: the same answer either way
+    _refuseBusy(callback) {
+        const denied = () => callback(Errors.AccessDenied('Too many active instances'));
+
+        if (_.isString(this.config.tooManyArt)) {
+            return theme.displayThemeArt(
+                { client: this.client, name: this.config.tooManyArt },
+                () => this.pausePrompt(denied)
+            );
+        }
+
+        this.client.term.write('\nToo many active instances. Try again later.\n');
+        return this.pausePrompt(denied);
+    }
+
+    //  A persisting door holds its image for the session (see activeImages).
+    //  Returns false when another session holds it.
+    _holdImage() {
+        if (!this.config.persist) {
+            return true;
+        }
+        const key = imageKey(this.config.image);
+        if (activeImages.has(key)) {
+            return false;
+        }
+        this._imageHold = { name: this.config.name, node: this.client.node };
+        this._imageKey = key;
+        activeImages.set(key, this._imageHold);
+        return true;
+    }
+
+    _releaseImage() {
+        if (this._imageHold && activeImages.get(this._imageKey) === this._imageHold) {
+            activeImages.delete(this._imageKey);
+        }
+        this._imageHold = null;
     }
 
     runDoor() {
@@ -1401,21 +1427,18 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
 
                 this._switchFont();
 
-                this.session = new AmigaDoorSession({
-                    client: this.client,
-                    config,
-                    worker,
-                    cacheKey,
-                    cache: snapshotCache,
-                    sessionKeys,
-                    rawOutput: this.fontSwitched && this._rawOutputOk(),
-                });
-
-                this.session.once('firstOutput', () => this._stopSpinner(true));
-                this.session.once('done', result => {
-                    this.session = null;
-                    this._doorFinished(doorTracking, result);
-                });
+                this._attachSession(
+                    new AmigaDoorSession({
+                        client: this.client,
+                        config,
+                        worker,
+                        cacheKey,
+                        cache: snapshotCache,
+                        sessionKeys,
+                        rawOutput: this.fontSwitched && this._rawOutputOk(),
+                    }),
+                    doorTracking
+                );
 
                 this.client.log.info(
                     {
@@ -1436,6 +1459,19 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     code: err.code,
                 });
             });
+    }
+
+    _attachSession(session, doorTracking) {
+        this.sessionStarted = true;
+        this.session = session;
+        session.once('firstOutput', () => this._stopSpinner(true));
+        //  the caller's slot is free once the session is over; the image
+        //  once the worker has stopped writing it
+        session.once('done', result => {
+            this.session = null;
+            this._doorFinished(doorTracking, result);
+        });
+        session.once('closed', () => this._releaseImage());
     }
 
     //  Topaz (or the configured font) for the door's duration, when the
@@ -1504,6 +1540,9 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         this._stopSpinner(false);
         trackDoorRunEnd(doorTracking);
         this._decrementInstances();
+        if (!this.sessionStarted) {
+            this._releaseImage(); //  no worker ever had it
+        }
 
         if (result.error) {
             this.client.log.warn(
@@ -1548,9 +1587,15 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         this.left = true;
         this._stopSpinner(false);
         if (this.session) {
+            //  the slot and the image are freed when the session is over
+            //  (done, closed), not now: the worker still runs until X
             this.session.disconnect(this.client.timeUpEmitted ? 'timeup' : 'hangup');
+            return;
         }
-        this._decrementInstances();
+        if (!this.sessionStarted) {
+            this._decrementInstances();
+            this._releaseImage();
+        }
     }
 
     _incrementInstances() {
@@ -1578,7 +1623,9 @@ exports._test = {
     isLatin1,
     AmigaDoorSession,
     snapshotCache,
-    withImageLock,
+    activeImages,
+    activeDoorInstances,
+    imageKey,
     Defaults,
     MaxDoorMinutes,
 };

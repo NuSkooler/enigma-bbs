@@ -193,9 +193,10 @@
         //
         //  Each session restores a snapshot of the booted machine, so starting
         //  is fast after the first caller. Writes the door makes are saved to
-        //  the image after a clean exit. A door that keeps state all callers
-        //  share (high scores, a wall) should set sharedState: true, which
-        //  allows one caller at a time unless nodeMax says otherwise.
+        //  the image after a clean exit, and while a door that saves is in use
+        //  its image is held: other doors on the same image wait their turn
+        //  (callers see tooManyArt). Give doors their own images to run them
+        //  side by side.
         //
         //  See doors/amiga.md for full setup instructions.
         //
