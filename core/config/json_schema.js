@@ -149,7 +149,9 @@ function describedFrom(node) {
 function scalarSchema(node) {
     const out = describedFrom(node);
 
-    out.type = true === node.nullable ? [node.type, 'null'] : node.type;
+    //  meta's |integer| narrows a number to JSON Schema's integer
+    const type = true === node.integer && NodeType.Number === node.type ? 'integer' : node.type;
+    out.type = true === node.nullable ? [type, 'null'] : type;
 
     if (node.enum) {
         out.enum = true === node.nullable ? [...node.enum, null] : [...node.enum];
