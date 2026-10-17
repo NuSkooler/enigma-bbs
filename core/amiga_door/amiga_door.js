@@ -1740,6 +1740,12 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
     //  there is a terminal to write to: at the door's end, or from leave()
     //  when time-up or a menu change takes the caller elsewhere first.
     //
+    //  Deliberately not from a 'time up' listener of our own: when the theme
+    //  has no timeUpLogoff art, login_server_module.js writes a goodbye and
+    //  ends the client at once, and a TelnetSocket drops a write still queued
+    //  behind another when the socket ends -- writing first would cost the
+    //  caller the goodbye. That caller is being hung up; the font is moot.
+    //
     _restoreScreen() {
         if (this.screenRestored || !this.sessionStarted || !this.client.term.output) {
             return;
