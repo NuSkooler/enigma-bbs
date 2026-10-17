@@ -1,6 +1,6 @@
 ---
 title: Amiga Doors
-description: "Run AmiExpress (/X) XIM doors and AmigaDOS CLI doors in the built-in vAmiga emulator, with no external emulator on the server."
+description: "Run AmiExpress (/X) XIM doors, /X ARexx doors and AmigaDOS CLI doors in the built-in vAmiga emulator, with no external emulator on the server."
 sidebar:
     order: 3
 ---
@@ -12,7 +12,7 @@ ENiGMA½ can run Amiga BBS doors written for [AmiExpress](https://www.aminet.net
 An Amiga door is not a standalone program. An XIM door is a client of a running /X node: it asks the BBS for the user's name, the time left, a key, a line of input, or to print something. ENiGMA½ boots a small host shim (`axshim`) inside the emulated Amiga that impersonates a node for the door and relays everything to ENiGMA½ over the emulated serial port. The shim and its library are in the repository (`misc/amiga_door/`); you only need to put a door on a disk image.
 :::
 
-ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keyboard and write the screen through their standard input and output, the way many Amiga BBS games were written. See [CLI Doors](#cli-doors).
+ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keyboard and write the screen through their standard input and output, the way many Amiga BBS games were written. See [CLI Doors](#cli-doors). And it runs **ARexx doors**, the /X scripts marked `TYPE=AIM`, on an image that carries ARexx from your own Workbench 3.1; see [ARexx Doors](#arexx-doors).
 
 ---
 
@@ -73,7 +73,7 @@ Doors that read files straight from an /X install's own data (`BBS:user.data`, `
 
 #### Finding doors
 
-/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community; the [Up Rough door repository](https://doors.uprough.net) collects thousands of Amiga BBS door archives. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`, and CLI doors (below). It does not run doors written for the message ports of other BBS software (Paragon, CNet, ARexx doors).
+/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community; the [Up Rough door repository](https://doors.uprough.net) collects thousands of Amiga BBS door archives. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`, /X ARexx doors and CLI doors (below). It does not run doors written for the message ports of other BBS software (Paragon, CNet, including CNet's ARexx doors).
 
 ---
 
@@ -85,11 +85,11 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 |------|----------|-------------|
 | `name` | Yes | Door name. Used as a key for tracking concurrent sessions. |
 | `image` | Yes | Path to the door's `.hdf` image. |
-| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. |
-| `doorType` | No | `xim` for an AmiExpress XIM door, `cli` for a [CLI door](#cli-doors). Default: `xim`. |
+| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. For an ARexx door, the script's full path (`BBS:Doors/Kickboxing/KickBox.Rexx`), with no blanks, quotes or shell characters. |
+| `doorType` | No | `xim` for an AmiExpress XIM door, `aim` for an /X [ARexx door](#arexx-doors), `cli` for a [CLI door](#cli-doors). Default: `xim`. |
 | `consoleMode` | No | CLI doors only: `cooked` (line input with echo, like an Amiga Shell window) or `raw` (each key as typed) until the door picks a mode itself. Default: `cooked`. |
 | `doorDir` | No | The door's current directory. Default: the door's own directory. |
-| `doorArgs` | No | XIM doors: extra arguments after the node number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). |
+| `doorArgs` | No | XIM and ARexx doors: extra arguments after the node number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). |
 | `doorStack` | No | Door stack size in bytes, 4096 to 1048576. Default: `32768`. |
 | `mainline` | No | The /X command line the caller "typed". Some doors parse it. Default: empty. |
 | `rom` | No | Path to a Kickstart ROM. Default: the bundled AROS ROM. |
@@ -108,7 +108,7 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `font` | No | SyncTERM font for the door's duration: a font name or alias, or `none` to leave the caller's font alone. Default: `topaz`. |
 | `persist` | No | Write the door's disk changes back to the image. Default: `true`. |
 | `persistOn` | No | The exit statuses after which to persist: any of `ok`, `carrier`, `timeout`, `break`, `error`. Default: `['ok']`. |
-| `log` | No | XIM doors: log every request the door makes at debug level. Default: `false`. |
+| `log` | No | XIM and ARexx doors: log every request the door makes at debug level. Default: `false`. |
 | `warpBootSeconds` | No | How long the first boot runs flat out, 0 to 3600. Default: `30`. |
 | `regTimeoutSeconds` | No | XIM doors: the door must register with the shim within this many seconds, 0 to 86400; `0` waits for ever. Default: `30`. |
 | `inputTimeoutSeconds` | No | A door waiting this long for a key gives up, 1 to 86400. Default: `users.idleLogoutSeconds`, or the shim's 300 seconds. |
@@ -200,6 +200,60 @@ doorGlobalWar: {
 
 Global War 2.19 cannot save on a fresh install: it deletes `GW.dat` before renaming its new save over it, and gives up when there is no `GW.dat` to delete. Give it the empty world it would have written, the text `GLOBAL WAR v2.19 ` (with the trailing space) padded with zero bytes to 68 bytes: `printf 'GLOBAL WAR v2.19 ' > GW.dat && truncate -s 68 GW.dat`, then copy it to `Doors/GlobalWar/GW.dat` in the image.
 
+### ARexx Doors
+
+Many /X doors were written as ARexx scripts. Their command icon says `TYPE=AIM`, and the script starts with `parse arg NODE`, `options results` and `address value "AERexxControl"NODE`. AmiExpress ran them through its REXXDOOR utility; the shim takes REXXDOOR's place: it opens the `AERexxControl<node>` port, runs the script with `RX`, and answers its commands (`GETUSER`, `PUTUSTR`/`PUTUSER`, `TRANSMIT`, `SENDSTRING`, `GETCHAR`, `QUERY`, `SHOWFILE`, `REMOVERESERVED`, `SHUTDOWN` and the rest) from the same user information XIM doors get. Set `doorType: aim` and name the script in `door`.
+
+:::caution[ARexx doors need your own Workbench 3.1]
+AROS has no ARexx. The image must carry ARexx from your own Workbench 3.1 disk: RexxMast, `rexxsyslib.library`, `rexxsupport.library`, the IEEE math libraries ARexx needs, `SYS:Rexxc/RX` and a few C: commands scripts call. `make_image.sh -w` copies them from an ADF of the Workbench 3.1 disk, and the image's `S:Startup-Sequence` starts RexxMast. Those files are licensed with your Workbench: keep the image to your own board. Workbench 3.1's ARexx runs with the bundled AROS ROM, so you do not need a Kickstart ROM as well.
+:::
+
+```sh
+XDFTOOL=~/amitools-venv/bin/xdftool misc/amiga_door/image/make_image.sh \
+    -w ~/amiga/Workbench3.1.adf -s 4M ~/amiga/kickboxing.hdf ~/doors/Kickboxing
+```
+
+- **Where the script goes.** Anywhere on the image: a script finds its data through its own paths (KickBoxing uses `doors:Kickboxing/...`; `DOORS:` is `BBS:Doors`), and `door` names the script.
+- **Hangups and time.** When the caller hangs up, runs out of time or leaves the door waiting for a key longer than `inputTimeoutSeconds`, every command the script sends fails with return code 10, as under AmiExpress. Scripts written for /X take that as the cue to save and stop (many set `SIGNAL ON ERROR`); one that carries on gets a Ctrl-C, which stops an ARexx script.
+- **Libraries.** A script that `ADDLIB`s a library not on the Workbench disk (The Death Game wants `rexxarplib.library` for its daily reset) needs it in the image's `Libs/`.
+- **What a script changes in the user record** (`PUTUSER`, for example The Death Game's upload credits) lasts for the session only; ENiGMA½'s user record is not changed.
+- **Errors.** An ARexx error in the script (`+++ Error 41 in line 51: Invalid expression`) is logged with the door's exit. Without ARexx on the image, the session ends at once and the log says `no rexxsyslib`.
+
+#### Example: KickBoxing and Hacker
+
+KickBoxing 1.0 (187 FAC, 1994; Demozoo) is a boxing and training game with Amiga-scene art; Hacker 5.2c (Up Rough door repository) is a hacker-wars game. Hacker draws with PC characters. For KickBoxing, move `KickBox.Rexx` into the archive's `Kickboxing` directory and give that directory to `make_image.sh` (as above); for Hacker, give it the archive's `hacker` directory.
+
+```hjson
+doorKickBoxing: {
+    desc: Playing KickBoxing
+    module: amiga_door
+    config: {
+        name: KickBoxing
+        image: /home/enigma/amiga/arexx-doors.hdf
+        door: BBS:Doors/Kickboxing/KickBox.Rexx
+        doorType: aim
+        doorStack: 40000
+        sharedState: true
+    }
+}
+doorHacker: {
+    desc: Playing Hacker
+    module: amiga_door
+    config: {
+        name: Hacker
+        image: /home/enigma/amiga/arexx-doors.hdf
+        door: BBS:Doors/hacker/hacker.rexx
+        doorType: aim
+        doorStack: 50000
+        encoding: cp437
+        font: none
+        sharedState: true
+    }
+}
+```
+
+Hacker runs `avail flush` after every command and stops with an error if the image has no `C:Avail`, so build its image with `-w`. Its archive ships the author's own players: leave out `hackerdata/users/*` and `hackerdata/userlist` for a fresh game.
+
 ---
 
 ### Persistence
@@ -231,11 +285,11 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 - **CPU:** the 68000, 68010 and 68EC020 only. There is no 68030, 68040 or 68060, and no FPU.
 - **Memory:** at most 8 MB of fast RAM. The AROS ROM needs at least 1 MB in total (chip plus slow plus fast).
 - **One caller per emulator.** Every session is its own emulated machine, with the memory and CPU that costs. Use `nodeMax` to bound it.
-- **No ARexx.** AROS does not have it, so doors that drive other programs through ARexx will not work with the bundled ROM.
+- **ARexx needs your Workbench.** AROS does not have ARexx; ARexx doors run only on an image built with your own Workbench 3.1 (`make_image.sh -w`).
 - **No transfers from doors.** A door cannot start a ZMODEM (or any other) file transfer to the caller.
 - **No sysop break.** There is no way for the sysop to break into a running door's session from the door.
 - **No `JH_EF` editor.** A door that asks the BBS for its full-screen editor is refused, and the door carries on without it.
-- **XIM and CLI doors only.** Doors written for other BBS software's message ports (Paragon, CNet) and ARexx doors are not supported.
+- **XIM, ARexx and CLI doors only.** Doors written for other BBS software's message ports (Paragon, CNet, CNet's ARexx doors) are not supported.
 - **CLI doors have no window.** A CLI door that asks its console for the window size gets no answer; it should take the screen length from its command line.
 
 ---
@@ -245,6 +299,8 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 **The door never registers.** The shim waited `regTimeoutSeconds` for the door to announce itself and gave up, and the caller was returned to the menu. Turn on `log: true` and read the debug log. Usual causes: the `door` path is wrong (it must be a path inside the image, written with `BBS:`), the door needs a file or library that is not on the image (it will fail quietly before it reaches the shim), or the door is not an XIM door.
 
 **A CLI door ends at once, with no output.** It could not start or quit before printing anything, usually for want of a library. The exit is logged with the door's return code (`rc`). Check the libraries the door needs (see [CLI Doors](#cli-doors)) and that its configuration files are where its documentation says.
+
+**An ARexx door ends at once.** The log line for the exit says why. `error=no rexxsyslib`: the image has no ARexx; build it with `make_image.sh -w`. `ARexx is not running`: RexxMast is not on the image or did not start. `script ended without a host command` with an `out=` text: the script stopped before it said anything, usually an ARexx error (shown) or a missing `ADDLIB` library.
 
 **A CLI door waits for Return after every key.** It expects a raw console and never asks for one; set `consoleMode: raw`.
 

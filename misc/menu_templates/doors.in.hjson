@@ -210,6 +210,9 @@
                 tooManyArt: DOORMANY
                 //  doorArgs: -x                 // extra arguments after the node number
                 //  doorType: cli                // a CLI (stdio) door instead of XIM
+                //  doorType: aim                // an /X ARexx script (door: its path, e.g.
+                //                               // BBS:Doors/KickBox.Rexx); the image needs
+                //                               // your Workbench 3.1's ARexx (make_image.sh -w)
                 //  consoleMode: raw             // CLI doors: cooked (default) or raw
                 //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
                 //                               // also {node} and {level}

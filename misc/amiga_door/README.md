@@ -19,13 +19,22 @@ the door's `Input()` and `Output()`.
 caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim (console handler) ── Input()/Output() ── door
 ```
 
+And it runs **ARexx (AIM) doors**, /X's `TYPE=AIM` scripts: it is the ARexx host
+`AERexxControl<node>` that AmiExpress's REXXDOOR used to provide, and runs the
+script with `RX`. This needs ARexx in the image, which only the sysop's own
+Workbench 3.1 can supply (AROS has none; `image/make_image.sh -w`).
+
+```
+caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim ── AERexxControl<n> ── RexxMast ── script
+```
+
 This directory holds the Amiga-side pieces. They are built with a cross
 compiler, and the binaries are committed in `bin/`, so sysops need no Amiga
 toolchain.
 
 | Path | What |
 |---|---|
-| `bin/axshim` | the host shim (axshim 1.1), AmigaOS executable (68000, AROS and Kickstart 3.1) |
+| `bin/axshim` | the host shim (axshim 1.2), AmigaOS executable (68000, AROS and Kickstart 3.1) |
 | `bin/AEDoor.library` | NilBBS's MIT `AEDoor.library` 3.0, which most doors open |
 | `shim/axshim.c` | shim source (BSD-2-Clause) |
 | `shim/Makefile`, `shim/build.sh` | build both binaries |
@@ -72,6 +81,27 @@ For a CLI door (`type=cli` in the session frame) it instead:
 The console handler follows NilBBS's (`src/node/door.c`, MIT); the notice is in
 `shim/axshim.c`.
 
+For an ARexx door (`type=aim`) it:
+
+- opens `rexxsyslib.library` (only now: images without ARexx never need it;
+  missing, the session ends with `error=no rexxsyslib`), checks that RexxMast's
+  `REXX` port is there (starting `SYS:System/RexxMast` once if not);
+- creates the public ARexx port `AERexxControl<node>` and runs
+  `SYS:Rexxc/RX <script> <node> [args]`;
+- answers the script's host commands (`GETUSER n`, `PUTUSTR`/`PUTUSER n` through
+  the same tables as XIM `DT_*` requests; `TRANSMIT`, `SENDSTRING`,
+  `SENDMESSAGE`, `GETCHAR`, `QUERY`, `RECEIVE`, `PROMPT`, `SHOWFILE`/`SENDFILE`,
+  `SHOWGFILE`, `REMOVERESERVED`, `VERREXXDOOR`, `BUFFERFLUSH`, `FLAGFILE`,
+  `EDITFILE`, `SHUTDOWN`), with `RESULT` as an argstring;
+- after a hangup, time-up or keyboard timeout answers every command with rc 10
+  (REXXDOOR's "carrier lost") and sends the script CTRL-C 5 seconds later;
+- reports `X` when `RX` returns, with `rc`, `verbs` and, when rc is not 0, `out`
+  (ARexx's `+++` message).
+
+The verb table is REXXDOOR 1.3's (read from the binary); the host-port handling
+follows NilBBS's `aim_command` (MIT). Section 12 of the protocol note has the
+details.
+
 A door that never registers, never shuts down or crashes cannot hang the shim:
 it reports `X status=error` (no registration within `regtimeout` seconds) or the
 `d` reason after 30 seconds, keeps answering the stray door's requests as
@@ -96,15 +126,16 @@ authoritative. In brief:
 | `E` | door wants the editor: `file` | `e` | `status=done\|refused` |
 | `X` | session over: `status`, `reg`, `cmds`, `codes`, `return`, `error`, `wrote` | | |
 
-User block keys (`s`): `version` and `door` are required; `type` (`xim` or `cli`,
-default `xim`), `console` (`cooked` or `raw`, CLI doors), `dir`, `stack`, `args`,
+User block keys (`s`): `version` and `door` are required; `type` (`xim`, `aim` or
+`cli`, default `xim`), `console` (`cooked` or `raw`, CLI doors), `dir`, `stack`, `args`,
 `node`, `name`, `realname`, `location`, `level`, `timeleft`, `timeused`,
 `timelimit`, `calls`, `posts`, `uploads`, `downloads`, `ulbytes`, `dlbytes`,
 `laston`, `expert`, `ansi`, `rows`, `cols`, `bbsname`, `sysop`, `mainline`,
 `timeout`, `log`, `hostname` and `hostip` feed the door's `DT_*` and node queries.
 A CLI door gets none of the user block: its `args` (its whole command line, with no
 node number in front) is all it knows about the caller. Section 11 of the protocol
-note describes CLI doors in full.
+note describes CLI doors in full. An ARexx door gets the whole user block, which its
+`GETUSER` commands read (section 12).
 
 axshim 1.0 also understands these keys, which the version 1 spec does not list yet
 (adding keys never bumps the version):
@@ -169,10 +200,17 @@ CLI doors may need disk libraries that the AROS ROM lacks; DICE-compiled doors n
 `mathieeedoubbas`, `mathieeedoubtrans` and `mathieeesingtrans.library` in `Libs/`
 (see `image/README.md`).
 
+ARexx doors need `System/RexxMast`, `Libs/rexxsyslib.library` (which needs
+`Libs/mathieeedoubbas.library`), `Libs/rexxsupport.library`, `Rexxc/RX` and the C:
+commands scripts call, all from the sysop's Workbench 3.1: `image/make_image.sh -w
+Workbench3.1.adf` copies them, and `image/Startup-Sequence` starts RexxMast before
+the shim. Never commit those files or share such an image.
+
 The images are run with the AROS 20260820 Kickstart replacement (to ship with the
 emulator package) or a Kickstart 3.1 ROM the sysop supplies. axshim 1.0 passed
 every test door on AROS 20260820 and on Kickstart 3.1 (40.68); axshim 1.1 (CLI
-doors) is tested on AROS 20260820.
+doors) is tested on AROS 20260820; axshim 1.2's ARexx doors (KickBoxing, Hacker,
+The Death Game) on both: Workbench 3.1's ARexx runs on the AROS ROM too.
 
 ## Licences
 
