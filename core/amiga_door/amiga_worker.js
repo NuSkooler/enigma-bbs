@@ -30,14 +30,15 @@
  *   { type: 'ready', restored, ms, restoreMs, hello, stats } - `s` has been sent
  *   { type: 'output', data: Uint8Array }                - door bytes (frames removed), per frame batch
  *   { type: 'frame', frame: { type, keys } }            - H, R, L, C, E (protocol frames)
- *   { type: 'exit', status, keys }                      - the shim's X frame
+ *   { type: 'exit', status, keys }                      - the shim's X frame (the first one only)
  *   { type: 'persisted', chunks, bytes, ms }            - answer to 'persist'
  *   { type: 'error', message, code, fatal }             - see below
  *   { type: 'stopped' }                                 - answer to 'stop', worker exits
  *
  * MessagePort protocol (parent -> worker):
  *   { type: 'input', data }                - caller bytes (escaped here)
- *   { type: 'frame', frame: { type, keys } } - send a host frame (t, d, w, e); `d` drops queued input
+ *   { type: 'frame', frame: { type, keys } } - send a host frame (t, d, w, e); `d` drops queued
+ *                                            input, but finishes a frame or RS RS pair already begun
  *   { type: 'pause' } / { type: 'resume' } - output back-pressure: stop / restart the emulator
  *   { type: 'persist', path }              - after X: settle, then write changed HDF chunks
  *   { type: 'stop' }                       - shut down
@@ -55,8 +56,11 @@ if (isMainThread) {
 const protocol = require('./protocol.js');
 const { HostLink } = require('./host_link.js');
 
-//  Caller typeahead we hold while the guest drains its 8 KB receive buffer.
-//  The shim drops keystrokes the door is not reading anyway (X `indrop`).
+const { RS } = protocol;
+
+//  Caller typeahead we hold while the guest drains its 8 KB receive buffer
+//  (escaped bytes). The shim drops keystrokes the door is not reading anyway
+//  (X `indrop`).
 const MaxInputQueueBytes = 64 * 1024;
 
 //  Amiga time to let the guest's file system flush before persisting: X comes
@@ -71,9 +75,19 @@ let emu = null;
 let pacer = null;
 let link = null;
 let state = 'starting'; //  starting | booting | warpEnding | session | exited | stopping
-let inQueue = Buffer.alloc(0);
 let inputDropped = 0;
 let restoreMs = null;
+
+//
+//  Host -> shim bytes waiting for room in the guest's receive buffer, in
+//  order: [{ frame, buf, started, rsOpen }]. |frame| segments are whole
+//  protocol frames, the others escaped caller input. |started| means part of
+//  the segment has gone out; |rsOpen| that what went out of a data segment
+//  ends with the first byte of an RS RS pair, which the shim is waiting to
+//  see completed.
+//
+let outQueue = [];
+let queuedDataBytes = 0;
 
 function post(msg, transfer) {
     try {
@@ -97,20 +111,52 @@ function postError(err, extra = {}) {
     );
 }
 
-function queueInput(bytes) {
+//  How many bytes of |raw| fit in |room| once escaped (an RS doubles)
+function fitEscaped(raw, room) {
+    let cost = 0;
+    let take = 0;
+    for (; take < raw.length; take++) {
+        const c = RS === raw[take] ? 2 : 1;
+        if (cost + c > room) {
+            break;
+        }
+        cost += c;
+    }
+    return take;
+}
+
+function enqueue(frame, bytes) {
+    if (!bytes.length) {
+        return;
+    }
+    const tail = outQueue[outQueue.length - 1];
+    if (!frame && tail && !tail.frame) {
+        tail.buf = Buffer.concat([tail.buf, bytes]);
+    } else {
+        outQueue.push({ frame, buf: Buffer.from(bytes), started: false, rsOpen: false });
+    }
+    if (!frame) {
+        queuedDataBytes += bytes.length;
+    }
+}
+
+//
+//  Caller bytes, raw. Cut to what the queue has room for *before* escaping,
+//  so a cut never falls between the two bytes of an escaped 0x1E: half a
+//  pair followed by the next frame's RS would read as a literal 0x1E and the
+//  frame would be lost.
+//
+function queueInput(raw) {
     if (state === 'exited' || state === 'stopping') {
         return;
     }
-    const room = MaxInputQueueBytes - inQueue.length;
-    if (room <= 0) {
-        inputDropped += bytes.length;
-        return;
+    const take = fitEscaped(raw, MaxInputQueueBytes - queuedDataBytes);
+    if (take < raw.length) {
+        inputDropped += raw.length - take;
     }
-    if (bytes.length > room) {
-        inputDropped += bytes.length - room;
-        bytes = bytes.subarray(0, room);
+    if (take > 0) {
+        enqueue(false, protocol.escapeData(raw.subarray(0, take)));
     }
-    inQueue = inQueue.length ? Buffer.concat([inQueue, bytes]) : Buffer.from(bytes);
 }
 
 function sendHostFrame(frame) {
@@ -119,12 +165,67 @@ function sendHostFrame(frame) {
     }
     const bytes = protocol.encode(frame.type, frame.keys || {});
     if ('d' === frame.type) {
-        //  carrier is gone or time is up: whatever the caller typed before
-        //  that is moot, and the shim drops bytes after `d` anyway
-        inQueue = Buffer.from(bytes);
+        //  Carrier is gone or time is up: whatever the caller typed before
+        //  that is moot, and the shim drops bytes after `d` anyway. What is
+        //  already on its way must still arrive whole, though: the shim is
+        //  mid-frame (or mid RS RS pair) until it has, and would otherwise
+        //  read `d` as the rest of it.
+        const keep = [];
+        for (const seg of outQueue) {
+            if (seg.frame) {
+                keep.push(seg);
+            } else if (seg.started && seg.rsOpen) {
+                keep.push({
+                    frame: false,
+                    buf: Buffer.from([RS]),
+                    started: true,
+                    rsOpen: true,
+                });
+            }
+        }
+        outQueue = keep;
+        queuedDataBytes = keep.reduce(
+            (n, seg) => n + (seg.frame ? 0 : seg.buf.length),
+            0
+        );
+    }
+    enqueue(true, bytes);
+}
+
+//  Does the written prefix |buf[0, n)| leave an RS RS pair half sent? |open|:
+//  whether what went before it did.
+function rsPairOpen(buf, n, open) {
+    let i = n - 1;
+    let run = 0;
+    while (i >= 0 && RS === buf[i]) {
+        ++run;
+        --i;
+    }
+    if (i < 0) {
+        run += open ? 1 : 0; //  the run carries on from before
+    }
+    return 1 === run % 2;
+}
+
+//  As much of the queue as the guest's receive buffer takes
+function pumpInput() {
+    while (outQueue.length) {
+        const seg = outQueue[0];
+        const n = emu.serialWrite(seg.buf);
+        if (n > 0) {
+            if (!seg.frame) {
+                queuedDataBytes -= Math.min(n, seg.buf.length);
+                seg.rsOpen = rsPairOpen(seg.buf, Math.min(n, seg.buf.length), seg.rsOpen);
+            }
+            seg.started = true;
+        }
+        if (n >= seg.buf.length) {
+            outQueue.shift();
+            continue;
+        }
+        seg.buf = seg.buf.subarray(n);
         return;
     }
-    inQueue = inQueue.length ? Buffer.concat([inQueue, bytes]) : Buffer.from(bytes);
 }
 
 function startSession() {
@@ -137,7 +238,7 @@ function startSession() {
     const sFrame = protocol.encode('s', keys);
 
     //  typeahead that arrived while we booted goes after `s`
-    inQueue = inQueue.length ? Buffer.concat([sFrame, inQueue]) : sFrame;
+    outQueue.unshift({ frame: true, buf: sFrame, started: false, rsOpen: false });
 
     let stats = null;
     try {
@@ -186,8 +287,18 @@ function handleFrame(frame) {
             break;
 
         case 'X':
+            //  One X per session, and only once it has started: a second
+            //  one, or one before `s`, is not ours to act on
+            if ('session' !== state) {
+                postError(new Error(`unexpected X frame (${state})`), {
+                    during: 'session',
+                    fatal: false,
+                });
+                return;
+            }
             state = 'exited';
-            inQueue = Buffer.alloc(0);
+            outQueue = [];
+            queuedDataBytes = 0;
             post({
                 type: 'exit',
                 status: frame.keys.status,
@@ -229,9 +340,8 @@ function onFrame({ warping }) {
 
     //  host -> shim, as much as the guest's receive buffer takes; nothing
     //  before `s` (startSession() puts it at the head of the queue)
-    if ('session' === state && inQueue.length) {
-        const n = emu.serialWrite(inQueue);
-        inQueue = n >= inQueue.length ? Buffer.alloc(0) : inQueue.subarray(n);
+    if ('session' === state && outQueue.length) {
+        pumpInput();
     }
 }
 
@@ -277,7 +387,7 @@ function stop() {
 parentPort.on('message', msg => {
     switch (msg.type) {
         case 'input':
-            return queueInput(protocol.escapeData(Buffer.from(msg.data)));
+            return queueInput(Buffer.from(msg.data));
 
         case 'frame':
             if (state === 'exited' || state === 'stopping') {
