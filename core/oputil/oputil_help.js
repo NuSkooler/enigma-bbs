@@ -25,6 +25,7 @@ Commands:
   ssh                       SSH key management
   fat                       FAT disk image management
   v86                       v86 x86 emulation tools
+  amiga-door                Amiga door image (FFS) building and inspection
   rest                      REST API management
 `,
     User: `usage: oputil.js user <action> [<arguments>]
@@ -375,6 +376,60 @@ Examples:
   oputil.js fat cp   freedos.img fdconfig.sys FDCONFIG.SYS
   oputil.js fat read freedos.img FDAUTO.BAT
   oputil.js fat read freedos.img FDCONFIG.SYS | less
+`,
+    AmigaDoor: `usage: oputil.js amiga-door <action> IMAGE [arguments]
+
+Build and inspect Amiga door images: bare FFS hard-disk images (no RDB) for the
+amiga_door module. Does not need a running ENiGMA, Python or amitools.
+
+Actions:
+  create IMAGE [DOORDIR...]   Build a door image: C/axshim, Libs/AEDoor.library and
+                              S/Startup-Sequence from misc/amiga_door/, then each
+                              DOORDIR copied, layout and empty files kept, to
+                              Doors/<directory name>/ (BBS:Doors/<name>/...)
+
+  add IMAGE SRC [DST]         Copy a local file or directory into the image.
+                              DST is the path in the image (default: SRC's name in
+                              the root). A DST ending in "/", or an existing directory
+                              when SRC is a file, puts SRC inside it. A file with the
+                              same name is replaced; missing directories are made.
+
+  ls IMAGE [DIR]              List the image, or DIR in it, recursively
+  (list)
+
+  extract IMAGE SRC DST       Copy a file or directory out of the image to DST on
+                              this machine; DST "-" writes a file to stdout
+
+  info IMAGE                  Volume name, file system, size, free space; checks the
+                              image's structure
+
+create arguments:
+  --size SIZE                 Image size (default 4M): bytes, or with K, M or G.
+                              Rounded up to a multiple of 8K. Every session carries
+                              the image, so keep it small.
+  --name NAME                 Volume name (default BBS)
+  --doors DIR [DIR...]        Door directories (the same as listing them after IMAGE)
+  --workbench ADF             Add ARexx, which ARexx (AIM) doors need and AROS lacks,
+                              from your own Workbench 3.1 disk image: RexxMast,
+                              rexxsyslib and rexxsupport.library, the IEEE math
+                              libraries, SYS:Rexxc and the C: commands ARexx scripts
+                              use. These files are licensed: the image is for your
+                              board only.
+  --force                     Replace IMAGE if it exists
+
+Paths in the image use "/" and may start with a volume name ("BBS:Doors/x").
+File names are at most 30 characters, without ":"; AmigaDOS ignores case.
+Do not change an image while a caller is in one of its doors.
+
+Examples:
+  oputil.js amiga-door create ~/amiga/dreamsweeper.hdf ~/doors/DreamSweeper
+  oputil.js amiga-door create ~/amiga/arexx.hdf --workbench ~/amiga/Workbench3.1.adf \\
+      --doors ~/doors/Kickboxing ~/doors/hacker
+  oputil.js amiga-door add ~/amiga/doors.hdf mathieeedoubbas.library Libs/
+  oputil.js amiga-door ls ~/amiga/doors.hdf Doors
+  oputil.js amiga-door extract ~/amiga/doors.hdf Doors/Wallhall ./wallhall-backup
+  oputil.js amiga-door extract ~/amiga/doors.hdf S/Startup-Sequence -
+  oputil.js amiga-door info ~/amiga/doors.hdf
 `,
     Rest: `usage: oputil.js rest <action> [<arguments>]
 
