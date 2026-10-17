@@ -326,6 +326,20 @@ describe('amiga_door config', () => {
         );
     });
 
+    it('translates Amiga console controls by default for Latin-1 only', () => {
+        assert.equal(config().amigaConsole, true);
+        assert.equal(config({ encoding: 'ISO-8859-1' }).amigaConsole, true);
+        assert.equal(config({ encoding: 'cp437' }).amigaConsole, false);
+        assert.equal(
+            config({ encoding: 'cp437', amigaConsole: true }).amigaConsole,
+            true
+        );
+        assert.equal(config({ amigaConsole: false }).amigaConsole, false);
+        assert.ok(
+            problemsOf({ amigaConsole: 'yes' }).some(p => p.includes('"amigaConsole"'))
+        );
+    });
+
     it('checks font and encoding', () => {
         assert.deepEqual(problemsOf({ font: 'none' }), []);
         assert.deepEqual(problemsOf({ font: 'Amiga Topaz 2+' }), []);
@@ -647,6 +661,43 @@ describe('amiga_door session', () => {
         t.session.disconnect('hangup');
         r.session.disconnect('hangup');
         await Promise.all([t.done, r.done]);
+    });
+
+    it("leaves a CP437 door's bytes alone: no Amiga console translation", async () => {
+        const bytes = Buffer.from([
+            0x9b, 0x31, 0x6d, 0x0c, 0x41, 0x1b, 0x5b, 0x32, 0x36, 0x48,
+        ]);
+        const c = makeSession({ encoding: 'cp437', font: 'none' });
+        assert.equal(c.session.config.amigaConsole, false);
+        deliver(c.worker, [{ type: 'output', data: bytes }]);
+        assert.equal(c.client.term.written.join(''), '¢1m\fA\x1b[26H');
+
+        //  unless asked for
+        const forced = makeSession({
+            encoding: 'cp437',
+            font: 'none',
+            amigaConsole: true,
+        });
+        deliver(forced.worker, [{ type: 'output', data: bytes }]);
+        assert.equal(
+            forced.client.term.written.join(''),
+            '\x1b[1m\x1b[2J\x1b[HA\x1b[25H'
+        );
+
+        c.session.disconnect('hangup');
+        forced.session.disconnect('hangup');
+        await Promise.all([c.done, forced.done]);
+    });
+
+    it('decodes a multibyte character split across two chunks', async () => {
+        const s = makeSession({ encoding: 'utf8', font: 'none' });
+        deliver(s.worker, [
+            { type: 'output', data: Buffer.from([0x41, 0xc3]) },
+            { type: 'output', data: Buffer.from([0xa9, 0x42]) },
+        ]);
+        assert.equal(s.client.term.written.join(''), 'AéB');
+        s.session.disconnect('hangup');
+        await s.done;
     });
 
     it('X status=ok persists, then drops the image snapshots when chunks changed', async () => {

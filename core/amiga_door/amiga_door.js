@@ -75,6 +75,9 @@
  *     minTimeLeftMinutes: number   - refuse to start with less time left today
  *     notEnoughTimeArt:   string   - art shown when minTimeLeftMinutes refuses
  *     encoding:           string   - door output encoding (default: latin1)
+ *     amigaConsole:       boolean  - translate Amiga console controls (0x9B, form feed,
+ *                                    cursor on/off, off-screen positions) for a PC
+ *                                    terminal (default: true with a Latin-1 encoding)
  *     font:               string   - SyncTERM font for the door's duration (default:
  *                                    topaz); 'none' leaves the caller's font alone
  *     persist:            boolean  - write the door's disk changes back (default: true)
@@ -376,6 +379,11 @@ function normalizeConfig(raw) {
     if (!_.isString(c.encoding) || !iconv.encodingExists(c.encoding)) {
         problems.push(`"encoding" "${c.encoding}" is not an encoding iconv-lite knows`);
     }
+    if (undefined === c.amigaConsole) {
+        c.amigaConsole = isLatin1(c.encoding);
+    } else if (!_.isBoolean(c.amigaConsole)) {
+        problems.push('"amigaConsole" must be true or false');
+    }
     c.font = undefined === c.font ? Defaults.font : c.font;
     if (!_.isString(c.font)) {
         problems.push('"font" must be a SyncTERM font name or alias, or "none"');
@@ -600,10 +608,16 @@ class AmigaDoorSession extends EventEmitter {
         this.cache = cache;
         this.rawOutput = !!rawOutput;
         this.encoding = config.encoding;
-        this.translator = new AmigaConsoleTranslator({
-            rows: client.term.termHeight,
-            cols: client.term.termWidth,
-        });
+        //  Amiga console controls mean something only in an Amiga door's
+        //  Latin-1; in CP437 0x9B is a cent sign and 0x0C a character too
+        this.translator = config.amigaConsole
+            ? new AmigaConsoleTranslator({
+                  rows: client.term.termHeight,
+                  cols: client.term.termWidth,
+              })
+            : null;
+        //  streaming, so a multibyte character split across chunks survives
+        this.decoder = this.rawOutput ? null : iconv.getDecoder(this.encoding);
 
         this.lastTimeLeft = sessionKeys ? sessionKeys.timeleft : undefined;
         this.lastSize = sessionKeys
@@ -986,7 +1000,9 @@ class AmigaDoorSession extends EventEmitter {
             this.emit('firstOutput');
         }
 
-        bytes = this.translator.push(bytes);
+        if (this.translator) {
+            bytes = this.translator.push(bytes);
+        }
         this._writeTranslated(bytes);
         this.checkBackpressure();
     }
@@ -996,7 +1012,16 @@ class AmigaDoorSession extends EventEmitter {
         if (this.disconnectReason || !this.client.term.output) {
             return;
         }
-        this._writeTranslated(this.translator.flush());
+        if (this.translator) {
+            this._writeTranslated(this.translator.flush());
+        }
+        if (this.decoder) {
+            const tail = this.decoder.end();
+            this.decoder = null;
+            if (tail) {
+                this.client.term.write(tail, false);
+            }
+        }
     }
 
     _writeTranslated(bytes) {
@@ -1006,7 +1031,10 @@ class AmigaDoorSession extends EventEmitter {
         if (this.rawOutput) {
             this.client.term.rawWrite(bytes);
         } else {
-            this.client.term.write(iconv.decode(bytes, this.encoding), false);
+            const text = this.decoder ? this.decoder.write(bytes) : '';
+            if (text) {
+                this.client.term.write(text, false);
+            }
         }
     }
 
@@ -1020,7 +1048,9 @@ class AmigaDoorSession extends EventEmitter {
             return;
         }
         this.lastSize = { rows, cols };
-        this.translator.setSize(rows, cols);
+        if (this.translator) {
+            this.translator.setSize(rows, cols);
+        }
         this.log.debug(
             { name: this.config.name, rows, cols },
             'Amiga door window resized (w)'
