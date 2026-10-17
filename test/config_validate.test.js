@@ -301,6 +301,14 @@ describe('config validation: values', () => {
         assert.equal(describeIssue(high).message, '70000 is above the maximum of 65535');
     });
 
+    it('enforces a whole number where meta says integer', () => {
+        const schema = buildSchema({ count: 4 }, { count: { integer: true, min: 0 } });
+        const [issue] = validateConfig({}, { count: 2.5 }, schema);
+        assert.equal(issue.code, IssueCodes.TypeMismatch);
+        assert.equal(describeIssue(issue).message, 'expected integer, got number');
+        assert.deepEqual(validateConfig({}, { count: 3 }, schema), []);
+    });
+
     it('says nothing about a node whose default carried no type', () => {
         const schema = buildSchema({ blob: {} }, {});
         assert.deepEqual(validateConfig({}, { blob: 'anything at all' }, schema), []);

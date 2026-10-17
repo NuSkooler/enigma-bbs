@@ -521,7 +521,7 @@
                     "properties": {
                         "snapshotCacheEntries": {
                             "description": "Booted Amiga door snapshots kept in memory (about 1.5 MB each, one per door image and machine). 0 boots every session.",
-                            "type": "number",
+                            "type": "integer",
                             "minimum": 0,
                             "maximum": 64,
                             "default": 4
