@@ -260,6 +260,7 @@ class AmigaVolume {
         this.now = typeof options.now === 'function' ? options.now : () => new Date();
         this.readOnly = !!options.readOnly;
         this.dirty = false;
+        this.dirtyPages = new Set(); // bitmap blocks to rewrite
     }
 
     // ── construction ──
@@ -365,7 +366,7 @@ class AmigaVolume {
         vol._setDate(r, OFF.createDate, date);
         vol._setName(r, name);
         vol._s32(r, OFF.secType, ST_ROOT);
-        vol._writeBitmap();
+        vol._writeBitmap(true);
         vol._checksum(r);
         return vol;
     }
@@ -586,23 +587,28 @@ class AmigaVolume {
         let blk = this.allocHint < n ? this.allocHint : RESERVED;
         for (let scanned = 0; scanned < n && out.length < count; scanned++) {
             if (this.free[blk]) {
-                this.free[blk] = 0;
+                this._setFree(blk, 0);
                 out.push(blk);
             }
             blk = blk + 1 < n ? blk + 1 : RESERVED;
         }
         if (out.length < count) {
-            out.forEach(b => (this.free[b] = 1));
+            out.forEach(b => this._setFree(b, 1));
             fail('ENOSPC', 'volume full');
         }
         this.allocHint = blk;
         return out;
     }
 
+    _setFree(blk, free) {
+        this.free[blk] = free;
+        this.dirtyPages.add(Math.floor((blk - RESERVED) / BM_BITS));
+    }
+
     _release(blocks) {
         for (const b of blocks) {
             this.buf.fill(0, b * BSIZE, (b + 1) * BSIZE);
-            this.free[b] = 1;
+            this._setFree(b, 1);
         }
     }
 
@@ -628,9 +634,10 @@ class AmigaVolume {
         });
     }
 
-    _writeBitmap() {
+    _writeBitmap(all = false) {
         //  bits past the last block stay clear (in use), as ADFlib leaves them
         this.bitmapBlocks.forEach((bm, page) => {
+            if (!all && !this.dirtyPages.has(page)) return;
             this.buf.fill(0, bm * BSIZE, (bm + 1) * BSIZE);
             const first = RESERVED + page * BM_BITS;
             const last = Math.min(first + BM_BITS, this.numBlocks);
@@ -643,6 +650,7 @@ class AmigaVolume {
             }
             this._checksum(bm, 0);
         });
+        this.dirtyPages.clear();
     }
 
     //  Blocks reachable from the root: the structure, as the validator sees it.
@@ -907,7 +915,7 @@ class AmigaVolume {
     //  Write the bitmap and the root's volume date after a change
     _commit() {
         const r = this.rootBlock;
-        this._writeBitmap();
+        this._writeBitmap(this.bitmapRebuilt);
         this._u32(r, OFF.bmFlag, 0xffffffff);
         this._setDate(r, OFF.volDate, dateToAmiga(this.now(), this.utc));
         this._checksum(r);
