@@ -22,6 +22,7 @@ const {
     buildSessionKeys,
     expandDoorArgs,
     quoteArg,
+    commandLength,
     isLatin1,
     AmigaDoorSession,
     activeImages,
@@ -260,6 +261,40 @@ describe('amiga_door config', () => {
         }
         //  XIM and CLI doors keep their looser rule
         assert.deepEqual(problemsOf({ door: 'BBS:Doors/a b' }), []);
+        for (const doorType of ['xim', 'cli']) {
+            for (const door of [
+                'BBS:Doors/"x"',
+                'BBS:Doors/x*N',
+                'BBS:Doors/`x`',
+                'BBS:Doors/$x',
+                'BBS:Doors/x;y',
+                'BBS:Doors/x>y',
+                'BBS:Doors/x|y',
+            ]) {
+                assert.ok(
+                    problemsOf({ doorType, door }).some(p =>
+                        p.includes('shell characters')
+                    ),
+                    `${doorType}: no problem reported for ${door}`
+                );
+            }
+        }
+        for (const key of ['door', 'doorDir', 'mainline', 'doorArgs']) {
+            assert.ok(
+                problemsOf({ [key]: 'BBS:Doors/a\x07b' }).some(p =>
+                    p.includes('control')
+                ),
+                key
+            );
+            assert.ok(
+                problemsOf({ [key]: 'BBS:Doors/\x9bx' }).some(p => p.includes('control')),
+                `${key}: C1`
+            );
+            assert.ok(
+                problemsOf({ [key]: 'BBS:Doors/雪' }).some(p => p.includes('Latin-1')),
+                `${key}: not Latin-1`
+            );
+        }
         assert.ok(
             problemsOf({
                 doorType: 'aim',
@@ -1407,12 +1442,57 @@ describe('amiga_door session keys', () => {
         );
     });
 
-    it('cuts arguments past what the shim keeps', () => {
+    it('cuts a long {name} inside its quotes to fit the shim', () => {
+        const client = stubClient();
+        client.user.getSanitizedName = () => 'N'.repeat(300);
         const keys = buildSessionKeys(
-            stubClient(),
-            config({ doorType: 'cli', doorArgs: 'x'.repeat(250) })
+            client,
+            config({ doorType: 'cli', doorArgs: `{name} ${'x'.repeat(100)} {node}` })
         );
-        assert.equal(keys.args.length, 199);
+        assert.ok(keys.args.length <= 199, keys.args.length);
+        assert.ok(keys.args.endsWith(`${'x'.repeat(100)} 2`), 'the rest is whole');
+        assert.match(keys.args, /^"N+" x/);
+        assert.equal(keys.args.split('"').length, 3, 'quotes balanced');
+
+        //  the whole command line counts too: "door" args for a CLI door
+        const door = `BBS:Doors/${'d'.repeat(150)}`;
+        const tight = buildSessionKeys(
+            client,
+            config({ doorType: 'cli', door, doorArgs: '{name}' })
+        );
+        assert.ok(commandLength(config({ doorType: 'cli', door }), tight.args, 2) <= 299);
+        assert.match(tight.args, /^"N+"$/);
+
+        //  two names share the room
+        const two = buildSessionKeys(
+            client,
+            config({ doorType: 'cli', doorArgs: '{name} {name}' })
+        );
+        assert.ok(two.args.length <= 199);
+        assert.equal(two.args.split('"').length, 5);
+    });
+
+    it('refuses door and doorArgs the shim cannot hold', () => {
+        assert.ok(
+            problemsOf({ doorType: 'cli', doorArgs: 'x'.repeat(250) }).some(p =>
+                p.includes('command line of at least')
+            )
+        );
+        const door = `BBS:Doors/${'d'.repeat(180)}`;
+        assert.deepEqual(problemsOf({ door }), []);
+        assert.ok(
+            problemsOf({ door, doorArgs: 'y'.repeat(110) }).some(p =>
+                p.includes('the shim takes 299')
+            )
+        );
+        assert.ok(
+            problemsOf({ door: `BBS:${'d'.repeat(200)}` }).some(p =>
+                p.includes('longer than the shim')
+            )
+        );
+        //  a placeholder counts at its widest
+        assert.deepEqual(problemsOf({ doorArgs: `${'z'.repeat(170)} {timeleft}` }), []);
+        assert.ok(problemsOf({ doorArgs: `${'z'.repeat(190)} {name}` }).length > 0);
     });
 });
 

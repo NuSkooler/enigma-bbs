@@ -134,11 +134,11 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 |------|----------|-------------|
 | `name` | Yes | Door name. Used as a key for tracking concurrent sessions. |
 | `image` | Yes | Path to the door's `.hdf` image. |
-| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. For an ARexx door, the script's full path (`BBS:Doors/Kickboxing/KickBox.Rexx`), with no blanks, quotes or shell characters. |
+| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. For an ARexx door, the script's full path (`BBS:Doors/Kickboxing/KickBox.Rexx`), with no blanks, quotes or shell characters. XIM and CLI door paths may have blanks but none of the shell characters `"` `*` `` ` `` `$` `;` `<` `>` `\|`. At most 199 characters, Latin-1, no control characters. |
 | `doorType` | No | `xim` for an AmiExpress XIM door, `aim` for an /X [ARexx door](#arexx-doors), `cli` for a [CLI door](#cli-doors). Default: `xim`. |
 | `consoleMode` | No | CLI doors only: `cooked` (line input with echo, like an Amiga Shell window) or `raw` (each key as typed) until the door picks a mode itself. Default: `cooked`. |
 | `doorDir` | No | The door's current directory. Default: the door's own directory. |
-| `doorArgs` | No | XIM and ARexx doors: extra arguments after the node number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). |
+| `doorArgs` | No | XIM and ARexx doors: extra arguments after the node number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). The arguments may be at most 199 characters and the whole command line (door path, node number, arguments) 299, with placeholders counted at their widest; a longer setting is refused. |
 | `doorStack` | No | Door stack size in bytes, 4096 to 1048576. Default: `32768`. |
 | `mainline` | No | The /X command line the caller "typed". Some doors parse it. Default: empty. |
 | `rom` | No | Path to a Kickstart ROM. Default: the bundled AROS ROM. |
@@ -201,7 +201,7 @@ Many Amiga BBS games, RPGs and strategy games among them, are not XIM doors but 
   | `{level}` | The caller's security level |
   | `{timeleft}` | Minutes left in the caller's session |
 
-  `{name}` is always one quoted argument, with characters the Amiga shell would act on (quotes, `*`, back-quotes, `$`, `;`, `<`, `>`, `|`) replaced by `_`, so a user name can neither run a command nor add a keyword to the door's command line. Do not put quotes around placeholders yourself. There is no node number in front of a CLI door's arguments.
+  `{name}` is always one quoted argument, with characters the Amiga shell would act on (quotes, `*`, back-quotes, `$`, `;`, `<`, `>`, `|`) replaced by `_`, so a user name can neither run a command nor add a keyword to the door's command line. A name too long for the room left on the command line is cut short inside its quotes. Do not put quotes around placeholders yourself. There is no node number in front of a CLI door's arguments.
 
 - **Console mode.** The console starts in cooked mode: typed text is echoed, Backspace edits and Return ends a line, as in an Amiga Shell window. A door that wants single keys switches to raw mode itself. Some doors expect the BBS to have opened a raw console already ("run it through a RAW cli" in their notes) and never switch; set `consoleMode: raw` for those.
 

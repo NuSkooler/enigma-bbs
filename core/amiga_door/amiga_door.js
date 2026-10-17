@@ -152,9 +152,21 @@ const DOOR_TYPES = ['xim', 'aim', 'cli'];
 //  an absolute Amiga path (VOLUME:dir/file) with no blanks, quotes or shell
 //  characters
 const AmigaScriptPath = /^[^\s":;<>|*`$]+:[^\s":;<>|*`$]*[^\s":;<>|*`$/]$/;
+//  an XIM or CLI door's path goes on the command line in quotes: nothing that
+//  ends the quotes, is the shell's escape character or substitutes
+const QuotedPathUnsafe = /["*`$;<>|]/;
+//  control characters, C0 and C1, which no session value may carry
+const ControlChars = /[\x00-\x1f\x7f-\x9f]/;
 const CONSOLE_MODES = ['cooked', 'raw'];
-//  the shim keeps 199 bytes of a value
-const MaxArgsLength = 199;
+//  The shim's buffers (axshim.c): a session value keeps 199 bytes (kv val[200]),
+//  the door's command line 299 (LN.cmd[300]) and an ARexx door's runs RX_CMD.
+const MaxValueLength = 199;
+const MaxCommandLength = 299;
+const RxCommand = 'SYS:Rexxc/RX';
+//  For checking doorArgs at config time: the widest {node}, {level} and
+//  {timeleft} can be, and the least room {name} must have (quotes and a few
+//  characters; it is cut to fit at session time)
+const PlaceholderWidths = { node: 5, level: 5, timeleft: 3, name: 10 };
 const CHIP_KB = [256, 512, 1024, 2048];
 const EXIT_STATUSES = ['ok', 'carrier', 'timeout', 'break', 'error'];
 
@@ -295,11 +307,35 @@ function normalizeConfig(raw) {
         }
     }
 
-    //  everything that ends up in the `s` frame must be a single line
+    //  everything that ends up in the `s` frame must be a single line of
+    //  Latin-1 that fits the shim's value buffer
     for (const key of ['door', 'doorDir', 'doorArgs', 'mainline']) {
-        if (_.isString(c[key]) && /[\r\n]/.test(c[key])) {
-            problems.push(`"${key}" must not contain a line break`);
+        if (!_.isString(c[key])) {
+            continue;
         }
+        if (/[\r\n]/.test(c[key])) {
+            problems.push(`"${key}" must not contain a line break`);
+        } else if (ControlChars.test(c[key])) {
+            problems.push(`"${key}" must not contain control characters`);
+        }
+        if (/[^\x00-\xff]/.test(c[key])) {
+            problems.push(`"${key}" must be ISO-8859-1 (Latin-1) text`);
+        }
+        //  doorArgs: checked filled in, below
+        if ('doorArgs' !== key && c[key].length > MaxValueLength) {
+            problems.push(
+                `"${key}" is longer than the shim's ${MaxValueLength} characters`
+            );
+        }
+    }
+    if (
+        ['xim', 'cli'].includes(c.doorType) &&
+        _.isString(c.door) &&
+        QuotedPathUnsafe.test(c.door)
+    ) {
+        problems.push(
+            '"door" must not contain the Amiga shell characters " * ` $ ; < > |'
+        );
     }
 
     if (_.isString(c.doorArgs)) {
@@ -314,6 +350,19 @@ function normalizeConfig(raw) {
                     .map(k => `{${k}}`)
                     .join(' ')})`
             );
+        } else if (_.isString(c.door) && DOOR_TYPES.includes(c.doorType)) {
+            //  at its shortest, with every placeholder filled in
+            const least = c.doorArgs.replace(/\{([a-z]+)\}/g, (m, key) =>
+                'x'.repeat(PlaceholderWidths[key])
+            );
+            const command = commandLength(c, least, 'x'.repeat(PlaceholderWidths.node));
+            if (least.length > MaxValueLength || command > MaxCommandLength) {
+                problems.push(
+                    `"door" and "doorArgs" make a command line of at least ${command} characters ` +
+                        `(arguments ${least.length}) with the placeholders filled in; the shim takes ` +
+                        `${MaxCommandLength} (arguments ${MaxValueLength})`
+                );
+            }
         }
     }
 
@@ -456,29 +505,69 @@ function normalizeConfig(raw) {
 //
 const ShellUnsafe = /["*`$;<>|\\\x00-\x1f\x7f-\x9f]/g;
 
-function quoteArg(value) {
-    const s = String(value)
+//  |max|: the most characters the quoted argument may take, quotes included;
+//  a longer value is cut, never the quotes
+function quoteArg(value, max = Infinity) {
+    let s = String(value)
         .replace(/[^\x00-\xff]/g, '?') //  the s frame is Latin-1
         .replace(ShellUnsafe, '_');
+    if (s.length + 2 > max) {
+        s = s.slice(0, Math.max(0, max - 2));
+    }
     return `"${s}"`;
 }
 
+//  The length of the command line the shim builds (axshim.c launch()) for
+//  |args| on node |node|
+function commandLength(config, args, node) {
+    const door = String(config.door || '').length;
+    const nodeLen = String(node).length;
+    switch (config.doorType) {
+        case 'cli': //  "door" args
+            return door + 3 + args.length;
+        case 'aim': //  SYS:Rexxc/RX door node[ args]
+            return (
+                RxCommand.length + 1 + door + 1 + nodeLen + (args ? 1 + args.length : 0)
+            );
+        default: //  "door" node args
+            return door + 3 + nodeLen + 1 + args.length;
+    }
+}
+
 const ArgSubstitutions = {
-    name: ({ client }) => quoteArg(client.user.getSanitizedName()),
+    name: ({ client, nameMax }) => quoteArg(client.user.getSanitizedName(), nameMax),
     node: ({ client }) => String(client.node),
     level: ({ client }) => String(client.user.getLegacySecurityLevel()),
     timeleft: ({ timeLeft }) => String(timeLeft),
 };
 
-function expandDoorArgs(template, ctx) {
+//
+//  |config|, when given, bounds the result to what the shim takes: {name} is
+//  cut (inside its quotes) so that the arguments and the whole command line
+//  fit. Everything else in the line was checked at config time.
+//
+function expandDoorArgs(template, ctx, config) {
     if (!template) {
         return template;
     }
-    return template.replace(/\{([a-z]+)\}/g, (match, key) =>
-        Object.prototype.hasOwnProperty.call(ArgSubstitutions, key)
-            ? ArgSubstitutions[key](ctx)
-            : match
+    const fill = (c, skipName) =>
+        template.replace(/\{([a-z]+)\}/g, (match, key) => {
+            if (!Object.prototype.hasOwnProperty.call(ArgSubstitutions, key)) {
+                return match;
+            }
+            return skipName && 'name' === key ? '' : ArgSubstitutions[key](c);
+        });
+
+    const names = (template.match(/\{name\}/g) || []).length;
+    if (!config || 0 === names) {
+        return fill(ctx, false);
+    }
+    const rest = fill(ctx, true);
+    const room = Math.min(
+        MaxValueLength - rest.length,
+        MaxCommandLength - commandLength(config, rest, ctx.client.node)
     );
+    return fill(Object.assign({}, ctx, { nameMax: Math.floor(room / names) }), false);
 }
 
 function shouldPersist(config, status) {
@@ -504,16 +593,18 @@ function buildSessionKeys(client, config) {
     const clampMinutes = m => Math.min(null === m ? Infinity : m, MaxDoorMinutes);
     const cli = 'cli' === config.doorType;
 
-    let args = expandDoorArgs(config.doorArgs, {
-        client,
-        timeLeft: clampMinutes(timeLeft),
-    });
-    if (args && args.length > MaxArgsLength) {
+    let args = expandDoorArgs(
+        config.doorArgs,
+        { client, timeLeft: clampMinutes(timeLeft) },
+        config
+    );
+    if (args && args.length > MaxValueLength) {
+        //  only past the config-time check's assumptions (a huge node number)
         (client.log || { warn: () => {} }).warn(
             { name: config.name, length: args.length },
-            `Amiga door arguments are longer than ${MaxArgsLength} characters; cut short`
+            `Amiga door arguments are longer than ${MaxValueLength} characters; cut short`
         );
-        args = args.slice(0, MaxArgsLength);
+        args = args.slice(0, MaxValueLength);
     }
 
     let inputTimeout = config.inputTimeoutSeconds;
@@ -1689,6 +1780,7 @@ exports._test = {
     buildSessionKeys,
     expandDoorArgs,
     quoteArg,
+    commandLength,
     isLatin1,
     AmigaDoorSession,
     snapshotCache,
