@@ -1,6 +1,6 @@
 ---
 title: Amiga Doors
-description: "Run AmiExpress (/X) XIM doors in the built-in vAmiga emulator, with no external emulator on the server."
+description: "Run AmiExpress (/X) XIM doors and AmigaDOS CLI doors in the built-in vAmiga emulator, with no external emulator on the server."
 sidebar:
     order: 3
 ---
@@ -11,6 +11,8 @@ ENiGMA½ can run Amiga BBS doors written for [AmiExpress](https://www.aminet.net
 :::note
 An Amiga door is not a standalone program. An XIM door is a client of a running /X node: it asks the BBS for the user's name, the time left, a key, a line of input, or to print something. ENiGMA½ boots a small host shim (`axshim`) inside the emulated Amiga that impersonates a node for the door and relays everything to ENiGMA½ over the emulated serial port. The shim and its library are in the repository (`misc/amiga_door/`); you only need to put a door on a disk image.
 :::
+
+ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keyboard and write the screen through their standard input and output, the way many Amiga BBS games were written. See [CLI Doors](#cli-doors).
 
 ---
 
@@ -71,7 +73,7 @@ Doors that read files straight from an /X install's own data (`BBS:user.data`, `
 
 #### Finding doors
 
-/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`; it does not run standalone Amiga programs or doors written for other BBS software.
+/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community; the [Up Rough door repository](https://doors.uprough.net) collects thousands of Amiga BBS door archives. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`, and CLI doors (below). It does not run doors written for the message ports of other BBS software (Paragon, CNet, ARexx doors).
 
 ---
 
@@ -84,8 +86,10 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `name` | Yes | Door name. Used as a key for tracking concurrent sessions. |
 | `image` | Yes | Path to the door's `.hdf` image. |
 | `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. |
+| `doorType` | No | `xim` for an AmiExpress XIM door, `cli` for a [CLI door](#cli-doors). Default: `xim`. |
+| `consoleMode` | No | CLI doors only: `cooked` (line input with echo, like an Amiga Shell window) or `raw` (each key as typed) until the door picks a mode itself. Default: `cooked`. |
 | `doorDir` | No | The door's current directory. Default: the door's own directory. |
-| `doorArgs` | No | Extra arguments passed after the node number. |
+| `doorArgs` | No | XIM doors: extra arguments after the node number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). |
 | `doorStack` | No | Door stack size in bytes, 4096 to 1048576. Default: `32768`. |
 | `mainline` | No | The /X command line the caller "typed". Some doors parse it. Default: empty. |
 | `rom` | No | Path to a Kickstart ROM. Default: the bundled AROS ROM. |
@@ -104,9 +108,9 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `font` | No | SyncTERM font for the door's duration: a font name or alias, or `none` to leave the caller's font alone. Default: `topaz`. |
 | `persist` | No | Write the door's disk changes back to the image. Default: `true`. |
 | `persistOn` | No | The exit statuses after which to persist: any of `ok`, `carrier`, `timeout`, `break`, `error`. Default: `['ok']`. |
-| `log` | No | Log every request the door makes at debug level. Default: `false`. |
+| `log` | No | XIM doors: log every request the door makes at debug level. Default: `false`. |
 | `warpBootSeconds` | No | How long the first boot runs flat out, 0 to 3600. Default: `30`. |
-| `regTimeoutSeconds` | No | The door must register with the shim within this many seconds, 0 to 86400; `0` waits for ever. Default: `30`. |
+| `regTimeoutSeconds` | No | XIM doors: the door must register with the shim within this many seconds, 0 to 86400; `0` waits for ever. Default: `30`. |
 | `inputTimeoutSeconds` | No | A door waiting this long for a key gives up, 1 to 86400. Default: `users.idleLogoutSeconds`, or the shim's 300 seconds. |
 | `crlf` | No | A line feed in the door's output goes out as CR LF, as /X does. Default: `true`. |
 | `timezoneMinutes` | No | Minutes east of UTC for the Amiga clock, -720 to 840. Default: the server's. |
@@ -130,6 +134,71 @@ doorDreamSweeper: {
     }
 }
 ```
+
+---
+
+### CLI Doors
+
+Many Amiga BBS games, RPGs and strategy games among them, are not XIM doors but ordinary AmigaDOS programs: they read keys from standard input and write to standard output, and the BBS ran them in a raw console. Set `doorType: cli` for these. The shim then starts the program with its input and output connected to the caller (it acts as the program's console), and nothing else changes: the same image, snapshot, persistence and font handling apply.
+
+- **The caller is anonymous unless you pass them.** A CLI door cannot ask the BBS anything, so it knows only what is on its command line. Put what the door's documentation asks for in `doorArgs` with these placeholders:
+
+  | Placeholder | Becomes |
+  |---|---|
+  | `{name}` | The caller's user name, as one quoted argument |
+  | `{node}` | The node number |
+  | `{level}` | The caller's security level |
+  | `{timeleft}` | Minutes left in the caller's session |
+
+  `{name}` is always one quoted argument, with characters the Amiga shell would act on (quotes, `*`, back-quotes, `$`, `;`, `<`, `>`, `|`) replaced by `_`, so a user name can neither run a command nor add a keyword to the door's command line. Do not put quotes around placeholders yourself. There is no node number in front of a CLI door's arguments.
+
+- **Console mode.** The console starts in cooked mode: typed text is echoed, Backspace edits and Return ends a line, as in an Amiga Shell window. A door that wants single keys switches to raw mode itself. Some doors expect the BBS to have opened a raw console already ("run it through a RAW cli" in their notes) and never switch; set `consoleMode: raw` for those.
+
+- **Hangups.** When the caller hangs up or runs out of time, the door's input ends (end of file), its output is refused, and it gets a Ctrl-C, which is what Amiga BBSes did. A door that ignores all of that is stopped from the caller's side after 30 seconds, as for XIM doors; nothing is saved in that case.
+
+- **Libraries.** A door may need libraries that are not in the AROS ROM. Doors compiled with DICE C (Battle Grounds, for one) quit at once, without a word, unless `mathieeedoubbas.library`, `mathieeedoubtrans.library` and `mathieeesingtrans.library` are in `BBS:Libs`. Copy them from the [AROS m68k distribution](https://aros.sourceforge.io) (`Libs/` on the boot ISO), or from your own Workbench disks when you use a Kickstart ROM.
+
+- **Character set.** Many CLI doors draw with the PC (CP437) character set rather than the Amiga's. For those set `encoding: cp437` and `font: none`.
+
+A CLI door's image needs axshim 1.1 or later (the shim in this repository); an image made with axshim 1.0 runs it as an XIM door, which fails.
+
+#### Example: Battle Grounds and Global War
+
+Battle Grounds 0.9e is a hack-and-slash RPG with persistent characters. It takes the caller's name on its command line, reads `S:BattleG.config` (whose first line is its data directory, here `doors:rpgs/battleg/`, which needs a `Users` directory) and expects a raw console. Global War 2.19 is a multi-player strategy game that takes AmigaDOS keyword arguments and keeps its world in `DOORS:GlobalWar/GW.dat`. Both are in the Up Rough door repository.
+
+```hjson
+doorBattleGrounds: {
+    desc: Playing Battle Grounds
+    module: amiga_door
+    config: {
+        name: BattleGrounds
+        image: /home/enigma/amiga/cli-doors.hdf
+        door: BBS:Doors/rpgs/battleg/bg
+        doorType: cli
+        consoleMode: raw
+        doorArgs: "{name}"
+        encoding: cp437
+        font: none
+        sharedState: true
+    }
+}
+doorGlobalWar: {
+    desc: Playing Global War
+    module: amiga_door
+    config: {
+        name: GlobalWar
+        image: /home/enigma/amiga/cli-doors.hdf
+        door: BBS:Doors/GlobalWar/GlobalWar
+        doorType: cli
+        doorArgs: "{name} ACCESS {level} PAGELENGTH 24 TIMELEFT {timeleft}"
+        encoding: cp437
+        font: none
+        sharedState: true
+    }
+}
+```
+
+Global War 2.19 cannot save on a fresh install: it deletes `GW.dat` before renaming its new save over it, and gives up when there is no `GW.dat` to delete. Give it the empty world it would have written, the text `GLOBAL WAR v2.19 ` (with the trailing space) padded with zero bytes to 68 bytes: `printf 'GLOBAL WAR v2.19 ' > GW.dat && truncate -s 68 GW.dat`, then copy it to `Doors/GlobalWar/GW.dat` in the image.
 
 ---
 
@@ -166,13 +235,18 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 - **No transfers from doors.** A door cannot start a ZMODEM (or any other) file transfer to the caller.
 - **No sysop break.** There is no way for the sysop to break into a running door's session from the door.
 - **No `JH_EF` editor.** A door that asks the BBS for its full-screen editor is refused, and the door carries on without it.
-- **XIM doors only,** as described above.
+- **XIM and CLI doors only.** Doors written for other BBS software's message ports (Paragon, CNet) and ARexx doors are not supported.
+- **CLI doors have no window.** A CLI door that asks its console for the window size gets no answer; it should take the screen length from its command line.
 
 ---
 
 ### Troubleshooting
 
 **The door never registers.** The shim waited `regTimeoutSeconds` for the door to announce itself and gave up, and the caller was returned to the menu. Turn on `log: true` and read the debug log. Usual causes: the `door` path is wrong (it must be a path inside the image, written with `BBS:`), the door needs a file or library that is not on the image (it will fail quietly before it reaches the shim), or the door is not an XIM door.
+
+**A CLI door ends at once, with no output.** It could not start or quit before printing anything, usually for want of a library. The exit is logged with the door's return code (`rc`). Check the libraries the door needs (see [CLI Doors](#cli-doors)) and that its configuration files are where its documentation says.
+
+**A CLI door waits for Return after every key.** It expects a raw console and never asks for one; set `consoleMode: raw`.
 
 **Unknown ROM.** The ROM given as `rom` is not one vAmiga knows. Use the bundled ROM, or a Kickstart ROM from a supported release (Kickstart 3.1 is the target).
 

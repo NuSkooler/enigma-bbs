@@ -187,6 +187,10 @@
         //
         //  The door path is the Amiga path of the door inside the image.
         //
+        //  A plain AmigaDOS program that uses its standard input and output
+        //  (many Amiga BBS games) is a CLI door: set doorType: cli and pass
+        //  what it needs on its command line with doorArgs.
+        //
         //  Each session restores a snapshot of the booted machine, so starting
         //  is fast after the first caller. Writes the door makes are saved to
         //  the image after a clean exit. A door that keeps state all callers
@@ -205,6 +209,10 @@
                 sharedState: true
                 tooManyArt: DOORMANY
                 //  doorArgs: -x                 // extra arguments after the node number
+                //  doorType: cli                // a CLI (stdio) door instead of XIM
+                //  consoleMode: raw             // CLI doors: cooked (default) or raw
+                //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
+                //                               // also {node} and {level}
                 //  rom: /path/to/kick31.rom     // default: bundled AROS ROM
                 //  cpu: 68EC020                 // 68000 | 68010 | 68EC020
                 //  fastKb: 8192                 // 0..8192

@@ -11,13 +11,21 @@ everything to ENiGMA over the emulated serial port.
 caller ── ENiGMA½ ── emulator worker ══ serial (framed protocol) ══ axshim ── AEDoorPort<n> ── door
 ```
 
+The shim also runs **CLI doors**, plain AmigaDOS programs that use their standard
+input and output instead of an /X node: it is the DOS handler (the console) behind
+the door's `Input()` and `Output()`.
+
+```
+caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim (console handler) ── Input()/Output() ── door
+```
+
 This directory holds the Amiga-side pieces. They are built with a cross
 compiler, and the binaries are committed in `bin/`, so sysops need no Amiga
 toolchain.
 
 | Path | What |
 |---|---|
-| `bin/axshim` | the host shim, AmigaOS executable (68000, AROS and Kickstart 3.1) |
+| `bin/axshim` | the host shim (axshim 1.1), AmigaOS executable (68000, AROS and Kickstart 3.1) |
 | `bin/AEDoor.library` | NilBBS's MIT `AEDoor.library` 3.0, which most doors open |
 | `shim/axshim.c` | shim source (BSD-2-Clause) |
 | `shim/Makefile`, `shim/build.sh` | build both binaries |
@@ -48,6 +56,22 @@ It:
   (`status=ok|carrier|timeout|break|error`), within 30 seconds of a `d` whatever
   the door does, then says `R` again.
 
+For a CLI door (`type=cli` in the session frame) it instead:
+
+- starts `"<door>" <args>` with `SystemTags`, its `Input()` and `Output()` two
+  handles on a port of the shim's and its console task that port, so `Open("*")`
+  lands there too;
+- answers the door's DOS packets: reads from the caller (cooked, with line editing
+  and echo as in a Shell window, or raw after `SetMode()`; `console=raw` starts raw
+  for doors that never ask), writes to the caller, `WaitForChar()` with its timeout,
+  `Open("*")`/`CONSOLE:`; `IsInteractive()` is true;
+- on a hangup, time-up, break or input timeout makes reads return end of file and
+  writes fail, and sends the door CTRL-C;
+- reports `X` when `SystemTags()` returns, with the door's return code (`rc`).
+
+The console handler follows NilBBS's (`src/node/door.c`, MIT); the notice is in
+`shim/axshim.c`.
+
 A door that never registers, never shuts down or crashes cannot hang the shim:
 it reports `X status=error` (no registration within `regtimeout` seconds) or the
 `d` reason after 30 seconds, keeps answering the stray door's requests as
@@ -72,11 +96,15 @@ authoritative. In brief:
 | `E` | door wants the editor: `file` | `e` | `status=done\|refused` |
 | `X` | session over: `status`, `reg`, `cmds`, `codes`, `return`, `error`, `wrote` | | |
 
-User block keys (`s`): `version` and `door` are required; `dir`, `stack`, `args`,
+User block keys (`s`): `version` and `door` are required; `type` (`xim` or `cli`,
+default `xim`), `console` (`cooked` or `raw`, CLI doors), `dir`, `stack`, `args`,
 `node`, `name`, `realname`, `location`, `level`, `timeleft`, `timeused`,
 `timelimit`, `calls`, `posts`, `uploads`, `downloads`, `ulbytes`, `dlbytes`,
 `laston`, `expert`, `ansi`, `rows`, `cols`, `bbsname`, `sysop`, `mainline`,
 `timeout`, `log`, `hostname` and `hostip` feed the door's `DT_*` and node queries.
+A CLI door gets none of the user block: its `args` (its whole command line, with no
+node number in front) is all it knows about the caller. Section 11 of the protocol
+note describes CLI doors in full.
 
 axshim 1.0 also understands these keys, which the version 1 spec does not list yet
 (adding keys never bumps the version):
@@ -95,6 +123,10 @@ start, which is how file writes are seen for `wrote=1`), `unknown` (command numb
 did not recognise), `dropdtr=1` (the door asked to hang up the caller), `indrop`
 (typed bytes dropped because the door was not reading), `txpoll=1` (the transmit
 interrupt never fired, so the shim fell back to polling).
+
+For a CLI door `X` carries `cmds=0`, `reg=0` and `rc`; `unknown` lists the DOS packet
+types the shim refused (AROS start-up code sends `ACTION_DISK_INFO` and `ACTION_SEEK`,
+which are harmless).
 
 For `changed`/`wrote` to be right, the Amiga clock and the image's file dates must
 agree: send `now` (and `tz` when the image was built in local time).
@@ -133,9 +165,14 @@ plus whatever the door expects to find under `BBS:` (an /X install keeps doors'
 configs in `BBS:Doors`, screens under `BBS:Node<n>`, and so on; each door's
 documentation says). See `image/README.md` for an `xdftool` recipe.
 
+CLI doors may need disk libraries that the AROS ROM lacks; DICE-compiled doors need
+`mathieeedoubbas`, `mathieeedoubtrans` and `mathieeesingtrans.library` in `Libs/`
+(see `image/README.md`).
+
 The images are run with the AROS 20260820 Kickstart replacement (to ship with the
-emulator package) or a Kickstart 3.1 ROM the sysop supplies. axshim 1.0 is tested
-on AROS 20260820; the Kickstart 3.1 run is pending a ROM.
+emulator package) or a Kickstart 3.1 ROM the sysop supplies. axshim 1.0 passed
+every test door on AROS 20260820 and on Kickstart 3.1 (40.68); axshim 1.1 (CLI
+doors) is tested on AROS 20260820.
 
 ## Licences
 

@@ -65,6 +65,34 @@ Copy these from the door's archive, keeping its layout under `BBS:`:
 Writes a door makes (high scores, walls, answers) land in the image; ENiGMA
 writes the changed image back after a clean session.
 
+## CLI doors
+
+A CLI door (`doorType: cli`) goes on the image like any other door. Read its
+documentation for:
+
+- **Libraries.** Disk libraries the door opens must be in `Libs/`. The AROS ROM has
+  `mathieeesingbas.library` but not `mathieeedoubbas`, `mathieeedoubtrans` or
+  `mathieeesingtrans.library`, which every program compiled with DICE C opens at
+  start-up (it quits silently, return code 0, without them). Take them from the AROS
+  m68k boot ISO (`Libs/`, AROS Public License) on the
+  [AROS nightly builds](https://sourceforge.net/projects/aros/files/nightly2/) page,
+  or from your Workbench disks for a Kickstart image:
+
+  ```sh
+  xdftool "$IMG" write mathieeedoubbas.library Libs/mathieeedoubbas.library \
+      + write mathieeedoubtrans.library Libs/mathieeedoubtrans.library \
+      + write mathieeesingtrans.library Libs/mathieeesingtrans.library
+  ```
+
+- **Configuration files under `S:`** (Battle Grounds reads `S:BattleG.config`) and
+  data directories the door will not create itself (Battle Grounds' `Users/`).
+- **Assigns.** The shim makes `BBS:` (the boot volume) and `DOORS:` (`BBS:Doors`)
+  only. A door that insists on another assign needs its files under one of those
+  two, or a `C:Assign` and a line in the image's `S:Startup-Sequence`.
+
+The command line is `doorArgs` in the door's menu entry; see the documentation
+page for the placeholders.
+
 ## Startup-Sequence
 
 `Startup-Sequence` here is the template: it sets `FailAt` and `Stack`, makes the
