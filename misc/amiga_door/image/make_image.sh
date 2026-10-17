@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
 # Build an ENiGMA½ Amiga door image (a bare FFS hard-disk image, volume BBS).
+# `oputil.js amiga-door create` does the same without Python or xdftool; this
+# script is for a machine that has amitools but not ENiGMA½.
 #
 #   make_image.sh [-s SIZE] [-n VOLUME] [-x XDFTOOL] [-w ADF] [-f] IMAGE DOORDIR...
 #
@@ -49,7 +51,7 @@ wb_files=(
 )
 
 usage() {
-    sed -n '3,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,31p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-2}"
 }
 

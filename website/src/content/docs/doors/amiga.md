@@ -72,7 +72,7 @@ python3 misc/amiga_door/tools/decrypt_af_rom.py amiga-os-310-a1200.rom rom.key k
 
 Kickstart and Workbench are copyrighted (Amiga Corporation; Cloanto's Amiga Forever is the usual legitimate source). Their licences cover personal systems and say nothing about public servers, which is one more reason the bundled AROS ROM is the default.
 
-**Workbench 3.1, needed only for ARexx doors.** The AROS ROM has no ARexx, so `make_image.sh -w` reads `RexxMast`, `rexxsyslib.library`, `rexxsupport.library`, the IEEE math libraries, `Rexxc/` and a few `C:` commands from your own `Workbench3.1.adf`. A Workbench 3.1 set is six ADF images of 901,120 bytes each: Workbench3.1, Extras3.1, Fonts, Install3.1, Locale and Storage3.1; only the first is read. Amiga Forever ships them unencrypted. For reference, one clean set of dumps has these CRC32 values; other dumps differ in date stamps, and the image builder checks contents rather than checksums:
+**Workbench 3.1, needed only for ARexx doors.** The AROS ROM has no ARexx, so `oputil.js amiga-door create --workbench` (or `make_image.sh -w`) reads `RexxMast`, `rexxsyslib.library`, `rexxsupport.library`, the IEEE math libraries, `Rexxc/` and a few `C:` commands from your own `Workbench3.1.adf`. A Workbench 3.1 set is six ADF images of 901,120 bytes each: Workbench3.1, Extras3.1, Fonts, Install3.1, Locale and Storage3.1; only the first is read. Amiga Forever ships them unencrypted. For reference, one clean set of dumps has these CRC32 values; other dumps differ in date stamps, and the image builder checks contents rather than checksums:
 
 | Disk | CRC32 |
 |------|-------|
@@ -98,25 +98,53 @@ S/Startup-Sequence        boots straight into the shim
 Doors/<name>/...          the door, its data files, icons and configuration
 ```
 
-Build one with `misc/amiga_door/image/make_image.sh`. It uses `xdftool` from [amitools](https://github.com/cnvogelg/amitools), which you install in a Python virtual environment:
+Build one with `oputil.js amiga-door create`. It needs nothing but ENiGMA½: no Python, no amitools, no running board.
 
 ```bash
-python3 -m venv ~/amitools-venv
-~/amitools-venv/bin/pip install amitools
-
-XDFTOOL=~/amitools-venv/bin/xdftool \
-    misc/amiga_door/image/make_image.sh ~/amiga/dreamsweeper.hdf ~/doors/dreamsweeper
+./oputil.js amiga-door create ~/amiga/dreamsweeper.hdf ~/doors/dreamsweeper
 ```
 
-The script takes the image to create and one or more door directories. Each directory is copied, layout kept, to `Doors/<directory name>/` in the image, so the door above ends up at `BBS:Doors/dreamsweeper/...`. Give several directories to put several doors on one image. Options: `-s SIZE` (default `4M`), `-n VOLUME` (default `BBS`), `-x PATH` for `xdftool`, and `-f` to replace an existing image. When it finishes it lists the image so you can check it.
+It takes the image to create and one or more door directories (listed after the image, or with `--doors DIR...`). Each directory is copied, layout kept, to `Doors/<directory name>/` in the image, so the door above ends up at `BBS:Doors/dreamsweeper/...`. Empty files and empty directories are kept, and files keep their modification times. Give several directories to put several doors on one image. Options:
+
+| Option | |
+|---|---|
+| `--size SIZE` | Image size, default `4M`: bytes, or with `K`, `M` or `G`. Rounded up to a multiple of 8 KB. |
+| `--name NAME` | Volume name, default `BBS`. |
+| `--workbench ADF` | Add ARexx from your own Workbench 3.1 disk, for ARexx doors; see [ARexx Doors](#arexx-doors). |
+| `--force` | Replace the image if it exists. |
+
+When it finishes it lists the image so you can check it. Nothing is written unless the whole image can be built: a door that does not fit (give a larger `--size`), a file name AmigaDOS cannot hold (longer than 30 characters, or with a `:`), or two file names that differ only in case (AmigaDOS ignores case) stop it with a message saying which.
 
 The `door` setting names the door's path inside the image, written with `BBS:`, for example `BBS:Doors/dreamsweeper/dreamsweeper.xim`.
+
+To look at or change an image later:
+
+| Command | |
+|---|---|
+| `amiga-door add IMAGE SRC [DST]` | Copy a local file or directory into the image. `DST` is its path in the image (default: the root). A `DST` ending in `/`, or an existing directory when `SRC` is a file, puts `SRC` inside it. A file of the same name is replaced. |
+| `amiga-door ls IMAGE [DIR]` | List the image, or a directory in it, with sizes, protection bits and dates. |
+| `amiga-door extract IMAGE SRC DST` | Copy a file or directory out of the image; `DST` of `-` writes a file to standard output. |
+| `amiga-door info IMAGE` | Volume name, file system, size and free space, and a check of the image's structure. |
+
+```bash
+./oputil.js amiga-door add ~/amiga/cli-doors.hdf ~/amiga/libs/mathieeedoubbas.library Libs/
+./oputil.js amiga-door ls ~/amiga/doors.hdf Doors/dreamsweeper
+./oputil.js amiga-door extract ~/amiga/doors.hdf Doors/wallhall ~/backup/wallhall
+```
+
+Change an image only while none of its doors is in use: a session that ends cleanly writes the door's changes back over the file. The next session after a change boots the image afresh, since the snapshot of the booted machine belongs to the old file.
+
+These commands read and write any plain OFS or FFS image, floppy `.adf` files included (handy for taking a door off its distribution disk with `extract`). They do not handle partitioned hard-disk images (with a Rigid Disk Block) or other file systems such as PFS and SFS.
+
+:::tip[Without oputil]
+`misc/amiga_door/image/make_image.sh` builds the same image with `xdftool` from [amitools](https://github.com/cnvogelg/amitools) (`pip install amitools`), for a machine that has Python but not ENiGMA½. Its options are `-s SIZE`, `-n VOLUME`, `-w ADF`, `-f` and `-x PATH` for `xdftool`; see `misc/amiga_door/image/README.md`.
+:::
 
 #### What a door may need
 
 Copy these from the door's archive, keeping its layout under `BBS:`:
 
-- **Data and configuration files** the door reads. Some doors will not create their data file and need an empty one to exist; `make_image.sh` keeps empty files.
+- **Data and configuration files** the door reads. Some doors will not create their data file and need an empty one to exist; `amiga-door create` and `add` keep empty files.
 - **Icons with tooltypes** (`<door>.info`). /X doors often read their settings from their icon.
 - **Screens and bulletins** the door displays.
 
@@ -251,20 +279,22 @@ doorGlobalWar: {
 }
 ```
 
-Global War 2.19 cannot save on a fresh install: it deletes `GW.dat` before renaming its new save over it, and gives up when there is no `GW.dat` to delete. Give it the empty world it would have written, the text `GLOBAL WAR v2.19 ` (with the trailing space) padded with zero bytes to 68 bytes: `printf 'GLOBAL WAR v2.19 ' > GW.dat && truncate -s 68 GW.dat`, then copy it to `Doors/GlobalWar/GW.dat` in the image.
+Global War 2.19 cannot save on a fresh install: it deletes `GW.dat` before renaming its new save over it, and gives up when there is no `GW.dat` to delete. Give it the empty world it would have written, the text `GLOBAL WAR v2.19 ` (with the trailing space) padded with zero bytes to 68 bytes: `printf 'GLOBAL WAR v2.19 ' > GW.dat && truncate -s 68 GW.dat`, then copy it into the image with `./oputil.js amiga-door add IMAGE GW.dat Doors/GlobalWar/`.
 
 ### ARexx Doors
 
 Many /X doors were written as ARexx scripts. Their command icon says `TYPE=AIM`, and the script starts with `parse arg NODE`, `options results` and `address value "AERexxControl"NODE`. AmiExpress ran them through its REXXDOOR utility; the shim takes REXXDOOR's place: it opens the `AERexxControl<node>` port, runs the script with `RX`, and answers its commands (`GETUSER`, `PUTUSTR`/`PUTUSER`, `TRANSMIT`, `SENDSTRING`, `GETCHAR`, `QUERY`, `SHOWFILE`, `REMOVERESERVED`, `SHUTDOWN` and the rest) from the same user information XIM doors get. Set `doorType: aim` and name the script in `door`.
 
 :::caution[ARexx doors need your own Workbench 3.1]
-AROS has no ARexx. The image must carry ARexx from your own Workbench 3.1 disk: RexxMast, `rexxsyslib.library`, `rexxsupport.library`, the IEEE math libraries ARexx needs, `SYS:Rexxc/RX` and a few C: commands scripts call. `make_image.sh -w` copies them from an ADF of the Workbench 3.1 disk, and the image's `S:Startup-Sequence` starts RexxMast. Those files are licensed with your Workbench: keep the image to your own board. Workbench 3.1's ARexx runs with the bundled AROS ROM, so you do not need a Kickstart ROM as well.
+AROS has no ARexx. The image must carry ARexx from your own Workbench 3.1 disk: RexxMast, `rexxsyslib.library`, `rexxsupport.library`, the IEEE math libraries ARexx needs, `SYS:Rexxc/RX` and a few C: commands scripts call. `oputil.js amiga-door create --workbench` copies them from an ADF of the Workbench 3.1 disk, and the image's `S:Startup-Sequence` starts RexxMast. Those files are licensed with your Workbench: keep the image to your own board. Workbench 3.1's ARexx runs with the bundled AROS ROM, so you do not need a Kickstart ROM as well.
 :::
 
 ```sh
-XDFTOOL=~/amitools-venv/bin/xdftool misc/amiga_door/image/make_image.sh \
-    -w ~/amiga/Workbench3.1.adf -s 4M ~/amiga/kickboxing.hdf ~/doors/Kickboxing
+./oputil.js amiga-door create ~/amiga/kickboxing.hdf \
+    --workbench ~/amiga/Workbench3.1.adf --doors ~/doors/Kickboxing
 ```
+
+`--workbench` copies, from the same paths on the Workbench disk: `System/RexxMast`; `Libs/rexxsyslib.library` and `rexxsupport.library`; `Libs/mathieeedoubbas.library`, `mathieeedoubtrans` and `mathieeesingtrans` (rexxsyslib will not start without the first, and neither the AROS ROM nor Kickstart 3.1 has it); `Rexxc/RX` and the rest of `Rexxc/`; and `C/Avail`, `Copy`, `Date`, `Delete`, `List`, `MakeDir`, `Rename`, `Type` and `Wait`, which scripts run with `ADDRESS COMMAND`. It stops, naming the files, if the disk lacks any of them.
 
 - **Where the script goes.** Anywhere on the image: a script finds its data through its own paths (KickBoxing uses `doors:Kickboxing/...`; `DOORS:` is `BBS:Doors`), and `door` names the script.
 - **Hangups and time.** When the caller hangs up, runs out of time or leaves the door waiting for a key longer than `inputTimeoutSeconds`, every command the script sends fails with return code 10, as under AmiExpress. Scripts written for /X take that as the cue to save and stop (many set `SIGNAL ON ERROR`); one that carries on gets a Ctrl-C, which stops an ARexx script.
@@ -274,7 +304,7 @@ XDFTOOL=~/amitools-venv/bin/xdftool misc/amiga_door/image/make_image.sh \
 
 #### Example: KickBoxing and Hacker
 
-KickBoxing 1.0 (187 FAC, 1994; Demozoo) is a boxing and training game with Amiga-scene art; Hacker 5.2c (Up Rough door repository) is a hacker-wars game. Hacker draws with PC characters. For KickBoxing, move `KickBox.Rexx` into the archive's `Kickboxing` directory and give that directory to `make_image.sh` (as above); for Hacker, give it the archive's `hacker` directory.
+KickBoxing 1.0 (187 FAC, 1994; Demozoo) is a boxing and training game with Amiga-scene art; Hacker 5.2c (Up Rough door repository) is a hacker-wars game. Hacker draws with PC characters. For KickBoxing, move `KickBox.Rexx` into the archive's `Kickboxing` directory and give that directory to `amiga-door create` (as above); for Hacker, give it the archive's `hacker` directory.
 
 ```hjson
 doorKickBoxing: {
@@ -305,7 +335,7 @@ doorHacker: {
 }
 ```
 
-Hacker runs `avail flush` after every command and stops with an error if the image has no `C:Avail`, so build its image with `-w`. Its archive ships the author's own players: leave out `hackerdata/users/*` and `hackerdata/userlist` for a fresh game.
+Hacker runs `avail flush` after every command and stops with an error if the image has no `C:Avail`, so build its image with `--workbench`. Its archive ships the author's own players: leave out `hackerdata/users/*` and `hackerdata/userlist` for a fresh game.
 
 ---
 
@@ -344,7 +374,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 - **CPU:** the 68000, 68010 and 68EC020 only. There is no 68030, 68040 or 68060, and no FPU.
 - **Memory:** at most 8 MB of fast RAM. The AROS ROM needs at least 1 MB in total (chip plus slow plus fast).
 - **One caller per emulator.** Every session is its own emulated machine, with the memory and CPU that costs. Use `nodeMax` to bound it.
-- **ARexx needs your Workbench.** AROS does not have ARexx; ARexx doors run only on an image built with your own Workbench 3.1 (`make_image.sh -w`).
+- **ARexx needs your Workbench.** AROS does not have ARexx; ARexx doors run only on an image built with your own Workbench 3.1 (`amiga-door create --workbench`).
 - **No transfers from doors.** A door cannot start a ZMODEM (or any other) file transfer to the caller.
 - **No sysop break.** There is no way for the sysop to break into a running door's session from the door.
 - **No `JH_EF` editor.** A door that asks the BBS for its full-screen editor is refused, and the door carries on without it.
@@ -359,7 +389,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 
 **A CLI door ends at once, with no output.** It could not start or quit before printing anything, usually for want of a library. The exit is logged with the door's return code (`rc`). Check the libraries the door needs (see [CLI Doors](#cli-doors)) and that its configuration files are where its documentation says.
 
-**An ARexx door ends at once.** The log line for the exit says why. `error=no rexxsyslib`: the image has no ARexx; build it with `make_image.sh -w`. `ARexx is not running`: RexxMast is not on the image or did not start. `script ended without a host command` with an `out=` text: the script stopped before it said anything, usually an ARexx error (shown) or a missing `ADDLIB` library.
+**An ARexx door ends at once.** The log line for the exit says why. `error=no rexxsyslib`: the image has no ARexx; build it with `amiga-door create --workbench`. `ARexx is not running`: RexxMast is not on the image or did not start. `script ended without a host command` with an `out=` text: the script stopped before it said anything, usually an ARexx error (shown) or a missing `ADDLIB` library.
 
 **A CLI door waits for Return after every key.** It expects a raw console and never asks for one; set `consoleMode: raw`.
 
@@ -367,7 +397,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 
 **"File does not match its type" for a ROM.** vAmiga picks how to read a ROM from its file extension. A ROM file with no `.rom` or `.bin` extension is rejected with this message. Rename the file, for example `kick31.rom`.
 
-**The image is not bootable.** The emulator booted but the shim never said hello. Check that the image is an FFS partition made by `make_image.sh` (or the recipe in `misc/amiga_door/image/README.md`), that `C/axshim` and `S/Startup-Sequence` are on it, and that the first session logs "Amiga door snapshot cached". A raw floppy `.adf` is not a hard-disk image.
+**The image is not bootable.** The emulator booted but the shim never said hello. Check that the image is an FFS partition made by `oputil.js amiga-door create` (or `make_image.sh`), that `C/axshim` and `S/Startup-Sequence` are on it (`oputil.js amiga-door info` checks its structure and `ls` shows what is on it), and that the first session logs "Amiga door snapshot cached". A raw floppy `.adf` is not a hard-disk image.
 
 **The first caller waits a moment, later ones do not.** The first session boots the machine; the others restore a snapshot. A restart of ENiGMA½ empties the cache.
 

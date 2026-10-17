@@ -27,7 +27,7 @@
  * its GETUSER/TRANSMIT/QUERY/... commands from the same user block as XIM
  * doors. It needs ARexx inside the image, which AROS
  * does not have: the image must be built with the sysop's own Workbench 3.1
- * (misc/amiga_door/image/make_image.sh -w).
+ * (oputil.js amiga-door create --workbench, or make_image.sh -w).
  *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.

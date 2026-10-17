@@ -183,7 +183,7 @@
         //       it bundles the AROS ROM.
         //    2. A door image (.hdf): a small FFS disk holding the host shim, the
         //       door library, a startup sequence and the door. Build one with
-        //       misc/amiga_door/image/make_image.sh
+        //       ./oputil.js amiga-door create IMAGE DOORDIR
         //
         //  The door path is the Amiga path of the door inside the image.
         //
@@ -213,7 +213,7 @@
                 //  doorType: cli                // a CLI (stdio) door instead of XIM
                 //  doorType: aim                // an /X ARexx script (door: its path, e.g.
                 //                               // BBS:Doors/KickBox.Rexx); the image needs
-                //                               // your Workbench 3.1's ARexx (make_image.sh -w)
+                //                               // your Workbench 3.1's ARexx (amiga-door create --workbench)
                 //  consoleMode: raw             // CLI doors: cooked (default) or raw
                 //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
                 //                               // also {node} and {level}

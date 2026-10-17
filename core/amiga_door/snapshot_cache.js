@@ -10,7 +10,7 @@
 //  file as it was when the machine booted:
 //
 //    * the key carries the image's mtime and size, so an image edited behind
-//      our back (a sysop adding a door, xdftool) is never restored over;
+//      our back (a sysop adding a door with oputil amiga-door) is never restored over;
 //    * a session that persists changes into the image drops every snapshot of
 //      that image (persistence Model A: the next session boots afresh).
 //
