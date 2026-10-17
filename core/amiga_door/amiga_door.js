@@ -505,11 +505,27 @@ function normalizeConfig(raw) {
 //
 const ShellUnsafe = /["*`$;<>|\\\x00-\x1f\x7f-\x9f]/g;
 
+//
+//  A string from the user record or the system for the `s` frame: one line
+//  of Latin-1 the shim can hold. Composed first (e + combining acute is é),
+//  then control characters (C0, C1) become blanks and anything Latin-1 lacks
+//  a '?'. A line break would not even encode, and C1 bytes such as 0x9B are
+//  terminal controls once a door prints them.
+//
+function userText(value) {
+    return String(undefined === value || null === value ? '' : value)
+        .normalize('NFC')
+        .replace(/[\x00-\x1f\x7f-\x9f]/g, ' ')
+        .replace(/[^\x00-\xff]/gu, '?')
+        .slice(0, MaxValueLength);
+}
+
 //  |max|: the most characters the quoted argument may take, quotes included;
 //  a longer value is cut, never the quotes
 function quoteArg(value, max = Infinity) {
     let s = String(value)
-        .replace(/[^\x00-\xff]/g, '?') //  the s frame is Latin-1
+        .normalize('NFC')
+        .replace(/[^\x00-\xff]/gu, '?') //  the s frame is Latin-1
         .replace(ShellUnsafe, '_');
     if (s.length + 2 > max) {
         s = s.slice(0, Math.max(0, max - 2));
@@ -626,9 +642,9 @@ function buildSessionKeys(client, config) {
         stack: config.doorStack,
         args,
         node: client.node,
-        name: user.getSanitizedName(),
-        realname: user.getSanitizedName('real'),
-        location: prop(UserProps.Location) || '',
+        name: userText(user.getSanitizedName()),
+        realname: userText(user.getSanitizedName('real')),
+        location: userText(prop(UserProps.Location)),
         level: user.getLegacySecurityLevel(),
         timeleft: clampMinutes(timeLeft),
         timeused: UserTime.getTimeUsedTodayMinutes(user),
@@ -644,8 +660,8 @@ function buildSessionKeys(client, config) {
         ansi: 1,
         rows: client.term.termHeight || 24,
         cols: client.term.termWidth || 80,
-        bbsname: _.get(Config(), 'general.boardName') || 'ENiGMA',
-        sysop: StatLog.getSystemStat(SysProps.SysOpUsername) || 'SysOp',
+        bbsname: userText(_.get(Config(), 'general.boardName') || 'ENiGMA'),
+        sysop: userText(StatLog.getSystemStat(SysProps.SysOpUsername) || 'SysOp'),
         mainline: config.mainline || '',
         timeout: inputTimeout,
         log: config.log ? 1 : 0,
@@ -1780,6 +1796,7 @@ exports._test = {
     buildSessionKeys,
     expandDoorArgs,
     quoteArg,
+    userText,
     commandLength,
     isLatin1,
     AmigaDoorSession,

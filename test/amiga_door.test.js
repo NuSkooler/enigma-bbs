@@ -22,6 +22,7 @@ const {
     buildSessionKeys,
     expandDoorArgs,
     quoteArg,
+    userText,
     commandLength,
     isLatin1,
     AmigaDoorSession,
@@ -1355,6 +1356,25 @@ describe('amiga_door session keys', () => {
         assert.equal(keys.timelimit, MaxDoorMinutes);
         //  and the whole thing encodes
         assert.ok(protocol.encode('s', keys).length > 4);
+    });
+
+    it('makes user and system strings one line of Latin-1', () => {
+        assert.equal(userText('Over\r\nThere\x9b[2J雪'), 'Over  There [2J?');
+        assert.equal(userText('Zoe\u0301'), 'Zoé', 'composed before transcoding');
+        assert.equal(userText(undefined), '');
+        assert.equal(userText('x'.repeat(300)).length, 199);
+
+        const client = stubClient();
+        const props = { location: 'Line one\nLine two\x1b[31m' };
+        client.user.getProperty = k => props[k];
+        client.user.getSanitizedName = type =>
+            'real' === type ? 'Ré\u0301al' : 'H\x07andle 🙂';
+        const keys = buildSessionKeys(client, config());
+        assert.equal(keys.location, 'Line one Line two [31m');
+        assert.equal(keys.name, 'H andle ?');
+        //  and the frame encodes (a line break would throw)
+        const payload = protocol.parseKeys(protocol.encode('s', keys).subarray(4));
+        assert.equal(payload.location, keys.location);
     });
 
     it('defaults tz to the host offset and mainline to empty', () => {
