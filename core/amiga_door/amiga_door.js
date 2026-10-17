@@ -1481,7 +1481,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         //  once the worker has stopped writing it
         session.once('done', result => {
             this.session = null;
-            this._doorFinished(doorTracking, result);
+            this._doorFinished(doorTracking, result, session);
         });
         session.once('closed', () => this._releaseImage());
     }
@@ -1506,6 +1506,21 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
             { name: this.config.name, font, seq: JSON.stringify(seq) },
             'Switched caller to the door font'
         );
+    }
+
+    //
+    //  Undo what the door session did to the caller's terminal: the font, the
+    //  attributes and any scroll region the door set. Once, and only while
+    //  there is a terminal to write to: at the door's end, or from leave()
+    //  when time-up or a menu change takes the caller elsewhere first.
+    //
+    _restoreScreen() {
+        if (this.screenRestored || !this.sessionStarted || !this.client.term.output) {
+            return;
+        }
+        this.screenRestored = true;
+        this._restoreFont();
+        this.client.term.rawWrite(ansi.normal() + ansi.setScrollRegion());
     }
 
     _restoreFont() {
@@ -1548,7 +1563,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         }
     }
 
-    _doorFinished(doorTracking, result) {
+    _doorFinished(doorTracking, result, session) {
         this._stopSpinner(false);
         trackDoorRunEnd(doorTracking);
         this._decrementInstances();
@@ -1563,21 +1578,20 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
             );
         }
 
-        //  The caller hung up, or time-up took them elsewhere: nothing to show
+        //  The caller hung up (no terminal), or time-up took them elsewhere
+        //  (leave() has already put their screen back): nothing more to show
         if (this.left || !this.client.term.output) {
-            return;
+            return this._restoreScreen();
         }
 
-        if (this.session) {
-            this.session.flushOutput();
+        if (session) {
+            session.flushOutput();
         }
-        this._restoreFont();
+        this._restoreScreen();
 
-        //  clean up what a door may have left behind, as abracadabra does
+        //  and move below whatever the door left, as abracadabra does
         this.client.term.rawWrite(
-            ansi.normal() +
-                ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
-                ansi.setScrollRegion() +
+            ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
                 ansi.goto(this.client.term.termHeight, 0) +
                 '\r\n\r\n'
         );
@@ -1598,6 +1612,8 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         super.leave();
         this.left = true;
         this._stopSpinner(false);
+        //  before the next menu draws: font and scroll region back
+        this._restoreScreen();
         if (this.session) {
             //  the slot and the image are freed when the session is over
             //  (done, closed), not now: the worker still runs until X

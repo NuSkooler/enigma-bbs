@@ -1105,6 +1105,69 @@ describe('amiga_door image lock', () => {
         assert.equal(await startModule(makeModule({ image })), 'ran');
     });
 
+    it('time-up puts the font and scroll region back before the next menu', async () => {
+        const m = makeModule({ image });
+        assert.equal(await startModule(m), 'ran');
+        m.client.term.syncTermFontsEnabled = true;
+        m._switchFont();
+        assert.ok(m.fontSwitched);
+        const s = makeSession({ image }, { client: m.client });
+        m._attachSession(s.session, null);
+        m.client.term.raw = [];
+
+        //  ENiGMA's time-up: the session sends d, then the menu stack moves
+        //  the caller to timeUpLogoff and calls leave()
+        m.client.timeUpEmitted = true;
+        m.client.emit('time up');
+        assert.deepEqual(s.worker.frames('d'), [
+            { type: 'd', keys: { reason: 'timeup' } },
+        ]);
+        m.leave();
+        const raw = Buffer.concat(m.client.term.raw).toString('latin1');
+        assert.ok(
+            raw.includes('\x1b[0;0 D'),
+            `font not restored: ${JSON.stringify(raw)}`
+        );
+        assert.ok(raw.includes('\x1b[r'), 'scroll region not reset');
+
+        //  the door's X later on writes nothing more to the caller
+        m.client.term.raw = [];
+        deliver(s.worker, [
+            { type: 'exit', status: 'timeout', keys: { status: 'timeout' } },
+        ]);
+        await s.done;
+        assert.equal(m.client.term.raw.length, 0);
+    });
+
+    it('a normal exit restores the screen once and flushes held output', async () => {
+        const m = makeModule({ image });
+        assert.equal(await startModule(m), 'ran');
+        m.client.term.syncTermFontsEnabled = true;
+        m._switchFont();
+        const s = makeSession(
+            { image, persist: false },
+            { client: m.client, rawOutput: true }
+        );
+        m._attachSession(s.session, null);
+        let next = 0;
+        m.autoNextMenu = () => ++next;
+        //  a sequence the door never finished
+        deliver(s.worker, [{ type: 'output', data: Buffer.from('\x1b[3', 'latin1') }]);
+        m.client.term.raw = [];
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await s.done;
+        const raw = Buffer.concat(m.client.term.raw).toString('latin1');
+        assert.ok(raw.startsWith('\x1b[3'), 'held output flushed first');
+        assert.equal(raw.split('\x1b[0;0 D').length, 2, 'font restored once');
+        assert.equal(next, 1);
+        m.leave(); //  the menu stack moving on
+        assert.equal(
+            Buffer.concat(m.client.term.raw).toString('latin1').split('\x1b[0;0 D')
+                .length,
+            2
+        );
+    });
+
     it('leave() before any session frees both at once', async () => {
         const m = makeModule({ image });
         assert.equal(await startModule(m), 'ran');
