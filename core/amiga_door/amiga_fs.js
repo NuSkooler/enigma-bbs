@@ -1260,9 +1260,27 @@ class AmigaVolume {
                 fail('ENOTEMPTY', `directory not empty: ${parts.join('/')}`);
             }
         }
+        //  check the whole tree first, so that a refusal changes nothing
+        this._assertDeletable(found.blk);
         this._deleteEntry(dirBlk, found);
         this._commit();
         return this;
+    }
+
+    _assertDeletable(blk) {
+        const sec = this._s32(blk, OFF.secType);
+        if (
+            (sec === ST_FILE || sec === ST_USERDIR) &&
+            this._u32(blk, OFF.nextLink) !== 0
+        ) {
+            fail(
+                'EUNSUPPORTED',
+                `${this._getNameBuf(blk).toString('latin1')} has hard links; delete them first`
+            );
+        }
+        if (sec === ST_USERDIR) {
+            for (const child of this._dirBlocks(blk)) this._assertDeletable(child);
+        }
     }
 
     _deleteEntry(dirBlk, found) {

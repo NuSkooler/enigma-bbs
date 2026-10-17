@@ -451,6 +451,25 @@ describe('amiga_fs', function () {
             assert.equal(byName.soft.target, 'BBS:real');
             assert.equal(again.readFile('hard').toString(), 'contents');
             assert.throws(() => again.delete('real'), { code: 'EUNSUPPORTED' });
+
+            //  a tree holding a file with links is refused as a whole, untouched
+            again.writeFile('tree/a', 'a');
+            again.writeFile('tree/sub/b', 'b');
+            const linked = again.stat('tree/sub/b').block;
+            const [link2] = again._alloc(1);
+            again._newHeader(link2, again.rootBlock, Buffer.from('hard2'), -4, {});
+            again._u32(link2, 512 - 44, linked);
+            again._u32(linked, 512 - 40, link2);
+            again._checksum(linked);
+            again._linkIntoDir(again.rootBlock, link2, Buffer.from('hard2'));
+            again._commit();
+            const before = Buffer.from(again.toBuffer());
+            assert.throws(() => again.delete('tree', { recursive: true }), {
+                code: 'EUNSUPPORTED',
+            });
+            assert.ok(again.toBuffer().equals(before));
+            again.delete('hard2');
+            again.delete('tree', { recursive: true });
             again.delete('hard');
             again.delete('soft');
             again.delete('real');
