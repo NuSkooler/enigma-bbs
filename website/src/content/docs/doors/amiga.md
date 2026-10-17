@@ -267,6 +267,8 @@ The door's disk is the image file, and each session works on a copy of it. A doo
 
 Because sessions are independent copies, two callers running a door at the same time cannot see each other's writes, and the second to finish would overwrite the first. A door with state all callers share wants `sharedState: true`, which allows one caller at a time unless you set `nodeMax` yourself. A door that keeps no shared state, a game of solitaire for example, can run on several nodes.
 
+Give each door that keeps shared state its own image. Two such doors on one image can run at the same moment under their own `nodeMax` limits, and each session then writes back the disk blocks it changed; where those blocks overlap, directory and allocation blocks among them, the session that finishes second undoes the first one's changes. One image per shared-state door avoids that entirely. Single-player doors with no shared files can share an image freely.
+
 ---
 
 ### Characters and Fonts
