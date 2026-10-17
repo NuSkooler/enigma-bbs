@@ -21,6 +21,13 @@
  * library is opened only when an AIM session starts.  The command set follows NilBBS's
  * aim_command (src/node/door.c, MIT, notice at "ARexx (AIM) doors" below).
  *
+ * A Paragon door (`type=tim`) speaks the Paragon door protocol that
+ * Paragon, StarNet and MAX's BBS served and /X ran as TYPE=TIM: the shim publishes
+ * DoorControl<line> (line = the node's last digit), runs `<door> <line>` and answers the
+ * door's 106-byte DoorMsg requests (print, prompt, hotkey, user numbers and strings, show
+ * file, random, add time, shutdown, and MAX's BBS's extensions) with the carrier flag set
+ * once the caller is gone.
+ *
  *   boot -> H -> R -> (s from the host) -> L -> door traffic, C, E/e -> X -> R ...
  *
  * Door terminal traffic is unframed in both directions; control messages are
@@ -71,6 +78,7 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
+#include <dos/var.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <rexx/storage.h>
@@ -87,9 +95,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-#define SHIM_VERSION    "1.2"
+#define SHIM_VERSION    "1.3"
 #define PROTO_VERSION   1
-static const char __attribute__((used)) verstag[] = "$VER: axshim " SHIM_VERSION " (16.10.2026)";
+static const char __attribute__((used)) verstag[] = "$VER: axshim " SHIM_VERSION " (17.10.2026)";
 
 extern struct ExecBase *SysBase;
 static struct Library *axRexxBase;    /* rexxsyslib: opened by the first AIM session, kept */
@@ -139,6 +147,24 @@ enum {
     CONF_ACCESS = 614, DISPLAY_FILE = 617, CHECK_TO_DISPLAY = 618, INTERPRET_MCI = 621,
     GET_XIMPORT = 622, EXT_LOAD_ACCOUNT = 633, DT_HOSTNAME = 700, DT_HOSTIP = 701,
     DT_ADDBIT = 1000, DT_REMBIT = 1001, DT_QUERYBIT = 1002
+};
+
+/* ---- DoorMsg and command numbers (Paragon; AmiExpress axobjects.e / axconsts.e, MAX's BBS) -- */
+
+struct DoorMsg {
+    struct Message msg;     /*   0 */
+    WORD   command;         /*  20 */
+    WORD   data;            /*  22 */
+    char   string[80];      /*  24 */
+    WORD   carrier;         /* 104: set in every reply once the caller is gone */
+};                          /* 106 */
+typedef char doormsg_is_106_bytes[sizeof(struct DoorMsg) == 106 ? 1 : -1];
+
+enum {
+    PG_SM = 1, PG_CO = 2, PG_SO = 3, PG_CC = 4, PG_CH = 5, PG_PM = 6, PG_SC = 7, PG_HK = 8,
+    PG_TWIT = 9, PG_SF = 10, PG_FF = 11, PG_EF = 12, PG_UD = 13, PG_US = 14, PG_PS = 15,
+    PG_CS = 16, PG_RD = 17, PG_CL = 18, PG_SG = 19, PG_SHUTDOWN = 20, PG_TM = 21,
+    MX_MENU = 100, MX_CHANGEINT = 200, MX_CHECKKEY = 201, MX_PAGED = 202, MX_AUTOINSERT = 203
 };
 
 #define RS              0x1E
@@ -528,13 +554,28 @@ static void f_kv_escaped(const char *key, const char *s, LONG max)
 
 static BOOL crlf = TRUE;
 static UBYTE last_out;
+/* a Paragon (TIM) door with crlf=1: CR, LF, CR LF and LF CR each go out as one CR LF (Paragon
+ * doors end lines either way; MAX's BBS added the LF after a CR itself).  nl_pair is the byte
+ * that would complete the newline just sent: swallowed once. */
+static BOOL  tim_eol;
+static UBYTE nl_pair;
 
 static void out_bytes(const char *s, LONG n)
 {
     LONG i;
     for (i = 0; i < n; i++) {
         UBYTE c = (UBYTE)s[i];
-        if (c == '\n' && crlf && last_out != '\r') tx_put('\r');
+        if (tim_eol) {
+            if (nl_pair && c == nl_pair) { nl_pair = 0; continue; }
+            nl_pair = 0;
+            if (c == '\r' || c == '\n') {
+                tx_put('\r');
+                tx_put('\n');
+                last_out = '\n';
+                nl_pair = c == '\r' ? '\n' : '\r';
+                continue;
+            }
+        } else if (c == '\n' && crlf && last_out != '\r') tx_put('\r');
         if (c == RS) tx_put(RS);
         tx_put(c);
         last_out = c;
@@ -649,7 +690,9 @@ static ULONG hgen;              /* CLI session generation, kept in the handles' 
 static char  portname[24];
 static struct MsgPort *aport;   /* AERexxControl<node>, lives as long as an AIM script may use it */
 static char  aportname[24];
-static BYTE  extsig = -1;       /* JH_SIGBIT: a door Signal()s it to wake a JH_ExtHK */
+static struct MsgPort *dport;   /* DoorControl<line>, lives as long as a Paragon door may use it */
+static char  dportname[24];
+static BYTE  extsig = -1;      /* JH_SIGBIT: a door Signal()s it to wake a JH_ExtHK */
 
 struct Session {
     LONG  node, rows, cols, timeout, regtimeout, level;
@@ -728,6 +771,22 @@ struct Session {
         char  verbs[200];               /* distinct verbs, for X verbs= */
         char  unknown[128];             /* distinct unknown verbs, for X unknown= */
     } aim;
+    /* a Paragon door (type=tim): the BBS side of its DoorControl<line> */
+    struct {
+        BOOL  on;
+        LONG  line;                     /* 0-9: the node's last digit, the door's argv[1][0] */
+        struct DoorMsg *waiting;        /* PG_PM / PG_SC / PG_HK waiting for the caller */
+        UBYTE wait_kind;                /* WK_HK one key, WK_LINE a line */
+        struct DoorMsg *editing;        /* PG_EF waiting for `e` */
+        struct Task *door;              /* the door's task (it owns the reply port) */
+        BOOL  shutdown;                 /* PG_SHUTDOWN seen */
+        ULONG shutdown_at;
+        BOOL  timedout;                 /* no key for `timeout` s: the carrier is gone for good */
+        BOOL  broken;                   /* dead (d, time up, timeout, twit): CTRL-C until it ends */
+        ULONG dead_at, sig_at;
+        LONG  addtime;                  /* minutes PG_TM added (X addtime=) */
+        ULONG seed;                     /* PG_RD */
+    } tim;
 };
 static struct Session S;
 
@@ -809,7 +868,7 @@ static void frame_in(void)
         }
         break;
     case 'e':
-        if (state == ST_SESSION && S.editing && S.edit_answer < 0)
+        if (state == ST_SESSION && (S.editing || S.tim.editing) && S.edit_answer < 0)
             S.edit_answer = frame_get(P.buf, n, "status", v, sizeof(v)) && !strcmp(v, "done") ? 1 : 0;
         break;
     default:                    /* unknown or upper case: skipped by its length */
@@ -1013,17 +1072,47 @@ static void port_close(void)
     port = NULL;
 }
 
+static void tim_zombie(struct DoorMsg *m);
+
+static BOOL dport_open(LONG line)
+{
+    sprintf(dportname, "DoorControl%ld", (long)line);
+    Forbid();
+    if (FindPort((STRPTR)dportname)) { Permit(); return FALSE; }
+    if ((dport = CreateMsgPort())) {
+        dport->mp_Node.ln_Name = dportname;
+        dport->mp_Node.ln_Pri = 0;
+        AddPort(dport);
+    }
+    Permit();
+    return dport != NULL;
+}
+
+/* the Paragon port: after its session every request gets the carrier-lost answer */
+static void dport_close(void)
+{
+    struct DoorMsg *m;
+    if (!dport) return;
+    Forbid();
+    RemPort(dport);
+    while ((m = (struct DoorMsg *)GetMsg(dport))) tim_zombie(m);
+    Permit();
+    DeleteMsgPort(dport);
+    dport = NULL;
+}
+
 /* the launcher finished: free what it used, and the port if no session needs it */
 static void reap(void)
 {
     if (!LN.busy || !LN.done) return;
     if (LN.donesig >= 0) { FreeSignal(LN.donesig); LN.donesig = -1; }
     LN.busy = FALSE;
-    if (state != ST_SESSION) { port_close(); aport_close(); DeleteFile((STRPTR)DOOR_OUT); }
+    if (state != ST_SESSION) { port_close(); aport_close(); dport_close(); DeleteFile((STRPTR)DOOR_OUT); }
 }
 
 /* XIM: `"door" <node> args`.  CLI: `"door" args` (no node number; a CLI door takes what
- * its own documentation says, which the host puts in args).  in/out: CLI handles. */
+ * its own documentation says, which the host puts in args).  AIM: `RX door <node>`.  TIM:
+ * `"door" <line>`.  in/out: CLI handles. */
 static BOOL launch(const char *door, BPTR in, BPTR out)
 {
     char *slash;
@@ -1040,6 +1129,9 @@ static BOOL launch(const char *door, BPTR in, BPTR out)
         const char *args = get("args", "");
         snprintf(LN.cmd, sizeof(LN.cmd), strchr(door, ' ') ? "%s \"%s\" %ld%s%s" : "%s %s %ld%s%s",
                  RX_CMD, door, (long)S.node, *args ? " " : "", args);
+    } else if (S.tim.on) {      /* Paragon: "<door> <line>"; the door reads argv[1][0] */
+        const char *args = get("args", "");
+        snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %ld%s%s", door, (long)S.tim.line, *args ? " " : "", args);
     } else snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %ld %s", door, (long)S.node, get("args", ""));
     if (dir && *dir) {
         strncpy(LN.dir, dir, sizeof(LN.dir) - 1);
@@ -1185,6 +1277,8 @@ static void end_session(const char *status, const char *error)
     if (S.editing) { S.editing->Data = -1; reply(S.editing); S.editing = NULL; }
     if (S.cli.on) cli_flush();  /* reads EOF; later packets get the zombie answers */
     if (S.aim.waiting) { aim_reply(S.aim.waiting, 10, NULL, 0); S.aim.waiting = NULL; }
+    if (S.tim.waiting) { tim_zombie(S.tim.waiting); S.tim.waiting = NULL; }
+    if (S.tim.editing) { tim_zombie(S.tim.editing); S.tim.editing = NULL; }
     changed[0] = 0;
     if (S.launched) {           /* a walk even after a DT write: changed= names a file */
         BOOL files = scan_writes();
@@ -1231,6 +1325,7 @@ static void end_session(const char *status, const char *error)
             if (out[0]) f_kv("out", out);
         }
     }
+    if (S.tim.on && S.tim.addtime) f_kvn("addtime", S.tim.addtime);
     if (changed[0]) f_kv("changed", changed);
     if (S.dtr) f_kvn("dropdtr", 1);
     if (S.indrop) f_kvn("indrop", (LONG)S.indrop);
@@ -1240,10 +1335,13 @@ static void end_session(const char *status, const char *error)
     state = ST_READY;
     inq_head = inq_tail = 0;
     if (LN.busy && LN.done) reap();
-    if (!LN.busy) { port_close(); aport_close(); DeleteFile((STRPTR)DOOR_OUT); }
+    if (!LN.busy) { port_close(); aport_close(); dport_close(); DeleteFile((STRPTR)DOOR_OUT); }
     /* else the door outlived the session: the port stays up and answers "carrier lost" */
     if (S.cli.on && LN.busy && !LN.done) { cli_zombie = S.cli.door; cli_zombie_sig = now_s; }
     if (S.aim.on && LN.busy && !LN.done) { cli_zombie = S.aim.script; cli_zombie_sig = now_s; }
+    if (S.tim.on && LN.busy && !LN.done) { cli_zombie = S.tim.door; cli_zombie_sig = now_s; }
+    tim_eol = FALSE;
+    nl_pair = 0;
     memset(&S, 0, sizeof(S));
     nkv = 0;
     emit_ready();
@@ -1252,6 +1350,60 @@ static void end_session(const char *status, const char *error)
 static void error_session(const char *error) { end_session("error", error); }
 
 static const char *aim_open(LONG node);
+
+/* `assign=NAME=PATH[;NAME=PATH...]` and `env=NAME=VALUE[;NAME=VALUE...]`: what a
+ * door's installation asks of the sysop's Startup-Sequence (Master Space Empire: an MSE: assign
+ * and the variable MSE).  Any door type; a session without them changes nothing. */
+static const char *session_env(void)
+{
+    static char err[80];
+    char buf[200], *p, *e, *eq;
+    const char *v;
+    BPTR l;
+    int n;
+
+    if ((v = get("assign", NULL)) && *v) {
+        strncpy(buf, v, sizeof(buf) - 1);
+        buf[sizeof(buf) - 1] = 0;
+        for (p = buf; p && *p; p = e) {
+            if ((e = strchr(p, ';'))) *e++ = 0;
+            if (!(eq = strchr(p, '=')) || eq == p) return "bad assign";
+            *eq++ = 0;
+            n = strlen(p);
+            if (n && p[n - 1] == ':') p[--n] = 0;
+            if (!n || n > 30 || strchr(p, ':') || strchr(p, '/')) return "bad assign";
+            if (!*eq || !path_ok(eq) || !(l = Lock((STRPTR)eq, ACCESS_READ))) {
+                snprintf(err, sizeof(err), "assign %s: %s not found", p, eq);
+                return err;
+            }
+            if (!AssignLock((STRPTR)p, l)) {
+                UnLock(l);
+                snprintf(err, sizeof(err), "assign %s: failed", p);
+                return err;
+            }
+        }
+    }
+    if ((v = get("env", NULL)) && *v) {
+        if ((l = Lock((STRPTR)"ENV:", ACCESS_READ))) UnLock(l);
+        else {                  /* no ENV: on a minimal image: one in RAM: */
+            if ((l = CreateDir((STRPTR)"RAM:Env"))) UnLock(l);
+            if (!(l = Lock((STRPTR)"RAM:Env", ACCESS_READ))) return "no ENV:";
+            if (!AssignLock((STRPTR)"ENV", l)) { UnLock(l); return "no ENV:"; }
+        }
+        strncpy(buf, v, sizeof(buf) - 1);
+        buf[sizeof(buf) - 1] = 0;
+        for (p = buf; p && *p; p = e) {
+            if ((e = strchr(p, ';'))) *e++ = 0;
+            if (!(eq = strchr(p, '=')) || eq == p || strchr(p, ':') || strchr(p, '/')) return "bad env";
+            *eq++ = 0;
+            if (!SetVar((STRPTR)p, (STRPTR)eq, -1, GVF_GLOBAL_ONLY)) {
+                snprintf(err, sizeof(err), "env %s: failed", p);
+                return err;
+            }
+        }
+    }
+    return NULL;
+}
 
 static void start_session(void)
 {
@@ -1272,6 +1424,7 @@ static void start_session(void)
     type = get("type", "xim");
     if (!strcmp(type, "cli")) S.cli.on = TRUE;
     else if (!strcmp(type, "aim")) S.aim.on = TRUE;
+    else if (!strcmp(type, "tim")) S.tim.on = TRUE;
     else if (*type && strcmp(type, "xim")) { error_session("unknown door type"); return; }
     if (S.cli.on) {                     /* the console's mode before the door's first SetMode() */
         v = get("console", "cooked");
@@ -1282,6 +1435,7 @@ static void start_session(void)
     if (!*door) { error_session("no door"); return; }
     if (LN.busy) { error_session("busy: the previous door is still running"); return; }
     if (!path_ok(door)) { error_session("door path has a name of 33 or more characters"); return; }
+    if ((v = session_env())) { error_session(v); return; }     /* the door path may use an assign */
     if (!(l = Lock((STRPTR)door, ACCESS_READ))) { error_session("door not found"); return; }
     UnLock(l);
 
@@ -1296,6 +1450,8 @@ static void start_session(void)
     S.expert = geti("expert", 0) != 0;
     S.log = geti("log", 0) != 0;
     crlf = geti("crlf", 1) != 0;
+    tim_eol = S.tim.on && crlf;
+    nl_pair = 0;
     S.tzsecs = geti("tz", 0) * 60;
     if (S.rows <= 0) S.rows = 24;
     if (S.cols <= 0) S.cols = 80;
@@ -1324,6 +1480,10 @@ static void start_session(void)
     } else if (S.aim.on) {
         const char *err = aim_open(S.node);
         if (err) { error_session(err); return; }
+    } else if (S.tim.on) {
+        S.tim.line = (S.node < 0 ? -S.node : S.node) % 10;
+        S.tim.seed = now_s * 69069UL + sys_secs();
+        if (!dport_open(S.tim.line)) { error_session("door port busy"); return; }
     } else if (!port_open(S.node)) { error_session("door port busy"); return; }
     if (!launch(door, in, out)) {
         if (S.cli.on) {
@@ -1331,6 +1491,7 @@ static void start_session(void)
             FreeDosObject(DOS_FILEHANDLE, BADDR(out));
             S.cli.on = FALSE;
         } else if (S.aim.on) aport_close();
+        else if (S.tim.on) dport_close();
         else port_close();
         error_session("cannot start the launcher");
         return;
@@ -2446,6 +2607,389 @@ static void aim_session_service(void)
     else end_session("ok", NULL);
 }
 
+/* ---- Paragon (TIM) doors: the shim is the BBS behind DoorControl<line> --------------------
+ *
+ * A Paragon door takes its line from argv[1][0], makes its own reply port DoorReply<line>,
+ * finds the BBS's public port DoorControl<line> and sends it a 106-byte DoorMsg per request,
+ * waiting for each reply.  It never registers; PG_SHUTDOWN (20) is its last request.  After
+ * every reply it tests `carrier`.  The shim publishes DoorControl<line>, runs `<door> <line>`
+ * on the launcher and answers:
+ *
+ *   1 SM   string (+ CR LF when data)       2 CO, 4 CC  the sysop's console only: nothing
+ *   3 SO, 5 CH   the character in data      6 PM, 7 SC  string, then a line of up to data
+ *   8 HK   string, then one key -> string[0], data 1 (MAX's: "from the remote caller")
+ *   9 TWIT (MAX's) hang up                  10 SF, 19 SG  show a file (SG: .gr1/.txt first)
+ *   11 FF  data 1 when the file exists, -1 when not            12 EF  E/e, the host's editor
+ *   13 UD  user numbers (AmiExpress's table: 1 access/10, 2 expert, 4/5 calls, 6 ANSI,
+ *          7 minutes left, 8 columns, 9 rows)  14 US  user strings (1 name, 3-6 location,
+ *          7 PGDOORS:, 8 BBS:, 9 date, 10 time, 100 phone, 101 computer)
+ *   15 PS, 16 CS (MAX's) set access / location for the session    17 RD  random 0..data-1
+ *   20 SHUTDOWN   21 TM  add data minutes (signed) to the session's time
+ *   MAX's: 113/114 type a file, 200 change a user number (accepted), 201 check for a key,
+ *          202 paged (0), 203 auto-insert text (empty)
+ *
+ * The text of SM/PM/SC/HK is read up to its NUL even past string[80], as the BBSes printed it
+ * (doors strcpy() longer texts into the message).  From carrier loss, time-up, the input
+ * timeout or a twit on, every reply has carrier = 1 and input requests return empty; a door
+ * still running 5 s later gets CTRL-C, again every 10 s.  The command set comes from
+ * AmiExpress's own Paragon service (express.e runDoor, MIT) and MAX's BBS's door kits
+ * (DoorStarter.asm, DoorPack, CDoorExample).
+ */
+
+#define TIM_BREAK_AFTER 5       /* seconds from carrier loss / time-up to the first CTRL-C */
+#define TIM_EXIT_GRACE  10      /* seconds a door may run on after PG_SHUTDOWN */
+#define TIM_TEXT        1024    /* a door's text is read up to its NUL, this far at most */
+
+static BOOL tim_dead(void) { return S.lost || S.timeup || S.dtr || S.tim.timedout; }
+
+static void tim_reply(struct DoorMsg *m)
+{
+    m->carrier = tim_dead() ? 1 : 0;
+    ReplyMsg((struct Message *)m);
+}
+
+/* the carrier-lost answer: an input request gets an empty string */
+static void tim_zombie(struct DoorMsg *m)
+{
+    switch (m->command) {
+    case PG_PM: case PG_SC: case PG_HK: case MX_CHECKKEY:
+        m->string[0] = 0;
+        m->data = 0;
+        break;
+    default:
+        break;
+    }
+    m->carrier = 1;
+    ReplyMsg((struct Message *)m);
+}
+
+/* the length of the door's text: to its NUL, TIM_TEXT at most (it may run past string[80]) */
+static LONG tim_textlen(const struct DoorMsg *m)
+{
+    const char *s = m->string;
+    LONG n = 0;
+    while (n < TIM_TEXT && s[n]) n++;
+    return n;
+}
+
+static void tim_text(const struct DoorMsg *m) { out_bytes(m->string, tim_textlen(m)); }
+
+/* a file name from the message: 79 characters at most */
+static void tim_path(const struct DoorMsg *m, char *out)
+{
+    memcpy(out, m->string, 79);
+    out[79] = 0;
+}
+
+/* an answer string, cut to max characters (79 at most: string[80]) */
+static void tim_sets(struct DoorMsg *m, const char *s, int max)
+{
+    int n = strlen(s);
+    if (max > 79) max = 79;
+    if (n > max) n = max;
+    memcpy(m->string, s, n);
+    m->string[n] = 0;
+}
+
+static void tim_log(struct DoorMsg *m)
+{
+    f_begin('C');
+    f_kvn("cmd", m->command);
+    f_kvn("data", m->data);
+    f_kvn("len", m->msg.mn_Length);
+    f_kv_escaped("str", m->string, 80);
+    f_end();
+}
+
+/* PG_US 9 and 10: "MM-DD-YY" and "HH:MM:SS" (AmiExpress's FORMAT_USA) from the Amiga clock */
+static void tim_date(char *out, BOOL date)
+{
+    static const UBYTE md[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    ULONG t = sys_secs(), days = t / 86400UL, secs = t % 86400UL;
+    int y = 1978, m = 0;
+    if (!date) {
+        sprintf(out, "%02lu:%02lu:%02lu", (unsigned long)(secs / 3600),
+                (unsigned long)((secs / 60) % 60), (unsigned long)(secs % 60));
+        return;
+    }
+    for (;;) {
+        int yl = ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) ? 366 : 365;
+        if (days < (ULONG)yl) break;
+        days -= yl; y++;
+    }
+    for (;;) {
+        int dim = md[m] + (m == 1 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0));
+        if (days < (ULONG)dim) break;
+        days -= dim; m++;
+    }
+    sprintf(out, "%02d-%02lu-%02d", m + 1, (unsigned long)days + 1, y % 100);
+}
+
+/* PG_UD: AmiExpress's table (express.e); MAX's numbers past 9 answer 0 */
+static LONG tim_number(LONG code)
+{
+    LONG v;
+    switch (code) {
+    case 1:  v = S.level / 10; break;           /* /X: the access level / 10 */
+    case 2:  v = S.expert ? 1 : 0; break;
+    case 4: case 5: v = geti("calls", 1); break;
+    case 6:  v = S.ansi ? 1 : 0; break;         /* graphics mode */
+    case 7:  v = time_left() / 60; break;
+    case 8:  v = S.cols; break;
+    case 9:  v = S.rows; break;
+    default: v = 0; break;                      /* 3 net credits, MAX's 10-110 */
+    }
+    return v > 32767 ? 32767 : v < -32768 ? -32768 : v;
+}
+
+/* PG_US: AmiExpress's table (its cuts: the name 21 characters, the location 39/29/2/7) */
+static void tim_string(struct DoorMsg *m)
+{
+    const char *loc = get("location", "");
+    char s[24];
+    switch (m->data) {
+    case 1:   tim_sets(m, get("name", "User"), 21); break;
+    case 3:   tim_sets(m, loc, 39); break;
+    case 4:   tim_sets(m, loc, 29); break;
+    case 5:   tim_sets(m, loc, 2); break;
+    case 6:   tim_sets(m, loc, 7); break;
+    case 7:   tim_sets(m, "PGDOORS:", 79); break;
+    case 8:   tim_sets(m, "BBS:", 79); break;
+    case 9: case 10: tim_date(s, m->data == 9); tim_sets(m, s, 79); break;
+    case 100: tim_sets(m, "000-000-0000", 79); break;
+    case 101: tim_sets(m, "Amiga", 79); break;
+    default:  tim_sets(m, "", 0); break;        /* 2 the password: never; 102 comment */
+    }
+}
+
+/* PG_SF a file as named; PG_SG a "graphics" file: name.gr1 (ANSI callers), name.txt, the name,
+ * then the XIM list (.ans .gr .asc) */
+static void tim_show(const struct DoorMsg *m, BOOL graphics)
+{
+    static const char *ext[] = { ".gr1", ".txt", "", ".ans", ".gr", ".asc", NULL };
+    char path[80], f[90];
+    int i;
+    tim_path(m, path);
+    if (!graphics) { show_file(path); return; }
+    for (i = 0; ext[i]; i++) {
+        if (i == 0 && !S.ansi) continue;
+        snprintf(f, sizeof(f), "%s%s", path, ext[i]);
+        if (show_file(f)) return;
+    }
+}
+
+/* the caller typed something: finish a waiting PG_PM / PG_SC / PG_HK */
+static void tim_service_input(void)
+{
+    struct DoorMsg *m = S.tim.waiting;
+    LONG c;
+    if (!m) return;
+    if (tim_dead()) { tim_zombie(m); S.tim.waiting = NULL; return; }
+    if (S.tim.wait_kind == WK_HK) {
+        do c = next_key(); while (c == -2);
+        if (c < 0) return;
+        m->string[0] = (char)c;
+        m->string[1] = 0;
+        m->data = 1;            /* the byte before the string: 1 = the remote caller's key */
+        tim_reply(m);
+        S.tim.waiting = NULL;
+        return;
+    }
+    while ((c = next_key()) != -1) {
+        if (c == -2) continue;
+        S.wait_since = now_s;   /* the input timeout counts from the last key */
+        if (c == '\r' || c == '\n') {
+            out_bytes("\r\n", 2);       /* MAX's: "a carriage return is printed after command 6" */
+            memcpy(m->string, S.line, S.len);
+            m->string[S.len] = 0;
+            tim_reply(m);
+            S.tim.waiting = NULL;
+            return;
+        } else if (c == 8 || c == 127) {
+            if (S.len > 0) { S.len--; out_bytes("\b \b", 3); }
+        } else if (c == 21 || c == 24) {
+            while (S.len > 0) { S.len--; out_bytes("\b \b", 3); }
+        } else if (c >= 32 && S.len < S.maxlen) {
+            char b = (char)c;
+            S.line[S.len++] = b;
+            out_bytes(&b, 1);
+        }
+    }
+}
+
+static void tim_park(struct DoorMsg *m, UBYTE kind, LONG maxlen)
+{
+    if (S.tim.waiting) {        /* one at a time: a second one gets an empty answer */
+        m->string[0] = 0;
+        tim_reply(m);
+        return;
+    }
+    S.tim.waiting = m;
+    S.tim.wait_kind = kind;
+    S.wait_since = now_s;
+    S.len = 0;
+    S.maxlen = maxlen > 0 && maxlen < 80 ? maxlen : 79;
+    tim_service_input();
+}
+
+/* answer m in place; FALSE: it waits (input, PG_EF) and is replied to later */
+static BOOL tim_answer(struct DoorMsg *m)
+{
+    LONG cmd = m->command;
+    char path[80];
+    BPTR l;
+
+    switch (cmd) {
+    case PG_SM:
+        tim_text(m);
+        if (m->data) out_bytes("\r\n", 2);
+        break;
+    case PG_CO: case PG_CC: break;      /* the sysop's console only */
+    case PG_SO: case PG_CH: {
+        char b = (char)m->data;
+        out_bytes(&b, 1);
+        break;
+    }
+    case PG_PM: case PG_SC:             /* SC: MAX's "stacked commands" prompt; none here */
+        if (!S.tim.waiting) tim_text(m);
+        tim_park(m, WK_LINE, m->data);
+        return FALSE;
+    case PG_HK:
+        if (!S.tim.waiting) tim_text(m);
+        tim_park(m, WK_HK, 1);
+        return FALSE;
+    case PG_TWIT:       S.dtr = TRUE; break;        /* reported as dropdtr=1 in X */
+    case PG_SF:         tim_show(m, FALSE); break;
+    case PG_SG:         tim_show(m, TRUE); break;
+    case PG_FF:
+        tim_path(m, path);
+        if (path[0] && path_ok(path) && (l = Lock((STRPTR)path, ACCESS_READ))) { UnLock(l); m->data = 1; }
+        else m->data = -1;
+        break;
+    case PG_EF:                         /* hand the editor to the host: E, then wait for e */
+        tim_path(m, path);
+        if (!path[0] || !path_ok(path) || S.tim.editing || tim_dead()) break;
+        S.tim.editing = m;
+        S.edit_since = now_s;
+        S.edit_answer = -1;
+        f_begin('E');
+        f_kv("file", path);
+        f_end();
+        return FALSE;
+    case PG_UD:         m->data = (WORD)tim_number(m->data); break;
+    case PG_US:         tim_string(m); break;
+    case PG_PS:         S.level = m->data; S.wrote = TRUE; break;
+    case PG_CS:         tim_path(m, path); put("location", path); S.wrote = TRUE; break;
+    case PG_RD:
+        if (m->data > 0) {
+            S.tim.seed = S.tim.seed * 1103515245UL + 12345UL;
+            m->data = (WORD)((S.tim.seed >> 16) % (ULONG)m->data);
+        }
+        break;
+    case PG_SHUTDOWN:
+        if (!S.tim.shutdown) { S.tim.shutdown = TRUE; S.tim.shutdown_at = now_s; }
+        break;
+    case PG_TM:                         /* minutes on (or off) the session's clock; a `t` resets it */
+        if (!tim_dead()) {
+            LONG left = time_left() + (LONG)m->data * 60;
+            S.budget = left > 0 ? left : 0;
+            S.budget_base = now_s;
+            S.tim.addtime += m->data;
+        }
+        break;
+    case MX_MENU + 13: case MX_MENU + 14: tim_show(m, FALSE); break;   /* menu 13/14: type a file */
+    case MX_CHANGEINT:  S.wrote = TRUE; break;      /* accepted; the session has no MAX's record */
+    case MX_CHECKKEY: {
+        LONG c = -1;
+        if (!tim_dead()) do c = next_key(); while (c == -2);
+        m->string[0] = c > 0 ? (char)c : 0;
+        m->string[1] = 0;
+        break;
+    }
+    case MX_PAGED:      m->data = 0; break;
+    case MX_AUTOINSERT: m->string[0] = 0; break;
+    default:                            /* PG_CL, other menu functions: replied unchanged */
+        mark_unknown(cmd);
+        break;
+    }
+    return TRUE;
+}
+
+static void tim_command(struct DoorMsg *m)
+{
+    if (m->msg.mn_ReplyPort && m->msg.mn_ReplyPort->mp_SigTask)
+        S.tim.door = (struct Task *)m->msg.mn_ReplyPort->mp_SigTask;
+    S.cmds++;
+    mark_seen(m->command);
+    if (S.log) tim_log(m);
+    if (tim_answer(m)) tim_reply(m);
+}
+
+/* the TIM half of session_service(): input, the editor, timeouts, the door's end, X */
+static void tim_session_service(void)
+{
+    struct DoorMsg *m;
+    BOOL ended = FALSE;
+
+    if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
+    if (S.tim.editing) {
+        BYTE a = S.edit_answer;
+        if (tim_dead()) a = -2;
+        else if (a < 0 && S.timeout > 0 && now_s - S.edit_since >= (ULONG)S.timeout) a = 0;
+        if (a != -1) {
+            if (a == 1) S.wrote = TRUE;
+            tim_reply(S.tim.editing);
+            S.tim.editing = NULL;
+        }
+    }
+    if (S.tim.waiting && !tim_dead() && S.timeout > 0 && now_s - S.wait_since >= (ULONG)S.timeout) {
+        S.tim.timedout = TRUE;  /* Paragon logged the caller off: the carrier is gone for good */
+        S.input_failed = TRUE;
+    }
+    tim_service_input();
+
+    if (tim_dead()) {
+        if (!S.tim.broken) {
+            S.tim.broken = TRUE;
+            S.tim.dead_at = now_s;
+        } else if (!LN.done && now_s - S.tim.dead_at >= TIM_BREAK_AFTER
+                   && (!S.tim.sig_at || now_s - S.tim.sig_at >= BREAK_REPEAT)) {
+            S.tim.sig_at = now_s;
+            cli_signal(S.tim.door, SIGBREAKF_CTRL_C);
+        }
+    }
+
+    if (LN.done) {              /* the door process is gone: whatever it left, then X */
+        while (dport && (m = (struct DoorMsg *)GetMsg(dport))) tim_command(m);
+        if (!S.cmds && !S.lost) {
+            char out[120], err[200];
+            door_stdout(out, sizeof(out));
+            snprintf(err, sizeof(err), "door exited without a DoorControl request (rc=%ld)%s%s",
+                     (long)LN.rc, out[0] ? ": " : "", out);
+            reap();
+            error_session(err);
+            return;
+        }
+        ended = TRUE;
+    } else if (!S.cmds && S.regtimeout > 0 && now_s - S.start_s >= (ULONG)S.regtimeout && !S.lost) {
+        char err[64];
+        sprintf(err, "door sent no DoorControl request within %ld s", (long)S.regtimeout);
+        error_session(err);
+        return;
+    } else if (S.tim.shutdown && now_s - S.tim.shutdown_at >= TIM_EXIT_GRACE) {
+        ended = TRUE;
+    } else if (S.tim.broken && now_s - S.tim.dead_at >= CARRIER_GRACE) {
+        ended = TRUE;
+    }
+    if (!ended) return;
+
+    if (S.lost == LOST_HANGUP) end_session("carrier", NULL);
+    else if (S.lost == LOST_TIMEUP) end_session("timeout", NULL);
+    else if (S.lost == LOST_BREAK) end_session("break", NULL);
+    else if (S.timeup || S.tim.timedout) end_session("timeout", NULL);
+    else end_session("ok", NULL);
+}
+
 /* ---- the session's clock work: input, editor, exit ------------------------------------ */
 
 static void session_service(void)
@@ -2455,6 +2999,7 @@ static void session_service(void)
 
     if (S.cli.on) { cli_session_service(); return; }
     if (S.aim.on) { aim_session_service(); return; }
+    if (S.tim.on) { tim_session_service(); return; }
 
     if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
 
@@ -2515,6 +3060,7 @@ static void step(void)
 {
     struct JHMessage *m;
     struct RexxMsg *rm;
+    struct DoorMsg *dm;
     int pass;
     timer_poll();
     pump();
@@ -2523,6 +3069,7 @@ static void step(void)
         if (state == ST_READY) {
             if (port) while ((m = (struct JHMessage *)GetMsg(port))) zombie_reply(m);
             if (aport) while ((rm = (struct RexxMsg *)GetMsg(aport))) aim_zombie(rm);
+            if (dport) while ((dm = (struct DoorMsg *)GetMsg(dport))) tim_zombie(dm);
             cli_zombie_service();
             if (LN.busy && LN.done) reap();
             if (s_pending) {
@@ -2537,6 +3084,10 @@ static void step(void)
             }
             if (aport) while ((rm = (struct RexxMsg *)GetMsg(aport))) {
                 if (S.aim.on) aim_command(rm); else aim_zombie(rm);
+                pump();
+            }
+            if (dport) while ((dm = (struct DoorMsg *)GetMsg(dport))) {
+                if (S.tim.on) tim_command(dm); else tim_zombie(dm);
                 pump();
             }
             session_service();
@@ -2575,6 +3126,7 @@ int main(int argc, char **argv)
     if (!wait_timer_open() || !(hport = CreateMsgPort())) hport = NULL;    /* no CLI doors then */
     assign("BBS", "SYS:");
     assign("DOORS", "SYS:Doors");
+    assign("PGDOORS", "SYS:Doors");     /* Paragon doors' door path (PG_US 7, as /X answers) */
 
     emit_hello(baud);
     emit_ready();
@@ -2582,6 +3134,7 @@ int main(int argc, char **argv)
         ULONG sigs = rx.sigmask | timer_sigmask() | SIGBREAKF_CTRL_C, got;
         if (port) sigs |= 1UL << port->mp_SigBit;
         if (aport) sigs |= 1UL << aport->mp_SigBit;
+        if (dport) sigs |= 1UL << dport->mp_SigBit;
         if (LN.busy && LN.donesig >= 0) sigs |= 1UL << LN.donesig;
         if (extsig >= 0) sigs |= 1UL << extsig;
         if (hport) sigs |= (1UL << hport->mp_SigBit) | wait_sigmask();
