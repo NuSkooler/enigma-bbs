@@ -31,7 +31,8 @@
  *   { type: 'output', data: Uint8Array }                - door bytes (frames removed), per frame batch
  *   { type: 'frame', frame: { type, keys } }            - H, R, L, C, E (protocol frames)
  *   { type: 'exit', status, keys }                      - the shim's X frame (the first one only)
- *   { type: 'persisted', chunks, bytes, ms }            - answer to 'persist'
+ *   { type: 'persisted', chunks, bytes, ms, refused }   - answer to 'persist'; |refused| says why
+ *                                                         nothing was written (the image changed)
  *   { type: 'error', message, code, fatal }             - see below
  *   { type: 'stopped' }                                 - answer to 'stop', worker exits
  *
@@ -40,7 +41,9 @@
  *   { type: 'frame', frame: { type, keys } } - send a host frame (t, d, w, e); `d` drops queued
  *                                            input, but finishes a frame or RS RS pair already begun
  *   { type: 'pause' } / { type: 'resume' } - output back-pressure: stop / restart the emulator
- *   { type: 'persist', path }              - after X: settle, then write changed HDF chunks
+ *   { type: 'persist', path, tmp }         - after X: settle, then write the changed HDF chunks
+ *                                            into |tmp| (a copy of the image) and rename it over
+ *                                            the image
  *   { type: 'stop' }                       - shut down
  */
 
@@ -53,6 +56,8 @@ if (isMainThread) {
     return;
 }
 
+const fs = require('fs');
+const paths = require('path');
 const protocol = require('./protocol.js');
 const { HostLink } = require('./host_link.js');
 
@@ -62,6 +67,10 @@ const { RS } = protocol;
 //  (escaped bytes). The shim drops keystrokes the door is not reading anyway
 //  (X `indrop`).
 const MaxInputQueueBytes = 64 * 1024;
+
+//  Persist granularity: what differs from the baseline is written in blocks of
+//  this size (a multiple of the 512-byte sector).
+const PersistChunkBytes = 64 * 1024;
 
 //  Amiga time to let the guest's file system flush before persisting: X comes
 //  after the door has exited plus the shim's 2 s drain, and AmigaOS writes
@@ -77,6 +86,7 @@ let link = null;
 let state = 'starting'; //  starting | booting | warpEnding | session | exited | stopping
 let inputDropped = 0;
 let restoreMs = null;
+let baselineStat = null; //  the image file as this session read it
 
 //
 //  Host -> shim bytes waiting for room in the guest's receive buffer, in
@@ -345,22 +355,114 @@ function onFrame({ warping }) {
     }
 }
 
-function persist(path) {
+function sameFile(a, b) {
+    return (
+        a.size === b.size && a.mtimeMs === b.mtimeMs && a.ino === b.ino && a.dev === b.dev
+    );
+}
+
+function fsyncDir(dir) {
+    let fd;
+    try {
+        fd = fs.openSync(dir, 'r');
+        fs.fsyncSync(fd);
+    } catch (e) {
+        //  not every platform syncs a directory; the rename stands regardless
+    } finally {
+        if (undefined !== fd) {
+            fs.closeSync(fd);
+        }
+    }
+}
+
+//
+//  Write the session's disk changes back to the image, atomically: the image
+//  is copied to |tmp| beside it, the changed chunks go into the copy, the
+//  copy is synced and renamed over the image. A crash, a kill or a full disk
+//  at any point leaves the image as it was, never half written.
+//
+//  Nothing is written when the image is no longer the file this session read
+//  its baseline from (someone else wrote it meanwhile): the changes would be
+//  measured against the wrong disk.
+//
+function persist(path, tmp) {
     const ts = performance.now();
+    let tmpMade = false;
     try {
         if (pacer) {
             pacer.stop();
         }
         emu.runFrames(PersistSettleFrames);
         emu.serialRead(); //  the shim's R after X; nobody is listening
-        const { chunksWritten, bytesWritten } = emu.persistHdf(path);
+
+        const target = fs.realpathSync(path);
+        const changed = () =>
+            baselineStat && !sameFile(baselineStat, fs.statSync(target));
+        const refuse = () =>
+            post({
+                type: 'persisted',
+                chunks: 0,
+                bytes: 0,
+                ms: performance.now() - ts,
+                refused: 'the image changed during the session',
+            });
+
+        if (changed()) {
+            return refuse();
+        }
+
+        const chunks = emu.hdfChangedChunks(PersistChunkBytes);
+        let bytes = 0;
+        if (chunks.length) {
+            tmp = tmp || `${target}.${process.pid}.${Date.now()}.persist`;
+            if (paths.dirname(paths.resolve(tmp)) !== paths.dirname(target)) {
+                throw new Error(`persist: ${tmp} is not beside ${target}`);
+            }
+            fs.copyFileSync(target, tmp, fs.constants.COPYFILE_EXCL);
+            tmpMade = true;
+            const fd = fs.openSync(tmp, 'r+');
+            try {
+                const size = fs.fstatSync(fd).size;
+                if (size !== emu.hdfSize) {
+                    throw new Error(
+                        `persist: ${target} is ${size} bytes, the disk is ${emu.hdfSize}`
+                    );
+                }
+                for (const { offset, data } of chunks) {
+                    let w = 0;
+                    while (w < data.length) {
+                        w += fs.writeSync(fd, data, w, data.length - w, offset + w);
+                    }
+                    bytes += data.length;
+                }
+                fs.fsyncSync(fd);
+            } finally {
+                fs.closeSync(fd);
+            }
+            //  last look: the copy was taken from the file we expect
+            if (changed()) {
+                fs.unlinkSync(tmp);
+                tmpMade = false;
+                return refuse();
+            }
+            fs.renameSync(tmp, target);
+            tmpMade = false;
+            fsyncDir(paths.dirname(target));
+        }
         post({
             type: 'persisted',
-            chunks: chunksWritten,
-            bytes: bytesWritten,
+            chunks: chunks.length,
+            bytes,
             ms: performance.now() - ts,
         });
     } catch (e) {
+        if (tmpMade) {
+            try {
+                fs.unlinkSync(tmp);
+            } catch (e2) {
+                //  best effort
+            }
+        }
         postError(e, { during: 'persist', fatal: true });
     }
 }
@@ -408,7 +510,7 @@ parentPort.on('message', msg => {
             return;
 
         case 'persist':
-            return persist(msg.path);
+            return persist(msg.path, msg.tmp);
 
         case 'stop':
             return stop();
@@ -429,6 +531,8 @@ async function main() {
     }
 
     try {
+        //  before the image is read: a write after this shows at persist time
+        baselineStat = fs.statSync(workerData.image);
         if (workerData.snapshot) {
             //  RAM sizes are irrelevant here (the snapshot brings its own
             //  configuration); a small one keeps the peak down

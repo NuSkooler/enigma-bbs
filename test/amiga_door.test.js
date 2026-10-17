@@ -683,6 +683,101 @@ describe('amiga_door session', () => {
         assert.equal(s.cache.size, 1);
     });
 
+    it('asks for the persist through a temporary file beside the image', async () => {
+        const s = makeSession();
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await new Promise(r => setImmediate(r));
+        const [persist] = s.worker.sent('persist');
+        assert.equal(persist.path, BASE.image);
+        assert.equal(path.dirname(persist.tmp), path.dirname(BASE.image));
+        assert.notEqual(persist.tmp, BASE.image);
+        s.worker.emit('message', { type: 'persisted', chunks: 0, bytes: 0, ms: 1 });
+        await s.done;
+    });
+
+    it('a slow persist ends the session but never stops the worker mid-write', async () => {
+        const s = makeSession({}, { timeouts: { persist: 10, persistAbandon: 5000 } });
+        const closed = new Promise(r => s.session.once('closed', r));
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        const result = await s.done;
+        assert.equal(result.persisted, false);
+        assert.match(result.error, /persist did not finish/);
+        assert.equal(s.worker.terminated, false, 'still writing');
+
+        s.worker.emit('message', { type: 'persisted', chunks: 1, bytes: 512, ms: 50 });
+        await closed;
+        assert.ok(s.worker.terminated);
+    });
+
+    it('gives up on a persist that never finishes and removes its copy', async () => {
+        const image = path.join(os.tmpdir(), `amiga_door_abandon_${process.pid}.hdf`);
+        fs.writeFileSync(image, Buffer.alloc(16));
+        try {
+            const s = makeSession(
+                { image },
+                { timeouts: { persist: 5, persistAbandon: 20 } }
+            );
+            const closed = new Promise(r => s.session.once('closed', r));
+            deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+            await new Promise(r => setImmediate(r));
+            const [persist] = s.worker.sent('persist');
+            fs.writeFileSync(persist.tmp, 'half'); //  the worker got this far
+            await s.done;
+            assert.equal(s.worker.terminated, false);
+            await closed;
+            assert.ok(s.worker.terminated);
+            await new Promise(r => setTimeout(r, 20));
+            assert.equal(fs.existsSync(persist.tmp), false);
+            assert.equal(fs.readFileSync(image).length, 16);
+        } finally {
+            fs.rmSync(image, { force: true });
+        }
+    });
+
+    it('a worker that dies mid-persist is not waited for', async () => {
+        const s = makeSession({}, { timeouts: { persistAbandon: 60000 } });
+        const closed = new Promise(r => s.session.once('closed', r));
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await new Promise(r => setImmediate(r));
+        s.worker.emit('exit', 1);
+        const result = await s.done;
+        assert.match(result.error, /exited unexpectedly/);
+        await closed;
+    });
+
+    it('a persist refused because the image changed drops its snapshots', async () => {
+        const s = makeSession();
+        s.cache.set(
+            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
+            Buffer.from([1])
+        );
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await new Promise(r => setImmediate(r));
+        s.worker.emit('message', {
+            type: 'persisted',
+            chunks: 0,
+            bytes: 0,
+            ms: 1,
+            refused: 'the image changed during the session',
+        });
+        const result = await s.done;
+        assert.equal(result.persisted, false);
+        assert.match(result.refused, /changed/);
+        assert.equal(s.cache.size, 0);
+        assert.ok(
+            s.client.log.lines.some(
+                l => 'warn' === l.level && /NOT persisted/.test(l.msg)
+            )
+        );
+    });
+
+    it('a late error from a finished worker is swallowed', async () => {
+        const s = makeSession();
+        s.session.disconnect('hangup');
+        await s.done;
+        assert.doesNotThrow(() => s.worker.emit('error', new Error('late')));
+    });
+
     for (const status of ['carrier', 'timeout', 'break', 'error']) {
         it(`X status=${status} does not persist`, async () => {
             const s = makeSession();

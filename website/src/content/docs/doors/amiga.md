@@ -310,7 +310,8 @@ Hacker runs `avail flush` after every command and stops with an error if the ima
 The door's disk is the image file, and each session works on a copy of it. A door that saves something (a high score, a message on a wall) writes it to that copy. What happens next:
 
 - **After a clean exit** (the door ended normally, status `ok`), ENiGMA½ writes the disk blocks the session changed back into the image file. The next session starts from the saved disk.
-- **After anything else** (the caller hung up, the time ran out, an error), nothing is written, so a door that crashed halfway cannot corrupt the image. `persistOn` widens this if you want, for example `['ok', 'timeout']`.
+- **After anything else** (the caller hung up, the time ran out, an error), nothing is written, so a door that crashed or was cut off halfway leaves the image as it was. `persistOn` widens this if you want, for example `['ok', 'timeout']`.
+- **How it is written.** The changed blocks go into a copy of the image in the same directory, which is synced to disk and then renamed over the image. A server crash, a full disk or a stopped ENiGMA½ at any moment leaves either the old image or the new one, never a mix of the two. If the write takes longer than 30 seconds the caller is returned to the menu, but the write is left to finish (for up to five minutes) rather than being cut off. What gets saved is whatever the door left on its disk: a door that exits cleanly with its own files in a bad state is saved that way.
 - **When the disk changed**, the cached snapshots of that image are dropped, since they hold the old disk. The next session boots and caches a fresh one.
 - `persist: false` makes every session start from the image as it is, whatever the door writes.
 

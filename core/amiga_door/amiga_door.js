@@ -121,8 +121,11 @@ const WORKER_PATH = paths.join(__dirname, 'amiga_worker.js');
 const ExitAfterDisconnectMs = 2000;
 //  boot (warp) or restore to the shim having been sent `s`
 const ReadyTimeoutMs = 60 * 1000;
-//  the worker settles 3 s of Amiga time and writes a few chunks; generous
+//  the worker settles 3 s of Amiga time, copies the image and writes a few
+//  chunks; generous. Past it the caller moves on, but the worker is never
+//  stopped mid-write: it gets until PersistAbandonMs to finish.
 const PersistTimeoutMs = 30 * 1000;
+const PersistAbandonMs = 5 * 60 * 1000;
 const ResizePollMs = 1000;
 const TimePollMs = 5000;
 const BackpressurePollMs = 50;
@@ -572,6 +575,7 @@ class AmigaDoorSession extends EventEmitter {
                 ready: ReadyTimeoutMs,
                 exitAfterDisconnect: ExitAfterDisconnectMs,
                 persist: PersistTimeoutMs,
+                persistAbandon: PersistAbandonMs,
             },
             timeouts
         );
@@ -596,8 +600,10 @@ class AmigaDoorSession extends EventEmitter {
         this.ready = false;
         this.disconnectReason = null; //  set once `d` has been sent
         this.exitInfo = null; //  the X frame, once seen
-        this.persisting = false;
+        this.persisting = false; //  a persist has been asked for and not answered
+        this.persistTmp = null;
         this.finished = false;
+        this.closed = false;
         this.firstOutput = true;
         this.timers = {};
 
@@ -611,9 +617,12 @@ class AmigaDoorSession extends EventEmitter {
 
     start() {
         this.onWorkerMessageBound = msg => this.onWorkerMessage(msg);
-        this.onWorkerErrorBound = err =>
+        this.onWorkerErrorBound = err => {
+            this.workerGone = true; //  an uncaught error ends the thread
             this.finish({ error: `worker thread error: ${err.message}` });
+        };
         this.onWorkerExitBound = code => {
+            this.workerGone = true;
             if (!this.finished) {
                 this.finish({ error: `worker exited unexpectedly (code ${code})` });
             }
@@ -806,7 +815,6 @@ class AmigaDoorSession extends EventEmitter {
             return this.finish({ status, keys: msg.keys, persisted: false });
         }
 
-        this.persisting = true;
         withImageLock(
             this.config.image,
             () =>
@@ -816,21 +824,78 @@ class AmigaDoorSession extends EventEmitter {
                         return resolve();
                     }
                     this.persistResolve = resolve;
-                    this.timers.persist = setTimeout(() => {
-                        this.finish({
-                            status,
-                            keys: msg.keys,
-                            persisted: false,
-                            error: `persist did not finish within ${this.timeouts.persist} ms`,
-                        });
-                    }, this.timeouts.persist);
-                    this.post({ type: 'persist', path: this.config.image });
+                    this.startPersist(status, msg.keys);
                 })
         );
     }
 
+    //
+    //  The worker writes the changes into a copy of the image beside it and
+    //  renames the copy over the image. A persist that overruns
+    //  timeouts.persist ends the session for the caller, but the worker is
+    //  left to finish (a rename is atomic, a half-written copy is not the
+    //  image) until timeouts.persistAbandon; only then is it stopped and its
+    //  copy removed.
+    //
+    startPersist(status, keys) {
+        let target = this.config.image;
+        try {
+            target = fs.realpathSync(this.config.image);
+        } catch (e) {
+            //  the worker reports a missing image
+        }
+        this.persistTmp = `${target}.${process.pid}.${Date.now()}.persist`;
+        this.persisting = true;
+        this.timers.persist = setTimeout(() => {
+            this.log.warn(
+                { name: this.config.name, image: this.config.image },
+                `Amiga door persist did not finish within ${this.timeouts.persist} ms; letting it finish in the background`
+            );
+            this.finish({
+                status,
+                keys,
+                persisted: false,
+                error: `persist did not finish within ${this.timeouts.persist} ms`,
+            });
+        }, this.timeouts.persist);
+        this.post({ type: 'persist', path: this.config.image, tmp: this.persistTmp });
+    }
+
+    persistSettled() {
+        this.persisting = false;
+        if (this.persistResolve) {
+            this.persistResolve();
+            this.persistResolve = null;
+        }
+    }
+
     onPersisted(msg) {
         clearTimeout(this.timers.persist);
+        this.persistSettled();
+
+        if (msg.refused) {
+            //  someone wrote the image under this session: its changes were
+            //  measured against a disk that is no longer there
+            const dropped = this.cache
+                ? this.cache.invalidateImage(this.config.image)
+                : 0;
+            this.log.warn(
+                {
+                    name: this.config.name,
+                    image: this.config.image,
+                    reason: msg.refused,
+                    snapshotsDropped: dropped,
+                },
+                'Amiga door disk changes NOT persisted: the image changed during the session'
+            );
+            return this.finish({
+                status: this.exitInfo.status,
+                keys: this.exitInfo.keys,
+                persisted: false,
+                refused: msg.refused,
+            });
+        }
+
         let invalidated = 0;
         if (msg.chunks > 0 && this.cache) {
             invalidated = this.cache.invalidateImage(this.config.image);
@@ -863,6 +928,9 @@ class AmigaDoorSession extends EventEmitter {
         }
         if (false === msg.fatal) {
             return this.log.warn(err, 'Amiga door worker problem');
+        }
+        if ('persist' === msg.during) {
+            this.persistSettled(); //  the worker removed its copy
         }
         this.log.warn(err, 'Amiga door worker error');
         this.finish({
@@ -1042,13 +1110,12 @@ class AmigaDoorSession extends EventEmitter {
             clearInterval(t);
         }
 
-        if (this.persistResolve) {
-            this.persistResolve();
-        }
-
         this.worker.removeListener('message', this.onWorkerMessageBound);
         this.worker.removeListener('error', this.onWorkerErrorBound);
         this.worker.removeListener('exit', this.onWorkerExitBound);
+        //  a late 'error' from a worker we no longer listen to must not
+        //  become an unhandled one
+        this.worker.on('error', () => {});
         if (this.inputSource) {
             this.inputSource.removeListener('data', this.onInputBound);
         }
@@ -1059,10 +1126,10 @@ class AmigaDoorSession extends EventEmitter {
         );
 
         //  Model A: a worker is never reused (shim protocol v1, 8.4)
-        try {
-            this.worker.terminate();
-        } catch (e) {
-            //  already gone
+        if (this.persisting && !this.workerGone) {
+            this.awaitPersistThenClose();
+        } else {
+            this.close();
         }
 
         if (this.outputStats.pauses > 0) {
@@ -1073,6 +1140,73 @@ class AmigaDoorSession extends EventEmitter {
         }
 
         this.emit('done', Object.assign({ reason: this.disconnectReason }, result));
+    }
+
+    //  Stop the worker; 'closed' once it is gone. Nothing of the session is
+    //  left after that.
+    close() {
+        if (this.closed) {
+            return;
+        }
+        this.closed = true;
+        clearTimeout(this.abandonTimer);
+        let terminated;
+        try {
+            terminated = this.worker.terminate();
+        } catch (e) {
+            //  already gone
+        }
+        const tmp = this.persisting ? this.persistTmp : null;
+        this.persistSettled();
+        Promise.resolve(terminated)
+            .catch(() => {})
+            .then(() => {
+                if (tmp) {
+                    //  stopped mid-persist: its copy is not the image, and goes
+                    fs.unlink(tmp, () => {});
+                }
+                this.emit('closed');
+            });
+    }
+
+    //  The session is over but the worker is still writing the image: let it
+    //  finish (or give up on it after timeouts.persistAbandon).
+    awaitPersistThenClose() {
+        const onMessage = msg => {
+            if (
+                'persisted' === msg.type ||
+                ('error' === msg.type && msg.fatal !== false)
+            ) {
+                this.log.info(
+                    {
+                        name: this.config.name,
+                        image: this.config.image,
+                        chunks: msg.chunks,
+                        refused: msg.refused,
+                        error: 'error' === msg.type ? msg.message : undefined,
+                    },
+                    'Amiga door persist finished after the session ended'
+                );
+                if ('persisted' === msg.type && msg.chunks > 0 && this.cache) {
+                    this.cache.invalidateImage(this.config.image);
+                }
+                done();
+            }
+        };
+        const done = () => {
+            this.worker.removeListener('message', onMessage);
+            this.worker.removeListener('exit', done);
+            this.close();
+        };
+        this.worker.on('message', onMessage);
+        this.worker.on('exit', done);
+        this.abandonTimer = setTimeout(() => {
+            this.log.warn(
+                { name: this.config.name, image: this.config.image },
+                `Amiga door persist did not finish within ${this.timeouts.persistAbandon} ms; stopping the worker, the image is unchanged`
+            );
+            done();
+        }, this.timeouts.persistAbandon);
     }
 }
 

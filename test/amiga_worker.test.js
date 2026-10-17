@@ -3,7 +3,7 @@
 //
 //  core/amiga_door/amiga_worker.js in a real worker thread, against a fake
 //  enigma-vamiga (test/fixtures/amiga_worker/): the input queue, the order of
-//  what goes to the shim, `d`, pause and resume and X handling.
+//  what goes to the shim, `d`, pause and resume, persisting and X handling.
 //
 const { strict: assert } = require('assert');
 const fs = require('fs');
@@ -255,5 +255,94 @@ describe('amiga_door worker', function () {
         await w.tick();
         assert.equal((await problem).fatal, false);
         assert.ok(!w.messages.some(m => 'exit' === m.type));
+    });
+
+    async function exited() {
+        await restored();
+        w.shim(protocol.encode('X', { status: 'ok' }));
+        const exit = w.next(m => 'exit' === m.type);
+        await w.tick();
+        await exit;
+    }
+
+    it('persists by renaming a written copy over the image', async () => {
+        await exited();
+        const before = fs.statSync(image);
+        w.post({
+            type: 'fake',
+            cmd: 'changes',
+            chunks: [{ offset: 512, data: new Uint8Array(512).fill(0xaa) }],
+        });
+        const tmp = `${image}.test.persist`;
+        const done = w.next(m => 'persisted' === m.type);
+        w.post({ type: 'persist', path: image, tmp });
+        const msg = await done;
+        assert.equal(msg.chunks, 1);
+        assert.equal(msg.bytes, 512);
+        assert.equal(msg.refused, undefined);
+
+        const after = fs.readFileSync(image);
+        assert.equal(after.length, 8192);
+        assert.ok(after.subarray(512, 1024).every(b => 0xaa === b));
+        assert.ok(after.subarray(0, 512).every(b => 0 === b));
+        assert.notEqual(
+            fs.statSync(image).ino,
+            before.ino,
+            'replaced, not written in place'
+        );
+        assert.deepEqual(fs.readdirSync(dir), ['door.hdf'], 'no temporary file left');
+        assert.ok((await w.state()).settled >= 150, 'the guest was given time to flush');
+    });
+
+    it('writes nothing when nothing changed', async () => {
+        await exited();
+        const before = fs.statSync(image);
+        const done = w.next(m => 'persisted' === m.type);
+        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
+        assert.equal((await done).chunks, 0);
+        assert.equal(fs.statSync(image).ino, before.ino);
+        assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
+    });
+
+    it('refuses to persist over an image that changed during the session', async () => {
+        await exited();
+        //  someone else wrote the image meanwhile
+        fs.writeFileSync(image, Buffer.alloc(8192, 0x11));
+        fs.utimesSync(image, new Date(), new Date(Date.now() + 5000));
+        w.post({
+            type: 'fake',
+            cmd: 'changes',
+            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
+        });
+        const done = w.next(m => 'persisted' === m.type);
+        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
+        const msg = await done;
+        assert.equal(msg.chunks, 0);
+        assert.match(msg.refused, /changed/);
+        assert.ok(
+            fs.readFileSync(image).every(b => 0x11 === b),
+            'left alone'
+        );
+        assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
+    });
+
+    it('a failed persist leaves the image and no temporary file', async () => {
+        await exited();
+        w.post({
+            type: 'fake',
+            cmd: 'changes',
+            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
+        });
+        const failed = w.next(m => 'error' === m.type);
+        //  a temporary file somewhere else is refused
+        w.post({
+            type: 'persist',
+            path: image,
+            tmp: path.join(os.tmpdir(), 'elsewhere.persist'),
+        });
+        const err = await failed;
+        assert.equal(err.during, 'persist');
+        assert.ok(fs.readFileSync(image).every(b => 0 === b));
+        assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
     });
 });
