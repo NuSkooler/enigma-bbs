@@ -6,6 +6,13 @@
  * framed protocol in "ENiGMA <-> Amiga door shim protocol, version 1"
  * (vault: ENiGMA/Features/Amiga Door Emulation - Shim Protocol).
  *
+ * A CLI (stdio) door (`type=cli` in the session frame, protocol section 11) is a
+ * plain AmigaDOS program instead: the shim is the DOS handler behind its Input()
+ * and Output() and answers the packets itself (reads from the caller, cooked or
+ * raw, writes to the caller, WaitForChar, SetMode, Open("*")).  That part follows
+ * the fake console handler in NilBBS's src/node/door.c (MIT, see the notice at
+ * "CLI doors" below).
+ *
  *   boot -> H -> R -> (s from the host) -> L -> door traffic, C, E/e -> X -> R ...
  *
  * Door terminal traffic is unframed in both directions; control messages are
@@ -63,7 +70,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define SHIM_VERSION    "1.0"
+#define SHIM_VERSION    "1.1"
 #define PROTO_VERSION   1
 static const char __attribute__((used)) verstag[] = "$VER: axshim " SHIM_VERSION " (16.10.2026)";
 
@@ -118,6 +125,7 @@ enum {
 
 #define RS              0x1E
 #define CARRIER_GRACE   30      /* seconds from `d` (or time-up) to X, whatever the door does */
+#define BREAK_REPEAT    10      /* seconds between CTRL-C signals to a CLI door that will not end */
 #define EXIT_GRACE      2       /* seconds for the process to end after the last JH_SHUTDOWN */
 #define REG_TIMEOUT     30      /* default seconds a door has to send JH_REGISTER */
 #define LONGNAME        33      /* a path component this long is refused (AROS 20250219 hang) */
@@ -379,6 +387,51 @@ static void timer_close(void)
     if (tport) DeleteMsgPort(tport);
 }
 
+/* a second request for a CLI door's WaitForChar() timeout, which is finer than the tick */
+static struct MsgPort *wport;
+static struct timerequest *wreq;
+static BOOL wait_busy;
+
+static ULONG wait_sigmask(void) { return wport ? 1UL << wport->mp_SigBit : 0; }
+
+static BOOL wait_timer_open(void)
+{
+    if (!(wport = CreateMsgPort())) return FALSE;
+    if (!(wreq = (struct timerequest *)CreateIORequest(wport, sizeof(struct timerequest)))) return FALSE;
+    if (OpenDevice((STRPTR)TIMERNAME, UNIT_VBLANK, (struct IORequest *)wreq, 0)) {
+        DeleteIORequest((struct IORequest *)wreq);
+        wreq = NULL;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static void wait_disarm(void)
+{
+    if (!wait_busy) return;
+    AbortIO((struct IORequest *)wreq);
+    WaitIO((struct IORequest *)wreq);
+    wait_busy = FALSE;
+}
+
+static void wait_arm(ULONG usecs)
+{
+    wait_disarm();
+    wreq->tr_node.io_Command = TR_ADDREQUEST;
+    wreq->tr_time.tv_secs = usecs / 1000000UL;
+    wreq->tr_time.tv_micro = usecs % 1000000UL;
+    SendIO((struct IORequest *)wreq);
+    wait_busy = TRUE;
+}
+
+static BOOL wait_expired(void)
+{
+    if (!wait_busy || !CheckIO((struct IORequest *)wreq)) return FALSE;
+    WaitIO((struct IORequest *)wreq);
+    wait_busy = FALSE;
+    return TRUE;
+}
+
 /* set the system clock (Amiga seconds since 1 Jan 1978); a restored snapshot's clock is stale */
 static void set_clock(ULONG amiga_secs)
 {
@@ -560,9 +613,21 @@ static struct {
     BOOL  busy;                 /* launched and not yet reaped */
     struct Task *parent;
     BYTE  donesig;
+    BOOL  cli;                  /* a CLI door: in/out are the shim's handles, not NIL: */
+    BPTR  in, out;              /* CLI: owned by the launcher once it runs (it closes them) */
+    struct MsgPort *console;    /* CLI: the handler port, the door's console task */
+    struct Task *self;          /* the launcher process (its packets are not the door's) */
 } LN = { .donesig = -1 };
 
 static struct MsgPort *port;    /* AEDoorPort<node>, lives as long as a door may use it */
+static struct MsgPort *hport;   /* CLI doors' handler port: made at start-up and never freed, so a
+                                 * handle that outlives its session always gets an answer */
+static ULONG hgen;              /* CLI session generation, kept in the handles' fh_Args */
+#define H_IN        1           /* fh_Args = generation << 4 | one of these */
+#define H_OUT       2
+#define H_STAR      3           /* a handle the door opened itself (Open("*")) */
+#define H_ID(a)     ((ULONG)(a) & 15)
+#define H_GEN(a)    ((ULONG)(a) >> 4)
 static char  portname[24];
 static BYTE  extsig = -1;       /* JH_SIGBIT: a door Signal()s it to wake a JH_ExtHK */
 
@@ -608,6 +673,25 @@ struct Session {
     LONG  unknown[16];
     int   nunknown;
     ULONG indrop;               /* caller bytes dropped: the door did not read them */
+    /* a CLI door (type=cli): the console handler's side of its Input() and Output() */
+    struct {
+        BOOL  on;               /* this session's door is a CLI door */
+        BOOL  raw;              /* SetMode(fh, 1): bytes as typed, no echo */
+        BOOL  eof_pending;      /* cooked: CTRL-\ on an empty line */
+        BOOL  timedout;         /* no key for `timeout` seconds while the door wanted one */
+        BOOL  broken;           /* the door was told to go (reads EOF, CTRL-C sent) */
+        UBYTE esc;              /* cooked: 1 after ESC, 2 inside a CSI sequence (dropped) */
+        struct Task *door;      /* who sends us packets on the session's own handles */
+        struct DosPacket *readq[8];
+        int   nread;
+        struct DosPacket *waitpkt;      /* a parked ACTION_WAIT_CHAR */
+        UBYTE line[256];        /* cooked: the line being typed */
+        int   linelen;
+        UBYTE ready[512];       /* finished lines (cooked) not yet read */
+        int   readylen;
+        LONG  opens;            /* Open("*") handles still open */
+        ULONG last_key, want_at, dead_at, sig_at;
+    } cli;
 };
 static struct Session S;
 
@@ -773,15 +857,29 @@ static void ae_ctime(ULONG ae, char *out)
 
 static void launcher(void)
 {
-    BPTR in = Open((STRPTR)"NIL:", MODE_OLDFILE);
-    BPTR out = Open((STRPTR)DOOR_OUT, MODE_NEWFILE);
-    BPTR dl = LN.dir[0] ? Lock((STRPTR)LN.dir, ACCESS_READ) : 0, od = 0;
-    if (!out) out = Open((STRPTR)"NIL:", MODE_NEWFILE);
+    BPTR in, out, dl, od = 0;
+    LN.self = FindTask(NULL);
+    if (LN.cli) {               /* the shim's handles: closing them is an ACTION_END to the shim */
+        in = LN.in;
+        out = LN.out;
+    } else {
+        in = Open((STRPTR)"NIL:", MODE_OLDFILE);
+        out = Open((STRPTR)DOOR_OUT, MODE_NEWFILE);
+        if (!out) out = Open((STRPTR)"NIL:", MODE_NEWFILE);
+    }
+    dl = LN.dir[0] ? Lock((STRPTR)LN.dir, ACCESS_READ) : 0;
     if (dl) od = CurrentDir(dl);
-    LN.rc = SystemTags((STRPTR)LN.cmd,
-                       SYS_Input, in, SYS_Output, out,
-                       NP_StackSize, LN.stack, NP_Priority, 0,
-                       TAG_END);
+    if (LN.cli)                 /* Open("*") from the door comes to the handler port too */
+        LN.rc = SystemTags((STRPTR)LN.cmd,
+                           SYS_Input, in, SYS_Output, out,
+                           NP_ConsoleTask, (ULONG)LN.console,
+                           NP_StackSize, LN.stack, NP_Priority, 0,
+                           TAG_END);
+    else
+        LN.rc = SystemTags((STRPTR)LN.cmd,
+                           SYS_Input, in, SYS_Output, out,
+                           NP_StackSize, LN.stack, NP_Priority, 0,
+                           TAG_END);
     if (dl) { CurrentDir(od); UnLock(dl); }
     if (in) Close(in);
     if (out) Close(out);
@@ -852,12 +950,20 @@ static void reap(void)
     if (state != ST_SESSION) { port_close(); DeleteFile((STRPTR)DOOR_OUT); }
 }
 
-static BOOL launch(const char *door)
+/* XIM: `"door" <node> args`.  CLI: `"door" args` (no node number; a CLI door takes what
+ * its own documentation says, which the host puts in args).  in/out: CLI handles. */
+static BOOL launch(const char *door, BPTR in, BPTR out)
 {
     char *slash;
     const char *dir = get("dir", NULL);
     memset(LN.cmd, 0, sizeof(LN.cmd));
-    snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %ld %s", door, (long)S.node, get("args", ""));
+    LN.cli = S.cli.on;
+    LN.in = in;
+    LN.out = out;
+    LN.console = hport;
+    LN.self = NULL;
+    if (LN.cli) snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %s", door, get("args", ""));
+    else snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %ld %s", door, (long)S.node, get("args", ""));
     if (dir && *dir) {
         strncpy(LN.dir, dir, sizeof(LN.dir) - 1);
         LN.dir[sizeof(LN.dir) - 1] = 0;
@@ -985,6 +1091,10 @@ static BOOL scan_writes(void)
 }
 
 static void fail_waiting(BOOL timeout);
+static void cli_flush(void);
+static BPTR cli_handle(ULONG id);
+static struct Task *cli_zombie;         /* a CLI door that outlived its session */
+static ULONG cli_zombie_sig;
 static void reply(struct JHMessage *m) { ReplyMsg((struct Message *)m); }
 
 /* X, then back to R.  status: ok carrier timeout break error */
@@ -996,6 +1106,7 @@ static void end_session(const char *status, const char *error)
 
     if (S.waiting) fail_waiting(FALSE);
     if (S.editing) { S.editing->Data = -1; reply(S.editing); S.editing = NULL; }
+    if (S.cli.on) cli_flush();  /* reads EOF; later packets get the zombie answers */
     changed[0] = 0;
     if (S.launched) {           /* a walk even after a DT write: changed= names a file */
         BOOL files = scan_writes();
@@ -1041,6 +1152,7 @@ static void end_session(const char *status, const char *error)
     if (LN.busy && LN.done) reap();
     if (!LN.busy) { port_close(); DeleteFile((STRPTR)DOOR_OUT); }
     /* else the door outlived the session: the port stays up and answers "carrier lost" */
+    if (S.cli.on && LN.busy && !LN.done) { cli_zombie = S.cli.door; cli_zombie_sig = now_s; }
     memset(&S, 0, sizeof(S));
     nkv = 0;
     emit_ready();
@@ -1050,8 +1162,8 @@ static void error_session(const char *error) { end_session("error", error); }
 
 static void start_session(void)
 {
-    const char *door, *v;
-    BPTR l;
+    const char *door, *v, *type;
+    BPTR l, in = 0, out = 0;
 
     memset(&S, 0, sizeof(S));
     S.edit_answer = -1;
@@ -1064,6 +1176,14 @@ static void start_session(void)
 
     v = get("version", NULL);
     if (!v || atol(v) != PROTO_VERSION) { error_session("version"); return; }
+    type = get("type", "xim");
+    if (!strcmp(type, "cli")) S.cli.on = TRUE;
+    else if (*type && strcmp(type, "xim")) { error_session("unknown door type"); return; }
+    if (S.cli.on) {                     /* the console's mode before the door's first SetMode() */
+        v = get("console", "cooked");
+        if (!strcmp(v, "raw")) S.cli.raw = TRUE;
+        else if (*v && strcmp(v, "cooked")) { error_session("unknown console mode"); return; }
+    }
     door = get("door", "");
     if (!*door) { error_session("no door"); return; }
     if (LN.busy) { error_session("busy: the previous door is still running"); return; }
@@ -1097,9 +1217,26 @@ static void start_session(void)
     S.budget_base = now_s;
     S.envstat = 3;
     S.edit_answer = -1;
+    S.cli.last_key = now_s;
 
-    if (!port_open(S.node)) { error_session("door port busy"); return; }
-    if (!launch(door)) { port_close(); error_session("cannot start the launcher"); return; }
+    if (S.cli.on) {                     /* the door's Input() and Output(): our handles */
+        hgen++;
+        if (!hport || !(in = cli_handle(H_IN)) || !(out = cli_handle(H_OUT))) {
+            if (in) FreeDosObject(DOS_FILEHANDLE, BADDR(in));
+            S.cli.on = FALSE;
+            error_session("cannot make the door's console handles");
+            return;
+        }
+    } else if (!port_open(S.node)) { error_session("door port busy"); return; }
+    if (!launch(door, in, out)) {
+        if (S.cli.on) {
+            FreeDosObject(DOS_FILEHANDLE, BADDR(in));
+            FreeDosObject(DOS_FILEHANDLE, BADDR(out));
+            S.cli.on = FALSE;
+        } else port_close();
+        error_session("cannot start the launcher");
+        return;
+    }
     S.launched = TRUE;
 
     f_begin('L');
@@ -1484,12 +1621,376 @@ static void xim_command(struct JHMessage *m)
     reply(m);
 }
 
+/* ---- CLI doors: the shim is the DOS handler behind the door's Input() and Output() ---------
+ *
+ * A CLI door is started (SystemTags) with Input() and Output() on two file handles whose
+ * handler is hport, and with hport as its console task, so Open("*") comes here too.  The shim
+ * answers the packets itself:
+ *
+ *   ACTION_READ         from the caller: cooked (line editing and echo, as the Amiga console
+ *                       does; CR ends a line, the door gets it with LF) or raw (bytes as typed)
+ *   ACTION_WRITE        to the caller, unframed, exactly like XIM door output
+ *   ACTION_SCREEN_MODE  SetMode(): 0 cooked, anything else raw
+ *   ACTION_WAIT_CHAR    WaitForChar() with its timeout (a cooked console has a key when it has
+ *                       a whole line)
+ *   ACTION_FINDINPUT/OUTPUT/UPDATE   Open("*") / Open("CONSOLE:"): another interactive handle
+ *   ACTION_END, FLUSH, CHANGE_SIGNAL  accepted; IS_FILESYSTEM false; anything else refused
+ *
+ * When the session is over for the door (`d`, time up, input timeout), reads return EOF (0),
+ * WaitForChar says yes (so a polling door reads the EOF), writes fail (-1), and the door gets
+ * CTRL-C (and D, E, F once), CTRL-C again every BREAK_REPEAT seconds.
+ *
+ * The handler's packet set and its cooked-mode editor follow NilBBS's fake console handler
+ * (src/node/door.c, https://github.com/lainejones/NilBBS), whose licence applies to those parts:
+ *
+ *   Copyright (c) 2026 Laine Jones
+ *
+ *   Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ *   software and associated documentation files (the "Software"), to deal in the Software
+ *   without restriction, including without limitation the rights to use, copy, modify, merge,
+ *   publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+ *   to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ *   The above copyright notice and this permission notice shall be included in all copies or
+ *   substantial portions of the Software.
+ *
+ *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ *   INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ *   PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+ *   FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ *   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ *   DEALINGS IN THE SOFTWARE.
+ */
+
+#define CLI_ERR     ERROR_OBJECT_NOT_FOUND  /* a failed write: never a disk error (requesters) */
+
+static BPTR cli_handle(ULONG id)
+{
+    struct FileHandle *fh = (struct FileHandle *)AllocDosObject(DOS_FILEHANDLE, NULL);
+    if (!fh) return 0;
+    fh->fh_Type = hport;
+    fh->fh_Port = (struct MsgPort *)DOSTRUE;    /* interactive: IsInteractive() is true */
+    fh->fh_Args = (LONG)((hgen << 4) | id);
+    return MKBADDR(fh);
+}
+
+/* signal t if it is still a task: a door that has ended must not be Signal()led */
+static void cli_signal(struct Task *t, ULONG sigs)
+{
+    struct Node *n;
+    BOOL found = FALSE;
+    if (!t) return;
+    Forbid();                   /* the list walk and the Signal() under one Forbid() */
+    for (n = SysBase->TaskReady.lh_Head; !found && n->ln_Succ; n = n->ln_Succ) found = (struct Task *)n == t;
+    for (n = SysBase->TaskWait.lh_Head; !found && n->ln_Succ; n = n->ln_Succ) found = (struct Task *)n == t;
+    if (found) Signal(t, sigs);
+    Permit();
+}
+
+static BOOL cli_dead(void) { return S.lost || S.timeup || S.cli.timedout; }
+
+/* the next caller byte for the door, -1 = none: LF or NUL right after CR is telnet's CR LF /
+ * CR NUL and is swallowed (Return is one CR on an Amiga), DEL is backspace */
+static int cli_byte(void)
+{
+    int c;
+    for (;;) {
+        if ((c = inq_get()) < 0) return -1;
+        if (last_cr && (c == '\n' || c == 0)) { last_cr = FALSE; continue; }
+        last_cr = (c == '\r');
+        S.cli.last_key = now_s;
+        return c == 0x7F ? 8 : c;
+    }
+}
+
+/* raw: is a byte there that cli_byte() will not swallow? */
+static BOOL cli_raw_avail(void)
+{
+    while (inq_tail != inq_head) {
+        UBYTE c = inq[inq_tail];
+        if (!(last_cr && (c == '\n' || c == 0))) return TRUE;
+        inq_tail = (inq_tail + 1) & (INQSIZE - 1);
+        last_cr = FALSE;
+    }
+    return FALSE;
+}
+
+/* cooked mode: the console's line editor over whatever the caller typed, echoing as it goes.
+ * Backspace/DEL rubs out, CTRL-U/X kill the line, CR or LF ends it, CTRL-\ on an empty line is
+ * end of file, CTRL-C/D/E/F signal the door, escape sequences (cursor keys) are dropped. */
+static void cli_cooked(void)
+{
+    int c;
+    while (S.cli.readylen + (int)sizeof(S.cli.line) + 1 <= (int)sizeof(S.cli.ready)
+           && (c = cli_byte()) >= 0) {
+        if (S.cli.esc == 1) {
+            S.cli.esc = 0;
+            if (c == '[' || c == 'O') { S.cli.esc = 2; continue; }
+        } else if (S.cli.esc == 2) {
+            if (c >= 0x40 && c <= 0x7E) S.cli.esc = 0;
+            continue;
+        }
+        if (c == 27) { S.cli.esc = 1; continue; }
+        if (c == 0x9B) { S.cli.esc = 2; continue; }
+        if (c == '\r' || c == '\n') {
+            memcpy(S.cli.ready + S.cli.readylen, S.cli.line, S.cli.linelen);
+            S.cli.readylen += S.cli.linelen;
+            S.cli.ready[S.cli.readylen++] = '\n';
+            S.cli.linelen = 0;
+            out_bytes("\r\n", 2);
+        } else if (c == 8) {
+            if (S.cli.linelen > 0) { S.cli.linelen--; out_bytes("\b \b", 3); }
+        } else if (c == 21 || c == 24) {
+            while (S.cli.linelen > 0) { S.cli.linelen--; out_bytes("\b \b", 3); }
+        } else if (c >= 3 && c <= 6) {          /* CTRL-C D E F */
+            cli_signal(S.cli.door, SIGBREAKF_CTRL_C << (c - 3));
+            if (c == 3) out_bytes("^C", 2);
+        } else if (c == 28) {
+            if (S.cli.linelen == 0) S.cli.eof_pending = TRUE;
+        } else if (((c >= 32 && c < 127) || c >= 0xA0) && S.cli.linelen < (int)sizeof(S.cli.line) - 1) {
+            char b = (char)c;
+            S.cli.line[S.cli.linelen++] = (UBYTE)c;
+            out_bytes(&b, 1);
+        }
+    }
+}
+
+static BOOL cli_input_ready(void)
+{
+    if (cli_dead() || S.cli.readylen > 0) return TRUE;
+    return S.cli.raw ? cli_raw_avail() : S.cli.eof_pending;
+}
+
+/* answer the oldest read if it can be answered */
+static BOOL cli_serve_read(struct DosPacket *p)
+{
+    UBYTE *buf = (UBYTE *)p->dp_Arg2;
+    LONG want = p->dp_Arg3, got = 0;
+    int c;
+    if (cli_dead() || want <= 0) { ReplyPkt(p, 0, 0); return TRUE; }
+    if (S.cli.readylen > 0) {   /* lines (or bytes typed before SetMode raw) first */
+        got = S.cli.readylen < want ? S.cli.readylen : want;
+        memcpy(buf, S.cli.ready, got);
+        memmove(S.cli.ready, S.cli.ready + got, S.cli.readylen - got);
+        S.cli.readylen -= got;
+    } else if (S.cli.raw) {
+        while (got < want && (c = cli_byte()) >= 0) buf[got++] = (UBYTE)c;
+        if (!got) return FALSE;
+    } else {
+        if (!S.cli.eof_pending) return FALSE;
+        S.cli.eof_pending = FALSE;  /* got = 0: end of file */
+    }
+    ReplyPkt(p, got, 0);
+    return TRUE;
+}
+
+/* the door is done for (d, time up, input timeout): every pending read gets EOF */
+static void cli_flush(void)
+{
+    while (S.cli.nread > 0) ReplyPkt(S.cli.readq[--S.cli.nread], 0, 0);
+    if (S.cli.waitpkt) { ReplyPkt(S.cli.waitpkt, DOSTRUE, 0); S.cli.waitpkt = NULL; }
+    wait_disarm();
+}
+
+static void cli_service(void)
+{
+    if (!cli_dead() && !S.cli.raw) cli_cooked();
+    while (S.cli.nread > 0 && cli_serve_read(S.cli.readq[0])) {
+        memmove(S.cli.readq, S.cli.readq + 1, (S.cli.nread - 1) * sizeof(S.cli.readq[0]));
+        S.cli.nread--;
+    }
+    if (S.cli.waitpkt) {
+        if (cli_input_ready()) {
+            ReplyPkt(S.cli.waitpkt, DOSTRUE, 0);
+            S.cli.waitpkt = NULL;
+            wait_disarm();
+        } else if (wait_expired()) {
+            ReplyPkt(S.cli.waitpkt, DOSFALSE, 0);
+            S.cli.waitpkt = NULL;
+        }
+    }
+}
+
+/* a packet for a handle of no live session (a door that outlived its session, a stale
+ * Open("*") handle): end of file, failed writes, nothing to wait for */
+static void cli_zombie_packet(struct DosPacket *p)
+{
+    switch (p->dp_Type) {
+    case ACTION_READ:           ReplyPkt(p, 0, 0); break;
+    case ACTION_WRITE:          ReplyPkt(p, -1, CLI_ERR); break;
+    case ACTION_FINDINPUT: case ACTION_FINDOUTPUT: case ACTION_FINDUPDATE: {
+        struct FileHandle *fh = (struct FileHandle *)BADDR(p->dp_Arg1);
+        fh->fh_Port = (struct MsgPort *)DOSTRUE;
+        fh->fh_Args = 0;        /* generation 0 is never live */
+        ReplyPkt(p, DOSTRUE, 0);
+        break;
+    }
+    case ACTION_WAIT_CHAR: case ACTION_SCREEN_MODE: case ACTION_END:
+    case ACTION_FLUSH: case ACTION_CHANGE_SIGNAL:
+        ReplyPkt(p, DOSTRUE, 0);
+        break;
+    case ACTION_IS_FILESYSTEM:  ReplyPkt(p, DOSFALSE, 0); break;
+    default:                    ReplyPkt(p, DOSFALSE, ERROR_ACTION_NOT_KNOWN); break;
+    }
+}
+
+static void cli_packet(struct DosPacket *p)
+{
+    LONG type = p->dp_Type;
+    BOOL live = state == ST_SESSION && S.cli.on;
+
+    /* READ, WRITE and END name their handle: one of an earlier session is a zombie */
+    if (live && (type == ACTION_READ || type == ACTION_WRITE || type == ACTION_END)
+        && H_GEN(p->dp_Arg1) != hgen)
+        live = FALSE;
+    if (!live) { cli_zombie_packet(p); return; }
+
+    /* the process reading and writing the session's own handles is the door (and its shell) */
+    if ((type == ACTION_READ || type == ACTION_WRITE) && H_ID(p->dp_Arg1) != H_STAR
+        && p->dp_Port && p->dp_Port->mp_SigTask && (struct Task *)p->dp_Port->mp_SigTask != LN.self)
+        S.cli.door = (struct Task *)p->dp_Port->mp_SigTask;
+
+    switch (type) {
+    case ACTION_READ:
+        S.cli.want_at = now_s;
+        if (cli_dead()) ReplyPkt(p, 0, 0);
+        else if (S.cli.nread < (int)(sizeof(S.cli.readq) / sizeof(S.cli.readq[0])))
+            S.cli.readq[S.cli.nread++] = p;
+        else ReplyPkt(p, -1, ERROR_NO_FREE_STORE);
+        break;
+
+    case ACTION_WRITE:
+        if (cli_dead()) { ReplyPkt(p, -1, CLI_ERR); break; }
+        if (p->dp_Arg3 > 0) out_bytes((const char *)p->dp_Arg2, p->dp_Arg3);
+        ReplyPkt(p, p->dp_Arg3 > 0 ? p->dp_Arg3 : 0, 0);
+        break;
+
+    case ACTION_SCREEN_MODE:            /* SetMode(fh, mode) */
+        if (p->dp_Arg1 && !S.cli.raw && S.cli.linelen) {
+            /* to raw with a line half typed: the door reads those bytes first */
+            memcpy(S.cli.ready + S.cli.readylen, S.cli.line, S.cli.linelen);
+            S.cli.readylen += S.cli.linelen;
+            S.cli.linelen = 0;
+        }
+        S.cli.raw = p->dp_Arg1 != 0;
+        S.cli.esc = 0;
+        ReplyPkt(p, DOSTRUE, 0);
+        break;
+
+    case ACTION_WAIT_CHAR: {            /* dp_Arg1 = microseconds */
+        LONG usecs = p->dp_Arg1;
+        S.cli.want_at = now_s;
+        if (!cli_dead() && !S.cli.raw) cli_cooked();
+        if (cli_input_ready()) ReplyPkt(p, DOSTRUE, 0);
+        else if (usecs <= 0) ReplyPkt(p, DOSFALSE, 0);
+        else {
+            if (S.cli.waitpkt) ReplyPkt(S.cli.waitpkt, DOSFALSE, 0);
+            S.cli.waitpkt = p;
+            wait_arm((ULONG)usecs);
+        }
+        break;
+    }
+
+    case ACTION_FINDINPUT: case ACTION_FINDOUTPUT: case ACTION_FINDUPDATE: {
+        struct FileHandle *fh = (struct FileHandle *)BADDR(p->dp_Arg1);
+        fh->fh_Port = (struct MsgPort *)DOSTRUE;
+        fh->fh_Args = (LONG)((hgen << 4) | H_STAR);
+        S.cli.opens++;
+        ReplyPkt(p, DOSTRUE, 0);
+        break;
+    }
+
+    case ACTION_END:
+        if (H_ID(p->dp_Arg1) == H_STAR && S.cli.opens > 0) S.cli.opens--;
+        ReplyPkt(p, DOSTRUE, 0);
+        break;
+
+    case ACTION_FLUSH: case ACTION_CHANGE_SIGNAL:
+        ReplyPkt(p, DOSTRUE, 0);
+        break;
+
+    case ACTION_IS_FILESYSTEM:
+        ReplyPkt(p, DOSFALSE, 0);
+        break;
+
+    default:                            /* DISK_INFO, SEEK, EXAMINE_FH, LOCATE_OBJECT, ... */
+        mark_unknown(type);
+        ReplyPkt(p, DOSFALSE, ERROR_ACTION_NOT_KNOWN);
+        break;
+    }
+}
+
+static void hport_drain(void)
+{
+    struct Message *m;
+    if (!hport) return;
+    while ((m = GetMsg(hport))) cli_packet((struct DosPacket *)m->mn_Node.ln_Name);
+}
+
+/* the CLI half of session_service(): input, the door's end, X */
+static void cli_session_service(void)
+{
+    BOOL ended = FALSE;
+
+    if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
+    /* the inactivity timeout runs while the door waits for a key: a read is parked, or it
+     * polled WaitForChar() within the last 2 seconds */
+    if (!cli_dead() && S.timeout > 0 && (S.cli.nread > 0 || now_s - S.cli.want_at <= 2)
+        && now_s - S.cli.last_key >= (ULONG)S.timeout) {
+        S.cli.timedout = TRUE;
+        S.input_failed = TRUE;
+    }
+    hport_drain();
+    cli_service();
+
+    if (cli_dead()) {                   /* tell the door to go: EOF, then CTRL-C until it does */
+        if (!S.cli.broken) {
+            S.cli.broken = TRUE;
+            S.cli.dead_at = now_s;
+            S.cli.sig_at = now_s;
+            cli_flush();
+            cli_signal(S.cli.door, SIGBREAKF_CTRL_C | SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_E | SIGBREAKF_CTRL_F);
+        } else if (now_s - S.cli.sig_at >= BREAK_REPEAT && !LN.done) {
+            S.cli.sig_at = now_s;
+            cli_signal(S.cli.door, SIGBREAKF_CTRL_C);
+        }
+    }
+
+    if (LN.done) {                      /* System() returned: the door has ended */
+        hport_drain();
+        if (LN.rc == -1 && !S.lost) { reap(); error_session("the door could not be started"); return; }
+        ended = TRUE;
+    } else if (S.cli.broken && now_s - S.cli.dead_at >= CARRIER_GRACE) {
+        ended = TRUE;
+    }
+    if (!ended) return;
+
+    if (S.lost == LOST_HANGUP) end_session("carrier", NULL);
+    else if (S.lost == LOST_TIMEUP) end_session("timeout", NULL);
+    else if (S.lost == LOST_BREAK) end_session("break", NULL);
+    else if (S.timeup || S.cli.timedout) end_session("timeout", NULL);
+    else end_session("ok", NULL);
+}
+
+/* ready state: answer a door that outlived its session, and keep telling it to go */
+static void cli_zombie_service(void)
+{
+    hport_drain();
+    if (cli_zombie && (LN.done || !LN.busy)) cli_zombie = NULL;
+    if (cli_zombie && now_s - cli_zombie_sig >= BREAK_REPEAT) {
+        cli_zombie_sig = now_s;
+        cli_signal(cli_zombie, SIGBREAKF_CTRL_C);
+    }
+}
+
 /* ---- the session's clock work: input, editor, exit ------------------------------------ */
 
 static void session_service(void)
 {
     struct JHMessage *m;
     BOOL ended = FALSE;
+
+    if (S.cli.on) { cli_session_service(); return; }
 
     if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
 
@@ -1552,9 +2053,11 @@ static void step(void)
     int pass;
     timer_poll();
     pump();
+    hport_drain();              /* CLI handles: a live session's packets, or zombie answers */
     for (pass = 0; pass < 2; pass++) {  /* a session that ends here may already have its next s */
         if (state == ST_READY) {
             if (port) while ((m = (struct JHMessage *)GetMsg(port))) zombie_reply(m);
+            cli_zombie_service();
             if (LN.busy && LN.done) reap();
             if (s_pending) {
                 s_pending = FALSE;
@@ -1562,7 +2065,7 @@ static void step(void)
             }
         }
         if (state == ST_SESSION) {
-            while ((m = (struct JHMessage *)GetMsg(port))) {
+            if (port) while ((m = (struct JHMessage *)GetMsg(port))) {
                 xim_command(m);
                 pump();
             }
@@ -1599,6 +2102,7 @@ int main(int argc, char **argv)
     if (!uart_open(baud)) { timer_close(); return 20; }
     timer_arm();
     extsig = AllocSignal(-1);
+    if (!wait_timer_open() || !(hport = CreateMsgPort())) hport = NULL;    /* no CLI doors then */
     assign("BBS", "SYS:");
     assign("DOORS", "SYS:Doors");
 
@@ -1609,6 +2113,7 @@ int main(int argc, char **argv)
         if (port) sigs |= 1UL << port->mp_SigBit;
         if (LN.busy && LN.donesig >= 0) sigs |= 1UL << LN.donesig;
         if (extsig >= 0) sigs |= 1UL << extsig;
+        if (hport) sigs |= (1UL << hport->mp_SigBit) | wait_sigmask();
         got = Wait(sigs);
         if (got & SIGBREAKF_CTRL_C) break;
         if (extsig >= 0 && (got & (1UL << extsig)) && state == ST_SESSION) S.extsig_seen = TRUE;
