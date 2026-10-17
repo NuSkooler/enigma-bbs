@@ -1340,6 +1340,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                         `Not enough time remaining for door "${self.config.name}"`
                     );
 
+                    self._refusalShown = true;
                     const denied = () =>
                         callback(Errors.AccessDenied('Not enough time remaining'));
 
@@ -1365,7 +1366,13 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                     self.lastError = err;
                     self._decrementInstances();
                     self._releaseImage();
-                    return self.prevMenu();
+                    if (self._refusalShown) {
+                        return self.prevMenu(); //  busy or out of time: already said
+                    }
+                    //  a configuration problem or a missing image or ROM: the
+                    //  log has the details, the caller gets the short version
+                    self.client.term.write(self._unavailableText());
+                    return self.pausePrompt(() => self.prevMenu());
                 }
                 return self.finishedLoading();
             }
@@ -1376,8 +1383,14 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         this.runDoor();
     }
 
+    _unavailableText() {
+        const name = _.isString(this.config.name) ? this.config.name : 'This door';
+        return `\n  ${name} could not be run. Please let the sysop know.\n`;
+    }
+
     //  nodeMax reached, or the image busy: the same answer either way
     _refuseBusy(callback) {
+        this._refusalShown = true;
         const denied = () => callback(Errors.AccessDenied('Too many active instances'));
 
         if (_.isString(this.config.tooManyArt)) {
@@ -1628,9 +1641,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
 
         const failed = result.error || 'error' === result.status;
         if (failed) {
-            this.client.term.write(
-                `\n  ${this.config.name} could not be run. Please let the sysop know.\n`
-            );
+            this.client.term.write(this._unavailableText());
             return this.pausePrompt(() => this.autoNextMenu(() => {}));
         }
 

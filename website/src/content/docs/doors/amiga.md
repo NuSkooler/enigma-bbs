@@ -166,7 +166,7 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `crlf` | No | A line feed in the door's output goes out as CR LF, as /X does. Default: `true`. |
 | `timezoneMinutes` | No | Minutes east of UTC for the Amiga clock, -720 to 840. Default: the server's. |
 
-Every problem in a door's configuration is reported at once in the log, and the caller is told the door could not be run.
+Every problem in a door's configuration is reported at once in the log (`Could not start Amiga door`), and the caller sees "<name> could not be run. Please let the sysop know." and is returned to the menu. A missing `image`, `rom` or `extRom` file is handled the same way.
 
 The only system setting is `doors.amiga.snapshotCacheEntries` (default `4`): how many booted-machine snapshots ENiGMA½ keeps in memory, about 1.5 MB each, one per door image and machine configuration. A door without a snapshot boots instead of restoring. `0` turns the cache off.
 

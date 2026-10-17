@@ -1219,6 +1219,32 @@ describe('amiga_door image lock', () => {
         );
     });
 
+    it('tells the caller when the door cannot be run, and the log why', async () => {
+        const missing = makeModule({ image: path.join(dir, 'nope.hdf') });
+        assert.equal(await startModule(missing), 'refused');
+        assert.match(missing.client.term.written.join(''), /XIMTest could not be run/);
+        assert.ok(
+            missing.client.log.lines.some(
+                l => 'warn' === l.level && /image not found/.test(l.obj.error)
+            )
+        );
+
+        const bad = makeModule({ image, cpu: 'z80' });
+        assert.equal(await startModule(bad), 'refused');
+        assert.match(bad.client.term.written.join(''), /could not be run/);
+        assert.equal(activeImages.size, 0, 'nothing held');
+
+        const nameless = makeModule({ image, name: undefined });
+        assert.equal(await startModule(nameless), 'refused');
+        assert.match(nameless.client.term.written.join(''), /This door could not be run/);
+
+        //  a busy door says so, and only that
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+        const busy = makeModule({ image });
+        assert.equal(await startModule(busy), 'refused');
+        assert.doesNotMatch(busy.client.term.written.join(''), /could not be run/);
+    });
+
     it('leave() before any session frees both at once', async () => {
         const m = makeModule({ image });
         assert.equal(await startModule(m), 'ran');
