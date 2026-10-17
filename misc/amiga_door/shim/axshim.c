@@ -3,17 +3,17 @@
  *
  * Runs inside the emulated Amiga, impersonates an AmiExpress (/X) BBS node for
  * an XIM door and relays everything to ENiGMA over the serial line, using the
- * framed protocol in "ENiGMA <-> Amiga door shim protocol, version 1"
- * (vault: ENiGMA/Features/Amiga Door Emulation - Shim Protocol).
+ * framed protocol, version 1, of core/amiga_door/protocol.js (frames and keys in
+ * misc/amiga_door/README.md).
  *
- * A CLI (stdio) door (`type=cli` in the session frame, protocol section 11) is a
+ * A CLI (stdio) door (`type=cli` in the session frame) is a
  * plain AmigaDOS program instead: the shim is the DOS handler behind its Input()
  * and Output() and answers the packets itself (reads from the caller, cooked or
  * raw, writes to the caller, WaitForChar, SetMode, Open("*")).  That part follows
  * the fake console handler in NilBBS's src/node/door.c (MIT, see the notice at
  * "CLI doors" below).
  *
- * An ARexx (AIM) door (`type=aim`, protocol section 12) is an ARexx script written for
+ * An ARexx (AIM) door (`type=aim`) is an ARexx script written for
  * AmiExpress's REXXDOOR: the shim publishes the ARexx host port AERexxControl<node>, runs
  * `SYS:Rexxc/RX <script> <node>` and answers the script's host commands (GETUSER, PUTUSTR/
  * PUTUSER, TRANSMIT, SENDSTRING, GETCHAR, PROMPT, ...) from the same tables the XIM path uses.

@@ -10,8 +10,8 @@
 //
 //  and a literal 0x1E in terminal traffic travels as 0x1E 0x1E. Payloads are
 //  ISO-8859-1 `key=value` lines separated by '\n'. Upper case types go shim ->
-//  host, lower case host -> shim. See "Amiga Door Emulation - Shim Protocol" in
-//  the design notes; the shim is misc/amiga_door/shim/axshim.c.
+//  host, lower case host -> shim. misc/amiga_door/README.md (Protocol) lists
+//  the frames and keys; the shim's side is misc/amiga_door/shim/axshim.c.
 //
 //  Plain module, Node built-ins only, so the PoC harness and tests can use it.
 //

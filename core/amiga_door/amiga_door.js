@@ -15,18 +15,17 @@
  * impersonates an /X node for the door. ENiGMA hands the shim the user block
  * over the emulated serial port when the session starts (the drop file
  * analogue) and gets an exit report back; see
- * core/amiga_door/protocol.js and the "Amiga Door Emulation - Shim Protocol"
- * design note.
+ * core/amiga_door/protocol.js and misc/amiga_door/README.md (Protocol).
  *
  * A CLI door (doorType: 'cli') reads and writes its standard input and
- * output; the shim is the console handler behind them (protocol section 11).
+ * output; the shim is the console handler behind them.
  * Such a door gets no user block: what it knows about the caller is what
  * doorArgs passes on its command line ({name}, {node}, {level}, {timeleft}).
  *
  * An ARexx door (doorType: 'aim', /X's TYPE=AIM) is a script the shim runs
  * with RX, publishing AmiExpress's AERexxControl<node> host port and answering
  * its GETUSER/TRANSMIT/QUERY/... commands from the same user block as XIM
- * doors (protocol section 12). It needs ARexx inside the image, which AROS
+ * doors. It needs ARexx inside the image, which AROS
  * does not have: the image must be built with the sysop's own Workbench 3.1
  * (misc/amiga_door/image/make_image.sh -w).
  *
@@ -127,7 +126,7 @@ const { Worker } = require('worker_threads');
 
 const WORKER_PATH = paths.join(__dirname, 'amiga_worker.js');
 
-//  shim protocol v1, section 8.3: no X within disconnectGraceSeconds of `d` ->
+//  shim protocol v1: no X within disconnectGraceSeconds of `d` ->
 //  drop the worker. The shim gives the door 30 s (CARRIER_GRACE in axshim.c)
 //  and then reports X itself; the default leaves room for that X to arrive.
 const ShimCarrierGraceSeconds = 30;
@@ -1333,7 +1332,7 @@ class AmigaDoorSession extends EventEmitter {
             this.onClientDisconnectedBound
         );
 
-        //  Model A: a worker is never reused (shim protocol v1, 8.4)
+        //  Model A: a worker is never reused (shim protocol v1)
         if (this.persisting && !this.workerGone) {
             this.awaitPersistThenClose();
         } else {

@@ -102,8 +102,7 @@ For an ARexx door (`type=aim`) it:
   (ARexx's `+++` message).
 
 The verb table is REXXDOOR 1.3's (read from the binary); the host-port handling
-follows NilBBS's `aim_command` (MIT). Section 12 of the protocol note has the
-details.
+follows NilBBS's `aim_command` (MIT); `shim/axshim.c` has the details.
 
 A door that never registers, never shuts down or crashes cannot hang the shim:
 it reports `X status=error` (no registration within `regtimeout` seconds) or the
@@ -113,8 +112,9 @@ has gone.
 
 ### Protocol
 
-Version 1. The design note "Amiga Door Emulation - Shim Protocol" is
-authoritative. In brief:
+Version 1. This section, `core/amiga_door/protocol.js` (framing) and
+`shim/axshim.c` (the shim's side) are the reference in this repository. In
+brief:
 
 ```
 0x1E  type  len_hi  len_lo  payload        payload: key=value lines, ISO-8859-1
@@ -134,11 +134,12 @@ User block keys (`s`): `version` and `door` are required; `type` (`xim`, `aim` o
 `node`, `name`, `realname`, `location`, `level`, `timeleft`, `timeused`,
 `timelimit`, `calls`, `posts`, `uploads`, `downloads`, `ulbytes`, `dlbytes`,
 `laston`, `expert`, `ansi`, `rows`, `cols`, `bbsname`, `sysop`, `mainline`,
-`timeout`, `log`, `hostname` and `hostip` feed the door's `DT_*` and node queries.
+`timeout` and `log` feed the door's `DT_*` and node queries. The shim also answers
+`DT_HOSTNAME` and `DT_HOSTIP` from `hostname` and `hostip`, which ENiGMA does not
+send: a door that asks gets an empty string.
 A CLI door gets none of the user block: its `args` (its whole command line, with no
-node number in front) is all it knows about the caller. Section 11 of the protocol
-note describes CLI doors in full. An ARexx door gets the whole user block, which its
-`GETUSER` commands read (section 12).
+node number in front) is all it knows about the caller; see "For a CLI door" above.
+An ARexx door gets the whole user block, which its `GETUSER` commands read.
 
 axshim 1.0 also understands these keys, which the version 1 spec does not list yet
 (adding keys never bumps the version):

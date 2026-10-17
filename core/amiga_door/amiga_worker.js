@@ -6,7 +6,7 @@
  *
  * Worker thread that runs one emulated Amiga (enigma-vamiga) for a single
  * Amiga door session. Spawned by amiga_door.js via worker_threads; one worker
- * per session, never reused (shim protocol v1, section 8).
+ * per session, never reused (shim protocol v1).
  *
  * The emulated Amiga runs the host shim (axshim, misc/amiga_door/), which
  * impersonates an AmiExpress node for the door and talks to us over the
