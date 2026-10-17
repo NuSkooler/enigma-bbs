@@ -209,6 +209,39 @@ describe('amiga_door config', () => {
         );
     });
 
+    it('takes doorType aim with the script as an absolute Amiga path', () => {
+        const c = config({ doorType: 'aim', door: 'BBS:Doors/KickBox.Rexx' });
+        assert.equal(c.doorType, 'aim');
+        assert.deepEqual(
+            problemsOf({ doorType: 'aim', door: 'DOORS:OMN/Death/Death.rexx' }),
+            []
+        );
+        for (const door of [
+            'Doors/KickBox.Rexx', //  relative
+            'BBS:Doors/Kick Box.Rexx', //  a blank splits RX's command line
+            'BBS:Doors/"x".rexx',
+            'BBS:Doors/x.rexx;Delete SYS:#?',
+            'BBS:Doors/', //  a directory
+            'BBS:',
+        ]) {
+            assert.ok(
+                problemsOf({ doorType: 'aim', door }).some(p =>
+                    p.includes('doorType "aim" must be the script')
+                ),
+                `no problem reported for ${door}`
+            );
+        }
+        //  XIM and CLI doors keep their looser rule
+        assert.deepEqual(problemsOf({ door: 'BBS:Doors/a b' }), []);
+        assert.ok(
+            problemsOf({
+                doorType: 'aim',
+                door: 'BBS:Doors/KickBox.Rexx',
+                consoleMode: 'raw',
+            }).some(p => p.includes('doorType "cli" only'))
+        );
+    });
+
     it('knows the doorArgs placeholders', () => {
         assert.deepEqual(
             problemsOf({
@@ -919,6 +952,28 @@ describe('amiga_door session keys', () => {
         assert.equal(payload.console, 'raw');
         assert.equal(payload.args, keys.args);
         assert.equal(payload.door, BASE.door);
+    });
+
+    it('an ARexx door gets type=aim, the whole user block and no console mode', () => {
+        const keys = buildSessionKeys(
+            stubClient(),
+            config({
+                doorType: 'aim',
+                door: 'BBS:Doors/KickBox.Rexx',
+                doorArgs: '{level}',
+            })
+        );
+        assert.equal(keys.type, 'aim');
+        assert.equal(keys.console, undefined);
+        assert.equal(keys.door, 'BBS:Doors/KickBox.Rexx');
+        assert.equal(keys.args, '30'); //  after the node number, as for XIM
+        //  the script asks the host for user data (GETUSER), so the block is there
+        assert.equal(keys.name, 'Handle');
+        assert.equal(keys.node, 2);
+        assert.equal(keys.level, 30);
+        const payload = protocol.parseKeys(protocol.encode('s', keys).subarray(4));
+        assert.equal(payload.type, 'aim');
+        assert.ok(!('console' in payload));
     });
 
     it('a CLI door defaults to the cooked console', () => {

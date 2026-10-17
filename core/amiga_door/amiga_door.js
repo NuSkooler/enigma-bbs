@@ -4,8 +4,8 @@
 /**
  * amiga_door.js — ENiGMA½ Amiga door emulation module
  *
- * Runs an AmiExpress (/X) XIM door, or a plain AmigaDOS CLI (stdio) door,
- * inside an embedded Amiga emulator (enigma-vamiga, the vAmiga core as
+ * Runs an AmiExpress (/X) XIM door, an /X ARexx (AIM) door, or a plain
+ * AmigaDOS CLI (stdio) door inside an embedded Amiga emulator (enigma-vamiga, the vAmiga core as
  * WebAssembly) in a worker thread, and bridges the caller to it. No external
  * emulator, Kickstart or Workbench is required: the emulator package bundles
  * the AROS ROM.
@@ -23,6 +23,13 @@
  * Such a door gets no user block: what it knows about the caller is what
  * doorArgs passes on its command line ({name}, {node}, {level}, {timeleft}).
  *
+ * An ARexx door (doorType: 'aim', /X's TYPE=AIM) is a script the shim runs
+ * with RX, publishing AmiExpress's AERexxControl<node> host port and answering
+ * its GETUSER/TRANSMIT/QUERY/... commands from the same user block as XIM
+ * doors (protocol section 12). It needs ARexx inside the image, which AROS
+ * does not have: the image must be built with the sysop's own Workbench 3.1
+ * (misc/amiga_door/image/make_image.sh -w).
+ *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.
  * Persistence is "Model A": after a clean door exit the image file gets the
@@ -37,13 +44,15 @@
  *     image:              string   - path to the door's HDF image (required)
  *     door:               string   - Amiga path of the door executable inside the
  *                                    image (required), e.g. BBS:Doors/DreamSweeper/dreamsweeper.xim
- *     doorType:           string   - xim | cli (default: xim). xim: an /X door that talks to
- *                                    AEDoorPort<node>; cli: a program on Input()/Output()
+ *     doorType:           string   - xim | aim | cli (default: xim). xim: an /X door that
+ *                                    talks to AEDoorPort<node>; aim: an /X ARexx script
+ *                                    (door = the script's Amiga path, run as RX <door> <node>;
+ *                                    the image needs ARexx); cli: a program on Input()/Output()
  *     consoleMode:        string   - cli only: cooked | raw, the console's mode until the
  *                                    door calls SetMode() itself (default: cooked)
  *     doorDir:            string   - door's current directory (default: its own)
  *     doorStack:          number   - door stack size in bytes (default: 32768)
- *     doorArgs:           string   - xim: extra arguments after the node number; cli: the
+ *     doorArgs:           string   - xim, aim: extra arguments after the node number; cli: the
  *                                    door's whole argument line. {name}, {node}, {level} and
  *                                    {timeleft} are replaced ({name} as one quoted argument)
  *     mainline:           string   - the /X command line the caller "typed" (BB_MAINLINE;
@@ -123,7 +132,11 @@ const BackpressurePollMs = 50;
 const MaxDoorMinutes = 546;
 
 const CPU_MODELS = ['68000', '68010', '68EC020']; //  enigma-vamiga's CPU_MODELS
-const DOOR_TYPES = ['xim', 'cli'];
+const DOOR_TYPES = ['xim', 'aim', 'cli'];
+//  an ARexx door's script goes on RX's command line through the Amiga shell:
+//  an absolute Amiga path (VOLUME:dir/file) with no blanks, quotes or shell
+//  characters
+const AmigaScriptPath = /^[^\s":;<>|*`$]+:[^\s":;<>|*`$]*[^\s":;<>|*`$/]$/;
 const CONSOLE_MODES = ['cooked', 'raw'];
 //  the shim keeps 199 bytes of a value
 const MaxArgsLength = 199;
@@ -244,6 +257,12 @@ function normalizeConfig(raw) {
         problems.push(`"consoleMode" must be one of ${CONSOLE_MODES.join(', ')}`);
     } else if ('cli' !== c.doorType) {
         problems.push('"consoleMode" applies to doorType "cli" only');
+    }
+    if ('aim' === c.doorType && _.isString(c.door) && !AmigaScriptPath.test(c.door)) {
+        problems.push(
+            '"door" for doorType "aim" must be the script\'s absolute Amiga path ' +
+                '(e.g. BBS:Doors/KickBox.Rexx) without blanks, quotes or shell characters'
+        );
     }
 
     for (const key of [
@@ -741,6 +760,7 @@ class AmigaDoorSession extends EventEmitter {
                         {
                             name: this.config.name,
                             cmd: keys.cmd,
+                            verb: keys.verb, //  ARexx doors
                             data: keys.data,
                             len: keys.len,
                             str: keys.str,
