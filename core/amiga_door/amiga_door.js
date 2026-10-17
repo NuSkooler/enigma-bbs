@@ -467,7 +467,10 @@ class AmigaDoorSession extends EventEmitter {
         this.cache = cache;
         this.rawOutput = !!rawOutput;
         this.encoding = config.encoding;
-        this.translator = new AmigaConsoleTranslator();
+        this.translator = new AmigaConsoleTranslator({
+            rows: client.term.termHeight,
+            cols: client.term.termWidth,
+        });
 
         this.lastTimeLeft = sessionKeys ? sessionKeys.timeleft : undefined;
         this.lastSize = sessionKeys
@@ -832,6 +835,7 @@ class AmigaDoorSession extends EventEmitter {
             return;
         }
         this.lastSize = { rows, cols };
+        this.translator.setSize(rows, cols);
         this.log.debug(
             { name: this.config.name, rows, cols },
             'Amiga door window resized (w)'

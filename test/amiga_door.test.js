@@ -306,6 +306,41 @@ describe('amiga_door Amiga console translation', () => {
         assert.ok(out.toString('latin1').startsWith('\x1b[1;1;'));
     });
 
+    it('moves cursor positions past the screen onto its last row and column', () => {
+        const tr = new AmigaConsoleTranslator({ rows: 25, cols: 80 });
+        assert.strictEqual(
+            tr.push(latin1('\x1b[26;0H')).toString('latin1'),
+            '\x1b[25;0H'
+        );
+        assert.strictEqual(
+            tr.push(latin1('\x1b[27;81f')).toString('latin1'),
+            '\x1b[25;80f'
+        );
+        assert.strictEqual(tr.push(latin1('\x1b[32d')).toString('latin1'), '\x1b[25d');
+        assert.strictEqual(
+            tr.push(latin1('\x1b[24;80H')).toString('latin1'),
+            '\x1b[24;80H'
+        );
+        assert.strictEqual(tr.push(latin1('\x1b[H')).toString('latin1'), '\x1b[H');
+    });
+
+    it('follows a resize and clamps nothing while the size is unknown', () => {
+        const tr = new AmigaConsoleTranslator();
+        assert.strictEqual(
+            tr.push(latin1('\x1b[40;1H')).toString('latin1'),
+            '\x1b[40;1H'
+        );
+        tr.setSize(30, 100);
+        assert.strictEqual(
+            tr.push(latin1('\x1b[40;1H')).toString('latin1'),
+            '\x1b[30;1H'
+        );
+        assert.strictEqual(
+            tr.push(latin1('\x1b[29;120H')).toString('latin1'),
+            '\x1b[29;100H'
+        );
+    });
+
     it('keeps Latin-1 text bytes untouched', () => {
         const bytes = Buffer.from([0xe9, 0xb7, 0xa4, 0x0d, 0x0a]);
         assert.deepStrictEqual(t().push(bytes), bytes);

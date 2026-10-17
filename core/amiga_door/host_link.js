@@ -112,6 +112,12 @@ function amigaCsiToAnsi(buf) {
 //    ESC c            reset       -> attributes off, clear, home (keeps the font)
 //    0x9B             the single-byte CSI -> `ESC [`
 //
+//  Cursor positions (CSI row;col H / f, CSI row d) past the caller's screen
+//  are moved to its last row or column. That is what console.device does on
+//  the Amiga: a position outside the window is clamped, never scrolled. Doors
+//  written on a PAL Amiga assume up to 32 rows and address rows 26 and 27
+//  freely; without the clamp an 80x25 caller's screen scrolls instead.
+//
 //  Everything else passes through untouched. A CSI sequence can be split
 //  across two chunks, so the unfinished tail is held until it completes; a
 //  tail that outgrows any real sequence is passed through as it is.
@@ -124,8 +130,15 @@ const CURSOR_OFF = Buffer.from('\x1b[?25l', 'latin1');
 const CURSOR_ON = Buffer.from('\x1b[?25h', 'latin1');
 
 class AmigaConsoleTranslator {
-    constructor() {
+    constructor({ rows = 0, cols = 0 } = {}) {
         this.pending = null; //  bytes of an unfinished ESC sequence (starts with ESC)
+        this.setSize(rows, cols);
+    }
+
+    //  The caller's screen; 0 means unknown, and no clamping on that axis.
+    setSize(rows, cols) {
+        this.rows = rows > 0 ? rows : 0;
+        this.cols = cols > 0 ? cols : 0;
     }
 
     //  Returns the translated bytes; may be empty while a sequence is pending.
@@ -214,7 +227,35 @@ class AmigaConsoleTranslator {
             const params = seq.subarray(2, seq.length - 2).toString('latin1');
             return '0' === params ? CURSOR_OFF : CURSOR_ON;
         }
+        if (0x48 === final || 0x66 === final || 0x64 === final) {
+            return this._clampPosition(seq, final);
+        }
         return seq;
+    }
+
+    //  CSI row ; col H|f and CSI row d, with row and column held to the screen.
+    //  The bytes are rewritten only when something was out of range, so a
+    //  door whose output fits is passed through exactly.
+    _clampPosition(seq, final) {
+        const params = seq.subarray(2, seq.length - 1).toString('latin1');
+        if (!/^[0-9;]*$/.test(params)) {
+            return seq;
+        }
+        const parts = params.split(';');
+        const row = parts[0] ? parseInt(parts[0], 10) : 0;
+        const col = 0x64 === final ? 0 : parts[1] ? parseInt(parts[1], 10) : 0;
+        const rowOver = this.rows > 0 && row > this.rows;
+        const colOver = this.cols > 0 && col > this.cols;
+        if (!rowOver && !colOver) {
+            return seq;
+        }
+        const r = rowOver ? this.rows : parts[0] || '';
+        if (0x64 === final) {
+            return Buffer.from(`\x1b[${r}d`, 'latin1');
+        }
+        const c = colOver ? this.cols : parts[1] || '';
+        const body = parts.length > 1 ? `${r};${c}` : `${r}`;
+        return Buffer.from(`\x1b[${body}${String.fromCharCode(final)}`, 'latin1');
     }
 }
 
