@@ -36,6 +36,55 @@ Each caller gets an emulator of their own, so one caller per emulator. The emula
 
 ---
 
+### ROMs and Workbench
+
+**No ROM is needed.** The `enigma-vamiga` package bundles the AROS replacement Kickstart, published under the AROS Public License 1.1, and every door type runs on it (ARexx doors too, once the ARexx files from a Workbench disk are on the image). The bundled pair is the AROS build of 2026-08-20:
+
+| File | Size | CRC32 |
+|------|------|-------|
+| `aros-rom.bin` | 524,288 bytes | `7AE94477` |
+| `aros-ext.bin` | 524,288 bytes | `6F9A4AD2` |
+
+**Kickstart 3.1, optional.** If you own a Kickstart ROM you may use it instead with the `rom` option: a plain, unencrypted, 524,288-byte image whose file name ends in `.rom` or `.bin` (the emulator refuses other extensions before looking at the contents). Kickstart 3.1 is the tested release; the shim needs Kickstart 2.0 or newer. Known-good dumps, by CRC32:
+
+| Revision | Machine | CRC32 |
+|----------|---------|-------|
+| 40.63 | A500 / A600 / A2000 | `FC24AE0D` or `88136CA9` (the emulator's two known dumps); `FC8A3FD2` is also widely listed |
+| 40.68 | A1200 | `1483A091` |
+| 40.69 | A1200 | `1D9AA278` |
+| 40.68 | A3000 | `EFB239CC` |
+| 40.68 | A4000 | `D6BAE334` |
+
+The A1200 and A500-family builds are the right ones for the machine ENiGMA½ emulates; the A3000 and A4000 builds also boot but carry drivers for hardware the emulator lacks. A ROM the emulator does not recognise still loads, as "Unknown ROM". To check a file:
+
+```bash
+python3 -c "import zlib,sys;print('%08X'%zlib.crc32(open(sys.argv[1],'rb').read()))" kick40068-a1200.rom
+xxd -l 4 kick40068-a1200.rom      # 1114 4ef9 for a plain Kickstart 2.0+ image
+```
+
+Amiga Forever ships its ROMs encrypted: the file is 524,299 bytes and starts with the text `AMIROMTYPE1`. Decrypt it once with the `rom.key` from the same folder, since the emulator refuses encrypted files:
+
+```bash
+python3 misc/amiga_door/tools/decrypt_af_rom.py amiga-os-310-a1200.rom rom.key kick40068-a1200.rom
+```
+
+Kickstart and Workbench are copyrighted (Amiga Corporation; Cloanto's Amiga Forever is the usual legitimate source). Their licences cover personal systems and say nothing about public servers, which is one more reason the bundled AROS ROM is the default.
+
+**Workbench 3.1, needed only for ARexx doors.** The AROS ROM has no ARexx, so `make_image.sh -w` reads `RexxMast`, `rexxsyslib.library`, `rexxsupport.library`, the IEEE math libraries, `Rexxc/` and a few `C:` commands from your own `Workbench3.1.adf`. A Workbench 3.1 set is six ADF images of 901,120 bytes each: Workbench3.1, Extras3.1, Fonts, Install3.1, Locale and Storage3.1; only the first is read. Amiga Forever ships them unencrypted. For reference, one clean set of dumps has these CRC32 values; other dumps differ in date stamps, and the image builder checks contents rather than checksums:
+
+| Disk | CRC32 |
+|------|-------|
+| Workbench3.1 | `D233484C` |
+| Extras3.1 | `32F55078` |
+| Fonts | `63470DE4` |
+| Install3.1 | `B631F796` |
+| Locale | `E0E5DE81` |
+| Storage3.1 | `4BD38EF4` |
+
+An image that contains Workbench files is licensed material: keep it on your server and out of any public repository.
+
+---
+
 ### Building a Door Image
 
 A door image is a bare FFS partition (no RDB), named `BBS`, 4 MB unless the door needs more. Every session carries a copy of the image, so keep it small. It holds:

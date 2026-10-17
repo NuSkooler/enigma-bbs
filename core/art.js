@@ -34,7 +34,7 @@ const SUPPORTED_ART_TYPES = {
     '.pcb': { name: 'PCBoard', defaultEncoding: 'cp437', eof: 0x1a },
     '.bbs': { name: 'Wildcat', defaultEncoding: 'cp437', eof: 0x1a },
 
-    '.amiga': { name: 'Amiga', defaultEncoding: 'amiga', eof: 0x1a },
+    '.amiga': { name: 'Amiga', defaultEncoding: 'latin1', eof: 0x1a }, //  Amiga text is ISO-8859-1
     '.txt': { name: 'Amiga Text', defaultEncoding: 'cp437', eof: 0x1a },
     //  :TODO: extentions for wwiv, renegade, celerity, syncronet, ...
     //  :TODO: extension for atari
