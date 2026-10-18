@@ -227,6 +227,10 @@
                 //  rom: /path/to/kick31.rom     // default: bundled AROS ROM
                 //  cpu: 68EC020                 // 68000 | 68010 | 68EC020
                 //  fastKb: 8192                 // 0..8192
+                //  baud: 38400                  // serial line rate (default 115200); 38400
+                //                               // at the default 7 MHz, or 57600 with
+                //                               // overclock: 2, once the emulator no
+                //                               // longer holds bytes (doors/amiga.md)
                 //  font: topaz                  // SyncTERM font, or none
                 //  minTimeLeftMinutes: 10
                 //  notEnoughTimeArt: DOORTIME

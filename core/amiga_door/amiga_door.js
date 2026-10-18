@@ -96,6 +96,11 @@
  *     slowKb:             number   - 0..1536, multiple of 256 (default: 512)
  *     fastKb:             number   - 0..8192, multiple of 64 (default: 8192)
  *     overclock:          number   - 1..16 (default: 1)
+ *     baud:               number   - the serial line's rate for the session (axshim 1.5 and
+ *                                    later): 9600, 19200, 38400, 57600, 115200 or 230400
+ *                                    (default: 115200). Without enigma-vamiga's byte holding a
+ *                                    7 MHz AROS machine keeps up with 38400, or 57600 with
+ *                                    overclock 2 (shim protocol section 15)
  *     nodeMax:            number   - max concurrent sessions, 0 = unlimited (default: 0);
  *                                    a persisting door is also one session per image
  *     sharedState:        boolean  - the door writes state all callers share; makes
@@ -183,6 +188,8 @@ const MaxDoorMinutes = 546;
 
 const CPU_MODELS = ['68000', '68010', '68EC020']; //  enigma-vamiga's CPU_MODELS
 const DOOR_TYPES = ['xim', 'aim', 'tim', 'cnetrexx', 'cli'];
+//  Line rates for `baud` (the shim takes 1200 to 230400; these are the ones worth having)
+const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400];
 //  the ARexx door types: the script's path is the first word of a command line
 //  (RX's through the Amiga shell for aim, ARexx's own for cnetrexx)
 const SCRIPT_DOOR_TYPES = ['aim', 'cnetrexx'];
@@ -231,6 +238,7 @@ const ConfigKeys = [
     'slowKb',
     'fastKb',
     'overclock',
+    'baud',
     'nodeMax',
     'sharedState',
     'tooManyArt',
@@ -273,6 +281,7 @@ const Defaults = {
     slowKb: 512,
     fastKb: 8192,
     overclock: 1,
+    baud: 115200,
     nodeMax: 0,
     encoding: 'latin1',
     font: 'topaz',
@@ -576,6 +585,11 @@ function normalizeConfig(raw) {
     }
     if (!intIn('overclock', 1, 16)) {
         problems.push('"overclock" must be an integer from 1 to 16');
+    }
+    if (undefined === c.baud) {
+        c.baud = Defaults.baud;
+    } else if (!BAUD_RATES.includes(c.baud)) {
+        problems.push(`"baud" must be one of ${BAUD_RATES.join(', ')}`);
     }
     if (
         !c.rom &&
@@ -938,6 +952,7 @@ function buildSessionKeys(client, config) {
         log: config.log ? 1 : 0,
         regtimeout: config.regTimeoutSeconds,
         crlf: config.crlf ? 1 : 0,
+        baud: config.baud || Defaults.baud,
         tz: _.isNumber(config.timezoneMinutes)
             ? config.timezoneMinutes
             : hostTimezoneMinutes(),
@@ -1003,6 +1018,7 @@ class AmigaDoorSession extends EventEmitter {
             : null;
 
         this.ready = false;
+        this.sessionHello = null; //  the H after `s` (axshim 1.5 and later)
         this.disconnectReason = null; //  set once `d` has been sent
         this.exitInfo = null; //  the X frame, once seen
         this.persisting = false; //  a persist has been asked for and not answered
@@ -1107,6 +1123,11 @@ class AmigaDoorSession extends EventEmitter {
                 return this.onPersisted(msg);
             case 'error':
                 return this.onWorkerError(msg);
+            case 'inputFull':
+                return this.log.warn(
+                    { name: this.config.name, limit: msg.limit },
+                    'Amiga door input queue is full; caller input beyond it is dropped'
+                );
             default:
                 return;
         }
@@ -1157,14 +1178,39 @@ class AmigaDoorSession extends EventEmitter {
         const keys = frame.keys || {};
         switch (frame.type) {
             case 'H':
+                //  after `s`: axshim 1.5 and later confirm the session's line rate
+                if (this.ready) {
+                    this.sessionHello = keys;
+                    if (parseInt(keys.baud, 10) !== this.config.baud) {
+                        this.log.warn(
+                            {
+                                name: this.config.name,
+                                baud: this.config.baud,
+                                shim: keys,
+                            },
+                            'Amiga shim runs the session at another line rate than "baud"'
+                        );
+                    }
+                }
                 return this.log.debug(
                     { name: this.config.name, hello: keys },
                     'Amiga shim hello'
                 );
 
             case 'L':
+                if (!this.sessionHello && this.config.baud !== Defaults.baud) {
+                    //  axshim 1.4 and older ignore baud= and keep the image's rate
+                    this.log.warn(
+                        { name: this.config.name, baud: this.config.baud },
+                        'The image\'s axshim predates 1.5 and ignores "baud"; rebuild the image'
+                    );
+                }
                 return this.log.info(
-                    { name: this.config.name, door: keys.door },
+                    {
+                        name: this.config.name,
+                        door: keys.door,
+                        baud: _.get(this.sessionHello, 'baud'),
+                    },
                     'Amiga door launched'
                 );
 

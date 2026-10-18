@@ -33,6 +33,8 @@
  *   { type: 'exit', status, keys }                      - the shim's X frame (the first one only)
  *   { type: 'persisted', chunks, bytes, ms, refused }   - answer to 'persist'; |refused| says why
  *                                                         nothing was written (the image changed)
+ *   { type: 'inputFull', limit }                        - caller input reached MaxInputQueueBytes
+ *                                                         (once per session; the excess is dropped)
  *   { type: 'error', message, code, fatal }             - see below
  *   { type: 'stopped' }                                 - answer to 'stop', worker exits
  *
@@ -63,10 +65,23 @@ const { HostLink } = require('./host_link.js');
 
 const { RS } = protocol;
 
-//  Caller typeahead we hold while the guest drains its 8 KB receive buffer
-//  (escaped bytes). The shim drops keystrokes the door is not reading anyway
-//  (X `indrop`).
-const MaxInputQueueBytes = 64 * 1024;
+//
+//  Serial line discipline (shim protocol section 15). Caller input is never
+//  dropped for being early: it waits here until the guest has room. What is
+//  in flight is bounded twice:
+//
+//  - InputWindowBytes: at most this many bytes sit in the core's receive
+//    buffer (SerServer, 8 KB) that the guest's UART has not taken yet
+//    (|serialInPending|). The shim drops RTS at 3/4 of its 4 KB ring, which
+//    leaves 1 KB for what is already on its way: a window below that keeps a
+//    sender that only stops writing when RTS drops lossless, and keeps a `d`
+//    from queueing behind kilobytes of typeahead the door has not read.
+//  - MaxInputQueueBytes: what waits here. A caller pasting a megabyte into a
+//    door that reads nothing is not typing; past this the excess is dropped,
+//    counted (X `inputDropped`) and reported once ('inputFull').
+//
+const InputWindowBytes = 768;
+const MaxInputQueueBytes = 1024 * 1024;
 
 //  Persist granularity: what differs from the baseline is written in blocks of
 //  this size (a multiple of the 512-byte sector).
@@ -85,6 +100,7 @@ let pacer = null;
 let link = null;
 let state = 'starting'; //  starting | booting | warpEnding | session | exited | stopping
 let inputDropped = 0;
+let inputFullReported = false;
 let restoreMs = null;
 let baselineStat = null; //  the image file as this session read it
 
@@ -163,6 +179,10 @@ function queueInput(raw) {
     const take = fitEscaped(raw, MaxInputQueueBytes - queuedDataBytes);
     if (take < raw.length) {
         inputDropped += raw.length - take;
+        if (!inputFullReported) {
+            inputFullReported = true;
+            post({ type: 'inputFull', limit: MaxInputQueueBytes });
+        }
     }
     if (take > 0) {
         enqueue(false, protocol.escapeData(raw.subarray(0, take)));
@@ -217,24 +237,51 @@ function rsPairOpen(buf, n, open) {
     return 1 === run % 2;
 }
 
-//  As much of the queue as the guest's receive buffer takes
+//
+//  May the host send now? The guest's RTS (CIA-B PA6), which axshim 1.5
+//  drops when its receive ring fills and while it starts a door. enigma-vamiga
+//  0.1.2 does not expose it, so this is always true and the core's own flow
+//  control (patch 0001's byte holding, or vAmiga's SER.HANDSHAKE once the core
+//  has it) holds what is in flight. When the package exposes the line, this
+//  is the one line to change (e.g. `return emu.serialRts !== false;`); the
+//  window above keeps what is already in flight within the shim's headroom.
+//
+function guestClearToSend() {
+    return true;
+}
+
+//  Bytes the core has accepted that the guest's UART has not taken yet
+function inFlight() {
+    const n = emu.serialInPending;
+    return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+//  As much of the queue as the window, and the core's receive buffer, take
 function pumpInput() {
-    while (outQueue.length) {
+    if (!guestClearToSend()) {
+        return;
+    }
+    let room = InputWindowBytes - inFlight();
+    while (outQueue.length && room > 0) {
         const seg = outQueue[0];
-        const n = emu.serialWrite(seg.buf);
+        const offer = Math.min(room, seg.buf.length);
+        const n = emu.serialWrite(seg.buf.subarray(0, offer));
         if (n > 0) {
             if (!seg.frame) {
-                queuedDataBytes -= Math.min(n, seg.buf.length);
-                seg.rsOpen = rsPairOpen(seg.buf, Math.min(n, seg.buf.length), seg.rsOpen);
+                queuedDataBytes -= n;
+                seg.rsOpen = rsPairOpen(seg.buf, n, seg.rsOpen);
             }
             seg.started = true;
+            room -= n;
         }
         if (n >= seg.buf.length) {
             outQueue.shift();
             continue;
         }
         seg.buf = seg.buf.subarray(n);
-        return;
+        if (n < offer) {
+            return; //  the core's buffer is full
+        }
     }
 }
 
