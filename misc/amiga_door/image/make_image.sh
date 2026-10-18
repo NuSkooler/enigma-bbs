@@ -2,7 +2,8 @@
 #
 # Build an ENiGMA½ Amiga door image (a bare FFS hard-disk image, volume BBS).
 #
-#   make_image.sh [-s SIZE] [-n VOLUME] [-x XDFTOOL] [-w ADF] [-f] IMAGE DOORDIR...
+#   make_image.sh [-s SIZE] [-n VOLUME] [-x XDFTOOL] [-w ADF] [-p PFILEDIR]...
+#                 [-c COMMAND]... [-f] IMAGE [DOORDIR...]
 #
 #   IMAGE      image file to create, e.g. ~/amiga/dreamsweeper.hdf
 #   DOORDIR    a door's directory on this machine; its contents are copied to
@@ -17,6 +18,11 @@
 #              rexxsupport.library, the IEEE math libraries rexxsyslib needs,
 #              SYS:Rexxc and the C: commands scripts run with ADDRESS COMMAND.
 #              Those files are licensed: the image is for your board only.
+#   -p DIR     a C-Net ARexx door (pfile) directory: copied to PFiles/<name>/,
+#              which the shim assigns PFILES: to; the image also gets C-Net's
+#              mail tree CNet/Mail/Users (CNET: is SYS:CNet). Needs -w. Repeatable.
+#   -c FILE    a command for C: (one a script runs with ADDRESS COMMAND, such as
+#              QSort for Bad Libs). Repeatable.
 #   -f         replace IMAGE if it exists
 #
 # xdftool comes from amitools:
@@ -37,6 +43,8 @@ volume=BBS
 xdftool=${XDFTOOL:-xdftool}
 force=0
 workbench=
+pfiles=()
+commands=()
 
 # what -w copies from the Workbench disk (same path on the disk and in the image)
 wb_files=(
@@ -49,23 +57,26 @@ wb_files=(
 )
 
 usage() {
-    sed -n '3,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-2}"
 }
 
-while getopts "s:n:x:w:fh" opt; do
+while getopts "s:n:x:w:p:c:fh" opt; do
     case $opt in
         s) size=$OPTARG ;;
         n) volume=$OPTARG ;;
         x) xdftool=$OPTARG ;;
         w) workbench=$OPTARG ;;
+        p) pfiles+=("$OPTARG") ;;
+        c) commands+=("$OPTARG") ;;
         f) force=1 ;;
         h) usage 0 ;;
         *) usage ;;
     esac
 done
 shift $((OPTIND - 1))
-[ $# -ge 2 ] || usage
+[ $# -ge 1 ] || usage
+[ $# -ge 2 ] || [ ${#pfiles[@]} -gt 0 ] || usage
 
 image=$1
 shift
@@ -87,12 +98,24 @@ done
     exit 1
 }
 
-for d in "$@"; do
+for d in "$@" ${pfiles[@]+"${pfiles[@]}"}; do
     [ -d "$d" ] || {
         echo "make_image.sh: not a directory: $d" >&2
         exit 1
     }
 done
+
+for f in ${commands[@]+"${commands[@]}"}; do
+    [ -f "$f" ] || {
+        echo "make_image.sh: no such file: $f" >&2
+        exit 1
+    }
+done
+
+[ ${#pfiles[@]} -eq 0 ] || [ -n "$workbench" ] || {
+    echo "make_image.sh: C-Net ARexx doors (-p) need ARexx: give your Workbench 3.1 disk with -w" >&2
+    exit 1
+}
 
 if [ -e "$image" ]; then
     if [ "$force" -eq 1 ]; then
@@ -130,9 +153,13 @@ if [ -n "$workbench" ]; then
     done
 fi
 
-for d in "$@"; do
-    d=${d%/}
-    root=Doors/$(basename "$d")
+for f in ${commands[@]+"${commands[@]}"}; do
+    args+=(+ write "$f" "C/$(basename "$f")")
+done
+
+# copy_tree DIR ROOT: DIR's contents to ROOT in the image, layout kept
+copy_tree() {
+    local d=${1%/} root=$2 sub file
     args+=(+ makedir "$root")
     while IFS= read -r -d '' sub; do
         args+=(+ makedir "$root/${sub#./}")
@@ -140,7 +167,20 @@ for d in "$@"; do
     while IFS= read -r -d '' file; do
         args+=(+ write "$d/${file#./}" "$root/${file#./}")
     done < <(cd "$d" && find . -type f -print0 | sort -z)
+}
+
+for d in "$@"; do
+    copy_tree "$d" "Doors/$(basename "${d%/}")"
 done
+
+if [ ${#pfiles[@]} -gt 0 ]; then
+    # C-Net: PFILES: is SYS:PFiles and CNET: SYS:CNet (the shim assigns them); pfiles
+    # keep per-caller files in CNET:Mail/Users/<account>/
+    args+=(+ makedir PFiles + makedir CNet + makedir CNet/Mail + makedir CNet/Mail/Users)
+    for d in "${pfiles[@]}"; do
+        copy_tree "$d" "PFiles/$(basename "${d%/}")"
+    done
+fi
 
 "$xdftool" "${args[@]}"
 "$xdftool" "$image" list

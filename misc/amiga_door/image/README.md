@@ -141,8 +141,42 @@ library need it in `Libs/` too, with the libraries it opens (The Death Game's
 daily reset: `rexxarplib.library`, `screenshare.library`, `diskfont.library` and
 `arp.library`).
 
-Without `-w`, `doorType: aim` sessions end at once with
+Without `-w`, `doorType: aim` (and `cnetrexx`) sessions end at once with
 `error=no rexxsyslib` (the ENiGMA log says so); XIM and CLI doors are not affected.
+
+## C-Net ARexx doors
+
+A C-Net ARexx door (`doorType: cnetrexx`, a C-Net Amiga "pfile" written in ARexx)
+needs ARexx like an AIM door (`-w`), and lives where C-Net kept pfiles, under
+`PFILES:`. Give each pfile's directory with `-p`, and any command its script runs
+with `ADDRESS COMMAND` that Workbench does not have with `-c`:
+
+```sh
+XDFTOOL=~/amitools-venv/bin/xdftool \
+    misc/amiga_door/image/make_image.sh -w ~/amiga/Workbench3.1.adf -s 4M \
+    -c ~/amiga/QSort/QSort -p ~/doors/Badlibs -p ~/doors/switchfont \
+    ~/amiga/xdoors-cnet.hdf
+```
+
+`-p` copies the directory to `PFiles/<name>/` (Bad Libs' `HOMEDIR` is
+`PFILES:BADLIBS/`; names are not case sensitive) and makes C-Net's mail tree
+`CNet/Mail/Users`. At start-up the shim assigns `PFILES:` to `SYS:PFiles` and
+`CNET:` to `SYS:CNet` when they exist, and each session makes the caller's
+`CNET:Mail/Users/<account>/`, where pfiles keep per-caller files. A door that
+wants another assign gets it from the door config's `assigns` (for example
+`assigns: { PFILES: 'BBS:Doors/CNet' }` for a different layout).
+
+The door config names the script: `door: PFILES:Badlibs/badlibs`.
+
+- **Bad Libs** sorts its score lists with `QSort` (`address command 'qsort ... R'`):
+  QSort 1.1 by Joerg Riemer, freeware with source, is on Aminet as
+  [util/cli/QSort.lha](https://aminet.net/package/util/cli/QSort); put
+  `QSort/QSort` from it in `C:` with `-c`. Workbench's `C:Sort` is not a
+  substitute (no reverse order). Without it the script stops at its main screen
+  with an ARexx error.
+- Pfiles that `ADDLIB` `cnet.library` or `cnetc.library`, C pfiles (68k programs that
+  read C-Net's own structures) and pfiles that read C-Net's data files
+  (`bbs.udata`, its message base) do not run: there is no C-Net here.
 
 ## Startup-Sequence
 
