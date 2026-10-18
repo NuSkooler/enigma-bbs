@@ -10,7 +10,10 @@
 #              Doors/<directory name>/ in the image, layout kept. Give several
 #              to put several doors on one image.
 #
-#   -s SIZE    image size (default 4M); anything xdftool's size= accepts
+#   -s SIZE    image size (default 2000K); anything xdftool's size= accepts.
+#              Above 2033K the volume needs a second bitmap block, which the
+#              bundled AROS ROM's filesystem misreads: a door's writes then
+#              overwrite other files. Stay at or under 2033K with AROS.
 #   -n VOLUME  volume name (default BBS)
 #   -x PATH    xdftool to use (default: $XDFTOOL, else xdftool on PATH)
 #   -w ADF     add ARexx, which ARexx (AIM) doors need and AROS does not have,
@@ -38,7 +41,10 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 amiga_dir=$(dirname "$here")
 
-size=4M
+size=2000K
+# the most 512-byte blocks one bitmap block covers (127 longs x 32 bits, plus the two
+# boot blocks): AROS's filesystem maps the blocks of any further bitmap block wrongly
+one_bitmap_blocks=4066
 volume=BBS
 xdftool=${XDFTOOL:-xdftool}
 force=0
@@ -57,7 +63,7 @@ wb_files=(
 )
 
 usage() {
-    sed -n '3,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,38p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-2}"
 }
 
@@ -80,6 +86,25 @@ shift $((OPTIND - 1))
 
 image=$1
 shift
+
+# SIZE in bytes, when it is a plain number with an optional K, M or G (else empty)
+size_bytes() {
+    local n=${1%[KkMmGg]} unit=${1#"${1%[KkMmGg]}"}
+    [[ $n =~ ^[0-9]+$ ]] || return 0
+    case $unit in
+        K | k) echo $((n * 1024)) ;;
+        M | m) echo $((n * 1024 * 1024)) ;;
+        G | g) echo $((n * 1024 * 1024 * 1024)) ;;
+        *) echo "$n" ;;
+    esac
+}
+
+bytes=$(size_bytes "$size")
+if [ -n "$bytes" ] && [ "$bytes" -gt $((one_bitmap_blocks * 512)) ]; then
+    echo "make_image.sh: warning: $size needs more than one bitmap block; the bundled AROS ROM's" >&2
+    echo "  filesystem then overwrites files when a door writes. Use -s 2033K or less with AROS" >&2
+    echo "  (a Kickstart ROM handles any size)." >&2
+fi
 
 command -v "$xdftool" > /dev/null 2>&1 || [ -x "$xdftool" ] || {
     echo "make_image.sh: xdftool not found (pip install amitools, then use -x or XDFTOOL)" >&2

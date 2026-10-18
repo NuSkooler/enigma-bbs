@@ -108,7 +108,7 @@ XDFTOOL=~/amitools-venv/bin/xdftool \
     misc/amiga_door/image/make_image.sh ~/amiga/dreamsweeper.hdf ~/doors/dreamsweeper
 ```
 
-The script takes the image to create and one or more door directories. Each directory is copied, layout kept, to `Doors/<directory name>/` in the image, so the door above ends up at `BBS:Doors/dreamsweeper/...`. Give several directories to put several doors on one image. Options: `-s SIZE` (default `4M`), `-n VOLUME` (default `BBS`), `-x PATH` for `xdftool`, and `-f` to replace an existing image. When it finishes it lists the image so you can check it.
+The script takes the image to create and one or more door directories. Each directory is copied, layout kept, to `Doors/<directory name>/` in the image, so the door above ends up at `BBS:Doors/dreamsweeper/...`. Give several directories to put several doors on one image. Options: `-s SIZE` (default `2000K`; with the bundled AROS ROM keep it at `2033K` or less, see [Limits](#limits)), `-n VOLUME` (default `BBS`), `-x PATH` for `xdftool`, and `-f` to replace an existing image. When it finishes it lists the image so you can check it.
 
 The `door` setting names the door's path inside the image, written with `BBS:`, for example `BBS:Doors/dreamsweeper/dreamsweeper.xim`.
 
@@ -267,7 +267,7 @@ AROS has no ARexx. The image must carry ARexx from your own Workbench 3.1 disk: 
 
 ```sh
 XDFTOOL=~/amitools-venv/bin/xdftool misc/amiga_door/image/make_image.sh \
-    -w ~/amiga/Workbench3.1.adf -s 4M ~/amiga/kickboxing.hdf ~/doors/Kickboxing
+    -w ~/amiga/Workbench3.1.adf ~/amiga/kickboxing.hdf ~/doors/Kickboxing
 ```
 
 - **Where the script goes.** Anywhere on the image: a script finds its data through its own paths (KickBoxing uses `doors:Kickboxing/...`; `DOORS:` is `BBS:Doors`), and `door` names the script.
@@ -461,6 +461,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 
 - **CPU:** the 68000, 68010 and 68EC020 only. There is no 68030, 68040 or 68060, and no FPU.
 - **Memory:** at most 8 MB of fast RAM. The AROS ROM needs at least 1 MB in total (chip plus slow plus fast).
+- **Images up to 2033K with the AROS ROM.** An FFS volume bigger than that needs a second bitmap block, which the bundled AROS ROM's filesystem misreads: when a door writes, it can take blocks that belong to other files and overwrite them. `make_image.sh` makes 2000K images by default and warns about bigger ones. Kickstart 3.1's filesystem (`rom`) has no such limit. Check an image you built bigger with amitools' `xdfscan`.
 - **One caller per emulator.** Every session is its own emulated machine, with the memory and CPU that costs. Use `nodeMax` to bound it.
 - **ARexx needs your Workbench.** AROS does not have ARexx; ARexx and C-Net ARexx doors run only on an image built with your own Workbench 3.1 (`make_image.sh -w`).
 - **No transfers from doors.** A door cannot start a ZMODEM (or any other) file transfer to the caller.

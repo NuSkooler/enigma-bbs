@@ -13,7 +13,7 @@ the shim, the door library, the startup sequence and the door itself. Until
 ```sh
 python3 -m venv ~/amitools-venv && ~/amitools-venv/bin/pip install amitools
 XDFTOOL=~/amitools-venv/bin/xdftool \
-    misc/amiga_door/image/make_image.sh [-s 4M] [-n BBS] [-w WB.adf] [-f] ~/amiga/doors.hdf ~/doors/dreamsweeper
+    misc/amiga_door/image/make_image.sh [-s 2000K] [-n BBS] [-w WB.adf] [-f] ~/amiga/doors.hdf ~/doors/dreamsweeper
 ```
 
 Each door directory is copied, layout kept, to `Doors/<directory name>/` in the
@@ -28,7 +28,7 @@ From the ENiGMA½ checkout, for a door unpacked in `~/doors/dreamsweeper/`:
 A=misc/amiga_door
 IMG=~/amiga/dreamsweeper.hdf
 
-xdftool "$IMG" create size=4M + format BBS ffs \
+xdftool "$IMG" create size=2000K + format BBS ffs \
     + makedir C + makedir S + makedir Libs + makedir Doors + makedir Doors/DreamSweeper \
     + write "$A/bin/axshim" C/axshim \
     + write "$A/bin/AEDoor.library" Libs/AEDoor.library \
@@ -38,9 +38,14 @@ xdftool "$IMG" create size=4M + format BBS ffs \
 xdftool "$IMG" list             # check what is on it
 ```
 
-- `size=4M` is the default and enough for most doors (the shim and library take
-  about 40 KB). Make it bigger for doors with large data files; every session
-  carries the image, so keep it small.
+- `size=2000K` is the default and enough for most doors (the shim and library take
+  about 90 KB, Workbench's ARexx files about 150 KB). **With the bundled AROS ROM,
+  keep the image at 2033K or less.** A bigger FFS volume needs a second bitmap
+  block, and the AROS filesystem maps the blocks it covers wrongly: the first time
+  a door writes, it can take blocks that hold other files (on a 4M image, Bad Libs'
+  score file overwrote `rexxsyslib.library`'s header). `make_image.sh` warns.
+  Kickstart 3.1's FastFileSystem handles any size. Every session carries the
+  image, so keep it small anyway.
 - Name the volume `BBS`. Doors find their files under `BBS:`; the shim also
   assigns `BBS:` to the boot volume, so another name works, but `BBS` keeps paths
   in door docs literal.
@@ -115,7 +120,7 @@ ARexx.** Give `make_image.sh` your Workbench 3.1 disk image (an ADF of the
 
 ```sh
 XDFTOOL=~/amitools-venv/bin/xdftool \
-    misc/amiga_door/image/make_image.sh -w ~/amiga/Workbench3.1.adf -s 4M \
+    misc/amiga_door/image/make_image.sh -w ~/amiga/Workbench3.1.adf \
     ~/amiga/kickboxing.hdf ~/doors/Kickboxing
 ```
 
@@ -153,7 +158,7 @@ with `ADDRESS COMMAND` that Workbench does not have with `-c`:
 
 ```sh
 XDFTOOL=~/amitools-venv/bin/xdftool \
-    misc/amiga_door/image/make_image.sh -w ~/amiga/Workbench3.1.adf -s 4M \
+    misc/amiga_door/image/make_image.sh -w ~/amiga/Workbench3.1.adf \
     -c ~/amiga/QSort/QSort -p ~/doors/Badlibs -p ~/doors/switchfont \
     ~/amiga/xdoors-cnet.hdf
 ```
