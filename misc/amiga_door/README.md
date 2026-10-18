@@ -36,13 +36,22 @@ those doors send their 106-byte `DoorMsg` requests to.
 caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim ── DoorControl<line> ── door
 ```
 
+And it runs **C-Net ARexx doors**, the ARexx "pfiles" of C-Net Amiga 3 to 5: it is
+the C-Net port's ARexx host `CNETREXX<port>` (C-Net counts ports from 0, so node 1
+is `CNETREXX0`) and starts the script the way C-Net did, with its host address
+already set. Like AIM doors these need the sysop's Workbench ARexx.
+
+```
+caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim ── CNETREXX<port> ── RexxMast ── script
+```
+
 This directory holds the Amiga-side pieces. They are built with a cross
 compiler, and the binaries are committed in `bin/`, so sysops need no Amiga
 toolchain.
 
 | Path | What |
 |---|---|
-| `bin/axshim` | the host shim (axshim 1.3), AmigaOS executable (68000, AROS and Kickstart 3.1) |
+| `bin/axshim` | the host shim (axshim 1.4), AmigaOS executable (68000, AROS and Kickstart 3.1) |
 | `bin/AEDoor.library` | NilBBS's MIT `AEDoor.library` 3.0, which most doors open |
 | `shim/axshim.c` | shim source (BSD-2-Clause) |
 | `shim/Makefile`, `shim/build.sh` | build both binaries |
@@ -139,6 +148,34 @@ For a Paragon door (`type=tim`) it:
 The command set comes from AmiExpress's own Paragon service (`express.e`, MIT) and
 MAX's BBS's door kits; `shim/axshim.c` has the table.
 
+For a C-Net ARexx door (`type=cnetrexx`) it:
+
+- opens `rexxsyslib.library` and checks for RexxMast's `REXX` port as for AIM doors;
+- creates the public port `CNETREXX<node - 1>` and sends REXX the script (with
+  `args` after it, if any) in a `RexxMsg` whose host address is that port, as C-Net
+  started pfiles: no `RX`, no node argument (the script needs no `address`);
+- answers C-Net's host commands: `TRANSMIT`/`PRINT` and `SENDSTRING` (text through
+  C-Net's MCI, with and without a new line), `SEND`, `SENDFILE`, `GETCHAR` (letters
+  in capitals), `MAYGETCHAR` (a key, or `NOCHAR` after 40 ms), `QUERY`, `PROMPT len
+  NORMAL|HIDE|YESNO|NOYES text`, `GETUSER n` (C-Net's code table; the 7-digit
+  structure peeks answer 0 or an empty string), `SETOBJECT`/`PUTUSER n`,
+  `BBSIDENTIFY`, `GETCARRIER` (`TRUE`/`FALSE`), `CARRIER`, `CHANGEWHERE`,
+  `ADDTIME` (tenths of a minute), `ADDPOINTS`, `FINDACCOUNT`, the scratch account
+  (the caller's own only), `SPAWN`, `BYE`; the editor, mail and file transfer
+  commands answer `0`;
+- runs C-Net's MCI codes in the text (`^Q<cmd><args>}` and `^Y<cmd><char>`): colour,
+  clear, cursor, repeats, and the ones that wait or act: `{G}` a key, `{I}` a line,
+  `{?}` yes/no, `{W}` seconds, `{* file}`, `{$ cmd}`, `{V n}`, `{L n m}`; and
+  word-wraps the text at the caller's width (C-Net's word wrap);
+- after a hangup, time-up, keyboard timeout or `BYE` answers input commands and
+  every other command `###PANIC` (C-Net's word for it; `GETCARRIER` says `FALSE`),
+  rc 0, and sends the script CTRL-C `panicgrace` seconds later (default 10);
+- reports `X` when the script (and what it spawned) ends, with `rc`, `verbs`,
+  `unknown`, `where` (the last `CHANGEWHERE`), `addtime`, `addpoints` and `out`.
+
+The command set, the `GETUSER` table, MCI and `###PANIC` follow NilBBS's C-Net host
+(MIT) and the C-Net 5 SDK's ARexx guide; `shim/axshim.c` has the details.
+
 A door that never registers, never shuts down or crashes cannot hang the shim:
 it reports `X status=error` (no registration within `regtimeout` seconds) or the
 `d` reason after 30 seconds, keeps answering the stray door's requests as
@@ -165,7 +202,7 @@ brief:
 | `X` | session over: `status`, `reg`, `cmds`, `codes`, `return`, `error`, `wrote` | | |
 
 User block keys (`s`): `version` and `door` are required; `type` (`xim`, `aim`,
-`tim` or `cli`, default `xim`), `console` (`cooked` or `raw`, CLI doors), `dir`, `stack`, `args`,
+`tim`, `cnetrexx` or `cli`, default `xim`), `console` (`cooked` or `raw`, CLI doors), `dir`, `stack`, `args`,
 `node`, `name`, `realname`, `location`, `level`, `timeleft`, `timeused`,
 `timelimit`, `calls`, `posts`, `uploads`, `downloads`, `ulbytes`, `dlbytes`,
 `laston`, `expert`, `ansi`, `rows`, `cols`, `bbsname`, `sysop`, `mainline`,
@@ -175,7 +212,11 @@ send: a door that asks gets an empty string.
 A CLI door gets none of the user block: its `args` (its whole command line, with no
 node number in front) is all it knows about the caller; see "For a CLI door" above.
 An ARexx door gets the whole user block, which its `GETUSER` commands read, and so
-does a Paragon door (its user number and string requests).
+does a Paragon door (its user number and string requests) and a C-Net ARexx door,
+which also reads `account` (its account number, `GETUSER 39`/`40`; default 1) and
+takes `panicgrace` (seconds from carrier loss to its CTRL-C, 0 to 25, default 10; 0
+breaks the script before its waiting command is answered) and `wrap` (`0` turns
+word wrap off).
 
 Two keys, for any door type, stand in for the lines a door's installation adds to
 the sysop's `S:Startup-Sequence` (a minimal image has no `C:Assign`):
@@ -186,7 +227,11 @@ the sysop's `S:Startup-Sequence` (a minimal image has no `C:Assign`):
 | `env` | `NAME=VALUE[;NAME=VALUE...]` | sets the global variable `ENV:NAME` (making `ENV:` in `RAM:` when the image has none) |
 
 The shim also assigns `PGDOORS:` (the door path Paragon doors ask for) to
-`SYS:Doors`, next to `BBS:` and `DOORS:`.
+`SYS:Doors`, next to `BBS:` and `DOORS:`, and, when the image has those
+directories, `PFILES:` to `SYS:PFiles` and `CNET:` to `SYS:CNet` (C-Net's pfile
+and system trees; pfiles hard-code paths such as `PFILES:Badlibs/`). When
+`CNET:Mail/Users` exists, a C-Net session makes the caller's folder
+`CNET:Mail/Users/<account>` in it, where C-Net kept per-caller files.
 
 axshim 1.0 also understands these keys, which the version 1 spec does not list yet
 (adding keys never bumps the version):
@@ -210,6 +255,11 @@ For a Paragon door `X` carries `cmds` and `codes` (its command numbers), `reg=0`
 `rc`, `addtime` (minutes the door added; informational, ENiGMA does not apply
 them) and `shortmsg` (the `mn_Length` of the first request shorter than a whole
 106-byte `DoorMsg`; its `string` and `carrier` were left untouched).
+
+For a C-Net ARexx door `X` carries `cmds`, `codes` (the `GETUSER` codes used),
+`verbs`, `unknown` (verbs and codes it did not know), `rc`, `out` (ARexx's `+++` line
+when rc is not 0) and, when they apply, `where`, `addtime` (minutes) and `addpoints`
+(informational; ENiGMA does not apply them).
 
 For a CLI door `X` carries `cmds=0`, `reg=0` and `rc`; `unknown` lists the DOS packet
 types the shim refused (AROS start-up code sends `ACTION_DISK_INFO` and `ACTION_SEEK`,
