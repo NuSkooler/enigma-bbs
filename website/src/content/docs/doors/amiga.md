@@ -1,6 +1,6 @@
 ---
 title: Amiga Doors
-description: "Run AmiExpress (/X) XIM doors, /X ARexx doors, Paragon doors and AmigaDOS CLI doors in the built-in vAmiga emulator, with no external emulator on the server."
+description: "Run AmiExpress (/X) XIM doors, /X ARexx doors, Paragon doors, C-Net ARexx doors and AmigaDOS CLI doors in the built-in vAmiga emulator, with no external emulator on the server."
 sidebar:
     order: 3
 ---
@@ -12,7 +12,7 @@ ENiGMA½ can run Amiga BBS doors written for [AmiExpress](https://www.aminet.net
 An Amiga door is not a standalone program. An XIM door is a client of a running /X node: it asks the BBS for the user's name, the time left, a key, a line of input, or to print something. ENiGMA½ boots a small host shim (`axshim`) inside the emulated Amiga that impersonates a node for the door and relays everything to ENiGMA½ over the emulated serial port. The shim and its library are in the repository (`misc/amiga_door/`); you only need to put a door on a disk image.
 :::
 
-ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keyboard and write the screen through their standard input and output, the way many Amiga BBS games were written. See [CLI Doors](#cli-doors). It runs **ARexx doors**, the /X scripts marked `TYPE=AIM`, on an image that carries ARexx from your own Workbench 3.1; see [ARexx Doors](#arexx-doors). And it runs **Paragon doors**, written for Paragon, StarNet and MAX's BBS (and run by /X as `TYPE=TIM`); see [Paragon Doors](#paragon-doors).
+ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keyboard and write the screen through their standard input and output, the way many Amiga BBS games were written. See [CLI Doors](#cli-doors). It runs **ARexx doors**, the /X scripts marked `TYPE=AIM`, on an image that carries ARexx from your own Workbench 3.1; see [ARexx Doors](#arexx-doors). It runs **Paragon doors**, written for Paragon, StarNet and MAX's BBS (and run by /X as `TYPE=TIM`); see [Paragon Doors](#paragon-doors). And it runs **C-Net ARexx doors**, the ARexx "pfiles" of C-Net Amiga, again with ARexx from your Workbench 3.1; see [C-Net ARexx Doors](#c-net-arexx-doors).
 
 ---
 
@@ -124,7 +124,7 @@ Doors that read files straight from an /X install's own data (`BBS:user.data`, `
 
 #### Finding doors
 
-/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community; the [Up Rough door repository](https://doors.uprough.net) collects thousands of Amiga BBS door archives. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`, /X ARexx doors, CLI doors and Paragon doors (below); Paragon and MAX's BBS doors are on Aminet under `comm/maxs`. It does not run doors written for CNet's message ports, including CNet's ARexx doors.
+/X doors are on [Aminet](https://aminet.net) under `comm/amiex`, and many are still distributed by the AmiExpress community; the [Up Rough door repository](https://doors.uprough.net) collects thousands of Amiga BBS door archives. Read the AEDoor 2.8 documentation that comes with the door developer kits if a door's own notes are thin. ENiGMA½ supports XIM doors, which are the ones that talk to a node through `AEDoor.library`, /X ARexx doors, CLI doors and Paragon doors (below); Paragon and MAX's BBS doors are on Aminet under `comm/maxs`, and C-Net's ARexx pfiles under `comm/cnet`. It does not run C-Net's C pfiles, which read C-Net's own memory structures.
 
 ---
 
@@ -136,11 +136,11 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 |------|----------|-------------|
 | `name` | Yes | Door name. Used as a key for tracking concurrent sessions. |
 | `image` | Yes | Path to the door's `.hdf` image. |
-| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. For an ARexx door, the script's full path (`BBS:Doors/Kickboxing/KickBox.Rexx`), with no blanks, quotes or shell characters. XIM, Paragon and CLI door paths may have blanks but none of the shell characters `"` `*` `` ` `` `$` `;` `<` `>` `\|`. At most 199 characters, Latin-1, no control characters. |
-| `doorType` | No | `xim` for an AmiExpress XIM door, `aim` for an /X [ARexx door](#arexx-doors), `tim` for a [Paragon door](#paragon-doors) (Paragon, StarNet, MAX's BBS; /X's `TYPE=TIM`), `cli` for a [CLI door](#cli-doors). Default: `xim`. |
+| `door` | Yes | Amiga path of the door executable inside the image, such as `BBS:Doors/DreamSweeper/dreamsweeper.xim`. For an ARexx or C-Net ARexx door, the script's full path (`BBS:Doors/Kickboxing/KickBox.Rexx`, `PFILES:Badlibs/badlibs`), with no blanks, quotes or shell characters. XIM, Paragon and CLI door paths may have blanks but none of the shell characters `"` `*` `` ` `` `$` `;` `<` `>` `\|`. At most 199 characters, Latin-1, no control characters. |
+| `doorType` | No | `xim` for an AmiExpress XIM door, `aim` for an /X [ARexx door](#arexx-doors), `tim` for a [Paragon door](#paragon-doors) (Paragon, StarNet, MAX's BBS; /X's `TYPE=TIM`), `cnetrexx` for a [C-Net ARexx door](#c-net-arexx-doors), `cli` for a [CLI door](#cli-doors). Default: `xim`. |
 | `consoleMode` | No | CLI doors only: `cooked` (line input with echo, like an Amiga Shell window) or `raw` (each key as typed) until the door picks a mode itself. Default: `cooked`. |
 | `doorDir` | No | The door's current directory. Default: the door's own directory. |
-| `doorArgs` | No | XIM and ARexx doors: extra arguments after the node number; Paragon doors: after the line number. CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). The arguments may be at most 199 characters and the whole command line (door path, node number, arguments) 299, with placeholders counted at their widest; a longer setting is refused. |
+| `doorArgs` | No | XIM and ARexx doors: extra arguments after the node number; Paragon doors: after the line number. C-Net ARexx doors: the script's arguments (C-Net gave pfiles none). CLI doors: the door's whole argument line. `{name}`, `{node}`, `{level}` and `{timeleft}` are filled in; see [CLI Doors](#cli-doors). The arguments may be at most 199 characters and the whole command line (door path, node number, arguments) 299, with placeholders counted at their widest; a longer setting is refused. |
 | `doorStack` | No | Door stack size in bytes, 4096 to 1048576. Default: `32768`. |
 | `assigns` | No | Assigns the door's installation asks for, as `{ NAME: 'PATH' }` (for example `{ MSE: 'BBS:Doors/MSE' }`), made for each session before the door's path is checked. Names are 1 to 30 letters, digits, `_`, `.` or `-`; paths are Amiga paths on the image, without `;`. A path that is not on the image ends the session with an error. Any door type. |
 | `env` | No | Environment variables the door reads from `ENV:`, as `{ NAME: 'value' }` (an empty value is allowed), set for each session; `ENV:` is made in `RAM:` when the image has none. Any door type. `assigns` and `env` each take at most 199 characters in all (`NAME=value` pairs joined with `;`). |
@@ -162,7 +162,9 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `font` | No | SyncTERM font for the door's duration: a font name or alias, or `none` to leave the caller's font alone. Default: `topaz`. |
 | `persist` | No | Write the door's disk changes back to the image. Default: `true`. |
 | `persistOn` | No | The exit statuses after which to persist: any of `ok`, `carrier`, `timeout`, `break`, `error`. Default: `['ok', 'carrier']` for `xim` doors, `['ok']` for `cli`, `aim` and `tim` doors; a list you give always wins. `carrier`, `timeout` and `break` persist only if the door ended by itself (see [Persistence](#persistence)). |
-| `log` | No | XIM, ARexx and Paragon doors: log every request the door makes at debug level. Default: `false`. |
+| `log` | No | XIM, ARexx, Paragon and C-Net ARexx doors: log every request the door makes at debug level. Default: `false`. |
+| `panicGraceSeconds` | No | C-Net ARexx doors: after a hangup (when every command answers `###PANIC`), how long the script has to save and stop before it gets a Ctrl-C, 0 to 25. `0` stops it before it sees its answer, for doors that would save `###PANIC` as a player's name. Default: `10`. |
+| `wordWrap` | No | C-Net ARexx doors: break the door's text between words at the caller's width, as C-Net did. Default: `true`. |
 | `warpBootSeconds` | No | How long the first boot runs flat out, 0 to 3600. Default: `30`. |
 | `regTimeoutSeconds` | No | XIM doors: the door must register with the shim within this many seconds (Paragon doors: send their first request), 0 to 86400; `0` waits for ever. Default: `30`. |
 | `disconnectGraceSeconds` | No | After a hangup, time-up or break, how long ENiGMA½ waits for the door to finish and the shim to report its exit, 1 to 3600. The shim itself gives a door 30 seconds and then reports it gone, so keep this above 30. With no report in time nothing is saved. Default: `35`. |
@@ -357,6 +359,72 @@ doorVEX: {
 
 MSE's `env` value holds its options (`FAST`, `TIME`, `INVITE`; see its readme); empty is none. Leave out `PARAGON`, which asks for the BBS's editor.
 
+### C-Net ARexx Doors
+
+C-Net Amiga (versions 3 to 5) ran door games and add-ons as "pfiles", and many were ARexx scripts. C-Net started each one with its port's ARexx host already chosen, so a pfile has no `address` line: it says `options results` and sends C-Net's commands (`TRANSMIT`, `SENDSTRING`, `GETUSER 1`, `PROMPT 30 NORMAL "Your word: "`, `MAYGETCHAR`, `CHANGEWHERE "Playing Bad Libs"`), with C-Net's colour and control codes in its text. The shim takes C-Net's place: it opens the port `CNETREXX<port>` (C-Net counted ports from 0, so the caller on node 1 is port 0), starts the script the way C-Net did, and answers from the same user information other doors get. Set `doorType: cnetrexx` and name the script in `door`.
+
+:::caution[C-Net ARexx doors need your own Workbench 3.1]
+As for /X ARexx doors, the image must carry ARexx from your Workbench 3.1 disk: build it with `make_image.sh -w`. See [ARexx Doors](#arexx-doors).
+:::
+
+Pfiles live under `PFILES:`, and many hard-code it (Bad Libs looks in `PFILES:BADLIBS/`). `make_image.sh -p DIR` puts a pfile's directory in `PFiles/` on the image, and the shim assigns `PFILES:` to it. It also makes C-Net's mail tree, `CNET:Mail/Users/`, where pfiles keep files for each caller (in a folder named after the caller's account number, which is their ENiGMA½ user ID). A door that wants something else gets it from `assigns`. Give commands a script runs (`address command`) that Workbench does not have with `-c`:
+
+```sh
+XDFTOOL=~/amitools-venv/bin/xdftool misc/amiga_door/image/make_image.sh \
+    -w ~/amiga/Workbench3.1.adf -c ~/amiga/QSort/QSort \
+    -p ~/doors/Badlibs -p ~/doors/switchfont -p ~/doors/GoldMine ~/amiga/cnet-doors.hdf
+```
+
+- **Text codes.** C-Net's codes in a door's text (`^Yc5` colours, `^Yf1` clear the screen, `^Yn2` new lines, cursor moves) become ANSI for the caller, and the ones that wait work: a key (`{G}`), a line (`{I}`), yes or no (`{?}`), a pause (`{W}`), a file shown inside the text (`{* file}`). Text is word-wrapped at the caller's width (`wordWrap`). C-Net's "More" prompt is not emulated; doors that turn it off and on find it off.
+- **Keys.** `GETCHAR` and `MAYGETCHAR` give letters in capitals, as C-Net did; cursor keys reach the door as the caller's terminal sends them (`ESC [ A`), which is what C-Net doors read.
+- **The caller.** `GETUSER` answers C-Net's numbered fields from the caller's ENiGMA½ record: handle (1), real name (3), location (4), time left (7, in tenths of a minute), calls (22), port (23), upload and download totals (30 to 33), account number (40), and the rest as an account with nothing in it would. `BBSIDENTIFY` gives the board's and sysop's names. A script that reads C-Net's memory directly (`GETUSER` with a seven-digit number) gets 0 or nothing. The scratch account commands see only the caller's own account; `FINDACCOUNT` finds only the caller.
+- **Hangups and time.** When the caller hangs up, runs out of time or leaves the door waiting for a key longer than `inputTimeoutSeconds`, every command answers `###PANIC`, as C-Net did, and `GETCARRIER` says `FALSE`. Doors check for that and save and quit; one that carries on gets a Ctrl-C after `panicGraceSeconds`. Bad Libs runs through its remaining prompts, counts the game and leaves by itself within seconds.
+- **What a door changes** in the user's record (`PUTUSER`, `ADDTIME`, `ADDPOINTS`) lasts for the session only. The editor, mail and file transfer commands are refused (a door that offers to mail something says it could not), and `BBSCOMMAND` does nothing.
+- **Not supported:** C pfiles (programs, not scripts), and ARexx pfiles that `ADDLIB` `cnet.library` or `cnetc.library` or read C-Net's own data files (its user base, message bases). Sub-pfiles started from a door's text (`{#0 file}`) are not run.
+
+#### Example: Bad Libs, Switchfont and Gold Mine
+
+Bad Libs 1.5 and Switchfont 1.0 are by aNACHRONiST of Phenom Productions, written for C-Net 5 and played on aBSiNTHE BBS (the Up Rough door repository has `pn-badlibs15.zip` and `pn-sf10.zip`). Bad Libs is Mad Libs: it asks for nouns and verbs, shows the story they make, and keeps the busiest players and stories. It sorts those lists with `QSort`, a freeware command on Aminet ([util/cli/QSort.lha](https://aminet.net/package/util/cli/QSort)): put `QSort/QSort` from that archive in `C:` with `-c`. Switchfont lets a SyncTERM caller pick a font with the cursor keys. Gold Mine 2.20 (Dotoran; Aminet `comm/cnet/goldmine.lha`) is a guess-the-square game with a high score list. For each, give `make_image.sh -p` the directory holding the script (`Badlibs/`, `switchfont/`, a `GoldMine/` directory with the `GoldMine` script in it).
+
+```hjson
+doorBadLibs: {
+    desc: Playing Bad Libs
+    module: amiga_door
+    config: {
+        name: BadLibs
+        image: /home/enigma/amiga/cnet-doors.hdf
+        door: PFILES:Badlibs/badlibs
+        doorType: cnetrexx
+        sharedState: true
+    }
+}
+doorSwitchfont: {
+    desc: Picking a font
+    module: amiga_door
+    config: {
+        name: Switchfont
+        image: /home/enigma/amiga/cnet-doors.hdf
+        door: PFILES:switchfont/switchfont
+        doorType: cnetrexx
+        persist: false
+        font: none
+    }
+}
+doorGoldMine: {
+    desc: Playing Gold Mine
+    module: amiga_door
+    config: {
+        name: GoldMine
+        image: /home/enigma/amiga/cnet-doors.hdf
+        door: PFILES:GoldMine/GoldMine
+        doorType: cnetrexx
+        sharedState: true
+    }
+}
+```
+
+Switchfont's choice is the caller's font while it runs; with `font: none` ENiGMA½ leaves it alone afterwards too. Most C-Net art is Latin-1 for Amiga terminals, which is the default `encoding`; Dotoran's CRAPS draws with PC characters and wants `encoding: cp437`.
+
 ---
 
 ### Persistence
@@ -394,11 +462,11 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 - **CPU:** the 68000, 68010 and 68EC020 only. There is no 68030, 68040 or 68060, and no FPU.
 - **Memory:** at most 8 MB of fast RAM. The AROS ROM needs at least 1 MB in total (chip plus slow plus fast).
 - **One caller per emulator.** Every session is its own emulated machine, with the memory and CPU that costs. Use `nodeMax` to bound it.
-- **ARexx needs your Workbench.** AROS does not have ARexx; ARexx doors run only on an image built with your own Workbench 3.1 (`make_image.sh -w`).
+- **ARexx needs your Workbench.** AROS does not have ARexx; ARexx and C-Net ARexx doors run only on an image built with your own Workbench 3.1 (`make_image.sh -w`).
 - **No transfers from doors.** A door cannot start a ZMODEM (or any other) file transfer to the caller.
 - **No sysop break.** There is no way for the sysop to break into a running door's session from the door.
 - **No `JH_EF` editor.** A door that asks the BBS for its full-screen editor is refused, and the door carries on without it.
-- **XIM, ARexx, Paragon and CLI doors only.** Doors written for CNet's message ports (CNet's C and ARexx doors) are not supported.
+- **XIM, ARexx, Paragon, C-Net ARexx and CLI doors only.** C-Net's C pfiles, which read C-Net's own memory, and ARexx pfiles that need `cnet.library` are not supported; nor are doors for other BBSes' libraries (DLG's, Xenolink's).
 - **CLI doors have no window.** A CLI door that asks its console for the window size gets no answer; it should take the screen length from its command line.
 
 ---
@@ -410,6 +478,8 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 **A CLI door ends at once, with no output.** It could not start or quit before printing anything, usually for want of a library. The exit is logged with the door's return code (`rc`). Check the libraries the door needs (see [CLI Doors](#cli-doors)) and that its configuration files are where its documentation says.
 
 **An ARexx door ends at once.** The log line for the exit says why. `error=no rexxsyslib`: the image has no ARexx; build it with `make_image.sh -w`. `ARexx is not running`: RexxMast is not on the image or did not start. `script ended without a host command` with an `out=` text: the script stopped before it said anything, usually an ARexx error (shown) or a missing `ADDLIB` library.
+
+**A C-Net ARexx door stops with "Error: ... Line: ..."** on the screen. Most pfiles trap every failed command (`SIGNAL ON ERROR`) and print where it happened. The usual cause is a command the script runs with `address command` that is not on the image (Bad Libs needs `C:QSort`; Workbench's own commands come with `-w`), or a missing directory under `PFILES:` or `CNET:`. An exit with `script ended without a host command` is a script ARexx could not run at all (the `out=` text says why), or a `door` path that is not a script.
 
 **A Paragon door ends at once.** The exit is logged with `door exited without a DoorControl request` and the first line the door printed, often its own complaint: a port it could not find (the door wants another BBS type or a line argument of its own; see its notes), a missing assign or library. A door that waits for something before its first request is reported after `regTimeoutSeconds`.
 

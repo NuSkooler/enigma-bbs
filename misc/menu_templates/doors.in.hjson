@@ -217,6 +217,10 @@
                 //  doorType: tim                // a Paragon / MAX's BBS door (/X TYPE=TIM)
                 //  assigns: { MSE: "BBS:Doors/MSE" }  // assigns its install notes ask for
                 //  env: { MSE: "" }             // ENV: variables it reads
+                //  doorType: cnetrexx           // a C-Net ARexx pfile (door: its path, e.g.
+                //                               // PFILES:Badlibs/badlibs); needs ARexx (-w)
+                //  panicGraceSeconds: 10        // C-Net: seconds to save after a hangup
+                //  wordWrap: true               // C-Net: wrap the door's text at word ends
                 //  consoleMode: raw             // CLI doors: cooked (default) or raw
                 //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
                 //                               // also {node} and {level}
