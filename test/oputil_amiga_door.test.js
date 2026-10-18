@@ -405,12 +405,28 @@ describe('oputil amiga-door', function () {
     describe('command line', function () {
         this.timeout(30000);
 
+        it('create refuses a size over 2032K unless --allow-large', () => {
+            const img = path.join(dir, 'large.hdf');
+            let r = oputil('create', img, '--size', '2040K', door);
+            assert.notEqual(r.status, 0);
+            assert.match(r.stderr, /more than 2032K.*4066 blocks.*AROS.*--allow-large/s);
+            assert.equal(fs.existsSync(img), false);
+
+            r = oputil('create', img, '--size', '2032K', door);
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(fs.statSync(img).size, 2032 * 1024);
+
+            r = oputil('create', img, '--force', '--size', '4M', '--allow-large', door);
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(fs.statSync(img).size, 4 * 1024 * 1024);
+        });
+
         it('create, refuse to overwrite, --force, ls, info', () => {
             const img = path.join(dir, 'cli.hdf');
-            let r = oputil('create', img, '--size', '2M', '--doors', door);
+            let r = oputil('create', img, '--size', '2000K', '--doors', door);
             assert.equal(r.status, 0, r.stderr);
             assert.match(r.stdout, /Doors\/My Door\/data\/empty.dat/);
-            assert.equal(fs.statSync(img).size, 2 * 1024 * 1024);
+            assert.equal(fs.statSync(img).size, 2000 * 1024);
 
             r = oputil('create', img, door);
             assert.notEqual(r.status, 0);
@@ -418,7 +434,7 @@ describe('oputil amiga-door', function () {
 
             r = oputil('create', img, '--force', '--name', 'Games', door);
             assert.equal(r.status, 0, r.stderr);
-            assert.equal(fs.statSync(img).size, 4 * 1024 * 1024); // the default
+            assert.equal(fs.statSync(img).size, 2000 * 1024); // the default
 
             r = oputil('ls', img, 'Doors/My Door/data');
             assert.equal(r.status, 0, r.stderr);

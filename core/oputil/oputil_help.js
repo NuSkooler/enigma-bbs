@@ -415,9 +415,13 @@ Actions:
                               running board is using.
 
 create arguments:
-  --size SIZE                 Image size (default 4M): bytes, or with K, M or G.
+  --size SIZE                 Image size (default 2000K): bytes, or with K, M or G.
                               Rounded up to a multiple of 8K. Every session carries
-                              the image, so keep it small.
+                              the image, so keep it small. At most 2032K (4066
+                              blocks) unless --allow-large: the bundled AROS ROM
+                              corrupts larger FFS volumes when a door writes.
+  --allow-large               Allow a --size over 2032K, for an image used with
+                              Kickstart 3.1 or a ROM that carries the FFS fix
   --name NAME                 Volume name (default BBS)
   --doors DIR [DIR...]        Door directories (the same as listing them after IMAGE)
   --workbench ADF             Add ARexx, which ARexx (AIM) doors need and AROS lacks,

@@ -25,7 +25,8 @@ times; everything gets `rwed` protection, which is what doors expect.
 
 | Option | |
 |---|---|
-| `--size SIZE` | default `4M`; bytes, or with `K`, `M` or `G`, rounded up to a multiple of 8 KB |
+| `--size SIZE` | default `2000K`; bytes, or with `K`, `M` or `G`, rounded up to a multiple of 8 KB; at most `2032K` (4066 blocks) unless `--allow-large` |
+| `--allow-large` | allow a `--size` over 2032 KB: only for an image used with Kickstart 3.1 or a ROM that carries the FFS fix (the bundled AROS ROM corrupts larger FFS volumes on a write) |
 | `--name NAME` | volume name, default `BBS` |
 | `--doors DIR...` | door directories (the same as listing them after the image) |
 | `--workbench ADF` | add ARexx from your Workbench 3.1 disk, for ARexx doors (below) |

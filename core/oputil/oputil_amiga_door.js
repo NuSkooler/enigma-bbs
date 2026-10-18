@@ -61,7 +61,12 @@ const WORKBENCH_FILES = [
     ].map(n => `C/${n}`),
 ];
 
-const DEFAULT_SIZE = '4M';
+const DEFAULT_SIZE = '2000K';
+
+//  The bundled AROS ROM corrupts an FFS volume of more than one bitmap block
+//  (4066 blocks, 2032 KB) when the guest writes to it.
+const AROS_MAX_BLOCKS = 4066;
+const AROS_MAX_SIZE = 2032 * 1024;
 const DEFAULT_NAME = 'BBS';
 const SIZE_ROUND = 16 * 512; // vAmiga finds a drive geometry for any multiple of 16 blocks
 const MAX_SIZE = 2 * 1024 * 1024 * 1024;
@@ -412,6 +417,15 @@ function cmdCreate(image) {
         workbench: argv.workbench ? String(argv.workbench) : null,
     };
     const size = parseSize(options.size);
+    if (size > AROS_MAX_SIZE && !argv['allow-large']) {
+        throw new CommandError(
+            `${size / 1024}K is more than ${AROS_MAX_SIZE / 1024}K (${AROS_MAX_BLOCKS} blocks of 512 bytes): ` +
+                'the AROS ROM that ENiGMA bundles corrupts an FFS volume of more than ' +
+                `${AROS_MAX_BLOCKS} blocks when a door writes to it. Use ${AROS_MAX_SIZE / 1024}K ` +
+                'or less, or pass --allow-large for an image used with Kickstart 3.1 ' +
+                'or a ROM that carries the FFS fix'
+        );
+    }
     options.size = size;
     console.log(`Creating ${image} (${kb(size)}, volume ${options.name})`);
     const vol = buildDoorImage(
