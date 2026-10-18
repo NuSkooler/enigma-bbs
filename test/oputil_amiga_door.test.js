@@ -17,6 +17,8 @@ const {
     extractFromVolume,
     WORKBENCH_FILES,
     BASE_FILES,
+    doorNameProblem,
+    checkDoorNames,
 } = require('../core/oputil/oputil_amiga_door.js');
 const { AmigaVolume } = require('../core/amiga_door/amiga_fs.js');
 
@@ -249,6 +251,58 @@ describe('oputil amiga-door', function () {
                 /refusing/
             );
             assert.equal(fs.existsSync(path.join(dir, 'x')), false);
+        });
+    });
+
+    describe('door names the module refuses', () => {
+        it('names the character a door path may not carry', () => {
+            for (const c of ['"', '*', '`', '$', ';', '<', '>', '|']) {
+                assert.match(doorNameProblem(`a${c}b`), /the character/, c);
+            }
+            assert.match(doorNameProblem('a\x07b'), /control character/);
+            assert.match(doorNameProblem('a\x85b'), /control character/); // C1
+            assert.match(doorNameProblem('a\u20acb'), /outside Latin-1/);
+            assert.equal(doorNameProblem('My Door'), null);
+            assert.equal(doorNameProblem('caf\xe9 (v1.0)-x_y'), null); // Latin-1 is fine
+        });
+
+        it('warns for a door directory and the files in it, and nothing else', () => {
+            assert.deepEqual(checkDoorNames(door), []);
+            const bad = path.join(dir, 'Fun;Door');
+            fs.mkdirSync(path.join(bad, 'data'), { recursive: true });
+            fs.writeFileSync(path.join(bad, 'ok.xim'), 'x');
+            fs.writeFileSync(path.join(bad, 'data', 'sc$ores.dat'), 'x');
+            fs.writeFileSync(path.join(bad, 'data', 'eur\u20ac.txt'), 'x');
+            const w = checkDoorNames(bad);
+            assert.equal(w.length, 3, w.join('\n'));
+            assert.match(w[0], /^Doors\/Fun;Door has the character ; in its name/);
+            assert.match(
+                w[1],
+                /^Doors\/Fun;Door\/data\/eur\u20ac\.txt has a character outside Latin-1/
+            );
+            assert.match(
+                w[2],
+                /^Doors\/Fun;Door\/data\/sc\$ores\.dat has the character \$/
+            );
+            assert.match(w[0], /will refuse a `door:` path through it/);
+        });
+
+        it('create warns on stderr and still builds the image', function () {
+            this.timeout(30000);
+            const bad = path.join(dir, 'Odd|Door');
+            fs.mkdirSync(bad);
+            fs.writeFileSync(path.join(bad, 'game'), 'x');
+            const img = path.join(dir, 'warn.hdf');
+            const r = oputil('create', img, '--size', '1M', bad);
+            assert.equal(r.status, 0, r.stderr);
+            assert.match(
+                r.stderr,
+                /amiga-door: warning: Doors\/Odd\|Door has the character \|/
+            );
+            assert.ok(fs.existsSync(img));
+            const clean = oputil('create', img, '--force', '--size', '1M', door);
+            assert.equal(clean.status, 0, clean.stderr);
+            assert.doesNotMatch(clean.stderr, /warning/);
         });
     });
 

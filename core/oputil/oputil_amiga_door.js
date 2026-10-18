@@ -73,6 +73,8 @@ exports.buildDoorImage = buildDoorImage;
 exports.addToVolume = addToVolume;
 exports.extractFromVolume = extractFromVolume;
 exports.formatListing = formatListing;
+exports.doorNameProblem = doorNameProblem;
+exports.checkDoorNames = checkDoorNames;
 exports.WORKBENCH_FILES = WORKBENCH_FILES;
 exports.BASE_FILES = BASE_FILES;
 
@@ -91,6 +93,59 @@ function parseSize(value) {
     if (bytes <= 0) throw new CommandError(`bad size: ${value}`);
     if (bytes > MAX_SIZE) throw new CommandError(`size too large: ${value} (at most 2G)`);
     return bytes;
+}
+
+//  What the amiga_door module refuses in a XIM or CLI door's path (it goes on
+//  the shim's command line in quotes): the quote, the shell's wildcard and
+//  substitution characters, redirection and pipe, control characters (C0 and
+//  C1) and anything that is not Latin-1. Keep in step with QuotedPathUnsafe
+//  and ControlChars in core/amiga_door/amiga_door.js.
+function doorNameProblem(name) {
+    const m = /["*`$;<>|]/.exec(name);
+    if (m) return `the character ${m[0]}`;
+    if (/[\x00-\x1f\x7f-\x9f]/.test(name)) return 'a control character';
+    if (/[^\x00-\xff]/.test(name)) return 'a character outside Latin-1';
+    return null;
+}
+
+//  Walk a local door directory (the same entries addToVolume copies) and
+//  return a warning for each name, the directory's own included, that a
+//  `door:` path through it would be refused for.
+function checkDoorNames(dir) {
+    const warnings = [];
+    const check = (name, shown) => {
+        const why = doorNameProblem(name);
+        if (why) {
+            warnings.push(
+                `${shown} has ${why} in its name: the amiga_door module will refuse a ` +
+                    '`door:` path through it'
+            );
+        }
+    };
+    const walk = (full, shown) => {
+        let names;
+        try {
+            names = fs.readdirSync(full).sort();
+        } catch (e) {
+            return;
+        }
+        for (const name of names) {
+            const child = paths.join(full, name);
+            const childShown = `${shown}/${name}`;
+            check(name, childShown);
+            let st;
+            try {
+                st = fs.lstatSync(child);
+            } catch (e) {
+                continue;
+            }
+            if (st.isDirectory()) walk(child, childShown);
+        }
+    };
+    const base = paths.basename(paths.resolve(dir));
+    check(base, `Doors/${base}`);
+    walk(dir, `Doors/${base}`);
+    return warnings;
 }
 
 function openImage(image, options = {}) {
@@ -270,7 +325,7 @@ function summary(vol) {
 //  Build a door image in memory: the base files, the Workbench files when
 //  `workbench` names an ADF, then each door directory as Doors/<name>/.
 //  Returns the volume; the caller saves it.
-function buildDoorImage(options, log = () => {}) {
+function buildDoorImage(options, log = () => {}, warn = () => {}) {
     const size =
         typeof options.size === 'number' ? options.size : parseSize(options.size);
     const doors = options.doors || [];
@@ -327,6 +382,7 @@ function buildDoorImage(options, log = () => {}) {
             const name = paths.basename(paths.resolve(d));
             const count = addToVolume(vol, d, `Doors/${name}`, () => {}, seen);
             log(`  Doors/${name}/ (${files(count)} from ${d})`);
+            checkDoorNames(d).forEach(w => warn(w));
         }
     } catch (e) {
         if (e.code === 'ENOSPC') {
@@ -357,7 +413,11 @@ function cmdCreate(image) {
     const size = parseSize(options.size);
     options.size = size;
     console.log(`Creating ${image} (${kb(size)}, volume ${options.name})`);
-    const vol = buildDoorImage(options, line => console.log(line));
+    const vol = buildDoorImage(
+        options,
+        line => console.log(line),
+        line => console.error(`amiga-door: warning: ${line}`)
+    );
     saveImage(vol, image);
     console.log(`\n${summary(vol)}\n`);
     formatListing(vol.list('', { recursive: true })).forEach(l => console.log(l));
