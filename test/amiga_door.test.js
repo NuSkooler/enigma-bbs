@@ -409,6 +409,29 @@ describe('amiga_door config', () => {
         assert.deepEqual(normalizeConfig(BASE).warnings, []);
     });
 
+    it('warns about an image over 2032 KB on the bundled AROS ROM', () => {
+        const image = path.join(os.tmpdir(), `amiga_door_big_${process.pid}.hdf`);
+        try {
+            fs.writeFileSync(image, '');
+            fs.truncateSync(image, 4066 * 512);
+            assert.deepEqual(
+                normalizeConfig(Object.assign({}, BASE, { image })).warnings,
+                []
+            );
+            fs.truncateSync(image, 4 * 1024 * 1024);
+            const { warnings } = normalizeConfig(Object.assign({}, BASE, { image }));
+            assert.equal(warnings.length, 1);
+            assert.match(warnings[0], /4096 KB.*2032 KB.*enigma-vamiga 0\.1\.2/);
+            assert.deepEqual(
+                normalizeConfig(Object.assign({}, BASE, { image, rom: '/x/kick.rom' }))
+                    .warnings,
+                []
+            );
+        } finally {
+            fs.rmSync(image, { force: true });
+        }
+    });
+
     it('reports every problem at once', () => {
         const { problems } = normalizeConfig(
             Object.assign({}, BASE, { cpu: 'z80', fastKb: 9999, crlf: 'yes' })

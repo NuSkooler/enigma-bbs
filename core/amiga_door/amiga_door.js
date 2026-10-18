@@ -309,6 +309,8 @@ function isLatin1(encoding) {
 //  |warnings| lists keys nothing reads, with a likely meaning when there is
 //  one (a misspelt persistOn is otherwise silently the default).
 //
+const AROS_MAX_FFS_BLOCKS = 4066;
+
 function normalizeConfig(raw) {
     const c = Object.assign({}, raw || {});
     const problems = [];
@@ -477,6 +479,26 @@ function normalizeConfig(raw) {
         problems.push(
             'the AROS ROM needs at least 1 MB of RAM in total (chip + slow + fast)'
         );
+    }
+
+    //  The bundled AROS ROM corrupts an FFS volume of more than one bitmap
+    //  block (4066 blocks) when the guest writes; only warn, oputil's create
+    //  is what refuses
+    if (!c.rom && 'string' === typeof c.image) {
+        let imageBytes = 0;
+        try {
+            imageBytes = fs.statSync(c.image).size;
+        } catch (e) {
+            //  a missing image is reported by checkFiles
+        }
+        if (imageBytes > AROS_MAX_FFS_BLOCKS * 512) {
+            warnings.push(
+                `image ${c.image} is ${Math.round(imageBytes / 1024)} KB, over the ` +
+                    `${(AROS_MAX_FFS_BLOCKS * 512) / 1024} KB the bundled AROS ROM can write ` +
+                    'to without corrupting an FFS volume; use an image of 2032 KB or ' +
+                    'less, or the corrected ROM in enigma-vamiga 0.1.2 and later'
+            );
+        }
     }
 
     //  node and time limits
