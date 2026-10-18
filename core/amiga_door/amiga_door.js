@@ -34,6 +34,13 @@
  * shim publishes; it gets the same user block as an XIM door. Its install
  * notes often ask for an assign or an ENV: variable: |assigns| and |env|.
  *
+ * A C-Net ARexx door (doorType: 'cnetrexx', a C-Net Amiga ARexx pfile) is a
+ * script the shim hands to ARexx with C-Net's port CNETREXX<node - 1> as its
+ * host, answering C-Net's TRANSMIT/GETUSER/PROMPT/... commands and MCI codes
+ * from the same user block. Like an AIM door it needs the sysop's Workbench
+ * ARexx in the image; pfiles expect PFILES: (and CNET:) assigns, which the
+ * shim makes when the image has SYS:PFiles (SYS:CNet), or |assigns|.
+ *
  * Sessions restore a snapshot of the booted machine (tens of milliseconds);
  * the first session of a door boots it and fills the snapshot cache.
  * Persistence is "Model A": after a clean door exit the disk chunks the
@@ -50,24 +57,33 @@
  *     image:              string   - path to the door's HDF image (required)
  *     door:               string   - Amiga path of the door executable inside the
  *                                    image (required), e.g. BBS:Doors/DreamSweeper/dreamsweeper.xim
- *     doorType:           string   - xim | aim | tim | cli (default: xim). xim: an /X door
- *                                    that talks to AEDoorPort<node>; aim: an /X ARexx script
- *                                    (door = the script's Amiga path, run as RX <door> <node>;
- *                                    the image needs ARexx); tim: a Paragon door that talks to
- *                                    DoorControl<line>, run as <door> <line> (line = the
- *                                    node's last digit); cli: a program on Input()/Output()
+ *     doorType:           string   - xim | aim | tim | cnetrexx | cli (default: xim). xim: an
+ *                                    /X door that talks to AEDoorPort<node>; aim: an /X ARexx
+ *                                    script (door = the script's Amiga path, run as RX <door>
+ *                                    <node>; the image needs ARexx); tim: a Paragon door that
+ *                                    talks to DoorControl<line>, run as <door> <line> (line =
+ *                                    the node's last digit); cnetrexx: a C-Net ARexx pfile (door
+ *                                    = the script's Amiga path, hosted by CNETREXX<node - 1>; the
+ *                                    image needs ARexx); cli: a program on Input()/Output()
  *     consoleMode:        string   - cli only: cooked | raw, the console's mode until the
  *                                    door calls SetMode() itself (default: cooked)
  *     doorDir:            string   - door's current directory (default: its own)
  *     doorStack:          number   - door stack size in bytes (default: 32768)
  *     doorArgs:           string   - xim, aim: extra arguments after the node number; tim:
- *                                    after the line; cli: the door's whole argument line.
+ *                                    after the line; cnetrexx: the script's arguments (C-Net
+ *                                    gave pfiles none); cli: the door's whole argument line.
  *                                    {name}, {node}, {level} and {timeleft} are replaced
  *                                    ({name} as one quoted argument)
  *     assigns:            object   - { NAME: 'PATH' }: assigns NAME: for the session, before the
  *                                    door's path is checked (e.g. { MSE: 'BBS:Doors/MSE' })
  *     env:                object   - { NAME: 'value' }: sets the global variable ENV:NAME for
  *                                    the session (ENV: is made in RAM: if the image has none)
+ *     panicGraceSeconds:  number   - cnetrexx: seconds from carrier loss (###PANIC) to the
+ *                                    script's CTRL-C, 0..25 (default: 10); 0 breaks it before
+ *                                    its waiting command is answered (doors that would save
+ *                                    "###PANIC" as a player name)
+ *     wordWrap:           boolean  - cnetrexx: word-wrap the door's text at the caller's width,
+ *                                    as C-Net did (default: true)
  *     mainline:           string   - the /X command line the caller "typed" (BB_MAINLINE;
  *                                    some doors parse it, e.g. Wallhall); default empty
  *     rom:                string   - Kickstart ROM path (default: bundled AROS)
@@ -164,10 +180,12 @@ const BackpressurePollMs = 50;
 const MaxDoorMinutes = 546;
 
 const CPU_MODELS = ['68000', '68010', '68EC020']; //  enigma-vamiga's CPU_MODELS
-const DOOR_TYPES = ['xim', 'aim', 'tim', 'cli'];
-//  an ARexx door's script goes on RX's command line through the Amiga shell:
-//  an absolute Amiga path (VOLUME:dir/file) with no blanks, quotes or shell
-//  characters
+const DOOR_TYPES = ['xim', 'aim', 'tim', 'cnetrexx', 'cli'];
+//  the ARexx door types: the script's path is the first word of a command line
+//  (RX's through the Amiga shell for aim, ARexx's own for cnetrexx)
+const SCRIPT_DOOR_TYPES = ['aim', 'cnetrexx'];
+//  an ARexx door's script goes on a command line: an absolute Amiga path
+//  (VOLUME:dir/file) with no blanks, quotes or shell characters
 const AmigaScriptPath = /^[^\s":;<>|*`$]+:[^\s":;<>|*`$]*[^\s":;<>|*`$/]$/;
 //  an XIM or CLI door's path goes on the command line in quotes: nothing that
 //  ends the quotes, is the shell's escape character or substitutes
@@ -201,6 +219,8 @@ const ConfigKeys = [
     'doorArgs',
     'assigns',
     'env',
+    'panicGraceSeconds',
+    'wordWrap',
     'mainline',
     'rom',
     'extRom',
@@ -391,11 +411,26 @@ function normalizeConfig(raw) {
     } else if ('cli' !== c.doorType) {
         problems.push('"consoleMode" applies to doorType "cli" only');
     }
-    if ('aim' === c.doorType && _.isString(c.door) && !AmigaScriptPath.test(c.door)) {
+    if (
+        SCRIPT_DOOR_TYPES.includes(c.doorType) &&
+        _.isString(c.door) &&
+        !AmigaScriptPath.test(c.door)
+    ) {
         problems.push(
-            '"door" for doorType "aim" must be the script\'s absolute Amiga path ' +
+            `"door" for doorType "${c.doorType}" must be the script's absolute Amiga path ` +
                 '(e.g. BBS:Doors/KickBox.Rexx) without blanks, quotes or shell characters'
         );
+    }
+    for (const key of ['panicGraceSeconds', 'wordWrap']) {
+        if (undefined !== c[key] && 'cnetrexx' !== c.doorType) {
+            problems.push(`"${key}" applies to doorType "cnetrexx" only`);
+        }
+    }
+    if (undefined !== c.panicGraceSeconds && !intIn('panicGraceSeconds', 0, 25)) {
+        problems.push('"panicGraceSeconds" must be an integer from 0 to 25');
+    }
+    if (undefined !== c.wordWrap && !_.isBoolean(c.wordWrap)) {
+        problems.push('"wordWrap" must be true or false');
     }
 
     for (const key of [
@@ -714,6 +749,8 @@ function commandLength(config, args, node) {
             );
         case 'tim': //  "door" line[ args]; the line is one digit
             return door + 3 + 1 + (args ? 1 + args.length : 0);
+        case 'cnetrexx': //  door[ args], the RexxMsg's command; no port number
+            return door + (args ? 1 + args.length : 0);
         default: //  "door" node args
             return door + 3 + nodeLen + 1 + args.length;
     }
@@ -819,6 +856,7 @@ function buildSessionKeys(client, config) {
     const allowed = UserTime.getAllowedMinutesToday(client);
     const clampMinutes = m => Math.min(null === m ? Infinity : m, MaxDoorMinutes);
     const cli = 'cli' === config.doorType;
+    const cnet = 'cnetrexx' === config.doorType;
 
     let args = expandDoorArgs(
         config.doorArgs,
@@ -855,6 +893,10 @@ function buildSessionKeys(client, config) {
         assign: sessionPairs(config.assigns, true),
         env: sessionPairs(config.env, false),
         node: client.node,
+        //  C-Net: GETUSER 39/40, FINDACCOUNT; account 1 is C-Net's sysop, as ENiGMA's
+        account: cnet ? user.userId : undefined,
+        panicgrace: cnet ? config.panicGraceSeconds : undefined,
+        wrap: cnet && false === config.wordWrap ? 0 : undefined,
         name: userText(user.getSanitizedName()),
         realname: userText(user.getSanitizedName('real')),
         location: userText(prop(UserProps.Location)),
