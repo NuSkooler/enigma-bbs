@@ -403,6 +403,17 @@ Actions:
   info IMAGE                  Volume name, file system, size, free space; checks the
                               image's structure
 
+  console IMAGE --door PATH   Test-drive a door: boot IMAGE in this terminal, start
+                              the door as a caller would and play it. Keystrokes go
+                              to the door; its output is shown as UTF-8 with the
+                              Amiga console's control codes translated. The shim's
+                              summary is printed when the door ends and, if it
+                              ended normally (status ok), the changes it made are
+                              written back to IMAGE. Ctrl+] hangs up and quits (the
+                              status is then "carrier": nothing is written). Needs
+                              no running ENiGMA. Do not use it on an image a
+                              running board is using.
+
 create arguments:
   --size SIZE                 Image size (default 4M): bytes, or with K, M or G.
                               Rounded up to a multiple of 8K. Every session carries
@@ -416,6 +427,28 @@ create arguments:
                               use. These files are licensed: the image is for your
                               board only.
   --force                     Replace IMAGE if it exists
+  A door directory or file name the amiga_door module would refuse in a "door"
+  path (a quote, an asterisk, a backtick or one of $ ; < > |, a control
+  character or text outside Latin-1) is copied but reported as a warning.
+
+console arguments:
+  --door PATH                 The door's path in the image, e.g.
+                              BBS:Doors/XIMTest/XIMTest (required)
+  --type xim|cli|aim|tim      Door type (default xim)
+  --user NAME                 Caller's name (default "Test Caller")
+  --location TEXT --level N --timeleft MINUTES
+                              More about the caller (Nowhere, 10, 60)
+  --args TEXT                 CLI doors: the command line after the door's path;
+                              {name} is the caller's name, e.g. '"{name}" DOORS:x/'
+  --console-mode cooked|raw   CLI doors: how the shim's console reads (default cooked)
+  --mainline TEXT --door-dir PATH
+                              The session's mainline command and working directory
+  --rom FILE [--ext FILE]     Kickstart ROM instead of the bundled AROS
+  --encoding NAME             Door output encoding (default latin1; cp437 for
+                              doors drawn for a PC terminal)
+  --rows N --cols N           Screen size (default: this terminal's)
+  --warp SECONDS              Boot flat out for this long (default 30)
+  --no-persist                Leave IMAGE as it is
 
 Paths in the image use "/" and may start with a volume name ("BBS:Doors/x").
 File names are at most 30 characters, without ":"; AmigaDOS ignores case.
@@ -430,6 +463,9 @@ Examples:
   oputil.js amiga-door extract ~/amiga/doors.hdf Doors/Wallhall ./wallhall-backup
   oputil.js amiga-door extract ~/amiga/doors.hdf S/Startup-Sequence -
   oputil.js amiga-door info ~/amiga/doors.hdf
+  oputil.js amiga-door console ~/amiga/doors.hdf --door BBS:Doors/XIMTest/XIMTest
+  oputil.js amiga-door console ~/amiga/cli.hdf --door BBS:Doors/spac/space --type cli \\
+      --args '"{name}" DOORS:spac/' --user Hero --no-persist
 `,
     Rest: `usage: oputil.js rest <action> [<arguments>]
 

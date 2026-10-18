@@ -16,6 +16,7 @@
  *   amiga-door ls      IMAGE [DIR]          list the image (recursively)
  *   amiga-door extract IMAGE SRC DST        copy a file or directory out
  *   amiga-door info    IMAGE                volume name, file system, space
+ *   amiga-door console IMAGE --door PATH   test-drive a door on a terminal
  */
 
 const { printUsageAndSetExitCode, argv, ExitCodes } = require('./oputil_common.js');
@@ -518,6 +519,58 @@ function cmdInfo(image) {
     }
 }
 
+// ─── console ─────────────────────────────────────────────────────────────────
+
+//  Boot IMAGE and play one door on this terminal. Mirrors `oputil v86 console`.
+async function cmdConsole(image) {
+    const { runConsole, formatExit, ConsoleError } = require('./oputil_amiga_console.js');
+    const opts = {
+        door: argv.door,
+        type: argv.type,
+        rom: argv.rom,
+        ext: argv.ext,
+        user: argv.user,
+        location: argv.location,
+        level: argv.level,
+        timeleft: argv.timeleft,
+        rows: argv.rows,
+        cols: argv.cols,
+        args: argv.args,
+        mainline: argv.mainline,
+        doorDir: argv['door-dir'],
+        consoleMode: argv['console-mode'],
+        encoding: argv.encoding,
+        warp: argv.warp,
+        persist: argv.persist, //  minimist: --no-persist makes it false
+    };
+    try {
+        const res = await runConsole(image, opts);
+        process.stderr.write('\x1b[0m\r\n');
+        console.error(
+            `amiga-door console: door exited\n  ${formatExit(res.status, res.keys).join('\n  ')}`
+        );
+        if (res.persisted) {
+            console.error(
+                `amiga-door console: saved to ${image} (${res.persisted.chunksWritten} changed chunks)`
+            );
+        } else {
+            console.error(`amiga-door console: ${image} not changed (${res.reason})`);
+        }
+        if ('ok' !== res.status) process.exitCode = ExitCodes.ERROR;
+    } catch (e) {
+        if (e instanceof ConsoleError) {
+            process.stderr.write('\x1b[0m\r\n');
+            console.error(`amiga-door console: ${e.message}`);
+            process.exitCode = ExitCodes.ERROR;
+            return;
+        }
+        throw e;
+    } finally {
+        //  the emulator is gone; do not wait on anything left on the loop
+        setImmediate(() => process.exit());
+    }
+}
+
 // ─── entry point ─────────────────────────────────────────────────────────────
 
 function handleAmigaDoorCommand() {
@@ -545,6 +598,8 @@ function handleAmigaDoorCommand() {
                 return cmdExtract(image, arg(3), arg(4));
             case 'info':
                 return cmdInfo(image);
+            case 'console':
+                return cmdConsole(image);
             default:
                 return printUsageAndSetExitCode(
                     getHelpFor('AmigaDoor'),

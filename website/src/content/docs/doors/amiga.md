@@ -115,6 +115,8 @@ It takes the image to create and one or more door directories (listed after the 
 
 When it finishes it lists the image so you can check it. Nothing is written unless the whole image can be built: a door that does not fit (give a larger `--size`), a file name AmigaDOS cannot hold (longer than 30 characters, or with a `:`), or two file names that differ only in case (AmigaDOS ignores case) stop it with a message saying which.
 
+A door directory or file name that the module would refuse in a `door` path (a quote, an asterisk, a backtick or one of `$ ; < > |`, a control character, or text outside Latin-1) does not stop the build: `create` warns that the module will refuse a `door:` path through it, so rename it before you point a menu entry at it.
+
 The `door` setting names the door's path inside the image, written with `BBS:`, for example `BBS:Doors/dreamsweeper/dreamsweeper.xim`.
 
 To look at or change an image later:
@@ -139,6 +141,18 @@ These commands read and write any plain OFS or FFS image, floppy `.adf` files in
 :::tip[Without oputil]
 `misc/amiga_door/image/make_image.sh` builds the same image with `xdftool` from [amitools](https://github.com/cnvogelg/amitools) (`pip install amitools`), for a machine that has Python but not ENiGMA½. Its options are `-s SIZE`, `-n VOLUME`, `-w ADF`, `-f` and `-x PATH` for `xdftool`; see `misc/amiga_door/image/README.md`.
 :::
+
+#### Test-driving a door
+
+`amiga-door console` plays a door on your own terminal, with no running ENiGMA½ and no menu entry: it boots the image in-process, starts the door as a caller would, and wires your keyboard to it.
+
+```bash
+./oputil.js amiga-door console ~/amiga/doors.hdf --door BBS:Doors/XIMTest/XIMTest
+./oputil.js amiga-door console ~/amiga/cli.hdf --door BBS:Doors/spac/space --type cli \
+    --args '"{name}" DOORS:spac/' --user Hero --no-persist
+```
+
+`--door` is required; `--type` is `xim` (the default), `cli`, `aim` or `tim`. `--user` sets the caller's name, and `--args`, `--console-mode`, `--mainline`, `--encoding` (try `cp437` for doors drawn for a PC terminal), `--rom` and `--rows`/`--cols` mirror the module's settings. The door's output is shown as UTF-8 with the Amiga console's control codes translated and the shim's control frames removed. When the door ends, the shim's summary (`status`, the commands it used, the files it changed) is printed. If the door exited normally (`status: ok`) its changes are written back to the image, as in a real session; `--no-persist` leaves the image alone. Press Ctrl+] to hang up and quit; that ends the session with status `carrier`, so nothing is written. Use it on a copy of an image, or one no running board is using.
 
 #### What a door may need
 

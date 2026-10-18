@@ -21,6 +21,11 @@ const {
     checkDoorNames,
 } = require('../core/oputil/oputil_amiga_door.js');
 const { AmigaVolume } = require('../core/amiga_door/amiga_fs.js');
+const protocol = require('../core/amiga_door/protocol.js');
+const {
+    buildConsoleSession,
+    formatExit,
+} = require('../core/oputil/oputil_amiga_console.js');
 
 const ROOT = path.join(__dirname, '..');
 const AMIGA_DIR = path.join(ROOT, 'misc/amiga_door');
@@ -303,6 +308,97 @@ describe('oputil amiga-door', function () {
             const clean = oputil('create', img, '--force', '--size', '1M', door);
             assert.equal(clean.status, 0, clean.stderr);
             assert.doesNotMatch(clean.stderr, /warning/);
+        });
+    });
+
+    describe('console', () => {
+        it('builds the s frame keys for a test caller', () => {
+            const now = Date.UTC(2026, 9, 17, 12, 0, 0);
+            const k = buildConsoleSession({ door: 'BBS:Doors/X/x.xim' }, now);
+            assert.equal(k.version, protocol.PROTOCOL_VERSION);
+            assert.equal(k.type, 'xim');
+            assert.equal(k.door, 'BBS:Doors/X/x.xim');
+            assert.equal(k.name, 'Test Caller');
+            assert.equal(k.now, Math.floor(now / 1000));
+            assert.equal(k.rows, 24);
+            assert.equal(k.cols, 80);
+            assert.equal(k.timeleft, 60);
+            assert.equal(k.console, undefined); // CLI doors only
+            assert.equal('args' in k, false);
+            //  every key survives the wire format
+            const [e] = new protocol.Decoder().push(protocol.encode('s', k));
+            assert.equal(e.frame.type, 's');
+            assert.equal(e.frame.keys.door, 'BBS:Doors/X/x.xim');
+            assert.equal(e.frame.keys.now, String(Math.floor(now / 1000)));
+        });
+
+        it('takes a CLI door with arguments, console mode and caller details', () => {
+            const k = buildConsoleSession({
+                door: 'BBS:Doors/spac/space',
+                type: 'cli',
+                args: '"{name}" DOORS:spac/',
+                consoleMode: 'raw',
+                user: 'Hero',
+                level: '50',
+                timeleft: 5,
+                rows: 30,
+                cols: 100,
+            });
+            assert.equal(k.type, 'cli');
+            assert.equal(k.console, 'raw');
+            assert.equal(k.args, '"{name}" DOORS:spac/');
+            assert.equal(k.name, 'Hero');
+            assert.equal(k.level, 50);
+            assert.equal(k.timeleft, 5);
+            assert.equal(k.timelimit, 5);
+            assert.equal(k.rows, 30);
+            assert.equal(k.cols, 100);
+        });
+
+        it('refuses a missing door, a bad type or console mode and bad numbers', () => {
+            assert.throws(() => buildConsoleSession({}), /needs --door/);
+            assert.throws(() => buildConsoleSession({ door: true }), /needs --door/);
+            assert.throws(
+                () => buildConsoleSession({ door: 'a:b', type: 'zim' }),
+                /--type/
+            );
+            assert.throws(
+                () => buildConsoleSession({ door: 'a:b', consoleMode: 'x' }),
+                /--console-mode/
+            );
+            assert.throws(
+                () => buildConsoleSession({ door: 'a:b', level: 'x' }),
+                /--level/
+            );
+            assert.throws(() => buildConsoleSession({ door: 'a:b', rows: 0 }), /--rows/);
+            assert.throws(
+                () => buildConsoleSession({ door: 'a:b', user: true }),
+                /--user needs/
+            );
+        });
+
+        it('prints the exit summary one key per line', () => {
+            assert.deepEqual(
+                formatExit('ok', { status: 'ok', wrote: '1', rc: '0', changed: '' }),
+                ['status: ok', 'rc: 0', 'wrote: 1']
+            );
+        });
+
+        it('the command line says what is missing without booting anything', function () {
+            this.timeout(30000);
+            let r = oputil('console', path.join(dir, 'nope.hdf'), '--door', 'BBS:x');
+            assert.notEqual(r.status, 0);
+            assert.match(r.stderr, /no such image/);
+
+            const img = path.join(dir, 'console.hdf');
+            assert.equal(oputil('create', img, '--size', '1M').status, 0);
+            r = oputil('console', img);
+            assert.notEqual(r.status, 0);
+            assert.match(r.stderr, /needs --door/);
+            r = oputil('console', img, '--door', 'BBS:x', '--type', 'zim');
+            assert.notEqual(r.status, 0);
+            assert.match(r.stderr, /--type must be one of/);
+            assert.equal(fs.statSync(img).size, 1024 * 1024);
         });
     });
 
