@@ -80,7 +80,10 @@
  *     font:               string   - SyncTERM font for the door's duration (default:
  *                                    topaz); 'none' leaves the caller's font alone
  *     persist:            boolean  - write the door's disk changes back (default: true)
- *     persistOn:          [string] - X statuses after which to persist (default: ['ok'])
+ *     persistOn:          [string] - X statuses after which to persist (default: ['ok', 'carrier']).
+ *                                    carrier, timeout and break persist only when the door
+ *                                    ended by itself (the X frame's rc is its return code;
+ *                                    -1 or none means the shim gave up on a door still running)
  *     log:                boolean  - log every door request at debug level (default: false)
  *     warpBootSeconds:    number   - first boot runs flat out this long (default: 30)
  *     regTimeoutSeconds:  number   - the door must register within this; 0 = forever (default: 30)
@@ -233,7 +236,7 @@ const Defaults = {
     encoding: 'latin1',
     font: 'topaz',
     persist: true,
-    persistOn: ['ok'],
+    persistOn: ['ok', 'carrier'],
     sharedState: false,
     log: false,
     warpBootSeconds: 30,
@@ -656,8 +659,36 @@ function expandDoorArgs(template, ctx, config) {
     return fill(Object.assign({}, ctx, { nameMax: Math.floor(room / names) }), false);
 }
 
-function shouldPersist(config, status) {
-    return true === config.persist && (config.persistOn || []).includes(status);
+//  Statuses that mean the session was cut short from our side; the door's
+//  disk is only safe to keep if the door itself ended (a return code, not -1).
+const CutShortStatuses = ['carrier', 'timeout', 'break'];
+
+function endedByItself(keys) {
+    const rc = keys && undefined !== keys.rc ? Number(keys.rc) : NaN;
+    return Number.isFinite(rc) && -1 !== rc;
+}
+
+function persistDecision(config, status, keys) {
+    if (true !== config.persist) {
+        return { persist: false, why: 'persist is off' };
+    }
+    if (!(config.persistOn || []).includes(status)) {
+        return { persist: false };
+    }
+    if (CutShortStatuses.includes(status) && !endedByItself(keys)) {
+        return {
+            persist: false,
+            cutShort: true,
+            why: `the door had not ended by itself (rc ${
+                keys && undefined !== keys.rc ? keys.rc : 'absent'
+            }); the shim gave up on it`,
+        };
+    }
+    return { persist: true };
+}
+
+function shouldPersist(config, status, keys) {
+    return persistDecision(config, status, keys).persist;
 }
 
 //
@@ -1002,7 +1033,8 @@ class AmigaDoorSession extends EventEmitter {
         this.stopPolling();
 
         const status = msg.status;
-        const persist = shouldPersist(this.config, status);
+        const decision = persistDecision(this.config, status, msg.keys);
+        const persist = decision.persist;
         const logFn = 'error' === status ? this.log.warn : this.log.info;
         logFn.call(
             this.log,
@@ -1011,11 +1043,27 @@ class AmigaDoorSession extends EventEmitter {
                 exit: msg.keys,
                 inputDropped: msg.inputDropped || undefined,
                 persist,
+                notPersistedBecause: decision.why,
             },
             `Amiga door exited (status=${status})`
         );
 
         if (!persist) {
+            if (decision.cutShort) {
+                const dropped = this.cache
+                    ? this.cache.invalidateImage(this.config.image)
+                    : 0;
+                this.log.info(
+                    {
+                        name: this.config.name,
+                        image: this.config.image,
+                        status,
+                        rc: msg.keys ? msg.keys.rc : undefined,
+                        snapshotsDropped: dropped,
+                    },
+                    `Amiga door disk changes NOT persisted: ${decision.why}`
+                );
+            }
             return this.finish({ status, keys: msg.keys, persisted: false });
         }
 

@@ -209,7 +209,7 @@ describe('amiga_door config', () => {
         assert.equal(c.encoding, 'latin1');
         assert.equal(c.font, 'topaz');
         assert.equal(c.persist, true);
-        assert.deepEqual(c.persistOn, ['ok']);
+        assert.deepEqual(c.persistOn, ['ok', 'carrier']);
         assert.equal(c.sharedState, false);
         assert.equal(c.log, false);
         assert.equal(c.warpBootSeconds, 30);
@@ -677,12 +677,25 @@ describe('amiga_door snapshot cache', () => {
 // ─── exit / persist decision ──────────────────────────────────────────────────
 
 describe('amiga_door persist decision', () => {
-    it('persists on ok only, by default', () => {
+    it('persists on ok, and on a carrier exit the door made itself, by default', () => {
         const c = config();
+        assert.deepEqual(c.persistOn, ['ok', 'carrier']);
         assert.equal(shouldPersist(c, 'ok'), true);
-        for (const status of ['carrier', 'timeout', 'break', 'error', undefined]) {
-            assert.equal(shouldPersist(c, status), false, String(status));
+        assert.equal(shouldPersist(c, 'ok', { rc: '-1' }), true);
+        assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), true);
+        for (const status of ['timeout', 'break', 'error', undefined]) {
+            assert.equal(shouldPersist(c, status, { rc: '0' }), false, String(status));
         }
+    });
+
+    it('does not persist a carrier exit unless the door ended by itself', () => {
+        const c = config();
+        assert.equal(shouldPersist(c, 'carrier', { rc: '5' }), true);
+        assert.equal(shouldPersist(c, 'carrier', { rc: '-1' }), false);
+        assert.equal(shouldPersist(c, 'carrier', { rc: -1 }), false);
+        assert.equal(shouldPersist(c, 'carrier', {}), false);
+        assert.equal(shouldPersist(c, 'carrier'), false);
+        assert.equal(shouldPersist(c, 'carrier', { rc: 'x' }), false);
     });
 
     it('never persists with persist: false', () => {
@@ -690,9 +703,12 @@ describe('amiga_door persist decision', () => {
     });
 
     it('widens with persistOn', () => {
-        const c = config({ persistOn: ['ok', 'carrier'] });
-        assert.equal(shouldPersist(c, 'carrier'), true);
-        assert.equal(shouldPersist(c, 'timeout'), false);
+        const c = config({ persistOn: ['ok', 'timeout', 'break'] });
+        assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), false);
+        assert.equal(shouldPersist(c, 'timeout', { rc: '0' }), true);
+        assert.equal(shouldPersist(c, 'timeout', { rc: '-1' }), false);
+        assert.equal(shouldPersist(c, 'break', { rc: '0' }), true);
+        assert.equal(shouldPersist(c, 'break'), false);
     });
 });
 
@@ -976,15 +992,16 @@ describe('amiga_door session', () => {
         );
     });
 
-    it('persistOn carrier persists what a door saved on a hangup', async () => {
-        const s = makeSession(
-            { persistOn: ['ok', 'carrier'] },
-            { timeouts: { exitAfterDisconnect: 5000 } }
-        );
+    it('a hangup persists what a door saved when it ended by itself', async () => {
+        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
         s.session.disconnect('hangup');
         //  the shim's X comes back well within the grace
         deliver(s.worker, [
-            { type: 'exit', status: 'carrier', keys: { status: 'carrier' } },
+            {
+                type: 'exit',
+                status: 'carrier',
+                keys: { status: 'carrier', rc: '0' },
+            },
         ]);
         await new Promise(r => setImmediate(r));
         assert.equal(s.worker.sent('persist').length, 1);
@@ -993,6 +1010,22 @@ describe('amiga_door session', () => {
         assert.equal(result.status, 'carrier');
         assert.equal(result.reason, 'hangup');
         assert.equal(result.persisted, true);
+    });
+
+    it('a hangup does not persist a door the shim gave up on (rc -1)', async () => {
+        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
+        s.session.disconnect('hangup');
+        deliver(s.worker, [
+            {
+                type: 'exit',
+                status: 'carrier',
+                keys: { status: 'carrier', rc: '-1' },
+            },
+        ]);
+        const result = await s.done;
+        assert.equal(s.worker.sent('persist').length, 0);
+        assert.equal(result.status, 'carrier');
+        assert.equal(result.persisted, false);
     });
 
     it('drops the worker when no X follows d', async () => {
