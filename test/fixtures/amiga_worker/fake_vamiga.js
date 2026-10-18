@@ -6,12 +6,14 @@
 //  stay in one order:
 //
 //    { type: 'fake', cmd: 'shim', bytes }      the shim sends these bytes
-//    { type: 'fake', cmd: 'tick', room, pending }
+//    { type: 'fake', cmd: 'tick', room, pending, rts }
 //                                              run one frame; the core accepts at
 //                                              most |room| bytes (default: all) and
 //                                              reports |pending| (default 0) of the
 //                                              ones before as not yet taken by the
-//                                              guest (serialInPending)
+//                                              guest (serialInPending); |rts|, when
+//                                              given, is the guest's RTS from now on
+//                                              (guestRts, initially true)
 //    { type: 'fake', cmd: 'changes', chunks }  what hdfChangedChunks() returns
 //    { type: 'fake', cmd: 'state' }            report pacer and settle state
 //    { type: 'fake', cmd: 'hdfSize', size }    what hdfSize reports
@@ -22,7 +24,8 @@
 //                                              |path|'s mtime (someone else
 //                                              wrote the image mid-persist)
 //
-//  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state', ... };
+//  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state', ... }
+//  ('created' and 'state' carry the RTS/CTS handshake setting);
 //  'ticked' carries the bytes the guest received during that frame.
 //
 const fs = require('fs');
@@ -35,7 +38,12 @@ let pacer = null;
 class VAmiga extends EventEmitter {
     static async create(opts) {
         emu = new VAmiga(opts);
-        parentPort.postMessage({ type: 'fake', event: 'created', hdf: opts.hdf });
+        parentPort.postMessage({
+            type: 'fake',
+            event: 'created',
+            hdf: opts.hdf,
+            serialHandshake: opts.serialHandshake,
+        });
         return emu;
     }
 
@@ -49,6 +57,8 @@ class VAmiga extends EventEmitter {
         this.changes = [];
         this.settled = 0;
         this.baseline = opts.hdf || null;
+        this.handshake = true === opts.serialHandshake;
+        this.rts = true;
         this.size = fs.statSync(workerData.image).size;
     }
 
@@ -58,6 +68,19 @@ class VAmiga extends EventEmitter {
 
     get serialInPending() {
         return this.pending;
+    }
+
+    get guestRts() {
+        return this.rts;
+    }
+
+    get serialHandshake() {
+        return this.handshake;
+    }
+
+    setSerialHandshake(on) {
+        this.handshake = !!on;
+        return this;
     }
 
     loadSnapshot() {
@@ -142,6 +165,9 @@ parentPort.on('message', msg => {
         case 'tick': {
             emu.room = undefined === msg.room ? Infinity : msg.room;
             emu.pending = msg.pending || 0;
+            if (undefined !== msg.rts) {
+                emu.rts = msg.rts;
+            }
             emu.received = [];
             pacer.onFrame({ frames: 1, warping: false });
             parentPort.postMessage({
@@ -192,6 +218,7 @@ parentPort.on('message', msg => {
                 event: 'state',
                 running: pacer ? pacer.running : null,
                 settled: emu ? emu.settled : null,
+                serialHandshake: emu ? emu.handshake : null,
             });
             break;
 

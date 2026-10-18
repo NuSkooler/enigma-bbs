@@ -21,7 +21,7 @@ const InputWindowBytes = 768; //  amiga_worker.js
 const SESSION = { version: 1, door: 'BBS:Doors/X/x', node: 1 };
 
 class TestWorker {
-    constructor({ image, snapshot = true }) {
+    constructor({ image, snapshot = true, serialHandshake }) {
         this.messages = [];
         this.waiters = [];
         this.worker = new Worker(HARNESS, {
@@ -31,6 +31,7 @@ class TestWorker {
                 image,
                 machine: {},
                 warpBootSeconds: 0,
+                serialHandshake,
                 session: SESSION,
             },
         });
@@ -67,10 +68,11 @@ class TestWorker {
     }
 
     //  One emulated frame; resolves to the bytes the guest received. |room|:
-    //  what the core accepts; |pending|: bytes it still holds from before
-    async tick(room, pending) {
+    //  what the core accepts; |pending|: bytes it still holds from before;
+    //  |rts|: the guest's RTS from now on
+    async tick(room, pending, rts) {
         const p = this.next(m => 'fake' === m.type && 'ticked' === m.event);
-        this.post({ type: 'fake', cmd: 'tick', room, pending });
+        this.post({ type: 'fake', cmd: 'tick', room, pending, rts });
         return Buffer.from((await p).received);
     }
 
@@ -214,6 +216,53 @@ describe('amiga_door worker', function () {
         await w.tick();
         assert.equal((await exit).inputDropped, 0);
         assert.ok(!w.messages.some(m => 'inputFull' === m.type));
+    });
+
+    it('turns the RTS/CTS handshake on for axshim 1.5 and later, from the H frame', async () => {
+        w = new TestWorker({ image, snapshot: false });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.equal(created.serialHandshake, false, 'no H yet: off');
+        w.shim(
+            Buffer.concat([
+                protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 38400 }),
+                protocol.encode('R'),
+            ])
+        );
+        const snapshot = w.next(m => 'snapshot' === m.type);
+        const ready = w.next(m => 'ready' === m.type);
+        await w.tick();
+        assert.equal((await snapshot).serialHandshake, true, 'the cache learns it too');
+        assert.equal((await ready).serialHandshake, true);
+        assert.equal((await w.state()).serialHandshake, true);
+
+        //  an older shim (an image rebuilt back, say) turns it off again
+        w.shim(protocol.encode('H', { version: 1, shim: 'axshim 1.4' }));
+        await w.tick();
+        assert.equal((await w.state()).serialHandshake, false);
+    });
+
+    it('holds input while the guest has RTS off, with the handshake on only', async () => {
+        //  restored from the snapshot of a machine that ran with it
+        w = new TestWorker({ image, serialHandshake: true });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.equal(created.serialHandshake, true);
+        await w.next(m => 'ready' === m.type);
+        assert.equal(sFrameOf(await w.tick()).keys.door, SESSION.door);
+
+        w.post({ type: 'input', data: Buffer.alloc(1000, 0x41) });
+        assert.equal((await w.tick(undefined, 0, false)).length, 0, 'RTS off: nothing');
+        assert.equal((await w.tick()).length, 0, 'still off');
+        assert.equal(
+            (await w.tick(undefined, 0, true)).length,
+            InputWindowBytes,
+            'RTS on'
+        );
+
+        //  axshim 1.4 never raises RTS: with its H the handshake goes and RTS is ignored
+        w.shim(protocol.encode('H', { version: 1, shim: 'axshim 1.4' }));
+        await w.tick(0, 0, false);
+        assert.equal((await w.state()).serialHandshake, false);
+        assert.equal((await w.tick()).length, 1000 - InputWindowBytes);
     });
 
     it('caps queued input without splitting an RS RS pair, and says so once', async () => {

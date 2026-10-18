@@ -832,6 +832,10 @@ describe('amiga_door snapshot cache', () => {
         assert.ok(stored.buffer instanceof SharedArrayBuffer);
         assert.deepEqual([...cache.get(key)], [1, 2, 3]);
         assert.equal(cache.get('nope'), undefined);
+        assert.deepEqual(cache.meta(key), {});
+        cache.set(key, Buffer.from([4]), { serialHandshake: true });
+        assert.deepEqual(cache.meta(key), { serialHandshake: true });
+        assert.equal(cache.meta('nope'), undefined);
     });
 
     it('evicts the least recently used past maxEntries', () => {
@@ -1475,8 +1479,11 @@ describe('amiga_door session', () => {
             type: 'snapshot',
             snapshot: new Uint8Array([7, 7]),
             ms: 40,
+            serialHandshake: true,
         });
         assert.equal(s.cache.size, 1);
+        //  the RTS/CTS setting goes with it, for the workers that restore it
+        assert.deepEqual(s.cache.meta(s.session.cacheKey), { serialHandshake: true });
         s.session.disconnect('hangup');
         await s.done;
     });
