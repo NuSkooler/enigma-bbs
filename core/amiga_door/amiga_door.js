@@ -1138,7 +1138,10 @@ class AmigaDoorSession extends EventEmitter {
             return;
         }
         this.cache.maxEntries = snapshotCacheEntries();
-        const stored = this.cache.set(this.cacheKey, msg.snapshot);
+        //  what the snapshot's machine ran with travels beside it (worker: RTS/CTS)
+        const stored = this.cache.set(this.cacheKey, msg.snapshot, {
+            serialHandshake: true === msg.serialHandshake,
+        });
         this.log.info(
             {
                 name: this.config.name,
@@ -1163,6 +1166,7 @@ class AmigaDoorSession extends EventEmitter {
                 readyMs: Math.round(msg.ms),
                 restoreMs: null === msg.restoreMs ? undefined : +msg.restoreMs.toFixed(1),
                 shim: _.get(msg, 'hello.shim'),
+                serialHandshake: msg.serialHandshake,
                 wasmMemoryBytes: _.get(msg, 'stats.wasmMemoryBytes'),
             },
             msg.restored
@@ -1914,6 +1918,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
 
         const cacheKey = SnapshotCache.keyFor(config.image, stat, config);
         const snapshot = snapshotCache.get(cacheKey) || null;
+        const snapshotMeta = (snapshot && snapshotCache.meta(cacheKey)) || {};
 
         //  Loading spinner, shown until the door's first output
         const SPINNER_FRAMES = ['|', '/', '-', '\\'];
@@ -1949,6 +1954,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                         overclock: config.overclock,
                     },
                     warpBootSeconds: config.warpBootSeconds,
+                    serialHandshake: snapshotMeta.serialHandshake,
                     session: sessionKeys,
                 };
 

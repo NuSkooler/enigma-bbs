@@ -28,7 +28,7 @@ const MachineKeys = ['rom', 'extRom', 'cpu', 'chipKb', 'slowKb', 'fastKb', 'over
 class SnapshotCache {
     constructor({ maxEntries = DefaultMaxEntries } = {}) {
         this.maxEntries = maxEntries;
-        this.entries = new Map(); //  key -> { image, snapshot, bytes, createdAt }; insertion order = LRU order
+        this.entries = new Map(); //  key -> { image, snapshot, meta, bytes, createdAt }; insertion order = LRU order
     }
 
     //
@@ -72,9 +72,17 @@ class SnapshotCache {
         return entry.snapshot;
     }
 
-    //  Store a copy of |bytes| (Buffer or Uint8Array). Returns the shared copy,
-    //  or null when caching is off (maxEntries 0).
-    set(key, bytes) {
+    //  What set() was given beside the snapshot ({} if nothing), or undefined.
+    //  Does not count as a use.
+    meta(key) {
+        const entry = this.entries.get(key);
+        return entry ? entry.meta : undefined;
+    }
+
+    //  Store a copy of |bytes| (Buffer or Uint8Array), and |meta|: facts about
+    //  the machine the snapshot was taken from that the snapshot does not carry.
+    //  Returns the shared copy, or null when caching is off (maxEntries 0).
+    set(key, bytes, meta = {}) {
         if (!(this.maxEntries > 0)) {
             return null;
         }
@@ -87,6 +95,7 @@ class SnapshotCache {
         this.entries.set(key, {
             image: SnapshotCache.imageOf(key),
             snapshot,
+            meta: Object.freeze(Object.assign({}, meta)),
             bytes: bytes.length,
             createdAt: Date.now(),
         });

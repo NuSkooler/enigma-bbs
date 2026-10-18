@@ -22,12 +22,16 @@
  *   rom, extRom:     string|undefined   - Kickstart override paths (boot only)
  *   machine:         { cpu, chipKb, slowKb, fastKb, overclock } (boot only)
  *   warpBootSeconds: number             - first boot runs flat out this long
+ *   serialHandshake: boolean|undefined  - the snapshot's machine ran with RTS/CTS on (its
+ *                                         shim drives RTS); the shim's H decides from then on
  *   session:         { ... }            - `s` frame keys; `now` is added when it is sent
  * }
  *
  * MessagePort protocol (worker -> parent):
- *   { type: 'snapshot', snapshot: Uint8Array, ms }      - booted, idle, warp over: cache me
- *   { type: 'ready', restored, ms, restoreMs, hello, stats } - `s` has been sent
+ *   { type: 'snapshot', snapshot: Uint8Array, ms, serialHandshake }
+ *                                                       - booted, idle, warp over: cache me
+ *   { type: 'ready', restored, ms, restoreMs, hello, stats, serialHandshake }
+ *                                                       - `s` has been sent
  *   { type: 'output', data: Uint8Array }                - door bytes (frames removed), per frame batch
  *   { type: 'frame', frame: { type, keys } }            - H, R, L, C, E (protocol frames)
  *   { type: 'exit', status, keys }                      - the shim's X frame (the first one only)
@@ -103,6 +107,7 @@ let inputDropped = 0;
 let inputFullReported = false;
 let restoreMs = null;
 let baselineStat = null; //  the image file as this session read it
+let handshake = false; //  the core's RTS/CTS handshake (SER.HANDSHAKE) is on
 
 //
 //  Host -> shim bytes waiting for room in the guest's receive buffer, in
@@ -238,16 +243,47 @@ function rsPairOpen(buf, n, open) {
 }
 
 //
+//  RTS/CTS on the emulated null modem (enigma-vamiga 0.1.3, vAmiga's
+//  SER.HANDSHAKE): the core then starts a byte only while the guest's RTS is
+//  asserted. axshim 1.5 and later drive RTS; an older shim never touches it,
+//  and on AROS it boots deasserted, so with the handshake on such an image
+//  would receive nothing. The shim's H frame says which it is: `shim=axshim
+//  1.5`. Before an H (a restored snapshot) workerData says what the machine
+//  that made the snapshot ran with.
+//
+function shimDrivesRts(hello) {
+    const m = /^axshim (\d+)\.(\d+)/.exec((hello && hello.shim) || '');
+    if (!m) {
+        return false;
+    }
+    const major = parseInt(m[1], 10);
+    return major > 1 || (1 === major && parseInt(m[2], 10) >= 5);
+}
+
+//  enigma-vamiga 0.1.2 and older have no handshake (nor guestRts)
+function canHandshake(VAmiga) {
+    return 'function' === typeof VAmiga.prototype.setSerialHandshake;
+}
+
+function setHandshake(on) {
+    if (on === handshake || 'function' !== typeof emu.setSerialHandshake) {
+        return;
+    }
+    emu.setSerialHandshake(on);
+    handshake = on;
+}
+
+//
 //  May the host send now? The guest's RTS (CIA-B PA6), which axshim 1.5
-//  drops when its receive ring fills and while it starts a door. enigma-vamiga
-//  0.1.2 does not expose it, so this is always true and the core's own flow
-//  control (patch 0001's byte holding, or vAmiga's SER.HANDSHAKE once the core
-//  has it) holds what is in flight. When the package exposes the line, this
-//  is the one line to change (e.g. `return emu.serialRts !== false;`); the
-//  window above keeps what is already in flight within the shim's headroom.
+//  drops when its receive ring is three quarters full and while it starts a
+//  door. With the handshake on the core holds back what it has already
+//  accepted, so this only keeps more from piling up behind it; the window
+//  above keeps what is in flight within the shim's headroom. Without the
+//  handshake (an older shim, or an older package) RTS means nothing and the
+//  core's byte holding (patch 0001) is all there is.
 //
 function guestClearToSend() {
-    return true;
+    return !handshake || emu.guestRts;
 }
 
 //  Bytes the core has accepted that the guest's UART has not taken yet
@@ -311,6 +347,7 @@ function startSession() {
         restoreMs,
         hello: link.hello,
         stats,
+        serialHandshake: handshake,
     });
 }
 
@@ -326,11 +363,24 @@ function takeSnapshot() {
         return;
     }
     const copy = new Uint8Array(snapshot); //  own ArrayBuffer, safe to transfer
-    post({ type: 'snapshot', snapshot: copy, ms: performance.now() - ts }, [copy.buffer]);
+    post(
+        {
+            type: 'snapshot',
+            snapshot: copy,
+            ms: performance.now() - ts,
+            serialHandshake: handshake,
+        },
+        [copy.buffer]
+    );
 }
 
 function handleFrame(frame) {
     switch (frame.type) {
+        case 'H':
+            //  at boot, and after each `s` from axshim 1.5 on
+            setHandshake(shimDrivesRts(frame.keys));
+            break;
+
         case 'R':
             if ('booting' === state) {
                 //  Booted and idle. Stop warping now and snapshot once a
@@ -617,6 +667,10 @@ async function main() {
         return process.exit(1);
     }
 
+    //  until the shim's H says otherwise (a boot sees it before anything is sent)
+    handshake = canHandshake(VAmiga) && true === workerData.serialHandshake;
+    const handshakeOption = canHandshake(VAmiga) ? { serialHandshake: handshake } : {};
+
     try {
         //  before the image is read: a write after this shows at persist time
         baselineStat = fs.statSync(workerData.image);
@@ -627,6 +681,7 @@ async function main() {
                 module: workerData.module,
                 fastKb: 0,
                 slowKb: 0,
+                ...handshakeOption,
             });
             const tr = performance.now();
             emu.loadSnapshot(workerData.snapshot);
@@ -647,6 +702,7 @@ async function main() {
                 fastKb: m.fastKb,
                 overclock: m.overclock,
                 warpBootSeconds: workerData.warpBootSeconds,
+                ...handshakeOption,
             });
             link = new HostLink();
         }
