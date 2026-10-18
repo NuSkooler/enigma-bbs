@@ -15,7 +15,8 @@ const protocol = require('../core/amiga_door/protocol.js');
 
 const HARNESS = path.join(__dirname, 'fixtures/amiga_worker/harness.js');
 const RS = protocol.RS;
-const MaxInputQueueBytes = 64 * 1024; //  amiga_worker.js
+const MaxInputQueueBytes = 1024 * 1024; //  amiga_worker.js
+const InputWindowBytes = 768; //  amiga_worker.js
 
 const SESSION = { version: 1, door: 'BBS:Doors/X/x', node: 1 };
 
@@ -65,11 +66,29 @@ class TestWorker {
         this.post({ type: 'fake', cmd: 'shim', bytes: new Uint8Array(bytes) });
     }
 
-    //  One emulated frame; resolves to the bytes the guest received
-    async tick(room) {
+    //  One emulated frame; resolves to the bytes the guest received. |room|:
+    //  what the core accepts; |pending|: bytes it still holds from before
+    async tick(room, pending) {
         const p = this.next(m => 'fake' === m.type && 'ticked' === m.event);
-        this.post({ type: 'fake', cmd: 'tick', room });
+        this.post({ type: 'fake', cmd: 'tick', room, pending });
         return Buffer.from((await p).received);
+    }
+
+    //  Frames until |bytes| have arrived or a frame brings nothing
+    async drain(bytes) {
+        const parts = [];
+        let got = 0;
+        for (;;) {
+            const b = await this.tick();
+            if (!b.length) {
+                return Buffer.concat(parts);
+            }
+            parts.push(b);
+            got += b.length;
+            if (got >= bytes) {
+                return Buffer.concat(parts);
+            }
+        }
     }
 
     async state() {
@@ -148,23 +167,82 @@ describe('amiga_door worker', function () {
         assert.deepEqual([...rest], [0x61, 0x62, RS, RS, 0x63]);
     });
 
-    it('caps queued input without splitting an RS RS pair', async () => {
+    it('feeds at most a window of bytes the guest has not taken', async () => {
+        await restored();
+        w.post({ type: 'input', data: Buffer.alloc(4000, 0x41) });
+        assert.equal(
+            (await w.tick()).length,
+            InputWindowBytes,
+            'an empty line: a window'
+        );
+        assert.equal(
+            (await w.tick(undefined, 500)).length,
+            InputWindowBytes - 500,
+            'the core still holds 500: the rest of the window'
+        );
+        assert.equal(
+            (await w.tick(undefined, InputWindowBytes)).length,
+            0,
+            'a full window: nothing'
+        );
+        assert.equal((await w.tick(100)).length, 100, 'the core accepted 100 of them');
+        const rest = await w.drain(4000);
+        assert.equal(rest.length, 4000 - 2 * InputWindowBytes + 500 - 100);
+    });
+
+    it('never drops a paste the guest is slow to take, and keeps its order', async () => {
+        await restored();
+        const paste = Buffer.from(
+            Array.from({ length: 16384 }, (_, i) => 0x20 + ((i * 31 + 7) % 95))
+        );
+        //  pasted in pieces, while the guest takes a little at a time
+        for (let i = 0; i < paste.length; i += 1000) {
+            w.post({ type: 'input', data: paste.subarray(i, i + 1000) });
+        }
+        const parts = [];
+        let got = 0;
+        while (got < paste.length) {
+            const b = await w.tick(37 + (got % 300));
+            assert.ok(b.length > 0, 'something every frame');
+            parts.push(b);
+            got += b.length;
+        }
+        assert.deepEqual(Buffer.concat(parts), paste);
+
+        w.shim(protocol.encode('X', { status: 'ok' }));
+        const exit = w.next(m => 'exit' === m.type);
+        await w.tick();
+        assert.equal((await exit).inputDropped, 0);
+        assert.ok(!w.messages.some(m => 'inputFull' === m.type));
+    });
+
+    it('caps queued input without splitting an RS RS pair, and says so once', async () => {
         await restored();
         //  the cut falls where the escaped RS would need two bytes and one is left
         const raw = Buffer.concat([
             Buffer.alloc(MaxInputQueueBytes - 1, 0x41),
             Buffer.from([RS, 0x42, 0x43]),
         ]);
+        const full = w.next(m => 'inputFull' === m.type);
         w.post({ type: 'input', data: raw });
-        const got = await w.tick();
-        assert.equal(got.length, MaxInputQueueBytes - 1);
-        assert.ok(got.every(b => 0x41 === b));
+        assert.equal((await full).limit, MaxInputQueueBytes);
+        //  one byte of room is left: 'm' fits, 'ore' does not
+        w.post({ type: 'input', data: Buffer.from('more') });
 
-        //  and the drop is counted in caller bytes
+        const got = await w.drain(MaxInputQueueBytes);
+        assert.equal(got.length, MaxInputQueueBytes);
+        assert.ok(got.subarray(0, -1).every(b => 0x41 === b));
+        assert.equal(got[got.length - 1], 0x6d);
+        //  room again: later input is taken
+        w.post({ type: 'input', data: Buffer.from('ok') });
+        assert.deepEqual([...(await w.tick())], [0x6f, 0x6b]);
+
+        //  and the drop is counted in caller bytes, the warning given once
         w.shim(protocol.encode('X', { status: 'ok' }));
         const exit = w.next(m => 'exit' === m.type);
         await w.tick();
-        assert.equal((await exit).inputDropped, 3);
+        assert.equal((await exit).inputDropped, 3 + 3);
+        assert.equal(w.messages.filter(m => 'inputFull' === m.type).length, 1);
     });
 
     it('escapes 0x1E in caller input', async () => {

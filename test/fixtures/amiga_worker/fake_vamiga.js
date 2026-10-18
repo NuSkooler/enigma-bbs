@@ -6,8 +6,12 @@
 //  stay in one order:
 //
 //    { type: 'fake', cmd: 'shim', bytes }      the shim sends these bytes
-//    { type: 'fake', cmd: 'tick', room }       run one frame; the guest takes at
-//                                              most |room| bytes (default: all)
+//    { type: 'fake', cmd: 'tick', room, pending }
+//                                              run one frame; the core accepts at
+//                                              most |room| bytes (default: all) and
+//                                              reports |pending| (default 0) of the
+//                                              ones before as not yet taken by the
+//                                              guest (serialInPending)
 //    { type: 'fake', cmd: 'changes', chunks }  what hdfChangedChunks() returns
 //    { type: 'fake', cmd: 'state' }            report pacer and settle state
 //    { type: 'fake', cmd: 'hdfSize', size }    what hdfSize reports
@@ -41,6 +45,7 @@ class VAmiga extends EventEmitter {
         this.toHost = [];
         this.received = [];
         this.room = Infinity;
+        this.pending = 0;
         this.changes = [];
         this.settled = 0;
         this.baseline = opts.hdf || null;
@@ -49,6 +54,10 @@ class VAmiga extends EventEmitter {
 
     get hdfSize() {
         return this.size;
+    }
+
+    get serialInPending() {
+        return this.pending;
     }
 
     loadSnapshot() {
@@ -132,6 +141,7 @@ parentPort.on('message', msg => {
 
         case 'tick': {
             emu.room = undefined === msg.room ? Infinity : msg.room;
+            emu.pending = msg.pending || 0;
             emu.received = [];
             pacer.onFrame({ frames: 1, warping: false });
             parentPort.postMessage({
