@@ -786,6 +786,8 @@ struct Session {
         ULONG dead_at, sig_at;
         LONG  addtime;                  /* minutes PG_TM added (X addtime=) */
         ULONG seed;                     /* PG_RD */
+        BOOL  short_seen;               /* a request shorter than a DoorMsg (X shortmsg=) */
+        UWORD short_len;                /* the first such mn_Length */
     } tim;
 };
 static struct Session S;
@@ -1326,6 +1328,7 @@ static void end_session(const char *status, const char *error)
         }
     }
     if (S.tim.on && S.tim.addtime) f_kvn("addtime", S.tim.addtime);
+    if (S.tim.on && S.tim.short_seen) f_kvn("shortmsg", S.tim.short_len);
     if (changed[0]) f_kv("changed", changed);
     if (S.dtr) f_kvn("dropdtr", 1);
     if (S.indrop) f_kvn("indrop", (LONG)S.indrop);
@@ -2629,7 +2632,10 @@ static void aim_session_service(void)
  *          202 paged (0), 203 auto-insert text (empty)
  *
  * The text of SM/PM/SC/HK is read up to its NUL even past string[80], as the BBSes printed it
- * (doors strcpy() longer texts into the message).  From carrier loss, time-up, the input
+ * (doors strcpy() longer texts into the message).  A reply writes string[] and carrier only
+ * when mn_Length says the door sent a whole 106-byte DoorMsg; a shorter one gets the other
+ * answers with its tail untouched, and X reports the first such length once (shortmsg=).
+ * From carrier loss, time-up, the input
  * timeout or a twit on, every reply has carrier = 1 and input requests return empty; a door
  * still running 5 s later gets CTRL-C, again every 10 s.  The command set comes from
  * AmiExpress's own Paragon service (express.e runDoor, MIT) and MAX's BBS's door kits
@@ -2642,24 +2648,34 @@ static void aim_session_service(void)
 
 static BOOL tim_dead(void) { return S.lost || S.timeup || S.dtr || S.tim.timedout; }
 
+/* TRUE: m is a whole DoorMsg, its string[] and carrier may be written; FALSE: the door sent
+ * fewer bytes (mn_Length), the bytes past them are not its message and stay untouched */
+static BOOL tim_whole(const struct DoorMsg *m)
+{
+    if (m->msg.mn_Length >= sizeof(struct DoorMsg)) return TRUE;
+    if (!S.tim.short_seen) { S.tim.short_seen = TRUE; S.tim.short_len = m->msg.mn_Length; }
+    return FALSE;
+}
+
 static void tim_reply(struct DoorMsg *m)
 {
-    m->carrier = tim_dead() ? 1 : 0;
+    if (tim_whole(m)) m->carrier = tim_dead() ? 1 : 0;
     ReplyMsg((struct Message *)m);
 }
 
 /* the carrier-lost answer: an input request gets an empty string */
 static void tim_zombie(struct DoorMsg *m)
 {
+    BOOL whole = tim_whole(m);
     switch (m->command) {
     case PG_PM: case PG_SC: case PG_HK: case MX_CHECKKEY:
-        m->string[0] = 0;
+        if (whole) m->string[0] = 0;
         m->data = 0;
         break;
     default:
         break;
     }
-    m->carrier = 1;
+    if (whole) m->carrier = 1;
     ReplyMsg((struct Message *)m);
 }
 
@@ -2685,6 +2701,7 @@ static void tim_path(const struct DoorMsg *m, char *out)
 static void tim_sets(struct DoorMsg *m, const char *s, int max)
 {
     int n = strlen(s);
+    if (!tim_whole(m)) return;
     if (max > 79) max = 79;
     if (n > max) n = max;
     memcpy(m->string, s, n);
@@ -2788,8 +2805,7 @@ static void tim_service_input(void)
     if (S.tim.wait_kind == WK_HK) {
         do c = next_key(); while (c == -2);
         if (c < 0) return;
-        m->string[0] = (char)c;
-        m->string[1] = 0;
+        if (tim_whole(m)) { m->string[0] = (char)c; m->string[1] = 0; }
         m->data = 1;            /* the byte before the string: 1 = the remote caller's key */
         tim_reply(m);
         S.tim.waiting = NULL;
@@ -2800,8 +2816,7 @@ static void tim_service_input(void)
         S.wait_since = now_s;   /* the input timeout counts from the last key */
         if (c == '\r' || c == '\n') {
             out_bytes("\r\n", 2);       /* MAX's: "a carriage return is printed after command 6" */
-            memcpy(m->string, S.line, S.len);
-            m->string[S.len] = 0;
+            if (tim_whole(m)) { memcpy(m->string, S.line, S.len); m->string[S.len] = 0; }
             tim_reply(m);
             S.tim.waiting = NULL;
             return;
@@ -2820,7 +2835,7 @@ static void tim_service_input(void)
 static void tim_park(struct DoorMsg *m, UBYTE kind, LONG maxlen)
 {
     if (S.tim.waiting) {        /* one at a time: a second one gets an empty answer */
-        m->string[0] = 0;
+        if (tim_whole(m)) m->string[0] = 0;
         tim_reply(m);
         return;
     }
@@ -2902,12 +2917,11 @@ static BOOL tim_answer(struct DoorMsg *m)
     case MX_CHECKKEY: {
         LONG c = -1;
         if (!tim_dead()) do c = next_key(); while (c == -2);
-        m->string[0] = c > 0 ? (char)c : 0;
-        m->string[1] = 0;
+        if (tim_whole(m)) { m->string[0] = c > 0 ? (char)c : 0; m->string[1] = 0; }
         break;
     }
     case MX_PAGED:      m->data = 0; break;
-    case MX_AUTOINSERT: m->string[0] = 0; break;
+    case MX_AUTOINSERT: if (tim_whole(m)) m->string[0] = 0; break;
     default:                            /* PG_CL, other menu functions: replied unchanged */
         mark_unknown(cmd);
         break;
