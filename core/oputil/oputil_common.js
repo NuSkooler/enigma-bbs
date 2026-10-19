@@ -39,7 +39,7 @@ const exitCodes = (exports.ExitCodes = {
     BAD_ARGS: -3,
 });
 
-const argv = (exports.argv = require('minimist')(process.argv.slice(2), {
+const argvOptions = (exports.argvOptions = {
     alias: {
         h: 'help',
         v: 'version',
@@ -54,8 +54,19 @@ const argv = (exports.argv = require('minimist')(process.argv.slice(2), {
     //  `true === argv['dry-run']` is then false, so the operator gets a real
     //  hatch when they asked to be shown one.
     //
-    boolean: ['quick', 'full', 'verbose', 'update', 'yes', 'check-env', 'dry-run'],
-}));
+    boolean: [
+        'quick',
+        'full',
+        'verbose',
+        'update',
+        'yes',
+        'check-env',
+        'dry-run',
+        'force',
+        'allow-large',
+    ],
+});
+const argv = (exports.argv = require('minimist')(process.argv.slice(2), argvOptions));
 
 function printUsageAndSetExitCode(errMsg, exitCode) {
     if (exitCode === undefined) {

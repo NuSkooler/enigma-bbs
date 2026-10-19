@@ -22,7 +22,7 @@ caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim (conso
 And it runs **ARexx (AIM) doors**, /X's `TYPE=AIM` scripts: it is the ARexx host
 `AERexxControl<node>` that AmiExpress's REXXDOOR used to provide, and runs the
 script with `RX`. This needs ARexx in the image, which only the sysop's own
-Workbench 3.1 can supply (AROS has none; `image/make_image.sh -w`).
+Workbench 3.1 can supply (AROS has none; `oputil.js amiga-door create --workbench`).
 
 ```
 caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim ── AERexxControl<n> ── RexxMast ── script
@@ -239,7 +239,8 @@ runs `make` in `shim/`. Inside that image (or with the toolchain installed),
 
 ## What goes into a door image
 
-A door image is a small FFS hard-disk image (4 MB is plenty) holding:
+A door image is a small FFS hard-disk image (2000 KB, `oputil.js amiga-door
+create`'s default, is plenty) holding:
 
 ```
 C/axshim                     bin/axshim
@@ -250,7 +251,9 @@ Doors/<name>/...             the door and its data files, icons, configs
 
 plus whatever the door expects to find under `BBS:` (an /X install keeps doors'
 configs in `BBS:Doors`, screens under `BBS:Node<n>`, and so on; each door's
-documentation says). See `image/README.md` for an `xdftool` recipe.
+documentation says). `oputil.js amiga-door create IMAGE DOORDIR...` builds the image
+(`core/amiga_door/amiga_fs.js` reads and writes OFS/FFS); see `image/README.md`, which
+also has `make_image.sh` and an `xdftool` recipe.
 
 CLI doors may need disk libraries that the AROS ROM lacks; DICE-compiled doors need
 `mathieeedoubbas`, `mathieeedoubtrans` and `mathieeesingtrans.library` in `Libs/`
@@ -258,8 +261,8 @@ CLI doors may need disk libraries that the AROS ROM lacks; DICE-compiled doors n
 
 ARexx doors need `System/RexxMast`, `Libs/rexxsyslib.library` (which needs
 `Libs/mathieeedoubbas.library`), `Libs/rexxsupport.library`, `Rexxc/RX` and the C:
-commands scripts call, all from the sysop's Workbench 3.1: `image/make_image.sh -w
-Workbench3.1.adf` copies them, and `image/Startup-Sequence` starts RexxMast before
+commands scripts call, all from the sysop's Workbench 3.1: `oputil.js amiga-door create
+--workbench Workbench3.1.adf` (or `image/make_image.sh -w`) copies them, and `image/Startup-Sequence` starts RexxMast before
 the shim. Never commit those files or share such an image.
 
 Paragon doors often need an assign or an `ENV:` variable from their install notes

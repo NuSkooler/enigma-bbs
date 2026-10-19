@@ -25,6 +25,7 @@ Commands:
   ssh                       SSH key management
   fat                       FAT disk image management
   v86                       v86 x86 emulation tools
+  amiga-door                Amiga door image (FFS) building and inspection
   rest                      REST API management
 `,
     User: `usage: oputil.js user <action> [<arguments>]
@@ -375,6 +376,107 @@ Examples:
   oputil.js fat cp   freedos.img fdconfig.sys FDCONFIG.SYS
   oputil.js fat read freedos.img FDAUTO.BAT
   oputil.js fat read freedos.img FDCONFIG.SYS | less
+`,
+    AmigaDoor: `usage: oputil.js amiga-door <action> IMAGE [arguments]
+
+Build and inspect Amiga door images: bare FFS hard-disk images (no RDB) for the
+amiga_door module. Does not need a running ENiGMA, Python or amitools.
+
+Actions:
+  create IMAGE [DOORDIR...]   Build a door image: C/axshim, Libs/AEDoor.library and
+                              S/Startup-Sequence from misc/amiga_door/, then each
+                              DOORDIR copied, layout and empty files kept, to
+                              Doors/<directory name>/ (BBS:Doors/<name>/...)
+
+  add IMAGE SRC [DST]         Copy a local file or directory into the image.
+                              DST is the path in the image (default: SRC's name in
+                              the root). A DST ending in "/", or an existing directory
+                              when SRC is a file, puts SRC inside it. A file with the
+                              same name is replaced; missing directories are made.
+
+  ls IMAGE [DIR]              List the image, or DIR in it, recursively
+  (list)
+
+  extract IMAGE SRC DST       Copy a file or directory out of the image to DST on
+                              this machine; DST "-" writes a file to stdout
+
+  info IMAGE                  Volume name, file system, size, free space; checks the
+                              image's structure
+
+  console IMAGE --door PATH   Test-drive a door: boot IMAGE in this terminal, start
+                              the door as a caller would and play it. Keystrokes go
+                              to the door; its output is shown as UTF-8 with the
+                              Amiga console's control codes translated. The shim's
+                              summary is printed when the door ends and, if it
+                              ended normally (status ok), the changes it made are
+                              written back to IMAGE. Ctrl+] hangs up and quits (the
+                              status is then "carrier": nothing is written). Needs
+                              no running ENiGMA. Do not use it on an image a
+                              running board is using.
+
+create arguments:
+  --size SIZE                 Image size (default 2000K): bytes, or with K, M or G.
+                              Rounded up to a multiple of 8K. Every session carries
+                              the image, so keep it small. At most 2032K unless
+                              --allow-large: a stock AROS ROM corrupts an FFS
+                              volume of more than 4066 blocks (2033K) when a door
+                              writes, and 2032K is the largest 8K multiple below.
+                              Never more than 2097144K (8K short of 2G).
+  --allow-large               Allow a --size over 2032K, for an image used only
+                              with the bundled ROM (enigma-vamiga 0.1.2 and
+                              later), Kickstart 3.1 or another ROM with the FFS fix
+  --name NAME                 Volume name (default BBS)
+  --doors DIR [DIR...]        Door directories (the same as listing them after IMAGE)
+  --workbench ADF             Add ARexx, which ARexx (AIM) doors need and AROS lacks,
+                              from your own Workbench 3.1 disk image: RexxMast,
+                              rexxsyslib and rexxsupport.library, the IEEE math
+                              libraries, SYS:Rexxc and the C: commands ARexx scripts
+                              use. These files are licensed: the image is for your
+                              board only.
+  --force                     Replace IMAGE if it exists
+  A door directory or file name the amiga_door module would refuse in a "door"
+  path (a quote, an asterisk, a backtick or one of $ ; < > |, a control
+  character or text outside Latin-1) is copied but reported as a warning.
+
+console arguments:
+  --door PATH                 The door's path in the image, e.g.
+                              BBS:Doors/XIMTest/XIMTest (required)
+  --type TYPE                 Door type (default xim): xim, cli, aim, or another
+                              type the shim on IMAGE supports (tim for Paragon,
+                              cnetrexx for C-Net doors, once that door support is
+                              installed); a shim without it ends the session with
+                              error "unknown door type"
+  --user NAME                 Caller's name (default "Test Caller")
+  --location TEXT --level N --timeleft MINUTES
+                              More about the caller (Nowhere, 10, 60)
+  --args TEXT                 CLI doors: the command line after the door's path;
+                              {name} is the caller's name, e.g. '"{name}" DOORS:x/'
+  --console-mode cooked|raw   CLI doors: how the shim's console reads (default cooked)
+  --mainline TEXT --door-dir PATH
+                              The session's mainline command and working directory
+  --rom FILE [--ext FILE]     Kickstart ROM instead of the bundled AROS
+  --encoding NAME             Door output encoding (default latin1; cp437 for
+                              doors drawn for a PC terminal)
+  --rows N --cols N           Screen size (default: this terminal's)
+  --warp SECONDS              Boot flat out for this long (default 30)
+  --no-persist                Leave IMAGE as it is
+
+Paths in the image use "/" and may start with a volume name ("BBS:Doors/x").
+File names are at most 30 characters, without ":"; AmigaDOS ignores case.
+Do not change an image while a caller is in one of its doors.
+
+Examples:
+  oputil.js amiga-door create ~/amiga/dreamsweeper.hdf ~/doors/DreamSweeper
+  oputil.js amiga-door create ~/amiga/arexx.hdf --workbench ~/amiga/Workbench3.1.adf \\
+      --doors ~/doors/Kickboxing ~/doors/hacker
+  oputil.js amiga-door add ~/amiga/doors.hdf mathieeedoubbas.library Libs/
+  oputil.js amiga-door ls ~/amiga/doors.hdf Doors
+  oputil.js amiga-door extract ~/amiga/doors.hdf Doors/Wallhall ./wallhall-backup
+  oputil.js amiga-door extract ~/amiga/doors.hdf S/Startup-Sequence -
+  oputil.js amiga-door info ~/amiga/doors.hdf
+  oputil.js amiga-door console ~/amiga/doors.hdf --door BBS:Doors/XIMTest/XIMTest
+  oputil.js amiga-door console ~/amiga/cli.hdf --door BBS:Doors/spac/space --type cli \\
+      --args '"{name}" DOORS:spac/' --user Hero --no-persist
 `,
     Rest: `usage: oputil.js rest <action> [<arguments>]
 

@@ -27,7 +27,7 @@
  * its GETUSER/TRANSMIT/QUERY/... commands from the same user block as XIM
  * doors. It needs ARexx inside the image, which AROS
  * does not have: the image must be built with the sysop's own Workbench 3.1
- * (misc/amiga_door/image/make_image.sh -w).
+ * (oputil.js amiga-door create --workbench, or make_image.sh -w).
  *
  * A Paragon door (doorType: 'tim'; Paragon, StarNet and MAX's BBS doors, /X's
  * TYPE=TIM) sends its requests to the BBS's DoorControl<line> port, which the
