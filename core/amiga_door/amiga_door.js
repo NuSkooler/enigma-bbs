@@ -93,7 +93,7 @@
  *                                    topaz); 'none' leaves the caller's font alone
  *     persist:            boolean  - write the door's disk changes back (default: true)
  *     persistOn:          [string] - X statuses after which to persist (default: ['ok'] for
- *                                    doorType cli and aim, ['ok', 'carrier'] for xim; an
+ *                                    doorType cli, aim and tim, ['ok', 'carrier'] for xim; an
  *                                    explicit list always wins). carrier, timeout and break
  *                                    persist only when the door ended by itself (the X frame's
  *                                    rc is its return code; -1 or none means the shim gave up
@@ -328,7 +328,7 @@ function isLatin1(encoding) {
 //  |warnings| lists keys nothing reads, with a likely meaning when there is
 //  one (a misspelt persistOn is otherwise silently the default).
 //
-//  A CLI or ARexx door is sent a break on a hangup, so a return code does not
+//  A CLI, ARexx or Paragon door is sent a break on a hangup, so a return code does not
 //  prove it finished its writes; an XIM door only sees carrier-lost replies
 //  to its input requests. Hence 'carrier' is a default persistOn status for
 //  XIM doors only.
@@ -337,6 +337,7 @@ const DefaultPersistOn = {
     xim: ['ok', 'carrier'],
     cli: ['ok'],
     aim: ['ok'],
+    tim: ['ok'],
 };
 const AROS_MAX_FFS_BLOCKS = 4066;
 

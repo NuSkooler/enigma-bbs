@@ -416,6 +416,10 @@ describe('amiga_door config', () => {
             'ok',
         ]);
         assert.deepEqual(
+            config({ doorType: 'tim', door: 'BBS:Doors/MSE/MSE' }).persistOn,
+            ['ok']
+        );
+        assert.deepEqual(
             config({ doorType: 'cli', persistOn: ['ok', 'carrier'] }).persistOn,
             ['ok', 'carrier']
         );
@@ -792,10 +796,11 @@ describe('amiga_door persist decision', () => {
         }
     });
 
-    it('does not persist a CLI or ARexx door on a hangup by default', () => {
+    it('does not persist a CLI, ARexx or Paragon door on a hangup by default', () => {
         for (const extra of [
             { doorType: 'cli' },
             { doorType: 'aim', door: 'SYS:S/g.rexx' },
+            { doorType: 'tim', door: 'BBS:Doors/MSE/MSE' },
         ]) {
             const c = config(extra);
             assert.equal(shouldPersist(c, 'ok', { rc: '0' }), true);
