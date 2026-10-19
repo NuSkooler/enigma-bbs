@@ -24,7 +24,14 @@ const REPO_ROOT = paths.join(__dirname, '..');
 function harness({ steps, timeoutMs = 5000, flush = cb => cb() } = {}) {
     const { createShutdown } = require('../core/bbs.js');
     const rec = { exits: [], out: [], log: [], ran: [] };
+    //  once rec.broken is set, rec.breakAfterStart ('out' or 'log') throws
+    const breaks = what => {
+        if (rec.broken && rec.breakAfterStart === what) {
+            throw new Error(`${what} broke`);
+        }
+    };
     const record = level => (obj, msg) => {
+        breaks('log');
         rec.log.push({ level, obj, msg: typeof obj === 'string' ? obj : msg });
     };
     const log = {
@@ -34,9 +41,11 @@ function harness({ steps, timeoutMs = 5000, flush = cb => cb() } = {}) {
     };
     const out = {
         info: msg => {
+            breaks('out');
             rec.out.push(msg);
         },
         error: msg => {
+            breaks('out');
             rec.out.push(msg);
         },
     };
@@ -195,6 +204,31 @@ describe('bbs.js shutdown', function () {
             assert.deepEqual(r.ran, ['throws', 'after']);
             const warn = r.log.find(l => l.level === 'warn');
             assert.equal(warn.obj.step, 'throws');
+        });
+
+        it('still exits when the last report or the flush throws', async () => {
+            for (const hang of [false, true]) {
+                for (const what of ['out', 'log', 'flush']) {
+                    const r = harness({
+                        timeoutMs: 30,
+                        flush:
+                            'flush' === what
+                                ? () => {
+                                      throw new Error('flush broke');
+                                  }
+                                : cb => cb(),
+                        steps: rec => [step(rec, 'only', hang ? () => {} : undefined)],
+                    });
+                    //  break the console or the log only once the shutdown
+                    //  has begun, so it is the last lines that fail
+                    r.breakAfterStart = what;
+                    r.shutdown('SIGTERM');
+                    r.broken = true;
+                    assert.equal(await r.done, hang ? 1 : 0, `${what}, hang=${hang}`);
+                    await delay(5);
+                    assert.deepEqual(r.exits, [hang ? 1 : 0], `${what}, hang=${hang}`);
+                }
+            }
         });
 
         it('lets the log catch up before it exits, either way', async () => {

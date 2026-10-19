@@ -311,14 +311,39 @@ function createShutdown({
         let current = null;
         let finished = false;
 
+        //  Report, flush, exit. Nothing here may stop the exit: a throw would
+        //  go to the uncaughtException handler, which logs it and carries on,
+        //  and with the safety timer cleared (or already fired) nothing else
+        //  would end the process.
+        const end = (code, report) => {
+            try {
+                report();
+            } catch (err) {
+                //  nowhere left to report it; the exit matters more
+            }
+            let exited = false;
+            const exitOnce = () => {
+                if (!exited) {
+                    exited = true;
+                    return exit(code);
+                }
+            };
+            try {
+                return flush(exitOnce);
+            } catch (err) {
+                return exitOnce();
+            }
+        };
+
         const timer = setTimeout(() => {
             finished = true;
-            const stuck = `Shutdown did not finish within ${
-                timeoutMs / 1000
-            } s: step "${current}" never completed. Exiting anyway`;
-            out.error(stuck);
-            sysLog.error({ step: current, timeoutMs }, stuck);
-            return flush(() => exit(1));
+            return end(1, () => {
+                const stuck = `Shutdown did not finish within ${
+                    timeoutMs / 1000
+                } s: step "${current}" never completed. Exiting anyway`;
+                out.error(stuck);
+                sysLog.error({ step: current, timeoutMs }, stuck);
+            });
         }, timeoutMs);
 
         async.eachSeries(
@@ -349,9 +374,10 @@ function createShutdown({
                     return; //  the safety timer has already exited
                 }
                 finished = true;
-                sysLog.info('Shutdown complete');
-                out.info('Goodbye!');
-                return flush(() => exit(0));
+                return end(0, () => {
+                    sysLog.info('Shutdown complete');
+                    out.info('Goodbye!');
+                });
             }
         );
     };
