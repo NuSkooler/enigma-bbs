@@ -1580,9 +1580,85 @@ describe('amiga_door image lock', () => {
         assert.equal(await startModule(other), 'refused');
         assert.equal(activeDoorInstances.OtherDoor || 0, 0, 'no slot kept');
 
-        //  a door that never persists is not held up
+        //  nor does a door that never persists: the image changes under it
         const readOnly = makeModule({ name: 'Viewer', image, persist: false });
-        assert.equal(await startModule(readOnly), 'ran');
+        assert.equal(await startModule(readOnly), 'refused');
+        assert.match(readOnly.client.term.written.join(''), /Too many active instances/);
+        assert.ok(
+            readOnly.client.log.lines.some(l =>
+                /in use by a session that writes it/.test(l.msg)
+            )
+        );
+    });
+
+    it('lets any number of non-persisting sessions share an image', async () => {
+        const viewers = [];
+        for (let i = 0; i < 3; i++) {
+            const v = makeModule({
+                name: i ? `Viewer${i}` : 'Viewer',
+                image,
+                persist: false,
+            });
+            assert.equal(await startModule(v), 'ran', `viewer ${i}`);
+            viewers.push(v);
+        }
+        //  the same door twice too: nodeMax 0 is unlimited
+        const again = makeModule({ name: 'Viewer', image, persist: false });
+        assert.equal(await startModule(again), 'ran');
+        viewers.push(again);
+        const held = activeImages.get(fs.realpathSync(image));
+        assert.equal(held.exclusive, null);
+        assert.equal(held.shared.size, 4);
+
+        //  as each leaves its hold goes; the image is free once all have
+        for (const v of viewers.slice(0, -1)) {
+            v.leave();
+        }
+        assert.equal(activeImages.get(fs.realpathSync(image)).shared.size, 1);
+        viewers[viewers.length - 1].leave();
+        assert.equal(activeImages.size, 0);
+    });
+
+    it('refuses a persisting session while non-persisting ones are in, and lets it in after', async () => {
+        const viewer = makeModule({ name: 'Viewer', image, persist: false });
+        assert.equal(await startModule(viewer), 'ran');
+
+        const writer = makeModule({ image });
+        const theme = require('../core/theme.js');
+        const saved = theme.displayThemeArt;
+        let shown;
+        theme.displayThemeArt = (opts, cb) => {
+            shown = opts.name;
+            cb();
+        };
+        try {
+            const busy = makeModule({ image, tooManyArt: 'DOORMANY' });
+            assert.equal(await startModule(busy), 'refused');
+            assert.equal(shown, 'DOORMANY', 'the usual busy path');
+        } finally {
+            theme.displayThemeArt = saved;
+        }
+        assert.equal(await startModule(writer), 'refused');
+        assert.ok(
+            writer.client.log.lines.some(
+                l =>
+                    /in use by another session/.test(l.msg) &&
+                    1 === l.obj.heldBy.shared.length
+            )
+        );
+
+        viewer.leave();
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+    });
+
+    it('keeps sharedState doors at one session (nodeMax 1) as before', async () => {
+        const one = makeModule({ image, persist: false, sharedState: true });
+        assert.equal(await startModule(one), 'ran');
+        const two = makeModule({ image, persist: false, sharedState: true });
+        assert.equal(await startModule(two), 'refused');
+        assert.ok(
+            two.client.log.lines.some(l => /Too many active instances/.test(l.msg))
+        );
     });
 
     it('follows a symlink to the image', async () => {

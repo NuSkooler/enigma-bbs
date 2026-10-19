@@ -196,7 +196,9 @@
         //  the door's writes go into it as the door makes them, however the
         //  session ends. While a door that saves is in use its image is held:
         //  other doors on the same image wait their turn (callers see
-        //  tooManyArt). Give doors their own images to run them side by side.
+        //  tooManyArt); doors with persist: false share an image with each
+        //  other, never with one that saves. Give doors their own images to
+        //  run them side by side.
         //
         //  See doors/amiga.md for full setup instructions.
         //

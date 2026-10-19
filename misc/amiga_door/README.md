@@ -379,10 +379,11 @@ asks and, for a door with `persist` on, writes the guest's changes into it in pl
 once the drive has been idle for 100 ms of Amiga time. When a session ends, however
 it ends, the worker runs the guest 3 seconds more (flat out) so its file system
 flushes, then `hdfSync()`s the image; with `persist: false` the core keeps every write
-and the image is never touched. Two emulators must never have one image open (neither
-re-reads what the other wrote, and each guest's FFS believes it owns the volume), so a
-persisting session holds its image until that sync is done; doors on one image take
-turns. A booted machine's snapshot holds the image's path and the guest's file system
+and the image is never touched. No emulator may have an image open while another
+writes it (neither re-reads what the other wrote, and each guest's FFS believes it owns
+the volume), so images are held readers/writer: a persisting session holds its image
+exclusively until that sync is done, `persist: false` sessions share it, and the two
+kinds never run on one image at the same moment. A booted machine's snapshot holds the image's path and the guest's file system
 caches, so the module uses it only while the image's size, mtime and inode are what
 they were right after the snapshot: a session that wrote makes the next one boot.
 

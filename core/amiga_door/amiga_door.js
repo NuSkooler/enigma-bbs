@@ -51,9 +51,10 @@
  * door's exit (a clean one, a hangup, an error, a crash of the shim), syncs
  * it. With persist: false nothing the door writes reaches the image. A session
  * that wrote leaves the image's snapshots stale (snapshot_cache.js): the next
- * session boots. Two emulators must never share an image, so a persisting
- * session holds its image (activeImages): a second persisting session on the
- * same image, of any door, is refused as nodeMax refuses.
+ * session boots. Images are held readers/writer (activeImages): a persisting
+ * session holds its image exclusively, sessions with persist: false share it,
+ * and a session that cannot have its hold, of any door, is refused as nodeMax
+ * refuses.
  *
  * Config (menu.hjson):
  *   module: amiga_door
@@ -301,12 +302,17 @@ const activeDoorInstances = {};
 const snapshotCache = new SnapshotCache();
 
 //
-//  Images held by a persisting session: real path -> { name, node }. The
-//  emulator's disk is the image file, read page by page and written as the
-//  guest goes; a second emulator on it would neither see those writes nor
-//  share the first one's file system, and the two would overwrite each
-//  other's directory and allocation blocks. So while one runs, every other
-//  persisting session on that image -- of any door -- is refused.
+//  Images in use, held readers/writer: real path -> { exclusive, shared },
+//  |exclusive| the persisting session's { name, node } or null, |shared| a Set
+//  of the { name, node } of sessions with persist: false. The emulator's disk
+//  is the image file, read page by page and, for a persisting session, written
+//  as the guest goes. A second writer would neither see those writes nor share
+//  the first one's file system, and the two would overwrite each other's
+//  directory and allocation blocks; a reader would read a disk changing under
+//  its guest's caches. Readers alone never write the file, so any number of
+//  them share it. So: a persisting session needs the image to itself, and a
+//  persist: false session needs it to have no persisting session -- of any
+//  door.
 //
 const activeImages = new Map();
 
@@ -1731,13 +1737,22 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
 
                     //  checked and taken in one step: nothing runs in between
                     if (!self._holdImage()) {
+                        const held = activeImages.get(imageKey(self.config.image));
                         self.client.log.info(
                             {
                                 name,
                                 image: self.config.image,
-                                heldBy: activeImages.get(imageKey(self.config.image)),
+                                persist: self.config.persist,
+                                heldBy: held
+                                    ? {
+                                          exclusive: held.exclusive,
+                                          shared: [...held.shared],
+                                      }
+                                    : undefined,
                             },
-                            `Amiga door image is in use by another session; refusing door "${name}"`
+                            self.config.persist
+                                ? `Amiga door image is in use by another session; refusing door "${name}"`
+                                : `Amiga door image is in use by a session that writes it; refusing door "${name}"`
                         );
                         return self._refuseBusy(callback);
                     }
@@ -1823,25 +1838,39 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         return this.pausePrompt(denied);
     }
 
-    //  A persisting door holds its image for the session (see activeImages).
-    //  Returns false when another session holds it.
+    //  Hold the image for the session (see activeImages): exclusively for a
+    //  persisting door, shared for one with persist: false. Returns false
+    //  when a session holds it in a way this one cannot join.
     _holdImage() {
-        if (!this.config.persist) {
-            return true;
-        }
         const key = imageKey(this.config.image);
-        if (activeImages.has(key)) {
+        const held = activeImages.get(key) || { exclusive: null, shared: new Set() };
+        const exclusive = true === this.config.persist;
+        if (held.exclusive || (exclusive && held.shared.size > 0)) {
             return false;
         }
         this._imageHold = { name: this.config.name, node: this.client.node };
         this._imageKey = key;
-        activeImages.set(key, this._imageHold);
+        this._imageExclusive = exclusive;
+        if (exclusive) {
+            held.exclusive = this._imageHold;
+        } else {
+            held.shared.add(this._imageHold);
+        }
+        activeImages.set(key, held);
         return true;
     }
 
     _releaseImage() {
-        if (this._imageHold && activeImages.get(this._imageKey) === this._imageHold) {
-            activeImages.delete(this._imageKey);
+        const held = this._imageHold && activeImages.get(this._imageKey);
+        if (held) {
+            if (this._imageExclusive && held.exclusive === this._imageHold) {
+                held.exclusive = null;
+            } else if (!this._imageExclusive) {
+                held.shared.delete(this._imageHold);
+            }
+            if (!held.exclusive && 0 === held.shared.size) {
+                activeImages.delete(this._imageKey);
+            }
         }
         this._imageHold = null;
     }

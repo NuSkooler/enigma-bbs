@@ -24,7 +24,7 @@ ENiGMA½ also runs **CLI doors**: ordinary AmigaDOS programs that read the keybo
 4. The door runs. Its output goes to the caller, and the caller's keys go to the door. The emulator's hard disk is the image file itself: the emulator reads it as the door asks and writes the door's changes into it as the door makes them.
 5. When the door ends, the shim reports how it ended, and ENiGMA½ makes sure the image holds everything the door wrote.
 
-Each caller gets an emulator of their own, so one caller per emulator. Two emulators must never use one image at the same time; see [Persistence](#persistence) for what that means for a door with shared state.
+Each caller gets an emulator of their own, so one caller per emulator. A door that saves its changes has its image to itself while it runs; see [Persistence](#persistence) for what that means for a door with shared state.
 
 ---
 
@@ -489,9 +489,9 @@ The door's disk is the image file itself. The emulator reads the parts of the im
 - **Snapshots follow the image.** The cached snapshot of the booted machine is good only for the image exactly as it was when the snapshot was taken, so a session that wrote anything leaves it stale: the next session boots (about half a second) and caches a new one. Doors that write on every session therefore boot every time; a door that only reads keeps restoring.
 - **`persist: false`** keeps every write in the emulator: the door sees its own changes during the session, and they are gone when it ends. The image is never written, so it may be read-only.
 
-Two emulators must never use one image at the same time: each would hold its own view of the disk in memory and its own idea of which blocks are free, neither would see the other's writes, and the two would overwrite each other's files. So a door that persists (the default) holds its image for the whole session: while one caller is in it, anyone who picks a door on the same image, this door or another, is told it is busy (`tooManyArt`, or "Too many active instances"), just as `nodeMax` refuses. The image is released once the door has exited and the image is synced.
+Two emulators must never use one image while either writes it: each would hold its own view of the disk in memory and its own idea of which blocks are free, neither would see the other's writes, and the two would overwrite each other's files; an emulator that only reads would see the disk change under it and its door could misbehave. So a door that persists (the default) holds its image to itself for the whole session: while one caller is in it, anyone who picks a door on the same image, this door or another, persisting or not, is told it is busy (`tooManyArt`, or "Too many active instances"), just as `nodeMax` refuses. The image is released once the door has exited and the image is synced.
 
-Sharing an image therefore serialises callers: all the persisting doors on one image run one caller at a time between them. Give doors their own images when you want them to run side by side; separate images run in parallel. A door that keeps nothing between sessions (a single-player game with no saved files) can set `persist: false`: it then never holds its image and runs on as many nodes as `nodeMax` allows, every session starting from the image as it is. Do not give such a door the same image as a door that persists: while the persisting door writes, the other sessions would read a disk that changes under them.
+Sharing an image therefore serialises callers: all the persisting doors on one image run one caller at a time between them. Give doors their own images when you want them to run side by side; separate images run in parallel. A door that keeps nothing between sessions (a single-player game with no saved files) can set `persist: false`: its sessions never write the image, so any number of them share it, on as many nodes as `nodeMax` allows, every session starting from the image as it is. A non-persisting door and a persisting one on the same image never run at the same moment: while a persisting session is in, a `persist: false` session on that image is refused as busy, and while any `persist: false` session is in, a persisting one is.
 
 ---
 
@@ -532,7 +532,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 - **Images up to 4066 blocks (2033 KB) with an AROS ROM built before 2026-10-19.** An FFS volume bigger than that needs a second bitmap block, which the filesystem of an AROS ROM built before 2026-10-19 misreads: when a door writes, it can take blocks that belong to other files and overwrite them. Use 2032 KB or less (the largest 8 KB multiple under the 4066-block limit). The ROM bundled with ENiGMA½ (enigma-vamiga 0.1.2 and later) carries the fix, as do AROS builds since (AROS#1720), and Kickstart 3.1's filesystem has no such limit, but `make_image.sh` makes 2000K images by default and warns about bigger ones, so an image also works with an older AROS ROM given through `rom`. Check an image you built bigger with amitools' `xdfscan`.
 - **Images up to about 800 MB**, named `.hdf`. The emulator reserves the image's size in its address space but loads only the parts the door touches.
 - **One caller per emulator.** Every session is its own emulated machine, with the memory and CPU that costs: about 60 MB of memory per running door whatever the size of its image (a 100 MB image cost about 340 MB per session before ENiGMA½ 0.6.0), and about 7% of one CPU core while the door sits idle waiting for a key (measured on a current 16-core desktop; about 40% more than before 0.6.0, from the newer emulator core). Use `nodeMax` to bound it.
-- **One emulator per image.** Doors that persist on the same image take turns (see [Persistence](#persistence)).
+- **One writer per image.** Doors that persist on the same image take turns, and do not run alongside non-persisting doors on it (see [Persistence](#persistence)).
 - **ARexx needs your Workbench.** AROS does not have ARexx; ARexx and C-Net ARexx doors run only on an image built with your own Workbench 3.1 (`amiga-door create --workbench`).
 - **No transfers from doors.** A door cannot start a ZMODEM (or any other) file transfer to the caller.
 - **No sysop break.** There is no way for the sysop to break into a running door's session from the door.
@@ -570,7 +570,7 @@ The terminal size is the caller's, polled once a second, so a resize reaches the
 
 **"Amiga doors need 0.2.0 or later" when a door starts.** The installed `enigma-vamiga` is older than the one this ENiGMA½ needs; run `npm install` in ENiGMA½'s directory.
 
-**"Too many active instances" with nobody in the door.** Another door on the same image is in use: a door that persists holds its image for the whole session. Give the doors separate images to run them at the same time.
+**"Too many active instances" with nobody in the door.** Another door on the same image is in use: a door that persists holds its image to itself for the whole session, and while non-persisting doors are in an image, a persisting one waits for them (and the other way round). Give the doors separate images to run them at the same time.
 
 **The door's screen looks wrong.** Try `font: none` for callers without SyncTERM fonts, or set `encoding` if the door writes something other than Latin-1.
 
