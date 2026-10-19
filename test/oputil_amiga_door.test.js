@@ -449,7 +449,7 @@ describe('oputil amiga-door', function () {
             assert.notEqual(r.status, 0);
             assert.match(
                 r.stderr,
-                /more than 2032K.*AROS ROM built before 2026-10-19.*4066 blocks \(2033K\).*--allow-large/s
+                /more than 2032K.*AROS ROM built before AROS#1720 was merged \(2026-10-19\).*4066 blocks \(2033K\).*--allow-large/s
             );
             assert.equal(fs.existsSync(img), false);
 

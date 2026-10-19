@@ -50,6 +50,8 @@
  *   { type: 'inputFull', limit }                        - caller input reached MaxInputQueueBytes
  *                                                         (once per session; the excess is dropped)
  *   { type: 'synced', writes, bytes, sessionWrites, ms, error, code, skipped }
+ *                                                         (sessionWrites: null when the core's
+ *                                                         write counters were unavailable)
  *                                                       - while stopping: the image holds what the
  *                                                         guest wrote (|error|: the sync failed;
  *                                                         |skipped|: persist is off)
@@ -103,6 +105,12 @@ const MaxInputQueueBytes = 1024 * 1024;
 //  flat out (about 0.2 s of host time).
 const SettleFrames = 150;
 
+//  A stop that finds the carrier gone (`d` sent) with the door still running:
+//  frames, pumped like the Pacer's, for the door to see it and the shim to
+//  answer X. 100 frames = 2 s of Amiga time, flat out (about 0.15 s of host
+//  time); well inside the parent's shutdown budget (3 s).
+const CarrierGraceFrames = 100;
+
 const t0 = performance.now();
 
 //  When the guest's writes reach the image: as the door makes them (the core
@@ -116,6 +124,7 @@ let link = null;
 let state = 'starting'; //  starting | booting | warpEnding | session | exited | stopping
 let inputDropped = 0;
 let inputFullReported = false;
+let carrierGone = false; //  a `d` was passed to the shim
 let restored = false;
 let restoreMs = null;
 let writesAtStart = 0; //  the core's writes to the image before the session began
@@ -212,6 +221,7 @@ function sendHostFrame(frame) {
     }
     const bytes = protocol.encode(frame.type, frame.keys || {});
     if ('d' === frame.type) {
+        carrierGone = true;
         //  Carrier is gone or time is up: whatever the caller typed before
         //  that is moot, and the shim drops bytes after `d` anyway. What is
         //  already on its way must still arrive whole, though: the shim is
@@ -348,9 +358,13 @@ function startSession() {
     let stats = null;
     try {
         stats = emu.stats();
-        writesAtStart = emu.hdfWriteStats.writes;
     } catch (e) {
         //  informational only
+    }
+    try {
+        writesAtStart = emu.hdfWriteStats.writes;
+    } catch (e) {
+        writesAtStart = null; //  the session's writes will be unknown
     }
 
     post({
@@ -509,28 +523,55 @@ function syncDisk() {
     } catch (e) {
         error = e;
     }
-    let stats = { writes: 0, bytes: 0 };
+    //  Writes unknown (the core would not say, or never did at the start):
+    //  sessionWrites is null, and the parent treats the image as written.
+    let stats = { writes: null, bytes: null };
+    let sessionWrites = null;
     try {
-        stats = emu.hdfWriteStats;
+        const now = emu.hdfWriteStats;
+        stats = now;
+        if (Number.isFinite(now.writes) && Number.isFinite(writesAtStart)) {
+            sessionWrites = Math.max(0, now.writes - writesAtStart);
+        }
     } catch (e) {
-        //  informational only
+        //  stays unknown
     }
     post({
         type: 'synced',
         writes: stats.writes,
         bytes: stats.bytes,
-        sessionWrites: stats.writes - writesAtStart,
+        sessionWrites,
         ms: performance.now() - ts,
         error: error ? error.message || String(error) : undefined,
         code: error ? error.code : undefined,
     });
 }
 
+//
+//  Stopping with the carrier gone and the door still running (the server is
+//  shutting down): the Pacer is stopped, so nothing else would deliver the
+//  queued `d` or hear the shim's X. Run frames, pumping the serial line each
+//  one, until X arrives or the grace is used up. A door that has not answered
+//  by then is synced where it stands, like a power cut.
+//
+function deliverCarrierLoss() {
+    try {
+        for (let i = 0; i < CarrierGraceFrames && 'session' === state; ++i) {
+            if (outQueue.length) {
+                pumpInput();
+            }
+            emu.runFrames(1);
+            onFrame({ warping: false });
+        }
+    } catch (e) {
+        //  a halted or failed machine: sync what the core has
+    }
+}
+
 function stop() {
     if ('stopping' === state) {
         return;
     }
-    state = 'stopping';
     try {
         if (pacer) {
             pacer.stop();
@@ -538,6 +579,10 @@ function stop() {
     } catch (e) {
         //  going away regardless
     }
+    if (emu && carrierGone && 'session' === state) {
+        deliverCarrierLoss();
+    }
+    state = 'stopping';
     if (emu) {
         syncDisk();
         try {

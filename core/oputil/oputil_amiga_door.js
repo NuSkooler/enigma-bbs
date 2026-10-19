@@ -69,7 +69,7 @@ const WORKBENCH_FILES = [
 
 const DEFAULT_SIZE = '2000K';
 
-//  An AROS ROM built before 2026-10-19 corrupts an FFS volume of more than one
+//  An AROS ROM built before AROS#1720 was merged (2026-10-19) corrupts an FFS volume of more than one
 //  bitmap block (4066 blocks, 2033 KB) when the guest writes to it (fixed
 //  upstream in aros-development-team/AROS#1720); the ROM bundled with
 //  enigma-vamiga 0.1.2 and later carries the fix. Sizes are rounded to 8 KB,
@@ -447,7 +447,7 @@ function cmdCreate(image, typed) {
     if (size > AROS_MAX_SIZE && !argv['allow-large']) {
         throw new CommandError(
             `${size / 1024}K is more than ${AROS_MAX_SIZE / 1024}K: an AROS ROM built ` +
-                'before 2026-10-19 corrupts ' +
+                'before AROS#1720 was merged (2026-10-19) corrupts ' +
                 `an FFS volume of more than ${AROS_MAX_BLOCKS} blocks ` +
                 `(${(AROS_MAX_BLOCKS * 512) / 1024}K) when a door writes to it. Use ` +
                 `${AROS_MAX_SIZE / 1024}K or less, or pass --allow-large for an image used ` +

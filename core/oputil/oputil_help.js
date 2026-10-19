@@ -417,7 +417,7 @@ Actions:
 create arguments:
   --size SIZE                 Image size (default 2000K): bytes, or with K, M or G.
                               Rounded up to a multiple of 8K. At most 2032K unless
-                              --allow-large: an AROS ROM built before 2026-10-19
+                              --allow-large: an AROS ROM built before AROS#1720 was merged (2026-10-19)
                               corrupts an FFS volume of more than 4066 blocks
                               (2033K) when a door writes, and 2032K is the largest
                               8K multiple below.

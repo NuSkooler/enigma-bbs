@@ -554,6 +554,50 @@ describe('amiga_door worker', function () {
         assert.ok(imageAt(1024).every(b => 0xcc === b));
     });
 
+    describe('stop with the carrier gone', function () {
+        const dBytes = [RS, 0x64];
+        const hasD = b => Buffer.from(b).includes(Buffer.from(dBytes));
+
+        it("delivers a pending d and takes the shim's X within the window", async () => {
+            await restored();
+            w.post({ type: 'fake', cmd: 'answerD', frames: 40, status: 'carrier' });
+            w.post({ type: 'frame', frame: { type: 'd', keys: { reason: 'shutdown' } } });
+            //  no frame has run: only stop() can deliver it
+            const exit = w.next(m => 'exit' === m.type);
+            const destroyed = w.next(m => 'fake' === m.type && 'destroyed' === m.event);
+            w.post({ type: 'fake', cmd: 'settleWrite', offset: 512, data: page(0xdd) });
+            const synced = await w.stop();
+            w = null;
+            assert.equal((await exit).status, 'carrier', 'a normal exit');
+            assert.ok(hasD((await destroyed).received), 'd reached the shim');
+            assert.equal(synced.sessionWrites, 1);
+            assert.ok(imageAt(512).every(b => 0xdd === b));
+        });
+
+        it('syncs a silent door within the window, where it stands', async () => {
+            await restored();
+            w.post({ type: 'frame', frame: { type: 'd', keys: { reason: 'shutdown' } } });
+            const destroyed = w.next(m => 'fake' === m.type && 'destroyed' === m.event);
+            const t = Date.now();
+            const synced = await w.stop();
+            const ms = Date.now() - t;
+            assert.ok(!w.messages.some(m => 'exit' === m.type), 'no X came');
+            w = null;
+            assert.ok(hasD((await destroyed).received), 'd reached the shim');
+            assert.ok(synced, 'synced');
+            assert.ok(ms < 2000, `bounded (${ms} ms)`);
+        });
+
+        it('runs no extra frames for a stop without d, beyond the settle', async () => {
+            await restored();
+            const destroyed = w.next(m => 'fake' === m.type && 'destroyed' === m.event);
+            await w.stop();
+            const received = (await destroyed).received;
+            w = null;
+            assert.ok(!hasD(received));
+        });
+    });
+
     it('settles only when stopped, and reports a session that wrote nothing', async () => {
         await restored();
         await exitWith('ok');
@@ -563,6 +607,17 @@ describe('amiga_door worker', function () {
         assert.equal(synced.writes, 0);
         assert.equal(synced.sessionWrites, 0);
         assert.equal(synced.error, undefined);
+    });
+
+    it('reports the session writes as unknown when the core cannot count them', async () => {
+        await restored();
+        w.write(0, page(0x11));
+        w.post({ type: 'fake', cmd: 'failStats' });
+        const synced = await w.stop();
+        w = null;
+        assert.equal(synced.sessionWrites, null);
+        assert.equal(synced.error, undefined, 'the sync itself went through');
+        assert.ok(imageAt(0).every(b => 0x11 === b));
     });
 
     it('counts only the writes made after the session started', async () => {

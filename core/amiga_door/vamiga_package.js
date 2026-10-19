@@ -58,7 +58,16 @@ function checkPackage(load = loadInstalled) {
         VAmiga.prototype &&
         'function' === typeof VAmiga.prototype.hdfSync &&
         'function' === typeof VAmiga.prototype.setWriteThrough;
-    if (!versionAtLeast(version, RequiredVersion) || !fileBacked) {
+    if (versionAtLeast(version, RequiredVersion) && !fileBacked) {
+        return {
+            version: version || null,
+            problem:
+                `enigma-vamiga ${version} is installed but has no file-backed disk support ` +
+                `(hdfSync, setWriteThrough); Amiga doors need the ${RequiredVersion} build. ` +
+                "Run npm install in ENiGMA's directory",
+        };
+    }
+    if (!versionAtLeast(version, RequiredVersion)) {
         return {
             version: version || null,
             problem:

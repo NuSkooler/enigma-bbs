@@ -633,7 +633,7 @@ describe('amiga_door config', () => {
             assert.equal(warnings.length, 1);
             assert.match(
                 warnings[0],
-                /4096 KB.*if this ROM is an AROS build from before 2026-10-19.*2032 KB.*enigma-vamiga 0\.1\.2/
+                /4096 KB.*if this ROM is an AROS build from before AROS#1720 was merged \(2026-10-19\).*2032 KB.*enigma-vamiga 0\.1\.2/
             );
         } finally {
             fs.rmSync(image, { force: true });
@@ -921,6 +921,24 @@ describe('amiga_door snapshot cache', () => {
         assert.equal(cache.size, 0);
     });
 
+    it('shares one entry between two spellings of a file, symlinks included', () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amiga_door_cache_'));
+        try {
+            const real = path.join(dir, 'a.hdf');
+            fs.writeFileSync(real, Buffer.alloc(16));
+            const link = path.join(dir, 'link.hdf');
+            fs.symlinkSync(real, link);
+            const cache = new SnapshotCache();
+            const k1 = SnapshotCache.keyFor(real, machine);
+            assert.equal(k1, SnapshotCache.keyFor(link, machine));
+            cache.set(k1, Buffer.from([9]), {}, stat);
+            assert.equal(cache.invalidateImage(link), 1, 'the other spelling hits it');
+            assert.equal(cache.size, 0);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it('caches nothing with maxEntries 0', () => {
         const cache = new SnapshotCache({ maxEntries: 0 });
         assert.equal(
@@ -970,6 +988,10 @@ describe('amiga_door enigma-vamiga version', () => {
             /enigma-vamiga 0\.1\.3 is installed.*need 0\.2\.0 or later/
         );
         assert.match(checkPackage(pkg(Old, '0.2.0')).problem, /0\.2\.0 is installed/);
+        assert.match(
+            checkPackage(pkg(Old, '0.2.0')).problem,
+            /0\.2\.0 is installed but has no file-backed disk support/
+        );
         assert.match(checkPackage(pkg(Current, '0.1.9')).problem, /0\.1\.9 is installed/);
         const missing = checkPackage(() => {
             throw new Error("Cannot find module 'enigma-vamiga'");
@@ -1235,6 +1257,26 @@ describe('amiga_door session', () => {
         deliver(idle.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
         await closedIdle;
         assert.equal(idle.cache.size, 1);
+    });
+
+    it('a sync that could not count the session writes drops the snapshots', async () => {
+        for (const sessionWrites of [null, undefined, NaN, -3]) {
+            const s = makeSession();
+            cacheSnapshot(s);
+            s.worker.syncReply = { writes: null, bytes: null, sessionWrites, ms: 1 };
+            const closed = closedOf(s);
+            deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+            await closed;
+            if (-3 === sessionWrites) {
+                //  never a negative count: it is not "wrote"; it is not unknown either
+                assert.equal(s.cache.size, 1);
+                continue;
+            }
+            assert.equal(s.cache.size, 0, `sessionWrites ${sessionWrites}`);
+            const line = logged(s, /write counters were unavailable/, 'info');
+            assert.equal(line.obj.writesUnknown, true);
+            assert.equal(line.obj.snapshotsDropped, 1);
+        }
     });
 
     it('says when a door left its disk alone', async () => {
@@ -1632,6 +1674,14 @@ describe('amiga_door server shutdown', function () {
         const ms = Date.now() - t0;
         assert.ok(ms >= 140 && ms < 1000, `took ${ms} ms`);
         assert.equal(stuck.worker.sent('stop').length, 1, 'it was asked');
+        assert.deepEqual(stuck.worker.frames('d'), [
+            { type: 'd', keys: { reason: 'shutdown' } },
+        ]);
+        assert.ok(
+            stuck.worker.posted.findIndex(m => 'frame' === m.type) <
+                stuck.worker.posted.findIndex(m => 'stop' === m.type),
+            'told the carrier is gone before the stop'
+        );
         const line = log.lines.find(l => /^Amiga doors at shutdown/.test(l.msg));
         assert.equal(line.level, 'warn');
         assert.match(line.msg, /1 synced, 1 not/);
@@ -1829,6 +1879,49 @@ describe('amiga_door image lock', () => {
         assert.equal(await startModule(makeModule({ image })), 'ran');
     });
 
+    it('keeps the image from a second session between done and the worker being gone', async () => {
+        const m = makeModule({ image });
+        assert.equal(await startModule(m), 'ran');
+        const s = makeSession({ image }, { client: m.client });
+        s.worker.autoStop = false;
+        m._attachSession(s.session, null);
+        m.autoNextMenu = () => {};
+        const closed = new Promise(r => s.session.once('closed', r));
+
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await s.done;
+        assert.equal(s.worker.sent('stop').length, 1);
+        assert.equal(await startModule(makeModule({ image })), 'refused', 'after done');
+
+        s.worker.emit('message', {
+            type: 'synced',
+            writes: 1,
+            bytes: 1,
+            sessionWrites: 1,
+        });
+        assert.equal(await startModule(makeModule({ image })), 'refused', 'after synced');
+        s.worker.emit('exit', 0);
+        await closed;
+        assert.equal(activeImages.size, 0);
+        assert.equal(await startModule(makeModule({ image })), 'ran', 'after closed');
+    });
+
+    it('emits closed even when worker.terminate() never finishes', async () => {
+        const s = makeSession({ image }, { timeouts: { terminate: 40 } });
+        s.worker.terminate = () => new Promise(() => {});
+        const t = Date.now();
+        const closed = new Promise(r => s.session.once('closed', r));
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closed;
+        const ms = Date.now() - t;
+        assert.ok(ms >= 35 && ms < 1500, `took ${ms} ms`);
+        assert.ok(
+            s.client.log.lines.some(
+                l => 'warn' === l.level && /terminate\(\) did not finish/.test(l.msg)
+            )
+        );
+    });
+
     it('time-up puts the font and scroll region back before the next menu', async () => {
         const m = makeModule({ image });
         assert.equal(await startModule(m), 'ran');
@@ -1916,6 +2009,13 @@ describe('amiga_door image lock', () => {
                 AmigaDoorSession.prototype.start = realStart;
             }
 
+            if ('start' === stage) {
+                //  the session's worker is still stopping (it syncs first)
+                assert.equal(activeImages.size, 1, 'image held until the worker is gone');
+            }
+            for (let i = 0; i < 20 && activeImages.size; ++i) {
+                await new Promise(resolve => setImmediate(resolve));
+            }
             assert.equal(terminated, 1, 'worker stopped once');
             assert.equal(activeImages.size, 0, 'image released');
             assert.equal(activeDoorInstances[BASE.name], 0, 'slot released');

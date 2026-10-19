@@ -14,7 +14,7 @@
 #
 #   -s SIZE    image size (default 2000K); anything xdftool's size= accepts.
 #              Over 4066 blocks (2033K) the volume needs a second bitmap block,
-#              which the filesystem of an AROS ROM built before 2026-10-19
+#              which the filesystem of an AROS ROM built before AROS#1720 was merged (2026-10-19)
 #              misreads: a door's writes then overwrite other files. Use 2032K
 #              or less (the largest 8 KB multiple under the 4066-block limit)
 #              if the image may run on such a ROM; the bundled ROM
@@ -49,7 +49,7 @@ amiga_dir=$(dirname "$here")
 
 size=2000K
 # the most 512-byte blocks one bitmap block covers (127 longs x 32 bits, plus the two
-# boot blocks): the filesystem of an AROS ROM built before 2026-10-19 maps the blocks of
+# boot blocks): the filesystem of an AROS ROM built before AROS#1720 was merged (2026-10-19) maps the blocks of
 # any further bitmap block wrongly
 one_bitmap_blocks=4066
 volume=BBS
@@ -109,7 +109,7 @@ size_bytes() {
 bytes=$(size_bytes "$size")
 if [ -n "$bytes" ] && [ "$bytes" -gt $((one_bitmap_blocks * 512)) ]; then
     echo "make_image.sh: warning: $size is over 4066 blocks (2033K) and needs a second bitmap block;" >&2
-    echo "  the filesystem of an AROS ROM built before 2026-10-19 then overwrites files when a door" >&2
+    echo "  the filesystem of an AROS ROM built before AROS#1720 was merged (2026-10-19) then overwrites files when a door" >&2
     echo "  writes. Use -s 2032K or less (the largest 8 KB multiple under the 4066-block limit) if the" >&2
     echo "  image may run on such a ROM (the ROM bundled with enigma-vamiga 0.1.2 and later, and" >&2
     echo "  Kickstart 3.1, handle any size)." >&2

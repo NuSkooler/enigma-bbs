@@ -26,6 +26,11 @@
 //                                              once the worker runs frames to let
 //                                              its file system flush
 //    { type: 'fake', cmd: 'failSync', message } the next hdfSync() throws
+//    { type: 'fake', cmd: 'failStats' }        hdfWriteStats throws from now on
+//    { type: 'fake', cmd: 'answerD', frames, status }
+//                                              the shim answers a `d` it receives
+//                                              with an X, |frames| emulated frames
+//                                              (runFrames) later
 //    { type: 'fake', cmd: 'state' }            report pacer, settle and disk state
 //
 //  workerData.refuseSnapshot: loadSnapshot() throws a VAmigaError, as 0.2.0
@@ -33,7 +38,8 @@
 //  workerData.legacyPackage: no setSerialHandshake, serialHandshake, guestRts or
 //  serialInPending (enigma-vamiga 0.1.2 and older).
 //
-//  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state', ... }
+//  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state' | 'destroyed', ... }
+//  ('destroyed' carries every byte the guest received, in all)
 //  ('created' carries the create() options that matter here, and 'state' the
 //  RTS/CTS handshake setting); 'ticked' carries the bytes the guest received
 //  during that frame.
@@ -41,6 +47,7 @@
 const fs = require('fs');
 const { EventEmitter } = require('events');
 const { parentPort, workerData } = require('worker_threads');
+const protocol = require('../../../core/amiga_door/protocol.js');
 
 let emu = null;
 let pacer = null;
@@ -90,6 +97,8 @@ class VAmiga extends EventEmitter {
         this.io = { writes: 0, bytes: 0, ms: 0 };
         this.failSync = null;
         this.destroyed = false;
+        this.allReceived = [];
+        this.answer = null;
     }
 
     get hdfSize() {
@@ -121,6 +130,9 @@ class VAmiga extends EventEmitter {
     }
 
     get hdfWriteStats() {
+        if (this.failStats) {
+            throw new VAmigaError('stats unavailable');
+        }
         return Object.assign({}, this.io);
     }
 
@@ -198,6 +210,11 @@ class VAmiga extends EventEmitter {
 
     runFrames(n) {
         this.settled += n;
+        const a = this.answer;
+        if (a && null !== a.seenAt && !a.done && this.settled - a.seenAt >= a.frames) {
+            a.done = true;
+            this.toHost.push(protocol.encode('X', { status: a.status }));
+        }
         if (this.onSettle.length) {
             this.dirty.push(...this.onSettle);
             this.onSettle = [];
@@ -218,7 +235,15 @@ class VAmiga extends EventEmitter {
         const n = Math.min(buf.length, this.room);
         this.room -= n;
         if (n > 0) {
-            this.received.push(Buffer.from(buf.subarray(0, n)));
+            const got = Buffer.from(buf.subarray(0, n));
+            this.received.push(got);
+            this.allReceived.push(got);
+            if (this.answer && null === this.answer.seenAt) {
+                const all = Buffer.concat(this.allReceived);
+                if (all.includes(Buffer.from([protocol.RS, 0x64]))) {
+                    this.answer.seenAt = this.settled;
+                }
+            }
         }
         return n;
     }
@@ -227,6 +252,11 @@ class VAmiga extends EventEmitter {
         //  as the core: what was never written goes with the emulator
         this.dirty = [];
         this.destroyed = true;
+        parentPort.postMessage({
+            type: 'fake',
+            event: 'destroyed',
+            received: new Uint8Array(Buffer.concat(this.allReceived)),
+        });
     }
 }
 
@@ -298,6 +328,19 @@ parentPort.on('message', msg => {
 
         case 'settleWrite':
             emu.onSettle.push({ offset: msg.offset, data: Buffer.from(msg.data) });
+            break;
+
+        case 'answerD':
+            emu.answer = {
+                frames: msg.frames || 0,
+                status: msg.status || 'carrier',
+                seenAt: null,
+                done: false,
+            };
+            break;
+
+        case 'failStats':
+            emu.failStats = true;
             break;
 
         case 'failSync':

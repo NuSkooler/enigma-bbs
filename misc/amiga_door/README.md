@@ -379,13 +379,21 @@ asks and, for a door with `persist` on, writes the guest's changes into it in pl
 once the drive has been idle for 100 ms of Amiga time. When a session ends, however
 it ends, the worker runs the guest 3 seconds more (flat out) so its file system
 flushes, then `hdfSync()`s the image; with `persist: false` the core keeps every write
-and the image is never touched. On ENiGMA's SIGINT shutdown the module does this for
-every running worker at once and waits for their syncs, about 3 seconds at most. No emulator may have an image open while another
+and the image is never touched. On ENiGMA's SIGINT shutdown the module first tells each
+running door the carrier is gone (`d`), then stops its worker, which keeps running the
+guest for up to about 2 seconds of Amiga time (100 frames, flat out) so the door can
+save and answer `X`; a door still running after that is synced where it stands, like a
+power cut. All workers do this at once and the module waits for their syncs, about 3
+seconds at most. What write-through has written is in the image whatever happens, but
+it is written 100 ms of Amiga time after the drive goes idle, so a crash can still lose
+the last 100 ms and whatever the guest's own file system had not written back yet; and
+an uncaught error in the worker ends the session without a final sync (what
+write-through already wrote stays). No emulator may have an image open while another
 writes it (neither re-reads what the other wrote, and each guest's FFS believes it owns
 the volume), so images are held readers/writer: a persisting session holds its image
 exclusively until that sync is done, `persist: false` sessions share it, and the two
 kinds never run on one image at the same moment. A booted machine's snapshot holds the image's path and the guest's file system
-caches, so the module uses it only while the image's size, mtime and inode are what
+caches, so the module uses it only while the image's size, mtime, inode and device are what
 they were right after the snapshot: a session that wrote makes the next one boot.
 
 The images are run with the AROS 20260820 Kickstart replacement (to ship with the

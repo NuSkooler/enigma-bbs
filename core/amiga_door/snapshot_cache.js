@@ -27,7 +27,19 @@
 //  that handing one to a worker shares it rather than copying it. The cache is
 //  bounded; the least recently used entry goes first.
 //
+const fs = require('fs');
 const paths = require('path');
+
+//  The file itself, however it is spelled (symlinks, ..): the same key the
+//  readers/writer hold uses. A path that does not resolve (no such file yet)
+//  falls back to the absolute path.
+function canonicalPath(p) {
+    try {
+        return fs.realpathSync(p);
+    } catch (e) {
+        return paths.resolve(p);
+    }
+}
 
 const DefaultMaxEntries = 4;
 
@@ -42,12 +54,12 @@ class SnapshotCache {
 
     //
     //  |image| is the image path; |machine| the door config (only MachineKeys
-    //  are read); |version| enigma-vamiga's. Paths are resolved so that two
-    //  spellings of one file share an entry.
+    //  are read); |version| enigma-vamiga's. Paths are canonicalised (realpath) so
+    //  that two spellings of one file share an entry.
     //
     static keyFor(image, machine = {}, version = null) {
         const key = {
-            image: paths.resolve(image),
+            image: canonicalPath(image),
             vamiga: version || null,
         };
         for (const k of MachineKeys) {
@@ -174,7 +186,7 @@ class SnapshotCache {
 
     //  Drop every snapshot of |image|; returns how many went.
     invalidateImage(image) {
-        const resolved = paths.resolve(image);
+        const resolved = canonicalPath(image);
         let removed = 0;
         for (const [key, entry] of this.entries) {
             if (entry.image === resolved) {

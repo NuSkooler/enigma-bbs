@@ -180,6 +180,9 @@ const ReadyTimeoutMs = 60 * 1000;
 //  flat out) and syncs the image; it is not stopped mid-write unless it takes
 //  this long, after which it is terminated and the image keeps what reached it.
 const StopTimeoutMs = 60 * 1000;
+//  worker.terminate() should resolve at once; 'closed' (and with it the image
+//  hold) must not depend on it
+const TerminateTimeoutMs = 5 * 1000;
 const ResizePollMs = 1000;
 const TimePollMs = 5000;
 const BackpressurePollMs = 50;
@@ -690,7 +693,7 @@ function normalizeConfig(raw) {
         );
     }
 
-    //  An AROS ROM built before 2026-10-19 corrupts an FFS volume of more than
+    //  An AROS ROM built before AROS#1720 was merged (2026-10-19) corrupts an FFS volume of more than
     //  one bitmap block (4066 blocks) when the guest writes (fixed upstream in
     //  aros-development-team/AROS#1720). The ROM bundled with enigma-vamiga
     //  0.1.2 and later carries the fix, so only a ROM supplied through |rom|
@@ -707,7 +710,7 @@ function normalizeConfig(raw) {
             warnings.push(
                 `image ${c.image} is ${Math.round(imageBytes / 1024)} KB, over ` +
                     `${(AROS_MAX_FFS_BLOCKS * 512) / 1024} KB; if this ROM is an AROS ` +
-                    'build from before 2026-10-19, keep the image at 2032 KB or less, or ' +
+                    'build from before AROS#1720 was merged (2026-10-19), keep the image at 2032 KB or less, or ' +
                     'use the fixed ROM bundled with enigma-vamiga 0.1.2 and later'
             );
         }
@@ -1047,6 +1050,7 @@ class AmigaDoorSession extends EventEmitter {
                     1000 *
                     (config.disconnectGraceSeconds || Defaults.disconnectGraceSeconds),
                 stop: StopTimeoutMs,
+                terminate: TerminateTimeoutMs,
             },
             timeouts
         );
@@ -1362,7 +1366,10 @@ class AmigaDoorSession extends EventEmitter {
             );
         }
         let snapshotsDropped = 0;
-        if (this.cache && !(msg.sessionWrites <= 0)) {
+        //  writes unknown (the worker could not read the core's counters): the
+        //  snapshots may be stale, drop them
+        const writesUnknown = !Number.isFinite(msg.sessionWrites);
+        if (this.cache && (writesUnknown || msg.sessionWrites > 0)) {
             snapshotsDropped = this.cache.invalidateImage(this.config.image);
         }
         const info = {
@@ -1372,6 +1379,7 @@ class AmigaDoorSession extends EventEmitter {
             bytes: msg.bytes,
             syncMs: Number.isFinite(msg.ms) ? Math.round(msg.ms) : undefined,
             snapshotsDropped,
+            writesUnknown: writesUnknown || undefined,
         };
         if (msg.error) {
             return this.log.warn(
@@ -1381,9 +1389,11 @@ class AmigaDoorSession extends EventEmitter {
         }
         this.log.info(
             info,
-            msg.writes > 0
-                ? 'Amiga door disk synced'
-                : 'Amiga door left its disk unchanged'
+            writesUnknown
+                ? 'Amiga door disk synced (the write counters were unavailable)'
+                : msg.writes > 0
+                  ? 'Amiga door disk synced'
+                  : 'Amiga door left its disk unchanged'
         );
     }
 
@@ -1618,10 +1628,15 @@ class AmigaDoorSession extends EventEmitter {
         this.emit('done', Object.assign({ reason: this.disconnectReason }, result));
     }
 
-    //  The server is shutting down: end the session now (its worker then
-    //  syncs and stops, see close()). A session already ended is closing.
+    //  The server is shutting down: tell the door the carrier is gone (`d`),
+    //  end the session now, and have the worker give the door about two
+    //  seconds of Amiga time to save and exit before it syncs and stops (see
+    //  close()). A session already ended is closing.
     shutdownStop() {
         if (!this.finished) {
+            if (this.ready && !this.exitInfo && !this.disconnectReason) {
+                this.sendFrame('d', { reason: 'shutdown' });
+            }
             this.finish({ reason: 'shutdown' });
         }
     }
@@ -1644,6 +1659,13 @@ class AmigaDoorSession extends EventEmitter {
         const onMessage = msg => {
             if ('synced' === msg.type) {
                 this.onSynced(msg);
+            } else if ('exit' === msg.type && !this.exitInfo) {
+                //  the door answered the carrier loss while the worker stopped
+                this.exitInfo = msg;
+                this.log.info(
+                    { name: this.config.name, exit: msg.keys },
+                    `Amiga door exited after carrier loss (status=${msg.status})`
+                );
             }
         };
         let timer = null;
@@ -1666,9 +1688,22 @@ class AmigaDoorSession extends EventEmitter {
             } catch (e) {
                 //  already gone
             }
-            Promise.resolve(terminated)
-                .catch(() => {})
-                .then(() => this.emit('closed'));
+            let terminateTimer = null;
+            const timedOut = new Promise(resolve => {
+                terminateTimer = setTimeout(() => {
+                    this.log.warn(
+                        { name: this.config.name, image: this.config.image },
+                        `Amiga door worker.terminate() did not finish within ${this.timeouts.terminate} ms; releasing the door anyway`
+                    );
+                    resolve();
+                }, this.timeouts.terminate);
+            });
+            Promise.race([Promise.resolve(terminated).catch(() => {}), timedOut]).then(
+                () => {
+                    clearTimeout(terminateTimer);
+                    this.emit('closed');
+                }
+            );
         };
 
         if (this.workerGone) {
@@ -2089,10 +2124,14 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         const session = this.session;
         this.session = null;
         this.sessionStarted = false;
+        //  the worker may still be stopping (it syncs the image first): the
+        //  hold is released once it is gone, not by _doorFinished
+        this._holdUntilClosed = true;
         let stopped = false;
         if (session) {
             session.removeAllListeners('done');
             session.removeAllListeners('closed');
+            session.once('closed', () => this._releaseImage());
             try {
                 session.finish({ error: 'startup failed' });
                 stopped = true;
@@ -2100,13 +2139,18 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
                 //  start() had not wired everything up; stop the worker below
             }
         }
-        if (worker && !stopped) {
-            try {
-                Promise.resolve(worker.terminate()).catch(() => {});
-            } catch (e) {
-                //  already gone
-            }
+        if (stopped) {
+            return;
         }
+        let terminated;
+        try {
+            terminated = worker ? worker.terminate() : null;
+        } catch (e) {
+            //  already gone
+        }
+        Promise.resolve(terminated)
+            .catch(() => {})
+            .then(() => this._releaseImage());
     }
 
     _attachSession(session, doorTracking) {
@@ -2209,7 +2253,7 @@ exports.getModule = class AmigaDoorModule extends MenuModule {
         this._stopSpinner(false);
         trackDoorRunEnd(doorTracking);
         this._decrementInstances();
-        if (!this.sessionStarted) {
+        if (!this.sessionStarted && !this._holdUntilClosed) {
             this._releaseImage(); //  no worker ever had it
         }
 
