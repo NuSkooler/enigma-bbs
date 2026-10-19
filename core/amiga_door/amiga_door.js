@@ -109,11 +109,11 @@
  *                                    topaz); 'none' leaves the caller's font alone
  *     persist:            boolean  - write the door's disk changes back (default: true)
  *     persistOn:          [string] - X statuses after which to persist (default: ['ok'] for
- *                                    doorType cli, aim and tim, ['ok', 'carrier'] for xim; an
- *                                    explicit list always wins). carrier, timeout and break
- *                                    persist only when the door ended by itself (the X frame's
- *                                    rc is its return code; -1 or none means the shim gave up
- *                                    on a door still running)
+ *                                    doorType cli, aim, tim and cnetrexx, ['ok', 'carrier']
+ *                                    for xim; an explicit list always wins). carrier,
+ *                                    timeout and break persist only when the door ended by
+ *                                    itself (the X frame's rc is its return code; -1 or none
+ *                                    means the shim gave up on a door still running)
  *     log:                boolean  - log every door request at debug level (default: false)
  *     warpBootSeconds:    number   - first boot runs flat out this long (default: 30)
  *     regTimeoutSeconds:  number   - the door must register (tim: send its first request)
@@ -348,16 +348,17 @@ function isLatin1(encoding) {
 //  |warnings| lists keys nothing reads, with a likely meaning when there is
 //  one (a misspelt persistOn is otherwise silently the default).
 //
-//  A CLI, ARexx or Paragon door is sent a break on a hangup, so a return code does not
-//  prove it finished its writes; an XIM door only sees carrier-lost replies
-//  to its input requests. Hence 'carrier' is a default persistOn status for
-//  XIM doors only.
+//  A CLI, ARexx, Paragon or C-Net door is sent a break on a hangup, so a
+//  return code does not prove it finished its writes; an XIM door only sees
+//  carrier-lost replies to its input requests. Hence 'carrier' is a default
+//  persistOn status for XIM doors only.
 //
 const DefaultPersistOn = {
     xim: ['ok', 'carrier'],
     cli: ['ok'],
     aim: ['ok'],
     tim: ['ok'],
+    cnetrexx: ['ok'],
 };
 const AROS_MAX_FFS_BLOCKS = 4066;
 

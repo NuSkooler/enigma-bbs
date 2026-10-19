@@ -232,7 +232,7 @@
                 //  notEnoughTimeArt: DOORTIME
                 //  persist: true                // save the door's writes
                 //  persistOn: [ok, carrier]     // save after these exits (default: ok and
-                //                               // carrier for XIM doors, only ok for cli/aim/tim)
+                //                               // carrier for XIM doors, only ok for cli/aim/tim/cnetrexx)
                 //  disconnectGraceSeconds: 35   // after a hangup, wait this long for the door
                 //                               // to finish (keep above the shim's 30)
                 //  amigaConsole: true           // translate Amiga console controls (default:
