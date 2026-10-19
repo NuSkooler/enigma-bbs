@@ -232,7 +232,7 @@ function shutdownSystem() {
                 }
             },
             function stopFileAreaWeb(callback) {
-                require('./file_area_web.js').startup(() => {
+                require('./file_area_web.js').shutdown(() => {
                     return callback(null); // ignore err
                 });
             },

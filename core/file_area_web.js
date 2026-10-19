@@ -77,7 +77,15 @@ class FileAreaWebAccess {
         );
     }
 
+    //
+    //  Server shutdown: stop the expiry timers. The rows stay in the
+    //  database and load() sweeps or re-arms them at the next startup. Safe
+    //  when startup() never ran or the web server is disabled: there is then
+    //  nothing to stop.
+    //
     shutdown(cb) {
+        Object.values(this.expireTimers).forEach(timer => clearTimeout(timer));
+        this.expireTimers = {};
         return cb(null);
     }
 
