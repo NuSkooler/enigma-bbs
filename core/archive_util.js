@@ -16,8 +16,103 @@ const _ = require('lodash');
 const pty = require('node-pty');
 const paths = require('path');
 const { execFile } = require('child_process');
+const { pipeline } = require('stream');
+const zlib = require('zlib');
 
 let archiveUtil;
+
+function getGzipPayloadName(archivePath) {
+    const name = paths.basename(archivePath);
+    const payloadName = name.replace(/\.gz$/i, '');
+    return !payloadName || '.' === payloadName || '..' === payloadName
+        ? `${name}.contents`
+        : payloadName;
+}
+
+function isTarHeader(buffer) {
+    if (buffer.length < 512) {
+        return false;
+    }
+
+    const header = buffer.subarray(0, 512);
+    if (header.every(byte => 0 === byte)) {
+        return (
+            buffer.length >= 1024 && buffer.subarray(512, 1024).every(byte => 0 === byte)
+        );
+    }
+
+    const checksumText = header
+        .subarray(148, 156)
+        .toString('ascii')
+        .replace(/\0/g, ' ')
+        .trim();
+    if (!/^[0-7]+$/.test(checksumText)) {
+        return false;
+    }
+
+    const expectedChecksum = parseInt(checksumText, 8);
+    let actualChecksum = 0;
+    header.forEach((byte, index) => {
+        actualChecksum += index >= 148 && index < 156 ? 32 : byte;
+    });
+    return expectedChecksum === actualChecksum;
+}
+
+function readGzipTarHeader(archivePath, cb) {
+    const input = fs.createReadStream(archivePath);
+    const gunzip = zlib.createGunzip();
+    const header = Buffer.alloc(1024);
+    let headerLength = 0;
+    let finished = false;
+
+    const finish = (err, isTar) => {
+        if (finished) {
+            return;
+        }
+        finished = true;
+        input.destroy();
+        gunzip.destroy();
+        return cb(err, isTar);
+    };
+
+    input.on('error', err => finish(err));
+    gunzip.on('error', err => finish(err));
+    gunzip.on('data', data => {
+        const bytesToCopy = Math.min(data.length, header.length - headerLength);
+        data.copy(header, headerLength, 0, bytesToCopy);
+        headerLength += bytesToCopy;
+        if (headerLength === header.length) {
+            finish(null, isTarHeader(header));
+        }
+    });
+    gunzip.on('end', () => finish(null, isTarHeader(header.subarray(0, headerLength))));
+    input.pipe(gunzip);
+}
+
+function readGzipPayloadSize(archivePath, cb) {
+    fs.stat(archivePath, (err, stats) => {
+        if (err) {
+            return cb(err);
+        }
+        if (stats.size < 4) {
+            return cb(null, 0);
+        }
+
+        fs.open(archivePath, 'r', (err, fd) => {
+            if (err) {
+                return cb(err);
+            }
+            const trailer = Buffer.alloc(4);
+            fs.read(fd, trailer, 0, trailer.length, stats.size - trailer.length, err => {
+                fs.close(fd, () => {});
+                if (err) {
+                    return cb(err);
+                }
+                return cb(null, trailer.readUInt32LE(0));
+            });
+        });
+    });
+}
 
 class Archiver {
     constructor(config) {
@@ -354,43 +449,100 @@ module.exports = class ArchiveUtil {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
-        const fmtObj = {
-            archivePath: archivePath,
-            extractPath: extractPath,
+        const extractWithArchiver = () => {
+            const fmtObj = {
+                archivePath: archivePath,
+                extractPath: extractPath,
+            };
+
+            let action = haveFileList ? 'extract' : 'decompress';
+            if ('extract' === action && !_.isObject(archiver[action])) {
+                //  we're forced to do a full decompress
+                action = 'decompress';
+                haveFileList = false;
+            }
+
+            //  we need to treat {fileList} special in that it should be broken up to 0:n args
+            const args = archiver[action].args.map(arg => {
+                return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
+            });
+
+            const fileListPos = args.indexOf('{fileList}');
+            if (fileListPos > -1) {
+                //  replace {fileList} with 0:n sep file list arguments
+                args.splice.apply(args, [fileListPos, 1].concat(fileList));
+            }
+
+            let proc;
+            try {
+                proc = pty.spawn(
+                    archiver[action].cmd,
+                    args,
+                    this.getPtyOpts(extractPath)
+                );
+            } catch (e) {
+                return cb(
+                    Errors.ExternalProcess(
+                        `Error spawning archiver process "${
+                            archiver[action].cmd
+                        }" with args "${args.join(' ')}": ${e.message}`
+                    )
+                );
+            }
+
+            return this.spawnHandler(
+                proc,
+                haveFileList ? 'Extraction' : 'Decompression',
+                cb
+            );
         };
 
-        let action = haveFileList ? 'extract' : 'decompress';
-        if ('extract' === action && !_.isObject(archiver[action])) {
-            //  we're forced to do a full decompress
-            action = 'decompress';
-            haveFileList = false;
+        const expectedGzipName = getGzipPayloadName(archivePath);
+        if (
+            'application/gzip' === archType &&
+            haveFileList &&
+            1 === fileList.length &&
+            expectedGzipName === fileList[0]
+        ) {
+            return readGzipTarHeader(archivePath, (err, isTar) => {
+                if (err) {
+                    return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
+                }
+                if (isTar) {
+                    return extractWithArchiver();
+                }
+
+                const outputPath = paths.join(extractPath, expectedGzipName);
+                return fs.open(outputPath, 'wx', 0o600, (err, fd) => {
+                    if (err) {
+                        return cb(
+                            Errors.ExternalProcess(
+                                `Gzip extraction failed: ${err.message}`
+                            )
+                        );
+                    }
+
+                    return pipeline(
+                        fs.createReadStream(archivePath),
+                        zlib.createGunzip(),
+                        fs.createWriteStream(outputPath, { fd: fd, autoClose: true }),
+                        err => {
+                            if (err) {
+                                fs.unlink(outputPath, () => {});
+                                return cb(
+                                    Errors.ExternalProcess(
+                                        `Gzip extraction failed: ${err.message}`
+                                    )
+                                );
+                            }
+                            return cb(null);
+                        }
+                    );
+                });
+            });
         }
 
-        //  we need to treat {fileList} special in that it should be broken up to 0:n args
-        const args = archiver[action].args.map(arg => {
-            return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
-        });
-
-        const fileListPos = args.indexOf('{fileList}');
-        if (fileListPos > -1) {
-            //  replace {fileList} with 0:n sep file list arguments
-            args.splice.apply(args, [fileListPos, 1].concat(fileList));
-        }
-
-        let proc;
-        try {
-            proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts(extractPath));
-        } catch (e) {
-            return cb(
-                Errors.ExternalProcess(
-                    `Error spawning archiver process "${
-                        archiver[action].cmd
-                    }" with args "${args.join(' ')}": ${e.message}`
-                )
-            );
-        }
-
-        return this.spawnHandler(proc, haveFileList ? 'Extraction' : 'Decompression', cb);
+        return extractWithArchiver();
     }
 
     listEntries(archivePath, archType, cb) {
@@ -400,61 +552,88 @@ module.exports = class ArchiveUtil {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
         }
 
-        const fmtObj = {
-            archivePath: archivePath,
-        };
+        const listWithArchiver = () => {
+            const fmtObj = {
+                archivePath: archivePath,
+            };
 
-        const args = archiver.list.args.map(arg => stringFormat(arg, fmtObj));
+            const args = archiver.list.args.map(arg => stringFormat(arg, fmtObj));
 
-        if ('json' === archiver.list.outputFormat) {
-            return this.listJsonEntries(archiver.list.cmd, args, cb);
-        }
+            if ('json' === archiver.list.outputFormat) {
+                return this.listJsonEntries(archiver.list.cmd, args, cb);
+            }
 
-        let proc;
-        try {
-            proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
-        } catch (e) {
-            return cb(
-                Errors.ExternalProcess(
-                    `Error spawning archiver process "${
-                        archiver.list.cmd
-                    }" with args "${args.join(' ')}": ${e.message}`
-                )
-            );
-        }
-
-        let output = '';
-        proc.onData(data => {
-            //  :TODO: hack for: execvp(3) failed.: No such file or directory
-
-            output += data;
-        });
-
-        proc.onExit(exitEvent => {
-            if (exitEvent.exitCode) {
+            let proc;
+            try {
+                proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
+            } catch (e) {
                 return cb(
                     Errors.ExternalProcess(
-                        `List failed with exit code: ${exitEvent.exitCode}`
+                        `Error spawning archiver process "${
+                            archiver.list.cmd
+                        }" with args "${args.join(' ')}": ${e.message}`
                     )
                 );
             }
 
-            const entryGroupOrder = archiver.list.entryGroupOrder || {
-                byteSize: 1,
-                fileName: 2,
-            };
+            let output = '';
+            proc.onData(data => {
+                //  :TODO: hack for: execvp(3) failed.: No such file or directory
 
-            const entries = [];
-            const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
-            let m;
-            while ((m = entryMatchRe.exec(output))) {
-                entries.push({
-                    byteSize: parseInt(m[entryGroupOrder.byteSize]),
-                    fileName: m[entryGroupOrder.fileName].trim(),
-                });
+                output += data;
+            });
+
+            proc.onExit(exitEvent => {
+                if (exitEvent.exitCode) {
+                    return cb(
+                        Errors.ExternalProcess(
+                            `List failed with exit code: ${exitEvent.exitCode}`
+                        )
+                    );
+                }
+
+                const entryGroupOrder = archiver.list.entryGroupOrder || {
+                    byteSize: 1,
+                    fileName: 2,
+                };
+
+                const entries = [];
+                const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
+                let m;
+                while ((m = entryMatchRe.exec(output))) {
+                    entries.push({
+                        byteSize: parseInt(m[entryGroupOrder.byteSize]),
+                        fileName: m[entryGroupOrder.fileName].trim(),
+                    });
+                }
+
+                return cb(null, entries);
+            });
+        };
+
+        if ('application/gzip' !== archType) {
+            return listWithArchiver();
+        }
+
+        return readGzipTarHeader(archivePath, (err, isTar) => {
+            if (err) {
+                return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
+            }
+            if (isTar) {
+                return listWithArchiver();
             }
 
-            return cb(null, entries);
+            return readGzipPayloadSize(archivePath, (err, byteSize) => {
+                if (err) {
+                    return cb(Errors.ExternalProcess(`Gzip read failed: ${err.message}`));
+                }
+                return cb(null, [
+                    {
+                        byteSize: byteSize,
+                        fileName: getGzipPayloadName(archivePath),
+                    },
+                ]);
+            });
         });
     }
 
