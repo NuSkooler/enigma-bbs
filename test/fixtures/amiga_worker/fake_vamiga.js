@@ -10,6 +10,13 @@
 //                                              most |room| bytes (default: all)
 //    { type: 'fake', cmd: 'changes', chunks }  what hdfChangedChunks() returns
 //    { type: 'fake', cmd: 'state' }            report pacer and settle state
+//    { type: 'fake', cmd: 'hdfSize', size }    what hdfSize reports
+//    { type: 'fake', cmd: 'failOnce', method, code }
+//                                              the next fs[method] throws |code|
+//    { type: 'fake', cmd: 'touchOnFsync', path }
+//                                              the next fsyncSync also rewrites
+//                                              |path|'s mtime (someone else
+//                                              wrote the image mid-persist)
 //
 //  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state', ... };
 //  'ticked' carries the bytes the guest received during that frame.
@@ -141,6 +148,33 @@ parentPort.on('message', msg => {
                 data: Buffer.from(c.data),
             }));
             break;
+
+        case 'hdfSize':
+            emu.size = msg.size;
+            break;
+
+        case 'failOnce': {
+            const original = fs[msg.method];
+            fs[msg.method] = () => {
+                fs[msg.method] = original;
+                throw Object.assign(new Error(`${msg.code}: ${msg.method} (fake)`), {
+                    code: msg.code,
+                });
+            };
+            break;
+        }
+
+        case 'touchOnFsync': {
+            const original = fs.fsyncSync;
+            fs.fsyncSync = (...args) => {
+                fs.fsyncSync = original;
+                const r = original(...args);
+                const later = new Date(Date.now() + 10000);
+                fs.utimesSync(msg.path, later, later);
+                return r;
+            };
+            break;
+        }
 
         case 'state':
             parentPort.postMessage({

@@ -326,7 +326,107 @@ describe('amiga_door worker', function () {
         assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
     });
 
-    it('a failed persist leaves the image and no temporary file', async () => {
+    //  A persist that fails after the copy exists leaves the image as it was
+    //  and removes the copy.
+    async function persistFails(arrange) {
+        await exited();
+        const before = fs.readFileSync(image);
+        w.post({
+            type: 'fake',
+            cmd: 'changes',
+            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
+        });
+        arrange();
+        const settled = w.next(m => 'error' === m.type || 'persisted' === m.type);
+        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
+        const msg = await settled;
+        assert.deepEqual(fs.readFileSync(image), before, 'the image is untouched');
+        assert.deepEqual(fs.readdirSync(dir), ['door.hdf'], 'no temporary file left');
+        return msg;
+    }
+
+    it('removes the copy when it is not the size of the disk', async () => {
+        const err = await persistFails(() =>
+            w.post({ type: 'fake', cmd: 'hdfSize', size: 4096 })
+        );
+        assert.equal('error', err.type);
+        assert.equal(err.during, 'persist');
+        assert.match(err.message, /is 8192 bytes, the disk is 4096/);
+    });
+
+    it('removes the copy when the rename fails', async () => {
+        const err = await persistFails(() =>
+            w.post({ type: 'fake', cmd: 'failOnce', method: 'renameSync', code: 'EIO' })
+        );
+        assert.equal(err.during, 'persist');
+        assert.equal(err.code, 'EIO');
+        assert.doesNotMatch(err.message, /bind mount/, 'no hint for an unrelated error');
+    });
+
+    it('explains a rename the file system refuses', async () => {
+        const err = await persistFails(() =>
+            w.post({ type: 'fake', cmd: 'failOnce', method: 'renameSync', code: 'EBUSY' })
+        );
+        assert.equal(err.code, 'EBUSY');
+        assert.match(err.message, /writable directory.*free space.*bind mount/);
+    });
+
+    it('explains a copy the directory refuses', async () => {
+        const err = await persistFails(() =>
+            w.post({
+                type: 'fake',
+                cmd: 'failOnce',
+                method: 'copyFileSync',
+                code: 'EACCES',
+            })
+        );
+        assert.equal(err.code, 'EACCES');
+        assert.match(err.message, /writable directory/);
+    });
+
+    it('removes the copy when the image changes while it is written', async () => {
+        const msg = await persistFails(() =>
+            w.post({ type: 'fake', cmd: 'touchOnFsync', path: image })
+        );
+        assert.equal(msg.type, 'persisted');
+        assert.equal(msg.chunks, 0);
+        assert.match(msg.refused, /changed/);
+    });
+
+    it('removes only its own stale copies, and only old ones', async () => {
+        await exited();
+        const hour = 60 * 60 * 1000;
+        const stale = `${image}.123.456.persist`;
+        const fresh = `${image}.123.789.persist`;
+        const other = path.join(dir, 'other.hdf.123.456.persist');
+        const odd = `${image}.x.persist`;
+        for (const f of [stale, fresh, other, odd]) {
+            fs.writeFileSync(f, 'x');
+        }
+        const old = new Date(Date.now() - 2 * hour);
+        for (const f of [stale, other, odd]) {
+            fs.utimesSync(f, old, old);
+        }
+        w.post({
+            type: 'fake',
+            cmd: 'changes',
+            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
+        });
+        const done = w.next(m => 'persisted' === m.type);
+        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
+        assert.equal((await done).chunks, 1);
+        assert.deepEqual(
+            fs.readdirSync(dir).sort(),
+            [
+                'door.hdf',
+                path.basename(fresh),
+                path.basename(odd),
+                path.basename(other),
+            ].sort()
+        );
+    });
+
+    it('refuses a temporary file that is not beside the image', async () => {
         await exited();
         w.post({
             type: 'fake',
@@ -334,7 +434,6 @@ describe('amiga_door worker', function () {
             chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
         });
         const failed = w.next(m => 'error' === m.type);
-        //  a temporary file somewhere else is refused
         w.post({
             type: 'persist',
             path: image,
@@ -342,6 +441,7 @@ describe('amiga_door worker', function () {
         });
         const err = await failed;
         assert.equal(err.during, 'persist');
+        assert.match(err.message, /not beside/);
         assert.ok(fs.readFileSync(image).every(b => 0 === b));
         assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
     });

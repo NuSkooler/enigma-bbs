@@ -375,6 +375,42 @@ function fsyncDir(dir) {
     }
 }
 
+//  A persist copies the image and renames the copy over it: the image's
+//  directory must be writable with room for a second copy, and the image must
+//  be a plain file, not a single-file bind mount (a rename onto one fails).
+const PersistEnvErrors = ['EACCES', 'EPERM', 'EXDEV', 'EBUSY'];
+const PersistHint =
+    'persist needs a writable directory for the image with free space for a ' +
+    'copy of it, and an image that is not a single-file bind mount';
+const StaleTmpMs = 60 * 60 * 1000;
+
+//  Remove this image's own abandoned copies (<image>.<pid>.<ms>.persist, a
+//  crashed or killed persist) older than an hour; nothing else is touched.
+function removeStaleCopies(target) {
+    try {
+        const dir = paths.dirname(target);
+        const name = paths.basename(target);
+        const mine = new RegExp(
+            `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.\\d+\\.\\d+\\.persist$`
+        );
+        for (const f of fs.readdirSync(dir)) {
+            if (!mine.test(f)) {
+                continue;
+            }
+            const full = paths.join(dir, f);
+            try {
+                if (Date.now() - fs.statSync(full).mtimeMs > StaleTmpMs) {
+                    fs.unlinkSync(full);
+                }
+            } catch (e) {
+                //  gone already, or not ours to remove
+            }
+        }
+    } catch (e) {
+        //  best effort
+    }
+}
+
 //
 //  Write the session's disk changes back to the image, atomically: the image
 //  is copied to |tmp| beside it, the changed chunks go into the copy, the
@@ -414,6 +450,7 @@ function persist(path, tmp) {
         const chunks = emu.hdfChangedChunks(PersistChunkBytes);
         let bytes = 0;
         if (chunks.length) {
+            removeStaleCopies(target);
             tmp = tmp || `${target}.${process.pid}.${Date.now()}.persist`;
             if (paths.dirname(paths.resolve(tmp)) !== paths.dirname(target)) {
                 throw new Error(`persist: ${tmp} is not beside ${target}`);
@@ -462,6 +499,9 @@ function persist(path, tmp) {
             } catch (e2) {
                 //  best effort
             }
+        }
+        if (PersistEnvErrors.includes(e.code)) {
+            e.message = `${e.message} (${PersistHint})`;
         }
         postError(e, { during: 'persist', fatal: true });
     }
