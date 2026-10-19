@@ -16,9 +16,11 @@ const {
 } = require('../core/amiga_door/host_link.js');
 const { SnapshotCache } = require('../core/amiga_door/snapshot_cache.js');
 const { _test } = require('../core/amiga_door/amiga_door.js');
+const { checkPackage, versionAtLeast } = require('../core/amiga_door/vamiga_package.js');
 const {
     normalizeConfig,
-    shouldPersist,
+    PersistOnIgnored,
+    persistOnWarned,
     buildSessionKeys,
     cnetAccount,
     expandDoorArgs,
@@ -32,6 +34,11 @@ const {
     MaxDoorMinutes,
 } = _test;
 const AmigaDoorModule = require('../core/amiga_door/amiga_door.js').getModule;
+
+//  Whatever enigma-vamiga is installed (package.json may still pin 0.1.x), the
+//  module under test runs as on 0.2.0; the version gate has tests of its own
+const VAMIGA_OK = { version: '0.2.0', problem: null };
+_test.vamigaPackage = VAMIGA_OK;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -91,14 +98,27 @@ function fakeClient() {
     return client;
 }
 
+//
+//  A worker as the session sees it. Asked to 'stop', it answers as
+//  amiga_worker.js does: 'synced' (|syncReply|), then exits; with |autoStop|
+//  false a test plays that part itself.
+//
 class FakeWorker extends EventEmitter {
     constructor() {
         super();
         this.posted = [];
         this.terminated = false;
+        this.autoStop = true;
+        this.syncReply = { writes: 0, bytes: 0, sessionWrites: 0, ms: 1 };
     }
     postMessage(msg) {
         this.posted.push(msg);
+        if ('stop' === msg.type && this.autoStop) {
+            setImmediate(() => {
+                this.emit('message', Object.assign({ type: 'synced' }, this.syncReply));
+                this.emit('exit', 0);
+            });
+        }
     }
     terminate() {
         this.terminated = true;
@@ -211,7 +231,7 @@ describe('amiga_door config', () => {
         assert.equal(c.encoding, 'latin1');
         assert.equal(c.font, 'topaz');
         assert.equal(c.persist, true);
-        assert.deepEqual(c.persistOn, ['ok', 'carrier']); //  doorType xim
+        assert.equal(c.persistOn, undefined, 'retired');
         assert.equal(c.sharedState, false);
         assert.equal(c.log, false);
         assert.equal(c.warpBootSeconds, 30);
@@ -497,38 +517,46 @@ describe('amiga_door config', () => {
         assert.equal(config({ sharedState: false }).nodeMax, 0);
     });
 
-    it('defaults persistOn by door type; an explicit list always wins', () => {
-        assert.deepEqual(config({ doorType: 'xim' }).persistOn, ['ok', 'carrier']);
-        assert.deepEqual(config({ doorType: 'cli' }).persistOn, ['ok']);
-        assert.deepEqual(config({ doorType: 'aim', door: 'SYS:S/game.rexx' }).persistOn, [
-            'ok',
-        ]);
-        assert.deepEqual(
-            config({ doorType: 'tim', door: 'BBS:Doors/MSE/MSE' }).persistOn,
-            ['ok']
+    it('accepts and ignores persistOn, whatever it says, with a warning', () => {
+        for (const persistOn of [['ok', 'carrier'], 'ok', ['ok', 'hangup'], 42]) {
+            const {
+                config: c,
+                problems,
+                warnings,
+            } = normalizeConfig(Object.assign({}, BASE, { persistOn }));
+            assert.deepEqual(problems, [], JSON.stringify(persistOn));
+            assert.deepEqual(warnings, [PersistOnIgnored]);
+            assert.equal(c.persistOn, undefined);
+            assert.equal(c.persist, true);
+        }
+        assert.match(
+            PersistOnIgnored,
+            /persistOn.*ignored since 0\.6\.0.*as the door makes them/
         );
-        assert.deepEqual(
-            config({ doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' }).persistOn,
-            ['ok']
-        );
-        assert.deepEqual(
-            config({ doorType: 'cli', persistOn: ['ok', 'carrier'] }).persistOn,
-            ['ok', 'carrier']
-        );
-        assert.deepEqual(config({ doorType: 'xim', persistOn: ['ok'] }).persistOn, [
-            'ok',
-        ]);
+        assert.deepEqual(normalizeConfig(BASE).warnings, []);
     });
 
-    it('takes persistOn as a status or a list of statuses', () => {
-        assert.deepEqual(config({ persistOn: 'carrier' }).persistOn, ['carrier']);
-        assert.deepEqual(config({ persistOn: ['ok', 'carrier'] }).persistOn, [
-            'ok',
-            'carrier',
-        ]);
-        assert.ok(
-            problemsOf({ persistOn: ['ok', 'hangup'] }).some(p => p.includes('persistOn'))
-        );
+    it('wants an .hdf image, after symlinks', () => {
+        assert.deepEqual(problemsOf({ image: '/doors/x.HDF' }), []);
+        for (const image of ['/doors/x.img', '/doors/x.hdz', '/doors/x']) {
+            assert.ok(
+                problemsOf({ image }).some(p => /"image" must be an \.hdf file/.test(p)),
+                image
+            );
+        }
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amiga_door_ext_'));
+        try {
+            const real = path.join(dir, 'real.img');
+            fs.writeFileSync(real, Buffer.alloc(512));
+            const link = path.join(dir, 'door.hdf');
+            fs.symlinkSync(real, link);
+            assert.ok(
+                problemsOf({ image: link }).some(p => p.includes('.hdf')),
+                'the emulator goes by the real name'
+            );
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it('translates Amiga console controls by default for Latin-1 only', () => {
@@ -562,6 +590,7 @@ describe('amiga_door config', () => {
         const { problems, warnings } = normalizeConfig(
             Object.assign({}, BASE, {
                 persistOnn: ['ok', 'carrier'],
+                persistt: true,
                 nodemax: 2,
                 frobnicate: true,
                 _comment: 'ignored',
@@ -571,7 +600,9 @@ describe('amiga_door config', () => {
         );
         assert.deepEqual(problems, []);
         assert.deepEqual(warnings, [
-            'unknown key "persistOnn"; did you mean "persistOn"?',
+            //  never a retired key as the likely meaning
+            'unknown key "persistOnn"',
+            'unknown key "persistt"; did you mean "persist"?',
             'unknown key "nodemax"; did you mean "nodeMax"?',
             'unknown key "frobnicate"',
         ]);
@@ -597,12 +628,12 @@ describe('amiga_door config', () => {
                 normalizeConfig(Object.assign({}, BASE, { image })).warnings,
                 []
             );
-            //  a ROM supplied by the sysop may be a stock AROS build
+            //  a ROM supplied by the sysop may be an AROS build without the fix
             const { warnings } = normalizeConfig(Object.assign({}, BASE, { image, rom }));
             assert.equal(warnings.length, 1);
             assert.match(
                 warnings[0],
-                /4096 KB.*if this ROM is a stock AROS build.*2032 KB.*enigma-vamiga 0\.1\.2/
+                /4096 KB.*if this ROM is an AROS build from before 2026-10-19.*2032 KB.*enigma-vamiga 0\.1\.2/
             );
         } finally {
             fs.rmSync(image, { force: true });
@@ -789,21 +820,14 @@ describe('amiga_door host link', () => {
 // ─── snapshot cache ───────────────────────────────────────────────────────────
 
 describe('amiga_door snapshot cache', () => {
-    const stat = { mtimeMs: 1000, size: 4096 };
+    const stat = { mtimeMs: 1000, size: 4096, ino: 77, dev: 3 };
     const machine = config();
 
-    it('keys on image, mtime, size, ROMs and machine', () => {
-        const k = SnapshotCache.keyFor('/doors/a.hdf', stat, machine);
-        assert.equal(k, SnapshotCache.keyFor('/doors/../doors/a.hdf', stat, machine));
-        assert.notEqual(k, SnapshotCache.keyFor('/doors/b.hdf', stat, machine));
-        assert.notEqual(
-            k,
-            SnapshotCache.keyFor('/doors/a.hdf', { mtimeMs: 1001, size: 4096 }, machine)
-        );
-        assert.notEqual(
-            k,
-            SnapshotCache.keyFor('/doors/a.hdf', { mtimeMs: 1000, size: 8192 }, machine)
-        );
+    it('keys on image, ROMs, machine and the enigma-vamiga version', () => {
+        const k = SnapshotCache.keyFor('/doors/a.hdf', machine, '0.2.0');
+        assert.equal(k, SnapshotCache.keyFor('/doors/../doors/a.hdf', machine, '0.2.0'));
+        assert.notEqual(k, SnapshotCache.keyFor('/doors/b.hdf', machine, '0.2.0'));
+        assert.notEqual(k, SnapshotCache.keyFor('/doors/a.hdf', machine, '0.2.1'));
         for (const change of [
             { cpu: '68000' },
             { chipKb: 1024 },
@@ -816,146 +840,182 @@ describe('amiga_door snapshot cache', () => {
             const other = Object.assign({}, machine, change);
             assert.notEqual(
                 k,
-                SnapshotCache.keyFor('/doors/a.hdf', stat, other),
+                SnapshotCache.keyFor('/doors/a.hdf', other, '0.2.0'),
                 JSON.stringify(change)
             );
         }
         //  things a booted machine does not depend on
         const same = Object.assign({}, machine, { font: 'none', log: true, nodeMax: 9 });
-        assert.equal(k, SnapshotCache.keyFor('/doors/a.hdf', stat, same));
+        assert.equal(k, SnapshotCache.keyFor('/doors/a.hdf', same, '0.2.0'));
     });
 
-    it('stores a shared copy and hands it back', () => {
+    it('stores a shared copy and hands it back while the image is unchanged', () => {
         const cache = new SnapshotCache();
-        const key = SnapshotCache.keyFor('/doors/a.hdf', stat, machine);
-        const stored = cache.set(key, Buffer.from([1, 2, 3]));
+        const key = SnapshotCache.keyFor('/doors/a.hdf', machine);
+        const stored = cache.set(key, Buffer.from([1, 2, 3]), {}, stat);
         assert.ok(stored.buffer instanceof SharedArrayBuffer);
-        assert.deepEqual([...cache.get(key)], [1, 2, 3]);
-        assert.equal(cache.get('nope'), undefined);
-        assert.deepEqual(cache.meta(key), {});
-        cache.set(key, Buffer.from([4]), { serialHandshake: true });
-        assert.deepEqual(cache.meta(key), { serialHandshake: true });
+        const hit = cache.lookup(key, Object.assign({ atimeMs: 5 }, stat));
+        assert.deepEqual([...hit.snapshot], [1, 2, 3]);
+        assert.deepEqual(hit.meta, {});
+        assert.equal(cache.lookup('nope', stat), null);
         assert.equal(cache.meta('nope'), undefined);
+        cache.set(key, Buffer.from([4]), { serialHandshake: true }, stat);
+        assert.deepEqual(cache.lookup(key, stat).meta, { serialHandshake: true });
+    });
+
+    it('drops an entry once the image is not the file it was taken with', () => {
+        const key = SnapshotCache.keyFor('/doors/a.hdf', machine);
+        for (const change of [
+            { mtimeMs: 1001 },
+            { size: 8192 },
+            { ino: 78 },
+            { dev: 4 },
+        ]) {
+            const cache = new SnapshotCache();
+            cache.set(key, Buffer.from([1]), {}, stat);
+            const now = Object.assign({}, stat, change);
+            const miss = cache.lookup(key, now);
+            assert.equal(miss.stale, true, JSON.stringify(change));
+            assert.deepEqual(miss.was, stat);
+            assert.equal(cache.size, 0, 'dropped');
+            assert.equal(cache.lookup(key, now), null);
+        }
+    });
+
+    it('keeps no snapshot it cannot check against its image', () => {
+        const cache = new SnapshotCache();
+        const key = SnapshotCache.keyFor('/doors/a.hdf', machine);
+        assert.equal(cache.set(key, Buffer.from([1])), null);
+        assert.equal(cache.size, 0);
     });
 
     it('evicts the least recently used past maxEntries', () => {
         const cache = new SnapshotCache({ maxEntries: 2 });
         const keys = ['a', 'b', 'c'].map(n =>
-            SnapshotCache.keyFor(`/doors/${n}.hdf`, stat, machine)
+            SnapshotCache.keyFor(`/doors/${n}.hdf`, machine)
         );
-        cache.set(keys[0], Buffer.from([0]));
-        cache.set(keys[1], Buffer.from([1]));
-        cache.get(keys[0]); //  a is now more recent than b
-        cache.set(keys[2], Buffer.from([2]));
+        cache.set(keys[0], Buffer.from([0]), {}, stat);
+        cache.set(keys[1], Buffer.from([1]), {}, stat);
+        cache.lookup(keys[0], stat); //  a is now more recent than b
+        cache.set(keys[2], Buffer.from([2]), {}, stat);
         assert.equal(cache.size, 2);
-        assert.ok(cache.get(keys[0]));
-        assert.equal(cache.get(keys[1]), undefined);
-        assert.ok(cache.get(keys[2]));
+        assert.ok(cache.lookup(keys[0], stat));
+        assert.equal(cache.lookup(keys[1], stat), null);
+        assert.ok(cache.lookup(keys[2], stat));
     });
 
-    it('invalidates every snapshot of one image', () => {
+    it('invalidates every snapshot of one image, or drops one entry', () => {
         const cache = new SnapshotCache();
-        const a1 = SnapshotCache.keyFor('/doors/a.hdf', stat, machine);
+        const a1 = SnapshotCache.keyFor('/doors/a.hdf', machine);
         const a2 = SnapshotCache.keyFor(
             '/doors/a.hdf',
-            stat,
             Object.assign({}, machine, { cpu: '68000' })
         );
-        const b = SnapshotCache.keyFor('/doors/b.hdf', stat, machine);
-        [a1, a2, b].forEach(k => cache.set(k, Buffer.from([9])));
+        const b = SnapshotCache.keyFor('/doors/b.hdf', machine);
+        [a1, a2, b].forEach(k => cache.set(k, Buffer.from([9]), {}, stat));
         assert.equal(cache.invalidateImage('/doors/./a.hdf'), 2);
         assert.equal(cache.size, 1);
-        assert.ok(cache.get(b));
+        assert.ok(cache.lookup(b, stat));
+        assert.equal(cache.drop(b), true);
+        assert.equal(cache.drop(b), false);
+        assert.equal(cache.size, 0);
     });
 
     it('caches nothing with maxEntries 0', () => {
         const cache = new SnapshotCache({ maxEntries: 0 });
         assert.equal(
-            cache.set(SnapshotCache.keyFor('/a', stat, machine), Buffer.from([1])),
+            cache.set(SnapshotCache.keyFor('/a', machine), Buffer.from([1]), {}, stat),
             null
         );
         assert.equal(cache.size, 0);
     });
 });
 
-// ─── exit / persist decision ──────────────────────────────────────────────────
+// ─── enigma-vamiga version ────────────────────────────────────────────────────
 
-describe('amiga_door persist decision', () => {
-    it('persists on ok, and on a carrier exit the door made itself, by default', () => {
-        const c = config();
-        assert.deepEqual(c.persistOn, ['ok', 'carrier']);
-        assert.equal(shouldPersist(c, 'ok'), true);
-        assert.equal(shouldPersist(c, 'ok', { rc: '-1' }), true);
-        assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), true);
-        for (const status of ['timeout', 'break', 'error', undefined]) {
-            assert.equal(shouldPersist(c, status, { rc: '0' }), false, String(status));
-        }
+describe('amiga_door enigma-vamiga version', () => {
+    class Current {
+        hdfSync() {}
+        setWriteThrough() {}
+    }
+    class Old {
+        persistHdf() {}
+    }
+    const pkg = (VAmiga, version) => () => ({ pkg: { VAmiga }, version });
+
+    it('compares major.minor.patch, a prerelease counting as its version', () => {
+        assert.ok(versionAtLeast('0.2.0', '0.2.0'));
+        assert.ok(versionAtLeast('0.2.0-dev', '0.2.0'));
+        assert.ok(versionAtLeast('0.10.0', '0.2.0'));
+        assert.ok(versionAtLeast('1.0.0', '0.2.0'));
+        assert.ok(!versionAtLeast('0.1.3', '0.2.0'));
+        assert.ok(!versionAtLeast('0.1.99', '0.2.0'));
+        assert.ok(!versionAtLeast(undefined, '0.2.0'));
+        assert.ok(!versionAtLeast('junk', '0.2.0'));
     });
 
-    it('does not persist a CLI, ARexx, Paragon or C-Net door on a hangup by default', () => {
-        for (const extra of [
-            { doorType: 'cli' },
-            { doorType: 'aim', door: 'SYS:S/g.rexx' },
-            { doorType: 'tim', door: 'BBS:Doors/MSE/MSE' },
-            { doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' },
-        ]) {
-            const c = config(extra);
-            assert.equal(shouldPersist(c, 'ok', { rc: '0' }), true);
-            assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), false);
-        }
-        const widened = config({ doorType: 'cli', persistOn: ['ok', 'carrier'] });
-        assert.equal(shouldPersist(widened, 'carrier', { rc: '0' }), true);
+    it('accepts 0.2.0 and later with a file-backed disk', () => {
+        assert.deepEqual(checkPackage(pkg(Current, '0.2.0-dev')), {
+            version: '0.2.0-dev',
+            problem: null,
+        });
+        assert.equal(checkPackage(pkg(Current, '0.3.1')).problem, null);
     });
 
-    it('counts only a plain integer rc as the door ending by itself', () => {
-        const c = config();
-        const cases = [
-            [{ rc: '0' }, true],
-            [{ rc: '5' }, true],
-            [{ rc: '-2' }, true],
-            [{ rc: 0 }, true],
-            [{ rc: '-1' }, false],
-            [{ rc: -1 }, false],
-            [{ rc: '' }, false],
-            [{ rc: ' ' }, false],
-            [{ rc: null }, false],
-            [{ rc: '1.5' }, false],
-            [{ rc: '0x10' }, false],
-            [{ rc: '5 ' }, false],
-            [{ rc: 'x' }, false],
-            [{}, false],
-            [undefined, false],
-        ];
-        for (const [keys, expected] of cases) {
-            assert.equal(
-                shouldPersist(c, 'carrier', keys),
-                expected,
-                JSON.stringify(keys)
+    it('refuses 0.1.x, or a package without the file-backed disk, naming both versions', () => {
+        const old = checkPackage(pkg(Old, '0.1.3'));
+        assert.equal(old.version, '0.1.3');
+        assert.match(
+            old.problem,
+            /enigma-vamiga 0\.1\.3 is installed.*need 0\.2\.0 or later/
+        );
+        assert.match(checkPackage(pkg(Old, '0.2.0')).problem, /0\.2\.0 is installed/);
+        assert.match(checkPackage(pkg(Current, '0.1.9')).problem, /0\.1\.9 is installed/);
+        const missing = checkPackage(() => {
+            throw new Error("Cannot find module 'enigma-vamiga'");
+        });
+        assert.equal(missing.version, null);
+        assert.match(missing.problem, /0\.2\.0 or later is required.*Cannot find module/);
+    });
+
+    it('refuses to start a door on an old package, saying why in the log', async () => {
+        _test.vamigaPackage = checkPackage(pkg(Old, '0.1.3'));
+        try {
+            const m = makeModule({});
+            assert.equal(await startModule(m), 'refused');
+            assert.match(m.client.term.written.join(''), /XIMTest could not be run/);
+            const line = m.client.log.lines.find(
+                l => 'Could not start Amiga door' === l.msg
             );
+            assert.match(line.obj.error, /0\.1\.3 is installed.*0\.2\.0 or later/);
+            assert.equal(activeImages.size, 0, 'nothing held');
+        } finally {
+            _test.vamigaPackage = VAMIGA_OK;
         }
     });
+});
 
-    it('does not persist a carrier exit unless the door ended by itself', () => {
-        const c = config();
-        assert.equal(shouldPersist(c, 'carrier', { rc: '5' }), true);
-        assert.equal(shouldPersist(c, 'carrier', { rc: '-1' }), false);
-        assert.equal(shouldPersist(c, 'carrier', { rc: -1 }), false);
-        assert.equal(shouldPersist(c, 'carrier', {}), false);
-        assert.equal(shouldPersist(c, 'carrier'), false);
-        assert.equal(shouldPersist(c, 'carrier', { rc: 'x' }), false);
-    });
+// ─── persistOn (retired) ──────────────────────────────────────────────────────
 
-    it('never persists with persist: false', () => {
-        assert.equal(shouldPersist(config({ persist: false }), 'ok'), false);
-    });
+describe('amiga_door persistOn', () => {
+    afterEach(() => persistOnWarned.clear());
 
-    it('widens with persistOn', () => {
-        const c = config({ persistOn: ['ok', 'timeout', 'break'] });
-        assert.equal(shouldPersist(c, 'carrier', { rc: '0' }), false);
-        assert.equal(shouldPersist(c, 'timeout', { rc: '0' }), true);
-        assert.equal(shouldPersist(c, 'timeout', { rc: '-1' }), false);
-        assert.equal(shouldPersist(c, 'break', { rc: '0' }), true);
-        assert.equal(shouldPersist(c, 'break'), false);
+    it('warns once per door that persistOn does nothing, and runs the door', async () => {
+        const warnings = m =>
+            m.client.log.lines.filter(
+                l => 'warn' === l.level && l.msg.includes('"persistOn" is ignored')
+            );
+        const name = 'OldMenu';
+        //  checkFiles refuses the missing image; the warning comes before it
+        const first = makeModule({ name, persistOn: ['ok'] });
+        await startModule(first);
+        assert.equal(warnings(first).length, 1);
+        const again = makeModule({ name, persistOn: ['ok'] });
+        await startModule(again);
+        assert.equal(warnings(again).length, 0, 'once per door');
+        const other = makeModule({ name: 'Another', persistOn: ['ok'] });
+        await startModule(other);
+        assert.equal(warnings(other).length, 1);
     });
 });
 
@@ -1112,164 +1172,149 @@ describe('amiga_door session', () => {
         await s.done;
     });
 
-    it('X status=ok persists, then drops the image snapshots when chunks changed', async () => {
-        const image = path.join(os.tmpdir(), `amiga_door_test_${process.pid}.hdf`);
-        const s = makeSession({ image });
-        s.cache.set(
-            SnapshotCache.keyFor(image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        const link = new HostLink({ helloSeen: true });
+    //  A cached snapshot of BASE.image, as onSnapshot() would store one
+    const cacheSnapshot = s => {
+        const key = SnapshotCache.keyFor(BASE.image, s.session.config, '0.2.0');
+        s.cache.set(key, Buffer.from([1]), {}, { size: 1, mtimeMs: 1, ino: 1, dev: 1 });
+        return key;
+    };
+    const closedOf = s => new Promise(r => s.session.once('closed', r));
+    const logged = (s, re, level) =>
+        s.client.log.lines.find(l => re.test(l.msg) && (!level || level === l.level));
 
-        deliver(
-            s.worker,
-            workerMessages(
-                link,
-                Buffer.concat([
-                    protocol.encode('L', { door: BASE.door, pid: 0 }),
-                    Buffer.from('Bye!\r\n'),
-                    protocol.encode('X', { status: 'ok', reg: 0, cmds: 17, wrote: 1 }),
-                ])
-            )
-        );
-
-        //  the persist request goes out through the image lock
-        await new Promise(r => setImmediate(r));
-        const persist = s.worker.sent('persist');
-        assert.equal(persist.length, 1);
-        assert.equal(persist[0].path, image);
-        assert.equal(s.worker.terminated, false, 'not before the disk is written');
-
-        s.worker.emit('message', { type: 'persisted', chunks: 2, bytes: 131072, ms: 3 });
-        const result = await s.done;
-        assert.equal(result.status, 'ok');
-        assert.equal(result.persisted, true);
-        assert.equal(result.chunks, 2);
-        assert.equal(s.cache.size, 0, 'snapshot dropped');
-        assert.ok(s.worker.terminated);
-    });
-
-    it('X status=ok with no changed chunks keeps the snapshot', async () => {
-        const s = makeSession();
-        s.cache.set(
-            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
-        s.worker.emit('message', { type: 'persisted', chunks: 0, bytes: 0, ms: 1 });
-        await s.done;
-        assert.equal(s.cache.size, 1);
-    });
-
-    it('asks for the persist through a temporary file beside the image', async () => {
-        const s = makeSession();
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
-        const [persist] = s.worker.sent('persist');
-        assert.equal(persist.path, BASE.image);
-        assert.equal(path.dirname(persist.tmp), path.dirname(BASE.image));
-        assert.notEqual(persist.tmp, BASE.image);
-        s.worker.emit('message', { type: 'persisted', chunks: 0, bytes: 0, ms: 1 });
-        await s.done;
-    });
-
-    it('a slow persist ends the session but never stops the worker mid-write', async () => {
-        const s = makeSession({}, { timeouts: { persist: 10, persistAbandon: 5000 } });
-        const closed = new Promise(r => s.session.once('closed', r));
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        const result = await s.done;
-        assert.equal(result.persisted, false);
-        assert.match(result.error, /persist did not finish/);
-        assert.equal(s.worker.terminated, false, 'still writing');
-
-        s.worker.emit('message', { type: 'persisted', chunks: 1, bytes: 512, ms: 50 });
-        await closed;
-        assert.ok(s.worker.terminated);
-    });
-
-    it('gives up on a persist that never finishes and removes its copy', async () => {
-        const image = path.join(os.tmpdir(), `amiga_door_abandon_${process.pid}.hdf`);
-        fs.writeFileSync(image, Buffer.alloc(16));
-        try {
-            const s = makeSession(
-                { image },
-                { timeouts: { persist: 5, persistAbandon: 20 } }
+    for (const status of ['ok', 'carrier', 'timeout', 'break', 'error']) {
+        it(`X status=${status} ends the session, then the worker syncs the image and stops`, async () => {
+            const s = makeSession();
+            s.worker.autoStop = false;
+            const closed = closedOf(s);
+            deliver(
+                s.worker,
+                workerMessages(
+                    new HostLink({ helloSeen: true }),
+                    protocol.encode('X', { status, rc: '0', wrote: 1 })
+                )
             );
-            const closed = new Promise(r => s.session.once('closed', r));
-            deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-            await new Promise(r => setImmediate(r));
-            const [persist] = s.worker.sent('persist');
-            fs.writeFileSync(persist.tmp, 'half'); //  the worker got this far
-            await s.done;
-            assert.equal(s.worker.terminated, false);
+            const result = await s.done;
+            assert.equal(result.status, status);
+            assert.equal(result.keys.wrote, '1');
+            assert.equal(result.persisted, undefined, 'nothing to decide');
+            assert.equal(s.worker.sent('stop').length, 1, 'whatever the status');
+            assert.equal(s.worker.terminated, false, 'not before it has synced');
+
+            s.worker.emit('message', {
+                type: 'synced',
+                writes: 3,
+                bytes: 12288,
+                sessionWrites: 3,
+                ms: 4,
+            });
+            s.worker.emit('exit', 0);
             await closed;
             assert.ok(s.worker.terminated);
-            await new Promise(r => setTimeout(r, 20));
-            assert.equal(fs.existsSync(persist.tmp), false);
-            assert.equal(fs.readFileSync(image).length, 16);
-        } finally {
-            fs.rmSync(image, { force: true });
-        }
+            const line = logged(s, /^Amiga door disk synced$/, 'info');
+            assert.equal(line.obj.writes, 3);
+            assert.equal(line.obj.bytes, 12288);
+        });
+    }
+
+    it('a session that wrote drops the image snapshots; one that did not keeps them', async () => {
+        const wrote = makeSession();
+        cacheSnapshot(wrote);
+        wrote.worker.syncReply = { writes: 2, bytes: 8192, sessionWrites: 2, ms: 3 };
+        const closedWrote = closedOf(wrote);
+        deliver(wrote.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closedWrote;
+        assert.equal(wrote.cache.size, 0);
+        assert.equal(logged(wrote, /disk synced/).obj.snapshotsDropped, 1);
+
+        //  writes before the session (a boot's) are in the snapshot already
+        const idle = makeSession();
+        cacheSnapshot(idle);
+        idle.worker.syncReply = { writes: 1, bytes: 4096, sessionWrites: 0, ms: 1 };
+        const closedIdle = closedOf(idle);
+        deliver(idle.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closedIdle;
+        assert.equal(idle.cache.size, 1);
     });
 
-    it('a worker that dies mid-persist is not waited for', async () => {
-        const s = makeSession({}, { timeouts: { persistAbandon: 60000 } });
-        const closed = new Promise(r => s.session.once('closed', r));
+    it('says when a door left its disk alone', async () => {
+        const s = makeSession();
+        const closed = closedOf(s);
         deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
+        await closed;
+        assert.ok(logged(s, /left its disk unchanged/, 'info'));
+    });
+
+    it('logs a failed sync as such, and still frees the image', async () => {
+        const s = makeSession();
+        s.worker.syncReply = {
+            writes: 1,
+            bytes: 4096,
+            sessionWrites: 1,
+            ms: 2,
+            error: 'EIO: i/o error, fsync',
+            code: 'EIO',
+        };
+        const closed = closedOf(s);
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closed;
+        const line = logged(s, /disk sync FAILED: EIO/, 'warn');
+        assert.ok(line);
+        assert.equal(line.obj.code, 'EIO');
+        assert.ok(s.worker.terminated);
+    });
+
+    it('with persist: false nothing is synced and the snapshots stay', async () => {
+        const s = makeSession({ persist: false });
+        cacheSnapshot(s);
+        s.worker.syncReply = { skipped: true };
+        const closed = closedOf(s);
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await closed;
+        assert.equal(s.cache.size, 1);
+        assert.ok(logged(s, /not synced: persist is off/));
+    });
+
+    it('terminates a worker that does not stop within timeouts.stop', async () => {
+        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 30, stop: 10 } });
+        cacheSnapshot(s);
+        s.worker.autoStop = false;
+        const closed = closedOf(s);
+        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
+        await s.done;
+        assert.equal(s.worker.terminated, false);
+        await closed;
+        assert.ok(s.worker.terminated);
+        assert.ok(logged(s, /did not stop within 10 ms/, 'warn'));
+        assert.equal(s.cache.size, 0, 'whether it wrote is unknown');
+    });
+
+    it('a worker that is gone is not asked to stop', async () => {
+        const s = makeSession();
+        const closed = closedOf(s);
         s.worker.emit('exit', 1);
         const result = await s.done;
         assert.match(result.error, /exited unexpectedly/);
         await closed;
+        assert.equal(s.worker.sent('stop').length, 0);
     });
 
-    it('a persist refused because the image changed drops its snapshots', async () => {
-        const s = makeSession();
-        s.cache.set(
-            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        deliver(s.worker, [{ type: 'exit', status: 'ok', keys: { status: 'ok' } }]);
-        await new Promise(r => setImmediate(r));
-        s.worker.emit('message', {
-            type: 'persisted',
-            chunks: 0,
-            bytes: 0,
-            ms: 1,
-            refused: 'the image changed during the session',
-        });
-        const result = await s.done;
-        assert.equal(result.persisted, false);
-        assert.match(result.refused, /changed/);
+    it('drops a snapshot the emulator refused', async () => {
+        const key = SnapshotCache.keyFor(BASE.image, config(), '0.2.0');
+        const s = makeSession({}, { cacheKey: key });
+        cacheSnapshot(s);
+        deliver(s.worker, [
+            {
+                type: 'snapshotRefused',
+                message: 'Snapshot was created with an older version of vAmiga',
+            },
+        ]);
         assert.equal(s.cache.size, 0);
-        assert.ok(
-            s.client.log.lines.some(
-                l => 'warn' === l.level && /NOT persisted/.test(l.msg)
-            )
-        );
-    });
-
-    it('a cut-short exit that persists nothing keeps the image snapshots', async () => {
-        const s = makeSession();
-        s.cache.set(
-            SnapshotCache.keyFor(BASE.image, { mtimeMs: 1, size: 1 }, s.session.config),
-            Buffer.from([1])
-        );
-        deliver(
-            s.worker,
-            workerMessages(
-                new HostLink({ helloSeen: true }),
-                protocol.encode('X', { status: 'carrier', rc: '-1' })
-            )
-        );
-        const result = await s.done;
-        assert.equal(result.persisted, false);
-        assert.equal(s.cache.size, 1);
-        assert.ok(
-            s.client.log.lines.some(l => /NOT persisted/.test(l.msg)),
-            'the cut-short exit is still logged'
-        );
+        const line = logged(s, /snapshot refused/, 'debug');
+        assert.match(line.obj.reason, /older version/);
+        assert.equal(line.obj.dropped, true);
+        s.session.disconnect('hangup');
+        await s.done;
     });
 
     it('a late error from a finished worker is swallowed', async () => {
@@ -1278,24 +1323,6 @@ describe('amiga_door session', () => {
         await s.done;
         assert.doesNotThrow(() => s.worker.emit('error', new Error('late')));
     });
-
-    for (const status of ['carrier', 'timeout', 'break', 'error']) {
-        it(`X status=${status} does not persist`, async () => {
-            const s = makeSession();
-            deliver(
-                s.worker,
-                workerMessages(
-                    new HostLink({ helloSeen: true }),
-                    protocol.encode('X', { status })
-                )
-            );
-            const result = await s.done;
-            assert.equal(result.status, status);
-            assert.equal(result.persisted, false);
-            assert.equal(s.worker.sent('persist').length, 0);
-            assert.ok(s.worker.terminated);
-        });
-    }
 
     it('a hangup sends d reason=hangup and waits for X status=carrier', async () => {
         const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
@@ -1318,7 +1345,6 @@ describe('amiga_door session', () => {
         const result = await s.done;
         assert.equal(result.status, 'carrier');
         assert.equal(result.reason, 'hangup');
-        assert.equal(result.persisted, false);
     });
 
     it('another session disconnecting is not ours', async () => {
@@ -1354,49 +1380,35 @@ describe('amiga_door session', () => {
         );
     });
 
-    it('a hangup persists what a door saved when it ended by itself', async () => {
-        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
-        s.session.disconnect('hangup');
-        //  the shim's X comes back well within the grace
-        deliver(s.worker, [
-            {
-                type: 'exit',
-                status: 'carrier',
-                keys: { status: 'carrier', rc: '0' },
-            },
-        ]);
-        await new Promise(r => setImmediate(r));
-        assert.equal(s.worker.sent('persist').length, 1);
-        s.worker.emit('message', { type: 'persisted', chunks: 1, bytes: 512, ms: 3 });
-        const result = await s.done;
-        assert.equal(result.status, 'carrier');
-        assert.equal(result.reason, 'hangup');
-        assert.equal(result.persisted, true);
-    });
+    for (const rc of ['0', '-1']) {
+        it(`a hangup leaves the door its grace, then syncs what it wrote (rc ${rc})`, async () => {
+            const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
+            const closed = closedOf(s);
+            s.session.disconnect('hangup');
+            assert.equal(s.worker.sent('stop').length, 0, 'the door may still be saving');
+            //  the shim's X comes back within the grace; a door it gave up on
+            //  (rc -1) is synced all the same: its writes are in the image
+            deliver(s.worker, [
+                { type: 'exit', status: 'carrier', keys: { status: 'carrier', rc } },
+            ]);
+            const result = await s.done;
+            assert.equal(result.status, 'carrier');
+            assert.equal(result.reason, 'hangup');
+            assert.equal(s.worker.sent('stop').length, 1);
+            await closed;
+            assert.ok(s.worker.terminated);
+        });
+    }
 
-    it('a hangup does not persist a door the shim gave up on (rc -1)', async () => {
-        const s = makeSession({}, { timeouts: { exitAfterDisconnect: 5000 } });
-        s.session.disconnect('hangup');
-        deliver(s.worker, [
-            {
-                type: 'exit',
-                status: 'carrier',
-                keys: { status: 'carrier', rc: '-1' },
-            },
-        ]);
-        const result = await s.done;
-        assert.equal(s.worker.sent('persist').length, 0);
-        assert.equal(result.status, 'carrier');
-        assert.equal(result.persisted, false);
-    });
-
-    it('drops the worker when no X follows d', async () => {
+    it('drops the worker, after a sync, when no X follows d', async () => {
         const s = makeSession();
+        const closed = closedOf(s);
         s.session.disconnect('break');
         const result = await s.done;
         assert.equal(result.reason, 'break');
         assert.equal(result.status, undefined);
-        assert.equal(result.persisted, false);
+        assert.equal(s.worker.sent('stop').length, 1);
+        await closed;
         assert.ok(s.worker.terminated);
     });
 
@@ -1464,32 +1476,43 @@ describe('amiga_door session', () => {
         await s.done;
     });
 
-    it('caches the snapshot a booting worker posts', async () => {
-        const s = makeSession(
-            {},
-            {
-                cacheKey: SnapshotCache.keyFor(
-                    BASE.image,
-                    { mtimeMs: 5, size: 5 },
-                    config()
-                ),
-            }
-        );
+    it('caches the snapshot a booting worker posts, with its image stat', async () => {
+        const key = SnapshotCache.keyFor(BASE.image, config(), '0.2.0');
+        const stat = { size: 5, mtimeMs: 5, ino: 5, dev: 5 };
+        const s = makeSession({}, { cacheKey: key });
         s.worker.emit('message', {
             type: 'snapshot',
             snapshot: new Uint8Array([7, 7]),
             ms: 40,
             serialHandshake: true,
+            stat,
         });
         assert.equal(s.cache.size, 1);
         //  the RTS/CTS setting goes with it, for the workers that restore it
-        assert.deepEqual(s.cache.meta(s.session.cacheKey), { serialHandshake: true });
+        const hit = s.cache.lookup(key, stat);
+        assert.deepEqual(hit.meta, { serialHandshake: true });
+        assert.deepEqual([...hit.snapshot], [7, 7]);
+        assert.ok(logged(s, /^Amiga door snapshot cached$/));
+
+        //  without a stat there is nothing to check a restore against
+        const bare = makeSession({}, { cacheKey: key });
+        bare.cache.clear();
+        bare.worker.emit('message', {
+            type: 'snapshot',
+            snapshot: new Uint8Array([7]),
+            ms: 40,
+        });
+        assert.equal(bare.cache.size, 0);
+        assert.ok(logged(bare, /not cached \(no stat/));
+
         s.session.disconnect('hangup');
-        await s.done;
+        bare.session.disconnect('hangup');
+        await Promise.all([s.done, bare.done]);
     });
 
-    it('a fatal worker error ends the session without persisting', async () => {
+    it('a fatal worker error ends the session; the worker still syncs', async () => {
         const s = makeSession();
+        const closed = closedOf(s);
         s.worker.emit('message', {
             type: 'error',
             message: 'The emulated CPU halted',
@@ -1498,17 +1521,22 @@ describe('amiga_door session', () => {
         });
         const result = await s.done;
         assert.equal(result.code, 'CPU_HALT');
-        assert.equal(result.persisted, false);
+        assert.equal(s.worker.sent('stop').length, 1);
+        await closed;
         assert.ok(s.worker.terminated);
     });
 
     it('cleans up its listeners', async () => {
         const s = makeSession();
+        const closed = closedOf(s);
         s.session.disconnect('hangup');
         await s.done;
         assert.equal(s.client.listenerCount('time up'), 0);
         assert.equal(s.client.term.output.listenerCount('data'), 0);
+        //  the worker's, once it has synced and gone
+        await closed;
         assert.equal(s.worker.listenerCount('message'), 0);
+        assert.equal(s.worker.listenerCount('exit'), 0);
     });
 });
 
