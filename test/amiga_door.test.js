@@ -20,6 +20,7 @@ const {
     normalizeConfig,
     shouldPersist,
     buildSessionKeys,
+    cnetAccount,
     expandDoorArgs,
     quoteArg,
     userText,
@@ -327,6 +328,71 @@ describe('amiga_door config', () => {
         );
     });
 
+    it('takes doorType cnetrexx (C-Net ARexx) with the script as an absolute Amiga path', () => {
+        const c = config({ doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' });
+        assert.equal(c.doorType, 'cnetrexx');
+        assert.deepEqual(
+            problemsOf({
+                doorType: 'cnetrexx',
+                door: 'PFILES:Badlibs/badlibs',
+                panicGraceSeconds: 0,
+                wordWrap: false,
+                assigns: { PFILES: 'BBS:PFiles' },
+            }),
+            []
+        );
+        for (const door of [
+            'Badlibs/badlibs', //  relative
+            'PFILES:Bad Libs/badlibs', //  a blank ends the script's name
+            'PFILES:x;y',
+            'PFILES:',
+        ]) {
+            assert.ok(
+                problemsOf({ doorType: 'cnetrexx', door }).some(p =>
+                    p.includes('doorType "cnetrexx" must be the script')
+                ),
+                `no problem reported for ${door}`
+            );
+        }
+        for (const v of [-1, 26, 2.5, '10']) {
+            assert.ok(
+                problemsOf({
+                    doorType: 'cnetrexx',
+                    door: 'PFILES:x',
+                    panicGraceSeconds: v,
+                }).some(p => p.includes('"panicGraceSeconds" must be')),
+                `panicGraceSeconds ${v}`
+            );
+        }
+        assert.ok(
+            problemsOf({ doorType: 'cnetrexx', door: 'PFILES:x', wordWrap: 'no' }).some(
+                p => p.includes('"wordWrap" must be')
+            )
+        );
+        for (const doorType of ['xim', 'aim', 'tim', 'cli']) {
+            for (const [key, value] of [
+                ['panicGraceSeconds', 5],
+                ['wordWrap', false],
+            ]) {
+                assert.ok(
+                    problemsOf({ doorType, door: 'BBS:x', [key]: value }).some(p =>
+                        p.includes(`"${key}" applies to doorType "cnetrexx" only`)
+                    ),
+                    `${doorType} ${key}`
+                );
+            }
+        }
+        const { warnings } = normalizeConfig(
+            Object.assign({}, BASE, {
+                doorType: 'cnetrexx',
+                door: 'PFILES:x',
+                panicGraceSeconds: 3,
+                wordWrap: true,
+            })
+        );
+        assert.deepEqual(warnings, [], 'panicGraceSeconds and wordWrap are known keys');
+    });
+
     it('takes assigns and env as NAME: value objects the shim can hold', () => {
         const { problems, warnings } = normalizeConfig(
             Object.assign({}, BASE, {
@@ -417,6 +483,10 @@ describe('amiga_door config', () => {
         ]);
         assert.deepEqual(
             config({ doorType: 'tim', door: 'BBS:Doors/MSE/MSE' }).persistOn,
+            ['ok']
+        );
+        assert.deepEqual(
+            config({ doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' }).persistOn,
             ['ok']
         );
         assert.deepEqual(
@@ -796,11 +866,12 @@ describe('amiga_door persist decision', () => {
         }
     });
 
-    it('does not persist a CLI, ARexx or Paragon door on a hangup by default', () => {
+    it('does not persist a CLI, ARexx, Paragon or C-Net door on a hangup by default', () => {
         for (const extra of [
             { doorType: 'cli' },
             { doorType: 'aim', door: 'SYS:S/g.rexx' },
             { doorType: 'tim', door: 'BBS:Doors/MSE/MSE' },
+            { doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' },
         ]) {
             const c = config(extra);
             assert.equal(shouldPersist(c, 'ok', { rc: '0' }), true);
@@ -1581,6 +1652,38 @@ describe('amiga_door image lock', () => {
         assert.doesNotMatch(busy.client.term.written.join(''), /could not be run/);
     });
 
+    it('runs a C-Net ARexx door only for a logged-in user', async () => {
+        const cnet = { image, doorType: 'cnetrexx', door: 'PFILES:Badlibs/badlibs' };
+        const user = (userId, authenticated) => ({
+            userId,
+            isAuthenticated: () => authenticated,
+        });
+
+        for (const u of [undefined, user(0, false), user(7, false), user(0, true)]) {
+            const client = fakeClient();
+            client.user = u;
+            const m = makeModule(cnet, client);
+            assert.equal(await startModule(m), 'refused');
+            assert.match(m.client.term.written.join(''), /XIMTest could not be run/);
+            assert.ok(
+                m.client.log.lines.some(
+                    l => 'warn' === l.level && /needs a logged-in user/.test(l.msg)
+                ),
+                'the log says why'
+            );
+            assert.equal(activeImages.size, 0, 'nothing held');
+        }
+
+        const client = fakeClient();
+        client.user = user(7, true);
+        const m = makeModule(cnet, client);
+        assert.equal(await startModule(m), 'ran');
+        m.leave();
+
+        //  other door types do not ask
+        assert.equal(await startModule(makeModule({ image })), 'ran');
+    });
+
     it('leave() before any session frees both at once', async () => {
         const m = makeModule({ image });
         assert.equal(await startModule(m), 'ran');
@@ -1765,6 +1868,73 @@ describe('amiga_door session keys', () => {
         assert.equal(plain.env, undefined);
         const text = protocol.encode('s', plain).toString('latin1');
         assert.ok(!text.includes('assign=') && !text.includes('env='));
+    });
+
+    it('a C-Net ARexx door gets type=cnetrexx, the user block, its account and options', () => {
+        const keys = buildSessionKeys(
+            stubClient(),
+            config({
+                doorType: 'cnetrexx',
+                door: 'PFILES:Badlibs/badlibs',
+                doorArgs: '{level}',
+                panicGraceSeconds: 0,
+                wordWrap: false,
+            })
+        );
+        assert.equal(keys.type, 'cnetrexx');
+        assert.equal(keys.console, undefined);
+        assert.equal(keys.args, '30'); //  the script's own arguments, no port number
+        assert.equal(keys.name, 'Handle');
+        assert.equal(keys.node, 2); //  the shim makes CNETREXX1 of it
+        assert.equal(keys.account, 1);
+        assert.equal(keys.panicgrace, 0);
+        assert.equal(keys.wrap, 0);
+        const payload = protocol.parseKeys(protocol.encode('s', keys).subarray(4));
+        assert.equal(payload.type, 'cnetrexx');
+        assert.equal(payload.account, '1');
+        assert.equal(payload.panicgrace, '0');
+        assert.equal(payload.wrap, '0');
+
+        //  defaults are the shim's: no keys
+        const plain = buildSessionKeys(
+            stubClient(),
+            config({ doorType: 'cnetrexx', door: 'PFILES:x' })
+        );
+        assert.equal(plain.panicgrace, undefined);
+        assert.equal(plain.wrap, undefined);
+        assert.equal(plain.account, 1);
+        //  any other user is their own account; no ID is no account
+        const other = stubClient();
+        other.user.userId = 7;
+        assert.equal(
+            buildSessionKeys(other, config({ doorType: 'cnetrexx', door: 'PFILES:x' }))
+                .account,
+            7
+        );
+        other.user.userId = 0;
+        assert.throws(
+            () =>
+                buildSessionKeys(
+                    other,
+                    config({ doorType: 'cnetrexx', door: 'PFILES:x' })
+                ),
+            /no C-Net account number for user ID 0/
+        );
+        assert.equal(cnetAccount({ userId: 1 }), 1);
+        for (const u of [undefined, { userId: 0 }, { userId: -2 }, { userId: '5' }]) {
+            assert.equal(cnetAccount(u), null);
+        }
+        //  and the other door types do not get them
+        const xim = buildSessionKeys(stubClient(), config({}));
+        assert.equal(xim.account, undefined);
+        assert.equal(xim.panicgrace, undefined);
+        assert.equal(xim.wrap, undefined);
+    });
+
+    it("a C-Net ARexx door's command line is door[ args]", () => {
+        const c = config({ doorType: 'cnetrexx', door: 'PFILES:x' });
+        assert.equal(commandLength(c, '', 12), 'PFILES:x'.length);
+        assert.equal(commandLength(c, 'ab', 12345), 'PFILES:x ab'.length);
     });
 
     it('a Paragon door\'s command line is "door" <one digit>[ args]', () => {
