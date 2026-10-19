@@ -25,6 +25,7 @@ const protocol = require('../core/amiga_door/protocol.js');
 const {
     buildConsoleSession,
     formatExit,
+    formatDisk,
 } = require('../core/oputil/oputil_amiga_console.js');
 
 const ROOT = path.join(__dirname, '..');
@@ -402,6 +403,22 @@ describe('oputil amiga-door', function () {
             );
         });
 
+        it('says what became of the image', () => {
+            assert.equal(formatDisk('d.hdf', null), 'd.hdf not changed (--no-persist)');
+            assert.equal(
+                formatDisk('d.hdf', { writes: 0, bytes: 0 }),
+                'd.hdf not changed (the door wrote nothing to its disk)'
+            );
+            assert.equal(
+                formatDisk('d.hdf', { writes: 3, bytes: 12288 }),
+                'd.hdf written as the door went: 3 writes, 12 KB, synced'
+            );
+            assert.match(
+                formatDisk('d.hdf', { writes: 1, bytes: 4096, error: 'EIO' }),
+                /^d\.hdf: the final sync FAILED \(EIO\); it holds what reached it before \(1 writes, 4 KB\)$/
+            );
+        });
+
         it('the command line says what is missing without booting anything', function () {
             this.timeout(30000);
             let r = oputil('console', path.join(dir, 'nope.hdf'), '--door', 'BBS:x');
@@ -432,7 +449,7 @@ describe('oputil amiga-door', function () {
             assert.notEqual(r.status, 0);
             assert.match(
                 r.stderr,
-                /more than 2032K.*stock AROS ROM.*4066 blocks \(2033K\).*--allow-large/s
+                /more than 2032K.*AROS ROM built before AROS#1720 was merged \(2026-10-19\).*4066 blocks \(2033K\).*--allow-large/s
             );
             assert.equal(fs.existsSync(img), false);
 

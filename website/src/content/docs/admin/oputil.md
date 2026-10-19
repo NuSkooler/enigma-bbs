@@ -614,7 +614,8 @@ console arguments:
   --user NAME --location TEXT --level N --timeleft MINUTES
   --args TEXT --console-mode cooked|raw --mainline TEXT --door-dir PATH
   --rom FILE [--ext FILE] --encoding NAME --rows N --cols N --warp SECONDS
-  --no-persist                Leave IMAGE as it is
+  --no-persist                Keep the door's writes in the emulator: IMAGE is
+                              left exactly as it was
 ```
 
 | Action | Description |
@@ -624,9 +625,9 @@ console arguments:
 | `ls` | Protection bits, size, date and path of everything under `DIR` (alias `list`) |
 | `extract` | Copy out; `DST` of `-` writes a file to standard output |
 | `info` | Volume details and a check of the image's structure |
-| `console` | Boot the image in this terminal, start the door at `--door` as a caller would and play it; the shim's summary is printed when it ends and, if it ended normally (status `ok`), its changes are written back to the image (not with `--no-persist`). `Ctrl+]` hangs up and quits without writing. Needs no running ENiGMA; do not use it on an image a running board is using |
+| `console` | Boot the image in this terminal, start the door at `--door` as a caller would and play it; the shim's summary is printed when it ends, then what became of the image. The image is the emulator's disk: the door's writes go into it as the door makes them, however the session ends (`Ctrl+]`, which hangs up and quits, included), unless `--no-persist`. Needs no running ENiGMA; try doors on a copy of an image, never on one a running board is using |
 
-`create` refuses a `--size` over 2032K unless `--allow-large` is given: a stock AROS ROM (given to the `amiga_door` module through `rom`) corrupts an FFS volume of more than 4066 blocks (2033 KB) when a door writes to it, and 2032 KB is the largest multiple of 8 KB within that. Pass `--allow-large` only for an image used with the ROM bundled with ENiGMA½ (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix. No image can be larger than 2097144K, 8 KB short of 2 GB.
+`create` refuses a `--size` over 2032K unless `--allow-large` is given: an AROS ROM built before AROS#1720 was merged (2026-10-19) (given to the `amiga_door` module through `rom`) corrupts an FFS volume of more than 4066 blocks (2033 KB) when a door writes to it, and 2032 KB is the largest multiple of 8 KB within that. Pass `--allow-large` only for an image used with the ROM bundled with ENiGMA½ (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix. No image can be larger than 2097144K, 8 KB short of 2 GB.
 
 `console --type` is `xim`, `cli` or `aim`, or another door type the shim on the image supports (`tim` for Paragon doors and `cnetrexx` for C-Net ARexx doors, once that door support is installed); a shim without it ends the session with `error=unknown door type`. The other `console` options describe the test caller (`--user`, `--location`, `--level`, `--timeleft`, `--rows`, `--cols`) and the door (`--args` and `--console-mode` for CLI doors, `--encoding` for its output); `./oputil.js amiga-door --help` lists them all.
 

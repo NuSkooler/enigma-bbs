@@ -1,9 +1,10 @@
 'use strict';
 
 //
-//  A stand-in for enigma-vamiga inside the worker thread. It is driven over
-//  the worker's own parent port, so its commands and the worker's messages
-//  stay in one order:
+//  A stand-in for enigma-vamiga 0.2.0 inside the worker thread: a file-backed
+//  disk whose guest writes reach the image as write-through says. It is
+//  driven over the worker's own parent port, so its commands and the worker's
+//  messages stay in one order:
 //
 //    { type: 'fake', cmd: 'shim', bytes }      the shim sends these bytes
 //    { type: 'fake', cmd: 'tick', room, pending, rts }
@@ -14,37 +15,65 @@
 //                                              guest (serialInPending); |rts|, when
 //                                              given, is the guest's RTS from now on
 //                                              (guestRts, initially true)
-//    { type: 'fake', cmd: 'changes', chunks }  what hdfChangedChunks() returns
-//    { type: 'fake', cmd: 'state' }            report pacer and settle state
-//    { type: 'fake', cmd: 'hdfSize', size }    what hdfSize reports
-//    { type: 'fake', cmd: 'failOnce', method, code }
-//                                              the next fs[method] throws |code|
-//    { type: 'fake', cmd: 'touchOnFsync', path }
-//                                              the next fsyncSync also rewrites
-//                                              |path|'s mtime (someone else
-//                                              wrote the image mid-persist)
+//    { type: 'fake', cmd: 'write', offset, data }
+//                                              the guest writes the disk: a dirty
+//                                              page that reaches the image at the
+//                                              next frame unless writeThrough is
+//                                              'never' (the drive going idle), or on
+//                                              hdfFlush()/hdfSync()/takeSnapshot()
+//    { type: 'fake', cmd: 'settleWrite', offset, data }
+//                                              the same, made by the guest only
+//                                              once the worker runs frames to let
+//                                              its file system flush
+//    { type: 'fake', cmd: 'failSync', message } the next hdfSync() throws
+//    { type: 'fake', cmd: 'failStats' }        hdfWriteStats throws from now on
+//    { type: 'fake', cmd: 'answerD', frames, status }
+//                                              the shim answers a `d` it receives
+//                                              with an X, |frames| emulated frames
+//                                              (runFrames) later
+//    { type: 'fake', cmd: 'state' }            report pacer, settle and disk state
 //
-//  With workerData.legacyPackage it is enigma-vamiga 0.1.2 and older: no
-//  setSerialHandshake, serialHandshake, guestRts or serialInPending.
+//  workerData.refuseSnapshot: loadSnapshot() throws a VAmigaError, as 0.2.0
+//  does for a 0.1.x snapshot or one of another file.
+//  workerData.legacyPackage: no setSerialHandshake, serialHandshake, guestRts or
+//  serialInPending (enigma-vamiga 0.1.2 and older).
 //
-//  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state', ... }
-//  ('created' and 'state' carry the RTS/CTS handshake setting);
-//  'ticked' carries the bytes the guest received during that frame.
+//  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state' | 'destroyed', ... }
+//  ('destroyed' carries every byte the guest received, in all)
+//  ('created' carries the create() options that matter here, and 'state' the
+//  RTS/CTS handshake setting); 'ticked' carries the bytes the guest received
+//  during that frame.
 //
 const fs = require('fs');
 const { EventEmitter } = require('events');
 const { parentPort, workerData } = require('worker_threads');
+const protocol = require('../../../core/amiga_door/protocol.js');
 
 let emu = null;
 let pacer = null;
+let creates = 0;
+
+class VAmigaError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'VAmigaError';
+        this.code = 'EVAMIGA_CORE';
+    }
+}
 
 class VAmiga extends EventEmitter {
     static async create(opts) {
         emu = new VAmiga(opts);
+        creates += 1;
         parentPort.postMessage({
             type: 'fake',
             event: 'created',
+            creates,
             hdf: opts.hdf,
+            writeThrough: opts.writeThrough,
+            fastKb: opts.fastKb,
+            rom: opts.rom,
+            warpBootSeconds: opts.warpBootSeconds,
             serialHandshake: opts.serialHandshake,
         });
         return emu;
@@ -57,16 +86,80 @@ class VAmiga extends EventEmitter {
         this.received = [];
         this.room = Infinity;
         this.pending = 0;
-        this.changes = [];
         this.settled = 0;
-        this.baseline = opts.hdf || null;
+        this.syncs = 0;
         this.handshake = true === opts.serialHandshake;
         this.rts = true;
-        this.size = fs.statSync(workerData.image).size;
+        this.file = opts.hdf && 'file' === opts.hdf.mode ? opts.hdf.path : null;
+        this._writeThrough = opts.writeThrough || 'never';
+        this.dirty = []; //  [{ offset, data }] the image does not have yet
+        this.onSettle = []; //  writes the guest makes when given time to flush
+        this.io = { writes: 0, bytes: 0, ms: 0 };
+        this.failSync = null;
+        this.destroyed = false;
+        this.allReceived = [];
+        this.answer = null;
     }
 
     get hdfSize() {
-        return this.size;
+        return this.file ? fs.statSync(this.file).size : 0;
+    }
+
+    get hdfMode() {
+        return this.file ? 'file' : null;
+    }
+
+    get hdfPath() {
+        return this.file;
+    }
+
+    get hdfPending() {
+        return this.dirty.length > 0;
+    }
+
+    get writeThrough() {
+        return this._writeThrough;
+    }
+
+    setWriteThrough(mode) {
+        this._writeThrough = mode;
+        if ('never' !== mode) {
+            this.hdfFlush();
+        }
+        return this;
+    }
+
+    get hdfWriteStats() {
+        if (this.failStats) {
+            throw new VAmigaError('stats unavailable');
+        }
+        return Object.assign({}, this.io);
+    }
+
+    hdfFlush() {
+        const before = this.io.writes;
+        const fd = fs.openSync(this.file, 'r+');
+        try {
+            for (const { offset, data } of this.dirty) {
+                fs.writeSync(fd, data, 0, data.length, offset);
+                this.io.writes += 1;
+                this.io.bytes += data.length;
+            }
+        } finally {
+            fs.closeSync(fd);
+        }
+        this.dirty = [];
+        return { writes: this.io.writes - before };
+    }
+
+    hdfSync() {
+        this.syncs += 1;
+        if (this.failSync) {
+            const message = this.failSync;
+            this.failSync = null;
+            throw new VAmigaError(message);
+        }
+        return this.hdfFlush();
     }
 
     get serialInPending() {
@@ -87,11 +180,9 @@ class VAmiga extends EventEmitter {
     }
 
     loadSnapshot() {
-        return this;
-    }
-
-    markHdfClean(baseline) {
-        this.baseline = baseline;
+        if (workerData.refuseSnapshot) {
+            throw new VAmigaError('Snapshot was created with an older version of vAmiga');
+        }
         return this;
     }
 
@@ -100,15 +191,37 @@ class VAmiga extends EventEmitter {
     powerOn() {}
 
     stats() {
-        return { wasmMemoryBytes: 0 };
+        return {
+            wasmMemoryBytes: 0,
+            hdfMode: this.hdfMode,
+            hdfPending: this.hdfPending,
+            hdfWrites: this.io.writes,
+            hdfBytesWritten: this.io.bytes,
+        };
     }
 
     takeSnapshot() {
+        //  as the core: pending changes go into the file first, whatever the mode
+        if (this.file) {
+            this.hdfFlush();
+        }
         return new Uint8Array([1, 2, 3]);
     }
 
     runFrames(n) {
         this.settled += n;
+        const a = this.answer;
+        if (a && null !== a.seenAt && !a.done && this.settled - a.seenAt >= a.frames) {
+            a.done = true;
+            this.toHost.push(protocol.encode('X', { status: a.status }));
+        }
+        if (this.onSettle.length) {
+            this.dirty.push(...this.onSettle);
+            this.onSettle = [];
+        }
+        if ('never' !== this._writeThrough && this.dirty.length) {
+            this.hdfFlush(); //  the drive went idle
+        }
         return false;
     }
 
@@ -122,16 +235,29 @@ class VAmiga extends EventEmitter {
         const n = Math.min(buf.length, this.room);
         this.room -= n;
         if (n > 0) {
-            this.received.push(Buffer.from(buf.subarray(0, n)));
+            const got = Buffer.from(buf.subarray(0, n));
+            this.received.push(got);
+            this.allReceived.push(got);
+            if (this.answer && null === this.answer.seenAt) {
+                const all = Buffer.concat(this.allReceived);
+                if (all.includes(Buffer.from([protocol.RS, 0x64]))) {
+                    this.answer.seenAt = this.settled;
+                }
+            }
         }
         return n;
     }
 
-    hdfChangedChunks() {
-        return this.changes;
+    destroy() {
+        //  as the core: what was never written goes with the emulator
+        this.dirty = [];
+        this.destroyed = true;
+        parentPort.postMessage({
+            type: 'fake',
+            event: 'destroyed',
+            received: new Uint8Array(Buffer.concat(this.allReceived)),
+        });
     }
-
-    destroy() {}
 }
 
 if (workerData.legacyPackage) {
@@ -183,6 +309,10 @@ parentPort.on('message', msg => {
                 emu.rts = msg.rts;
             }
             emu.received = [];
+            //  the frame's disk activity: write-through when the drive idles
+            if ('never' !== emu._writeThrough && emu.dirty.length) {
+                emu.hdfFlush();
+            }
             pacer.onFrame({ frames: 1, warping: false });
             parentPort.postMessage({
                 type: 'fake',
@@ -192,39 +322,30 @@ parentPort.on('message', msg => {
             break;
         }
 
-        case 'changes':
-            emu.changes = msg.chunks.map(c => ({
-                offset: c.offset,
-                data: Buffer.from(c.data),
-            }));
+        case 'write':
+            emu.dirty.push({ offset: msg.offset, data: Buffer.from(msg.data) });
             break;
 
-        case 'hdfSize':
-            emu.size = msg.size;
+        case 'settleWrite':
+            emu.onSettle.push({ offset: msg.offset, data: Buffer.from(msg.data) });
             break;
 
-        case 'failOnce': {
-            const original = fs[msg.method];
-            fs[msg.method] = () => {
-                fs[msg.method] = original;
-                throw Object.assign(new Error(`${msg.code}: ${msg.method} (fake)`), {
-                    code: msg.code,
-                });
+        case 'answerD':
+            emu.answer = {
+                frames: msg.frames || 0,
+                status: msg.status || 'carrier',
+                seenAt: null,
+                done: false,
             };
             break;
-        }
 
-        case 'touchOnFsync': {
-            const original = fs.fsyncSync;
-            fs.fsyncSync = (...args) => {
-                fs.fsyncSync = original;
-                const r = original(...args);
-                const later = new Date(Date.now() + 10000);
-                fs.utimesSync(msg.path, later, later);
-                return r;
-            };
+        case 'failStats':
+            emu.failStats = true;
             break;
-        }
+
+        case 'failSync':
+            emu.failSync = msg.message;
+            break;
 
         case 'state':
             parentPort.postMessage({
@@ -232,6 +353,9 @@ parentPort.on('message', msg => {
                 event: 'state',
                 running: pacer ? pacer.running : null,
                 settled: emu ? emu.settled : null,
+                syncs: emu ? emu.syncs : null,
+                pending: emu ? emu.hdfPending : null,
+                writeThrough: emu ? emu.writeThrough : null,
                 serialHandshake: emu ? emu.handshake : null,
             });
             break;
@@ -243,6 +367,7 @@ parentPort.on('message', msg => {
 
 module.exports = {
     VAmiga,
+    VAmigaError,
     Pacer,
     Compressor: { LZ4: 'lz4' },
 };

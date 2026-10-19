@@ -83,8 +83,8 @@ It:
   (`status=ok|carrier|timeout|break|error`), within 30 seconds of a `d` whatever
   the door does (`CARRIER_GRACE`), then says `R` again. ENiGMA waits
   `disconnectGraceSeconds` (default 35) for that `X` before it drops the worker,
-  so the exit status, and with `persistOn` the persist, still apply after a
-  hangup.
+  so the exit status is still reported after a hangup, and a door that saves on
+  a hangup has saved before its emulator stops.
 
 For a CLI door (`type=cli` in the session frame) it instead:
 
@@ -138,8 +138,9 @@ is never dropped while the door keeps taking keys. But a hang-up (`d`) queued
 behind more than about 7 KB of input the door has not read (its 4 KB queue and
 the ring up to RTS) waits for the door to read down to it: a door that reads very
 slowly, one key every few seconds, can hold it past the module's 35-second
-`disconnectGraceSeconds`, and the worker is then stopped without saving (an XIM
-door's save on hang-up is lost). With enigma-vamiga
+`disconnectGraceSeconds`, and the worker is then stopped before the door has seen
+the hang-up (an XIM door's save on hang-up does not happen; what it wrote before
+is in the image). With enigma-vamiga
 0.1.3 or later and an `H` that says `shim=axshim 1.5` or later, the worker turns on
 the core's RTS/CTS handshake (`serialHandshake`) and offers nothing while
 `emu.guestRts` is off; a restored session starts with the setting its snapshot's
@@ -371,6 +372,29 @@ the shim. Never commit those files or share such an image.
 Paragon doors often need an assign or an `ENV:` variable from their install notes
 (`assign`/`env` above, `assigns`/`env` in ENiGMA's door config), and their own data
 directories under `DOORS:`.
+
+On the host the image is the emulator's hard disk (enigma-vamiga 0.2.0's file-backed
+disk, so its name must end in `.hdf`): the core reads it 4 KB at a time as the guest
+asks and, for a door with `persist` on, writes the guest's changes into it in place
+once the drive has been idle for 100 ms of Amiga time. When a session ends, however
+it ends, the worker runs the guest 3 seconds more (flat out) so its file system
+flushes, then `hdfSync()`s the image; with `persist: false` the core keeps every write
+and the image is never touched. On ENiGMA's SIGINT shutdown the module first tells each
+running door the carrier is gone (`d`), then stops its worker, which keeps running the
+guest for up to about 2 seconds of Amiga time (100 frames, flat out) so the door can
+save and answer `X`; a door still running after that is synced where it stands, like a
+power cut. All workers do this at once and the module waits for their syncs, about 3
+seconds at most. What write-through has written is in the image whatever happens, but
+it is written 100 ms of Amiga time after the drive goes idle, so a crash can still lose
+the last 100 ms and whatever the guest's own file system had not written back yet; and
+an uncaught error in the worker ends the session without a final sync (what
+write-through already wrote stays). No emulator may have an image open while another
+writes it (neither re-reads what the other wrote, and each guest's FFS believes it owns
+the volume), so images are held readers/writer: a persisting session holds its image
+exclusively until that sync is done, `persist: false` sessions share it, and the two
+kinds never run on one image at the same moment. A booted machine's snapshot holds the image's path and the guest's file system
+caches, so the module uses it only while the image's size, mtime, inode and device are what
+they were right after the snapshot: a session that wrote makes the next one boot.
 
 The images are run with the AROS 20260820 Kickstart replacement (to ship with the
 emulator package) or a Kickstart 3.1 ROM the sysop supplies. axshim 1.0 passed

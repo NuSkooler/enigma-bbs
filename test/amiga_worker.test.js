@@ -2,8 +2,10 @@
 
 //
 //  core/amiga_door/amiga_worker.js in a real worker thread, against a fake
-//  enigma-vamiga (test/fixtures/amiga_worker/): the input queue, the order of
-//  what goes to the shim, `d`, pause and resume, persisting and X handling.
+//  enigma-vamiga 0.2.0 (test/fixtures/amiga_worker/): the input queue, the
+//  order of what goes to the shim, `d`, pause and resume, X handling, the
+//  file-backed disk (how the emulator is created, the sync when the worker
+//  stops, persist: false) and a refused snapshot.
 //
 const { strict: assert } = require('assert');
 const fs = require('fs');
@@ -21,7 +23,14 @@ const InputWindowBytes = 768; //  amiga_worker.js
 const SESSION = { version: 1, door: 'BBS:Doors/X/x', node: 1 };
 
 class TestWorker {
-    constructor({ image, snapshot = true, serialHandshake, legacyPackage }) {
+    constructor({
+        image,
+        snapshot = true,
+        serialHandshake,
+        legacyPackage,
+        persist = true,
+        refuseSnapshot,
+    }) {
         this.messages = [];
         this.waiters = [];
         this.worker = new Worker(HARNESS, {
@@ -29,13 +38,17 @@ class TestWorker {
                 module: null,
                 snapshot: snapshot ? new Uint8Array([1]) : null,
                 image,
-                machine: {},
-                warpBootSeconds: 0,
+                persist,
+                rom: '/roms/kick.rom',
+                machine: { fastKb: 4096 },
+                warpBootSeconds: 7,
                 serialHandshake,
                 legacyPackage,
+                refuseSnapshot,
                 session: SESSION,
             },
         });
+        this.exited = new Promise(resolve => this.worker.once('exit', resolve));
         this.worker.on('message', msg => {
             this.messages.push(msg);
             this.waiters = this.waiters.filter(w => !w(msg));
@@ -100,10 +113,15 @@ class TestWorker {
         return p;
     }
 
+    write(offset, data) {
+        this.post({ type: 'fake', cmd: 'write', offset, data: new Uint8Array(data) });
+    }
+
+    //  Stop the worker; resolves to its 'synced' report (null if none)
     async stop() {
-        const exited = new Promise(resolve => this.worker.once('exit', resolve));
         this.post({ type: 'stop' });
-        await exited;
+        await this.exited;
+        return this.messages.find(m => 'synced' === m.type) || null;
     }
 }
 
@@ -414,192 +432,257 @@ describe('amiga_door worker', function () {
         assert.ok(!w.messages.some(m => 'exit' === m.type));
     });
 
-    async function exited() {
-        await restored();
-        w.shim(protocol.encode('X', { status: 'ok' }));
+    // ─── the file-backed disk ────────────────────────────────────────────────
+
+    const page = (byte, n = 512) => new Uint8Array(n).fill(byte);
+    const imageAt = (offset, n = 512) =>
+        fs.readFileSync(image).subarray(offset, offset + n);
+
+    //  Boot: H and R, then a frame at real speed; resolves to the snapshot
+    async function booted(worker) {
+        worker.shim(
+            Buffer.concat([protocol.encode('H', { version: 1 }), protocol.encode('R')])
+        );
+        const snapshot = worker.next(m => 'snapshot' === m.type);
+        await worker.tick();
+        return snapshot;
+    }
+
+    async function exitWith(status) {
+        w.shim(protocol.encode('X', { status }));
         const exit = w.next(m => 'exit' === m.type);
         await w.tick();
-        await exit;
+        return exit;
     }
 
-    it('persists by renaming a written copy over the image', async () => {
-        await exited();
-        const before = fs.statSync(image);
-        w.post({
-            type: 'fake',
-            cmd: 'changes',
-            chunks: [{ offset: 512, data: new Uint8Array(512).fill(0xaa) }],
+    it('restores onto the image file, writing through on idle', async () => {
+        w = new TestWorker({ image });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.deepEqual(created.hdf, { path: image, mode: 'file' });
+        assert.equal(created.writeThrough, 'onIdle');
+        assert.equal(created.fastKb, 0, 'the snapshot brings its own machine');
+        assert.equal(created.rom, undefined);
+        assert.equal((await w.next(m => 'ready' === m.type)).restored, true);
+    });
+
+    it('boots onto the image file with the machine', async () => {
+        w = new TestWorker({ image, snapshot: false });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.deepEqual(created.hdf, { path: image, mode: 'file' });
+        assert.equal(created.writeThrough, 'onIdle');
+        assert.equal(created.fastKb, 4096);
+        assert.equal(created.rom, '/roms/kick.rom');
+        assert.equal(created.warpBootSeconds, 7);
+    });
+
+    it("persist: false creates the disk with write-through 'never'", async () => {
+        w = new TestWorker({ image, persist: false });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.deepEqual(created.hdf, { path: image, mode: 'file' });
+        assert.equal(created.writeThrough, 'never');
+    });
+
+    it("sends the snapshot with the image's stat taken after it", async () => {
+        w = new TestWorker({ image, snapshot: false });
+        await w.next(m => 'fake' === m.type && 'created' === m.event);
+        //  a boot-time write: the snapshot flushes it into the file first
+        w.write(4096, page(0x55));
+        const snap = await booted(w);
+        const st = fs.statSync(image);
+        assert.deepEqual(snap.stat, {
+            size: st.size,
+            mtimeMs: st.mtimeMs,
+            ino: st.ino,
+            dev: st.dev,
         });
-        const tmp = `${image}.test.persist`;
-        const done = w.next(m => 'persisted' === m.type);
-        w.post({ type: 'persist', path: image, tmp });
-        const msg = await done;
-        assert.equal(msg.chunks, 1);
-        assert.equal(msg.bytes, 512);
-        assert.equal(msg.refused, undefined);
+        assert.ok(imageAt(4096).every(b => 0x55 === b));
+        assert.equal(w.messages.find(m => 'ready' === m.type).restored, false);
+    });
 
-        const after = fs.readFileSync(image);
-        assert.equal(after.length, 8192);
-        assert.ok(after.subarray(512, 1024).every(b => 0xaa === b));
-        assert.ok(after.subarray(0, 512).every(b => 0 === b));
-        assert.notEqual(
-            fs.statSync(image).ino,
-            before.ino,
-            'replaced, not written in place'
+    it('boots when the core refuses the snapshot, and says so', async () => {
+        w = new TestWorker({ image, refuseSnapshot: true, serialHandshake: true });
+        const refused = await w.next(m => 'snapshotRefused' === m.type);
+        assert.match(refused.message, /older version of vAmiga/);
+        assert.equal(refused.code, 'EVAMIGA_CORE');
+        const created = await w.next(
+            m => 'fake' === m.type && 'created' === m.event && 2 === m.creates
         );
-        assert.deepEqual(fs.readdirSync(dir), ['door.hdf'], 'no temporary file left');
-        assert.ok((await w.state()).settled >= 150, 'the guest was given time to flush');
+        assert.equal(created.warpBootSeconds, 7, 'a boot this time');
+        assert.equal(created.fastKb, 4096);
+        assert.equal(created.serialHandshake, false, 'until the shim says hello');
+        assert.deepEqual(created.hdf, { path: image, mode: 'file' });
+
+        const snapshot = await booted(w);
+        assert.ok(snapshot.stat, 'the new snapshot goes to the cache');
+        assert.equal(w.messages.find(m => 'ready' === m.type).restored, false);
     });
 
-    it('writes nothing when nothing changed', async () => {
-        await exited();
-        const before = fs.statSync(image);
-        const done = w.next(m => 'persisted' === m.type);
-        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
-        assert.equal((await done).chunks, 0);
-        assert.equal(fs.statSync(image).ino, before.ino);
-        assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
-    });
-
-    it('refuses to persist over an image that changed during the session', async () => {
-        await exited();
-        //  someone else wrote the image meanwhile
-        fs.writeFileSync(image, Buffer.alloc(8192, 0x11));
-        fs.utimesSync(image, new Date(), new Date(Date.now() + 5000));
-        w.post({
-            type: 'fake',
-            cmd: 'changes',
-            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
+    for (const status of ['ok', 'carrier', 'timeout', 'break', 'error']) {
+        it(`syncs the image when stopped after X status=${status}`, async () => {
+            await restored();
+            w.write(0, page(0xaa));
+            await w.tick(); //  idle: written through
+            assert.ok(
+                imageAt(0).every(b => 0xaa === b),
+                'written as the door goes'
+            );
+            //  what the guest's file system still buffers when the door ends
+            w.post({ type: 'fake', cmd: 'settleWrite', offset: 512, data: page(0xbb) });
+            await exitWith(status);
+            const synced = await w.stop();
+            w = null;
+            assert.equal(synced.error, undefined);
+            assert.equal(synced.writes, 2);
+            assert.equal(synced.bytes, 1024);
+            assert.equal(synced.sessionWrites, 2);
+            assert.ok(
+                imageAt(512).every(b => 0xbb === b),
+                'flushed after settling'
+            );
         });
-        const done = w.next(m => 'persisted' === m.type);
-        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
-        const msg = await done;
-        assert.equal(msg.chunks, 0);
-        assert.match(msg.refused, /changed/);
-        assert.ok(
-            fs.readFileSync(image).every(b => 0x11 === b),
-            'left alone'
-        );
-        assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
+    }
+
+    it('syncs a door still running when the parent gives up on it', async () => {
+        await restored();
+        w.post({ type: 'frame', frame: { type: 'd', keys: { reason: 'hangup' } } });
+        await w.tick();
+        w.post({ type: 'fake', cmd: 'settleWrite', offset: 1024, data: page(0xcc) });
+        //  no X: the shim never answered
+        const synced = await w.stop();
+        w = null;
+        assert.equal(synced.sessionWrites, 1);
+        assert.ok(imageAt(1024).every(b => 0xcc === b));
     });
 
-    //  A persist that fails after the copy exists leaves the image as it was
-    //  and removes the copy.
-    async function persistFails(arrange) {
-        await exited();
+    describe('stop with the carrier gone', function () {
+        const dBytes = [RS, 0x64];
+        const hasD = b => Buffer.from(b).includes(Buffer.from(dBytes));
+
+        it("delivers a pending d and takes the shim's X within the window", async () => {
+            await restored();
+            w.post({ type: 'fake', cmd: 'answerD', frames: 40, status: 'carrier' });
+            w.post({ type: 'frame', frame: { type: 'd', keys: { reason: 'shutdown' } } });
+            //  no frame has run: only stop() can deliver it
+            const exit = w.next(m => 'exit' === m.type);
+            const destroyed = w.next(m => 'fake' === m.type && 'destroyed' === m.event);
+            w.post({ type: 'fake', cmd: 'settleWrite', offset: 512, data: page(0xdd) });
+            const synced = await w.stop();
+            w = null;
+            assert.equal((await exit).status, 'carrier', 'a normal exit');
+            assert.ok(hasD((await destroyed).received), 'd reached the shim');
+            assert.equal(synced.sessionWrites, 1);
+            assert.ok(imageAt(512).every(b => 0xdd === b));
+        });
+
+        it('syncs a silent door within the window, where it stands', async () => {
+            await restored();
+            w.post({ type: 'frame', frame: { type: 'd', keys: { reason: 'shutdown' } } });
+            const destroyed = w.next(m => 'fake' === m.type && 'destroyed' === m.event);
+            const t = Date.now();
+            const synced = await w.stop();
+            const ms = Date.now() - t;
+            assert.ok(!w.messages.some(m => 'exit' === m.type), 'no X came');
+            w = null;
+            assert.ok(hasD((await destroyed).received), 'd reached the shim');
+            assert.ok(synced, 'synced');
+            assert.ok(ms < 2000, `bounded (${ms} ms)`);
+        });
+
+        it('runs no extra frames for a stop without d, beyond the settle', async () => {
+            await restored();
+            const destroyed = w.next(m => 'fake' === m.type && 'destroyed' === m.event);
+            await w.stop();
+            const received = (await destroyed).received;
+            w = null;
+            assert.ok(!hasD(received));
+        });
+    });
+
+    it('settles only when stopped, and reports a session that wrote nothing', async () => {
+        await restored();
+        await exitWith('ok');
+        assert.equal((await w.state()).settled, 0, 'X alone runs nothing flat out');
+        const synced = await w.stop();
+        w = null;
+        assert.equal(synced.writes, 0);
+        assert.equal(synced.sessionWrites, 0);
+        assert.equal(synced.error, undefined);
+    });
+
+    it('reports the session writes as unknown when the core cannot count them', async () => {
+        await restored();
+        w.write(0, page(0x11));
+        w.post({ type: 'fake', cmd: 'failStats' });
+        const synced = await w.stop();
+        w = null;
+        assert.equal(synced.sessionWrites, null);
+        assert.equal(synced.error, undefined, 'the sync itself went through');
+        assert.ok(imageAt(0).every(b => 0x11 === b));
+    });
+
+    it('counts only the writes made after the session started', async () => {
+        w = new TestWorker({ image, snapshot: false });
+        await w.next(m => 'fake' === m.type && 'created' === m.event);
+        w.write(0, page(0x11)); //  at boot
+        await booted(w);
+        const synced = await w.stop();
+        w = null;
+        assert.equal(synced.writes, 1);
+        assert.equal(synced.sessionWrites, 0);
+    });
+
+    it('reports a sync that fails, and still stops', async () => {
+        await restored();
+        w.post({ type: 'fake', cmd: 'failSync', message: 'EIO: i/o error' });
+        await exitWith('ok');
+        const synced = await w.stop();
+        w = null;
+        assert.match(synced.error, /EIO/);
+        assert.equal(synced.code, 'EVAMIGA_CORE');
+    });
+
+    it('persist: false never writes the image, not even at the end', async () => {
         const before = fs.readFileSync(image);
-        w.post({
-            type: 'fake',
-            cmd: 'changes',
-            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
-        });
-        arrange();
-        const settled = w.next(m => 'error' === m.type || 'persisted' === m.type);
-        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
-        const msg = await settled;
-        assert.deepEqual(fs.readFileSync(image), before, 'the image is untouched');
-        assert.deepEqual(fs.readdirSync(dir), ['door.hdf'], 'no temporary file left');
-        return msg;
-    }
-
-    it('removes the copy when it is not the size of the disk', async () => {
-        const err = await persistFails(() =>
-            w.post({ type: 'fake', cmd: 'hdfSize', size: 4096 })
-        );
-        assert.equal('error', err.type);
-        assert.equal(err.during, 'persist');
-        assert.match(err.message, /is 8192 bytes, the disk is 4096/);
+        w = new TestWorker({ image, persist: false });
+        await w.next(m => 'ready' === m.type);
+        await w.tick();
+        w.write(0, page(0xaa));
+        await w.tick();
+        await w.tick();
+        assert.equal((await w.state()).pending, true, 'kept in the core');
+        w.post({ type: 'fake', cmd: 'settleWrite', offset: 512, data: page(0xbb) });
+        await exitWith('ok');
+        const synced = await w.stop();
+        w = null;
+        assert.deepEqual(synced, { type: 'synced', skipped: true });
+        assert.deepEqual(fs.readFileSync(image), before);
     });
 
-    it('removes the copy when the rename fails', async () => {
-        const err = await persistFails(() =>
-            w.post({ type: 'fake', cmd: 'failOnce', method: 'renameSync', code: 'EIO' })
+    it('persist: false takes no snapshot of a boot that wrote the disk', async () => {
+        const before = fs.readFileSync(image);
+        w = new TestWorker({ image, persist: false, snapshot: false });
+        await w.next(m => 'fake' === m.type && 'created' === m.event);
+        w.write(0, page(0x22));
+        const problem = w.next(m => 'error' === m.type);
+        w.shim(
+            Buffer.concat([protocol.encode('H', { version: 1 }), protocol.encode('R')])
         );
-        assert.equal(err.during, 'persist');
-        assert.equal(err.code, 'EIO');
-        assert.doesNotMatch(err.message, /bind mount/, 'no hint for an unrelated error');
+        await w.tick();
+        const err = await problem;
+        assert.equal(err.during, 'snapshot');
+        assert.equal(err.fatal, false);
+        assert.match(err.message, /persist is off/);
+        assert.ok(!w.messages.some(m => 'snapshot' === m.type));
+        assert.equal(w.messages.find(m => 'ready' === m.type).restored, false);
+        await w.stop();
+        w = null;
+        assert.deepEqual(fs.readFileSync(image), before);
     });
 
-    it('explains a rename the file system refuses', async () => {
-        const err = await persistFails(() =>
-            w.post({ type: 'fake', cmd: 'failOnce', method: 'renameSync', code: 'EBUSY' })
-        );
-        assert.equal(err.code, 'EBUSY');
-        assert.match(err.message, /writable directory.*free space.*bind mount/);
-    });
-
-    it('explains a copy the directory refuses', async () => {
-        const err = await persistFails(() =>
-            w.post({
-                type: 'fake',
-                cmd: 'failOnce',
-                method: 'copyFileSync',
-                code: 'EACCES',
-            })
-        );
-        assert.equal(err.code, 'EACCES');
-        assert.match(err.message, /writable directory/);
-    });
-
-    it('removes the copy when the image changes while it is written', async () => {
-        const msg = await persistFails(() =>
-            w.post({ type: 'fake', cmd: 'touchOnFsync', path: image })
-        );
-        assert.equal(msg.type, 'persisted');
-        assert.equal(msg.chunks, 0);
-        assert.match(msg.refused, /changed/);
-    });
-
-    it('removes only its own stale copies, and only old ones', async () => {
-        await exited();
-        const hour = 60 * 60 * 1000;
-        const stale = `${image}.123.456.persist`;
-        const fresh = `${image}.123.789.persist`;
-        const other = path.join(dir, 'other.hdf.123.456.persist');
-        const odd = `${image}.x.persist`;
-        for (const f of [stale, fresh, other, odd]) {
-            fs.writeFileSync(f, 'x');
-        }
-        const old = new Date(Date.now() - 2 * hour);
-        for (const f of [stale, other, odd]) {
-            fs.utimesSync(f, old, old);
-        }
-        w.post({
-            type: 'fake',
-            cmd: 'changes',
-            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
-        });
-        const done = w.next(m => 'persisted' === m.type);
-        w.post({ type: 'persist', path: image, tmp: `${image}.test.persist` });
-        assert.equal((await done).chunks, 1);
-        assert.deepEqual(
-            fs.readdirSync(dir).sort(),
-            [
-                'door.hdf',
-                path.basename(fresh),
-                path.basename(odd),
-                path.basename(other),
-            ].sort()
-        );
-    });
-
-    it('refuses a temporary file that is not beside the image', async () => {
-        await exited();
-        w.post({
-            type: 'fake',
-            cmd: 'changes',
-            chunks: [{ offset: 0, data: new Uint8Array(512).fill(0xaa) }],
-        });
-        const failed = w.next(m => 'error' === m.type);
-        w.post({
-            type: 'persist',
-            path: image,
-            tmp: path.join(os.tmpdir(), 'elsewhere.persist'),
-        });
-        const err = await failed;
-        assert.equal(err.during, 'persist');
-        assert.match(err.message, /not beside/);
-        assert.ok(fs.readFileSync(image).every(b => 0 === b));
-        assert.deepEqual(fs.readdirSync(dir), ['door.hdf']);
+    it('persist: false snapshots a boot that left the disk alone', async () => {
+        w = new TestWorker({ image, persist: false, snapshot: false });
+        await w.next(m => 'fake' === m.type && 'created' === m.event);
+        const snap = await booted(w);
+        assert.equal(snap.stat.size, 8192);
     });
 });
