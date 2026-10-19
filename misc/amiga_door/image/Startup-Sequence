@@ -1,0 +1,20 @@
+; S:Startup-Sequence for an ENiGMA½ Amiga door image.
+;
+; Boots straight into the host shim, which owns the serial port, says hello and
+; ready to ENiGMA, then runs whichever door each session names (BBS:Doors/...).
+; Doors look for the BBS under BBS:, so BBS: is the boot volume.  A minimal image
+; has no C:Assign; axshim then makes BBS: (SYS:) and DOORS: (SYS:Doors) itself.
+; Nothing after C:axshim runs: it never returns while the machine is up.
+FailAt 21
+Stack 32768
+If EXISTS C:Assign
+    C:Assign >NIL: BBS: SYS:
+    C:Assign >NIL: DOORS: SYS:Doors
+EndIf
+; ARexx (AIM) doors: the ARexx master must run before the shim so that it is
+; part of the machine ENiGMA snapshots.  Only an image built with the sysop's
+; own Workbench 3.1 (make_image.sh -w) has it; AROS has no ARexx.
+If EXISTS SYS:System/RexxMast
+    SYS:System/RexxMast >NIL:
+EndIf
+C:axshim 115200

@@ -39,6 +39,14 @@ describe('config JSON Schema projection', () => {
         assert.equal(out.maximum, 65535);
     });
 
+    it('narrows a number meta calls integer', () => {
+        assert.equal(convert({ type: 'number', integer: true }).type, 'integer');
+        assert.deepEqual(
+            convert({ type: 'number', integer: true, nullable: true }).type,
+            ['integer', 'null']
+        );
+    });
+
     it('spells a nullable scalar as a type union', () => {
         assert.deepEqual(convert({ type: 'string', nullable: true }).type, [
             'string',
@@ -296,6 +304,8 @@ function typeMatches(type, value) {
                 return null === value;
             case 'array':
                 return Array.isArray(value);
+            case 'integer':
+                return Number.isInteger(value);
             case 'object':
                 return (
                     null !== value && 'object' === typeof value && !Array.isArray(value)

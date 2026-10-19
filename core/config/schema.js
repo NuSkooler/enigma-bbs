@@ -53,6 +53,7 @@ const MetaFields = [
     'enum',
     'min',
     'max',
+    'integer',
     'description',
     'discriminant',
     'variants',
@@ -148,6 +149,7 @@ const MergeableAnnotations = [
     'enum',
     'min',
     'max',
+    'integer',
     'nullable',
     'scalarShorthand',
 ];

@@ -42,6 +42,14 @@
                     value: { command: "MYGAME" }
                     action: @menu:doorMyGameV86
                 }
+                //
+                //  Amiga (AmiExpress /X XIM) door in the built-in vAmiga emulator
+                //  See: doors/amiga.md
+                //
+                {
+                    value: { command: "MYAMIGA" }
+                    action: @menu:doorMyGameAmiga
+                }
             ]
         }
 
@@ -163,6 +171,68 @@
                 //  memoryMb: 64      // optional, default 64
                 //  biosPath: /path/to/seabios.bin      // default: misc/v86_bios/seabios.bin
                 //  vgaBiosPath: /path/to/vgabios.bin   // default: misc/v86_bios/vgabios.bin
+            }
+        }
+
+        //
+        //  Amiga door (AmiExpress /X "XIM") via the built-in vAmiga emulator --
+        //  no external emulator, Kickstart or Workbench required.
+        //
+        //  Prerequisites:
+        //    1. The enigma-vamiga npm package (installed with ENiGMA's dependencies);
+        //       it bundles the AROS ROM.
+        //    2. A door image (.hdf): a small FFS disk holding the host shim, the
+        //       door library, a startup sequence and the door. Build one with
+        //       misc/amiga_door/image/make_image.sh
+        //
+        //  The door path is the Amiga path of the door inside the image.
+        //
+        //  A plain AmigaDOS program that uses its standard input and output
+        //  (many Amiga BBS games) is a CLI door: set doorType: cli and pass
+        //  what it needs on its command line with doorArgs.
+        //
+        //  Each session restores a snapshot of the booted machine, so starting
+        //  is fast after the first caller. Writes the door makes are saved to
+        //  the image after a clean exit, and while a door that saves is in use
+        //  its image is held: other doors on the same image wait their turn
+        //  (callers see tooManyArt). Give doors their own images to run them
+        //  side by side.
+        //
+        //  See doors/amiga.md for full setup instructions.
+        //
+        doorMyGameAmiga: {
+            desc: My Amiga Door
+            module: amiga_door
+            config: {
+                name: MyAmigaGame
+                image: /path/to/images/mygame.hdf
+                door: BBS:Doors/MyGame/mygame.xim
+                sharedState: true
+                tooManyArt: DOORMANY
+                //  doorArgs: -x                 // extra arguments after the node number
+                //  doorType: cli                // a CLI (stdio) door instead of XIM
+                //  doorType: aim                // an /X ARexx script (door: its path, e.g.
+                //                               // BBS:Doors/KickBox.Rexx); the image needs
+                //                               // your Workbench 3.1's ARexx (make_image.sh -w)
+                //  doorType: tim                // a Paragon / MAX's BBS door (/X TYPE=TIM)
+                //  assigns: { MSE: "BBS:Doors/MSE" }  // assigns its install notes ask for
+                //  env: { MSE: "" }             // ENV: variables it reads
+                //  consoleMode: raw             // CLI doors: cooked (default) or raw
+                //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
+                //                               // also {node} and {level}
+                //  rom: /path/to/kick31.rom     // default: bundled AROS ROM
+                //  cpu: 68EC020                 // 68000 | 68010 | 68EC020
+                //  fastKb: 8192                 // 0..8192
+                //  font: topaz                  // SyncTERM font, or none
+                //  minTimeLeftMinutes: 10
+                //  notEnoughTimeArt: DOORTIME
+                //  persist: true                // save the door's writes
+                //  persistOn: [ok, carrier]     // save after these exits (default: ok and
+                //                               // carrier for XIM doors, only ok for cli/aim/tim)
+                //  disconnectGraceSeconds: 35   // after a hangup, wait this long for the door
+                //                               // to finish (keep above the shim's 30)
+                //  amigaConsole: true           // translate Amiga console controls (default:
+                //                               // true with a Latin-1 encoding)
             }
         }
 	}

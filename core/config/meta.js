@@ -20,8 +20,8 @@
 //      type at all. Inference deliberately gives up on those rather than
 //      guessing; declaring a type here restores checking.
 //
-//    * |description| / |enum| / |min| / |max| for settings a human has to
-//      reason about. Sparse by design and grown over time -- see the plan.
+//    * |description| / |enum| / |min| / |max| / |integer| (a whole number)
+//      for settings a human has to reason about. Sparse by design and grown over time -- see the plan.
 //
 //  Keys are dotted paths. A "*" segment matches exactly one open map key, so
 //  "messageConferences.*.areas" describes the areas block of every conference.
@@ -176,6 +176,14 @@ module.exports = {
         type: 'number',
         min: 0,
         description: 'Unsent bytes queued for the caller at which door output resumes.',
+    },
+    'doors.amiga.snapshotCacheEntries': {
+        type: 'number',
+        integer: true,
+        min: 0,
+        max: 64,
+        description:
+            'Booted Amiga door snapshots kept in memory (about 1.5 MB each, one per door image and machine). 0 boots every session.',
     },
     //  The shipped default is [], which carries no item type of its own.
     'users.timeLimits': {

@@ -191,6 +191,16 @@ function checkRange(value, node, path, issues) {
         return;
     }
 
+    if (true === node.integer && !Number.isInteger(value)) {
+        issues.push(
+            makeIssue(IssueCodes.TypeMismatch, path, {
+                expected: 'integer',
+                actual: 'number',
+            })
+        );
+        return;
+    }
+
     const belowMin = undefined !== node.min && value < node.min;
     const aboveMax = undefined !== node.max && value > node.max;
 
