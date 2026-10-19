@@ -26,6 +26,8 @@ Refer to [Upgrading](./website/src/content/docs/admin/upgrading.md) for details 
 
   **Action:** run `npm install` after upgrading so the new dependency is present. Nothing else changes unless you add Amiga doors: see [Amiga Doors](website/src/content/docs/doors/amiga.md) for building a door image with `misc/amiga_door/image/make_image.sh` and the `doorMyGameAmiga` example in `misc/menu_templates/doors.in.hjson`. The one new system setting, `doors.amiga.snapshotCacheEntries` (default 4), caps how many booted-machine snapshots are kept in memory; each is about 1.5 MB.
 
+  **Door images keep the shim they were built with.** An image made with an earlier shim than the one in `misc/amiga_door/bin/axshim` (axshim 1.5 in this release: input held instead of dropped, RTS, the `baud` setting) keeps the old behaviour until it is refreshed: rebuild it with `make_image.sh`, or replace just the shim with `./oputil.js amiga-door add IMAGE misc/amiga_door/bin/axshim C/axshim`.
+
 ## 0.5.0-beta to 0.5.1-beta
 
 * **More archive formats, through unarc (optional).** The file base can list and describe ARC, PAK, ZOO, ACE, SQZ, UC2, `.Z`, xz, Zstandard and CAB archives, C64 Lynx, T64 and D64 files, and the files on Amiga DMS disks, using [unarc](https://github.com/mkrueger/unarc-rs). unarc is not shipped with ENiGMA½. Until it is installed these formats are handled as plain files, as before, and DMS keeps its `xdms` description.

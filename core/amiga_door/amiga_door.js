@@ -100,7 +100,8 @@
  *                                    later): 9600, 19200, 38400, 57600, 115200 or 230400
  *                                    (default: 115200). Without enigma-vamiga's byte holding a
  *                                    7 MHz AROS machine keeps up with 38400, or 57600 with
- *                                    overclock 2 (shim protocol section 15)
+ *                                    overclock 2 (misc/amiga_door/README.md,
+ *                                    "Serial line")
  *     nodeMax:            number   - max concurrent sessions, 0 = unlimited (default: 0);
  *                                    a persisting door is also one session per image
  *     sharedState:        boolean  - the door writes state all callers share; makes

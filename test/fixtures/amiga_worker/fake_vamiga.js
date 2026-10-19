@@ -24,6 +24,9 @@
 //                                              |path|'s mtime (someone else
 //                                              wrote the image mid-persist)
 //
+//  With workerData.legacyPackage it is enigma-vamiga 0.1.2 and older: no
+//  setSerialHandshake, serialHandshake, guestRts or serialInPending.
+//
 //  Replies: { type: 'fake', event: 'created' | 'ticked' | 'state', ... }
 //  ('created' and 'state' carry the RTS/CTS handshake setting);
 //  'ticked' carries the bytes the guest received during that frame.
@@ -129,6 +132,17 @@ class VAmiga extends EventEmitter {
     }
 
     destroy() {}
+}
+
+if (workerData.legacyPackage) {
+    for (const k of [
+        'setSerialHandshake',
+        'serialHandshake',
+        'guestRts',
+        'serialInPending',
+    ]) {
+        delete VAmiga.prototype[k];
+    }
 }
 
 class Pacer {

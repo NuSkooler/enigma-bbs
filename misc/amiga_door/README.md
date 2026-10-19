@@ -104,8 +104,9 @@ The console handler follows NilBBS's (`src/node/door.c`, MIT); the notice is in
 
 ### Serial line
 
-axshim 1.5 (shim protocol section 15) does not count on the emulator holding a
-received byte until the Amiga has read the one before, which enigma-vamiga's patch
+The line discipline: RTS watermarks, the `baud` key, the second `H`, the
+listening rate and the 3-second rule. axshim 1.5 does not count on the emulator
+holding a received byte until the Amiga has read the one before, which enigma-vamiga's patch
 0001 does today and a real Amiga does not:
 
 - RTS (CIA-B PA6) and DTR (PA7) are asserted when the port is opened. The RBF
@@ -132,7 +133,13 @@ received byte until the Amiga has read the one before, which enigma-vamiga's pat
 On the host side (`core/amiga_door/amiga_worker.js`) caller input waits in the
 worker until the guest has room: at most 768 bytes are in the core's receive buffer
 that the Amiga has not taken (`serialInPending`), below the 1 KB the ring has above
-its RTS watermark. Nothing is dropped below 1 MB of queued input. With enigma-vamiga
+its RTS watermark. Nothing is dropped below 1 MB of queued input, and held input
+is never dropped while the door keeps taking keys. But a hang-up (`d`) queued
+behind more than about 7 KB of input the door has not read (its 4 KB queue and
+the ring up to RTS) waits for the door to read down to it: a door that reads very
+slowly, one key every few seconds, can hold it past the module's 35-second
+`disconnectGraceSeconds`, and the worker is then stopped without saving (an XIM
+door's save on hang-up is lost). With enigma-vamiga
 0.1.3 or later and an `H` that says `shim=axshim 1.5` or later, the worker turns on
 the core's RTS/CTS handshake (`serialHandshake`) and offers nothing while
 `emu.guestRts` is off; a restored session starts with the setting its snapshot's

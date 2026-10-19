@@ -47,7 +47,7 @@
  * vector.  Nothing busy-waits.  RTS (CIA-B PA6) is asserted while the receive
  * ring has room and dropped at a high watermark, and caller bytes the door has not
  * read wait in the ring instead of being dropped, so a sender that honours CTS
- * never overruns the ring (protocol section 15).  Between sessions the shim listens
+ * never overruns the ring (README.md, "Serial line").  Between sessions the shim listens
  * at no more than 38400 baud (19200 on a 68000), since a lost `s` frame cannot be
  * sent again; a session runs at the rate its `s` names (`baud=`), else at the
  * command line's.
@@ -213,7 +213,7 @@ enum {
  * invert them), so a low bit is an asserted line.  The RBF handler drops RTS when the ring holds
  * RX_HIGH bytes and rx_get() raises it again at RX_LOW; a sender that honours CTS stops after the
  * byte on the line, and the quarter above RX_HIGH is the room for it and for a host that watches
- * RTS itself (section 15). */
+ * RTS itself (README.md, "Serial line"). */
 #define CIAB_PRA    (*(volatile UBYTE *)0xBFD000)
 #define CIAB_DDRA   (*(volatile UBYTE *)0xBFD200)
 #define COM_RTS     (1 << 6)
@@ -1657,7 +1657,7 @@ static void begin_session(void)     /* start_session() with RTS held */
 
     v = get("version", NULL);
     if (!v || atol(v) != PROTO_VERSION) { error_session("version"); return; }
-    /* the session's line rate, confirmed with a second H (section 15) */
+    /* the session's line rate, confirmed with a second H (README.md, "Serial line") */
     v = get("baud", NULL);
     if (v && *v) {
         LONG b = atol(v);

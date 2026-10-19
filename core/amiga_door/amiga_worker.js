@@ -70,9 +70,9 @@ const { HostLink } = require('./host_link.js');
 const { RS } = protocol;
 
 //
-//  Serial line discipline (shim protocol section 15). Caller input is never
-//  dropped for being early: it waits here until the guest has room. What is
-//  in flight is bounded twice:
+//  Serial line discipline (misc/amiga_door/README.md, "Serial line"). Caller
+//  input is never dropped for being early: it waits here until the guest has
+//  room. What is in flight is bounded twice:
 //
 //  - InputWindowBytes: at most this many bytes sit in the core's receive
 //    buffer (SerServer, 8 KB) that the guest's UART has not taken yet

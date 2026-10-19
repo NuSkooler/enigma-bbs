@@ -21,7 +21,7 @@ const InputWindowBytes = 768; //  amiga_worker.js
 const SESSION = { version: 1, door: 'BBS:Doors/X/x', node: 1 };
 
 class TestWorker {
-    constructor({ image, snapshot = true, serialHandshake }) {
+    constructor({ image, snapshot = true, serialHandshake, legacyPackage }) {
         this.messages = [];
         this.waiters = [];
         this.worker = new Worker(HARNESS, {
@@ -32,6 +32,7 @@ class TestWorker {
                 machine: {},
                 warpBootSeconds: 0,
                 serialHandshake,
+                legacyPackage,
                 session: SESSION,
             },
         });
@@ -263,6 +264,35 @@ describe('amiga_door worker', function () {
         await w.tick(0, 0, false);
         assert.equal((await w.state()).serialHandshake, false);
         assert.equal((await w.tick()).length, 1000 - InputWindowBytes);
+    });
+
+    it('without the handshake API (enigma-vamiga 0.1.2) leaves it off and ignores RTS', async () => {
+        w = new TestWorker({ image, snapshot: false, legacyPackage: true });
+        const created = await w.next(m => 'fake' === m.type && 'created' === m.event);
+        assert.equal(created.serialHandshake, undefined, 'no option for the core');
+        w.shim(
+            Buffer.concat([
+                protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 38400 }),
+                protocol.encode('R'),
+            ])
+        );
+        const ready = w.next(m => 'ready' === m.type);
+        assert.equal(sFrameOf(await w.tick()).keys.door, SESSION.door);
+        assert.equal(
+            (await ready).serialHandshake,
+            false,
+            'an axshim 1.5 H changes nothing'
+        );
+        assert.equal((await w.state()).serialHandshake, false);
+
+        //  RTS off and bytes said to be pending mean nothing without the API:
+        //  guestClearToSend() is true and nothing counts as in flight
+        w.post({ type: 'input', data: Buffer.alloc(1000, 0x41) });
+        assert.equal((await w.tick(undefined, 500, false)).length, InputWindowBytes);
+        assert.equal(
+            (await w.tick(undefined, 500, false)).length,
+            1000 - InputWindowBytes
+        );
     });
 
     it('caps queued input without splitting an RS RS pair, and says so once', async () => {
