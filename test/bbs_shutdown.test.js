@@ -11,6 +11,7 @@
 
 const { strict: assert } = require('assert');
 const { EventEmitter } = require('events');
+const net = require('net');
 const paths = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -32,8 +33,12 @@ function harness({ steps, timeoutMs = 5000, flush = cb => cb() } = {}) {
         error: record('error'),
     };
     const out = {
-        info: msg => rec.out.push(msg),
-        error: msg => rec.out.push(msg),
+        info: msg => {
+            rec.out.push(msg);
+        },
+        error: msg => {
+            rec.out.push(msg);
+        },
     };
     rec.done = new Promise(resolve => {
         rec.shutdown = createShutdown({
@@ -261,15 +266,200 @@ describe('bbs.js shutdown', function () {
         });
     });
 
+    describe('listening_server closeListeners()', () => {
+        const { closeListeners } = require('../core/listening_server.js');
+
+        function fakeLog() {
+            const lines = [];
+            const record = level => (obj, msg) => lines.push({ level, obj, msg });
+            return { lines, info: record('info'), warn: record('warn') };
+        }
+
+        //  a server-like object whose close() stops it at once, as a
+        //  net.Server's does, and whose callback waits (here: forever) for
+        //  open connections to end
+        function fakeServer(calls, name) {
+            return {
+                listening: true,
+                close() {
+                    calls.push(name);
+                    this.listening = false;
+                },
+            };
+        }
+
+        function run(servers, timeoutMs = 1000) {
+            const log = fakeLog();
+            const t0 = Date.now();
+            return new Promise(resolve =>
+                closeListeners(servers, { timeoutMs, log }, err =>
+                    resolve({ err, log, ms: Date.now() - t0 })
+                )
+            );
+        }
+
+        it('calls a module shutdown(), closes the servers it keeps, and empties the registry', async () => {
+            const calls = [];
+            const servers = {
+                own: {
+                    instance: {
+                        shutdown: cb => {
+                            calls.push('own.shutdown');
+                            setImmediate(cb);
+                        },
+                        //  shutdown() is the module's own business
+                        server: fakeServer(calls, 'own.server'),
+                    },
+                },
+                telnet: { instance: { server: fakeServer(calls, 'telnet') } },
+                web: {
+                    instance: {
+                        httpServer: fakeServer(calls, 'http'),
+                        httpsServer: fakeServer(calls, 'https'),
+                    },
+                },
+                websocket: {
+                    instance: {
+                        insecure: { httpServer: fakeServer(calls, 'ws') },
+                        secure: { httpServer: fakeServer(calls, 'wss') },
+                    },
+                },
+                nntp: {
+                    instance: {
+                        nntpServer: { server: fakeServer(calls, 'nntp') },
+                        nntpsServer: { server: fakeServer(calls, 'nntps') },
+                    },
+                },
+                //  an ssh2 Server has no .listening; address() is null once closed
+                ssh: {
+                    instance: {
+                        server: {
+                            open: true,
+                            close() {
+                                calls.push('ssh');
+                                this.open = false;
+                            },
+                            address() {
+                                return this.open ? { port: 22 } : null;
+                            },
+                        },
+                    },
+                },
+                neither: { instance: { somethingElse: true } },
+            };
+
+            const { err, log, ms } = await run(servers);
+            assert.ifError(err);
+            assert.ok(ms < 500, `took ${ms} ms`);
+            assert.deepEqual(
+                [...calls].sort(),
+                [
+                    'http',
+                    'https',
+                    'nntp',
+                    'nntps',
+                    'own.shutdown',
+                    'ssh',
+                    'telnet',
+                    'ws',
+                    'wss',
+                ].sort()
+            );
+            assert.deepEqual(servers, {});
+            assert.ok(!log.lines.some(l => l.level === 'warn'), 'nothing was late');
+            const done = log.lines.find(
+                l => l.msg === 'Stopped listening for new connections'
+            );
+            assert.ok(done, 'logs that it stopped listening');
+            assert.equal(done.obj.servers.length, 7);
+        });
+
+        it('gives up on a server that never confirms, within its bound, naming it', async () => {
+            const servers = {
+                stuck: { instance: { server: { close: () => {} } } },
+                stuckOwn: { instance: { shutdown: () => {} } },
+                fine: { instance: { server: fakeServer([], 'fine') } },
+            };
+
+            const { err, log, ms } = await run(servers, 50);
+            assert.ifError(err);
+            assert.ok(ms >= 40 && ms < 500, `took ${ms} ms`);
+            assert.deepEqual(servers, {});
+            const warn = log.lines.find(l => l.level === 'warn');
+            assert.ok(warn, 'logs the late servers');
+            assert.deepEqual([...warn.obj.servers].sort(), ['stuck', 'stuckOwn']);
+        });
+
+        it('keeps going past a server that throws', async () => {
+            const calls = [];
+            const servers = {
+                throws: {
+                    instance: {
+                        server: {
+                            close: () => {
+                                throw new Error('boom');
+                            },
+                        },
+                    },
+                },
+                fine: { instance: { server: fakeServer(calls, 'fine') } },
+            };
+
+            const { err, log, ms } = await run(servers);
+            assert.ifError(err);
+            assert.ok(ms < 500, `took ${ms} ms`);
+            assert.deepEqual(calls, ['fine']);
+            assert.deepEqual(servers, {});
+            assert.ok(
+                log.lines.some(l => l.level === 'warn' && l.obj.server === 'throws')
+            );
+        });
+
+        it('calls back at once with nothing to close', async () => {
+            const { err, ms } = await run({});
+            assert.ifError(err);
+            assert.ok(ms < 100);
+        });
+
+        it('stops a real net.Server accepting, without waiting for open connections', async () => {
+            const server = net.createServer(() => {});
+            await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+            const { port } = server.address();
+
+            const open = net.connect(port, '127.0.0.1');
+            await new Promise(resolve => open.on('connect', resolve));
+
+            try {
+                const { err, log, ms } = await run({ telnet: { instance: { server } } });
+                assert.ifError(err);
+                assert.ok(ms < 500, `took ${ms} ms`);
+                assert.ok(!log.lines.some(l => l.level === 'warn'));
+
+                const refused = await new Promise(resolve => {
+                    const c = net.connect(port, '127.0.0.1');
+                    c.on('connect', () => {
+                        c.destroy();
+                        resolve(null);
+                    });
+                    c.on('error', e => resolve(e.code));
+                });
+                assert.equal(refused, 'ECONNREFUSED');
+                assert.ok(!open.destroyed, 'the open connection was left alone');
+            } finally {
+                open.destroy();
+            }
+        });
+    });
+
     describe('the real steps', () => {
-        it('stops callers first, then Amiga doors, and the rest after', () => {
+        it('stops listening first, then callers, then Amiga doors, and the rest after', () => {
             const { shutdownSteps } = require('../core/bbs.js');
             assert.deepEqual(
                 shutdownSteps.map(s => s.name),
                 [
+                    'stopListeningServers',
                     'closeConnections',
                     'stopAmigaDoors',
-                    'stopListeningServers',
                     'stopEventScheduler',
                     'stopFileAreaWeb',
                     'stopMsgNetwork',

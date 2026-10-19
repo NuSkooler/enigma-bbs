@@ -79,9 +79,33 @@ function writeInstance(dir, port) {
     return configDir + paths.sep;
 }
 
+//  A new caller on |port|: resolves with how the connection ended (an error
+//  code, or 'closed') and how many bytes the server sent first. A caller the
+//  telnet server accepts is sent its option negotiation at once.
+function probe(port) {
+    return new Promise(resolve => {
+        let bytes = 0;
+        let how = 'closed';
+        const c = net.connect(port, '127.0.0.1');
+        c.setTimeout(3000, () => {
+            how = 'timeout';
+            c.destroy();
+        });
+        c.on('data', chunk => {
+            bytes += chunk.length;
+        });
+        c.on('error', e => {
+            how = e.code;
+        });
+        c.on('close', () => resolve({ how, bytes }));
+    });
+}
+
 //  Start ./main.js, wait for "System started!", send |signal|, and resolve
-//  with what it printed, how it exited, and how long that took
-function startAndStop(configDir, signal) {
+//  with what it printed, how it exited, and how long that took. As soon as
+//  it says it is shutting down, a new caller tries to connect: |probe| is
+//  what that caller got.
+function startAndStop(configDir, signal, port) {
     return new Promise((resolve, reject) => {
         const child = spawn(process.execPath, ['main.js', '--config', configDir], {
             cwd: REPO_ROOT,
@@ -89,6 +113,7 @@ function startAndStop(configDir, signal) {
         });
         let output = '';
         let signalledAt = null;
+        let probed = null;
 
         const giveUp = setTimeout(() => {
             child.kill('SIGKILL');
@@ -101,6 +126,9 @@ function startAndStop(configDir, signal) {
                 signalledAt = Date.now();
                 child.kill(signal);
             }
+            if (probed === null && output.includes('Shutting down...')) {
+                probed = probe(port);
+            }
         };
         child.stdout.setEncoding('utf8').on('data', onData);
         child.stderr.setEncoding('utf8').on('data', onData);
@@ -108,11 +136,9 @@ function startAndStop(configDir, signal) {
         child.on('error', reject);
         child.on('exit', (code, sig) => {
             clearTimeout(giveUp);
-            resolve({
-                output,
-                code,
-                signal: sig,
-                ms: signalledAt === null ? null : Date.now() - signalledAt,
+            const ms = signalledAt === null ? null : Date.now() - signalledAt;
+            Promise.resolve(probed).then(probe => {
+                resolve({ output, code, signal: sig, ms, probe });
             });
         });
     });
@@ -143,8 +169,9 @@ describe('shutdown on a signal (live)', function () {
 
             before(async () => {
                 dir = fs.mkdtempSync(paths.join(os.tmpdir(), 'enigma-shutdown-'));
-                const configDir = writeInstance(dir, await freePort());
-                result = await startAndStop(configDir, signal);
+                const port = await freePort();
+                const configDir = writeInstance(dir, port);
+                result = await startAndStop(configDir, signal, port);
             });
 
             after(() => {
@@ -172,11 +199,35 @@ describe('shutdown on a signal (live)', function () {
                 assert.ok(result.ms < 5000, `took ${result.ms} ms`);
             });
 
-            it('logs the signal and the end of the shutdown', () => {
+            it('logs each step in order: listeners closed, callers disconnected, done', () => {
                 const msgs = logMessages(dir);
-                const start = msgs.indexOf(`Received ${signal}. Shutting down...`);
-                assert.ok(start > -1, msgs.join('\n'));
-                assert.ok(msgs.indexOf('Shutdown complete') > start, msgs.join('\n'));
+                const order = [
+                    `Received ${signal}. Shutting down...`,
+                    'Stopped listening for new connections',
+                    'Disconnected callers',
+                    'Shutdown complete',
+                ].map(m => [m, msgs.indexOf(m)]);
+                order.forEach(([m, at], i) => {
+                    assert.ok(at > -1, `no "${m}":\n${msgs.join('\n')}`);
+                    if (i > 0) {
+                        assert.ok(at > order[i - 1][1], `"${m}" out of order`);
+                    }
+                });
+            });
+
+            it('turns away a caller who connects once the shutdown has begun', () => {
+                //  The listener closes in the same tick that prints "Shutting
+                //  down...". The kernel may still complete the caller's
+                //  handshake just before that and then reset it, so what
+                //  shows the caller was never taken on is that the server
+                //  sent nothing
+                assert.ok(result.probe, 'never probed');
+                const { how, bytes } = result.probe;
+                assert.equal(bytes, 0, `the server took the caller on (${how})`);
+                assert.ok(
+                    ['ECONNREFUSED', 'ECONNRESET', 'closed'].includes(how),
+                    `a new caller got: ${how}`
+                );
             });
         });
     });

@@ -189,9 +189,10 @@ function main() {
 //
 //  How long an orderly shutdown may take in all before the process exits
 //  anyway, with a non-zero code. Every step below either bounds itself
-//  (running Amiga doors get about 3 s to sync their images) or is quick, so
-//  this only fires when one of them hangs. A service manager must allow at
-//  least this long before it kills ENiGMA½: see "Stopping" in
+//  (the listening servers get about 1 s to stop, running Amiga doors about
+//  3 s to sync their images) or is quick, so this only fires when one of
+//  them hangs. A service manager must allow at least this long before it
+//  kills ENiGMA½: see "Stopping" in
 //  website/src/content/docs/installation/production.md.
 //
 const ShutdownTimeoutMs = 15000;
@@ -201,11 +202,18 @@ const ShutdownTimeoutMs = 15000;
 const ShutdownSignals = ['SIGINT', 'SIGTERM'];
 
 //
-//  What an orderly shutdown stops, in this order. Callers go first so that
-//  nothing new starts while the rest stops; running Amiga doors then get to
-//  sync their disk images. Each step calls back without an error.
+//  What an orderly shutdown stops, in this order. The listening servers stop
+//  accepting connections first, so that nobody new can call in, or start an
+//  Amiga door, while the rest stops; connected callers are then told and
+//  disconnected, and running Amiga doors get to sync their disk images. Each
+//  step calls back without an error.
 //
 const shutdownSteps = [
+    {
+        //  About 1 s at most; connections already open are left to the next step
+        name: 'stopListeningServers',
+        run: cb => require('./listening_server.js').shutdown(() => cb(null)),
+    },
     {
         name: 'closeConnections',
         run: cb => {
@@ -223,6 +231,10 @@ const shutdownSteps = [
                 }
                 ClientConns.removeClient(activeConnections[i]);
             }
+            logger.log.info(
+                { callers: activeConnections.length },
+                'Disconnected callers'
+            );
             return cb(null);
         },
     },
@@ -231,10 +243,6 @@ const shutdownSteps = [
         //  Best effort, about 3 s at most: running Amiga doors sync their
         //  disk images before the process exits
         run: cb => require('./amiga_door/amiga_door.js').shutdown(() => cb(null)),
-    },
-    {
-        name: 'stopListeningServers',
-        run: cb => require('./listening_server.js').shutdown(() => cb(null)),
     },
     {
         name: 'stopEventScheduler',
