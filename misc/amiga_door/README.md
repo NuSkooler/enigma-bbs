@@ -51,7 +51,7 @@ toolchain.
 
 | Path | What |
 |---|---|
-| `bin/axshim` | the host shim (axshim 1.4), AmigaOS executable (68000, AROS and Kickstart 3.1) |
+| `bin/axshim` | the host shim (axshim 1.5), AmigaOS executable (68000, AROS and Kickstart 3.1) |
 | `bin/AEDoor.library` | NilBBS's MIT `AEDoor.library` 3.0, which most doors open |
 | `shim/axshim.c` | shim source (BSD-2-Clause) |
 | `shim/Makefile`, `shim/build.sh` | build both binaries |
@@ -64,12 +64,13 @@ implements the framing; `test/amiga_door_protocol.test.js` covers it.
 
 ## The shim
 
-`axshim [baud]` (default 115200) runs from `S:Startup-Sequence` and never returns.
+`axshim [baud]` runs from `S:Startup-Sequence` and never returns; `baud` is a
+session's line rate when its `s` frame names none (default 115200).
 It:
 
 - drives Paula's UART directly (AROS has no `serial.device`; the same code runs on
-  Kickstart 3.1), 115200 8N1, with interrupt-driven receive and transmit rings
-  and no busy-waiting;
+  Kickstart 3.1), 8N1, with interrupt-driven receive and transmit rings
+  and no busy-waiting, and with RTS flow control (see "Serial line" below);
 - says `H` (hello) and `R` (ready), then waits for a session (`s`) frame holding
   the user block and the door to run;
 - creates `AEDoorPort<node>`, starts `<door> <node> [args]` with `SystemTagList`,
@@ -100,6 +101,53 @@ For a CLI door (`type=cli` in the session frame) it instead:
 
 The console handler follows NilBBS's (`src/node/door.c`, MIT); the notice is in
 `shim/axshim.c`.
+
+### Serial line
+
+The line discipline: RTS watermarks, the `baud` key, the second `H`, the
+listening rate and the 3-second rule. axshim 1.5 does not count on the emulator
+holding a received byte until the Amiga has read the one before, which enigma-vamiga's patch
+0001 does today and a real Amiga does not:
+
+- RTS (CIA-B PA6) and DTR (PA7) are asserted when the port is opened. The RBF
+  interrupt drops RTS when the 4 KB receive ring holds 3 KB, and the shim raises it
+  again once it has taken the ring down to 1 KB. RTS is also dropped from an `s`
+  until the door's first request (at most 3 seconds), and while a session ends:
+  loading a door keeps a 7 MHz AROS machine from the serial interrupt for longer
+  than a byte at 38400.
+- Keys the door has not read stay in the ring when the door's 4 KB input queue is
+  full, so the ring fills and RTS drops; before 1.5 the shim dropped them (`X
+  indrop`), and lost one byte of a 4096-byte burst sent before the door read.
+  Frames behind keys held this way wait until the door reads, except a `d` the
+  shim finds in the ring; and once the door has taken no key for 3 seconds with its
+  queue full, the shim drops what it cannot queue again (`indrop`), so a door that
+  has stopped reading cannot keep a hang-up waiting behind a flood.
+- `s` may name the session's rate, `baud=1200..230400`; the shim answers an accepted
+  `s` with a second `H` carrying the rate now in effect. Between sessions it listens
+  at no more than 38400 (19200 on a 68000 or 68010), whatever the command line says,
+  since a damaged `s` cannot be sent again; the boot `H` carries that rate.
+- `X` adds `rtsoff=<n>` (times RTS dropped for a full ring) and `rxfull=<n>` (times
+  the ring was full and a byte had to wait in `SERDATR`, which only an emulator that
+  holds bytes keeps).
+
+On the host side (`core/amiga_door/amiga_worker.js`) caller input waits in the
+worker until the guest has room: at most 768 bytes are in the core's receive buffer
+that the Amiga has not taken (`serialInPending`), below the 1 KB the ring has above
+its RTS watermark. Nothing is dropped below 1 MB of queued input, and held input
+is never dropped while the door keeps taking keys. But a hang-up (`d`) queued
+behind more than about 7 KB of input the door has not read (its 4 KB queue and
+the ring up to RTS) waits for the door to read down to it: a door that reads very
+slowly, one key every few seconds, can hold it past the module's 35-second
+`disconnectGraceSeconds`, and the worker is then stopped without saving (an XIM
+door's save on hang-up is lost). With enigma-vamiga
+0.1.3 or later and an `H` that says `shim=axshim 1.5` or later, the worker turns on
+the core's RTS/CTS handshake (`serialHandshake`) and offers nothing while
+`emu.guestRts` is off; a restored session starts with the setting its snapshot's
+machine had.
+
+Without byte holding, how fast the emulated CPU fetches each byte decides the rate:
+38400 on the default 68EC020 at 7 MHz, 57600 with `overclock: 2`, 19200 on a 68000.
+Kickstart 3.1 fetches faster than AROS (57600 at 7 MHz).
 
 For an ARexx door (`type=aim`) it:
 
@@ -194,7 +242,7 @@ brief:
 
 | Shim to host | | Host to shim | |
 |---|---|---|---|
-| `H` | hello: `version=1`, `shim`, `exec`, `kick`, `baud` | `s` | start a session (user block) |
+| `H` | hello: `version=1`, `shim`, `exec`, `kick`, `baud`; again after an accepted `s` (1.5) | `s` | start a session (user block) |
 | `R` | ready for a session | `t` | `timeleft=<minutes>` |
 | `L` | door launched: `door`, `pid` | `d` | `reason=hangup\|timeup\|break` |
 | `C` | one door request (only with `log=1`) | `w` | `rows`, `cols` |
@@ -206,7 +254,8 @@ User block keys (`s`): `version` and `door` are required; `type` (`xim`, `aim`,
 `node`, `name`, `realname`, `location`, `level`, `timeleft`, `timeused`,
 `timelimit`, `calls`, `posts`, `uploads`, `downloads`, `ulbytes`, `dlbytes`,
 `laston`, `expert`, `ansi`, `rows`, `cols`, `bbsname`, `sysop`, `mainline`,
-`timeout` and `log` feed the door's `DT_*` and node queries. The shim also answers
+`timeout` and `log` feed the door's `DT_*` and node queries; `baud` sets the
+session's line rate (axshim 1.5). The shim also answers
 `DT_HOSTNAME` and `DT_HOSTIP` from `hostname` and `hostip`, which ENiGMA does not
 send: a door that asks gets an empty string.
 A CLI door gets none of the user block: its `args` (its whole command line, with no
@@ -250,8 +299,10 @@ and adds these keys to `X` when they apply: `rc` (the door's return code, -1 whi
 it still runs), `changed` (the first file on the boot volume dated after the session
 start, which is how file writes are seen for `wrote=1`), `unknown` (command numbers it
 did not recognise), `dropdtr=1` (the door asked to hang up the caller), `indrop`
-(typed bytes dropped because the door was not reading), `txpoll=1` (the transmit
-interrupt never fired, so the shim fell back to polling).
+(typed bytes dropped: before 1.5 those the door was not reading, since 1.5 those
+the door left for 3 seconds with its queue full, or behind a hang-up), `rtsoff` and `rxfull` (1.5, see "Serial
+line"), `txpoll=1` (the transmit interrupt never fired, so the shim fell back to
+polling).
 
 For a Paragon door `X` carries `cmds` and `codes` (its command numbers), `reg=0`,
 `rc`, `addtime` (minutes the door added; informational, ENiGMA does not apply
@@ -327,7 +378,10 @@ every test door on AROS 20260820 and on Kickstart 3.1 (40.68); axshim 1.1 (CLI
 doors) is tested on AROS 20260820; axshim 1.2's ARexx doors (KickBoxing, Hacker,
 The Death Game) on both: Workbench 3.1's ARexx runs on the AROS ROM too; axshim
 1.3's Paragon doors (Master Space Empire, The Land of VEX, Sector Wars II,
-AndroFight) on both.
+AndroFight) on both. axshim 1.5 runs the same doors on both, and, on a vAmiga
+core that does not hold bytes (master with the null-modem frame timing fix and
+RTS/CTS handshake, vAmiga #1027 and #1028), every door on AROS at 38400 and at
+57600 with `overclock: 2`.
 
 ## Licences
 

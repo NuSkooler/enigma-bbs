@@ -199,6 +199,7 @@ Add an `amiga_door` module entry to a menu in `menu.hjson`. `name`, `image` and 
 | `slowKb` | No | Slow RAM, 0 to 1536 in steps of 256. Default: `512`. |
 | `fastKb` | No | Fast RAM, 0 to 8192 in steps of 64. Default: `8192`. The core supports at most 8 MB. |
 | `overclock` | No | CPU speed multiplier, 1 to 16. Default: `1`. |
+| `baud` | No | The serial line's rate for the session: `9600`, `19200`, `38400`, `57600`, `115200` or `230400`. Default: `115200`. See [Serial Line](#serial-line) for the rate to pick. Needs an image built with axshim 1.5 or later; an older shim keeps its own rate, and ENiGMA½ logs a warning. |
 | `nodeMax` | No | Maximum concurrent sessions. `0` is unlimited. Default: `0`, or `1` when `sharedState` is true and `nodeMax` is not set. |
 | `sharedState` | No | The door writes state all callers share (high scores, a wall): sets `nodeMax` to 1 when `nodeMax` is not set. A door that persists already runs one caller at a time per image. Default: `false`. See [Persistence](#persistence). |
 | `tooManyArt` | No | Art spec shown when `nodeMax` is reached or the door's image is in use by another session. |
@@ -491,6 +492,24 @@ The door's disk is the image file, and each session works on a copy of it. A doo
 Because sessions are independent copies, two callers on one image could not see each other's writes, and each would write back the disk blocks it changed over the other's (directory and allocation blocks among them). So a door that persists (the default) holds its image for the whole session: while one caller is in it, anyone who picks a door on the same image, this door or another, is told it is busy (`tooManyArt`, or "Too many active instances"), just as `nodeMax` refuses. The image is released once the door has exited and its changes are written. ENiGMA½ also checks, before writing, that the image file is still the one the session started from; if something else changed it meanwhile (a sysop's `xdftool`, a copy put in place), the session's changes are not written and the log says `NOT persisted`.
 
 Sharing an image therefore serialises callers: all the persisting doors on one image run one caller at a time between them. Give doors their own images when you want them to run side by side; separate images run in parallel. A door that keeps nothing between sessions (a single-player game with no saved files) can set `persist: false`: it then never holds its image and runs on as many nodes as `nodeMax` allows, every session starting from the image as it is.
+
+---
+
+### Serial Line
+
+The door and ENiGMA½ talk over the emulated Amiga's serial port, and the shim drives it the way a careful Amiga terminal program would. It raises RTS (the Amiga's "ready to receive" line) when it opens the port, and drops it while its 4 KB receive buffer is three-quarters full and while it is loading a door, so the sending side waits instead of overrunning the port. Keys the door has not read yet stay in that buffer, and ENiGMA½ keeps the rest of a long paste and hands it over as the door takes it.
+
+`baud` sets the line rate for a session. Inside the emulator the rate only paces the bytes; what decides whether a rate works is whether the emulated CPU fetches each byte before the next one arrives. The emulator ENiGMA½ ships today (enigma-vamiga 0.1) holds each received byte until the Amiga has read the one before, so every rate works with it, and the default stays `115200`. A real Amiga has no such help, and the emulator is due to lose it. Without it, these rates are the fastest that measured lossless with the AROS ROM:
+
+| CPU | `baud` |
+|---|---|
+| 68EC020 at 7 MHz (`cpu: 68EC020`, `overclock: 1`, the defaults) | `38400` |
+| 68EC020 at 14 MHz (`overclock: 2`, an A1200's clock) | `57600` |
+| 68000 at 7 MHz (and the 68010, which is hardly faster) | `19200` |
+
+Kickstart 3.1 (`rom`) handles the serial interrupt faster than AROS and keeps up with `57600` at 7 MHz. At `115200` a 7 MHz machine without the emulator's help loses bytes, as a real one does. A rate is 10 bits per character: 38400 is 3840 characters a second each way, more than any modem caller had, and a full 80x25 ANSI screen arrives in about a second. Between sessions the shim listens at 38400 (19200 on a 68000), whatever `baud` says, because the user block it receives at the start of a session cannot be sent twice.
+
+**Pasted text that used to vanish.** Before axshim 1.5 the shim kept at most 4 KB of keys the door had not read and threw away the rest, and lost one more key when a 4 KB paste came before the door started reading; a long paste into a door that was busy drawing its screen lost its end. Now the keys wait: the door gets every one of them, as fast as it reads, for as long as it keeps taking keys. (A door that takes no key at all for 3 seconds while its 4 KB of unread keys is full is treated as no longer reading, and what it cannot take is dropped, so a hang-up still reaches it.) A door that keeps reading but very slowly, one key every few seconds, with more than about 7 KB of a paste still unread, can hold the caller's hang-up behind those keys for longer than `disconnectGraceSeconds` (35 by default); ENiGMA½ then stops the session without saving, so what an XIM door would have saved on the hang-up is lost. ENiGMA½ keeps up to 1 MB of a caller's unread input and logs a warning if that ever fills. From enigma-vamiga 0.1.3 the emulator honours the shim's RTS (ENiGMA½ turns this on for images with axshim 1.5 or later), so a door that reads nothing for a while after more than 8 KB of input no longer loses keys; with 0.1.2 and older it can lose about one key in every tenth of a second it waits. Images built before axshim 1.5 have the old shim: rebuild them with `make_image.sh` to get this.
 
 ---
 

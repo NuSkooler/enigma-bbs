@@ -206,6 +206,7 @@ describe('amiga_door config', () => {
         assert.equal(c.slowKb, 512);
         assert.equal(c.fastKb, 8192);
         assert.equal(c.overclock, 1);
+        assert.equal(c.baud, 115200);
         assert.equal(c.nodeMax, 0);
         assert.equal(c.encoding, 'latin1');
         assert.equal(c.font, 'topaz');
@@ -460,6 +461,27 @@ describe('amiga_door config', () => {
         assert.ok(problemsOf({ chipKb: 4096 }).some(p => p.includes('"chipKb"')));
         assert.ok(problemsOf({ slowKb: 100 }).some(p => p.includes('"slowKb"')));
         assert.ok(problemsOf({ overclock: 17 }).some(p => p.includes('"overclock"')));
+    });
+
+    it('takes baud from the usual line rates only', () => {
+        for (const baud of [9600, 19200, 38400, 57600, 115200, 230400]) {
+            assert.equal(config({ baud }).baud, baud);
+        }
+        assert.equal(config({ baud: 57600, overclock: 2 }).baud, 57600);
+        for (const baud of [0, 300, 11520, 38400.5, 460800, '38400', null, true]) {
+            assert.ok(
+                problemsOf({ baud }).some(p =>
+                    p.includes(
+                        '"baud" must be one of 9600, 19200, 38400, 57600, 115200, 230400'
+                    )
+                ),
+                `no problem reported for ${JSON.stringify(baud)}`
+            );
+        }
+        assert.deepEqual(
+            normalizeConfig(Object.assign({ baud: 38400 }, BASE)).warnings,
+            []
+        );
     });
 
     it('wants 1 MB of RAM with the AROS ROM, not with a Kickstart', () => {
@@ -810,6 +832,10 @@ describe('amiga_door snapshot cache', () => {
         assert.ok(stored.buffer instanceof SharedArrayBuffer);
         assert.deepEqual([...cache.get(key)], [1, 2, 3]);
         assert.equal(cache.get('nope'), undefined);
+        assert.deepEqual(cache.meta(key), {});
+        cache.set(key, Buffer.from([4]), { serialHandshake: true });
+        assert.deepEqual(cache.meta(key), { serialHandshake: true });
+        assert.equal(cache.meta('nope'), undefined);
     });
 
     it('evicts the least recently used past maxEntries', () => {
@@ -936,6 +962,99 @@ describe('amiga_door persist decision', () => {
 // ─── session (frame handling) ─────────────────────────────────────────────────
 
 describe('amiga_door session', () => {
+    const warned = (client, re) =>
+        client.log.lines.filter(l => 'warn' === l.level && re.test(l.msg));
+
+    it("logs the line rate the shim confirms, and warns when it is not the config's", async () => {
+        const link = new HostLink({ helloSeen: true });
+        const ok = makeSession({ baud: 38400 });
+        deliver(
+            ok.worker,
+            workerMessages(
+                link,
+                Buffer.concat([
+                    protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 38400 }),
+                    protocol.encode('L', { door: BASE.door, pid: 0 }),
+                ])
+            )
+        );
+        assert.deepEqual(warned(ok.client, /line rate|baud/), []);
+        const launched = ok.client.log.lines.find(l => 'Amiga door launched' === l.msg);
+        assert.equal(launched.obj.baud, '38400');
+
+        const other = makeSession({ baud: 38400 });
+        deliver(
+            other.worker,
+            workerMessages(
+                new HostLink({ helloSeen: true }),
+                protocol.encode('H', { version: 1, shim: 'axshim 1.5', baud: 115200 })
+            )
+        );
+        assert.equal(warned(other.client, /another line rate/).length, 1);
+
+        ok.session.disconnect('hangup');
+        other.session.disconnect('hangup');
+        await Promise.all([ok.done, other.done]);
+    });
+
+    it('warns when baud is set and the shim never confirms a rate (axshim 1.4)', async () => {
+        const old = makeSession({ baud: 38400 });
+        const launch = protocol.encode('L', { door: BASE.door, pid: 0 });
+        deliver(old.worker, workerMessages(new HostLink({ helloSeen: true }), launch));
+        assert.equal(warned(old.client, /predates 1\.5/).length, 1);
+
+        //  the default rate is what an old shim runs at anyway: nothing to say
+        const plain = makeSession();
+        deliver(plain.worker, workerMessages(new HostLink({ helloSeen: true }), launch));
+        assert.deepEqual(warned(plain.client, /predates/), []);
+
+        old.session.disconnect('hangup');
+        plain.session.disconnect('hangup');
+        await Promise.all([old.done, plain.done]);
+    });
+
+    it('ignores the boot hello: only an H after `s` is the session rate', async () => {
+        const client = fakeClient();
+        const worker = new FakeWorker();
+        const session = new AmigaDoorSession({
+            client,
+            config: config({ baud: 57600 }),
+            worker,
+            cacheKey: 'k',
+            cache: new SnapshotCache({ maxEntries: 4 }),
+            sessionKeys: { timeleft: 60, rows: 25, cols: 80 },
+            rawOutput: false,
+            timeouts: { exitAfterDisconnect: 30 },
+        });
+        const done = new Promise(resolve => session.once('done', resolve));
+        session.start();
+        //  booting: the shim listens at 38400 between sessions
+        deliver(worker, [
+            {
+                type: 'frame',
+                frame: { type: 'H', keys: { shim: 'axshim 1.5', baud: '38400' } },
+            },
+            { type: 'ready', restored: false, ms: 900, restoreMs: null },
+            {
+                type: 'frame',
+                frame: { type: 'H', keys: { shim: 'axshim 1.5', baud: '57600' } },
+            },
+        ]);
+        assert.deepEqual(warned(client, /line rate|baud/), []);
+        session.disconnect('hangup');
+        await done;
+    });
+
+    it('warns once when the worker says the input queue is full', async () => {
+        const s = makeSession();
+        deliver(s.worker, [{ type: 'inputFull', limit: 1048576 }]);
+        const w = warned(s.client, /input queue is full/);
+        assert.equal(w.length, 1);
+        assert.equal(w[0].obj.limit, 1048576);
+        s.session.disconnect('hangup');
+        await s.done;
+    });
+
     it('writes door output with 0x9B translated, transcoded or raw', async () => {
         const link = new HostLink({ helloSeen: true });
         const bytes = Buffer.from([0x9b, 0x31, 0x6d, 0xe9, 0x0d, 0x0a]);
@@ -1360,8 +1479,11 @@ describe('amiga_door session', () => {
             type: 'snapshot',
             snapshot: new Uint8Array([7, 7]),
             ms: 40,
+            serialHandshake: true,
         });
         assert.equal(s.cache.size, 1);
+        //  the RTS/CTS setting goes with it, for the workers that restore it
+        assert.deepEqual(s.cache.meta(s.session.cacheKey), { serialHandshake: true });
         s.session.disconnect('hangup');
         await s.done;
     });
@@ -1754,6 +1876,8 @@ describe('amiga_door session keys', () => {
         assert.equal(keys.log, 1);
         assert.equal(keys.crlf, 0);
         assert.equal(keys.regtimeout, 30);
+        assert.equal(keys.baud, 115200, 'the default rate goes out too');
+        assert.equal(buildSessionKeys(stubClient(), config({ baud: 38400 })).baud, 38400);
         //  unlimited clamps to the drop-file ceiling rather than a sentinel
         assert.equal(keys.timeleft, MaxDoorMinutes);
         assert.equal(keys.timelimit, MaxDoorMinutes);
