@@ -270,12 +270,16 @@ const shutdownSteps = [
 //  process end on its own with status 0, which a service manager reads as a
 //  clean stop.
 //
+//  Either way out waits, a second at most, for the log file to catch up, so
+//  that the shutdown's own lines are not lost to process.exit().
+//
 //  The options are for tests.
 //
 function createShutdown({
     steps = shutdownSteps,
     timeoutMs = ShutdownTimeoutMs,
     exit = code => process.exit(code),
+    flush = cb => logger.flush(cb),
     log,
     out = console,
 } = {}) {
@@ -306,7 +310,7 @@ function createShutdown({
             } s: step "${current}" never completed. Exiting anyway`;
             out.error(stuck);
             sysLog.error({ step: current, timeoutMs }, stuck);
-            return exit(1);
+            return flush(() => exit(1));
         }, timeoutMs);
 
         async.eachSeries(
@@ -339,7 +343,7 @@ function createShutdown({
                 finished = true;
                 sysLog.info('Shutdown complete');
                 out.info('Goodbye!');
-                return exit(0);
+                return flush(() => exit(0));
             }
         );
     };
