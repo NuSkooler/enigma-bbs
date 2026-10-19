@@ -89,7 +89,7 @@ An image that contains Workbench files is licensed material: keep it on your ser
 
 ### Building a Door Image
 
-A door image is a bare FFS partition (no RDB), named `BBS`, 4 MB unless the door needs more. Every session carries a copy of the image, so keep it small. It holds:
+A door image is a bare FFS partition (no RDB), named `BBS`, 2000 KB (`create`'s default) unless the door needs more. Every session carries a copy of the image, so keep it small. It holds:
 
 ```
 C/axshim                  the host shim
@@ -109,7 +109,7 @@ It takes the image to create and one or more door directories (listed after the 
 | Option | |
 |---|---|
 | `--size SIZE` | Image size, default `2000K`: bytes, or with `K`, `M` or `G`. Rounded up to a multiple of 8 KB. At most `2032K` unless `--allow-large` is given. |
-| `--allow-large` | Allow a `--size` over 2032 KB. Only for an image used with the bundled ROM, Kickstart 3.1 or another ROM that carries the FFS fix. |
+| `--allow-large` | Allow a `--size` over 2032 KB (up to 2097144K, 8 KB short of 2 GB). Only for an image used with the bundled ROM, Kickstart 3.1 or another ROM that carries the FFS fix. |
 | `--name NAME` | Volume name, default `BBS`. |
 | `--workbench ADF` | Add ARexx from your own Workbench 3.1 disk, for ARexx doors; see [ARexx Doors](#arexx-doors). |
 | `--force` | Replace the image if it exists. |
@@ -155,7 +155,7 @@ These commands read and write any plain OFS or FFS image, floppy `.adf` files in
     --args '"{name}" DOORS:spac/' --user Hero --no-persist
 ```
 
-`--door` is required; `--type` is `xim` (the default), `cli`, `aim` or `tim`. `--user` sets the caller's name, and `--args`, `--console-mode`, `--mainline`, `--encoding` (try `cp437` for doors drawn for a PC terminal), `--rom` and `--rows`/`--cols` mirror the module's settings. The door's output is shown as UTF-8 with the Amiga console's control codes translated and the shim's control frames removed. When the door ends, the shim's summary (`status`, the commands it used, the files it changed) is printed. If the door exited normally (`status: ok`) its changes are written back to the image, as in a real session; `--no-persist` leaves the image alone. Press Ctrl+] to hang up and quit; that ends the session with status `carrier`, so nothing is written. Use it on a copy of an image, or one no running board is using.
+`--door` is required; `--type` is `xim` (the default), `cli` or `aim`, or another door type the shim on the image supports (`tim` for Paragon doors and `cnetrexx` for C-Net ARexx doors, once that door support is installed; a shim without it ends the session with `error=unknown door type`). `--user` sets the caller's name, and `--args`, `--console-mode`, `--mainline`, `--encoding` (try `cp437` for doors drawn for a PC terminal), `--rom` and `--rows`/`--cols` mirror the module's settings. The door's output is shown as UTF-8 with the Amiga console's control codes translated and the shim's control frames removed. When the door ends, the shim's summary (`status`, the commands it used, the files it changed) is printed. If the door exited normally (`status: ok`) its changes are written back to the image, as in a real session; `--no-persist` leaves the image alone. Press Ctrl+] to hang up and quit; that ends the session with status `carrier`, so nothing is written. Use it on a copy of an image, or one no running board is using.
 
 #### What a door may need
 

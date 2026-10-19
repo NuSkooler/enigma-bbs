@@ -19,12 +19,18 @@
  *   amiga-door console IMAGE --door PATH   test-drive a door on a terminal
  */
 
-const { printUsageAndSetExitCode, argv, ExitCodes } = require('./oputil_common.js');
+const {
+    printUsageAndSetExitCode,
+    argv,
+    argvOptions,
+    ExitCodes,
+} = require('./oputil_common.js');
 const { getHelpFor } = require('./oputil_help.js');
 const { AmigaVolume, splitPath } = require('../amiga_door/amiga_fs.js');
 
 const fs = require('fs');
 const paths = require('path');
+const minimist = require('minimist');
 
 const AMIGA_DIR = paths.join(__dirname, '../../misc/amiga_door');
 
@@ -71,7 +77,9 @@ const AROS_MAX_BLOCKS = 4066;
 const AROS_MAX_SIZE = 2032 * 1024;
 const DEFAULT_NAME = 'BBS';
 const SIZE_ROUND = 16 * 512; // vAmiga finds a drive geometry for any multiple of 16 blocks
-const MAX_SIZE = 2 * 1024 * 1024 * 1024;
+//  2G less 8K: Node's Buffer methods fail on a buffer of 2^31 bytes or more
+//  (write() writes nothing), and fs reads at most 2^31 - 1 bytes at a time
+const MAX_SIZE = 2 * 1024 * 1024 * 1024 - SIZE_ROUND;
 
 class CommandError extends Error {}
 
@@ -99,7 +107,11 @@ function parseSize(value) {
     ];
     const bytes = Math.ceil((parseFloat(m[1]) * mult) / SIZE_ROUND) * SIZE_ROUND;
     if (bytes <= 0) throw new CommandError(`bad size: ${value}`);
-    if (bytes > MAX_SIZE) throw new CommandError(`size too large: ${value} (at most 2G)`);
+    if (bytes > MAX_SIZE) {
+        throw new CommandError(
+            `size too large: ${value} (at most ${MAX_SIZE / 1024}K, 8K short of 2G)`
+        );
+    }
     return bytes;
 }
 
@@ -161,12 +173,23 @@ function openImage(image, options = {}) {
     return AmigaVolume.openFile(image, options);
 }
 
-//  Write the image next to itself, then move it into place
+//  Write the image next to itself, then move it into place. A symbolic link
+//  is followed (the file it names is replaced, the link stays) and an
+//  existing image keeps its mode.
 function saveImage(vol, image) {
-    const tmp = `${image}.tmp-${process.pid}`;
+    let target = image;
+    let mode;
+    try {
+        target = fs.realpathSync(image);
+        mode = fs.statSync(target).mode & 0o7777;
+    } catch (e) {
+        //  a new image
+    }
+    const tmp = `${target}.tmp-${process.pid}`;
     try {
         fs.writeFileSync(tmp, vol.toBuffer());
-        fs.renameSync(tmp, image);
+        if (mode !== undefined) fs.chmodSync(tmp, mode);
+        fs.renameSync(tmp, target);
     } catch (e) {
         fs.rmSync(tmp, { force: true });
         throw e;
@@ -371,6 +394,7 @@ function buildDoorImage(options, log = () => {}, warn = () => {}) {
 
     const vol = AmigaVolume.create(size, { name: options.name || DEFAULT_NAME });
     const now = new Date();
+    let filling = 'the shim, AEDoor.library and S/Startup-Sequence';
     try {
         for (const dir of ['C', 'S', 'Libs', 'Doors']) vol.mkdir(dir);
         for (const [src, dst] of BASE_FILES) {
@@ -380,6 +404,7 @@ function buildDoorImage(options, log = () => {}, warn = () => {}) {
             log(`  ${dst}`);
         }
         if (wbFiles.length) {
+            filling = `the ${wbFiles.length} Workbench files`;
             for (const [p, data, st] of wbFiles) {
                 vol.writeFile(p, data, { date: st.date, protection: st.protection });
             }
@@ -388,6 +413,7 @@ function buildDoorImage(options, log = () => {}, warn = () => {}) {
         const seen = new Map();
         for (const d of doors) {
             const name = paths.basename(paths.resolve(d));
+            filling = 'the doors';
             const count = addToVolume(vol, d, `Doors/${name}`, () => {}, seen);
             log(`  Doors/${name}/ (${files(count)} from ${d})`);
             checkDoorNames(d).forEach(w => warn(w));
@@ -395,7 +421,7 @@ function buildDoorImage(options, log = () => {}, warn = () => {}) {
     } catch (e) {
         if (e.code === 'ENOSPC') {
             throw new CommandError(
-                `the doors do not fit in ${kb(size)}: give a larger --size (${e.message})`
+                `${filling} do not fit in ${kb(size)}: give a larger --size (${e.message})`
             );
         }
         throw e;
@@ -403,20 +429,18 @@ function buildDoorImage(options, log = () => {}, warn = () => {}) {
     return vol;
 }
 
-function cmdCreate(image) {
-    const doors = []
-        .concat(argv.doors === undefined || argv.doors === true ? [] : argv.doors)
-        .concat(argv._.slice(3))
-        .map(String);
-    if (argv.doors === true) throw new CommandError('--doors needs a directory');
+function cmdCreate(image, typed) {
+    const doorsOpt = [].concat(typed.doors === undefined ? [] : typed.doors);
+    if (doorsOpt.includes('')) throw new CommandError('--doors needs a directory');
+    const doors = doorsOpt.concat(typed._.slice(3));
     if (fs.existsSync(image) && !argv.force) {
         throw new CommandError(`${image} exists (use --force to replace it)`);
     }
     const options = {
         size: argv.size === undefined ? DEFAULT_SIZE : argv.size,
-        name: argv.name === undefined ? DEFAULT_NAME : String(argv.name),
+        name: typed.name === undefined ? DEFAULT_NAME : typed.name,
         doors,
-        workbench: argv.workbench ? String(argv.workbench) : null,
+        workbench: typed.workbench ? typed.workbench : null,
     };
     const size = parseSize(options.size);
     if (size > AROS_MAX_SIZE && !argv['allow-large']) {
@@ -595,17 +619,23 @@ function handleAmigaDoorCommand() {
         return printUsageAndSetExitCode(getHelpFor('AmigaDoor'), ExitCodes.SUCCESS);
     }
 
-    const action = argv._[1];
-    const image = argv._[2] === undefined ? undefined : String(argv._[2]);
+    //  the positionals and create's names as typed: minimist makes "007" the
+    //  number 7
+    const typed = minimist(process.argv.slice(2), {
+        ...argvOptions,
+        string: ['_', 'doors', 'name', 'workbench'],
+    });
+    const action = typed._[1];
+    const image = typed._[2];
     if (!action || !image) {
         return printUsageAndSetExitCode(getHelpFor('AmigaDoor'), ExitCodes.BAD_ARGS);
     }
-    const arg = i => (argv._[i] === undefined ? undefined : String(argv._[i]));
+    const arg = i => typed._[i];
 
     try {
         switch (action) {
             case 'create':
-                return cmdCreate(image);
+                return cmdCreate(image, typed);
             case 'add':
                 return cmdAdd(image, arg(3), arg(4));
             case 'ls':
@@ -624,10 +654,13 @@ function handleAmigaDoorCommand() {
                 );
         }
     } catch (e) {
+        //  an operating system error (EACCES, ENOSPC, ...) or one of Node's file
+        //  system limits (ERR_FS_FILE_TOO_LARGE): one line, not a stack trace
         if (
             e instanceof CommandError ||
             e.name === 'AmigaFsError' ||
-            e.code === 'ENOENT'
+            e.syscall ||
+            /^ERR_FS_/.test(e.code)
         ) {
             console.error(`amiga-door: ${e.message}`);
             process.exitCode = ExitCodes.ERROR;

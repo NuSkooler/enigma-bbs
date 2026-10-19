@@ -24,7 +24,11 @@ const { HostLink, AmigaConsoleTranslator } = require('../amiga_door/host_link.js
 const fs = require('fs');
 const iconv = require('iconv-lite');
 
-const DOOR_TYPES = ['xim', 'cli', 'aim', 'tim'];
+//  The types every shim knows. Any other name (tim, cnetrexx, ...) is passed
+//  on: the shim on the image runs it if it supports it, and otherwise ends
+//  the session with error=unknown door type.
+const DOOR_TYPES = ['xim', 'cli', 'aim'];
+const DOOR_TYPE_NAME = /^[a-z][a-z0-9]{0,15}$/;
 const CONSOLE_MODES = ['cooked', 'raw'];
 const QUIT_KEY = 0x1d; //  Ctrl+]
 
@@ -52,9 +56,13 @@ function buildConsoleSession(opts, now = Date.now()) {
             'console needs --door PATH (e.g. --door BBS:Doors/X/x.xim)'
         );
     }
-    const type = opts.type === undefined ? 'xim' : String(opts.type);
-    if (!DOOR_TYPES.includes(type)) {
-        throw new ConsoleError(`--type must be one of ${DOOR_TYPES.join(', ')}`);
+    const type =
+        opts.type === undefined ? 'xim' : opts.type === true ? '' : String(opts.type);
+    if (!DOOR_TYPE_NAME.test(type)) {
+        throw new ConsoleError(
+            `--type must be a door type: ${DOOR_TYPES.join(', ')} or another type ` +
+                'the shim on the image supports'
+        );
     }
     const mode = opts.consoleMode === undefined ? 'cooked' : String(opts.consoleMode);
     if (!CONSOLE_MODES.includes(mode)) {

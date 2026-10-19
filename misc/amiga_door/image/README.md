@@ -13,7 +13,7 @@ From the ENiGMA½ checkout, for a door unpacked in `~/doors/dreamsweeper/`:
 
 ```sh
 ./oputil.js amiga-door create ~/amiga/dreamsweeper.hdf ~/doors/dreamsweeper
-./oputil.js amiga-door create ~/amiga/doors.hdf --size 8M --doors ~/doors/dreamsweeper ~/doors/wallhall
+./oputil.js amiga-door create ~/amiga/doors.hdf --size 2032K --doors ~/doors/dreamsweeper ~/doors/wallhall
 ```
 
 `create IMAGE [DOORDIR...]` writes `C/axshim`, `Libs/AEDoor.library` and
@@ -26,7 +26,7 @@ times; everything gets `rwed` protection, which is what doors expect.
 | Option | |
 |---|---|
 | `--size SIZE` | default `2000K`; bytes, or with `K`, `M` or `G`, rounded up to a multiple of 8 KB; at most `2032K` unless `--allow-large` (see below) |
-| `--allow-large` | allow a `--size` over 2032 KB: only for an image used with the bundled ROM (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix; a stock AROS ROM corrupts larger FFS volumes on a write |
+| `--allow-large` | allow a `--size` over 2032 KB (up to 2097144K, 8 KB short of 2 GB): only for an image used with the bundled ROM (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix; a stock AROS ROM corrupts larger FFS volumes on a write |
 | `--name NAME` | volume name, default `BBS` |
 | `--doors DIR...` | door directories (the same as listing them after the image) |
 | `--workbench ADF` | add ARexx from your Workbench 3.1 disk, for ARexx doors (below) |
@@ -80,17 +80,18 @@ The same recipe with [amitools](https://github.com/cnvogelg/amitools)' `xdftool`
 ```sh
 python3 -m venv ~/amitools-venv && ~/amitools-venv/bin/pip install amitools
 XDFTOOL=~/amitools-venv/bin/xdftool \
-    misc/amiga_door/image/make_image.sh [-s 4M] [-n BBS] [-w WB.adf] [-f] ~/amiga/doors.hdf ~/doors/dreamsweeper
+    misc/amiga_door/image/make_image.sh [-s 2000K] [-n BBS] [-w WB.adf] [-f] ~/amiga/doors.hdf ~/doors/dreamsweeper
 ```
 
 `-s`, `-n`, `-w` and `-f` are `--size`, `--name`, `--workbench` and `--force`
-above; `-x PATH` names the `xdftool` to use. By hand, what it does is:
+above (give `-s 2000K`: `make_image.sh` defaults to `4M`, over the stock AROS
+limit); `-x PATH` names the `xdftool` to use. By hand, what it does is:
 
 ```sh
 A=misc/amiga_door
 IMG=~/amiga/dreamsweeper.hdf
 
-xdftool "$IMG" create size=4M + format BBS ffs \
+xdftool "$IMG" create size=2000K + format BBS ffs \
     + makedir C + makedir S + makedir Libs + makedir Doors + makedir Doors/DreamSweeper \
     + write "$A/bin/axshim" C/axshim \
     + write "$A/bin/AEDoor.library" Libs/AEDoor.library \

@@ -421,6 +421,7 @@ create arguments:
                               --allow-large: a stock AROS ROM corrupts an FFS
                               volume of more than 4066 blocks (2033K) when a door
                               writes, and 2032K is the largest 8K multiple below.
+                              Never more than 2097144K (8K short of 2G).
   --allow-large               Allow a --size over 2032K, for an image used only
                               with the bundled ROM (enigma-vamiga 0.1.2 and
                               later), Kickstart 3.1 or another ROM with the FFS fix
@@ -440,7 +441,11 @@ create arguments:
 console arguments:
   --door PATH                 The door's path in the image, e.g.
                               BBS:Doors/XIMTest/XIMTest (required)
-  --type xim|cli|aim|tim      Door type (default xim)
+  --type TYPE                 Door type (default xim): xim, cli, aim, or another
+                              type the shim on IMAGE supports (tim for Paragon,
+                              cnetrexx for C-Net doors, once that door support is
+                              installed); a shim without it ends the session with
+                              error "unknown door type"
   --user NAME                 Caller's name (default "Test Caller")
   --location TEXT --level N --timeleft MINUTES
                               More about the caller (Nowhere, 10, 60)

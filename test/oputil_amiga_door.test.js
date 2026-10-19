@@ -68,10 +68,13 @@ describe('oputil amiga-door', function () {
             assert.equal(parseSize('4.5M') % 8192, 0);
         });
 
-        it('refuses nonsense and sizes over 2G', () => {
+        it('refuses nonsense and sizes of 2G or more', () => {
             assert.throws(() => parseSize('big'), /bad size/);
             assert.throws(() => parseSize('0'), /bad size/);
             assert.throws(() => parseSize('3G'), /too large/);
+            //  Node's Buffer cannot hold an image of 2^31 bytes
+            assert.throws(() => parseSize('2G'), /too large: 2G \(at most 2097144K/);
+            assert.equal(parseSize('2097144K'), 2 * 1024 * 1024 * 1024 - 8192);
         });
     });
 
@@ -129,7 +132,12 @@ describe('oputil amiga-door', function () {
             fs.writeFileSync(path.join(big, 'huge.bin'), Buffer.alloc(3 * 1024 * 1024));
             assert.throws(
                 () => buildDoorImage({ size: '1M', doors: [big] }),
-                /larger --size/
+                /^Error: the doors do not fit in 1,024 KB: give a larger --size/
+            );
+            //  the shim alone is bigger than 32K
+            assert.throws(
+                () => buildDoorImage({ size: '32K', doors: [door] }),
+                /the shim, AEDoor.library and S\/Startup-Sequence do not fit in 32 KB/
             );
             assert.throws(
                 () => buildDoorImage({ size: '1M', doors: [path.join(dir, 'nope')] }),
@@ -359,7 +367,11 @@ describe('oputil amiga-door', function () {
             assert.throws(() => buildConsoleSession({}), /needs --door/);
             assert.throws(() => buildConsoleSession({ door: true }), /needs --door/);
             assert.throws(
-                () => buildConsoleSession({ door: 'a:b', type: 'zim' }),
+                () => buildConsoleSession({ door: 'a:b', type: 'z m' }),
+                /--type/
+            );
+            assert.throws(
+                () => buildConsoleSession({ door: 'a:b', type: true }),
                 /--type/
             );
             assert.throws(
@@ -375,6 +387,12 @@ describe('oputil amiga-door', function () {
                 () => buildConsoleSession({ door: 'a:b', user: true }),
                 /--user needs/
             );
+        });
+
+        it('passes on a type the shim may know (tim, cnetrexx)', () => {
+            for (const type of ['tim', 'cnetrexx']) {
+                assert.equal(buildConsoleSession({ door: 'a:b', type }).type, type);
+            }
         });
 
         it('prints the exit summary one key per line', () => {
@@ -395,9 +413,12 @@ describe('oputil amiga-door', function () {
             r = oputil('console', img);
             assert.notEqual(r.status, 0);
             assert.match(r.stderr, /needs --door/);
-            r = oputil('console', img, '--door', 'BBS:x', '--type', 'zim');
+            r = oputil('console', img, '--door', 'BBS:x', '--type', 'Z!M');
             assert.notEqual(r.status, 0);
-            assert.match(r.stderr, /--type must be one of/);
+            assert.match(
+                r.stderr,
+                /--type must be a door type: xim, cli, aim or another/
+            );
             assert.equal(fs.statSync(img).size, 1024 * 1024);
         });
     });
@@ -481,6 +502,75 @@ describe('oputil amiga-door', function () {
             assert.equal(
                 r.stdout,
                 fs.readFileSync(path.join(AMIGA_DIR, 'image/Startup-Sequence'), 'utf8')
+            );
+        });
+
+        it('keeps a numeric door directory name as typed', () => {
+            const cwd = fs.mkdtempSync(path.join(dir, 'num-'));
+            fs.mkdirSync(path.join(cwd, '007'));
+            fs.writeFileSync(path.join(cwd, '007', 'bond'), 'B');
+            fs.mkdirSync(path.join(cwd, '010'));
+            const r = spawnSync(
+                process.execPath,
+                [OPUTIL, 'amiga-door', 'create', 'n.hdf', '--doors', '010', '007'],
+                { encoding: 'utf8', cwd }
+            );
+            assert.equal(r.status, 0, r.stderr);
+            const vol = AmigaVolume.openFile(path.join(cwd, 'n.hdf'));
+            assert.deepEqual(
+                vol.list('Doors').map(e => e.name),
+                ['007', '010']
+            );
+            assert.equal(vol.readFile('Doors/007/bond').toString(), 'B');
+        });
+
+        it('changes an image through a symbolic link and keeps its mode', function () {
+            if (process.platform === 'win32') return this.skip();
+            const img = path.join(dir, 'moded.hdf');
+            const link = path.join(dir, 'moded-link.hdf');
+            assert.equal(oputil('create', img, '--size', '1M').status, 0);
+            fs.chmodSync(img, 0o640);
+            fs.symlinkSync(img, link);
+            const f = path.join(dir, 'via-link.txt');
+            fs.writeFileSync(f, 'L');
+
+            const r = oputil('add', link, f);
+            assert.equal(r.status, 0, r.stderr);
+            assert.ok(fs.lstatSync(link).isSymbolicLink());
+            assert.equal(fs.statSync(img).mode & 0o777, 0o640);
+            assert.equal(
+                AmigaVolume.openFile(img).readFile('via-link.txt').toString(),
+                'L'
+            );
+        });
+
+        it('reports a file system error in one line', function () {
+            if (process.platform === 'win32' || process.getuid() === 0)
+                return this.skip();
+            const ro = fs.mkdtempSync(path.join(dir, 'ro-'));
+            const img = path.join(ro, 'ro.hdf');
+            assert.equal(oputil('create', img, '--size', '1M').status, 0);
+            fs.chmodSync(ro, 0o555);
+            try {
+                const r = oputil('add', img, path.join(dir, 'via-link.txt'));
+                assert.notEqual(r.status, 0);
+                assert.match(r.stderr, /^amiga-door: EACCES: permission denied/);
+                assert.equal(r.stderr.trim().split('\n').length, 1, r.stderr);
+            } finally {
+                fs.chmodSync(ro, 0o755);
+            }
+
+            const r = oputil(
+                'create',
+                path.join(dir, 'g2.hdf'),
+                '--size',
+                '2G',
+                '--allow-large'
+            );
+            assert.notEqual(r.status, 0);
+            assert.equal(
+                r.stderr.trim(),
+                'amiga-door: size too large: 2G (at most 2097144K, 8K short of 2G)'
             );
         });
 

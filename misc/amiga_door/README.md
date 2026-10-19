@@ -187,7 +187,8 @@ runs `make` in `shim/`. Inside that image (or with the toolchain installed),
 
 ## What goes into a door image
 
-A door image is a small FFS hard-disk image (4 MB is plenty) holding:
+A door image is a small FFS hard-disk image (2000 KB, `oputil.js amiga-door
+create`'s default, is plenty) holding:
 
 ```
 C/axshim                     bin/axshim

@@ -597,13 +597,24 @@ Actions:
   ls IMAGE [DIR]              List the image, or DIR in it, recursively
   extract IMAGE SRC DST       Copy a file or directory out of the image
   info IMAGE                  Volume name, file system, size, free space
+  console IMAGE --door PATH   Test-drive a door in this terminal
 
 create arguments:
-  --size SIZE                 Image size (default 4M): bytes, or with K, M or G
+  --size SIZE                 Image size (default 2000K): bytes, or with K, M or G;
+                              at most 2032K unless --allow-large
+  --allow-large               Allow a --size over 2032K (up to 2097144K)
   --name NAME                 Volume name (default BBS)
   --doors DIR [DIR...]        Door directories (the same as listing them after IMAGE)
   --workbench ADF             Add ARexx from your own Workbench 3.1 disk image
   --force                     Replace IMAGE if it exists
+
+console arguments:
+  --door PATH                 The door's path in the image (required)
+  --type TYPE                 Door type (default xim)
+  --user NAME --location TEXT --level N --timeleft MINUTES
+  --args TEXT --console-mode cooked|raw --mainline TEXT --door-dir PATH
+  --rom FILE [--ext FILE] --encoding NAME --rows N --cols N --warp SECONDS
+  --no-persist                Leave IMAGE as it is
 ```
 
 | Action | Description |
@@ -613,17 +624,23 @@ create arguments:
 | `ls` | Protection bits, size, date and path of everything under `DIR` (alias `list`) |
 | `extract` | Copy out; `DST` of `-` writes a file to standard output |
 | `info` | Volume details and a check of the image's structure |
+| `console` | Boot the image in this terminal, start the door at `--door` as a caller would and play it; the shim's summary is printed when it ends and, if it ended normally (status `ok`), its changes are written back to the image (not with `--no-persist`). `Ctrl+]` hangs up and quits without writing. Needs no running ENiGMA; do not use it on an image a running board is using |
+
+`create` refuses a `--size` over 2032K unless `--allow-large` is given: a stock AROS ROM (given to the `amiga_door` module through `rom`) corrupts an FFS volume of more than 4066 blocks (2033 KB) when a door writes to it, and 2032 KB is the largest multiple of 8 KB within that. Pass `--allow-large` only for an image used with the ROM bundled with ENiGMA½ (enigma-vamiga 0.1.2 and later), Kickstart 3.1 or another ROM that carries the FFS fix. No image can be larger than 2097144K, 8 KB short of 2 GB.
+
+`console --type` is `xim`, `cli` or `aim`, or another door type the shim on the image supports (`tim` for Paragon doors and `cnetrexx` for C-Net ARexx doors, once that door support is installed); a shim without it ends the session with `error=unknown door type`. The other `console` options describe the test caller (`--user`, `--location`, `--level`, `--timeleft`, `--rows`, `--cols`) and the door (`--args` and `--console-mode` for CLI doors, `--encoding` for its output); `./oputil.js amiga-door --help` lists them all.
 
 #### Examples
 
 ```bash
 ./oputil.js amiga-door create ~/amiga/dreamsweeper.hdf ~/doors/DreamSweeper
-./oputil.js amiga-door create ~/amiga/arexx.hdf --size 8M \
+./oputil.js amiga-door create ~/amiga/arexx.hdf --size 2032K \
     --workbench ~/amiga/Workbench3.1.adf --doors ~/doors/Kickboxing ~/doors/hacker
 ./oputil.js amiga-door add ~/amiga/cli-doors.hdf mathieeedoubbas.library Libs/
 ./oputil.js amiga-door ls ~/amiga/doors.hdf Doors
 ./oputil.js amiga-door extract ~/amiga/doors.hdf Doors/wallhall ./wallhall-backup
 ./oputil.js amiga-door info ~/amiga/doors.hdf
+./oputil.js amiga-door console ~/amiga/doors.hdf --door BBS:Doors/XIMTest/XIMTest
 ```
 
 See [Amiga Doors](../doors/amiga.md#building-a-door-image) for what goes on an image.
