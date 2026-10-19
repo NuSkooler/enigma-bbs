@@ -39,13 +39,15 @@ xdftool "$IMG" list             # check what is on it
 ```
 
 - `size=2000K` is the default and enough for most doors (the shim and library take
-  about 90 KB, Workbench's ARexx files about 150 KB). **With the bundled AROS ROM,
-  keep the image at 2033K or less.** A bigger FFS volume needs a second bitmap
-  block, and the AROS filesystem maps the blocks it covers wrongly: the first time
-  a door writes, it can take blocks that hold other files (on a 4M image, Bad Libs'
-  score file overwrote `rexxsyslib.library`'s header). `make_image.sh` warns.
-  Kickstart 3.1's FastFileSystem handles any size. Every session carries the
-  image, so keep it small anyway.
+  about 90 KB, Workbench's ARexx files about 150 KB). **With a stock AROS ROM,
+  keep the image at 4066 blocks (2033K) or less** (2032K is the largest multiple
+  of 8 KB within that). A bigger FFS volume needs a second bitmap block, and the
+  stock AROS filesystem maps the blocks it covers wrongly: the first time a door
+  writes, it can take blocks that hold other files (on a 4M image, Bad Libs' score
+  file overwrote `rexxsyslib.library`'s header). `make_image.sh` warns. The ROM
+  bundled with enigma-vamiga 0.1.2 and later carries the fix, and Kickstart 3.1's
+  FastFileSystem handles any size. Every session carries the image, so keep it
+  small anyway.
 - Name the volume `BBS`. Doors find their files under `BBS:`; the shim also
   assigns `BBS:` to the boot volume, so another name works, but `BBS` keeps paths
   in door docs literal.

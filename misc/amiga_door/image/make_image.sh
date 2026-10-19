@@ -11,9 +11,12 @@
 #              to put several doors on one image.
 #
 #   -s SIZE    image size (default 2000K); anything xdftool's size= accepts.
-#              Above 2033K the volume needs a second bitmap block, which the
-#              bundled AROS ROM's filesystem misreads: a door's writes then
-#              overwrite other files. Stay at or under 2033K with AROS.
+#              Over 4066 blocks (2033K) the volume needs a second bitmap block,
+#              which a stock AROS ROM's filesystem misreads: a door's writes then
+#              overwrite other files. Stay at or under 2033K (2032K is the
+#              largest multiple of 8K) if the image may run on a stock AROS ROM;
+#              the bundled ROM (enigma-vamiga 0.1.2 and later) and Kickstart 3.1
+#              handle any size.
 #   -n VOLUME  volume name (default BBS)
 #   -x PATH    xdftool to use (default: $XDFTOOL, else xdftool on PATH)
 #   -w ADF     add ARexx, which ARexx (AIM) doors need and AROS does not have,
@@ -43,7 +46,7 @@ amiga_dir=$(dirname "$here")
 
 size=2000K
 # the most 512-byte blocks one bitmap block covers (127 longs x 32 bits, plus the two
-# boot blocks): AROS's filesystem maps the blocks of any further bitmap block wrongly
+# boot blocks): a stock AROS filesystem maps the blocks of any further bitmap block wrongly
 one_bitmap_blocks=4066
 volume=BBS
 xdftool=${XDFTOOL:-xdftool}
@@ -63,7 +66,7 @@ wb_files=(
 )
 
 usage() {
-    sed -n '3,38p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit "${1:-2}"
 }
 
@@ -101,9 +104,10 @@ size_bytes() {
 
 bytes=$(size_bytes "$size")
 if [ -n "$bytes" ] && [ "$bytes" -gt $((one_bitmap_blocks * 512)) ]; then
-    echo "make_image.sh: warning: $size needs more than one bitmap block; the bundled AROS ROM's" >&2
-    echo "  filesystem then overwrites files when a door writes. Use -s 2033K or less with AROS" >&2
-    echo "  (a Kickstart ROM handles any size)." >&2
+    echo "make_image.sh: warning: $size is over 4066 blocks (2033K) and needs a second bitmap block;" >&2
+    echo "  a stock AROS ROM's filesystem then overwrites files when a door writes. Use -s 2033K or" >&2
+    echo "  less if the image may run on a stock AROS ROM (the ROM bundled with enigma-vamiga 0.1.2" >&2
+    echo "  and later, and Kickstart 3.1, handle any size)." >&2
 fi
 
 command -v "$xdftool" > /dev/null 2>&1 || [ -x "$xdftool" ] || {
