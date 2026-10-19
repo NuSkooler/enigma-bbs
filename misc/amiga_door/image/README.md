@@ -66,6 +66,18 @@ Copy these from the door's archive, keeping its layout under `BBS:`:
 Writes a door makes (high scores, walls, answers) land in the image; ENiGMA
 writes the changed image back after a clean session.
 
+## Paragon doors
+
+A Paragon door (`doorType: tim`; Paragon, StarNet and MAX's BBS doors, /X's
+`TYPE=TIM`) goes on the image like any other door, with its data directories
+where its notes say (usually under `DOORS:`, which is `BBS:Doors`). What its
+install notes put in the sysop's `S:Startup-Sequence` (an assign such as
+`MSE:`, a variable in `ENV:`) goes in the door's ENiGMA config instead
+(`assigns`, `env`): a minimal image has no `C:Assign`. `PGDOORS:` is assigned to
+`SYS:Doors` by the shim. Doors built with HiSoft BASIC need `hisoftbasic.library`
+or `hbasic2.library` (not freely available); without it they stop with an empty
+requester and the session ends after `regTimeoutSeconds`.
+
 ## CLI doors
 
 A CLI door (`doorType: cli`) goes on the image like any other door. Read its

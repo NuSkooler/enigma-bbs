@@ -28,13 +28,21 @@ Workbench 3.1 can supply (AROS has none; `image/make_image.sh -w`).
 caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim ── AERexxControl<n> ── RexxMast ── script
 ```
 
+And it runs **Paragon doors**, the door protocol of Paragon, StarNet and MAX's BBS
+(which /X ran as `TYPE=TIM`): it is the BBS's `DoorControl<line>` port, which
+those doors send their 106-byte `DoorMsg` requests to.
+
+```
+caller ── ENiGMA½ ── emulator worker ══ serial ══ axshim ── DoorControl<line> ── door
+```
+
 This directory holds the Amiga-side pieces. They are built with a cross
 compiler, and the binaries are committed in `bin/`, so sysops need no Amiga
 toolchain.
 
 | Path | What |
 |---|---|
-| `bin/axshim` | the host shim (axshim 1.2), AmigaOS executable (68000, AROS and Kickstart 3.1) |
+| `bin/axshim` | the host shim (axshim 1.3), AmigaOS executable (68000, AROS and Kickstart 3.1) |
 | `bin/AEDoor.library` | NilBBS's MIT `AEDoor.library` 3.0, which most doors open |
 | `shim/axshim.c` | shim source (BSD-2-Clause) |
 | `shim/Makefile`, `shim/build.sh` | build both binaries |
@@ -104,6 +112,33 @@ For an ARexx door (`type=aim`) it:
 The verb table is REXXDOOR 1.3's (read from the binary); the host-port handling
 follows NilBBS's `aim_command` (MIT); `shim/axshim.c` has the details.
 
+For a Paragon door (`type=tim`) it:
+
+- creates the public port `DoorControl<line>`, `<line>` being the last digit of
+  `node` (a Paragon door takes its line from the first character of its argument),
+  and runs `"<door>" <line> [args]`;
+- answers the door's `DoorMsg` requests (`command` at offset 20, `data` 22,
+  `string[80]` 24, `carrier` 104): 1 print, 3/5 a character, 6/7 a line, 8 a key,
+  9 hang up, 10/19 show a file (19 tries `name.gr1`, then `name.txt`), 11 does a
+  file exist, 12 the editor (`E`/`e`), 13 a user number and 14 a user string (from
+  the user block, with AmiExpress's tables), 15/16 set the access level or location
+  for the session, 17 a random number, 20 shutdown, 21 add minutes, and MAX's BBS's
+  113/114 (type a file), 200, 201 (check for a key), 202, 203; the sysop-console-only
+  2 and 4 print nothing; a reply writes `string` and `carrier` only into a whole
+  106-byte message (`mn_Length`), so a door that sends a shorter one still gets its
+  other answers and `X` reports its length once as `shortmsg`;
+- sends any of CR, LF, CR LF and LF CR in the door's text as one CR LF (`crlf=1`),
+  and reads the text past `string[80]` to its NUL, as Paragon and MAX's did;
+- from a hangup, time-up, the door's own hang-up (9) or an input timeout sets
+  `carrier` to 1 in every reply (input requests return empty) and sends the door
+  CTRL-C 5 seconds later;
+- reports `X` when the door ends (or 10 seconds after its shutdown request), with
+  `rc` and, when the door added time, `addtime`; a door that ends without a single
+  request is `status=error` with the first line it printed.
+
+The command set comes from AmiExpress's own Paragon service (`express.e`, MIT) and
+MAX's BBS's door kits; `shim/axshim.c` has the table.
+
 A door that never registers, never shuts down or crashes cannot hang the shim:
 it reports `X status=error` (no registration within `regtimeout` seconds) or the
 `d` reason after 30 seconds, keeps answering the stray door's requests as
@@ -129,8 +164,8 @@ brief:
 | `E` | door wants the editor: `file` | `e` | `status=done\|refused` |
 | `X` | session over: `status`, `reg`, `cmds`, `codes`, `return`, `error`, `wrote` | | |
 
-User block keys (`s`): `version` and `door` are required; `type` (`xim`, `aim` or
-`cli`, default `xim`), `console` (`cooked` or `raw`, CLI doors), `dir`, `stack`, `args`,
+User block keys (`s`): `version` and `door` are required; `type` (`xim`, `aim`,
+`tim` or `cli`, default `xim`), `console` (`cooked` or `raw`, CLI doors), `dir`, `stack`, `args`,
 `node`, `name`, `realname`, `location`, `level`, `timeleft`, `timeused`,
 `timelimit`, `calls`, `posts`, `uploads`, `downloads`, `ulbytes`, `dlbytes`,
 `laston`, `expert`, `ansi`, `rows`, `cols`, `bbsname`, `sysop`, `mainline`,
@@ -139,7 +174,19 @@ User block keys (`s`): `version` and `door` are required; `type` (`xim`, `aim` o
 send: a door that asks gets an empty string.
 A CLI door gets none of the user block: its `args` (its whole command line, with no
 node number in front) is all it knows about the caller; see "For a CLI door" above.
-An ARexx door gets the whole user block, which its `GETUSER` commands read.
+An ARexx door gets the whole user block, which its `GETUSER` commands read, and so
+does a Paragon door (its user number and string requests).
+
+Two keys, for any door type, stand in for the lines a door's installation adds to
+the sysop's `S:Startup-Sequence` (a minimal image has no `C:Assign`):
+
+| Key | Value | Effect |
+|---|---|---|
+| `assign` | `NAME=PATH[;NAME=PATH...]` | assigns `NAME:` to `PATH` before the door's path is checked; a missing path ends the session with `error=assign NAME: PATH not found` |
+| `env` | `NAME=VALUE[;NAME=VALUE...]` | sets the global variable `ENV:NAME` (making `ENV:` in `RAM:` when the image has none) |
+
+The shim also assigns `PGDOORS:` (the door path Paragon doors ask for) to
+`SYS:Doors`, next to `BBS:` and `DOORS:`.
 
 axshim 1.0 also understands these keys, which the version 1 spec does not list yet
 (adding keys never bumps the version):
@@ -158,6 +205,11 @@ start, which is how file writes are seen for `wrote=1`), `unknown` (command numb
 did not recognise), `dropdtr=1` (the door asked to hang up the caller), `indrop`
 (typed bytes dropped because the door was not reading), `txpoll=1` (the transmit
 interrupt never fired, so the shim fell back to polling).
+
+For a Paragon door `X` carries `cmds` and `codes` (its command numbers), `reg=0`,
+`rc`, `addtime` (minutes the door added; informational, ENiGMA does not apply
+them) and `shortmsg` (the `mn_Length` of the first request shorter than a whole
+106-byte `DoorMsg`; its `string` and `carrier` were left untouched).
 
 For a CLI door `X` carries `cmds=0`, `reg=0` and `rc`; `unknown` lists the DOS packet
 types the shim refused (AROS start-up code sends `ACTION_DISK_INFO` and `ACTION_SEEK`,
@@ -210,11 +262,17 @@ commands scripts call, all from the sysop's Workbench 3.1: `image/make_image.sh 
 Workbench3.1.adf` copies them, and `image/Startup-Sequence` starts RexxMast before
 the shim. Never commit those files or share such an image.
 
+Paragon doors often need an assign or an `ENV:` variable from their install notes
+(`assign`/`env` above, `assigns`/`env` in ENiGMA's door config), and their own data
+directories under `DOORS:`.
+
 The images are run with the AROS 20260820 Kickstart replacement (to ship with the
 emulator package) or a Kickstart 3.1 ROM the sysop supplies. axshim 1.0 passed
 every test door on AROS 20260820 and on Kickstart 3.1 (40.68); axshim 1.1 (CLI
 doors) is tested on AROS 20260820; axshim 1.2's ARexx doors (KickBoxing, Hacker,
-The Death Game) on both: Workbench 3.1's ARexx runs on the AROS ROM too.
+The Death Game) on both: Workbench 3.1's ARexx runs on the AROS ROM too; axshim
+1.3's Paragon doors (Master Space Empire, The Land of VEX, Sector Wars II,
+AndroFight) on both.
 
 ## Licences
 

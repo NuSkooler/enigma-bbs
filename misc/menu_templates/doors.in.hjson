@@ -214,6 +214,9 @@
                 //  doorType: aim                // an /X ARexx script (door: its path, e.g.
                 //                               // BBS:Doors/KickBox.Rexx); the image needs
                 //                               // your Workbench 3.1's ARexx (make_image.sh -w)
+                //  doorType: tim                // a Paragon / MAX's BBS door (/X TYPE=TIM)
+                //  assigns: { MSE: "BBS:Doors/MSE" }  // assigns its install notes ask for
+                //  env: { MSE: "" }             // ENV: variables it reads
                 //  consoleMode: raw             // CLI doors: cooked (default) or raw
                 //  doorArgs: "{name} {timeleft}"  // CLI doors: the whole command line;
                 //                               // also {node} and {level}
@@ -225,7 +228,7 @@
                 //  notEnoughTimeArt: DOORTIME
                 //  persist: true                // save the door's writes
                 //  persistOn: [ok, carrier]     // save after these exits (default: ok and
-                //                               // carrier for XIM doors, only ok for cli/aim)
+                //                               // carrier for XIM doors, only ok for cli/aim/tim)
                 //  disconnectGraceSeconds: 35   // after a hangup, wait this long for the door
                 //                               // to finish (keep above the shim's 30)
                 //  amigaConsole: true           // translate Amiga console controls (default:
