@@ -28,6 +28,13 @@
  * file, random, add time, shutdown, and MAX's BBS's extensions) with the carrier flag set
  * once the caller is gone.
  *
+ * A C-Net ARexx door (`type=cnetrexx`) is an ARexx pfile written for C-Net Amiga 3-5: the
+ * shim publishes CNETREXX<port> (port = node - 1, as C-Net counts), hands REXX the script with
+ * that port as its host address, as C-Net did, and answers C-Net's commands (TRANSMIT,
+ * SENDSTRING, GETCHAR, MAYGETCHAR, PROMPT, QUERY, GETUSER, BBSIDENTIFY, ...) with C-Net's MCI
+ * text codes, its GETUSER table and ###PANIC once the caller is gone.  The command set follows
+ * NilBBS's C-Net host (src/node/door.c, MIT, notice at "CLI doors" below).
+ *
  *   boot -> H -> R -> (s from the host) -> L -> door traffic, C, E/e -> X -> R ...
  *
  * Door terminal traffic is unframed in both directions; control messages are
@@ -95,7 +102,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-#define SHIM_VERSION    "1.3"
+#define SHIM_VERSION    "1.4"
 #define PROTO_VERSION   1
 static const char __attribute__((used)) verstag[] = "$VER: axshim " SHIM_VERSION " (17.10.2026)";
 
@@ -173,6 +180,13 @@ enum {
 #define EXIT_GRACE      2       /* seconds for the process to end after the last JH_SHUTDOWN */
 #define REG_TIMEOUT     30      /* default seconds a door has to send JH_REGISTER */
 #define LONGNAME        33      /* a path component this long is refused (AROS 20250219 hang) */
+#define CN_PANIC        "###PANIC"  /* C-Net's answer to every command once the caller is gone */
+#define CN_DEPTH        6       /* C-Net MCI streams: a {* file} inside a file inside a TRANSMIT ... */
+#define CN_FILEMAX      (256L * 1024)
+#define CN_PANIC_GRACE  10      /* seconds from carrier loss to CTRL-C (NilBBS's panic_grace) */
+#define CN_PANIC_MAX    25      /* below CARRIER_GRACE */
+#define CN_BREAK_REPEAT 30      /* NilBBS: a second break only 30 s later (a save in progress) */
+#define CN_POLL_USECS   40000   /* MAYGETCHAR waits this long for a key before NOCHAR */
 
 /* ---- Paula UART: receive ring (RBF) and transmit ring (TBE) --------------------------- */
 
@@ -676,6 +690,8 @@ static struct {
     BPTR  in, out;              /* CLI: owned by the launcher once it runs (it closes them) */
     struct MsgPort *console;    /* CLI: the handler port, the door's console task */
     struct Task *self;          /* the launcher process (its packets are not the door's) */
+    BOOL  cnet;                 /* a C-Net script: started with a RexxMsg to REXX, not a shell */
+    char  spawn[200];           /* C-Net SPAWN: the script that takes the port when this one ends */
 } LN = { .donesig = -1 };
 
 static struct MsgPort *port;    /* AEDoorPort<node>, lives as long as a door may use it */
@@ -692,7 +708,17 @@ static struct MsgPort *aport;   /* AERexxControl<node>, lives as long as an AIM 
 static char  aportname[24];
 static struct MsgPort *dport;   /* DoorControl<line>, lives as long as a Paragon door may use it */
 static char  dportname[24];
+static struct MsgPort *cport;   /* CNETREXX<port>, lives as long as a C-Net script may use it */
+static char  cportname[24];
 static BYTE  extsig = -1;      /* JH_SIGBIT: a door Signal()s it to wake a JH_ExtHK */
+
+/* C-Net: a TRANSMIT / SENDSTRING / SENDFILE text or a {* file} going out through the MCI */
+struct CnStream {
+    struct RexxMsg *msg;        /* answered when the text is out (NULL for a {* file}) */
+    UBYTE *buf;
+    LONG   len, pos;
+    UBYTE  wait;                /* MW_*: what it waits for */
+};
 
 struct Session {
     LONG  node, rows, cols, timeout, regtimeout, level;
@@ -789,6 +815,43 @@ struct Session {
         BOOL  short_seen;               /* a request shorter than a DoorMsg (X shortmsg=) */
         UWORD short_len;                /* the first such mn_Length */
     } tim;
+    /* a C-Net ARexx door (type=cnetrexx): the host side of the script's CNETREXX<port> */
+    struct {
+        BOOL  on;
+        struct RexxMsg *waiting;        /* GETCHAR / MAYGETCHAR / QUERY / PROMPT waiting */
+        UBYTE wait_kind;                /* CK_* */
+        BOOL  qhide;                    /* PROMPT HIDE: echo * */
+        UBYTE qdef;                     /* PROMPT YESNO 1 / NOYES 0: what Enter answers */
+        char  obj[200];                 /* SETOBJECT: what the next PUTUSER stores */
+        struct Task *script;
+        BOOL  timedout, broken;
+        ULONG dead_at, sig_at;
+        LONG  panicgrace;               /* seconds from carrier loss to the first CTRL-C */
+        ULONG last_key, want_at;        /* the keyboard timeout; want_at: MAYGETCHAR's last poll */
+        BOOL  wrap;                     /* word wrap at the caller's width */
+        LONG  col;                      /* the cursor's column, -1 unknown */
+        BOOL  wordstart;
+        UBYTE esc;                      /* inside an escape sequence the door sent */
+        UBYTE escn;                     /* its parameter count (9: not a cursor movement) */
+        LONG  escp[2], savedcol;        /* its first two parameters; ESC[s's column */
+        UBYTE fg, bg;
+        BOOL  bold;
+        struct CnStream st[CN_DEPTH];
+        int   nst;
+        UBYTE mreg, mdef;               /* {Gn}: register; {?n}: Enter's answer */
+        UWORD mflags;                   /* {In m} */
+        LONG  mmax;
+        ULONG muntil;                   /* {Wn} */
+        char  sreg[5][84];              /* MCI string registers (GETUSER 70-74) */
+        LONG  nreg[10];                 /* MCI numeric registers (GETUSER 60-69) */
+        char  uov[64][48];              /* PUTUSER n (n < 64): GETUSER n for the rest of the session */
+        BOOL  uovset[64];
+        LONG  points, addpoints, addtime;
+        BOOL  scratch;                  /* LOADSCRATCH of the caller's own account */
+        char  where[48];                /* CHANGEWHERE */
+        char  verbs[480];               /* distinct verbs, for X verbs= */
+        char  unknown[128];             /* distinct unknown verbs, for X unknown= */
+    } cn;
 };
 static struct Session S;
 
@@ -953,6 +1016,8 @@ static void ae_ctime(ULONG ae, char *out)
 #define DOOR_OUT "RAM:axshim.out"
 #define RX_CMD   "SYS:Rexxc/RX"     /* runs an AIM door's script, as /X's REXXDOOR did */
 
+static LONG cn_launch_script(BPTR in, BPTR out);
+
 static void launcher(void)
 {
     BPTR in, out, dl, od = 0;
@@ -967,7 +1032,9 @@ static void launcher(void)
     }
     dl = LN.dir[0] ? Lock((STRPTR)LN.dir, ACCESS_READ) : 0;
     if (dl) od = CurrentDir(dl);
-    if (LN.cli)                 /* Open("*") from the door comes to the handler port too */
+    if (LN.cnet)                /* a C-Net script: REXX runs it, with our port as its host */
+        LN.rc = cn_launch_script(in, out);
+    else if (LN.cli)            /* Open("*") from the door comes to the handler port too */
         LN.rc = SystemTags((STRPTR)LN.cmd,
                            SYS_Input, in, SYS_Output, out,
                            NP_ConsoleTask, (ULONG)LN.console,
@@ -1075,6 +1142,7 @@ static void port_close(void)
 }
 
 static void tim_zombie(struct DoorMsg *m);
+static void cport_close(void);
 
 static BOOL dport_open(LONG line)
 {
@@ -1109,7 +1177,7 @@ static void reap(void)
     if (!LN.busy || !LN.done) return;
     if (LN.donesig >= 0) { FreeSignal(LN.donesig); LN.donesig = -1; }
     LN.busy = FALSE;
-    if (state != ST_SESSION) { port_close(); aport_close(); dport_close(); DeleteFile((STRPTR)DOOR_OUT); }
+    if (state != ST_SESSION) { port_close(); aport_close(); dport_close(); cport_close(); DeleteFile((STRPTR)DOOR_OUT); }
 }
 
 /* XIM: `"door" <node> args`.  CLI: `"door" args` (no node number; a CLI door takes what
@@ -1121,6 +1189,8 @@ static BOOL launch(const char *door, BPTR in, BPTR out)
     const char *dir = get("dir", NULL);
     memset(LN.cmd, 0, sizeof(LN.cmd));
     LN.cli = S.cli.on;
+    LN.cnet = S.cn.on;
+    LN.spawn[0] = 0;
     LN.in = in;
     LN.out = out;
     LN.console = hport;
@@ -1131,6 +1201,9 @@ static BOOL launch(const char *door, BPTR in, BPTR out)
         const char *args = get("args", "");
         snprintf(LN.cmd, sizeof(LN.cmd), strchr(door, ' ') ? "%s \"%s\" %ld%s%s" : "%s %s %ld%s%s",
                  RX_CMD, door, (long)S.node, *args ? " " : "", args);
+    } else if (S.cn.on) {       /* C-Net: "<script>[ args]" in a RexxMsg; pfiles get no port number */
+        const char *args = get("args", "");
+        snprintf(LN.cmd, sizeof(LN.cmd), "%s%s%s", door, *args ? " " : "", args);
     } else if (S.tim.on) {      /* Paragon: "<door> <line>"; the door reads argv[1][0] */
         const char *args = get("args", "");
         snprintf(LN.cmd, sizeof(LN.cmd), "\"%s\" %ld%s%s", door, (long)S.tim.line, *args ? " " : "", args);
@@ -1268,6 +1341,8 @@ static struct Task *cli_zombie;         /* a CLI door that outlived its session 
 static ULONG cli_zombie_sig;
 static void reply(struct JHMessage *m) { ReplyMsg((struct Message *)m); }
 
+static void cn_reset(void);
+
 /* X, then back to R.  status: ok carrier timeout break error */
 static void end_session(const char *status, const char *error)
 {
@@ -1281,6 +1356,8 @@ static void end_session(const char *status, const char *error)
     if (S.aim.waiting) { aim_reply(S.aim.waiting, 10, NULL, 0); S.aim.waiting = NULL; }
     if (S.tim.waiting) { tim_zombie(S.tim.waiting); S.tim.waiting = NULL; }
     if (S.tim.editing) { tim_zombie(S.tim.editing); S.tim.editing = NULL; }
+    if (S.cn.waiting) { wait_disarm(); aim_reply(S.cn.waiting, 0, CN_PANIC, 8); S.cn.waiting = NULL; }
+    if (S.cn.on) cn_reset();
     changed[0] = 0;
     if (S.launched) {           /* a walk even after a DT write: changed= names a file */
         BOOL files = scan_writes();
@@ -1307,7 +1384,7 @@ static void end_session(const char *status, const char *error)
     f_kvn("wrote", S.wrote ? 1 : 0);
     /* additions to the spec's set (adding keys does not bump the version) */
     if (S.launched) f_kvn("rc", LN.done ? LN.rc : -1);
-    if (S.nunknown || S.aim.unknown[0]) {
+    if (S.nunknown || S.aim.unknown[0] || S.cn.unknown[0]) {
         f_kv("unknown", "");
         o = flen;
         for (i = 0; i < S.nunknown; i++) {
@@ -1318,9 +1395,13 @@ static void end_session(const char *status, const char *error)
             if (flen > o) f_byte(' ');
             f_str(S.aim.unknown);
         }
+        if (S.cn.unknown[0]) {          /* C-Net: the same */
+            if (flen > o) f_byte(' ');
+            f_str(S.cn.unknown);
+        }
     }
-    if (S.aim.on) {
-        f_kv("verbs", S.aim.verbs);
+    if (S.aim.on || S.cn.on) {
+        f_kv("verbs", S.aim.on ? S.aim.verbs : S.cn.verbs);
         if (S.launched && LN.done && LN.rc) {   /* what RX or ARexx said (+++ Error ...) */
             char out[160];
             script_stdout(out, sizeof(out));
@@ -1329,6 +1410,9 @@ static void end_session(const char *status, const char *error)
     }
     if (S.tim.on && S.tim.addtime) f_kvn("addtime", S.tim.addtime);
     if (S.tim.on && S.tim.short_seen) f_kvn("shortmsg", S.tim.short_len);
+    if (S.cn.on && S.cn.addtime) f_kvn("addtime", S.cn.addtime / 10);
+    if (S.cn.on && S.cn.addpoints) f_kvn("addpoints", S.cn.addpoints);
+    if (S.cn.on && S.cn.where[0]) f_kv("where", S.cn.where);
     if (changed[0]) f_kv("changed", changed);
     if (S.dtr) f_kvn("dropdtr", 1);
     if (S.indrop) f_kvn("indrop", (LONG)S.indrop);
@@ -1338,11 +1422,12 @@ static void end_session(const char *status, const char *error)
     state = ST_READY;
     inq_head = inq_tail = 0;
     if (LN.busy && LN.done) reap();
-    if (!LN.busy) { port_close(); aport_close(); dport_close(); DeleteFile((STRPTR)DOOR_OUT); }
+    if (!LN.busy) { port_close(); aport_close(); dport_close(); cport_close(); DeleteFile((STRPTR)DOOR_OUT); }
     /* else the door outlived the session: the port stays up and answers "carrier lost" */
     if (S.cli.on && LN.busy && !LN.done) { cli_zombie = S.cli.door; cli_zombie_sig = now_s; }
     if (S.aim.on && LN.busy && !LN.done) { cli_zombie = S.aim.script; cli_zombie_sig = now_s; }
     if (S.tim.on && LN.busy && !LN.done) { cli_zombie = S.tim.door; cli_zombie_sig = now_s; }
+    if (S.cn.on && LN.busy && !LN.done) { cli_zombie = S.cn.script; cli_zombie_sig = now_s; }
     tim_eol = FALSE;
     nl_pair = 0;
     memset(&S, 0, sizeof(S));
@@ -1353,6 +1438,7 @@ static void end_session(const char *status, const char *error)
 static void error_session(const char *error) { end_session("error", error); }
 
 static const char *aim_open(LONG node);
+static const char *cn_open(void);
 
 /* `assign=NAME=PATH[;NAME=PATH...]` and `env=NAME=VALUE[;NAME=VALUE...]`: what a
  * door's installation asks of the sysop's Startup-Sequence (Master Space Empire: an MSE: assign
@@ -1428,6 +1514,7 @@ static void start_session(void)
     if (!strcmp(type, "cli")) S.cli.on = TRUE;
     else if (!strcmp(type, "aim")) S.aim.on = TRUE;
     else if (!strcmp(type, "tim")) S.tim.on = TRUE;
+    else if (!strcmp(type, "cnetrexx")) S.cn.on = TRUE;
     else if (*type && strcmp(type, "xim")) { error_session("unknown door type"); return; }
     if (S.cli.on) {                     /* the console's mode before the door's first SetMode() */
         v = get("console", "cooked");
@@ -1483,6 +1570,16 @@ static void start_session(void)
     } else if (S.aim.on) {
         const char *err = aim_open(S.node);
         if (err) { error_session(err); return; }
+    } else if (S.cn.on) {
+        const char *err;
+        S.cn.panicgrace = geti("panicgrace", CN_PANIC_GRACE);
+        if (S.cn.panicgrace < 0) S.cn.panicgrace = 0;
+        if (S.cn.panicgrace > CN_PANIC_MAX) S.cn.panicgrace = CN_PANIC_MAX;
+        S.cn.wrap = geti("wrap", 1) != 0;
+        S.cn.wordstart = TRUE;
+        S.cn.fg = 7;
+        S.cn.last_key = now_s;
+        if ((err = cn_open())) { error_session(err); return; }
     } else if (S.tim.on) {
         S.tim.line = (S.node < 0 ? -S.node : S.node) % 10;
         S.tim.seed = now_s * 69069UL + sys_secs();
@@ -1495,6 +1592,7 @@ static void start_session(void)
             S.cli.on = FALSE;
         } else if (S.aim.on) aport_close();
         else if (S.tim.on) dport_close();
+        else if (S.cn.on) cport_close();
         else port_close();
         error_session("cannot start the launcher");
         return;
@@ -2336,20 +2434,19 @@ static void word_note(char *set, int size, const char *w)
 static BOOL aim_dead(void) { return S.lost || S.timeup || S.dtr || S.aim.timedout; }
 
 /* the session's AERexxControl<node>, and ARexx itself */
-static const char *aim_open(LONG node)
+/* REXX is there (started if need be) and rexxsyslib is open: AIM and C-Net doors */
+static const char *rexx_ready(void)
 {
     struct MsgPort *rexx;
     BPTR l;
     int i;
     if (!axRexxBase && !(axRexxBase = OpenLibrary((STRPTR)"rexxsyslib.library", 0)))
         return "no rexxsyslib";
-    if (!(l = Lock((STRPTR)RX_CMD, ACCESS_READ))) return "no " RX_CMD;
-    UnLock(l);
     for (i = 0;; i++) {
         Forbid();
         rexx = FindPort((STRPTR)"REXX");
         Permit();
-        if (rexx) break;
+        if (rexx) return NULL;
         if (i == 0 && (l = Lock((STRPTR)"SYS:System/RexxMast", ACCESS_READ))) {
             UnLock(l);          /* the image's S:Startup-Sequence should have started it */
             SystemTags((STRPTR)"SYS:System/RexxMast >NIL:", TAG_END);
@@ -2358,6 +2455,17 @@ static const char *aim_open(LONG node)
         Delay(25);
         pump();
     }
+}
+
+static const char *aim_open(LONG node)
+{
+    const char *err;
+    BPTR l;
+    if (!axRexxBase && !(axRexxBase = OpenLibrary((STRPTR)"rexxsyslib.library", 0)))
+        return "no rexxsyslib";
+    if (!(l = Lock((STRPTR)RX_CMD, ACCESS_READ))) return "no " RX_CMD;
+    UnLock(l);
+    if ((err = rexx_ready())) return err;
     sprintf(aportname, "AERexxControl%ld", (long)node);
     Forbid();
     if (FindPort((STRPTR)aportname)) { Permit(); return "door port busy"; }
@@ -3004,6 +3112,1080 @@ static void tim_session_service(void)
     else end_session("ok", NULL);
 }
 
+/* ---- C-Net ARexx doors: the shim is the C-Net port behind CNETREXX<port> ----------------------
+ *
+ * A C-Net ARexx pfile is an ARexx script C-Net Amiga (3.x to 5.x) started with its port's host
+ * address already set: the script says "options results" and sends bare commands, which reach
+ * CNETREXX<port> (C-Net counts ports from 0, so ENiGMA's node 1 is CNETREXX0).  The shim makes
+ * that port and starts the script the way C-Net did, with a RexxMsg to the REXX port whose host
+ * address is CNETREXX<port> (no RX, no node argument), and answers:
+ *
+ *   TRANSMIT / PRINT text      text with its MCI codes, then CR LF;  SENDSTRING: no CR LF
+ *   SEND text                  text as it is (no MCI);  NEWLINE CR LF;  CLS clears the screen
+ *   SENDFILE file              a text file with its MCI codes (to a ^Z)
+ *   GETCHAR / GETKEY           one key (letters in capitals) -> RESULT
+ *   MAYGETCHAR                 a key if one comes within 40 ms, else NOCHAR
+ *   QUERY text                 text, then a line of up to 80 -> RESULT
+ *   PROMPT len NORMAL|HIDE|YESNO|NOYES text   a line of up to len (HIDE echoes *), or Yes/No
+ *   GETUSER n                  the caller (C-Net's code table 1-92; 7-digit structure peeks get
+ *                              0 or an empty string) -> RESULT;  SETOBJECT v + PUTUSER n set it
+ *   BBSIDENTIFY USER|TERM|BBS|NAME|SYSOP|EMULATION|ABBEREXX, VERSION, GETCARRIER, CARRIER,
+ *   CHECKCARRIER, CHECKIO, BUFFERFLUSH, ADDKEYS, FINDACCOUNT, GETPORTID, LOAD/GET/PUT/SAVESCRATCH
+ *   (the caller's own account only), ADDPOINTS, ADDTIME, CHANGEWHERE / CHANGEWHAT, LOGENTRY /
+ *   SYSOPLOG, SPAWN (the next script on the same port), BYE / HANGUP (drop the line)
+ *   CLEAREDITOR ... WRITEMAIL, XUP / XDN: refused ("0"); BBSCOMMAND and the modem verbs: nothing
+ *
+ * Text goes out through C-Net's MCI: ^Q<cmd><args>} and ^Y<cmd><char> codes for colour, clear,
+ * cursor and repeat (C Z F N B H O R U Q ^ ! > < .), plus the ones that wait or act: {G} a key,
+ * {I} a line, {?} yes/no (into the string registers 70-74), {W} seconds, {* file} a file, {$ cmd}
+ * an AmigaDOS command, {V n} a GETUSER value, {L n m} a register.  A command whose text waits is
+ * answered when its text is out.  Text is word-wrapped at the caller's width while the column is
+ * known (C-Net's "word wrap"; a cursor movement makes it unknown until the next line).
+ *
+ * From carrier loss, time-up, the keyboard timeout or BYE on, input commands answer ###PANIC
+ * (C-Net's word for it), GETCARRIER FALSE, CARRIER 0, every other command ###PANIC, all with rc 0
+ * (scripts SIGNAL ON ERROR); the script gets CTRL-C `panicgrace` seconds later (default 10; 0
+ * breaks it before its waiting command is answered, for doors that would save "###PANIC" as a
+ * name), again every 30 s.
+ *
+ * The command set, the GETUSER table, MCI and ###PANIC follow NilBBS's C-Net host (rx_command,
+ * getuser, mci_act and run_cnetrexx in src/node/door.c, https://github.com/lainejones/NilBBS),
+ * under the MIT licence quoted at "CLI doors" above (Copyright (c) 2026 Laine Jones), with the
+ * C-Net 5 SDK's ARexx guide (tbdye/cnet-sdk docs/arexx.md) for PROMPT, BBSIDENTIFY and ADDTIME.
+ */
+
+
+enum { MW_NONE, MW_KEY, MW_LINE, MW_YESNO, MW_TIME };
+enum { CK_KEY = 1, CK_LINE, CK_YESNO, CK_MAYBE };
+
+static const char *const cn_verbs[] = {
+    "TRANSMIT", "PRINT", "SENDSTRING", "SEND", "NEWLINE", "SENDFILE", "GETCHAR", "GETKEY",
+    "MAYGETCHAR", "BUFFERFLUSH", "CHECKIO", "IREADY", "QUERY", "RECEIVE", "PROMPT", "GETCARRIER",
+    "BBSIDENTIFY", "VERSION", "LOGENTRY", "SYSOPLOG", "CHANGEWHERE", "SETNODELOCATION", "CHANGEWHAT",
+    "ADDTIME", "ADDKEYS", "SPAWN", "SHUTDOWN", "SCREENOUT", "BBSCOMMAND", "OPENDISPLAY",
+    "CLOSEDISPLAY", "BAUD", "MODEM", "SENDMODEM", "GETUSER", "CLS", "BYE", "HANGUP", "DROPCARRIER",
+    "CARRIER", "CHECKCARRIER", "SETOBJECT", "PUTUSER", "SETLENGTH", "CLEAREDITOR", "LOADEDITOR",
+    "SAVEEDITOR", "CALLEDITOR", "SETMAILSUBJ", "WRITEMAIL", "LOADSCRATCH", "GETSCRATCH", "PUTSCRATCH",
+    "SAVESCRATCH", "FINDACCOUNT", "GETPORTID", "ADDPOINTS", "CHECKABORT", "FEEDBACK", "RESETMODEM",
+    "SETMINFREE", "SETPROTOCOL", "XDN", "XUP", NULL
+};
+
+static BOOL cn_dead(void) { return S.lost || S.timeup || S.dtr || S.cn.timedout; }
+
+static LONG cn_account(void) { LONG a = geti("account", 1); return a > 0 ? a : 1; }
+
+static BOOL ieq(const char *a, const char *b)
+{
+    while (*a && upc((UBYTE)*a) == upc((UBYTE)*b)) { a++; b++; }
+    return upc((UBYTE)*a) == upc((UBYTE)*b);
+}
+
+static LONG cn_port(void) { return S.node > 0 ? S.node - 1 : 0; }
+
+static void cn_reply(struct RexxMsg *m, const char *res) { aim_reply(m, 0, res, res ? strlen(res) : 0); }
+
+/* ---- output: the column (for word wrap) and the colour C-Net's codes set ---------------------- */
+
+/* every byte that goes to the caller: where the cursor is, -1 when nobody knows */
+static void cn_track(UBYTE c)
+{
+    if (S.cn.esc == 1) {                    /* after ESC */
+        S.cn.esc = c == '[' ? 2 : 0;
+        S.cn.escn = 0;
+        S.cn.escp[0] = S.cn.escp[1] = 0;
+        return;
+    }
+    if (S.cn.esc == 2) {                    /* inside a CSI: the cursor movements move the column */
+        LONG p1 = S.cn.escp[0], p2 = S.cn.escp[1], col = S.cn.col;
+        if (c >= '0' && c <= '9') {
+            if (S.cn.escn < 2 && S.cn.escp[S.cn.escn] < 10000) S.cn.escp[S.cn.escn] = S.cn.escp[S.cn.escn] * 10 + c - '0';
+            return;
+        }
+        if (c == ';') { if (S.cn.escn < 8) S.cn.escn++; return; }
+        if (c < 0x40 || c > 0x7E) {         /* an intermediate (SyncTERM's "0;40 SP D") or private
+                                             * marker (ESC[?25l): not a cursor movement */
+            if (c != ';') S.cn.escn = 9;
+            return;
+        }
+        S.cn.esc = 0;
+        if (S.cn.escn == 9) c = 'm';
+        switch (c) {
+        case 'H': case 'f': col = p2 > 0 ? p2 - 1 : 0; break;
+        case 'G':           col = p1 > 0 ? p1 - 1 : 0; break;
+        case 'C':           if (col >= 0) col += p1 > 0 ? p1 : 1; break;
+        case 'D':           if (col >= 0) { col -= p1 > 0 ? p1 : 1; if (col < 0) col = 0; } break;
+        case 'J':           if (p1 == 2) col = 0; break;    /* ANSI.SYS and SyncTERM home on 2J */
+        case 's':           S.cn.savedcol = col; break;
+        case 'u':           col = S.cn.savedcol; break;
+        case 'A': case 'B': case 'm': case 'K': case ' ': break;
+        default:            col = -1; break;
+        }
+        if (col >= S.cols) col = S.cols - 1;
+        S.cn.col = col;
+        S.cn.wordstart = TRUE;
+        return;
+    }
+    if (c == 27) { S.cn.esc = 1; return; }
+    if (c == 0x9B) { S.cn.esc = 1; cn_track('['); return; }
+    if (c == '\r' || c == '\n') { S.cn.col = 0; S.cn.wordstart = TRUE; return; }
+    if (c == 8) { if (S.cn.col > 0) S.cn.col--; return; }
+    if (c == 12) { S.cn.col = 0; return; }
+    if (c == 9) { if (S.cn.col >= 0) S.cn.col = (S.cn.col + 8) & ~7; S.cn.wordstart = TRUE; return; }
+    if (c < 32 || c == 0x7F) return;
+    if (S.cn.col >= 0 && ++S.cn.col >= S.cols) S.cn.col = 0;    /* the terminal wraps */
+    S.cn.wordstart = c == ' ';
+}
+
+static void cn_raw(const char *s, LONG n)
+{
+    LONG i;
+    for (i = 0; i < n; i++) cn_track((UBYTE)s[i]);
+    out_bytes(s, n);
+}
+
+static void cn_rawstr(const char *s) { cn_raw(s, strlen(s)); }
+
+/* the visible length of the word at p: up to a blank or a control, skipping MCI and escape codes */
+static LONG cn_wordlen(const UBYTE *p, const UBYTE *end)
+{
+    LONG n = 0;
+    while (p < end) {
+        UBYTE c = *p;
+        if (c == 0x11) { while (p < end && *p != '}') p++; if (p < end) p++; continue; }
+        if (c == 0x19) { p += 3; continue; }
+        if (c == 27) {
+            p++;
+            if (p < end && *p == '[') for (p++; p < end && !(*p >= 0x40 && *p <= 0x7E); p++) ;
+            if (p < end) p++;
+            continue;
+        }
+        if (c <= ' ' || c == 0x7F || c == 0x9B) break;
+        n++;
+        p++;
+    }
+    return n;
+}
+
+/* plain text [p, run) of a stream that ends at end: word-wrapped while the column is known */
+static void cn_text(const UBYTE *p, const UBYTE *run, const UBYTE *end)
+{
+    const UBYTE *seg = p;
+    for (; p < run; p++) {
+        UBYTE c = *p;
+        if (S.cn.wrap && S.cn.esc == 0 && S.cn.wordstart && S.cn.col > 0 && c > ' ' && c != 0x7F
+            && c != 0x9B) {
+            LONG w = cn_wordlen(p, end);
+            if (w <= S.cols && S.cn.col + w > S.cols) {
+                if (p > seg) out_bytes((const char *)seg, p - seg);
+                seg = p;
+                out_bytes("\r\n", 2);
+                S.cn.col = 0;
+            }
+        }
+        cn_track(c);
+    }
+    if (p > seg) out_bytes((const char *)seg, p - seg);
+}
+
+/* C-Net's colours are in ANSI order (1 red); 8-f are the bright ones */
+static void cn_sgr(void)
+{
+    char b[24];
+    if (!S.ansi) return;
+    sprintf(b, "\x1b[0;%s3%d;4%dm", S.cn.bold ? "1;" : "", S.cn.fg & 7, S.cn.bg & 7);
+    cn_rawstr(b);
+}
+
+static int hexval(UBYTE c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+/* a code that only draws: colour, clear, cursor, repeats */
+static void cn_draw(UBYTE cmd, const char *arg)
+{
+    char s[24];
+    int n = atoi(arg), i, h = arg[0] ? hexval((UBYTE)arg[0]) : -1;
+    if (arg[0] && !arg[1] && h >= 0) n = h;     /* a ^Y code's argument is one hex digit */
+    switch (cmd | 0x20) {
+    case 'c': if (h >= 0) { S.cn.fg = h & 7; S.cn.bold = (h & 8) != 0; cn_sgr(); } break;
+    case 'z': if (h >= 0) { S.cn.bg = h & 7; cn_sgr(); } break;
+    case 'f': cn_rawstr(n == 1 ? "\x1b[2J\x1b[H" : "\x1b[H"); if (n == 1) S.cn.col = 0; break;
+    case 'n': for (i = 0; i < (n ? n : 1) && i < 40; i++) cn_raw("\r\n", 2); break;
+    case 'b': for (i = 0; i < (n ? n : 1) && i < 5; i++) cn_raw("\a", 1); break;
+    case 'h': for (i = 0; i < n && i < 80; i++) cn_raw("\b", 1); break;
+    case 'o': if (S.ansi) cn_rawstr(n ? "\x1b[1m" : "\x1b[22m"); break;
+    case 'r': if (S.ansi) cn_rawstr(n ? "\x1b[7m" : "\x1b[27m"); break;
+    case 'u': if (S.ansi) cn_rawstr(n ? "\x1b[4m" : "\x1b[24m"); break;
+    case 'q': if (n <= 1) { S.cn.fg = 7; S.cn.bg = 0; S.cn.bold = FALSE; if (S.ansi) cn_rawstr("\x1b[0m"); } break;
+    default:
+        if (!S.ansi) break;
+        s[0] = 0;
+        switch (cmd) {
+        case '^': sprintf(s, "\x1b[%dA", n ? n : 1); break;
+        case '!': sprintf(s, "\x1b[%dB", n ? n : 1); break;
+        case '>': sprintf(s, "\x1b[%dC", n ? n : 1); break;
+        case '<': sprintf(s, "\x1b[%dD", n ? n : 1); break;
+        case '.': sprintf(s, "\x1b[%dG", n ? n : 1); break;
+        }
+        if (s[0]) cn_rawstr(s);
+    }
+}
+
+/* ---- the caller (GETUSER) --------------------------------------------------------------------- */
+
+/* "DD-Mon-YY" (NilBBS's form) and the weekday, from Amiga seconds */
+static void cn_date(ULONG t, char *out, BOOL weekday, BOOL time)
+{
+    static const char *wd[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    static const char *mn[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+    static const UBYTE md[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    ULONG days = t / 86400UL, secs = t % 86400UL;
+    int y = 1978, m = 0, dow = (int)(days % 7);     /* 1 Jan 1978 was a Sunday */
+    for (;;) {
+        int yl = ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) ? 366 : 365;
+        if (days < (ULONG)yl) break;
+        days -= yl; y++;
+    }
+    for (;;) {
+        int dim = md[m] + (m == 1 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0));
+        if (days < (ULONG)dim) break;
+        days -= dim; m++;
+    }
+    out[0] = 0;
+    if (weekday) { strcpy(out, wd[dow]); strcat(out, " "); }
+    sprintf(out + strlen(out), "%02lu-%s-%02d", (unsigned long)days + 1, mn[m], y % 100);
+    if (time) sprintf(out + strlen(out), " %02lu:%02lu", (unsigned long)(secs / 3600), (unsigned long)((secs / 60) % 60));
+}
+
+static BOOL cn_sysop(void) { return S.level >= 255 || cn_account() == 1; }
+
+/* GETUSER n, C-Net's table (SDK arexx.md, NilBBS getuser) over the session's user block */
+static void cn_getuser(LONG n, char *out)
+{
+    LONG t;
+    ULONG now = sys_secs();
+    out[0] = 0;
+    if (n >= 1000000) {         /* STOOOOO: a peek into C-Net's PortData / MainPort: nothing here */
+        if ((n / 100000) % 10 != 3) strcpy(out, "0");
+        return;
+    }
+    if (n >= 60 && n <= 69) { sprintf(out, "%ld", (long)S.cn.nreg[n - 60]); return; }
+    if (n >= 70 && n <= 74) { strcpy(out, S.cn.sreg[n - 70]); return; }
+    if (n > 0 && n < 64 && S.cn.uovset[n]) { strcpy(out, S.cn.uov[n]); return; }    /* PUTUSER'd */
+    switch (n) {
+    case 1:  strncpy(out, get("name", "User"), 80); out[80] = 0; break;
+    case 2:  break;                                     /* the password: never */
+    case 3:  strncpy(out, get("realname", get("name", "User")), 80); out[80] = 0; break;
+    case 4:  strncpy(out, get("location", ""), 80); out[80] = 0; break;
+    case 7:  sprintf(out, "%ld", (long)(time_left() / 6)); break;       /* tenths of a minute */
+    case 11: cn_date(S.laston_ae >= AE_EPOCH ? S.laston_ae - AE_EPOCH : now, out, FALSE, FALSE); break;
+    case 12: cn_date(now, out, TRUE, TRUE); break;
+    case 15: sprintf(out, "%ld", (long)(cn_sysop() ? 31 : (S.level > 255 ? 255 : S.level < 0 ? 0 : S.level) * 31 / 255)); break;
+    case 16: strcpy(out, cn_sysop() ? "SysOp" : "Member"); break;
+    case 17: strcpy(out, cn_sysop() ? "1" : "0"); break;
+    case 18:                                            /* minutes online today, in tenths */
+        t = geti("timeused", 0) * 60 + (LONG)(now_s - S.start_s);
+        sprintf(out, "%ld", (long)(t / 6));
+        break;
+    case 19: strcpy(out, "12"); break;                  /* the clear-screen code */
+    case 21: sprintf(out, "%ld", (long)S.cn.points); break;
+    case 22: sprintf(out, "%ld", (long)geti("calls", 1)); break;
+    case 23: sprintf(out, "%ld", (long)cn_port()); break;
+    case 24: strcpy(out, "11520"); break;               /* CPS, as NilBBS */
+    case 27: sprintf(out, "%ld", (long)S.cols); break;
+    case 28: strcpy(out, S.ansi ? "2" : "0"); break;    /* 0 dumb, 2 ANSI */
+    case 29: strcpy(out, "90"); break;                  /* the protocol as its letter's code: Z */
+    case 30: sprintf(out, "%lu", strtoul(get("ulbytes", "0"), NULL, 10) / 1024UL); break;
+    case 31: sprintf(out, "%ld", (long)geti("uploads", 0)); break;
+    case 32: sprintf(out, "%lu", strtoul(get("dlbytes", "0"), NULL, 10) / 1024UL); break;
+    case 33: sprintf(out, "%ld", (long)geti("downloads", 0)); break;
+    case 36: sprintf(out, "%ld", (long)geti("posts", 0)); break;
+    case 39: case 40: case 41: sprintf(out, "%ld", (long)cn_account()); break;   /* UUCP id, account, serial */
+    case 46: t = (LONG)((now % 86400UL) / 3600UL); strcpy(out, t < 12 ? "Morning" : t < 18 ? "Afternoon" : "Evening"); break;
+    case 47: sprintf(out, "%ld", (long)geti("calls", 1)); break;
+    case 48: strcpy(out, "1"); break;
+    case 51: case 52: case 53: case 54: strcpy(out, "1"); break;
+    case 55: strcpy(out, S.expert ? "2" : "1"); break;  /* help level */
+    case 57: cn_date(now - (now_s - S.start_s), out, TRUE, TRUE); break;   /* logon time */
+    case 13: case 14: case 20: case 25: case 26: case 34: case 35: case 37:
+    case 42: case 43: case 44: case 45: case 81: case 82: case 83: case 84: case 85: case 86:
+        strcpy(out, "0");
+        break;
+    default:                    /* 5 6 8 9 10 38 49 50 56 58 59 75-80 87-92: empty, as an empty account */
+        if (n < 1 || n > 92) mark_unknown(n);
+        break;
+    }
+}
+
+/* PUTUSER n with SETOBJECT's value: 7 is the time left (tenths); 1-63 stay for this session's
+ * GETUSERs; a 7-digit structure poke changes nothing */
+static void cn_putuser(LONG n)
+{
+    if (n == 7) {
+        LONG left = atol(S.cn.obj) * 6;
+        S.budget = left > 0 ? left : 0;
+        S.budget_base = now_s;
+        if (S.budget > 0) { S.timeup = FALSE; S.timeup_at = 0; }
+        S.wrote = TRUE;
+    } else if (n == 21) {
+        S.cn.points = atol(S.cn.obj);
+        S.wrote = TRUE;
+    } else if (n > 0 && n < 64) {
+        strncpy(S.cn.uov[n], S.cn.obj, sizeof(S.cn.uov[n]) - 1);
+        S.cn.uov[n][sizeof(S.cn.uov[n]) - 1] = 0;
+        S.cn.uovset[n] = TRUE;
+        S.wrote = TRUE;
+    } else if (n < 1000000) mark_unknown(n);
+}
+
+/* ---- MCI streams: text that may wait for the caller ---------------------------------------- */
+
+static void cn_pop(void)
+{
+    struct CnStream *s = &S.cn.st[--S.cn.nst];
+    if (s->msg) cn_reply(s->msg, "");
+    if (s->buf) FreeVec(s->buf);
+    s->msg = NULL;
+    s->buf = NULL;
+}
+
+/* drop every stream: the caller has gone (their commands are answered), or the session ends */
+static void cn_reset(void) { while (S.cn.nst > 0) cn_pop(); }
+
+/* buf becomes the stream's (freed when it is done); msg (NULL for a {* file}) is answered then */
+static void cn_push(struct RexxMsg *msg, UBYTE *buf, LONG len)
+{
+    struct CnStream *s;
+    if (S.cn.nst >= CN_DEPTH) {
+        if (buf) FreeVec(buf);
+        if (msg) cn_reply(msg, "");
+        return;
+    }
+    s = &S.cn.st[S.cn.nst++];
+    s->msg = msg;
+    s->buf = buf;
+    s->len = buf ? len : 0;
+    s->pos = 0;
+    s->wait = MW_NONE;
+}
+
+/* a text file for SENDFILE / {*}: up to a ^Z, CN_FILEMAX at most */
+static UBYTE *cn_load(const char *path, LONG *len)
+{
+    BPTR fh;
+    LONG size, n;
+    UBYTE *buf, *z;
+    *len = 0;
+    if (!path[0] || !path_ok(path) || !(fh = Open((STRPTR)path, MODE_OLDFILE))) return NULL;
+    Seek(fh, 0, OFFSET_END);
+    size = Seek(fh, 0, OFFSET_BEGINNING);
+    if (size < 0) size = 0;
+    if (size > CN_FILEMAX) size = CN_FILEMAX;
+    if (!(buf = AllocVec(size + 1, MEMF_ANY))) { Close(fh); return NULL; }
+    n = size ? Read(fh, buf, size) : 0;
+    Close(fh);
+    if (n < 0) n = 0;
+    if ((z = memchr(buf, 0x1A, n))) n = z - buf;
+    *len = n;
+    return buf;
+}
+
+/* "{*0 file}" / "{$ cmd}": the part after the digits */
+static const char *cn_path(const char *arg)
+{
+    while (*arg >= '0' && *arg <= '9') arg++;
+    while (*arg == ' ') arg++;
+    return arg;
+}
+
+/* {$ cmd}: an AmigaDOS command, NIL: in and out, synchronously (TradeWars cleans up with it) */
+static void cn_dos(const char *cmd)
+{
+    BPTR nin, nout;
+    if (!cmd[0]) return;
+    nin = Open((STRPTR)"NIL:", MODE_OLDFILE);
+    nout = Open((STRPTR)"NIL:", MODE_NEWFILE);
+    if (nin && nout) SystemTags((STRPTR)cmd, SYS_Input, nin, SYS_Output, nout, TAG_END);
+    if (nin) Close(nin);
+    if (nout) Close(nout);
+}
+
+/* one MCI code.  nowait: a prompt's text, where the codes that wait or show files do nothing.
+ * TRUE: the top stream now waits, or a {* file} went on top of it */
+static BOOL cn_act(UBYTE cmd, const char *arg, BOOL nowait)
+{
+    struct CnStream *s = S.cn.nst ? &S.cn.st[S.cn.nst - 1] : NULL;
+    char out[200];
+    LONG n;
+    switch (cmd | 0x20) {
+    case 'g':                                   /* {Gn} a key into register 70+n */
+        if (nowait || !s) return FALSE;
+        S.cn.mreg = (UBYTE)(atoi(arg) % 5);
+        s->wait = MW_KEY;
+        return TRUE;
+    case 'i': {                                 /* {In m} a line (m long) into register 70 */
+        const char *m = strchr(arg, ' ');
+        if (nowait || !s) return FALSE;
+        S.cn.mflags = (UWORD)atoi(arg);
+        S.cn.mmax = m ? atoi(m + 1) : 40;
+        if (S.cn.mmax <= 0 || S.cn.mmax > 80) S.cn.mmax = 40;
+        S.len = 0;
+        s->wait = MW_LINE;
+        return TRUE;
+    }
+    case 'w':                                   /* {Wn} n seconds (30 at most) */
+        n = atoi(arg);
+        if (nowait || !s || n <= 0) return FALSE;
+        S.cn.muntil = now_s + (n > 30 ? 30 : n);
+        s->wait = MW_TIME;
+        return TRUE;
+    case 'v':                                   /* {Vn} a GETUSER value */
+        cn_getuser(atol(arg), out);
+        cn_text((const UBYTE *)out, (const UBYTE *)out + strlen(out), (const UBYTE *)out + strlen(out));
+        return FALSE;
+    case 'l': {                                 /* {Ln m} a register: m = #literal or a GETUSER */
+        const char *m = strchr(arg, ' ');
+        n = atol(arg);
+        if (!m) return FALSE;
+        m++;
+        if (*m == '#' || *m == '\'') { strncpy(out, m + 1, 83); out[83] = 0; }
+        else cn_getuser(atol(m), out);
+        if (n >= 60 && n <= 69) S.cn.nreg[n - 60] = atol(out);
+        else if (n >= 70 && n <= 74) { strncpy(S.cn.sreg[n - 70], out, 83); S.cn.sreg[n - 70][83] = 0; }
+        return FALSE;
+    }
+    case '+':                                   /* {+ text} for the call log: nothing here */
+        return FALSE;
+    case '$':                                   /* {$ cmd} */
+        cn_dos(cn_path(arg));
+        return FALSE;
+    default:
+        break;
+    }
+    switch (cmd) {
+    case '?':                                   /* {?n} yes/no: "1" / "0" into register 70 */
+        if (nowait || !s) return FALSE;
+        S.cn.mdef = (UBYTE)(atoi(arg) ? 1 : 0);
+        s->wait = MW_YESNO;
+        return TRUE;
+    case '*': {                                 /* {*n file} a file */
+        LONG len;
+        UBYTE *b;
+        if (nowait || !s) return FALSE;
+        if (!(b = cn_load(cn_path(arg), &len))) return FALSE;
+        cn_push(NULL, b, len);
+        return TRUE;
+    }
+    case '#':                                   /* {#n file} a sub-pfile: not run here */
+        word_note(S.cn.unknown, sizeof(S.cn.unknown), "{#}");
+        return FALSE;
+    case '@': case ':': case '&': case '=': case '%': case '-':
+        return FALSE;                           /* MCI modes, BBS commands, prompt defaults */
+    default:
+        switch (cmd | 0x20) {                   /* speed, kolorific, direction, tests, maths */
+        case 's': case 'k': case 'p': case 't': case 'j': case 'x': case 'm': case 'a': case 'd': case 'e':
+            return FALSE;
+        }
+        cn_draw(cmd, arg);
+        return FALSE;
+    }
+}
+
+/* run s from its position: text and codes, until its end (TRUE) or a code that waits (FALSE) */
+static BOOL cn_scan(struct CnStream *s, BOOL nowait)
+{
+    const UBYTE *buf = s->buf, *end = s->buf + s->len, *p = buf + s->pos, *run = p;
+    int depth = S.cn.nst;
+    while (p < end) {
+        if (*p == 0x11 && p + 1 < end) {        /* ^Q cmd args } */
+            char arg[200];
+            int n = 0;
+            UBYTE cmd;
+            cn_text(run, p, end);
+            cmd = p[1];
+            p += 2;
+            while (p < end && *p != '}' && n < (int)sizeof(arg) - 1) arg[n++] = *p++;
+            arg[n] = 0;
+            if (p < end && *p == '}') p++;
+            s->pos = p - buf;
+            run = p;
+            if (cn_act(cmd, arg, nowait) || S.cn.nst != depth) return FALSE;
+        } else if (*p == 0x19 && p + 2 < end) { /* ^Y cmd char */
+            char arg[2];
+            UBYTE cmd = p[1];
+            cn_text(run, p, end);
+            arg[0] = p[2];
+            arg[1] = 0;
+            p += 3;
+            s->pos = p - buf;
+            run = p;
+            if (cn_act(cmd, arg, nowait) || S.cn.nst != depth) return FALSE;
+        } else p++;
+    }
+    cn_text(run, p, end);
+    s->pos = p - buf;
+    return TRUE;
+}
+
+/* the top stream until it ends (its command is answered) or something waits */
+static void cn_run(void)
+{
+    while (S.cn.nst > 0 && S.cn.st[S.cn.nst - 1].wait == MW_NONE) {
+        if (cn_dead()) { cn_reset(); return; }
+        if (cn_scan(&S.cn.st[S.cn.nst - 1], FALSE)) cn_pop();
+    }
+}
+
+/* a prompt's text: the codes that only draw */
+static void cn_write(const char *t, LONG n)
+{
+    struct CnStream tmp;
+    memset(&tmp, 0, sizeof(tmp));
+    tmp.buf = (UBYTE *)t;
+    tmp.len = n;
+    cn_scan(&tmp, TRUE);
+}
+
+/* text sent after the caller has gone: nothing shown, but {$ cmd} still runs (TradeWars deletes
+ * its "game in use" file that way on the way out) */
+static void cn_offline(const char *s, LONG len)
+{
+    const char *end = s + len;
+    while (s < end) {
+        if (*s == 0x11 && s + 1 < end) {
+            char arg[200];
+            int n = 0;
+            UBYTE cmd = s[1];
+            s += 2;
+            while (s < end && *s != '}' && n < (int)sizeof(arg) - 1) arg[n++] = *s++;
+            arg[n] = 0;
+            if (s < end) s++;
+            if (cmd == '$') cn_dos(cn_path(arg));
+        } else s++;
+    }
+}
+
+/* ---- input --------------------------------------------------------------------------------- */
+
+/* the caller's next byte, -1 = none: telnet's LF or NUL after CR is swallowed */
+static int cn_key(void)
+{
+    int c;
+    pump();
+    for (;;) {
+        if ((c = inq_get()) < 0) return -1;
+        if (last_cr && (c == '\n' || c == 0)) { last_cr = FALSE; continue; }
+        last_cr = (c == '\r');
+        S.cn.last_key = now_s;
+        return c;
+    }
+}
+
+static int cn_caps(int c) { return c >= 'a' && c <= 'z' ? c - 32 : c; }  /* C-Net's GETCHAR */
+
+/* a line being typed: TRUE when it ended (CR or LF); echo as typed, * for HIDE */
+static BOOL cn_line(int c, LONG max, BOOL hide, UWORD flags)
+{
+    char b;
+    if (c == '\r' || c == '\n') { cn_raw("\r\n", 2); S.line[S.len] = 0; return TRUE; }
+    if (c == 8 || c == 127) { if (S.len > 0) { S.len--; cn_raw("\b \b", 3); } return FALSE; }
+    if (c == 21 || c == 24) { while (S.len > 0) { S.len--; cn_raw("\b \b", 3); } return FALSE; }
+    if (c < 32 || (c > 126 && c < 160) || S.len >= max || S.len >= 199) return FALSE;
+    if ((flags & 64) && (c < '0' || c > '9')) return FALSE;    /* {I} numbers only */
+    if (flags & 1) c = cn_caps(c);
+    S.line[S.len++] = (char)c;
+    b = hide ? '*' : (char)c;
+    cn_raw(&b, 1);
+    return FALSE;
+}
+
+/* a yes/no key: 1 yes, 0 no, -1 not one of them (Enter gives def) */
+static int cn_yesno(int c, int def)
+{
+    if (c == 'y' || c == 'Y') return 1;
+    if (c == 'n' || c == 'N') return 0;
+    if (c == '\r' || c == '\n') return def;
+    return -1;
+}
+
+/* the caller typed something (or a wait ran out): a waiting {G}/{I}/{?}/{W}, or the command */
+static void cn_service_input(void)
+{
+    struct CnStream *s = S.cn.nst ? &S.cn.st[S.cn.nst - 1] : NULL;
+    struct RexxMsg *m = S.cn.waiting;
+    int c, yn;
+
+    if (s && s->wait != MW_NONE) {
+        if (s->wait == MW_TIME) {
+            if (now_s >= S.cn.muntil) { s->wait = MW_NONE; cn_run(); }
+            return;
+        }
+        while (s->wait != MW_NONE && (c = cn_key()) >= 0) {
+            if (s->wait == MW_KEY) {
+                S.cn.sreg[S.cn.mreg][0] = (char)c;
+                S.cn.sreg[S.cn.mreg][1] = 0;
+                s->wait = MW_NONE;
+            } else if (s->wait == MW_YESNO) {
+                if ((yn = cn_yesno(c, S.cn.mdef)) < 0) continue;
+                cn_rawstr(yn ? "Yes\r\n" : "No\r\n");
+                strcpy(S.cn.sreg[0], yn ? "1" : "0");
+                s->wait = MW_NONE;
+            } else if (cn_line(c, S.cn.mmax, FALSE, S.cn.mflags)) {
+                strncpy(S.cn.sreg[0], S.line, 83);
+                S.cn.sreg[0][83] = 0;
+                s->wait = MW_NONE;
+            }
+        }
+        if (s->wait == MW_NONE) cn_run();
+        return;
+    }
+    if (!m) return;
+    switch (S.cn.wait_kind) {
+    case CK_KEY:
+        if ((c = cn_key()) < 0) return;
+        { char b = (char)cn_caps(c); aim_reply(m, 0, &b, 1); }
+        break;
+    case CK_MAYBE:
+        if ((c = cn_key()) >= 0) { char b = (char)cn_caps(c); aim_reply(m, 0, &b, 1); wait_disarm(); }
+        else if (wait_expired()) cn_reply(m, "NOCHAR");
+        else return;
+        break;
+    case CK_YESNO:
+        for (;;) {
+            if ((c = cn_key()) < 0) return;
+            if ((yn = cn_yesno(c, S.cn.qdef)) >= 0) break;
+        }
+        cn_rawstr(yn ? "Yes\r\n" : "No\r\n");
+        cn_reply(m, yn ? "Yes" : "No");
+        break;
+    default:
+        for (;;) {
+            if ((c = cn_key()) < 0) return;
+            if (cn_line(c, S.maxlen, S.cn.qhide, 0)) break;
+        }
+        aim_reply(m, 0, S.line, S.len);
+        break;
+    }
+    S.cn.waiting = NULL;
+}
+
+static void cn_park(struct RexxMsg *m, UBYTE kind, LONG maxlen)
+{
+    if (S.cn.waiting) { cn_reply(m, ""); return; }      /* one at a time */
+    if (now_s - S.cn.want_at > 2) S.cn.last_key = now_s;  /* the keyboard timeout starts now */
+    S.cn.want_at = now_s;
+    S.cn.waiting = m;
+    S.cn.wait_kind = kind;
+    S.len = 0;
+    S.maxlen = maxlen > 0 && maxlen < 200 ? maxlen : 199;
+    if (kind == CK_MAYBE) {
+        if (inq_avail()) { cn_service_input(); return; }
+        if (wreq) wait_arm(CN_POLL_USECS);
+        else { cn_reply(m, "NOCHAR"); S.cn.waiting = NULL; return; }
+    }
+    cn_service_input();
+}
+
+/* ---- commands ------------------------------------------------------------------------------ */
+
+/* after the caller has gone: the carrier questions say so, everything else is ###PANIC */
+static void cn_dead_reply(struct RexxMsg *m, const char *w)
+{
+    if (w && !strcmp(w, "GETCARRIER")) cn_reply(m, "FALSE");
+    else if (w && (!strcmp(w, "CARRIER") || !strcmp(w, "CHECKCARRIER"))) cn_reply(m, "0");
+    else cn_reply(m, CN_PANIC);
+}
+
+/* the verb of a command line: the first word, or the longest verb the line starts with (ARexx
+ * glues a command to a string right after it: ss'x' with ss=SENDSTRING is SENDSTRINGx) */
+static const char *cn_verb(const char *a, LONG len, LONG *wl)
+{
+    const char *w = NULL;
+    int i, best = 0;
+    *wl = 0;
+    while (*wl < len && a[*wl] != ' ') (*wl)++;
+    for (i = 0; cn_verbs[i]; i++)
+        if ((LONG)strlen(cn_verbs[i]) == *wl && prefix_icase(a, len, cn_verbs[i])) return cn_verbs[i];
+    for (i = 0; cn_verbs[i]; i++) {
+        int l = strlen(cn_verbs[i]);
+        if (l > best && prefix_icase(a, len, cn_verbs[i])) { w = cn_verbs[i]; best = l; }
+    }
+    if (w) *wl = best;
+    return w;
+}
+
+/* a copy of the argument for a text answer: trimmed, one pair of double quotes dropped */
+static void cn_arg(const char *arg, LONG arglen, char *t, int size)
+{
+    int i = arglen < size - 1 ? arglen : size - 1, n;
+    char *p = t;
+    memcpy(t, arg, i);
+    t[i] = 0;
+    while (*p == ' ') p++;
+    if (p != t) memmove(t, p, strlen(p) + 1);
+    n = strlen(t);
+    while (n > 0 && t[n - 1] == ' ') t[--n] = 0;
+    if (n >= 2 && t[0] == '"' && t[n - 1] == '"') { memmove(t, t + 1, n - 2); t[n - 2] = 0; }
+}
+
+static UBYTE *cn_copy(const char *s, LONG n, BOOL nl)
+{
+    UBYTE *b = AllocVec(n + 3, MEMF_ANY);
+    if (!b) return NULL;
+    memcpy(b, s, n);
+    if (nl) { b[n] = '\r'; b[n + 1] = '\n'; }
+    return b;
+}
+
+static void cn_command(struct RexxMsg *m)
+{
+    const char *a = (const char *)m->rm_Args[0], *arg, *w;
+    LONG len, arglen, wl, n;
+    char t[200], out[200];
+    int i;
+
+    if ((m->rm_Action & RXCODEMASK) != RXCOMM || !a) { aim_reply(m, 20, NULL, 0); return; }
+    if (m->rm_Node.mn_ReplyPort && m->rm_Node.mn_ReplyPort->mp_SigTask)
+        S.cn.script = (struct Task *)m->rm_Node.mn_ReplyPort->mp_SigTask;
+    S.cmds++;
+    len = ((const struct RexxArg *)(a - offsetof(struct RexxArg, ra_Buff)))->ra_Length;
+    w = cn_verb(a, len, &wl);
+    arg = a + wl;
+    arglen = len - wl;
+    if (w && arglen > 0 && *arg == ' ') { arg++; arglen--; }
+    cn_arg(arg, arglen, t, sizeof(t));
+    n = (w && (!strcmp(w, "GETUSER") || !strcmp(w, "PUTUSER") || !strcmp(w, "GETSCRATCH"))) ? atol(t) : -1;
+    if (n >= 0 && w[0] != 'P') mark_seen(n);
+
+    if (S.log) {
+        f_begin('C');
+        if (w) f_kv("verb", w);
+        else { char u[16]; for (i = 0; i < 15 && i < wl; i++) u[i] = upc((UBYTE)a[i]); u[i] = 0; f_kv("verb", u); }
+        if (n >= 0) f_kvn("cmd", n);
+        f_kv_escaped("str", arg, arglen < 200 ? arglen : 200);
+        f_end();
+    }
+    if (w) word_note(S.cn.verbs, sizeof(S.cn.verbs), w);
+    if (cn_dead()) {
+        if (w && (!strcmp(w, "TRANSMIT") || !strcmp(w, "PRINT") || !strcmp(w, "SENDSTRING")))
+            cn_offline(arg, arglen);
+        cn_dead_reply(m, w);
+        return;
+    }
+    if (!w) {
+        /* a bare function call's value as a statement ("call" forgotten): C-Net ignores it */
+        if (wl && a[0] >= '0' && a[0] <= '9') { cn_reply(m, ""); return; }
+        { char u[16]; for (i = 0; i < 15 && i < wl; i++) u[i] = upc((UBYTE)a[i]); u[i] = 0;
+          word_note(S.cn.unknown, sizeof(S.cn.unknown), u[0] ? u : "?"); }
+        cn_reply(m, "");
+        return;
+    }
+
+    if (!strcmp(w, "TRANSMIT") || !strcmp(w, "PRINT") || !strcmp(w, "SENDSTRING")) {
+        BOOL nl = w[0] != 'S';
+        UBYTE *b = cn_copy(arg, arglen, nl);
+        if (!b) { cn_reply(m, ""); return; }
+        cn_push(m, b, arglen + (nl ? 2 : 0));
+        cn_run();
+    } else if (!strcmp(w, "SEND") || !strcmp(w, "SENDMODEM")) {
+        cn_raw(arg, arglen);
+        cn_reply(m, "");
+    } else if (!strcmp(w, "NEWLINE")) {
+        cn_raw("\r\n", 2);
+        cn_reply(m, "");
+    } else if (!strcmp(w, "CLS")) {
+        cn_rawstr("\x1b[2J\x1b[H");
+        S.cn.col = 0;
+        cn_reply(m, "");
+    } else if (!strcmp(w, "SENDFILE")) {
+        LONG flen;
+        UBYTE *b = cn_load(t, &flen);
+        if (b) { cn_push(m, b, flen); cn_run(); }
+        else cn_reply(m, "");
+    } else if (!strcmp(w, "GETCHAR") || !strcmp(w, "GETKEY")) {
+        cn_park(m, CK_KEY, 1);
+    } else if (!strcmp(w, "MAYGETCHAR")) {
+        cn_park(m, CK_MAYBE, 1);
+    } else if (!strcmp(w, "BUFFERFLUSH")) {
+        pump();
+        inq_head = inq_tail = 0;
+        cn_reply(m, "");
+    } else if (!strcmp(w, "CHECKIO") || !strcmp(w, "IREADY")) {
+        pump();
+        cn_reply(m, inq_avail() ? "1" : "0");
+    } else if (!strcmp(w, "QUERY") || !strcmp(w, "RECEIVE")) {
+        cn_write(arg, arglen);
+        S.cn.qhide = FALSE;
+        cn_park(m, CK_LINE, 80);
+    } else if (!strcmp(w, "PROMPT")) {
+        /* PROMPT <len> NORMAL|HIDE|YESNO|NOYES <text>; the text in double quotes or not */
+        const char *p = arg, *e = arg + arglen, *mode = NULL;
+        LONG max = 0, ml = 0;
+        UBYTE kind = CK_LINE;
+        while (p < e && *p == ' ') p++;
+        if (p < e && *p >= '0' && *p <= '9') {
+            max = atol(p);
+            while (p < e && *p != ' ') p++;
+            while (p < e && *p == ' ') p++;
+        }
+        mode = p;
+        while (p + ml < e && p[ml] != ' ') ml++;
+        S.cn.qhide = FALSE;
+        if (ml == 4 && prefix_icase(mode, ml, "HIDE")) S.cn.qhide = TRUE;
+        else if (ml == 5 && (prefix_icase(mode, ml, "YESNO") || prefix_icase(mode, ml, "NOYES"))) {
+            kind = CK_YESNO;
+            S.cn.qdef = upc((UBYTE)mode[0]) == 'Y';
+        } else if (!(ml == 6 && prefix_icase(mode, ml, "NORMAL"))) ml = 0;     /* no mode: all text */
+        p += ml;
+        if (ml && p < e && *p == ' ') p++;
+        if (e - p >= 2 && *p == '"' && e[-1] == '"') { p++; e--; }
+        else if (e - p >= 1 && *p == '"') p++;
+        if (e > p) cn_write(p, e - p);
+        cn_park(m, kind, max > 0 && max < 200 ? max : 199);
+    } else if (!strcmp(w, "GETUSER")) {
+        cn_getuser(n, out);
+        cn_reply(m, out);
+    } else if (!strcmp(w, "SETOBJECT")) {
+        strncpy(S.cn.obj, t, sizeof(S.cn.obj) - 1);
+        S.cn.obj[sizeof(S.cn.obj) - 1] = 0;
+        cn_reply(m, "");
+    } else if (!strcmp(w, "PUTUSER")) {
+        cn_putuser(n);
+        cn_reply(m, "");
+    } else if (!strcmp(w, "GETCARRIER")) {
+        cn_reply(m, "TRUE");
+    } else if (!strcmp(w, "CARRIER") || !strcmp(w, "CHECKCARRIER")) {
+        cn_reply(m, "1");
+    } else if (!strcmp(w, "BBSIDENTIFY")) {
+        out[0] = 0;
+        if (prefix_icase(t, strlen(t), "EMULATION")) strcpy(out, S.ansi ? "ANSI" : "ASCII");
+        else if (prefix_icase(t, strlen(t), "ABBEREXX")) strcpy(out, "1.0");
+        else if (prefix_icase(t, strlen(t), "BBS")) strcpy(out, "5.36c");
+        else if (prefix_icase(t, strlen(t), "NAME")) { strncpy(out, get("bbsname", "ENiGMA"), 80); out[80] = 0; }
+        else if (prefix_icase(t, strlen(t), "SYSOP")) { strncpy(out, get("sysop", "SysOp"), 80); out[80] = 0; }
+        else if (prefix_icase(t, strlen(t), "TERM"))
+            sprintf(out, "38400 %ld %ld %ld", (long)S.cols, (long)S.rows, (long)cn_port());
+        else if (prefix_icase(t, strlen(t), "USER")) {
+            char nm[84], lo[84];
+            strncpy(nm, get("name", "User"), 80); nm[80] = 0;
+            strncpy(lo, get("location", ""), 80); lo[80] = 0;
+            snprintf(out, sizeof(out), "\"%s\" \"%s\" %s", nm, lo,
+                     cn_account() == 1 ? "SYSOP" : cn_sysop() ? "CO-SYSOP" : "MEMBER");
+        }
+        cn_reply(m, out);
+    } else if (!strcmp(w, "VERSION")) {
+        cn_reply(m, "CNet AMIGA 5.36c (axshim " SHIM_VERSION ")");
+    } else if (!strcmp(w, "CHANGEWHERE") || !strcmp(w, "SETNODELOCATION") || !strcmp(w, "CHANGEWHAT")) {
+        strcpy(out, S.cn.where);        /* C-Net answers the one before */
+        strncpy(S.cn.where, t, sizeof(S.cn.where) - 1);
+        S.cn.where[sizeof(S.cn.where) - 1] = 0;
+        cn_reply(m, out);
+    } else if (!strcmp(w, "ADDTIME")) {         /* tenths of a minute (SDK), signed */
+        LONG left = time_left() + atol(t) * 6;
+        S.budget = left > 0 ? left : 0;
+        S.budget_base = now_s;
+        S.cn.addtime += atol(t);
+        cn_reply(m, "");
+    } else if (!strcmp(w, "ADDPOINTS")) {
+        S.cn.points += atol(t);
+        S.cn.addpoints += atol(t);
+        S.wrote = TRUE;
+        cn_reply(m, "");
+    } else if (!strcmp(w, "ADDKEYS")) {         /* typed ahead of whatever is waiting */
+        for (i = arglen - 1; i >= 0; i--) {
+            UWORD prev = (inq_tail - 1) & (INQSIZE - 1);
+            if (prev == inq_head) break;
+            inq_tail = prev;
+            inq[inq_tail] = (UBYTE)arg[i];
+        }
+        cn_reply(m, "");
+        if (S.cn.waiting) cn_service_input();
+    } else if (!strcmp(w, "FINDACCOUNT")) {     /* the caller's own handle or number, else 0 */
+        n = 0;
+        if (t[0] >= '0' && t[0] <= '9') n = atol(t) == cn_account() ? cn_account() : 0;
+        else if (t[0] && ieq(t, get("name", "User"))) n = cn_account();
+        sprintf(out, "%ld", (long)n);
+        cn_reply(m, out);
+    } else if (!strcmp(w, "GETPORTID")) {
+        sprintf(out, "%ld", (long)(atol(t) == cn_port() ? cn_account() : -1));
+        cn_reply(m, out);
+    } else if (!strcmp(w, "LOADSCRATCH")) {     /* only the caller's own account is there */
+        S.cn.scratch = atol(t) == cn_account();
+        cn_reply(m, S.cn.scratch ? "1" : "0");
+    } else if (!strcmp(w, "GETSCRATCH")) {
+        out[0] = 0;
+        if (S.cn.scratch) cn_getuser(n, out);
+        cn_reply(m, out);
+    } else if (!strcmp(w, "SAVESCRATCH")) {     /* other accounts are never written */
+        S.cn.scratch = FALSE;
+        cn_reply(m, "0");
+    } else if (!strcmp(w, "CLEAREDITOR") || !strcmp(w, "SETMAILSUBJ") || !strcmp(w, "PUTSCRATCH")
+               || !strcmp(w, "SETPROTOCOL")) {
+        cn_reply(m, "");
+    } else if (!strcmp(w, "LOADEDITOR") || !strcmp(w, "SAVEEDITOR") || !strcmp(w, "CALLEDITOR")
+               || !strcmp(w, "WRITEMAIL") || !strcmp(w, "XUP") || !strcmp(w, "XDN")) {
+        cn_reply(m, "0");                       /* no editor, no mail, no transfers */
+    } else if (!strcmp(w, "CHECKABORT")) {
+        cn_reply(m, "0");
+    } else if (!strcmp(w, "SPAWN")) {          /* the named script takes the port when this ends */
+        Forbid();
+        strncpy(LN.spawn, t, sizeof(LN.spawn) - 1);
+        LN.spawn[sizeof(LN.spawn) - 1] = 0;
+        Permit();
+        cn_reply(m, "");
+    } else if (!strcmp(w, "BYE") || !strcmp(w, "HANGUP") || !strcmp(w, "DROPCARRIER")) {
+        S.dtr = TRUE;                           /* reported as dropdtr=1 in X */
+        cn_reply(m, "");
+    } else cn_reply(m, "");     /* LOGENTRY SYSOPLOG SHUTDOWN SCREENOUT BBSCOMMAND OPENDISPLAY
+                                 * CLOSEDISPLAY BAUD MODEM RESETMODEM SETMINFREE SETLENGTH FEEDBACK */
+}
+
+/* a command after its session: the caller has gone */
+static void cn_zombie(struct RexxMsg *m)
+{
+    const char *a = (const char *)m->rm_Args[0];
+    LONG wl;
+    if ((m->rm_Action & RXCODEMASK) != RXCOMM || !a) { aim_reply(m, 20, NULL, 0); return; }
+    cn_dead_reply(m, cn_verb(a, ((const struct RexxArg *)(a - offsetof(struct RexxArg, ra_Buff)))->ra_Length, &wl));
+}
+
+/* the session's CNETREXX<port>, and ARexx itself; CNET:Mail/Users/<account> when the image keeps
+ * C-Net's mail tree (pfiles leave per-caller files there) */
+static const char *cn_open(void)
+{
+    const char *err = rexx_ready();
+    char dir[48];
+    BPTR l;
+    if (err) return err;
+    if ((l = Lock((STRPTR)"CNET:Mail/Users", ACCESS_READ))) {
+        UnLock(l);
+        sprintf(dir, "CNET:Mail/Users/%ld", (long)cn_account());
+        if ((l = Lock((STRPTR)dir, ACCESS_READ)) || (l = CreateDir((STRPTR)dir))) UnLock(l);
+    }
+    sprintf(cportname, "CNETREXX%ld", (long)cn_port());
+    Forbid();
+    if (FindPort((STRPTR)cportname)) { Permit(); return "door port busy"; }
+    if ((cport = CreateMsgPort())) {
+        cport->mp_Node.ln_Name = cportname;
+        cport->mp_Node.ln_Pri = 0;
+        AddPort(cport);
+    }
+    Permit();
+    return cport ? NULL : "door port busy";
+}
+
+static void cport_close(void)
+{
+    struct RexxMsg *m;
+    if (!cport) return;
+    Forbid();
+    RemPort(cport);
+    while ((m = (struct RexxMsg *)GetMsg(cport))) cn_zombie(m);
+    Permit();
+    DeleteMsgPort(cport);
+    cport = NULL;
+}
+
+/* the launcher's side: the script (and any it SPAWNs) as C-Net started pfiles, a RexxMsg to REXX
+ * with CNETREXX<port> as its host; returns the last script's return code, -1 if none ran */
+static LONG cn_launch_script(BPTR in, BPTR out)
+{
+    struct MsgPort *rp = CreateMsgPort(), *rexx;
+    struct RexxMsg *m;
+    char cmd[300];
+    LONG rc = -1;
+    if (!rp) return -1;
+    strcpy(cmd, LN.cmd);
+    for (;;) {
+        if (!(m = CreateRexxMsg(rp, (STRPTR)"rexx", (STRPTR)cportname))) break;
+        if (!(m->rm_Args[0] = CreateArgstring((STRPTR)cmd, strlen(cmd)))) { DeleteRexxMsg(m); break; }
+        m->rm_Action = RXCOMM;
+        m->rm_Stdin = in;
+        m->rm_Stdout = out;
+        Forbid();
+        if ((rexx = FindPort((STRPTR)"REXX"))) PutMsg(rexx, (struct Message *)m);
+        Permit();
+        if (!rexx) { DeleteArgstring(m->rm_Args[0]); DeleteRexxMsg(m); break; }
+        WaitPort(rp);
+        GetMsg(rp);
+        rc = m->rm_Result1;
+        DeleteArgstring(m->rm_Args[0]);
+        DeleteRexxMsg(m);
+        Forbid();               /* SPAWN: the next script, on the same port */
+        strcpy(cmd, LN.spawn);
+        LN.spawn[0] = 0;
+        Permit();
+        if (!cmd[0]) break;
+    }
+    DeleteMsgPort(rp);
+    return rc;
+}
+
+/* the C-Net half of session_service(): input, waits, timeouts, the script's end, X */
+static void cn_session_service(void)
+{
+    struct RexxMsg *m;
+    struct CnStream *s = S.cn.nst ? &S.cn.st[S.cn.nst - 1] : NULL;
+    BOOL ended = FALSE, wants;
+
+    if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
+    /* the keyboard timeout: while a command or a {G}/{I}/{?} waits, or the script polled
+     * MAYGETCHAR within the last 2 seconds */
+    wants = (S.cn.waiting && S.cn.wait_kind != CK_MAYBE) || (s && s->wait != MW_NONE && s->wait != MW_TIME)
+            || now_s - S.cn.want_at <= 2;
+    if (!cn_dead() && S.timeout > 0 && wants && now_s - S.cn.last_key >= (ULONG)S.timeout) {
+        S.cn.timedout = TRUE;
+        S.input_failed = TRUE;
+    }
+    if (!cn_dead()) cn_service_input();
+
+    if (cn_dead()) {
+        if (!S.cn.broken) {
+            S.cn.broken = TRUE;
+            S.cn.dead_at = now_s;
+            Forbid();
+            LN.spawn[0] = 0;
+            Permit();
+            /* panicgrace 0: break the script BEFORE it gets its answer (ARexx halts at the end of
+             * the clause, so a door that would save "###PANIC" as a name writes nothing) */
+            if (S.cn.panicgrace <= 0 && !LN.done) { cli_signal(S.cn.script, SIGBREAKF_CTRL_C); S.cn.sig_at = now_s ? now_s : 1; }
+            if (S.cn.waiting) { wait_disarm(); cn_reply(S.cn.waiting, CN_PANIC); S.cn.waiting = NULL; }
+            cn_reset();
+        } else if (!LN.done && now_s - S.cn.dead_at >= (ULONG)S.cn.panicgrace
+                   && (!S.cn.sig_at || now_s - S.cn.sig_at >= CN_BREAK_REPEAT)) {
+            S.cn.sig_at = now_s;
+            cli_signal(S.cn.script, SIGBREAKF_CTRL_C);
+        }
+    }
+
+    if (LN.done) {              /* the script (and what it spawned) has ended */
+        while (cport && (m = (struct RexxMsg *)GetMsg(cport))) cn_command(m);
+        if (!S.cmds && LN.rc && !S.lost) {
+            char out[120], err[200];
+            script_stdout(out, sizeof(out));
+            snprintf(err, sizeof(err), "script ended without a host command (rc=%ld)%s%s", (long)LN.rc,
+                     out[0] ? ": " : "", out);
+            reap();
+            error_session(err);
+            return;
+        }
+        ended = TRUE;
+    } else if (S.cn.broken && now_s - S.cn.dead_at >= CARRIER_GRACE) {
+        ended = TRUE;
+    }
+    if (!ended) return;
+
+    if (S.lost == LOST_HANGUP) end_session("carrier", NULL);
+    else if (S.lost == LOST_TIMEUP) end_session("timeout", NULL);
+    else if (S.lost == LOST_BREAK) end_session("break", NULL);
+    else if (S.timeup || S.cn.timedout) end_session("timeout", NULL);
+    else end_session("ok", NULL);
+}
+
 /* ---- the session's clock work: input, editor, exit ------------------------------------ */
 
 static void session_service(void)
@@ -3014,6 +4196,7 @@ static void session_service(void)
     if (S.cli.on) { cli_session_service(); return; }
     if (S.aim.on) { aim_session_service(); return; }
     if (S.tim.on) { tim_session_service(); return; }
+    if (S.cn.on) { cn_session_service(); return; }
 
     if (!S.timeup && time_left() <= 0) { S.timeup = TRUE; S.timeup_at = now_s; }
 
@@ -3084,6 +4267,7 @@ static void step(void)
             if (port) while ((m = (struct JHMessage *)GetMsg(port))) zombie_reply(m);
             if (aport) while ((rm = (struct RexxMsg *)GetMsg(aport))) aim_zombie(rm);
             if (dport) while ((dm = (struct DoorMsg *)GetMsg(dport))) tim_zombie(dm);
+            if (cport) while ((rm = (struct RexxMsg *)GetMsg(cport))) cn_zombie(rm);
             cli_zombie_service();
             if (LN.busy && LN.done) reap();
             if (s_pending) {
@@ -3102,6 +4286,10 @@ static void step(void)
             }
             if (dport) while ((dm = (struct DoorMsg *)GetMsg(dport))) {
                 if (S.tim.on) tim_command(dm); else tim_zombie(dm);
+                pump();
+            }
+            if (cport) while ((rm = (struct RexxMsg *)GetMsg(cport))) {
+                if (S.cn.on) cn_command(rm); else cn_zombie(rm);
                 pump();
             }
             session_service();
@@ -3141,6 +4329,8 @@ int main(int argc, char **argv)
     assign("BBS", "SYS:");
     assign("DOORS", "SYS:Doors");
     assign("PGDOORS", "SYS:Doors");     /* Paragon doors' door path (PG_US 7, as /X answers) */
+    assign("PFILES", "SYS:PFiles");     /* C-Net's pfile and system trees, when the image has them */
+    assign("CNET", "SYS:CNet");
 
     emit_hello(baud);
     emit_ready();
@@ -3149,6 +4339,8 @@ int main(int argc, char **argv)
         if (port) sigs |= 1UL << port->mp_SigBit;
         if (aport) sigs |= 1UL << aport->mp_SigBit;
         if (dport) sigs |= 1UL << dport->mp_SigBit;
+        if (cport) sigs |= 1UL << cport->mp_SigBit;
+        if (wport) sigs |= wait_sigmask();          /* MAYGETCHAR's wait, too */
         if (LN.busy && LN.donesig >= 0) sigs |= 1UL << LN.donesig;
         if (extsig >= 0) sigs |= 1UL << extsig;
         if (hport) sigs |= (1UL << hport->mp_SigBit) | wait_sigmask();

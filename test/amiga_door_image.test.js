@@ -124,6 +124,116 @@ describe('amiga_door make_image.sh', function () {
         }
     });
 
+    //  a stand-in xdftool that records its arguments, one per line, and
+    //  "reads" empty files (for -w)
+    const fakeXdftool = name => {
+        const log = path.join(dir, `${name}-args.txt`);
+        const fake = path.join(dir, `${name}-xdftool.sh`);
+        fs.writeFileSync(
+            fake,
+            `#!/bin/sh\nprintf '%s\\n' "$@" >> '${log}'\n` +
+                'while [ $# -gt 0 ]; do\n' +
+                '  if [ "$1" = read ]; then : > "$3"; shift 3; else shift; fi\n' +
+                'done\n',
+            { mode: 0o755 }
+        );
+        return { fake, args: () => fs.readFileSync(log, 'utf8').split('\n') };
+    };
+
+    it('makes 2000K images by default, and says nothing about the size', () => {
+        const door = path.join(dir, 'Default');
+        fs.mkdirSync(door, { recursive: true });
+        fs.writeFileSync(path.join(door, 'd.xim'), 'x');
+        const x = fakeXdftool('default');
+        const r = run([path.join(dir, 'default.hdf'), door], { XDFTOOL: x.fake });
+        assert.equal(r.status, 0, r.stderr);
+        assert.ok(x.args().includes('size=2000K'));
+        assert.doesNotMatch(r.stderr, /warning/);
+    });
+
+    it('warns about a size over 4066 blocks, and still builds it', () => {
+        const door = path.join(dir, 'Big');
+        fs.mkdirSync(door, { recursive: true });
+        fs.writeFileSync(path.join(door, 'b.xim'), 'x');
+        for (const [size, warns] of [
+            ['2032K', false],
+            ['2033K', false], //  4066 blocks: one bitmap block covers it
+            ['2034K', true],
+            ['4M', true],
+        ]) {
+            const x = fakeXdftool(`size-${size}`);
+            const r = run(['-f', '-s', size, path.join(dir, 'big.hdf'), door], {
+                XDFTOOL: x.fake,
+            });
+            assert.equal(r.status, 0, r.stderr);
+            assert.ok(x.args().includes(`size=${size}`));
+            if (warns) {
+                assert.match(
+                    r.stderr,
+                    /warning: .* over 4066 blocks .*Use -s 2032K or\s+less \(the largest 8 KB multiple under the 4066-block limit\)/s,
+                    size
+                );
+            } else {
+                assert.doesNotMatch(r.stderr, /warning/, size);
+            }
+        }
+    });
+
+    it('-p puts a C-Net pfile in PFiles/ with the mail tree; -c a command in C:', () => {
+        const pfile = path.join(dir, 'Badlibs');
+        fs.mkdirSync(path.join(pfile, 'data'), { recursive: true });
+        fs.writeFileSync(path.join(pfile, 'badlibs'), '/* */');
+        fs.writeFileSync(path.join(pfile, 'data', 'stories'), '');
+        const qsort = path.join(dir, 'QSort');
+        fs.writeFileSync(qsort, 'QS');
+        const adf = path.join(dir, 'Workbench3.1.adf');
+        fs.writeFileSync(adf, '');
+        const x = fakeXdftool('cnet');
+
+        //  no DOORDIR: the pfiles are enough
+        const r = run(['-w', adf, '-c', qsort, '-p', pfile, path.join(dir, 'cnet.hdf')], {
+            XDFTOOL: x.fake,
+        });
+        assert.equal(r.status, 0, r.stderr);
+        const args = x.args();
+        for (const f of [
+            'Rexxc/RX',
+            'PFiles',
+            'CNet/Mail/Users',
+            'PFiles/Badlibs',
+            'PFiles/Badlibs/badlibs',
+            'PFiles/Badlibs/data',
+            'PFiles/Badlibs/data/stories',
+            'C/QSort',
+        ]) {
+            assert.ok(args.includes(f), `${f} not handed to xdftool`);
+        }
+        assert.ok(args.includes(qsort));
+        assert.ok(!args.some(a => a.startsWith('Doors/')), 'no door directory');
+    });
+
+    it('-p needs -w; -p and -c refuse what is not there', () => {
+        const pfile = path.join(dir, 'Lonely');
+        fs.mkdirSync(pfile, { recursive: true });
+        let r = run(['-p', pfile, path.join(dir, 'c.hdf')], { XDFTOOL: 'true' });
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /C-Net ARexx doors \(-p\) need ARexx: .* -w/);
+
+        const adf = path.join(dir, 'Workbench3.1.adf');
+        fs.writeFileSync(adf, '');
+        r = run(['-w', adf, '-p', path.join(dir, 'nope'), path.join(dir, 'c.hdf')], {
+            XDFTOOL: 'true',
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /not a directory/);
+
+        r = run(['-c', path.join(dir, 'nope'), path.join(dir, 'c.hdf'), pfile], {
+            XDFTOOL: 'true',
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /no such file/);
+    });
+
     it('-w refuses a Workbench disk that is not there', () => {
         const r = run(['-w', path.join(dir, 'nope.adf'), path.join(dir, 'b.hdf'), dir], {
             XDFTOOL: 'true',
